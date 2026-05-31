@@ -14,6 +14,14 @@ from app.db.base import Base
 from app.db.session import get_session
 from app.main import create_app
 from app.models.audit import AuditEvent
+from app.models.campaign import (
+    Campaign,
+    CampaignCreative,
+    CampaignStatus,
+    CreativePlacement,
+    CreativeStatus,
+    CreativeType,
+)
 from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.organization import (
     AdvertiserOrganization,
@@ -215,6 +223,80 @@ def create_test_vehicle(
             await session.commit()
             await session.refresh(vehicle)
             return vehicle
+
+    return asyncio.run(create())
+
+
+def create_test_campaign(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    organization_id: UUID,
+    created_by_user_id: UUID,
+    name: str = "Launch Campaign",
+    description: str | None = "Shared ride vehicle campaign",
+    campaign_status: CampaignStatus = CampaignStatus.DRAFT,
+    budget_amount=None,
+    daily_budget_amount=None,
+    currency: str = "NGN",
+    metadata: dict | None = None,
+) -> Campaign:
+    async def create() -> Campaign:
+        async with db_sessionmaker() as session:
+            campaign = Campaign(
+                organization_id=organization_id,
+                created_by_user_id=created_by_user_id,
+                name=name,
+                description=description,
+                status=campaign_status,
+                budget_amount=budget_amount,
+                daily_budget_amount=daily_budget_amount,
+                currency=currency,
+                campaign_metadata=metadata or {},
+            )
+            session.add(campaign)
+            await session.commit()
+            await session.refresh(campaign)
+            return campaign
+
+    return asyncio.run(create())
+
+
+def create_test_campaign_creative(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    campaign_id: UUID,
+    name: str = "Exterior Wrap",
+    creative_type: CreativeType = CreativeType.IMAGE,
+    placement: CreativePlacement = CreativePlacement.VEHICLE_EXTERIOR,
+    asset_url: str | None = "https://example.com/wrap.png",
+    mime_type: str | None = "image/png",
+    width_px: int | None = 1200,
+    height_px: int | None = 800,
+    duration_seconds: int | None = None,
+    checksum: str | None = "sha256-placeholder",
+    creative_status: CreativeStatus = CreativeStatus.DRAFT,
+    metadata: dict | None = None,
+) -> CampaignCreative:
+    async def create() -> CampaignCreative:
+        async with db_sessionmaker() as session:
+            creative = CampaignCreative(
+                campaign_id=campaign_id,
+                name=name,
+                creative_type=creative_type,
+                placement=placement,
+                asset_url=asset_url,
+                mime_type=mime_type,
+                width_px=width_px,
+                height_px=height_px,
+                duration_seconds=duration_seconds,
+                checksum=checksum,
+                status=creative_status,
+                creative_metadata=metadata or {},
+            )
+            session.add(creative)
+            await session.commit()
+            await session.refresh(creative)
+            return creative
 
     return asyncio.run(create())
 
