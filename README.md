@@ -16,9 +16,13 @@ Backend foundation for the Mobility AdTech & Audience Attribution Platform.
 
 ## Current Scope
 
-This repo currently contains Slice 0 only: project foundation, app boot, settings, health endpoints, request IDs, expected error envelope, SQLAlchemy/Alembic foundation, Docker Compose, tests, and linting.
+This repo currently contains Slice 1: project foundation, request IDs, expected error
+envelope, SQLAlchemy/Alembic foundation, JWT login, current-user context, RBAC, admin
+user management, advertiser organizations, organization memberships, audit events,
+Docker Compose, tests, and linting.
 
-Business features such as auth, users, campaigns, drivers, vehicles, GPS tracking, analytics, payouts, reports, heatmaps, and seed data begin in later approved slices.
+Business features such as campaigns, drivers, vehicles, GPS tracking, analytics,
+payouts, reports, heatmaps, and seed data begin in later approved slices.
 
 ## Local Prerequisites
 
@@ -58,6 +62,26 @@ Health endpoints:
 
 Readiness checks the database only when `DATABASE_URL` is configured. Without a configured database URL, it returns `database: not_configured`.
 
+Slice 1 auth and organization endpoints:
+
+- `POST /api/v1/auth/login`
+- `GET /api/v1/me`
+- `POST /api/v1/admin/users`
+- `GET /api/v1/admin/users`
+- `PATCH /api/v1/admin/users/{user_id}`
+- `POST /api/v1/admin/advertiser-organizations`
+- `GET /api/v1/advertiser/organization`
+
+Protected endpoints use bearer auth:
+
+```http
+Authorization: Bearer <access_token>
+```
+
+Admin-created users require passwords at least `PASSWORD_MIN_LENGTH` characters long.
+Emails are normalized to lowercase before storage and login lookup. JWT signing uses
+`JWT_SECRET_KEY`, `JWT_ALGORITHM`, and `ACCESS_TOKEN_EXPIRE_MINUTES`.
+
 ## Tests
 
 ```powershell
@@ -80,7 +104,9 @@ $env:DATABASE_URL = "postgresql+asyncpg://mobility:mobility@localhost:5433/mobil
 alembic upgrade head
 ```
 
-The initial migration enables `pgcrypto` and `postgis`. It does not create business tables.
+The initial migration enables `pgcrypto` and `postgis`. Slice 1 adds only the approved
+identity and tenancy tables: `users`, `advertiser_organizations`,
+`organization_memberships`, and `audit_events`.
 
 ## Docker Compose
 

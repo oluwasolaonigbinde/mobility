@@ -3,3 +3,8 @@ from sqlalchemy.orm import DeclarativeBase
 
 class Base(DeclarativeBase):
     pass
+
+
+import app.models.audit  # noqa: E402,F401
+import app.models.organization  # noqa: E402,F401
+import app.models.user  # noqa: E402,F401

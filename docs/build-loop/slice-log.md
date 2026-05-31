@@ -2,7 +2,7 @@
 
 ## Current State
 
-Status: SLICE 0 APPROVED
+Status: SLICE 1 PASS
 
 Pro returned `Verdict: SIGNED OFF` for the initial context packet. The roadmap is saved at `docs/build-loop/pro-responses/initial-roadmap.md`, and the initial reconciliation is saved at `docs/build-loop/pro-responses/initial-context-reconciliation.md`.
 
@@ -11,8 +11,8 @@ Pro returned `Verdict: SIGNED OFF` for the initial context packet. The roadmap i
 | Slice | Status | Branch/Worktree | Prompt | Report | Pro Packet | Pro Response | Commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Slice 0 - Project foundation | PASS | `master` | `docs/build-loop/prompts/slice-00-project-foundation.md` | `docs/build-loop/reports/slice-00-project-foundation.md` | `docs/build-loop/pro-packets/slice-00-project-foundation.md` | `docs/build-loop/pro-responses/slice-00-project-foundation.md` | `0da3e30` | Pro verdict: PASS. Safe to commit. FastAPI app, settings, health endpoints, DB session foundation, Alembic, Docker Compose, PostGIS/Redis, tests, linting. |
-| Slice 1 - Auth, users, roles, advertiser organizations | PLANNED | Pending | `docs/build-loop/prompts/slice-01-auth-users-organizations.md` | Pending | Pending | Pending | Pending | Identity, JWT login, RBAC, admin user management, advertiser tenancy. |
-| Slice 2 - Driver and vehicle foundations | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Driver profiles, vehicle profiles, admin/driver access boundaries. |
+| Slice 1 - Auth, users, roles, advertiser organizations | PASS | `slice-01-auth-users-organizations` | `docs/build-loop/prompts/slice-01-auth-users-organizations.md` | `docs/build-loop/reports/slice-01-auth-users-organizations.md` | `docs/build-loop/pro-packets/slice-01-auth-users-organizations.md` | `docs/build-loop/pro-responses/slice-01-auth-users-organizations.md` | Pending | Pro verdict: PASS. Safe to commit. Identity, JWT login, RBAC, admin user management, advertiser tenancy. |
+| Slice 2 - Driver and vehicle foundations | PLANNED | Pending | `docs/build-loop/prompts/slice-02-driver-vehicle-foundations.md` | Pending | Pending | Pending | Pending | Driver profiles, vehicle profiles, admin/driver access boundaries. |
 | Slice 3 - Campaign management and creative metadata | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Campaign CRUD, statuses, budgets, date windows, creative metadata. |
 | Slice 4 - Campaign zones/geofences | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | GeoJSON campaign target/exclusion/bonus zones stored in PostGIS. |
 | Slice 5 - Campaign assignment and activation | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Assign campaigns to drivers/vehicles; driver accept/activate/deactivate lifecycle. |

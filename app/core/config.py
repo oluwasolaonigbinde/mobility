@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     backend_cors_origins: CorsOrigins = Field(default_factory=list)
     log_level: str = "INFO"
     request_id_header: str = "X-Request-ID"
+    jwt_secret_key: str = "change-me-local-development-secret-at-least-32-bytes"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60
+    password_min_length: int = 12
+    default_currency: str = "NGN"
 
     @field_validator("api_v1_prefix")
     @classmethod
@@ -50,6 +55,25 @@ class Settings(BaseSettings):
         if environment not in local_environments and "*" in value:
             raise ValueError("Wildcard CORS origins are not allowed outside local/test")
         return value
+
+    @field_validator("access_token_expire_minutes")
+    @classmethod
+    def validate_access_token_expire_minutes(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("ACCESS_TOKEN_EXPIRE_MINUTES must be positive")
+        return value
+
+    @field_validator("password_min_length")
+    @classmethod
+    def validate_password_min_length(cls, value: int) -> int:
+        if value < 12:
+            raise ValueError("PASSWORD_MIN_LENGTH must be at least 12")
+        return value
+
+    @field_validator("default_currency")
+    @classmethod
+    def normalize_default_currency(cls, value: str) -> str:
+        return value.upper()
 
 
 @lru_cache
