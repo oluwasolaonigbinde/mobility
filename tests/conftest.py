@@ -1,12 +1,14 @@
 import asyncio
+import os
 from collections.abc import Generator
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.core.config import Settings
 from app.core.security import hash_password
@@ -76,6 +78,39 @@ def db_sessionmaker(tmp_path: Path) -> Generator[async_sessionmaker[AsyncSession
 
 
 @pytest.fixture
+def postgis_db_sessionmaker() -> Generator[async_sessionmaker[AsyncSession], None, None]:
+    database_url = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
+    if database_url is None or not database_url.startswith("postgresql+asyncpg://"):
+        pytest.skip("PostGIS test database is not configured")
+
+    schema_name = f"test_{uuid4().hex}"
+    engine = create_async_engine(
+        database_url,
+        connect_args={"server_settings": {"search_path": f"{schema_name},public"}},
+        execution_options={"schema_translate_map": {None: schema_name}},
+        poolclass=NullPool,
+    )
+
+    async def setup_database() -> None:
+        async with engine.begin() as connection:
+            await connection.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto"))
+            await connection.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
+            await connection.execute(text(f"CREATE SCHEMA {schema_name}"))
+            await connection.execute(text(f"SET search_path TO {schema_name}, public"))
+            await connection.run_sync(Base.metadata.create_all)
+
+    async def teardown_database() -> None:
+        async with engine.begin() as connection:
+            await connection.execute(text(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE"))
+        await engine.dispose()
+
+    asyncio.run(setup_database())
+    sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+    yield sessionmaker
+    asyncio.run(teardown_database())
+
+
+@pytest.fixture
 def db_client(
     settings: Settings,
     db_sessionmaker: async_sessionmaker[AsyncSession],
@@ -84,6 +119,22 @@ def db_client(
 
     async def override_get_session():
         async with db_sessionmaker() as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_get_session
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def postgis_db_client(
+    settings: Settings,
+    postgis_db_sessionmaker: async_sessionmaker[AsyncSession],
+) -> Generator[TestClient, None, None]:
+    app = create_app(settings)
+
+    async def override_get_session():
+        async with postgis_db_sessionmaker() as session:
             yield session
 
     app.dependency_overrides[get_session] = override_get_session

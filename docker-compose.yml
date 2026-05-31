@@ -16,6 +16,7 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: 60
       PASSWORD_MIN_LENGTH: 12
       DEFAULT_CURRENCY: NGN
+      MAX_CAMPAIGN_ZONE_AREA_SQ_KM: 5000
     ports:
       - "8000:8000"
     volumes:

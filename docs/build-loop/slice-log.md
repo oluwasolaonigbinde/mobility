@@ -2,7 +2,7 @@
 
 ## Current State
 
-Status: SLICE 3 PASS
+Status: SLICE 4 PASS
 
 Pro returned `Verdict: SIGNED OFF` for the initial context packet. The roadmap is saved at `docs/build-loop/pro-responses/initial-roadmap.md`, and the initial reconciliation is saved at `docs/build-loop/pro-responses/initial-context-reconciliation.md`.
 
@@ -14,8 +14,8 @@ Pro returned `Verdict: SIGNED OFF` for the initial context packet. The roadmap i
 | Slice 1 - Auth, users, roles, advertiser organizations | PASS | `slice-01-auth-users-organizations` | `docs/build-loop/prompts/slice-01-auth-users-organizations.md` | `docs/build-loop/reports/slice-01-auth-users-organizations.md` | `docs/build-loop/pro-packets/slice-01-auth-users-organizations.md` | `docs/build-loop/pro-responses/slice-01-auth-users-organizations.md` | `3403f2f` | Pro verdict: PASS. Safe to commit. Identity, JWT login, RBAC, admin user management, advertiser tenancy. |
 | Slice 2 - Driver and vehicle foundations | PASS | `slice-02-driver-vehicle-foundations` | `docs/build-loop/prompts/slice-02-driver-vehicle-foundations.md` | `docs/build-loop/reports/slice-02-driver-vehicle-foundations.md` | `docs/build-loop/pro-packets/slice-02-driver-vehicle-foundations.md` | `docs/build-loop/pro-responses/slice-02-driver-vehicle-foundations.md` | `ab59754` | Pro verdict: PASS. Safe to commit. Driver profiles, vehicle profiles, admin/driver access boundaries. |
 | Slice 3 - Campaign management and creative metadata | PASS | `slice-03-campaigns-and-creatives` | `docs/build-loop/prompts/slice-03-campaigns-and-creatives.md` | `docs/build-loop/reports/slice-03-campaigns-and-creatives.md` | `docs/build-loop/pro-packets/slice-03-campaigns-and-creatives.md` | `docs/build-loop/pro-responses/slice-03-campaigns-and-creatives.md` | `9824b3c` | Pro verdict: PASS. Safe to commit. Campaign CRUD, statuses, budgets, date windows, creative metadata. |
-| Slice 4 - Campaign zones/geofences | PLANNED | Pending | `docs/build-loop/prompts/slice-04-campaign-zones.md` | Pending | Pending | Pending | Pending | GeoJSON campaign target/exclusion/bonus zones stored in PostGIS. |
-| Slice 5 - Campaign assignment and activation | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Assign campaigns to drivers/vehicles; driver accept/activate/deactivate lifecycle. |
+| Slice 4 - Campaign zones/geofences | PASS | `slice-04-campaign-zones` | `docs/build-loop/prompts/slice-04-campaign-zones.md` | `docs/build-loop/reports/slice-04-campaign-zones.md` | `docs/build-loop/pro-packets/slice-04-campaign-zones.md` | `docs/build-loop/pro-responses/slice-04-campaign-zones.md` | Pending | Pro verdict: PASS. Safe to commit. GeoJSON target/exclusion/bonus zones stored in PostGIS. |
+| Slice 5 - Campaign assignment and activation | PLANNED | Pending | `docs/build-loop/prompts/slice-05-campaign-assignments.md` | Pending | Pending | Pending | Pending | Assign campaigns to drivers/vehicles; driver accept/activate/deactivate lifecycle. |
 | Slice 6 - GPS ingestion and trip/session tracking | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Trip lifecycle, batched location pings, idempotency, timestamp/coordinate validation. |
 | Slice 7 - Route analytics v1 and fraud flags | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Distance, duration, dwell, zone overlap, quality metrics, basic anomaly flags. |
 | Slice 8 - Impression estimation v1 | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Transparent formula-versioned impression estimates and campaign rollups. |

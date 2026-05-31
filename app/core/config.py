@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
     password_min_length: int = 12
     default_currency: str = "NGN"
+    max_campaign_zone_area_sq_km: int = 5000
 
     @field_validator("api_v1_prefix")
     @classmethod
@@ -68,6 +69,13 @@ class Settings(BaseSettings):
     def validate_password_min_length(cls, value: int) -> int:
         if value < 12:
             raise ValueError("PASSWORD_MIN_LENGTH must be at least 12")
+        return value
+
+    @field_validator("max_campaign_zone_area_sq_km")
+    @classmethod
+    def validate_max_campaign_zone_area_sq_km(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("MAX_CAMPAIGN_ZONE_AREA_SQ_KM must be positive")
         return value
 
     @field_validator("default_currency")
