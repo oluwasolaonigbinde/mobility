@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     password_min_length: int = 12
     default_currency: str = "NGN"
     max_campaign_zone_area_sq_km: int = 5000
+    max_location_pings_per_batch: int = 500
+    location_ping_future_skew_seconds: int = 300
+    location_ping_start_skew_seconds: int = 900
+    max_location_accuracy_m: int = 10000
+    max_location_speed_mps: int = 120
 
     @field_validator("api_v1_prefix")
     @classmethod
@@ -76,6 +81,19 @@ class Settings(BaseSettings):
     def validate_max_campaign_zone_area_sq_km(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("MAX_CAMPAIGN_ZONE_AREA_SQ_KM must be positive")
+        return value
+
+    @field_validator(
+        "max_location_pings_per_batch",
+        "location_ping_future_skew_seconds",
+        "location_ping_start_skew_seconds",
+        "max_location_accuracy_m",
+        "max_location_speed_mps",
+    )
+    @classmethod
+    def validate_positive_tracking_settings(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("Location tracking settings must be positive")
         return value
 
     @field_validator("default_currency")

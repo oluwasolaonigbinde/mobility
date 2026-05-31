@@ -38,6 +38,7 @@ from app.models.organization import (
     OrganizationMembership,
     OrganizationStatus,
 )
+from app.models.trip import LocationPing, LocationPingBatch, TripSession, TripSessionStatus
 from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle, VehicleStatus, VehicleType
 from app.services.users import normalize_email
@@ -366,6 +367,44 @@ def create_test_campaign_assignment(
     return asyncio.run(create())
 
 
+def create_test_trip_session(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    assignment_id: UUID,
+    campaign_id: UUID,
+    driver_profile_id: UUID,
+    vehicle_id: UUID,
+    started_by_user_id: UUID,
+    trip_status: TripSessionStatus = TripSessionStatus.ACTIVE,
+    started_at=None,
+    ended_at=None,
+    end_reason: str | None = None,
+    metadata: dict | None = None,
+) -> TripSession:
+    started_at = started_at or datetime.now(UTC)
+
+    async def create() -> TripSession:
+        async with db_sessionmaker() as session:
+            trip = TripSession(
+                assignment_id=assignment_id,
+                campaign_id=campaign_id,
+                driver_profile_id=driver_profile_id,
+                vehicle_id=vehicle_id,
+                started_by_user_id=started_by_user_id,
+                status=trip_status,
+                started_at=started_at,
+                ended_at=ended_at,
+                end_reason=end_reason,
+                trip_metadata=metadata or {},
+            )
+            session.add(trip)
+            await session.commit()
+            await session.refresh(trip)
+            return trip
+
+    return asyncio.run(create())
+
+
 def create_test_campaign_creative(
     db_sessionmaker: async_sessionmaker[AsyncSession],
     *,
@@ -440,6 +479,39 @@ def fetch_activation_events(
                     CampaignActivationEvent.id,
                 )
             )
+            return list(result.scalars().all())
+
+    return asyncio.run(fetch())
+
+
+def fetch_trip_sessions(db_sessionmaker: async_sessionmaker[AsyncSession]) -> list[TripSession]:
+    async def fetch() -> list[TripSession]:
+        async with db_sessionmaker() as session:
+            result = await session.execute(select(TripSession).order_by(TripSession.created_at))
+            return list(result.scalars().all())
+
+    return asyncio.run(fetch())
+
+
+def fetch_location_ping_batches(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+) -> list[LocationPingBatch]:
+    async def fetch() -> list[LocationPingBatch]:
+        async with db_sessionmaker() as session:
+            result = await session.execute(
+                select(LocationPingBatch).order_by(LocationPingBatch.created_at)
+            )
+            return list(result.scalars().all())
+
+    return asyncio.run(fetch())
+
+
+def fetch_location_pings(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+) -> list[LocationPing]:
+    async def fetch() -> list[LocationPing]:
+        async with db_sessionmaker() as session:
+            result = await session.execute(select(LocationPing).order_by(LocationPing.recorded_at))
             return list(result.scalars().all())
 
     return asyncio.run(fetch())

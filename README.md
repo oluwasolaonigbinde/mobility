@@ -16,15 +16,16 @@ Backend foundation for the Mobility AdTech & Audience Attribution Platform.
 
 ## Current Scope
 
-This repo currently contains Slice 5: project foundation, request IDs, expected error
+This repo currently contains Slice 6: project foundation, request IDs, expected error
 envelope, SQLAlchemy/Alembic foundation, JWT login, current-user context, RBAC, admin
 user management, advertiser organizations, organization memberships, audit events,
 driver profiles, vehicle profiles, advertiser campaign metadata, campaign creative
 metadata, advertiser campaign zones/geofences, campaign assignment and driver
-activation lifecycle, Docker Compose, tests, and linting.
+activation lifecycle, driver trip/session tracking, batched GPS location ping
+ingestion, Docker Compose, tests, and linting.
 
-Business features such as GPS tracking, analytics, payouts, reports, heatmaps, and
-seed data begin in later approved slices.
+Business features such as route analytics, impressions, payouts, reports, heatmaps,
+and seed data begin in later approved slices.
 
 ## Local Prerequisites
 
@@ -123,6 +124,14 @@ Slice 5 campaign assignment endpoints:
 - `POST /api/v1/driver/campaign-assignments/{assignment_id}/activate`
 - `POST /api/v1/driver/campaign-assignments/{assignment_id}/deactivate`
 
+Slice 6 driver trip tracking endpoints:
+
+- `POST /api/v1/driver/trips/start`
+- `GET /api/v1/driver/trips/current`
+- `POST /api/v1/driver/trips/{trip_id}/pings`
+- `POST /api/v1/driver/trips/{trip_id}/end`
+- `GET /api/v1/driver/trips/{trip_id}`
+
 Protected endpoints use bearer auth:
 
 ```http
@@ -144,12 +153,24 @@ and return GeoJSON plus calculated area. Zone area is capped by
 created by admins for eligible scheduled, active, or paused campaigns, active driver
 profiles, and active vehicles. Drivers can accept, activate, and deactivate only
 their own assignments; activation requires an active campaign inside its date window.
-GPS tracking, trips, impressions, payouts, and reports are not part of Slice 5.
+Driver trips can be started only for active assignments with active campaigns,
+drivers, and vehicles. Location pings are accepted in idempotent batches with
+server-side timestamp, coordinate, accuracy, speed, heading, altitude, and batch-size
+validation, and are stored as PostGIS `geometry(Point,4326)`. Route analytics,
+impressions, payouts, and reports are not part of Slice 6.
 
 ## Tests
 
 ```powershell
 python -m pytest
+```
+
+Plain host tests use SQLite for speed and may skip PostGIS-specific checks unless a
+PostGIS database URL is configured. To run the PostGIS-backed trip verification:
+
+```powershell
+$env:DATABASE_URL = "postgresql+asyncpg://mobility:mobility@localhost:5433/mobility"
+python -m pytest tests/test_trips.py -q
 ```
 
 ## Lint
@@ -174,7 +195,9 @@ identity and tenancy tables: `users`, `advertiser_organizations`,
 `driver_profiles` and `vehicles`. Slice 3 adds only `campaigns` and
 `campaign_creatives`. Slice 4 adds only `campaign_zones` with a PostGIS
 `geometry(MultiPolygon,4326)` column and GiST index. Slice 5 adds only
-`campaign_assignments` and `campaign_activation_events`.
+`campaign_assignments` and `campaign_activation_events`. Slice 6 adds only
+`trip_sessions`, `location_ping_batches`, and `location_pings` with a PostGIS
+`geometry(Point,4326)` point column and GiST index.
 
 ## Docker Compose
 
