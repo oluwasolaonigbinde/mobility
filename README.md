@@ -16,16 +16,17 @@ Backend foundation for the Mobility AdTech & Audience Attribution Platform.
 
 ## Current Scope
 
-This repo currently contains Slice 6: project foundation, request IDs, expected error
+This repo currently contains Slice 7: project foundation, request IDs, expected error
 envelope, SQLAlchemy/Alembic foundation, JWT login, current-user context, RBAC, admin
 user management, advertiser organizations, organization memberships, audit events,
 driver profiles, vehicle profiles, advertiser campaign metadata, campaign creative
 metadata, advertiser campaign zones/geofences, campaign assignment and driver
 activation lifecycle, driver trip/session tracking, batched GPS location ping
-ingestion, Docker Compose, tests, and linting.
+ingestion, deterministic route analytics, basic fraud/anomaly flags, Docker Compose,
+tests, and linting.
 
-Business features such as route analytics, impressions, payouts, reports, heatmaps,
-and seed data begin in later approved slices.
+Business features such as impressions, payouts, reports, heatmaps, and seed data begin
+in later approved slices.
 
 ## Local Prerequisites
 
@@ -132,6 +133,13 @@ Slice 6 driver trip tracking endpoints:
 - `POST /api/v1/driver/trips/{trip_id}/end`
 - `GET /api/v1/driver/trips/{trip_id}`
 
+Slice 7 route analytics and fraud flag endpoints:
+
+- `POST /api/v1/admin/trips/{trip_id}/recompute-analytics`
+- `GET /api/v1/admin/trips/{trip_id}/analytics`
+- `GET /api/v1/admin/fraud-flags`
+- `GET /api/v1/driver/trips/{trip_id}/analytics-summary`
+
 Protected endpoints use bearer auth:
 
 ```http
@@ -157,7 +165,11 @@ Driver trips can be started only for active assignments with active campaigns,
 drivers, and vehicles. Location pings are accepted in idempotent batches with
 server-side timestamp, coordinate, accuracy, speed, heading, altitude, and batch-size
 validation, and are stored as PostGIS `geometry(Point,4326)`. Route analytics,
-impressions, payouts, and reports are not part of Slice 6.
+can be recomputed by admins only for ended trips and use PostGIS geography-safe
+distance plus whole-segment campaign-zone intersection attribution. Drivers can read
+only their own trip analytics summaries. Fraud flags are deterministic anomaly
+records only; impressions, payouts, earnings, advertiser reporting, and heatmaps are
+not part of Slice 7.
 
 ## Tests
 
@@ -166,11 +178,12 @@ python -m pytest
 ```
 
 Plain host tests use SQLite for speed and may skip PostGIS-specific checks unless a
-PostGIS database URL is configured. To run the PostGIS-backed trip verification:
+PostGIS database URL is configured. To run the PostGIS-backed trip and analytics
+verification:
 
 ```powershell
 $env:DATABASE_URL = "postgresql+asyncpg://mobility:mobility@localhost:5433/mobility"
-python -m pytest tests/test_trips.py -q
+python -m pytest tests/test_trips.py tests/test_trip_analytics.py -q
 ```
 
 ## Lint
@@ -197,7 +210,8 @@ identity and tenancy tables: `users`, `advertiser_organizations`,
 `geometry(MultiPolygon,4326)` column and GiST index. Slice 5 adds only
 `campaign_assignments` and `campaign_activation_events`. Slice 6 adds only
 `trip_sessions`, `location_ping_batches`, and `location_pings` with a PostGIS
-`geometry(Point,4326)` point column and GiST index.
+`geometry(Point,4326)` point column and GiST index. Slice 7 adds only
+`trip_analytics` and `fraud_flags`.
 
 ## Docker Compose
 

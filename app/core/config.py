@@ -45,6 +45,17 @@ class Settings(BaseSettings):
     location_ping_start_skew_seconds: int = 900
     max_location_accuracy_m: int = 10000
     max_location_speed_mps: int = 120
+    route_analytics_formula_version: str = "route_analytics_v1"
+    route_analytics_min_valid_pings: int = 2
+    route_analytics_moving_speed_mps: float = 1.0
+    route_analytics_stationary_speed_mps: float = 0.5
+    route_analytics_impossible_speed_mps: float = 55.0
+    route_analytics_max_ping_gap_seconds: int = 900
+    route_analytics_poor_accuracy_threshold_m: float = 100.0
+    route_analytics_poor_accuracy_ratio_threshold: float = 0.5
+    route_analytics_stationary_ratio_threshold: float = 0.8
+    route_analytics_looping_radius_m: float = 50.0
+    route_analytics_looping_min_distance_m: float = 1000.0
 
     @field_validator("api_v1_prefix")
     @classmethod
@@ -94,6 +105,40 @@ class Settings(BaseSettings):
     def validate_positive_tracking_settings(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("Location tracking settings must be positive")
+        return value
+
+    @field_validator(
+        "route_analytics_min_valid_pings",
+        "route_analytics_max_ping_gap_seconds",
+    )
+    @classmethod
+    def validate_positive_route_analytics_ints(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("Route analytics integer settings must be positive")
+        return value
+
+    @field_validator(
+        "route_analytics_moving_speed_mps",
+        "route_analytics_stationary_speed_mps",
+        "route_analytics_impossible_speed_mps",
+        "route_analytics_poor_accuracy_threshold_m",
+        "route_analytics_looping_radius_m",
+        "route_analytics_looping_min_distance_m",
+    )
+    @classmethod
+    def validate_positive_route_analytics_floats(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("Route analytics numeric settings must be positive")
+        return value
+
+    @field_validator(
+        "route_analytics_poor_accuracy_ratio_threshold",
+        "route_analytics_stationary_ratio_threshold",
+    )
+    @classmethod
+    def validate_route_analytics_ratios(cls, value: float) -> float:
+        if value < 0 or value > 1:
+            raise ValueError("Route analytics ratio settings must be between 0 and 1")
         return value
 
     @field_validator("default_currency")
