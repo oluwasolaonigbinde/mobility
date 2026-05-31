@@ -2,14 +2,25 @@
 
 ## Current State
 
-Status: WAITING FOR PRO ROADMAP
+Status: SLICE 0 APPROVED
 
-No backend code has been scaffolded. The initial local ledger has been created, and the first Pro context packet requests the backend stack decision, full slice roadmap, and first approved implementation prompt.
+Pro returned `Verdict: SIGNED OFF` for the initial context packet. The roadmap is saved at `docs/build-loop/pro-responses/initial-roadmap.md`, and the initial reconciliation is saved at `docs/build-loop/pro-responses/initial-context-reconciliation.md`.
 
 ## Planned Slices
 
-Pending Pro response.
-
 | Slice | Status | Branch/Worktree | Prompt | Report | Pro Packet | Pro Response | Commit | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Pending Pro roadmap | PLANNED | `master` | N/A | N/A | `docs/build-loop/pro-packets/initial-context.md` | Pending | Pending | Pro must define the roadmap and first approved slice before implementation starts. |
+| Slice 0 - Project foundation | PASS | `master` | `docs/build-loop/prompts/slice-00-project-foundation.md` | `docs/build-loop/reports/slice-00-project-foundation.md` | `docs/build-loop/pro-packets/slice-00-project-foundation.md` | `docs/build-loop/pro-responses/slice-00-project-foundation.md` | Pending | Pro verdict: PASS. Safe to commit. FastAPI app, settings, health endpoints, DB session foundation, Alembic, Docker Compose, PostGIS/Redis, tests, linting. |
+| Slice 1 - Auth, users, roles, advertiser organizations | PLANNED | Pending | `docs/build-loop/prompts/slice-01-auth-users-organizations.md` | Pending | Pending | Pending | Pending | Identity, JWT login, RBAC, admin user management, advertiser tenancy. |
+| Slice 2 - Driver and vehicle foundations | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Driver profiles, vehicle profiles, admin/driver access boundaries. |
+| Slice 3 - Campaign management and creative metadata | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Campaign CRUD, statuses, budgets, date windows, creative metadata. |
+| Slice 4 - Campaign zones/geofences | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | GeoJSON campaign target/exclusion/bonus zones stored in PostGIS. |
+| Slice 5 - Campaign assignment and activation | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Assign campaigns to drivers/vehicles; driver accept/activate/deactivate lifecycle. |
+| Slice 6 - GPS ingestion and trip/session tracking | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Trip lifecycle, batched location pings, idempotency, timestamp/coordinate validation. |
+| Slice 7 - Route analytics v1 and fraud flags | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Distance, duration, dwell, zone overlap, quality metrics, basic anomaly flags. |
+| Slice 8 - Impression estimation v1 | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Transparent formula-versioned impression estimates and campaign rollups. |
+| Slice 9 - Payout calculation v1 and earnings ledger | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Formula-versioned payouts, immutable driver ledger, campaign cost summaries. |
+| Slice 10 - Advertiser dashboard and campaign reports | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Summary cards, campaign reports, daily metrics, aggregate trip/performance views. |
+| Slice 11 - Heatmap/geospatial aggregation APIs | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Bounded geospatial aggregation for frontend map heatmaps. |
+| Slice 12 - Seed/demo data and API docs hardening | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Demo data, OpenAPI examples, frontend-ready smoke path. |
+| Slice 13 - MVP hardening and contract freeze | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Security review, indexes, pagination, rate limits, contract snapshot, README hardening. |
