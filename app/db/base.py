@@ -7,6 +7,7 @@ class Base(DeclarativeBase):
 
 import app.models.audit  # noqa: E402,F401
 import app.models.campaign  # noqa: E402,F401
+import app.models.campaign_assignment  # noqa: E402,F401
 import app.models.campaign_zone  # noqa: E402,F401
 import app.models.driver  # noqa: E402,F401
 import app.models.organization  # noqa: E402,F401

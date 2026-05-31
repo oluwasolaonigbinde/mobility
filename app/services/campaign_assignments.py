@@ -1,0 +1,570 @@
+from datetime import UTC, datetime
+from uuid import UUID
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from starlette import status
+
+from app.core.errors import AppError
+from app.models.campaign import Campaign, CampaignStatus
+from app.models.campaign_assignment import (
+    CampaignActivationEvent,
+    CampaignActivationEventType,
+    CampaignAssignment,
+    CampaignAssignmentStatus,
+)
+from app.models.driver import DriverOnboardingStatus, DriverProfile
+from app.models.user import User
+from app.models.vehicle import Vehicle, VehicleStatus
+from app.schemas.campaign_assignments import (
+    CampaignAssignmentCancel,
+    CampaignAssignmentCreate,
+    CampaignAssignmentTransition,
+)
+from app.services.campaigns import comparable_campaign_datetime
+from app.services.drivers import get_driver_profile_by_user_id
+
+NON_TERMINAL_ASSIGNMENT_STATUSES = {
+    CampaignAssignmentStatus.OFFERED.value,
+    CampaignAssignmentStatus.ACCEPTED.value,
+    CampaignAssignmentStatus.ACTIVE.value,
+    CampaignAssignmentStatus.DEACTIVATED.value,
+}
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def as_aware_utc(value: datetime) -> datetime:
+    return comparable_campaign_datetime(value)
+
+
+def ensure_not_expired(campaign: Campaign, now: datetime, *, code: str) -> None:
+    if campaign.end_at is not None and as_aware_utc(campaign.end_at) < now:
+        raise AppError(
+            code,
+            "Campaign end_at is in the past",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+async def get_campaign(session: AsyncSession, campaign_id: UUID) -> Campaign:
+    campaign = await session.get(Campaign, campaign_id)
+    if campaign is None:
+        raise AppError(
+            "CAMPAIGN_NOT_FOUND",
+            "Campaign was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    return campaign
+
+
+async def get_driver_profile(session: AsyncSession, driver_profile_id: UUID) -> DriverProfile:
+    driver_profile = await session.get(DriverProfile, driver_profile_id)
+    if driver_profile is None:
+        raise AppError(
+            "DRIVER_PROFILE_NOT_FOUND",
+            "Driver profile was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    return driver_profile
+
+
+async def get_vehicle(session: AsyncSession, vehicle_id: UUID) -> Vehicle:
+    vehicle = await session.get(Vehicle, vehicle_id)
+    if vehicle is None:
+        raise AppError(
+            "VEHICLE_NOT_FOUND",
+            "Vehicle was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    return vehicle
+
+
+async def ensure_no_duplicate_non_terminal_assignment(
+    session: AsyncSession,
+    *,
+    campaign_id: UUID,
+    vehicle_id: UUID,
+) -> None:
+    existing_assignment_id = await session.scalar(
+        select(CampaignAssignment.id).where(
+            CampaignAssignment.campaign_id == campaign_id,
+            CampaignAssignment.vehicle_id == vehicle_id,
+            CampaignAssignment.status.in_(NON_TERMINAL_ASSIGNMENT_STATUSES),
+        )
+    )
+    if existing_assignment_id is not None:
+        raise AppError(
+            "DUPLICATE_CAMPAIGN_VEHICLE_ASSIGNMENT",
+            "A non-terminal assignment already exists for this campaign and vehicle",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+
+async def ensure_no_other_active_assignment_for_vehicle(
+    session: AsyncSession,
+    *,
+    vehicle_id: UUID,
+    assignment_id: UUID,
+) -> None:
+    existing_assignment_id = await session.scalar(
+        select(CampaignAssignment.id).where(
+            CampaignAssignment.vehicle_id == vehicle_id,
+            CampaignAssignment.status == CampaignAssignmentStatus.ACTIVE.value,
+            CampaignAssignment.id != assignment_id,
+        )
+    )
+    if existing_assignment_id is not None:
+        raise AppError(
+            "ACTIVE_ASSIGNMENT_EXISTS_FOR_VEHICLE",
+            "Another assignment is already active for this vehicle",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+
+def ensure_campaign_assignable(campaign: Campaign, now: datetime) -> None:
+    if campaign.status not in {
+        CampaignStatus.SCHEDULED.value,
+        CampaignStatus.ACTIVE.value,
+        CampaignStatus.PAUSED.value,
+    }:
+        raise AppError(
+            "CAMPAIGN_NOT_ASSIGNABLE",
+            "Campaign is not assignable",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    ensure_not_expired(campaign, now, code="CAMPAIGN_EXPIRED")
+
+
+def ensure_campaign_acceptable(campaign: Campaign, now: datetime) -> None:
+    if campaign.status in {CampaignStatus.COMPLETED.value, CampaignStatus.CANCELLED.value}:
+        raise AppError(
+            "CAMPAIGN_NOT_ACCEPTABLE",
+            "Campaign can no longer be accepted",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    ensure_not_expired(campaign, now, code="CAMPAIGN_EXPIRED")
+
+
+def ensure_campaign_activatable(campaign: Campaign, now: datetime) -> None:
+    if campaign.status != CampaignStatus.ACTIVE.value:
+        raise AppError(
+            "CAMPAIGN_NOT_ACTIVE",
+            "Campaign must be active before activation",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if campaign.start_at is not None and as_aware_utc(campaign.start_at) > now:
+        raise AppError(
+            "CAMPAIGN_NOT_STARTED",
+            "Campaign start_at is in the future",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    ensure_not_expired(campaign, now, code="CAMPAIGN_EXPIRED")
+
+
+def ensure_active_driver_profile(driver_profile: DriverProfile) -> None:
+    if driver_profile.onboarding_status != DriverOnboardingStatus.ACTIVE.value:
+        raise AppError(
+            "DRIVER_PROFILE_NOT_ACTIVE",
+            "Driver profile is not active",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+def ensure_active_vehicle(vehicle: Vehicle) -> None:
+    if vehicle.status != VehicleStatus.ACTIVE.value:
+        raise AppError(
+            "VEHICLE_NOT_ACTIVE",
+            "Vehicle is not active",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+def ensure_vehicle_belongs_to_driver(vehicle: Vehicle, driver_profile: DriverProfile) -> None:
+    if vehicle.driver_profile_id != driver_profile.id:
+        raise AppError(
+            "VEHICLE_DRIVER_PROFILE_MISMATCH",
+            "Vehicle does not belong to the assigned driver profile",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+async def create_activation_event(
+    session: AsyncSession,
+    *,
+    assignment: CampaignAssignment,
+    actor_user_id: UUID | None,
+    event_type: CampaignActivationEventType,
+    previous_status: str | None,
+    metadata: dict | None,
+    occurred_at: datetime,
+) -> CampaignActivationEvent:
+    event = CampaignActivationEvent(
+        assignment_id=assignment.id,
+        actor_user_id=actor_user_id,
+        event_type=event_type.value,
+        previous_status=previous_status,
+        new_status=assignment.status,
+        occurred_at=occurred_at,
+        event_metadata=metadata or {},
+    )
+    session.add(event)
+    await session.flush()
+    return event
+
+
+async def create_campaign_assignment(
+    session: AsyncSession,
+    *,
+    admin_user_id: UUID,
+    payload: CampaignAssignmentCreate,
+) -> CampaignAssignment:
+    now = utc_now()
+    campaign = await get_campaign(session, payload.campaign_id)
+    driver_profile = await get_driver_profile(session, payload.driver_profile_id)
+    vehicle = await get_vehicle(session, payload.vehicle_id)
+    ensure_campaign_assignable(campaign, now)
+    ensure_active_driver_profile(driver_profile)
+    ensure_active_vehicle(vehicle)
+    ensure_vehicle_belongs_to_driver(vehicle, driver_profile)
+    await ensure_no_duplicate_non_terminal_assignment(
+        session,
+        campaign_id=campaign.id,
+        vehicle_id=vehicle.id,
+    )
+
+    assignment = CampaignAssignment(
+        campaign_id=campaign.id,
+        driver_profile_id=driver_profile.id,
+        vehicle_id=vehicle.id,
+        assigned_by_user_id=admin_user_id,
+        status=CampaignAssignmentStatus.OFFERED.value,
+        offered_at=now,
+        notes=payload.notes,
+        assignment_metadata=payload.metadata,
+    )
+    session.add(assignment)
+    await session.flush()
+    await create_activation_event(
+        session,
+        assignment=assignment,
+        actor_user_id=admin_user_id,
+        event_type=CampaignActivationEventType.ASSIGNED,
+        previous_status=None,
+        metadata=payload.metadata,
+        occurred_at=now,
+    )
+    await session.refresh(assignment)
+    return assignment
+
+
+def assignment_not_found() -> AppError:
+    return AppError(
+        "CAMPAIGN_ASSIGNMENT_NOT_FOUND",
+        "Campaign assignment was not found",
+        status_code=status.HTTP_404_NOT_FOUND,
+    )
+
+
+async def get_admin_assignment(
+    session: AsyncSession,
+    assignment_id: UUID,
+) -> CampaignAssignment:
+    assignment = await session.get(CampaignAssignment, assignment_id)
+    if assignment is None:
+        raise assignment_not_found()
+    return assignment
+
+
+async def get_driver_profile_for_user(session: AsyncSession, user_id: UUID) -> DriverProfile:
+    driver_profile = await get_driver_profile_by_user_id(session, user_id)
+    if driver_profile is None:
+        raise AppError(
+            "DRIVER_PROFILE_NOT_FOUND",
+            "Driver profile was not found for the current user",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    return driver_profile
+
+
+async def get_driver_assignment(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    assignment_id: UUID,
+) -> CampaignAssignment:
+    driver_profile = await get_driver_profile_for_user(session, user_id)
+    result = await session.execute(
+        select(CampaignAssignment).where(
+            CampaignAssignment.id == assignment_id,
+            CampaignAssignment.driver_profile_id == driver_profile.id,
+        )
+    )
+    assignment = result.scalar_one_or_none()
+    if assignment is None:
+        raise assignment_not_found()
+    return assignment
+
+
+async def list_admin_assignments(
+    session: AsyncSession,
+    *,
+    limit: int,
+    offset: int,
+    assignment_status: str | None,
+    campaign_id: UUID | None,
+    driver_profile_id: UUID | None,
+    vehicle_id: UUID | None,
+) -> tuple[list[CampaignAssignment], int]:
+    filters = []
+    if assignment_status is not None:
+        filters.append(CampaignAssignment.status == assignment_status)
+    if campaign_id is not None:
+        filters.append(CampaignAssignment.campaign_id == campaign_id)
+    if driver_profile_id is not None:
+        filters.append(CampaignAssignment.driver_profile_id == driver_profile_id)
+    if vehicle_id is not None:
+        filters.append(CampaignAssignment.vehicle_id == vehicle_id)
+
+    statement = select(CampaignAssignment)
+    count_statement = select(func.count()).select_from(CampaignAssignment)
+    for filter_expression in filters:
+        statement = statement.where(filter_expression)
+        count_statement = count_statement.where(filter_expression)
+
+    total = await session.scalar(count_statement)
+    result = await session.execute(
+        statement.order_by(CampaignAssignment.created_at.desc(), CampaignAssignment.id)
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(result.scalars().all()), int(total or 0)
+
+
+async def list_driver_assignments(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    limit: int,
+    offset: int,
+    assignment_status: str | None,
+) -> tuple[list[CampaignAssignment], int]:
+    driver_profile = await get_driver_profile_for_user(session, user_id)
+    filters = [CampaignAssignment.driver_profile_id == driver_profile.id]
+    if assignment_status is not None:
+        filters.append(CampaignAssignment.status == assignment_status)
+
+    statement = select(CampaignAssignment)
+    count_statement = select(func.count()).select_from(CampaignAssignment)
+    for filter_expression in filters:
+        statement = statement.where(filter_expression)
+        count_statement = count_statement.where(filter_expression)
+
+    total = await session.scalar(count_statement)
+    result = await session.execute(
+        statement.order_by(CampaignAssignment.created_at.desc(), CampaignAssignment.id)
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(result.scalars().all()), int(total or 0)
+
+
+async def list_assignment_events(
+    session: AsyncSession,
+    assignment_id: UUID,
+) -> list[CampaignActivationEvent]:
+    result = await session.execute(
+        select(CampaignActivationEvent)
+        .where(CampaignActivationEvent.assignment_id == assignment_id)
+        .order_by(CampaignActivationEvent.occurred_at, CampaignActivationEvent.id)
+    )
+    return list(result.scalars().all())
+
+
+async def accept_driver_assignment(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    assignment_id: UUID,
+    payload: CampaignAssignmentTransition,
+) -> CampaignAssignment:
+    now = utc_now()
+    assignment = await get_driver_assignment(session, user_id=user_id, assignment_id=assignment_id)
+    if assignment.status != CampaignAssignmentStatus.OFFERED.value:
+        raise AppError(
+            "INVALID_ASSIGNMENT_TRANSITION",
+            "Only offered assignments can be accepted",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    campaign = await get_campaign(session, assignment.campaign_id)
+    ensure_campaign_acceptable(campaign, now)
+    previous_status = assignment.status
+    assignment.status = CampaignAssignmentStatus.ACCEPTED.value
+    assignment.accepted_at = now
+    await session.flush()
+    await create_activation_event(
+        session,
+        assignment=assignment,
+        actor_user_id=user_id,
+        event_type=CampaignActivationEventType.ACCEPTED,
+        previous_status=previous_status,
+        metadata=payload.metadata,
+        occurred_at=now,
+    )
+    await session.refresh(assignment)
+    return assignment
+
+
+async def activate_driver_assignment(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    assignment_id: UUID,
+    payload: CampaignAssignmentTransition,
+) -> CampaignAssignment:
+    now = utc_now()
+    assignment = await get_driver_assignment(session, user_id=user_id, assignment_id=assignment_id)
+    if assignment.status not in {
+        CampaignAssignmentStatus.ACCEPTED.value,
+        CampaignAssignmentStatus.DEACTIVATED.value,
+    }:
+        raise AppError(
+            "INVALID_ASSIGNMENT_TRANSITION",
+            "Only accepted or deactivated assignments can be activated",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    campaign = await get_campaign(session, assignment.campaign_id)
+    driver_profile = await get_driver_profile(session, assignment.driver_profile_id)
+    vehicle = await get_vehicle(session, assignment.vehicle_id)
+    ensure_campaign_activatable(campaign, now)
+    ensure_active_driver_profile(driver_profile)
+    ensure_active_vehicle(vehicle)
+    ensure_vehicle_belongs_to_driver(vehicle, driver_profile)
+    await ensure_no_other_active_assignment_for_vehicle(
+        session,
+        vehicle_id=vehicle.id,
+        assignment_id=assignment.id,
+    )
+
+    previous_status = assignment.status
+    assignment.status = CampaignAssignmentStatus.ACTIVE.value
+    assignment.activated_at = now
+    await session.flush()
+    await create_activation_event(
+        session,
+        assignment=assignment,
+        actor_user_id=user_id,
+        event_type=CampaignActivationEventType.ACTIVATED,
+        previous_status=previous_status,
+        metadata=payload.metadata,
+        occurred_at=now,
+    )
+    await session.refresh(assignment)
+    return assignment
+
+
+async def deactivate_driver_assignment(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    assignment_id: UUID,
+    payload: CampaignAssignmentTransition,
+) -> CampaignAssignment:
+    now = utc_now()
+    assignment = await get_driver_assignment(session, user_id=user_id, assignment_id=assignment_id)
+    if assignment.status != CampaignAssignmentStatus.ACTIVE.value:
+        raise AppError(
+            "INVALID_ASSIGNMENT_TRANSITION",
+            "Only active assignments can be deactivated",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    previous_status = assignment.status
+    assignment.status = CampaignAssignmentStatus.DEACTIVATED.value
+    assignment.deactivated_at = now
+    await session.flush()
+    await create_activation_event(
+        session,
+        assignment=assignment,
+        actor_user_id=user_id,
+        event_type=CampaignActivationEventType.DEACTIVATED,
+        previous_status=previous_status,
+        metadata=payload.metadata,
+        occurred_at=now,
+    )
+    await session.refresh(assignment)
+    return assignment
+
+
+async def cancel_admin_assignment(
+    session: AsyncSession,
+    *,
+    admin_user_id: UUID,
+    assignment_id: UUID,
+    payload: CampaignAssignmentCancel,
+) -> CampaignAssignment:
+    now = utc_now()
+    assignment = await get_admin_assignment(session, assignment_id)
+    if assignment.status in {
+        CampaignAssignmentStatus.CANCELLED.value,
+        CampaignAssignmentStatus.COMPLETED.value,
+    }:
+        raise AppError(
+            "INVALID_ASSIGNMENT_TRANSITION",
+            "Cancelled or completed assignments cannot be cancelled",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    previous_status = assignment.status
+    assignment.status = CampaignAssignmentStatus.CANCELLED.value
+    assignment.cancelled_at = now
+    event_metadata = dict(payload.metadata)
+    if payload.reason is not None:
+        event_metadata["reason"] = payload.reason
+    await session.flush()
+    await create_activation_event(
+        session,
+        assignment=assignment,
+        actor_user_id=admin_user_id,
+        event_type=CampaignActivationEventType.CANCELLED,
+        previous_status=previous_status,
+        metadata=event_metadata,
+        occurred_at=now,
+    )
+    await session.refresh(assignment)
+    return assignment
+
+
+async def get_current_active_driver_assignment(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+) -> CampaignAssignment | None:
+    driver_profile = await get_driver_profile_for_user(session, user_id)
+    result = await session.execute(
+        select(CampaignAssignment).where(
+            CampaignAssignment.driver_profile_id == driver_profile.id,
+            CampaignAssignment.status == CampaignAssignmentStatus.ACTIVE.value,
+        )
+    )
+    assignments = list(result.scalars().all())
+    if len(assignments) > 1:
+        raise AppError(
+            "MULTIPLE_ACTIVE_ASSIGNMENTS",
+            "Multiple active assignments were found for the current driver",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    if not assignments:
+        return None
+    return assignments[0]
+
+
+async def get_assignment_context(
+    session: AsyncSession,
+    assignment: CampaignAssignment,
+) -> tuple[Campaign | None, DriverProfile | None, Vehicle | None, User | None]:
+    campaign = await session.get(Campaign, assignment.campaign_id)
+    driver_profile = await session.get(DriverProfile, assignment.driver_profile_id)
+    vehicle = await session.get(Vehicle, assignment.vehicle_id)
+    assigned_by = await session.get(User, assignment.assigned_by_user_id)
+    return campaign, driver_profile, vehicle, assigned_by

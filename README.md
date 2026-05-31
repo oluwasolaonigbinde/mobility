@@ -16,14 +16,15 @@ Backend foundation for the Mobility AdTech & Audience Attribution Platform.
 
 ## Current Scope
 
-This repo currently contains Slice 4: project foundation, request IDs, expected error
+This repo currently contains Slice 5: project foundation, request IDs, expected error
 envelope, SQLAlchemy/Alembic foundation, JWT login, current-user context, RBAC, admin
 user management, advertiser organizations, organization memberships, audit events,
 driver profiles, vehicle profiles, advertiser campaign metadata, campaign creative
-metadata, advertiser campaign zones/geofences, Docker Compose, tests, and linting.
+metadata, advertiser campaign zones/geofences, campaign assignment and driver
+activation lifecycle, Docker Compose, tests, and linting.
 
-Business features such as campaign assignment, GPS tracking, analytics, payouts,
-reports, heatmaps, and seed data begin in later approved slices.
+Business features such as GPS tracking, analytics, payouts, reports, heatmaps, and
+seed data begin in later approved slices.
 
 ## Local Prerequisites
 
@@ -109,6 +110,19 @@ Slice 4 campaign zone endpoints:
 - `PATCH /api/v1/advertiser/campaigns/{campaign_id}/zones/{zone_id}`
 - `DELETE /api/v1/advertiser/campaigns/{campaign_id}/zones/{zone_id}`
 
+Slice 5 campaign assignment endpoints:
+
+- `POST /api/v1/admin/campaign-assignments`
+- `GET /api/v1/admin/campaign-assignments`
+- `GET /api/v1/admin/campaign-assignments/{assignment_id}`
+- `POST /api/v1/admin/campaign-assignments/{assignment_id}/cancel`
+- `GET /api/v1/driver/campaign-assignments`
+- `GET /api/v1/driver/campaign-assignments/active`
+- `GET /api/v1/driver/campaign-assignments/{assignment_id}`
+- `POST /api/v1/driver/campaign-assignments/{assignment_id}/accept`
+- `POST /api/v1/driver/campaign-assignments/{assignment_id}/activate`
+- `POST /api/v1/driver/campaign-assignments/{assignment_id}/deactivate`
+
 Protected endpoints use bearer auth:
 
 ```http
@@ -126,7 +140,11 @@ metadata are JSON objects only; creative binary uploads and asset processing are
 not part of Slice 3. Campaign zones accept GeoJSON Polygon or MultiPolygon geometry
 using `[longitude, latitude]` coordinate order, store it in PostGIS as SRID 4326,
 and return GeoJSON plus calculated area. Zone area is capped by
-`MAX_CAMPAIGN_ZONE_AREA_SQ_KM`, defaulting to `5000`.
+`MAX_CAMPAIGN_ZONE_AREA_SQ_KM`, defaulting to `5000`. Campaign assignments can be
+created by admins for eligible scheduled, active, or paused campaigns, active driver
+profiles, and active vehicles. Drivers can accept, activate, and deactivate only
+their own assignments; activation requires an active campaign inside its date window.
+GPS tracking, trips, impressions, payouts, and reports are not part of Slice 5.
 
 ## Tests
 
@@ -155,7 +173,8 @@ identity and tenancy tables: `users`, `advertiser_organizations`,
 `organization_memberships`, and `audit_events`. Slice 2 adds only
 `driver_profiles` and `vehicles`. Slice 3 adds only `campaigns` and
 `campaign_creatives`. Slice 4 adds only `campaign_zones` with a PostGIS
-`geometry(MultiPolygon,4326)` column and GiST index.
+`geometry(MultiPolygon,4326)` column and GiST index. Slice 5 adds only
+`campaign_assignments` and `campaign_activation_events`.
 
 ## Docker Compose
 

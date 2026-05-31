@@ -1,6 +1,7 @@
 import asyncio
 import os
 from collections.abc import Generator
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -23,6 +24,11 @@ from app.models.campaign import (
     CreativePlacement,
     CreativeStatus,
     CreativeType,
+)
+from app.models.campaign_assignment import (
+    CampaignActivationEvent,
+    CampaignAssignment,
+    CampaignAssignmentStatus,
 )
 from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.organization import (
@@ -286,6 +292,8 @@ def create_test_campaign(
     name: str = "Launch Campaign",
     description: str | None = "Shared ride vehicle campaign",
     campaign_status: CampaignStatus = CampaignStatus.DRAFT,
+    start_at=None,
+    end_at=None,
     budget_amount=None,
     daily_budget_amount=None,
     currency: str = "NGN",
@@ -299,6 +307,8 @@ def create_test_campaign(
                 name=name,
                 description=description,
                 status=campaign_status,
+                start_at=start_at,
+                end_at=end_at,
                 budget_amount=budget_amount,
                 daily_budget_amount=daily_budget_amount,
                 currency=currency,
@@ -308,6 +318,50 @@ def create_test_campaign(
             await session.commit()
             await session.refresh(campaign)
             return campaign
+
+    return asyncio.run(create())
+
+
+def create_test_campaign_assignment(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    campaign_id: UUID,
+    driver_profile_id: UUID,
+    vehicle_id: UUID,
+    assigned_by_user_id: UUID,
+    assignment_status: CampaignAssignmentStatus = CampaignAssignmentStatus.OFFERED,
+    offered_at=None,
+    accepted_at=None,
+    activated_at=None,
+    deactivated_at=None,
+    cancelled_at=None,
+    completed_at=None,
+    notes: str | None = None,
+    metadata: dict | None = None,
+) -> CampaignAssignment:
+    offered_at = offered_at or datetime.now(UTC)
+
+    async def create() -> CampaignAssignment:
+        async with db_sessionmaker() as session:
+            assignment = CampaignAssignment(
+                campaign_id=campaign_id,
+                driver_profile_id=driver_profile_id,
+                vehicle_id=vehicle_id,
+                assigned_by_user_id=assigned_by_user_id,
+                status=assignment_status,
+                offered_at=offered_at,
+                accepted_at=accepted_at,
+                activated_at=activated_at,
+                deactivated_at=deactivated_at,
+                cancelled_at=cancelled_at,
+                completed_at=completed_at,
+                notes=notes,
+                assignment_metadata=metadata or {},
+            )
+            session.add(assignment)
+            await session.commit()
+            await session.refresh(assignment)
+            return assignment
 
     return asyncio.run(create())
 
@@ -370,6 +424,22 @@ def fetch_audit_events(db_sessionmaker: async_sessionmaker[AsyncSession]) -> lis
     async def fetch() -> list[AuditEvent]:
         async with db_sessionmaker() as session:
             result = await session.execute(select(AuditEvent).order_by(AuditEvent.created_at))
+            return list(result.scalars().all())
+
+    return asyncio.run(fetch())
+
+
+def fetch_activation_events(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+) -> list[CampaignActivationEvent]:
+    async def fetch() -> list[CampaignActivationEvent]:
+        async with db_sessionmaker() as session:
+            result = await session.execute(
+                select(CampaignActivationEvent).order_by(
+                    CampaignActivationEvent.occurred_at,
+                    CampaignActivationEvent.id,
+                )
+            )
             return list(result.scalars().all())
 
     return asyncio.run(fetch())
