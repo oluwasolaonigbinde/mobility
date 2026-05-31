@@ -27,6 +27,15 @@ def test_settings_defaults_load() -> None:
     assert settings.route_analytics_stationary_ratio_threshold == 0.8
     assert settings.route_analytics_looping_radius_m == 50.0
     assert settings.route_analytics_looping_min_distance_m == 1000.0
+    assert settings.impression_formula_version == "impressions_v1"
+    assert settings.impression_default_traffic_density_per_km == 120.0
+    assert settings.impression_default_dwell_impressions_per_minute == 3.0
+    assert settings.impression_high_fraud_multiplier == 0.25
+    assert settings.impression_medium_fraud_multiplier == 0.70
+    assert settings.impression_low_fraud_multiplier == 0.90
+    assert settings.impression_insufficient_data_confidence == 0.10
+    assert settings.impression_min_confidence == 0.0
+    assert settings.impression_max_confidence == 1.0
 
 
 def test_cors_origin_string_parses_as_list() -> None:
@@ -109,3 +118,40 @@ def test_route_analytics_ratio_settings_must_be_between_zero_and_one(
 ) -> None:
     with pytest.raises(ValidationError):
         Settings(**{setting_name: invalid_value})
+
+
+@pytest.mark.parametrize(
+    "setting_name",
+    [
+        "impression_default_traffic_density_per_km",
+        "impression_default_dwell_impressions_per_minute",
+    ],
+)
+def test_impression_default_settings_must_be_nonnegative(setting_name: str) -> None:
+    with pytest.raises(ValidationError):
+        Settings(**{setting_name: -1})
+
+
+@pytest.mark.parametrize(
+    "setting_name",
+    [
+        "impression_high_fraud_multiplier",
+        "impression_medium_fraud_multiplier",
+        "impression_low_fraud_multiplier",
+        "impression_insufficient_data_confidence",
+        "impression_min_confidence",
+        "impression_max_confidence",
+    ],
+)
+@pytest.mark.parametrize("invalid_value", [-0.1, 1.1])
+def test_impression_ratio_settings_must_be_between_zero_and_one(
+    setting_name: str,
+    invalid_value: float,
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings(**{setting_name: invalid_value})
+
+
+def test_impression_min_confidence_must_not_exceed_max() -> None:
+    with pytest.raises(ValidationError):
+        Settings(impression_min_confidence=0.9, impression_max_confidence=0.5)

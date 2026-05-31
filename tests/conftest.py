@@ -31,6 +31,7 @@ from app.models.campaign_assignment import (
     CampaignAssignmentStatus,
 )
 from app.models.driver import DriverOnboardingStatus, DriverProfile
+from app.models.impression import ImpressionEstimate, TrafficDensityProfile
 from app.models.organization import (
     AdvertiserOrganization,
     MembershipRole,
@@ -39,6 +40,7 @@ from app.models.organization import (
     OrganizationStatus,
 )
 from app.models.trip import LocationPing, LocationPingBatch, TripSession, TripSessionStatus
+from app.models.trip_analytics import TripAnalytics
 from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle, VehicleStatus, VehicleType
 from app.services.users import normalize_email
@@ -405,6 +407,118 @@ def create_test_trip_session(
     return asyncio.run(create())
 
 
+def create_test_trip_analytics(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    trip_session_id: UUID,
+    assignment_id: UUID,
+    campaign_id: UUID,
+    driver_profile_id: UUID,
+    vehicle_id: UUID,
+    status: str = "computed",
+    started_at=None,
+    ended_at=None,
+    first_ping_at=None,
+    last_ping_at=None,
+    distance_m=0,
+    stationary_seconds: int = 0,
+    target_zone_distance_m=0,
+    bonus_zone_distance_m=0,
+    exclusion_zone_distance_m=0,
+    quality_score=1,
+    metadata: dict | None = None,
+) -> TripAnalytics:
+    async def create() -> TripAnalytics:
+        async with db_sessionmaker() as session:
+            analytics = TripAnalytics(
+                trip_session_id=trip_session_id,
+                assignment_id=assignment_id,
+                campaign_id=campaign_id,
+                driver_profile_id=driver_profile_id,
+                vehicle_id=vehicle_id,
+                formula_version="route_analytics_v1",
+                status=status,
+                ping_count=2,
+                valid_ping_count=2,
+                invalid_ping_count=0,
+                started_at=started_at,
+                ended_at=ended_at,
+                first_ping_at=first_ping_at,
+                last_ping_at=last_ping_at,
+                duration_seconds=0,
+                active_tracking_seconds=0,
+                moving_seconds=0,
+                stationary_seconds=stationary_seconds,
+                distance_m=distance_m,
+                avg_speed_mps=None,
+                max_observed_speed_mps=None,
+                avg_accuracy_m=None,
+                poor_accuracy_ping_count=0,
+                target_zone_distance_m=target_zone_distance_m,
+                bonus_zone_distance_m=bonus_zone_distance_m,
+                exclusion_zone_distance_m=exclusion_zone_distance_m,
+                target_zone_seconds=0,
+                bonus_zone_seconds=0,
+                exclusion_zone_seconds=0,
+                quality_score=quality_score,
+                computed_at=datetime.now(UTC),
+                analytics_metadata=metadata or {},
+            )
+            session.add(analytics)
+            await session.commit()
+            await session.refresh(analytics)
+            return analytics
+
+    return asyncio.run(create())
+
+
+def create_test_traffic_density_profile(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    name: str = "Default Urban",
+    profile_type: str = "default",
+    traffic_density_per_km=120,
+    dwell_impressions_per_minute=3,
+    road_category_weight=1,
+    morning_weight=1,
+    midday_weight=1,
+    evening_weight=1,
+    night_weight=0.7,
+    target_zone_weight=1,
+    bonus_zone_weight=1.25,
+    exclusion_zone_weight=1,
+    is_default: bool = False,
+    status: str = "active",
+    metadata: dict | None = None,
+) -> TrafficDensityProfile:
+    async def create() -> TrafficDensityProfile:
+        async with db_sessionmaker() as session:
+            profile = TrafficDensityProfile(
+                name=name,
+                description=None,
+                profile_type=profile_type,
+                traffic_density_per_km=traffic_density_per_km,
+                dwell_impressions_per_minute=dwell_impressions_per_minute,
+                road_category_weight=road_category_weight,
+                morning_weight=morning_weight,
+                midday_weight=midday_weight,
+                evening_weight=evening_weight,
+                night_weight=night_weight,
+                target_zone_weight=target_zone_weight,
+                bonus_zone_weight=bonus_zone_weight,
+                exclusion_zone_weight=exclusion_zone_weight,
+                is_default=is_default,
+                status=status,
+                profile_metadata=metadata or {},
+            )
+            session.add(profile)
+            await session.commit()
+            await session.refresh(profile)
+            return profile
+
+    return asyncio.run(create())
+
+
 def create_test_campaign_creative(
     db_sessionmaker: async_sessionmaker[AsyncSession],
     *,
@@ -512,6 +626,19 @@ def fetch_location_pings(
     async def fetch() -> list[LocationPing]:
         async with db_sessionmaker() as session:
             result = await session.execute(select(LocationPing).order_by(LocationPing.recorded_at))
+            return list(result.scalars().all())
+
+    return asyncio.run(fetch())
+
+
+def fetch_impression_estimates(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+) -> list[ImpressionEstimate]:
+    async def fetch() -> list[ImpressionEstimate]:
+        async with db_sessionmaker() as session:
+            result = await session.execute(
+                select(ImpressionEstimate).order_by(ImpressionEstimate.created_at)
+            )
             return list(result.scalars().all())
 
     return asyncio.run(fetch())

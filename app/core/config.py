@@ -2,7 +2,7 @@ import json
 from functools import lru_cache
 from typing import Annotated
 
-from pydantic import BeforeValidator, Field, field_validator
+from pydantic import BeforeValidator, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -56,6 +56,15 @@ class Settings(BaseSettings):
     route_analytics_stationary_ratio_threshold: float = 0.8
     route_analytics_looping_radius_m: float = 50.0
     route_analytics_looping_min_distance_m: float = 1000.0
+    impression_formula_version: str = "impressions_v1"
+    impression_default_traffic_density_per_km: float = 120.0
+    impression_default_dwell_impressions_per_minute: float = 3.0
+    impression_high_fraud_multiplier: float = 0.25
+    impression_medium_fraud_multiplier: float = 0.70
+    impression_low_fraud_multiplier: float = 0.90
+    impression_insufficient_data_confidence: float = 0.10
+    impression_min_confidence: float = 0.0
+    impression_max_confidence: float = 1.0
 
     @field_validator("api_v1_prefix")
     @classmethod
@@ -141,10 +150,40 @@ class Settings(BaseSettings):
             raise ValueError("Route analytics ratio settings must be between 0 and 1")
         return value
 
+    @field_validator(
+        "impression_default_traffic_density_per_km",
+        "impression_default_dwell_impressions_per_minute",
+    )
+    @classmethod
+    def validate_nonnegative_impression_defaults(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("Impression default settings must be nonnegative")
+        return value
+
+    @field_validator(
+        "impression_high_fraud_multiplier",
+        "impression_medium_fraud_multiplier",
+        "impression_low_fraud_multiplier",
+        "impression_insufficient_data_confidence",
+        "impression_min_confidence",
+        "impression_max_confidence",
+    )
+    @classmethod
+    def validate_impression_ratios(cls, value: float) -> float:
+        if value < 0 or value > 1:
+            raise ValueError("Impression ratio settings must be between 0 and 1")
+        return value
+
     @field_validator("default_currency")
     @classmethod
     def normalize_default_currency(cls, value: str) -> str:
         return value.upper()
+
+    @model_validator(mode="after")
+    def validate_impression_confidence_bounds(self) -> "Settings":
+        if self.impression_min_confidence > self.impression_max_confidence:
+            raise ValueError("IMPRESSION_MIN_CONFIDENCE must not exceed IMPRESSION_MAX_CONFIDENCE")
+        return self
 
 
 @lru_cache

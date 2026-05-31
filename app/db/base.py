@@ -10,6 +10,7 @@ import app.models.campaign  # noqa: E402,F401
 import app.models.campaign_assignment  # noqa: E402,F401
 import app.models.campaign_zone  # noqa: E402,F401
 import app.models.driver  # noqa: E402,F401
+import app.models.impression  # noqa: E402,F401
 import app.models.organization  # noqa: E402,F401
 import app.models.trip  # noqa: E402,F401
 import app.models.trip_analytics  # noqa: E402,F401

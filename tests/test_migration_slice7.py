@@ -173,7 +173,7 @@ def test_slice7_migration_upgrades_postgres_and_creates_expected_schema(monkeypa
     try:
         monkeypatch.setenv("DATABASE_URL", migration_url)
         get_settings.cache_clear()
-        command.upgrade(Config("alembic.ini"), "head")
+        command.upgrade(Config("alembic.ini"), SLICE7_REVISION)
 
         async def inspect_schema() -> dict[str, object]:
             engine = create_async_engine(migration_url, poolclass=NullPool)

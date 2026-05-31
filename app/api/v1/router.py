@@ -8,6 +8,7 @@ from app.api.v1.campaign_zones import router as campaign_zones_router
 from app.api.v1.campaigns import router as campaigns_router
 from app.api.v1.driver_profiles import router as driver_profiles_router
 from app.api.v1.health import router as health_router
+from app.api.v1.impressions import router as impressions_router
 from app.api.v1.me import router as me_router
 from app.api.v1.trip_analytics import router as trip_analytics_router
 from app.api.v1.trips import router as trips_router
@@ -21,6 +22,7 @@ api_router.include_router(advertiser_organizations_router)
 api_router.include_router(campaigns_router)
 api_router.include_router(campaign_assignments_router)
 api_router.include_router(campaign_zones_router)
+api_router.include_router(impressions_router)
 api_router.include_router(trip_analytics_router)
 api_router.include_router(trips_router)
 api_router.include_router(driver_profiles_router)

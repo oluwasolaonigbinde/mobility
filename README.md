@@ -16,17 +16,17 @@ Backend foundation for the Mobility AdTech & Audience Attribution Platform.
 
 ## Current Scope
 
-This repo currently contains Slice 7: project foundation, request IDs, expected error
+This repo currently contains Slice 8: project foundation, request IDs, expected error
 envelope, SQLAlchemy/Alembic foundation, JWT login, current-user context, RBAC, admin
 user management, advertiser organizations, organization memberships, audit events,
 driver profiles, vehicle profiles, advertiser campaign metadata, campaign creative
 metadata, advertiser campaign zones/geofences, campaign assignment and driver
 activation lifecycle, driver trip/session tracking, batched GPS location ping
-ingestion, deterministic route analytics, basic fraud/anomaly flags, Docker Compose,
-tests, and linting.
+ingestion, deterministic route analytics, basic fraud/anomaly flags, traffic density
+profiles, deterministic impression estimates, Docker Compose, tests, and linting.
 
-Business features such as impressions, payouts, reports, heatmaps, and seed data begin
-in later approved slices.
+Business features such as payouts, reports beyond the campaign impression summary,
+heatmaps, and seed data begin in later approved slices.
 
 ## Local Prerequisites
 
@@ -140,6 +140,16 @@ Slice 7 route analytics and fraud flag endpoints:
 - `GET /api/v1/admin/fraud-flags`
 - `GET /api/v1/driver/trips/{trip_id}/analytics-summary`
 
+Slice 8 impression estimation endpoints:
+
+- `POST /api/v1/admin/traffic-density-profiles`
+- `GET /api/v1/admin/traffic-density-profiles`
+- `GET /api/v1/admin/traffic-density-profiles/{profile_id}`
+- `PATCH /api/v1/admin/traffic-density-profiles/{profile_id}`
+- `POST /api/v1/admin/trips/{trip_id}/estimate-impressions`
+- `GET /api/v1/admin/impression-estimates`
+- `GET /api/v1/advertiser/campaigns/{campaign_id}/impressions/summary`
+
 Protected endpoints use bearer auth:
 
 ```http
@@ -168,8 +178,14 @@ validation, and are stored as PostGIS `geometry(Point,4326)`. Route analytics,
 can be recomputed by admins only for ended trips and use PostGIS geography-safe
 distance plus whole-segment campaign-zone intersection attribution. Drivers can read
 only their own trip analytics summaries. Fraud flags are deterministic anomaly
-records only; impressions, payouts, earnings, advertiser reporting, and heatmaps are
-not part of Slice 7.
+records only. Impression estimates use stored trip analytics, an active traffic
+density profile, UTC time-of-day weights, dwell exposure, zone exposure, quality
+score, and open fraud flag severity multipliers. If no active default profile exists
+when estimating without a profile id, a settings-backed default profile is created.
+Advertiser impression summaries aggregate stored estimates for campaigns in the
+current advertiser organization using `estimated_at` for date filters. Payouts,
+earnings, cost summaries, dashboard reporting beyond this summary, and heatmaps are
+not part of Slice 8.
 
 ## Tests
 
@@ -183,7 +199,7 @@ verification:
 
 ```powershell
 $env:DATABASE_URL = "postgresql+asyncpg://mobility:mobility@localhost:5433/mobility"
-python -m pytest tests/test_trips.py tests/test_trip_analytics.py -q
+python -m pytest tests/test_trips.py tests/test_trip_analytics.py tests/test_impression_estimates.py -q
 ```
 
 ## Lint
@@ -211,7 +227,8 @@ identity and tenancy tables: `users`, `advertiser_organizations`,
 `campaign_assignments` and `campaign_activation_events`. Slice 6 adds only
 `trip_sessions`, `location_ping_batches`, and `location_pings` with a PostGIS
 `geometry(Point,4326)` point column and GiST index. Slice 7 adds only
-`trip_analytics` and `fraud_flags`.
+`trip_analytics` and `fraud_flags`. Slice 8 adds only `traffic_density_profiles`
+and `impression_estimates`.
 
 ## Docker Compose
 

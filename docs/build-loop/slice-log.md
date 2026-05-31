@@ -2,7 +2,7 @@
 
 ## Current State
 
-Status: SLICE 8 READY
+Status: SLICE 8 PRO REVIEW PENDING
 
 Pro returned `Verdict: SIGNED OFF` for the initial context packet. The roadmap is saved at `docs/build-loop/pro-responses/initial-roadmap.md`, and the initial reconciliation is saved at `docs/build-loop/pro-responses/initial-context-reconciliation.md`.
 
@@ -18,7 +18,7 @@ Pro returned `Verdict: SIGNED OFF` for the initial context packet. The roadmap i
 | Slice 5 - Campaign assignment and activation | PASS | `slice-05-campaign-assignments` | `docs/build-loop/prompts/slice-05-campaign-assignments.md` | `docs/build-loop/reports/slice-05-campaign-assignments.md` | `docs/build-loop/pro-packets/slice-05-campaign-assignments.md` | `docs/build-loop/pro-responses/slice-05-campaign-assignments.md` | `95359a4` | Pro verdict: PASS. Safe to commit. Campaign assignments and driver/vehicle activation lifecycle. |
 | Slice 6 - GPS ingestion and trip/session tracking | PASS | `slice-06-trip-tracking` | `docs/build-loop/prompts/slice-06-trip-tracking.md` | `docs/build-loop/reports/slice-06-trip-tracking.md` | `docs/build-loop/pro-packets/slice-06-trip-tracking.md` | `docs/build-loop/pro-responses/slice-06-trip-tracking.md` | `0e6d102` | Pro verdict: PASS. Safe to commit. Trip lifecycle, batched location pings, idempotency, timestamp/coordinate validation. |
 | Slice 7 - Route analytics v1 and fraud flags | PASS | `slice-07-route-analytics` | `docs/build-loop/prompts/slice-07-route-analytics.md` | `docs/build-loop/reports/slice-07-route-analytics.md` | `docs/build-loop/pro-packets/slice-07-route-analytics.md` | `docs/build-loop/pro-responses/slice-07-route-analytics.md` | `c696555` | Pro verdict: PASS. Safe to commit. Distance, duration, dwell, zone overlap, quality metrics, basic anomaly flags. |
-| Slice 8 - Impression estimation v1 | READY | Pending | `docs/build-loop/prompts/slice-08-impression-estimation.md` | Pending | Pending | Pending | Pending | Transparent formula-versioned impression estimates and campaign rollups. |
+| Slice 8 - Impression estimation v1 | PRO REVIEW PENDING | `slice-08-impression-estimation` | `docs/build-loop/prompts/slice-08-impression-estimation.md` | `docs/build-loop/reports/slice-08-impression-estimation.md` | `docs/build-loop/pro-packets/slice-08-impression-estimation.md` | Pending | Pending | Transparent formula-versioned impression estimates and campaign rollups. |
 | Slice 9 - Payout calculation v1 and earnings ledger | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Formula-versioned payouts, immutable driver ledger, campaign cost summaries. |
 | Slice 10 - Advertiser dashboard and campaign reports | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Summary cards, campaign reports, daily metrics, aggregate trip/performance views. |
 | Slice 11 - Heatmap/geospatial aggregation APIs | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Bounded geospatial aggregation for frontend map heatmaps. |
