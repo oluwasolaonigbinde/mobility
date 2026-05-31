@@ -78,5 +78,16 @@ def require_advertiser_user(user: CurrentUserDependency) -> User:
     return user
 
 
+def require_driver_user(user: CurrentUserDependency) -> User:
+    if user.role != UserRole.DRIVER:
+        raise AppError(
+            "FORBIDDEN_ROLE",
+            "Driver role is required",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+    return user
+
+
 AdminUserDependency = Annotated[User, Depends(require_admin_user)]
 AdvertiserUserDependency = Annotated[User, Depends(require_advertiser_user)]
+DriverUserDependency = Annotated[User, Depends(require_driver_user)]

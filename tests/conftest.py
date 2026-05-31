@@ -14,6 +14,7 @@ from app.db.base import Base
 from app.db.session import get_session
 from app.main import create_app
 from app.models.audit import AuditEvent
+from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.organization import (
     AdvertiserOrganization,
     MembershipRole,
@@ -22,7 +23,9 @@ from app.models.organization import (
     OrganizationStatus,
 )
 from app.models.user import User, UserRole, UserStatus
+from app.models.vehicle import Vehicle, VehicleStatus, VehicleType
 from app.services.users import normalize_email
+from app.services.vehicles import normalize_plate_number
 
 
 @pytest.fixture
@@ -147,6 +150,71 @@ def create_test_organization(
             if membership is not None:
                 await session.refresh(membership)
             return organization, membership
+
+    return asyncio.run(create())
+
+
+def create_test_driver_profile(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    user_id: UUID,
+    onboarding_status: DriverOnboardingStatus = DriverOnboardingStatus.PENDING,
+    license_number: str | None = "DRV-123",
+    service_city: str | None = "Lagos",
+    country_code: str | None = "NG",
+    metadata: dict | None = None,
+) -> DriverProfile:
+    async def create() -> DriverProfile:
+        async with db_sessionmaker() as session:
+            profile = DriverProfile(
+                user_id=user_id,
+                onboarding_status=onboarding_status,
+                license_number=license_number,
+                service_city=service_city,
+                country_code=country_code,
+                profile_metadata=metadata or {},
+            )
+            session.add(profile)
+            await session.commit()
+            await session.refresh(profile)
+            return profile
+
+    return asyncio.run(create())
+
+
+def create_test_vehicle(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    driver_profile_id: UUID,
+    plate_number: str = "ABC-123",
+    plate_country_code: str = "NG",
+    vehicle_type: VehicleType = VehicleType.CAR,
+    make: str | None = "Toyota",
+    model: str | None = "Corolla",
+    year: int | None = 2018,
+    color: str | None = "White",
+    vehicle_status: VehicleStatus = VehicleStatus.PENDING,
+    metadata: dict | None = None,
+) -> Vehicle:
+    async def create() -> Vehicle:
+        async with db_sessionmaker() as session:
+            vehicle = Vehicle(
+                driver_profile_id=driver_profile_id,
+                plate_number=plate_number,
+                plate_number_normalized=normalize_plate_number(plate_number),
+                plate_country_code=plate_country_code.upper(),
+                vehicle_type=vehicle_type,
+                make=make,
+                model=model,
+                year=year,
+                color=color,
+                status=vehicle_status,
+                vehicle_metadata=metadata or {},
+            )
+            session.add(vehicle)
+            await session.commit()
+            await session.refresh(vehicle)
+            return vehicle
 
     return asyncio.run(create())
 

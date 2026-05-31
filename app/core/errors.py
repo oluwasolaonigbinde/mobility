@@ -1,6 +1,7 @@
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette import status
@@ -55,7 +56,7 @@ async def validation_exception_handler(_: Request, exc: RequestValidationError) 
         content=error_payload(
             "VALIDATION_ERROR",
             "Request validation failed",
-            {"errors": exc.errors()},
+            {"errors": jsonable_encoder(exc.errors())},
         ),
     )
 
