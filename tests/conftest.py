@@ -39,6 +39,7 @@ from app.models.organization import (
     OrganizationMembership,
     OrganizationStatus,
 )
+from app.models.payout import CampaignPayoutRule, EarningsLedgerEntry, PayoutCalculation
 from app.models.trip import LocationPing, LocationPingBatch, TripSession, TripSessionStatus
 from app.models.trip_analytics import TripAnalytics
 from app.models.user import User, UserRole, UserStatus
@@ -421,6 +422,7 @@ def create_test_trip_analytics(
     first_ping_at=None,
     last_ping_at=None,
     distance_m=0,
+    active_tracking_seconds: int = 0,
     stationary_seconds: int = 0,
     target_zone_distance_m=0,
     bonus_zone_distance_m=0,
@@ -446,7 +448,7 @@ def create_test_trip_analytics(
                 first_ping_at=first_ping_at,
                 last_ping_at=last_ping_at,
                 duration_seconds=0,
-                active_tracking_seconds=0,
+                active_tracking_seconds=active_tracking_seconds,
                 moving_seconds=0,
                 stationary_seconds=stationary_seconds,
                 distance_m=distance_m,
@@ -468,6 +470,100 @@ def create_test_trip_analytics(
             await session.commit()
             await session.refresh(analytics)
             return analytics
+
+    return asyncio.run(create())
+
+
+def create_test_impression_estimate(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    trip_session_id: UUID,
+    trip_analytics_id: UUID,
+    assignment_id: UUID,
+    campaign_id: UUID,
+    driver_profile_id: UUID,
+    vehicle_id: UUID,
+    traffic_density_profile_id: UUID,
+    formula_version: str = "impressions_v1",
+    status: str = "estimated",
+    estimated_impressions=0,
+    metadata: dict | None = None,
+) -> ImpressionEstimate:
+    async def create() -> ImpressionEstimate:
+        async with db_sessionmaker() as session:
+            estimate = ImpressionEstimate(
+                trip_session_id=trip_session_id,
+                trip_analytics_id=trip_analytics_id,
+                assignment_id=assignment_id,
+                campaign_id=campaign_id,
+                driver_profile_id=driver_profile_id,
+                vehicle_id=vehicle_id,
+                traffic_density_profile_id=traffic_density_profile_id,
+                formula_version=formula_version,
+                status=status,
+                estimated_impressions=estimated_impressions,
+                base_distance_impressions=0,
+                dwell_impressions=0,
+                target_zone_impressions=0,
+                bonus_zone_impressions=0,
+                exclusion_zone_adjustment=0,
+                quality_multiplier=1,
+                fraud_adjustment_multiplier=1,
+                confidence_score=1,
+                estimated_at=datetime.now(UTC),
+                estimate_metadata=metadata or {},
+            )
+            session.add(estimate)
+            await session.commit()
+            await session.refresh(estimate)
+            return estimate
+
+    return asyncio.run(create())
+
+
+def create_test_payout_rule(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    campaign_id: UUID,
+    created_by_user_id: UUID,
+    status: str = "active",
+    currency: str = "NGN",
+    base_rate_per_km=0,
+    base_rate_per_active_hour=0,
+    target_zone_bonus_rate_per_km=0,
+    bonus_zone_bonus_rate_per_km=0,
+    estimated_impression_rate_per_1000=0,
+    min_payout_per_trip=0,
+    max_payout_per_trip=None,
+    low_fraud_multiplier=0.90,
+    medium_fraud_multiplier=0.70,
+    high_fraud_multiplier=0.25,
+    metadata: dict | None = None,
+) -> CampaignPayoutRule:
+    async def create() -> CampaignPayoutRule:
+        async with db_sessionmaker() as session:
+            rule = CampaignPayoutRule(
+                campaign_id=campaign_id,
+                created_by_user_id=created_by_user_id,
+                formula_version="payout_v1",
+                status=status,
+                currency=currency,
+                base_rate_per_km=base_rate_per_km,
+                base_rate_per_active_hour=base_rate_per_active_hour,
+                target_zone_bonus_rate_per_km=target_zone_bonus_rate_per_km,
+                bonus_zone_bonus_rate_per_km=bonus_zone_bonus_rate_per_km,
+                estimated_impression_rate_per_1000=estimated_impression_rate_per_1000,
+                min_payout_per_trip=min_payout_per_trip,
+                max_payout_per_trip=max_payout_per_trip,
+                low_fraud_multiplier=low_fraud_multiplier,
+                medium_fraud_multiplier=medium_fraud_multiplier,
+                high_fraud_multiplier=high_fraud_multiplier,
+                rule_metadata=metadata or {},
+            )
+            session.add(rule)
+            await session.commit()
+            await session.refresh(rule)
+            return rule
 
     return asyncio.run(create())
 
@@ -638,6 +734,32 @@ def fetch_impression_estimates(
         async with db_sessionmaker() as session:
             result = await session.execute(
                 select(ImpressionEstimate).order_by(ImpressionEstimate.created_at)
+            )
+            return list(result.scalars().all())
+
+    return asyncio.run(fetch())
+
+
+def fetch_payout_calculations(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+) -> list[PayoutCalculation]:
+    async def fetch() -> list[PayoutCalculation]:
+        async with db_sessionmaker() as session:
+            result = await session.execute(
+                select(PayoutCalculation).order_by(PayoutCalculation.created_at)
+            )
+            return list(result.scalars().all())
+
+    return asyncio.run(fetch())
+
+
+def fetch_earnings_ledger_entries(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+) -> list[EarningsLedgerEntry]:
+    async def fetch() -> list[EarningsLedgerEntry]:
+        async with db_sessionmaker() as session:
+            result = await session.execute(
+                select(EarningsLedgerEntry).order_by(EarningsLedgerEntry.created_at)
             )
             return list(result.scalars().all())
 

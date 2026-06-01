@@ -127,6 +127,9 @@ def test_slice8_migration_contains_only_impression_tables() -> None:
     ]:
         assert required_column in migration
     for forbidden_table in [
+        "campaign_payout_rules",
+        "payout_calculations",
+        "earnings_ledger_entries",
         "payouts",
         "earnings_ledgers",
         "campaign_daily_metrics",
@@ -177,7 +180,7 @@ def test_slice8_migration_upgrades_postgres_and_creates_expected_schema(monkeypa
                 await engine.dispose()
 
         base_tables = asyncio.run(public_base_tables())
-        command.upgrade(alembic_config, "head")
+        command.upgrade(alembic_config, SLICE8_REVISION)
 
         async def inspect_schema() -> dict[str, object]:
             engine = create_async_engine(migration_url, poolclass=NullPool)
@@ -273,6 +276,9 @@ def test_slice8_migration_upgrades_postgres_and_creates_expected_schema(monkeypa
                                     FROM information_schema.tables
                                     WHERE table_schema = 'public'
                                       AND table_name IN (
+                                        'campaign_payout_rules',
+                                        'payout_calculations',
+                                        'earnings_ledger_entries',
                                         'payouts',
                                         'earnings_ledgers',
                                         'campaign_daily_metrics',

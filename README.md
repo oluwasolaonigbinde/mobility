@@ -16,17 +16,20 @@ Backend foundation for the Mobility AdTech & Audience Attribution Platform.
 
 ## Current Scope
 
-This repo currently contains Slice 8: project foundation, request IDs, expected error
+This repo currently contains Slice 9: project foundation, request IDs, expected error
 envelope, SQLAlchemy/Alembic foundation, JWT login, current-user context, RBAC, admin
 user management, advertiser organizations, organization memberships, audit events,
 driver profiles, vehicle profiles, advertiser campaign metadata, campaign creative
 metadata, advertiser campaign zones/geofences, campaign assignment and driver
 activation lifecycle, driver trip/session tracking, batched GPS location ping
 ingestion, deterministic route analytics, basic fraud/anomaly flags, traffic density
-profiles, deterministic impression estimates, Docker Compose, tests, and linting.
+profiles, deterministic impression estimates, campaign payout rules, deterministic
+payout calculations, driver earnings ledger reads, advertiser campaign cost summaries,
+Docker Compose, tests, and linting.
 
-Business features such as payouts, reports beyond the campaign impression summary,
-heatmaps, and seed data begin in later approved slices.
+Business features such as settlement, withdrawals, advertiser billing, reports beyond
+the approved campaign summaries, heatmaps, and seed data begin in later approved
+slices.
 
 ## Local Prerequisites
 
@@ -150,6 +153,18 @@ Slice 8 impression estimation endpoints:
 - `GET /api/v1/admin/impression-estimates`
 - `GET /api/v1/advertiser/campaigns/{campaign_id}/impressions/summary`
 
+Slice 9 payout calculation and earnings endpoints:
+
+- `POST /api/v1/admin/campaigns/{campaign_id}/payout-rules`
+- `GET /api/v1/admin/campaigns/{campaign_id}/payout-rules`
+- `GET /api/v1/admin/campaigns/{campaign_id}/payout-rules/{rule_id}`
+- `PATCH /api/v1/admin/campaigns/{campaign_id}/payout-rules/{rule_id}`
+- `POST /api/v1/admin/trips/{trip_id}/calculate-payout`
+- `GET /api/v1/admin/payout-calculations`
+- `GET /api/v1/driver/earnings/summary`
+- `GET /api/v1/driver/earnings/ledger`
+- `GET /api/v1/advertiser/campaigns/{campaign_id}/cost-summary`
+
 Protected endpoints use bearer auth:
 
 ```http
@@ -183,9 +198,16 @@ density profile, UTC time-of-day weights, dwell exposure, zone exposure, quality
 score, and open fraud flag severity multipliers. If no active default profile exists
 when estimating without a profile id, a settings-backed default profile is created.
 Advertiser impression summaries aggregate stored estimates for campaigns in the
-current advertiser organization using `estimated_at` for date filters. Payouts,
-earnings, cost summaries, dashboard reporting beyond this summary, and heatmaps are
-not part of Slice 8.
+current advertiser organization using `estimated_at` for date filters. Payout rules
+are explicit admin-managed campaign configuration and are not silently created at
+runtime. Payout calculations use stored trip analytics, stored impression estimates,
+open fraud flag severity, trip quality score, and the active campaign payout rule.
+Successful positive calculated payouts create one pending immutable trip payout
+ledger entry. Driver earnings endpoints expose only the current driver's aggregate
+summary and ledger entries. Advertiser cost summaries aggregate stored payout
+calculations for the current advertiser organization using `calculated_at` for date
+filters. Settlement, withdrawal, payment provider, invoice, tax, advertiser charging,
+campaign daily metrics, full dashboards, and heatmaps are not part of Slice 9.
 
 ## Tests
 
@@ -228,7 +250,8 @@ identity and tenancy tables: `users`, `advertiser_organizations`,
 `trip_sessions`, `location_ping_batches`, and `location_pings` with a PostGIS
 `geometry(Point,4326)` point column and GiST index. Slice 7 adds only
 `trip_analytics` and `fraud_flags`. Slice 8 adds only `traffic_density_profiles`
-and `impression_estimates`.
+and `impression_estimates`. Slice 9 adds only `campaign_payout_rules`,
+`payout_calculations`, and `earnings_ledger_entries`.
 
 ## Docker Compose
 

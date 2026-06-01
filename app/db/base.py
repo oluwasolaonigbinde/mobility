@@ -12,6 +12,7 @@ import app.models.campaign_zone  # noqa: E402,F401
 import app.models.driver  # noqa: E402,F401
 import app.models.impression  # noqa: E402,F401
 import app.models.organization  # noqa: E402,F401
+import app.models.payout  # noqa: E402,F401
 import app.models.trip  # noqa: E402,F401
 import app.models.trip_analytics  # noqa: E402,F401
 import app.models.user  # noqa: E402,F401
