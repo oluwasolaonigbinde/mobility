@@ -16,7 +16,7 @@ Backend foundation for the Mobility AdTech & Audience Attribution Platform.
 
 ## Current Scope
 
-This repo currently contains Slice 9: project foundation, request IDs, expected error
+This repo currently contains Slice 10: project foundation, request IDs, expected error
 envelope, SQLAlchemy/Alembic foundation, JWT login, current-user context, RBAC, admin
 user management, advertiser organizations, organization memberships, audit events,
 driver profiles, vehicle profiles, advertiser campaign metadata, campaign creative
@@ -25,11 +25,11 @@ activation lifecycle, driver trip/session tracking, batched GPS location ping
 ingestion, deterministic route analytics, basic fraud/anomaly flags, traffic density
 profiles, deterministic impression estimates, campaign payout rules, deterministic
 payout calculations, driver earnings ledger reads, advertiser campaign cost summaries,
-Docker Compose, tests, and linting.
+advertiser dashboard summary, campaign summaries, campaign daily metrics, campaign
+trip reporting, bundled campaign JSON reports, Docker Compose, tests, and linting.
 
-Business features such as settlement, withdrawals, advertiser billing, reports beyond
-the approved campaign summaries, heatmaps, and seed data begin in later approved
-slices.
+Business features such as settlement, withdrawals, advertiser billing, CSV/PDF
+exports, heatmaps, and seed data begin in later approved slices.
 
 ## Local Prerequisites
 
@@ -165,6 +165,14 @@ Slice 9 payout calculation and earnings endpoints:
 - `GET /api/v1/driver/earnings/ledger`
 - `GET /api/v1/advertiser/campaigns/{campaign_id}/cost-summary`
 
+Slice 10 advertiser reporting endpoints:
+
+- `GET /api/v1/advertiser/dashboard/summary`
+- `GET /api/v1/advertiser/campaigns/{campaign_id}/summary`
+- `GET /api/v1/advertiser/campaigns/{campaign_id}/daily-metrics`
+- `GET /api/v1/advertiser/campaigns/{campaign_id}/trips`
+- `GET /api/v1/advertiser/campaigns/{campaign_id}/report`
+
 Protected endpoints use bearer auth:
 
 ```http
@@ -206,8 +214,17 @@ Successful positive calculated payouts create one pending immutable trip payout
 ledger entry. Driver earnings endpoints expose only the current driver's aggregate
 summary and ledger entries. Advertiser cost summaries aggregate stored payout
 calculations for the current advertiser organization using `calculated_at` for date
-filters. Settlement, withdrawal, payment provider, invoice, tax, advertiser charging,
-campaign daily metrics, full dashboards, and heatmaps are not part of Slice 9.
+filters. Advertiser reporting endpoints are read-only and aggregate existing stored
+campaign, creative, zone, assignment, trip, analytics, fraud, impression, payout, and
+ledger records only. Date filters use `trip_sessions.started_at` for trip and route
+analytics counts, `impression_estimates.estimated_at` for impressions,
+`payout_calculations.calculated_at` for costs, and `fraud_flags.detected_at` for fraud
+counts. Daily metrics group by UTC calendar day from `trip_sessions.started_at` and do
+not use a materialized daily-metrics table. Reporting responses do not expose driver
+PII, vehicle plate numbers, raw GPS pings, idempotency keys, ledger details, payment
+data, or password hashes. Settlement, withdrawal, payment provider, invoice, tax,
+advertiser charging, CSV/PDF export, heatmaps, seed data, and frontend work are not
+part of Slice 10.
 
 ## Tests
 
@@ -251,7 +268,8 @@ identity and tenancy tables: `users`, `advertiser_organizations`,
 `geometry(Point,4326)` point column and GiST index. Slice 7 adds only
 `trip_analytics` and `fraud_flags`. Slice 8 adds only `traffic_density_profiles`
 and `impression_estimates`. Slice 9 adds only `campaign_payout_rules`,
-`payout_calculations`, and `earnings_ledger_entries`.
+`payout_calculations`, and `earnings_ledger_entries`. Slice 10 adds no migration and
+no tables; advertiser reporting is on-demand aggregation over existing stored data.
 
 ## Docker Compose
 
