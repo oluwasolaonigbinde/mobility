@@ -2,7 +2,7 @@
 
 ## Current State
 
-Status: SLICE 11 READY
+Status: SLICE 12 READY
 
 Pro returned `Verdict: SIGNED OFF` for the initial context packet. The roadmap is saved at `docs/build-loop/pro-responses/initial-roadmap.md`, and the initial reconciliation is saved at `docs/build-loop/pro-responses/initial-context-reconciliation.md`.
 
@@ -21,6 +21,6 @@ Pro returned `Verdict: SIGNED OFF` for the initial context packet. The roadmap i
 | Slice 8 - Impression estimation v1 | PASS | `slice-08-impression-estimation` | `docs/build-loop/prompts/slice-08-impression-estimation.md` | `docs/build-loop/reports/slice-08-impression-estimation.md` | `docs/build-loop/pro-packets/slice-08-impression-estimation.md` | `docs/build-loop/pro-responses/slice-08-impression-estimation.md` | `6618015` | Pro verdict: PASS. Safe to commit. Transparent formula-versioned impression estimates and campaign rollups. |
 | Slice 9 - Payout calculation v1 and earnings ledger | PASS | `slice-09-payout-calculation` | `docs/build-loop/prompts/slice-09-payout-calculation.md` | `docs/build-loop/reports/slice-09-payout-calculation.md` | `docs/build-loop/pro-packets/slice-09-payout-calculation.md` | `docs/build-loop/pro-responses/slice-09-payout-calculation.md` | `f80d2f7` | Pro verdict: PASS. Safe to commit. Formula-versioned payouts, immutable driver ledger, campaign cost summaries. |
 | Slice 10 - Advertiser dashboard and campaign reports | PASS | `slice-10-advertiser-reporting` | `docs/build-loop/prompts/slice-10-advertiser-dashboard-and-campaign-reports.md` | `docs/build-loop/reports/slice-10-advertiser-dashboard-and-campaign-reports.md` | `docs/build-loop/pro-packets/slice-10-advertiser-dashboard-and-campaign-reports.md` | `docs/build-loop/pro-responses/slice-10-advertiser-dashboard-and-campaign-reports.md` | `66b9fba` | Pro verdict: PASS. Safe to commit. Summary cards, campaign reports, daily metrics, aggregate trip/performance views. |
-| Slice 11 - Heatmap/geospatial aggregation APIs | READY | Pending | `docs/build-loop/prompts/slice-11-heatmap-geospatial-aggregation-apis.md` | Pending | Pending | Pending | Pending | Bounded geospatial aggregation for frontend map heatmaps. |
-| Slice 12 - Seed/demo data and API docs hardening | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Demo data, OpenAPI examples, frontend-ready smoke path. |
+| Slice 11 - Heatmap/geospatial aggregation APIs | PASS | `slice-11-heatmaps` | `docs/build-loop/prompts/slice-11-heatmap-geospatial-aggregation-apis.md` | `docs/build-loop/reports/slice-11-heatmaps.md` | `docs/build-loop/pro-packets/slice-11-heatmap-geospatial-aggregation-apis.md` | `docs/build-loop/pro-responses/slice-11-heatmap-geospatial-aggregation-apis.md` | `71af695` | Pro verdict: PASS. Safe to commit. Bounded PostGIS heatmap aggregation for advertiser/admin map views. |
+| Slice 12 - Seed/demo data and API docs hardening | READY | Pending | `docs/build-loop/prompts/slice-12-seed-demo-data-and-api-docs-hardening.md` | Pending | Pending | Pending | Pending | Demo data, OpenAPI examples, frontend-ready smoke path. |
 | Slice 13 - MVP hardening and contract freeze | PLANNED | Pending | Pending | Pending | Pending | Pending | Pending | Security review, indexes, pagination, rate limits, contract snapshot, README hardening. |
