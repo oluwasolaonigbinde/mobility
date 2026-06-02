@@ -83,6 +83,13 @@ class Settings(BaseSettings):
     payout_default_high_fraud_multiplier: float = 0.25
     payout_default_min_payout_per_trip: float = 0.0
     payout_default_max_payout_per_trip: OptionalFloat = None
+    heatmap_default_resolution_m: int = 500
+    heatmap_min_resolution_m: int = 50
+    heatmap_max_resolution_m: int = 5000
+    heatmap_max_bbox_area_sq_km: int = 2500
+    heatmap_max_date_range_days: int = 90
+    heatmap_max_cells: int = 5000
+    heatmap_min_trips_per_cell: int = 1
 
     @field_validator("api_v1_prefix")
     @classmethod
@@ -224,6 +231,27 @@ class Settings(BaseSettings):
             raise ValueError("Payout ratio settings must be between 0 and 1")
         return value
 
+    @field_validator(
+        "heatmap_default_resolution_m",
+        "heatmap_min_resolution_m",
+        "heatmap_max_resolution_m",
+        "heatmap_max_bbox_area_sq_km",
+        "heatmap_max_date_range_days",
+        "heatmap_max_cells",
+    )
+    @classmethod
+    def validate_positive_heatmap_settings(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("Heatmap settings must be positive")
+        return value
+
+    @field_validator("heatmap_min_trips_per_cell")
+    @classmethod
+    def validate_heatmap_min_trips_per_cell(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("HEATMAP_MIN_TRIPS_PER_CELL must be at least 1")
+        return value
+
     @field_validator("default_currency")
     @classmethod
     def normalize_default_currency(cls, value: str) -> str:
@@ -243,6 +271,15 @@ class Settings(BaseSettings):
             raise ValueError(
                 "PAYOUT_DEFAULT_MAX_PAYOUT_PER_TRIP must not be below "
                 "PAYOUT_DEFAULT_MIN_PAYOUT_PER_TRIP"
+            )
+        if not (
+            self.heatmap_min_resolution_m
+            <= self.heatmap_default_resolution_m
+            <= self.heatmap_max_resolution_m
+        ):
+            raise ValueError(
+                "HEATMAP_MIN_RESOLUTION_M must be <= HEATMAP_DEFAULT_RESOLUTION_M "
+                "and HEATMAP_DEFAULT_RESOLUTION_M must be <= HEATMAP_MAX_RESOLUTION_M"
             )
         return self
 

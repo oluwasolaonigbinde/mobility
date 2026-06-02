@@ -16,7 +16,7 @@ Backend foundation for the Mobility AdTech & Audience Attribution Platform.
 
 ## Current Scope
 
-This repo currently contains Slice 10: project foundation, request IDs, expected error
+This repo currently contains Slice 11: project foundation, request IDs, expected error
 envelope, SQLAlchemy/Alembic foundation, JWT login, current-user context, RBAC, admin
 user management, advertiser organizations, organization memberships, audit events,
 driver profiles, vehicle profiles, advertiser campaign metadata, campaign creative
@@ -26,10 +26,12 @@ ingestion, deterministic route analytics, basic fraud/anomaly flags, traffic den
 profiles, deterministic impression estimates, campaign payout rules, deterministic
 payout calculations, driver earnings ledger reads, advertiser campaign cost summaries,
 advertiser dashboard summary, campaign summaries, campaign daily metrics, campaign
-trip reporting, bundled campaign JSON reports, Docker Compose, tests, and linting.
+trip reporting, bundled campaign JSON reports, bounded PostGIS heatmap aggregation,
+Docker Compose, tests, and linting.
 
 Business features such as settlement, withdrawals, advertiser billing, CSV/PDF
-exports, heatmaps, and seed data begin in later approved slices.
+exports, map tiles, heatmap cache tables, and seed data begin in later approved
+slices.
 
 ## Local Prerequisites
 
@@ -173,6 +175,11 @@ Slice 10 advertiser reporting endpoints:
 - `GET /api/v1/advertiser/campaigns/{campaign_id}/trips`
 - `GET /api/v1/advertiser/campaigns/{campaign_id}/report`
 
+Slice 11 heatmap endpoints:
+
+- `GET /api/v1/advertiser/campaigns/{campaign_id}/heatmap`
+- `GET /api/v1/admin/heatmap`
+
 Protected endpoints use bearer auth:
 
 ```http
@@ -223,8 +230,15 @@ counts. Daily metrics group by UTC calendar day from `trip_sessions.started_at` 
 not use a materialized daily-metrics table. Reporting responses do not expose driver
 PII, vehicle plate numbers, raw GPS pings, idempotency keys, ledger details, payment
 data, or password hashes. Settlement, withdrawal, payment provider, invoice, tax,
-advertiser charging, CSV/PDF export, heatmaps, seed data, and frontend work are not
-part of Slice 10.
+advertiser charging, CSV/PDF export, map tiles, heatmap cache tables, seed data, and
+frontend work are not part of Slice 11. Heatmap endpoints are read-only and aggregate
+stored location pings into GeoJSON polygon cells using a required bounded `bbox`.
+Supported metrics are `ping_count`, `trip_count`, `distance_m`, and
+`estimated_impressions`. Distance and impression values use stored trip analytics and
+stored impression estimates, allocated to cells by trip ping share in the requested
+bbox/date window. Heatmap responses do not expose driver PII, driver profile ids,
+vehicle plate numbers, raw GPS point rows, ping ids, idempotency keys, ledger details,
+payment data, or password hashes.
 
 ## Tests
 
@@ -238,7 +252,7 @@ verification:
 
 ```powershell
 $env:DATABASE_URL = "postgresql+asyncpg://mobility:mobility@localhost:5433/mobility"
-python -m pytest tests/test_trips.py tests/test_trip_analytics.py tests/test_impression_estimates.py -q
+python -m pytest tests/test_trips.py tests/test_trip_analytics.py tests/test_impression_estimates.py tests/test_heatmaps.py -q
 ```
 
 ## Lint
@@ -270,6 +284,8 @@ identity and tenancy tables: `users`, `advertiser_organizations`,
 and `impression_estimates`. Slice 9 adds only `campaign_payout_rules`,
 `payout_calculations`, and `earnings_ledger_entries`. Slice 10 adds no migration and
 no tables; advertiser reporting is on-demand aggregation over existing stored data.
+Slice 11 adds no migration and no tables; heatmaps are bounded on-demand PostGIS
+aggregation over existing stored pings, trips, analytics, and estimates.
 
 ## Docker Compose
 
