@@ -6,7 +6,21 @@ from app.models.user import UserRole, UserStatus
 
 
 class LoginRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "email": "advertiser@demo.mobility.local",
+                    "password": "DemoAdvertiser12345!",
+                },
+                {
+                    "email": "driver@demo.mobility.local",
+                    "password": "DemoDriver12345!",
+                },
+            ]
+        },
+    )
 
     email: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=1)

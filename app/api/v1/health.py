@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import Settings, get_settings
 from app.db.session import check_database
 
-router = APIRouter(prefix="/health", tags=["health"])
+router = APIRouter(prefix="/health", tags=["Health"])
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
 
 

@@ -40,7 +40,7 @@ from app.services.campaign_assignments import (
     list_driver_assignments,
 )
 
-router = APIRouter(tags=["campaign assignments"])
+router = APIRouter(tags=["Campaign Assignments"])
 
 
 def campaign_summary(campaign: Campaign | None) -> AssignmentCampaignSummary | None:

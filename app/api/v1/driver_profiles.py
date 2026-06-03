@@ -25,7 +25,7 @@ from app.services.drivers import (
     update_driver_profile,
 )
 
-router = APIRouter(tags=["driver profiles"])
+router = APIRouter(tags=["Drivers"])
 
 
 def driver_profile_response(profile: DriverProfile, user: User) -> DriverProfileRead:

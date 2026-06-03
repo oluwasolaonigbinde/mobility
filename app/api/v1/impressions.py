@@ -38,7 +38,7 @@ from app.services.impressions import (
     update_traffic_density_profile,
 )
 
-router = APIRouter(tags=["impressions"])
+router = APIRouter(tags=["Impressions"])
 
 
 def profile_response(profile: TrafficDensityProfile) -> TrafficDensityProfileRead:

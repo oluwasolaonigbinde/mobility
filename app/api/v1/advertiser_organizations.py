@@ -6,7 +6,7 @@ from app.core.errors import AppError
 from app.schemas.organizations import AdvertiserOrganizationContextResponse
 from app.services.organizations import get_advertiser_organization_for_user
 
-router = APIRouter(prefix="/advertiser", tags=["advertiser"])
+router = APIRouter(prefix="/advertiser", tags=["Advertiser Organizations"])
 
 
 @router.get(

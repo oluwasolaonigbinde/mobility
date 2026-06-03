@@ -31,7 +31,7 @@ from app.services.trip_analytics import (
     recompute_trip_analytics,
 )
 
-router = APIRouter(tags=["trip analytics"])
+router = APIRouter(tags=["Analytics"])
 
 
 def fraud_flag_response(flag: FraudFlag) -> FraudFlagRead:

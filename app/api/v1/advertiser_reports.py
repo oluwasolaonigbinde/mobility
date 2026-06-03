@@ -27,7 +27,7 @@ from app.services.reports import (
     daily_metrics_for_campaign,
 )
 
-router = APIRouter(tags=["advertiser reports"])
+router = APIRouter(tags=["Advertiser Reports"])
 
 
 def ensure_report_datetime(value: datetime | None, field_name: str) -> datetime | None:
@@ -61,6 +61,10 @@ def ensure_report_date_range(
     "/advertiser/dashboard/summary",
     response_model=AdvertiserDashboardSummary,
     summary="Read advertiser dashboard summary",
+    description=(
+        "Aggregate stored campaign, trip, impression, payout, and fraud data for the "
+        "current advertiser organization. The demo seed returns non-empty data here."
+    ),
 )
 async def advertiser_get_dashboard_summary(
     current_user: AdvertiserUserDependency,
@@ -83,6 +87,7 @@ async def advertiser_get_dashboard_summary(
     "/advertiser/campaigns/{campaign_id}/summary",
     response_model=CampaignSummary,
     summary="Read advertiser campaign reporting summary",
+    description="Return frontend-ready totals for one advertiser-owned campaign.",
 )
 async def advertiser_get_campaign_summary(
     campaign_id: UUID,
@@ -107,6 +112,7 @@ async def advertiser_get_campaign_summary(
     "/advertiser/campaigns/{campaign_id}/daily-metrics",
     response_model=DailyMetricsResponse,
     summary="List advertiser campaign daily metrics",
+    description="Return UTC daily reporting rows from stored demo or production data.",
 )
 async def advertiser_get_campaign_daily_metrics(
     campaign_id: UUID,
@@ -135,6 +141,7 @@ async def advertiser_get_campaign_daily_metrics(
     "/advertiser/campaigns/{campaign_id}/trips",
     response_model=CampaignTripsResponse,
     summary="List advertiser campaign trip summaries",
+    description="List privacy-safe campaign trip summaries without raw GPS or driver PII.",
 )
 async def advertiser_list_campaign_trips(
     campaign_id: UUID,
@@ -173,6 +180,7 @@ async def advertiser_list_campaign_trips(
     "/advertiser/campaigns/{campaign_id}/report",
     response_model=CampaignReportResponse,
     summary="Read bundled advertiser campaign report",
+    description="Return compact dashboard, daily, creative, zone, assignment, and cost sections.",
 )
 async def advertiser_get_campaign_report(
     campaign_id: UUID,

@@ -5,10 +5,15 @@ from app.schemas.organizations import MeAdvertiserOrganization, MeResponse
 from app.schemas.users import UserRead
 from app.services.organizations import get_advertiser_organization_for_user
 
-router = APIRouter(tags=["me"])
+router = APIRouter(tags=["Auth"])
 
 
-@router.get("/me", response_model=MeResponse, summary="Get current user context")
+@router.get(
+    "/me",
+    response_model=MeResponse,
+    summary="Get current user context",
+    description="Return the authenticated user and advertiser organization context when present.",
+)
 async def me(user: CurrentUserDependency, session: SessionDependency) -> MeResponse:
     organization_context = await get_advertiser_organization_for_user(session, user.id)
     advertiser_organization = None

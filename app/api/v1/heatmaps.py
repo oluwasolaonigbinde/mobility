@@ -18,22 +18,38 @@ from app.services.heatmaps import (
     parse_heatmap_query,
 )
 
-router = APIRouter(tags=["heatmaps"])
+router = APIRouter(tags=["Heatmaps"])
 
 
 @router.get(
     "/advertiser/campaigns/{campaign_id}/heatmap",
     response_model=HeatmapFeatureCollection,
     summary="Read advertiser campaign heatmap",
+    description=(
+        "Return bounded GeoJSON heatmap cells for an advertiser campaign. Demo bbox: "
+        "3.35,6.43,3.47,6.56."
+    ),
 )
 async def advertiser_get_campaign_heatmap(
     campaign_id: UUID,
     current_user: AdvertiserUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
-    bbox: str | None = None,
-    resolution_m: Annotated[int | None, Query(ge=1)] = None,
-    metric: str = "ping_count",
+    bbox: str | None = Query(
+        default=None,
+        description=(
+            "Required min_lon,min_lat,max_lon,max_lat bbox, "
+            "for example 3.35,6.43,3.47,6.56."
+        ),
+    ),
+    resolution_m: Annotated[
+        int | None,
+        Query(ge=1, description="Grid cell size in meters."),
+    ] = None,
+    metric: str = Query(
+        default="ping_count",
+        description="One of ping_count, trip_count, distance_m, estimated_impressions.",
+    ),
     start_at: datetime | None = None,
     end_at: datetime | None = None,
 ) -> HeatmapFeatureCollection:
@@ -58,14 +74,24 @@ async def advertiser_get_campaign_heatmap(
     "/admin/heatmap",
     response_model=HeatmapFeatureCollection,
     summary="Read admin heatmap",
+    description="Return bounded aggregate GeoJSON heatmap cells across campaigns for admins.",
 )
 async def admin_get_heatmap(
     _: AdminUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
-    bbox: str | None = None,
-    resolution_m: Annotated[int | None, Query(ge=1)] = None,
-    metric: str = "ping_count",
+    bbox: str | None = Query(
+        default=None,
+        description="Required min_lon,min_lat,max_lon,max_lat bbox.",
+    ),
+    resolution_m: Annotated[
+        int | None,
+        Query(ge=1, description="Grid cell size in meters."),
+    ] = None,
+    metric: str = Query(
+        default="ping_count",
+        description="One of ping_count, trip_count, distance_m, estimated_impressions.",
+    ),
     start_at: datetime | None = None,
     end_at: datetime | None = None,
     campaign_id: UUID | None = None,

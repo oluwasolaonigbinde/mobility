@@ -8,10 +8,15 @@ from app.models.user import UserStatus
 from app.schemas.auth import LoginRequest, LoginResponse, LoginUser
 from app.services.auth import authenticate_user
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
-@router.post("/login", response_model=LoginResponse, summary="Log in with email and password")
+@router.post(
+    "/login",
+    response_model=LoginResponse,
+    summary="Log in with email and password",
+    description="Exchange local demo or application credentials for a bearer access token.",
+)
 async def login(
     payload: LoginRequest,
     session: SessionDependency,

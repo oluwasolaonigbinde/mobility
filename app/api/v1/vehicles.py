@@ -27,7 +27,7 @@ from app.services.vehicles import (
     update_vehicle,
 )
 
-router = APIRouter(tags=["vehicles"])
+router = APIRouter(tags=["Vehicles"])
 
 
 def vehicle_response(vehicle: Vehicle) -> VehicleRead:

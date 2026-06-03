@@ -90,6 +90,7 @@ class Settings(BaseSettings):
     heatmap_max_date_range_days: int = 90
     heatmap_max_cells: int = 5000
     heatmap_min_trips_per_cell: int = 1
+    allow_demo_seed: bool = False
 
     @field_validator("api_v1_prefix")
     @classmethod

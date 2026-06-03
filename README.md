@@ -16,7 +16,7 @@ Backend foundation for the Mobility AdTech & Audience Attribution Platform.
 
 ## Current Scope
 
-This repo currently contains Slice 11: project foundation, request IDs, expected error
+This repo currently contains Slice 12: project foundation, request IDs, expected error
 envelope, SQLAlchemy/Alembic foundation, JWT login, current-user context, RBAC, admin
 user management, advertiser organizations, organization memberships, audit events,
 driver profiles, vehicle profiles, advertiser campaign metadata, campaign creative
@@ -27,11 +27,12 @@ profiles, deterministic impression estimates, campaign payout rules, determinist
 payout calculations, driver earnings ledger reads, advertiser campaign cost summaries,
 advertiser dashboard summary, campaign summaries, campaign daily metrics, campaign
 trip reporting, bundled campaign JSON reports, bounded PostGIS heatmap aggregation,
-Docker Compose, tests, and linting.
+idempotent local/demo seed data, OpenAPI docs hardening, Docker Compose, tests, and
+linting.
 
 Business features such as settlement, withdrawals, advertiser billing, CSV/PDF
-exports, map tiles, heatmap cache tables, and seed data begin in later approved
-slices.
+exports, map tiles, heatmap cache tables, production seed automation, and frontend
+code are out of scope.
 
 ## Local Prerequisites
 
@@ -180,6 +181,44 @@ Slice 11 heatmap endpoints:
 - `GET /api/v1/advertiser/campaigns/{campaign_id}/heatmap`
 - `GET /api/v1/admin/heatmap`
 
+Slice 12 local/demo seed command:
+
+```powershell
+docker compose up -d db redis
+$env:DATABASE_URL = "postgresql+asyncpg://mobility:mobility@localhost:5433/mobility"
+python -m alembic upgrade head
+$env:ALLOW_DEMO_SEED = "true"
+python -m app.seeds.demo
+```
+
+The demo seed is local/development only. It refuses production-like environments,
+does not run during application startup, does not run automatically in Docker
+Compose, and uses existing tables only. Demo credentials are for local demos only
+and must never be used in production:
+
+- `admin@demo.mobility.local` / `DemoAdmin12345!`
+- `advertiser@demo.mobility.local` / `DemoAdvertiser12345!`
+- `viewer@demo.mobility.local` / `DemoViewer12345!`
+- `driver@demo.mobility.local` / `DemoDriver12345!`
+
+Suggested frontend smoke workflow after seeding:
+
+1. Start the API with `uvicorn app.main:app --reload`.
+2. Log in with `POST /api/v1/auth/login` as `advertiser@demo.mobility.local`.
+3. Call `GET /api/v1/me`.
+4. Call `GET /api/v1/advertiser/dashboard/summary`.
+5. Call `GET /api/v1/advertiser/campaigns` and use the demo campaign id.
+6. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/summary`.
+7. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/daily-metrics`.
+8. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/trips`.
+9. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/report`.
+10. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/impressions/summary`.
+11. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/cost-summary`.
+12. Call `GET /api/v1/advertiser/campaigns/{campaign_id}/heatmap?bbox=3.35,6.43,3.47,6.56&resolution_m=500&metric=estimated_impressions`.
+13. Log in as `driver@demo.mobility.local`.
+14. Call `GET /api/v1/driver/earnings/summary`.
+15. Call `GET /api/v1/driver/earnings/ledger`.
+
 Protected endpoints use bearer auth:
 
 ```http
@@ -230,8 +269,8 @@ counts. Daily metrics group by UTC calendar day from `trip_sessions.started_at` 
 not use a materialized daily-metrics table. Reporting responses do not expose driver
 PII, vehicle plate numbers, raw GPS pings, idempotency keys, ledger details, payment
 data, or password hashes. Settlement, withdrawal, payment provider, invoice, tax,
-advertiser charging, CSV/PDF export, map tiles, heatmap cache tables, seed data, and
-frontend work are not part of Slice 11. Heatmap endpoints are read-only and aggregate
+advertiser charging, CSV/PDF export, map tiles, heatmap cache tables, production seed
+automation, and frontend work are not part of Slice 12. Heatmap endpoints are read-only and aggregate
 stored location pings into GeoJSON polygon cells using a required bounded `bbox`.
 Supported metrics are `ping_count`, `trip_count`, `distance_m`, and
 `estimated_impressions`. Distance and impression values use stored trip analytics and
@@ -239,6 +278,12 @@ stored impression estimates, allocated to cells by trip ping share in the reques
 bbox/date window. Heatmap responses do not expose driver PII, driver profile ids,
 vehicle plate numbers, raw GPS point rows, ping ids, idempotency keys, ledger details,
 payment data, or password hashes.
+The Slice 12 demo seed creates local-only admin, advertiser, viewer, and driver
+users; one advertiser organization; one active driver profile and vehicle; one active
+campaign and ready creative; Lagos target, bonus, and exclusion zones; an active
+assignment; two ended trips with PostGIS pings; route analytics, impression estimates,
+payout calculations, and pending driver earnings ledger rows. It is idempotent and
+reuses deterministic natural keys on repeated runs.
 
 ## Tests
 
@@ -286,6 +331,8 @@ and `impression_estimates`. Slice 9 adds only `campaign_payout_rules`,
 no tables; advertiser reporting is on-demand aggregation over existing stored data.
 Slice 11 adds no migration and no tables; heatmaps are bounded on-demand PostGIS
 aggregation over existing stored pings, trips, analytics, and estimates.
+Slice 12 adds no migration and no tables; demo data is inserted by explicit local
+command only.
 
 ## Docker Compose
 

@@ -21,7 +21,7 @@ from app.services.trips import (
     summarize_trip,
 )
 
-router = APIRouter(prefix="/driver/trips", tags=["driver trips"])
+router = APIRouter(prefix="/driver/trips", tags=["Trips"])
 
 
 def trip_response(summary: TripSummary) -> TripRead:

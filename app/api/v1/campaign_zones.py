@@ -25,7 +25,7 @@ from app.services.campaign_zones import (
     update_campaign_zone,
 )
 
-router = APIRouter(tags=["campaign-zones"])
+router = APIRouter(tags=["Campaign Zones"])
 
 
 def campaign_zone_response(view: CampaignZoneView) -> CampaignZoneRead:

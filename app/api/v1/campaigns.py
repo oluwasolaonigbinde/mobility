@@ -41,7 +41,7 @@ from app.services.campaigns import (
     update_campaign_creative,
 )
 
-router = APIRouter(tags=["campaigns"])
+router = APIRouter(tags=["Campaigns"])
 
 
 def campaign_response(campaign: Campaign) -> CampaignRead:

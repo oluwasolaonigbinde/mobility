@@ -52,7 +52,7 @@ from app.services.payouts import (
     update_campaign_payout_rule,
 )
 
-router = APIRouter(tags=["payouts"])
+router = APIRouter(tags=["Payouts"])
 
 
 def ensure_timezone_aware_query(value: datetime | None, field_name: str) -> datetime | None:

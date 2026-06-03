@@ -21,7 +21,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     register_exception_handlers(app)
 
-    @app.get("/health", tags=["health"], summary="Application liveness check")
+    @app.get("/health", tags=["Health"], summary="Application liveness check")
     async def root_health() -> dict[str, str]:
         return {
             "service": settings.app_name,

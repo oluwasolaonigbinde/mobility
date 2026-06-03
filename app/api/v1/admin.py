@@ -11,7 +11,7 @@ from app.services.audit import create_audit_event
 from app.services.organizations import create_advertiser_organization
 from app.services.users import create_user, list_users, update_user
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(prefix="/admin", tags=["Admin Users"])
 
 
 @router.post(
