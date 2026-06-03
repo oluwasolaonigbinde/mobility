@@ -3,6 +3,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Query
+from starlette import status
 
 from app.api.v1.dependencies import (
     AdminUserDependency,
@@ -10,6 +11,7 @@ from app.api.v1.dependencies import (
     SessionDependency,
     SettingsDependency,
 )
+from app.core.errors import AppError
 from app.models.impression import (
     ImpressionEstimate,
     ImpressionEstimateStatus,
@@ -39,6 +41,33 @@ from app.services.impressions import (
 )
 
 router = APIRouter(tags=["Impressions"])
+
+
+def ensure_impression_datetime(value: datetime | None, field_name: str) -> datetime | None:
+    try:
+        return ensure_timezone_aware(value)
+    except ValueError as exc:
+        raise AppError(
+            "VALIDATION_ERROR",
+            "Request validation failed",
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            details={"errors": [{"loc": ["query", field_name], "msg": str(exc)}]},
+        ) from exc
+
+
+def ensure_impression_date_range(
+    start_at: datetime | None,
+    end_at: datetime | None,
+) -> tuple[datetime | None, datetime | None]:
+    start_at = ensure_impression_datetime(start_at, "start_at")
+    end_at = ensure_impression_datetime(end_at, "end_at")
+    if start_at is not None and end_at is not None and start_at > end_at:
+        raise AppError(
+            "INVALID_DATE_RANGE",
+            "start_at must be before or equal to end_at",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    return start_at, end_at
 
 
 def profile_response(profile: TrafficDensityProfile) -> TrafficDensityProfileRead:
@@ -249,8 +278,7 @@ async def advertiser_get_campaign_impression_summary(
     start_at: datetime | None = None,
     end_at: datetime | None = None,
 ) -> CampaignImpressionSummary:
-    start_at = ensure_timezone_aware(start_at)
-    end_at = ensure_timezone_aware(end_at)
+    start_at, end_at = ensure_impression_date_range(start_at, end_at)
     summary = await advertiser_campaign_impression_summary(
         session,
         user_id=current_user.id,

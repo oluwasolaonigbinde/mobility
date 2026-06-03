@@ -32,6 +32,7 @@ def test_demo_seed_refuses_production_even_with_override() -> None:
     settings = Settings(
         environment="production",
         database_url="postgresql+asyncpg://mobility:mobility@localhost:5433/mobility",
+        jwt_secret_key="production-demo-seed-test-secret-32-chars",
         allow_demo_seed=True,
     )
 

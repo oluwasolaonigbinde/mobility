@@ -26,6 +26,7 @@ from app.schemas.campaigns import (
     CreativeListResponse,
     CreativeRead,
     CreativeUpdate,
+    ensure_timezone_aware,
 )
 from app.services.audit import create_audit_event
 from app.services.campaigns import (
@@ -42,6 +43,33 @@ from app.services.campaigns import (
 )
 
 router = APIRouter(tags=["Campaigns"])
+
+
+def ensure_campaign_query_datetime(value: datetime | None, field_name: str) -> datetime | None:
+    try:
+        return ensure_timezone_aware(value)
+    except ValueError as exc:
+        raise AppError(
+            "VALIDATION_ERROR",
+            "Request validation failed",
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            details={"errors": [{"loc": ["query", field_name], "msg": str(exc)}]},
+        ) from exc
+
+
+def ensure_campaign_list_date_range(
+    start_at_from: datetime | None,
+    start_at_to: datetime | None,
+) -> tuple[datetime | None, datetime | None]:
+    start_at_from = ensure_campaign_query_datetime(start_at_from, "start_at_from")
+    start_at_to = ensure_campaign_query_datetime(start_at_to, "start_at_to")
+    if start_at_from is not None and start_at_to is not None and start_at_from > start_at_to:
+        raise AppError(
+            "INVALID_DATE_RANGE",
+            "start_at_from must be before or equal to start_at_to",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    return start_at_from, start_at_to
 
 
 def campaign_response(campaign: Campaign) -> CampaignRead:
@@ -141,6 +169,7 @@ async def advertiser_list_campaigns(
     start_at_from: datetime | None = None,
     start_at_to: datetime | None = None,
 ) -> CampaignListResponse:
+    start_at_from, start_at_to = ensure_campaign_list_date_range(start_at_from, start_at_to)
     campaigns, total = await list_advertiser_campaigns(
         session,
         user_id=current_user.id,

@@ -67,6 +67,21 @@ def ensure_timezone_aware_query(value: datetime | None, field_name: str) -> date
         ) from exc
 
 
+def ensure_payout_date_range(
+    start_at: datetime | None,
+    end_at: datetime | None,
+) -> tuple[datetime | None, datetime | None]:
+    start_at = ensure_timezone_aware_query(start_at, "start_at")
+    end_at = ensure_timezone_aware_query(end_at, "end_at")
+    if start_at is not None and end_at is not None and start_at > end_at:
+        raise AppError(
+            "INVALID_DATE_RANGE",
+            "start_at must be before or equal to end_at",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    return start_at, end_at
+
+
 def payout_rule_response(rule: CampaignPayoutRule) -> CampaignPayoutRuleRead:
     return CampaignPayoutRuleRead(
         id=rule.id,
@@ -416,8 +431,7 @@ async def advertiser_get_campaign_cost_summary(
     end_at: datetime | None = None,
     currency: str | None = None,
 ) -> CampaignCostSummary:
-    start_at = ensure_timezone_aware_query(start_at, "start_at")
-    end_at = ensure_timezone_aware_query(end_at, "end_at")
+    start_at, end_at = ensure_payout_date_range(start_at, end_at)
     summary = await advertiser_campaign_cost_summary(
         session,
         user_id=current_user.id,

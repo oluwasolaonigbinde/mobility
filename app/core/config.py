@@ -26,6 +26,9 @@ def _blank_to_none(value: str | float | None) -> str | float | None:
     return value
 
 
+LOCAL_ENVIRONMENTS = {"local", "dev", "development", "test", "testing"}
+DEFAULT_JWT_SECRET = "change-me-local-development-secret-at-least-32-bytes"
+
 CorsOrigins = Annotated[list[str], BeforeValidator(_parse_cors_origins)]
 OptionalFloat = Annotated[float | None, BeforeValidator(_blank_to_none)]
 
@@ -41,7 +44,7 @@ class Settings(BaseSettings):
     backend_cors_origins: CorsOrigins = Field(default_factory=list)
     log_level: str = "INFO"
     request_id_header: str = "X-Request-ID"
-    jwt_secret_key: str = "change-me-local-development-secret-at-least-32-bytes"
+    jwt_secret_key: str = DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
     password_min_length: int = 12
@@ -103,8 +106,7 @@ class Settings(BaseSettings):
     @classmethod
     def validate_cors_origins(cls, value: list[str], info) -> list[str]:
         environment = str(info.data.get("environment", "local")).lower()
-        local_environments = {"local", "dev", "development", "test", "testing"}
-        if environment not in local_environments and "*" in value:
+        if environment not in LOCAL_ENVIRONMENTS and "*" in value:
             raise ValueError("Wildcard CORS origins are not allowed outside local/test")
         return value
 
@@ -120,6 +122,16 @@ class Settings(BaseSettings):
     def validate_password_min_length(cls, value: int) -> int:
         if value < 12:
             raise ValueError("PASSWORD_MIN_LENGTH must be at least 12")
+        return value
+
+    @field_validator("jwt_secret_key")
+    @classmethod
+    def validate_jwt_secret_key(cls, value: str, info) -> str:
+        environment = str(info.data.get("environment", "local")).lower()
+        if environment not in LOCAL_ENVIRONMENTS and value == DEFAULT_JWT_SECRET:
+            raise ValueError("JWT_SECRET_KEY must be changed outside local/test")
+        if not value.strip() or len(value) < 32:
+            raise ValueError("JWT_SECRET_KEY must be at least 32 characters long")
         return value
 
     @field_validator("max_campaign_zone_area_sq_km")

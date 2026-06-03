@@ -74,6 +74,26 @@ def test_wildcard_cors_rejected_outside_local_environment() -> None:
         Settings(environment="production", backend_cors_origins=["*"])
 
 
+def test_default_jwt_secret_rejected_outside_local_environment() -> None:
+    with pytest.raises(ValidationError):
+        Settings(environment="production")
+
+
+def test_custom_jwt_secret_allowed_outside_local_environment() -> None:
+    settings = Settings(
+        environment="production",
+        jwt_secret_key="production-secret-with-at-least-32-characters",
+    )
+
+    assert settings.environment == "production"
+    assert settings.jwt_secret_key == "production-secret-with-at-least-32-characters"
+
+
+def test_short_jwt_secret_rejected() -> None:
+    with pytest.raises(ValidationError):
+        Settings(jwt_secret_key="too-short")
+
+
 @pytest.mark.parametrize(
     "setting_name",
     [

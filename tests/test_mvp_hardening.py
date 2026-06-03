@@ -1,0 +1,353 @@
+import json
+from pathlib import Path
+
+from conftest import (
+    auth_headers,
+    create_test_campaign,
+    create_test_organization,
+    create_test_user,
+)
+
+from app.main import create_app
+from app.models.user import UserRole
+
+SNAPSHOT_PATH = Path("docs/api/openapi.snapshot.json")
+EXPECTED_ALEMBIC_HEAD = "0010_payouts_and_earnings"
+EXPECTED_MIGRATIONS = {
+    "0001_enable_extensions.py",
+    "0002_identity_and_organizations.py",
+    "0003_driver_vehicle_foundations.py",
+    "0004_campaigns_and_creatives.py",
+    "0005_campaign_zones.py",
+    "0006_campaign_assignments.py",
+    "0007_trip_tracking.py",
+    "0008_route_analytics_and_fraud_flags.py",
+    "0009_impression_estimation.py",
+    "0010_payouts_and_earnings.py",
+}
+MAJOR_CONTRACT_PATHS = {
+    "health": "/api/v1/health",
+    "auth": "/api/v1/auth/login",
+    "me": "/api/v1/me",
+    "admin users": "/api/v1/admin/users",
+    "admin orgs": "/api/v1/admin/advertiser-organizations",
+    "driver profiles": "/api/v1/driver/profile",
+    "vehicles": "/api/v1/driver/vehicles",
+    "campaigns": "/api/v1/advertiser/campaigns",
+    "creatives": "/api/v1/advertiser/campaigns/{campaign_id}/creatives",
+    "campaign zones": "/api/v1/advertiser/campaigns/{campaign_id}/zones",
+    "assignments": "/api/v1/admin/campaign-assignments",
+    "trips": "/api/v1/driver/trips/{trip_id}",
+    "pings": "/api/v1/driver/trips/{trip_id}/pings",
+    "analytics": "/api/v1/admin/trips/{trip_id}/analytics",
+    "fraud": "/api/v1/admin/fraud-flags",
+    "impressions": "/api/v1/admin/impression-estimates",
+    "payouts": "/api/v1/admin/payout-calculations",
+    "earnings": "/api/v1/driver/earnings/ledger",
+    "advertiser reports": "/api/v1/advertiser/campaigns/{campaign_id}/report",
+    "heatmaps": "/api/v1/advertiser/campaigns/{campaign_id}/heatmap",
+}
+PROTECTED_GET_PATHS = [
+    "/api/v1/me",
+    "/api/v1/admin/users",
+    "/api/v1/admin/campaigns",
+    "/api/v1/advertiser/organization",
+    "/api/v1/advertiser/campaigns",
+    "/api/v1/driver/profile",
+    "/api/v1/driver/vehicles",
+    "/api/v1/admin/payout-calculations",
+    "/api/v1/driver/earnings/ledger",
+]
+SENSITIVE_ADVERTISER_TERMS = {
+    "password_hash",
+    "license_number",
+    "plate_number",
+    "plate_number_normalized",
+    "idempotency_key",
+    "location_ping",
+    "raw_gps",
+    "driver_email",
+    "driver_phone",
+    "driver_full_name",
+    "ledger_entry_id",
+}
+
+
+def test_openapi_snapshot_exists_and_contains_mvp_contract_paths() -> None:
+    assert SNAPSHOT_PATH.exists()
+
+    snapshot = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    assert snapshot["info"]["title"] == "mobility-adtech-api"
+    assert snapshot["paths"]["/api/v1/health"]
+
+    missing = [
+        f"{group}: {path}"
+        for group, path in MAJOR_CONTRACT_PATHS.items()
+        if path not in snapshot["paths"]
+    ]
+    assert missing == []
+
+
+def test_generated_openapi_matches_checked_in_snapshot_paths(client) -> None:
+    generated = client.get("/openapi.json").json()
+    snapshot = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+
+    assert set(generated["paths"]) == set(snapshot["paths"])
+
+
+def test_openapi_snapshot_omits_secrets_and_advertiser_sensitive_terms() -> None:
+    snapshot = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    snapshot_text = json.dumps(snapshot).lower()
+
+    assert "password_hash" not in snapshot_text
+    assert "database_url" not in snapshot_text
+    assert "jwt_secret" not in snapshot_text
+    assert "postgresql+asyncpg" not in snapshot_text
+
+    advertiser_path_text = json.dumps(
+        {
+            path: operations
+            for path, operations in snapshot["paths"].items()
+            if path.startswith("/api/v1/advertiser/") or "heatmap" in path
+        }
+    ).lower()
+    for term in SENSITIVE_ADVERTISER_TERMS:
+        assert term not in advertiser_path_text
+
+
+def test_representative_protected_get_routes_reject_missing_auth(db_client) -> None:
+    for path in PROTECTED_GET_PATHS:
+        response = db_client.get(path, headers={"X-Request-ID": f"slice13-{path}"})
+
+        assert response.status_code == 401, path
+        payload = response.json()
+        assert payload["error"]["code"] == "AUTHENTICATION_REQUIRED"
+        assert payload["error"]["request_id"].startswith("slice13-")
+
+
+def test_static_routes_precede_dynamic_siblings(settings) -> None:
+    routes = [route.path for route in create_app(settings).routes]
+
+    assert routes.index("/api/v1/driver/campaign-assignments/active") < routes.index(
+        "/api/v1/driver/campaign-assignments/{assignment_id}"
+    )
+    assert routes.index("/api/v1/driver/trips/current") < routes.index(
+        "/api/v1/driver/trips/{trip_id}"
+    )
+
+
+def test_no_public_delete_routes_for_payout_ledger_critical_parents(settings) -> None:
+    delete_paths = {
+        route.path
+        for route in create_app(settings).routes
+        if "DELETE" in getattr(route, "methods", set())
+    }
+
+    assert delete_paths == {"/api/v1/advertiser/campaigns/{campaign_id}/zones/{zone_id}"}
+
+
+def test_no_slice_13_migration_or_product_tables_added() -> None:
+    migration_names = {
+        path.name for path in Path("alembic/versions").glob("*.py") if path.name != "__init__.py"
+    }
+
+    assert migration_names == EXPECTED_MIGRATIONS
+    assert EXPECTED_ALEMBIC_HEAD in Path(
+        "alembic/versions/0010_payouts_and_earnings.py"
+    ).read_text(encoding="utf-8")
+
+
+def test_cost_summary_invalid_date_range_uses_standard_error_envelope(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    advertiser = create_test_user(
+        db_sessionmaker,
+        email="advertiser@example.com",
+        role=UserRole.ADVERTISER,
+    )
+    organization, _ = create_test_organization(
+        db_sessionmaker,
+        owner_user_id=advertiser.id,
+    )
+    campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=advertiser.id,
+    )
+    headers = auth_headers(db_client, "advertiser@example.com")
+    headers["X-Request-ID"] = "slice13-cost-range"
+
+    response = db_client.get(
+        (
+            f"/api/v1/advertiser/campaigns/{campaign.id}/cost-summary"
+            "?start_at=2026-01-02T00:00:00%2B00:00"
+            "&end_at=2026-01-01T00:00:00%2B00:00"
+        ),
+        headers=headers,
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "INVALID_DATE_RANGE",
+            "message": "start_at must be before or equal to end_at",
+            "details": {},
+            "request_id": "slice13-cost-range",
+        }
+    }
+
+
+def test_advertiser_campaign_list_invalid_date_range_uses_standard_error_envelope(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    create_test_user(
+        db_sessionmaker,
+        email="campaign-list-range-advertiser@example.com",
+        role=UserRole.ADVERTISER,
+    )
+    headers = auth_headers(db_client, "campaign-list-range-advertiser@example.com")
+    headers["X-Request-ID"] = "slice13-campaign-list-range"
+
+    response = db_client.get(
+        (
+            "/api/v1/advertiser/campaigns"
+            "?start_at_from=2026-01-02T00:00:00%2B00:00"
+            "&start_at_to=2026-01-01T00:00:00%2B00:00"
+        ),
+        headers=headers,
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "INVALID_DATE_RANGE",
+            "message": "start_at_from must be before or equal to start_at_to",
+            "details": {},
+            "request_id": "slice13-campaign-list-range",
+        }
+    }
+
+
+def test_advertiser_campaign_list_naive_datetime_uses_standard_error_envelope(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    create_test_user(
+        db_sessionmaker,
+        email="campaign-list-naive-advertiser@example.com",
+        role=UserRole.ADVERTISER,
+    )
+    headers = auth_headers(db_client, "campaign-list-naive-advertiser@example.com")
+    headers["X-Request-ID"] = "slice13-campaign-list-naive"
+
+    response = db_client.get(
+        "/api/v1/advertiser/campaigns?start_at_from=2026-01-01T00:00:00",
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "Request validation failed",
+            "details": {
+                "errors": [
+                    {
+                        "loc": ["query", "start_at_from"],
+                        "msg": "Datetime must include timezone information",
+                    }
+                ]
+            },
+            "request_id": "slice13-campaign-list-naive",
+        }
+    }
+
+
+def test_impression_summary_invalid_date_range_uses_standard_error_envelope(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    advertiser = create_test_user(
+        db_sessionmaker,
+        email="impression-advertiser@example.com",
+        role=UserRole.ADVERTISER,
+    )
+    organization, _ = create_test_organization(
+        db_sessionmaker,
+        owner_user_id=advertiser.id,
+    )
+    campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=advertiser.id,
+    )
+    headers = auth_headers(db_client, "impression-advertiser@example.com")
+    headers["X-Request-ID"] = "slice13-impression-range"
+
+    response = db_client.get(
+        (
+            f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary"
+            "?start_at=2026-01-02T00:00:00%2B00:00"
+            "&end_at=2026-01-01T00:00:00%2B00:00"
+        ),
+        headers=headers,
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "INVALID_DATE_RANGE",
+            "message": "start_at must be before or equal to end_at",
+            "details": {},
+            "request_id": "slice13-impression-range",
+        }
+    }
+
+
+def test_impression_summary_naive_datetime_uses_standard_error_envelope(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    advertiser = create_test_user(
+        db_sessionmaker,
+        email="impression-naive-advertiser@example.com",
+        role=UserRole.ADVERTISER,
+    )
+    organization, _ = create_test_organization(
+        db_sessionmaker,
+        owner_user_id=advertiser.id,
+    )
+    campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=advertiser.id,
+    )
+    headers = auth_headers(db_client, "impression-naive-advertiser@example.com")
+    headers["X-Request-ID"] = "slice13-impression-naive"
+
+    response = db_client.get(
+        (
+            f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary"
+            "?start_at=2026-01-01T00:00:00"
+        ),
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "Request validation failed",
+            "details": {
+                "errors": [
+                    {
+                        "loc": ["query", "start_at"],
+                        "msg": "Datetime must include timezone information",
+                    }
+                ]
+            },
+            "request_id": "slice13-impression-naive",
+        }
+    }
