@@ -19,8 +19,11 @@ docker compose up -d                       # api + PostGIS + Redis
 docker compose exec api alembic upgrade head
 docker compose exec api python -m app.seeds.demo   # needs ALLOW_DEMO_SEED=true in .env
 
-# 2. Frontend — app on :3000
+# 2. Frontend — app on :3000 (dev)
 cd frontend && npm install && npm run dev
+
+# OR: the whole platform in containers (frontend on :3100)
+docker compose --profile full up --build
 ```
 
 Demo logins (local only):
@@ -273,6 +276,44 @@ The ops brain — seven sections in the desktop shell:
   server, so `vantage-frontend` uses `autoPort` (Playwright reuses the
   live server via `PLAYWRIGHT_BASE_URL`).
 
+### ✅ F6 — Hardening + brief-gap closers (`frontend-06-hardening`)
+
+Audited against the product brief before building (per OJ) — every MVP-scope
+line was already live; two closable gaps had endpoints but no UI. Closed:
+
+- **Payout rules editor** (`/admin/payouts/rules`): per-campaign earning
+  terms — base rates, zone/impression bonuses, per-trip caps, fraud
+  multipliers. Verified live: loaded the seeded rule (the ₦1,500-min one
+  that paid the F4 trip), updated it, revalidation confirmed.
+- **Traffic profiles** (`/admin/traffic`): the analytics engine's
+  assumptions — density/km, dwell impressions/min, time-of-day and zone
+  weights, default flag. Verified live: created "Abuja weekday"; the
+  backend auto-marked the first profile default.
+
+Hardening:
+
+- **Loading/error surfaces**: route-level `loading.tsx` skeletons for all
+  three surfaces, root `error.tsx` (digest-only, no internals leak) and
+  branded `not-found.tsx`.
+- **CI** (`.github/workflows/frontend.yml`): job 1 lint → typecheck →
+  unit → **contract-drift check** (regenerates types from the committed
+  `openapi.json`; fails if `schema.d.ts` is stale) → build. Job 2 boots
+  the real stack (compose: api+PostGIS+Redis, migrate, seed) and runs all
+  40 e2e on desktop + mobile viewports.
+- **Deploy story**: `frontend/Dockerfile` (multi-stage, Next standalone
+  output, non-root user) + compose `frontend` service under the `full`
+  profile (`docker compose --profile full up` → whole platform, frontend
+  on :3100). **Verified**: built the image and smoke-tested the container
+  — login 200 in 115ms, auth guard 307, PWA manifest public.
+
+### Remaining go-live items (not code, decisions)
+
+- Basemap tile licensing (env swap — see F2 note)
+- Backend additions if wanted: creative file upload, fraud
+  acknowledge/dismiss, self-serve signup
+- Native driver app (Flutter/RN) for background GPS — same contract
+- Hosting target (AWS/GCP per brief) + domain, TLS, secrets management
+
 ## Deviations from the pitch prototype (agreed constraints)
 
 The backend contract is the truth; these prototype effects are simulated
@@ -301,5 +342,6 @@ or deferred:
       tracking with idempotent ping batches, earnings, profile)
 - [x] F5 Admin console (users+orgs onboarding, drivers/vehicles,
       assignments, fraud console, payout pipeline)
-- [ ] F6 Hardening (loading/error states audit, a11y pass, contract-drift
-      CI, deploy story)
+- [x] F6 Hardening + brief-gap closers (payout rules UI, traffic
+      profiles UI, loading/error states, CI with contract-drift gate,
+      Dockerfile + compose deploy) — **roadmap complete**

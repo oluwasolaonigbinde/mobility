@@ -30,6 +30,20 @@ services:
       - db
       - redis
 
+  # Production-style frontend container. Local dev normally runs
+  # `npm run dev` instead — start this with: docker compose --profile full up
+  frontend:
+    profiles: ["full"]
+    build: ./frontend
+    environment:
+      API_BASE_URL: http://api:8000
+      SESSION_COOKIE_NAME: mobility_session
+      NODE_ENV: production
+    ports:
+      - "3100:3000"
+    depends_on:
+      - api
+
   db:
     image: postgis/postgis:16-3.4
     environment:
