@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+/*
+ * Vantage design tokens — "city at night" command center.
+ * Ported from the pitch prototype; single dark theme by design
+ * (the product is an ops surface, not a content site).
+ */
+@theme {
+  /* surfaces */
+  --color-bg: #0a0b0e;
+  --color-panel: #121419;
+  --color-raised: #1a1d25;
+  --color-edge: #262a33;
+  --color-edge-strong: #3a4250;
+
+  /* ink */
+  --color-ink: #eaedf2;
+  --color-muted: #8a90a0;
+  --color-faint: #5a6071;
+
+  /* signals */
+  --color-amber: #ffa62b;
+  --color-amber-soft: #f5b84e;
+  --color-cyan: #34e5d0;
+  --color-green: #4ade80;
+  --color-coral: #ff5c5c;
+
+  /* type */
+  --font-display: var(--font-clash), ui-sans-serif, sans-serif;
+  --font-sans: var(--font-satoshi), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  /* elevation & glow */
+  --shadow-panel: 0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  --shadow-glow-amber: 0 0 24px -6px rgb(255 166 43 / 0.45);
+  --shadow-glow-cyan: 0 0 24px -6px rgb(52 229 208 / 0.4);
+  --shadow-glow-coral: 0 0 16px -2px rgb(255 92 92 / 0.28);
+
+  --radius-panel: 1rem;
+
+  --animate-rise: rise 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-pulse-dot: pulse-dot 2.4s ease-in-out infinite;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: rgb(255 166 43 / 0.25);
+  }
+
+  /* Focus visibility is non-negotiable on an ops product */
+  :focus-visible {
+    outline: 2px solid var(--color-amber);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@utility micro {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+@utility bg-grid {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+@utility bg-atmosphere {
+  background:
+    radial-gradient(60% 50% at 70% 0%, rgb(255 166 43 / 0.07), transparent 70%),
+    radial-gradient(50% 40% at 15% 100%, rgb(52 229 208 / 0.05), transparent 70%), var(--color-bg);
+}
