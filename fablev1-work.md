@@ -236,6 +236,43 @@ separately-scoped PWA:
   Also fixed a brittleness of mine: heatmap e2e asserted an exact cell
   count against a *living* dataset — now asserts shape, not snapshot.
 
+### ✅ F5 — Admin console (`frontend-05-admin`)
+
+The ops brain — seven sections in the desktop shell:
+
+- **Users** (`/admin/users`): list with role filter, suspend/reactivate, and
+  **the onboarding flow**: one create-user form that provisions the account
+  and (for advertisers) the organization with owner membership in one step.
+  Verified live: created "Amina Yusuf" + "Wuse Media Group" through the UI,
+  then confirmed she can sign in and lands in her own org.
+- **Drivers**: onboarding-state machine per profile (approve / reject /
+  suspend / reinstate / re-review), create profile for a driver-role user.
+- **Vehicles**: fleet list with status transitions, register-vehicle form
+  attached to its driver.
+- **Assignments**: offer a campaign to a driver+vehicle pairing (the vehicle
+  select narrows to the chosen driver's vehicles), cancel active offers.
+- **Fraud console**: severity/status-filtered flag list. **Read-only by
+  contract** — the MVP backend exposes no acknowledge/dismiss endpoint;
+  flagged as a backend addition for the client.
+- **Payouts**: calculations table (gross → quality× → fraud× → final →
+  ledger status) plus **the process-trip pipeline**: paste a trip ID →
+  recompute analytics → estimate impressions → calculate payout, with a
+  step-by-step receipt. A payout-rules editor UI is queued (rules work via
+  API; defaults apply).
+- **The loop, closed and verified live:** processed the F4 trip through the
+  UI — analytics validated 77/77 pings but flagged the simulated drive's
+  ~63 m/s speed (over the 55 m/s impossible-speed threshold), zeroed the
+  billable distance, and the campaign's min-payout rule still floored the
+  payout at ₦1,500 → pending ledger. Driver's earnings: ₦13,389 → ₦14,889.
+  The anti-gaming engine and payout rules both did their jobs on real data.
+- **Tests:** 6 admin e2e; full suite now **40 e2e** green on desktop +
+  mobile viewports. The generated types caught 3 more contract truths
+  during the build (no `full_name` on assignment driver summaries, no
+  `created_at` on the users list, optional `fraud_flags`).
+- Local quirk: port 3000 is now held by the microfinance project's dev
+  server, so `vantage-frontend` uses `autoPort` (Playwright reuses the
+  live server via `PLAYWRIGHT_BASE_URL`).
+
 ## Deviations from the pitch prototype (agreed constraints)
 
 The backend contract is the truth; these prototype effects are simulated
@@ -262,7 +299,7 @@ or deferred:
       exposure heatmap)
 - [x] F4 Vantage Driver PWA (installable app: chrome, jobs, live trip
       tracking with idempotent ping batches, earnings, profile)
-- [ ] F5 Admin console (users, drivers/vehicles, assignments, fraud
-      flags, payout rules/calculations, traffic profiles, admin heatmap)
+- [x] F5 Admin console (users+orgs onboarding, drivers/vehicles,
+      assignments, fraud console, payout pipeline)
 - [ ] F6 Hardening (loading/error states audit, a11y pass, contract-drift
       CI, deploy story)
