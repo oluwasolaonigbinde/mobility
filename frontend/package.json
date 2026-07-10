@@ -19,12 +19,15 @@
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
     "@tanstack/react-query": "^5.101.2",
+    "maplibre-gl": "^5.24.0",
     "next": "16.2.10",
     "openapi-fetch": "^0.17.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.81.0",
     "server-only": "^0.0.1",
+    "terra-draw": "^1.31.2",
+    "terra-draw-maplibre-gl-adapter": "^1.4.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {

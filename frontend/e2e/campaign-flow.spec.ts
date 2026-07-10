@@ -39,7 +39,9 @@ test("login rejects bad credentials without leaking detail", async ({ page }) =>
   await page.getByLabel("Password").fill("definitely-wrong-password");
   await page.getByRole("button", { name: "Enter the network" }).click();
   // Filtered: Next.js's route announcer is also role="alert".
-  await expect(page.getByRole("alert").filter({ hasText: /invalid email or password/i })).toBeVisible();
+  await expect(
+    page.getByRole("alert").filter({ hasText: /invalid email or password/i }),
+  ).toBeVisible();
   expect(page.url()).toContain("/login");
 });
 

@@ -88,7 +88,15 @@ export default async function CampaignDetailPage({
             {formatDate(campaign.created_at)}
           </p>
         </div>
-        <StatusActions campaignId={campaign.id} status={campaign.status} />
+        <div className="flex flex-col items-end gap-2">
+          <StatusActions campaignId={campaign.id} status={campaign.status} />
+          <Link
+            href={`/advertiser/campaigns/${campaign.id}/zones`}
+            className="micro border-edge bg-raised hover:border-edge-strong rounded-lg border px-3.5 py-2.5 transition-colors"
+          >
+            🗺 Targeting zones · {formatCount(summary?.zones.total)}
+          </Link>
+        </div>
       </div>
 
       {/* Performance */}
