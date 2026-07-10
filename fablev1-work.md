@@ -197,6 +197,45 @@ The pitch's "wow" screens with real numbers.
   headless and scanned the wrong city — first scan now derives its bbox
   from the campaign's zones deterministically, viewport scans stay manual.
 
+### ✅ F4 — Vantage Driver PWA (`frontend-04-driver-app`)
+
+Per OJ's call: the driver side is **its own installable app, not a portal**.
+Same codebase (shared design system, typed API layer, one deploy), but a
+separately-scoped PWA:
+
+- **Installability:** scoped manifest at `/driver/manifest.webmanifest`
+  ("Vantage Driver", `scope: /driver`, standalone, portrait, own amber-V
+  icons generated dependency-free), apple-touch/status-bar meta, theme
+  color. **Lesson:** browsers fetch manifests *without cookies* — the
+  manifest must be excluded from auth redirects or installability silently
+  breaks (fixed in `src/proxy.ts`).
+- **Service worker** (`public/driver-sw.js`): deliberately minimal and
+  auth-safe — immutable `_next/static` assets cache-first, navigations
+  network-only with an offline fallback; API responses are NEVER cached
+  (they're personal and authenticated).
+- **App chrome:** slim header + bottom tab bar (Home / Jobs / Track /
+  Earnings / Profile), safe-area insets, one-primary-button-per-screen
+  design for use in traffic.
+- **Trip tracking** (`/driver/track`): foreground geolocation →
+  `watchPosition` → local buffer → **idempotent batches** (UUID key,
+  flush every 15s or 20 pings, failed batches re-queued). Start/end trip
+  with confirm; buffer drained before end. **Honest limitation
+  (documented for the client):** a PWA tracks only while on-screen;
+  background GPS is the future native app's job — same backend contract.
+- **Jobs:** assignment lifecycle (offered → Accept, accepted → Activate,
+  active → Deactivate) as single-action cards.
+- **Earnings:** pending/available/lifetime + ledger, every naira traced
+  to a trip. **Profile:** self-service licence/city/country + vehicles.
+- **Verified live end-to-end:** simulated a drive through Wuse II with
+  stubbed geolocation — the app streamed **42 pings** in idempotent
+  batches, ended the trip cleanly, and the backend analyzed it into **13
+  new heatmap cells in Abuja** visible on the advertiser's exposure map.
+  That's the full advertiser↔driver loop working.
+- **Tests:** 6 driver e2e (chrome + manifest publicness + every tab with
+  real data); full suite now 28 e2e green on desktop + mobile viewports.
+  Also fixed a brittleness of mine: heatmap e2e asserted an exact cell
+  count against a *living* dataset — now asserts shape, not snapshot.
+
 ## Deviations from the pitch prototype (agreed constraints)
 
 The backend contract is the truth; these prototype effects are simulated
@@ -208,7 +247,11 @@ or deferred:
 - **Creatives are metadata + URL** — no file-upload pipeline in the MVP;
   the wizard takes an asset URL.
 - **No self-registration** — users are admin-created (matches the
-  backend's security model).
+  backend's security model). Onboarding is operator-led: admin creates
+  the user + org and hands over credentials; names are set at creation,
+  not at a public sign-up screen. Self-serve signup would be a deliberate
+  backend addition (registration + email verification), flagged for the
+  client if ever wanted.
 
 ## Roadmap
 
@@ -217,8 +260,8 @@ or deferred:
 - [x] F2 Zones map editor
 - [x] F3 Advertiser analytics & heatmaps (report charts, daily metrics,
       exposure heatmap)
-- [ ] F4 Driver portal (profile, vehicles, assignments accept/activate,
-      trips, earnings ledger)
+- [x] F4 Vantage Driver PWA (installable app: chrome, jobs, live trip
+      tracking with idempotent ping batches, earnings, profile)
 - [ ] F5 Admin console (users, drivers/vehicles, assignments, fraud
       flags, payout rules/calculations, traffic profiles, admin heatmap)
 - [ ] F6 Hardening (loading/error states audit, a11y pass, contract-drift
