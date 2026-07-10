@@ -4,7 +4,7 @@
 
 Decisions we need from you before launch build-out
 
-**Prepared for:** \[Client name\]
+**Prepared for:** Somto
 
 **Prepared by:** OJ Solutions
 
