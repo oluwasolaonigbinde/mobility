@@ -167,6 +167,36 @@ GeoJSON zones endpoints.
 
 ---
 
+### ✅ F3 — Analytics & exposure heatmap (`frontend-03-analytics`)
+
+The pitch's "wow" screens with real numbers.
+
+- **Attribution report** `/advertiser/campaigns/[id]/report`: headline KPIs
+  (impressions + confidence, trips analyzed, spend, open fraud flags),
+  **daily impressions area chart** (amber) and **daily spend bars** (green),
+  and a full daily-breakdown table (the charts' accessible source of truth).
+- **Charts are dependency-free SVG** (`src/components/charts/timeseries.tsx`)
+  built by the dataviz method: single series → no legend, thin marks,
+  recessive mono grid, crosshair + tooltip hover, selective direct label on
+  the last point, text in ink tokens. Palette validated with the dataviz
+  validator against the panel surface (chroma + ≥3:1 contrast pass; the
+  categorical lightness band doesn't apply to lone series).
+- **Exposure heatmap** `/advertiser/campaigns/[id]/map`: backend heatmap
+  cells on MapLibre with a **single-hue amber sequential ramp** (monotonic
+  lightness; low cells recede via alpha, hot cells lift toward light),
+  honest min→max legend per view, metric picker (impressions / pings /
+  trips / distance), dashed zones overlay toggle, per-cell hover tooltip,
+  "Scan this view" for viewport-driven exploration.
+- Campaign detail now links Report · Exposure map · Zones.
+- **Tests:** e2e for both pages against seeded data (charts render, table
+  values match backend, heatmap loads 12 cells at 500m grid, metric
+  switch rescans) — 8 e2e green on desktop + mobile.
+- Notable debugging: (1) server pages can't pass **functions** to client
+  chart components (RSC boundary) — formatters became a serializable
+  `currency` prop; (2) the initial heatmap scan raced the camera fit in
+  headless and scanned the wrong city — first scan now derives its bbox
+  from the campaign's zones deterministically, viewport scans stay manual.
+
 ## Deviations from the pitch prototype (agreed constraints)
 
 The backend contract is the truth; these prototype effects are simulated
@@ -185,8 +215,8 @@ or deferred:
 - [x] F0 Foundation
 - [x] F1 Advertiser campaigns
 - [x] F2 Zones map editor
-- [ ] F3 Advertiser analytics & heatmaps (dashboard charts, daily metrics,
-      impressions summary, campaign report, heatmap layer)
+- [x] F3 Advertiser analytics & heatmaps (report charts, daily metrics,
+      exposure heatmap)
 - [ ] F4 Driver portal (profile, vehicles, assignments accept/activate,
       trips, earnings ledger)
 - [ ] F5 Admin console (users, drivers/vehicles, assignments, fraud

@@ -23,7 +23,7 @@ test("zones page renders the seeded campaign's zones on a map", async ({ page })
   await page.goto("/advertiser/campaigns");
   await page.getByRole("link", { name: "Demo Lagos Mobility Campaign" }).click();
   await page.waitForURL(/\/advertiser\/campaigns\/[0-9a-f-]{36}$/);
-  await page.getByRole("link", { name: /Targeting zones/ }).click();
+  await page.getByRole("link", { name: /Zones ·/ }).click();
   await page.waitForURL(/\/zones$/);
 
   // Zone list from the backend
