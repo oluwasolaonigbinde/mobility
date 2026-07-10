@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -113,8 +114,10 @@ export default async function AdminPayoutsPage({
       />
 
       <p className="micro text-faint mt-6">
-        Payout rules are configured per campaign via the API (defaults apply otherwise); a rules
-        editor UI is queued behind go-live priorities — see fablev1-work.md.
+        Earning terms are set per campaign —{" "}
+        <Link href="/admin/payouts/rules" className="text-amber hover:underline">
+          edit payout rules →
+        </Link>
       </p>
     </div>
   );
