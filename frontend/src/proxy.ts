@@ -12,6 +12,13 @@ export default function proxy(request: NextRequest) {
   const hasSession = request.cookies.has(SESSION_COOKIE);
   const { pathname } = request.nextUrl;
 
+  // The PWA manifest must stay public: browsers fetch it WITHOUT cookies
+  // (credentials mode "omit"), so an auth redirect breaks installability.
+  // It contains no user data — app name, icons, colors only.
+  if (pathname === "/driver/manifest.webmanifest") {
+    return NextResponse.next();
+  }
+
   const isAppRoute =
     pathname.startsWith("/advertiser") ||
     pathname.startsWith("/driver") ||
