@@ -314,6 +314,27 @@ Hardening:
 - Native driver app (Flutter/RN) for background GPS — same contract
 - Hosting target (AWS/GCP per brief) + domain, TLS, secrets management
 
+
+## F7 backlog — unblocked while awaiting Somto's answers
+
+Agreed as the "meantime" work (see decisions-log.md for what's blocked):
+
+1. **Auth hardening** (launch-blocker; first backend additions of the project):
+   change-password endpoint + forced change on first login (operator-created
+   accounts), session refresh or longer expiry (60-min hard logout today),
+   login rate-limiting via the already-present-but-unused Redis.
+2. **Admin audit-trail viewer** — `audit_events` table exists with zero UI.
+3. **Rich demo seed** — weeks of trips/campaigns/drivers so dashboards look
+   real for the client review.
+4. **Disposable staging deployment** under OJ's account (swap to client cloud
+   when Q32 lands) so Somto reviews a live URL.
+5. Backup/restore runbook · error-tracking hooks · merge branch chain to master.
+
+Blocked-on-answers sprint (starts when Section A returns): payout engine →
+hourly × payable time (D2–D4), packages/quotes/invoices, approval workflow,
+matching, driver self-registration, notifications, retargeting, file upload,
+fraud review workflow.
+
 ## Deviations from the pitch prototype (agreed constraints)
 
 The backend contract is the truth; these prototype effects are simulated
