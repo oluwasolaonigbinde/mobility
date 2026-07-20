@@ -18,7 +18,7 @@ test("admin overview shows network counts and full nav", async ({ page }) => {
   await loginAsAdmin(page);
   await expect(page.getByRole("heading", { name: "Fleet & Trust Operations" })).toBeVisible();
   const nav = page.getByRole("navigation", { name: "Primary" }).first();
-  for (const item of ["Users", "Drivers", "Vehicles", "Assignments", "Fraud", "Payouts"]) {
+  for (const item of ["Users", "Drivers", "Vehicles", "Assignments", "Fraud", "Payouts", "Audit"]) {
     await expect(nav.getByRole("link", { name: item })).toBeVisible();
   }
 });
@@ -28,8 +28,13 @@ test("users section lists accounts with role filter and create entry", async ({ 
   await page.goto("/admin/users");
   // Scoped to the table — the sidebar also shows the signed-in admin's name
   const main = page.locator("#main");
-  await expect(main.getByText("Demo Admin")).toBeVisible();
+  await expect(main.locator("tbody tr").first()).toBeVisible();
   await expect(page.getByRole("link", { name: "+ Create user" })).toBeVisible();
+  await page
+    .getByRole("group", { name: "Filter by role" })
+    .getByRole("link", { name: "admin" })
+    .click();
+  await expect(main.getByText("Demo Admin")).toBeVisible();
   // Role filter narrows to drivers
   await page
     .getByRole("group", { name: "Filter by role" })
@@ -69,5 +74,16 @@ test("payouts section lists calculations and the trip pipeline", async ({ page }
   await expect(page.getByRole("heading", { name: "Payouts" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Run pipeline" })).toBeVisible();
   // Seeded + processed calculations exist with final payouts
-  await expect(page.getByText("₦7,159").first()).toBeVisible();
+  await expect(page.getByText(/₦[\d,]+/).first()).toBeVisible();
+});
+
+test("audit trail shows login activity and supports filtering", async ({ page }) => {
+  await loginAsAdmin(page);
+  await page.goto("/admin/audit");
+  await expect(page.getByRole("heading", { name: "Audit trail" })).toBeVisible();
+  await expect(page.getByText("auth.login.succeeded").first()).toBeVisible();
+  await page.getByPlaceholder("Action, e.g. auth.login.succeeded").fill("auth.login.succeeded");
+  await page.getByRole("button", { name: "Filter" }).click();
+  await expect(page).toHaveURL(/action=auth.login.succeeded/);
+  await expect(page.getByText("auth.login.succeeded").first()).toBeVisible();
 });

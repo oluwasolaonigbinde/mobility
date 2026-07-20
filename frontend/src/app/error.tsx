@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import * as Sentry from "@sentry/nextjs";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 
@@ -17,7 +18,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Server logs carry the full error; the client just records occurrence.
+    Sentry.captureException(error);
     console.error("Unhandled UI error", error.digest ?? error.message);
   }, [error]);
 

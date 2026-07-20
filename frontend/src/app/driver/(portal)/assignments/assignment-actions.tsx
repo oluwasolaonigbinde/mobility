@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { assignmentAction } from "../actions";
+import { assignmentAction } from "@/app/driver/actions";
 import { Button } from "@/components/ui/button";
 import type { components } from "@/lib/api/schema";
 

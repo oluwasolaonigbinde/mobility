@@ -1,6 +1,7 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
+import { sessionCookieOptions } from "./cookie-options";
 
 /**
  * Session = the backend JWT stored in an httpOnly cookie.
@@ -12,13 +13,7 @@ import { env } from "@/lib/env";
 
 export async function setSessionCookie(token: string, expiresInSeconds: number): Promise<void> {
   const store = await cookies();
-  store.set(env().SESSION_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: env().NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: expiresInSeconds,
-  });
+  store.set(env().SESSION_COOKIE_NAME, token, sessionCookieOptions(expiresInSeconds));
 }
 
 export async function clearSessionCookie(): Promise<void> {

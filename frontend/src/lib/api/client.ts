@@ -31,13 +31,25 @@ const throwOnError: Middleware = {
 
 export type ApiClient = ReturnType<typeof createClient<paths>>;
 
-export function createApiClient(token?: string): ApiClient {
+function createConfiguredClient(headers?: Record<string, string>): ApiClient {
   const client = createClient<paths>({
     baseUrl: env().API_BASE_URL,
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers,
     // Backend data changes independently of the Next build — never cache by default.
     cache: "no-store",
   });
   client.use(throwOnError);
   return client;
+}
+
+export function createApiClient(token?: string): ApiClient {
+  return createConfiguredClient(token ? { Authorization: `Bearer ${token}` } : undefined);
+}
+
+/**
+ * Login-only client-IP relay. The caller must leave this unset unless the
+ * frontend is reachable exclusively through a header-stripping trusted edge.
+ */
+export function createLoginApiClient(clientIp?: string): ApiClient {
+  return createConfiguredClient(clientIp ? { "X-Client-IP": clientIp } : undefined);
 }
