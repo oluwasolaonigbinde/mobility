@@ -371,7 +371,6 @@ def test_heatmap_validation_rbac_cross_org_and_scope_guards(db_client, db_sessio
 
     versions = {path.name for path in Path("alembic/versions").glob("*.py")}
     assert "0010_payouts_and_earnings.py" in versions
-    assert not any(name.startswith("0011") for name in versions)
     for migration in Path("alembic/versions").glob("*.py"):
         migration_text = migration.read_text()
         assert '"heatmaps"' not in migration_text

@@ -41,12 +41,22 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
     database_url: str | None = None
     redis_url: str | None = None
+    sentry_dsn: str = ""
+    login_rate_limit_ip_max_failures: int = 150
+    login_rate_limit_ip_window_seconds: int = 300
+    login_rate_limit_account_max_failures: int = 5
+    login_rate_limit_account_window_seconds: int = 900
+    login_rate_limit_global_max_failures: int = 250
+    login_rate_limit_global_window_seconds: int = 300
+    login_rate_limit_trust_client_ip_header: bool = False
+    login_rate_limit_trusted_proxy_cidrs: str = ""
     backend_cors_origins: CorsOrigins = Field(default_factory=list)
     log_level: str = "INFO"
     request_id_header: str = "X-Request-ID"
     jwt_secret_key: str = DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
+    session_absolute_lifetime_minutes: int = 720
     password_min_length: int = 12
     default_currency: str = "NGN"
     max_campaign_zone_area_sq_km: int = 5000
@@ -110,11 +120,25 @@ class Settings(BaseSettings):
             raise ValueError("Wildcard CORS origins are not allowed outside local/test")
         return value
 
-    @field_validator("access_token_expire_minutes")
+    @field_validator("access_token_expire_minutes", "session_absolute_lifetime_minutes")
     @classmethod
     def validate_access_token_expire_minutes(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("ACCESS_TOKEN_EXPIRE_MINUTES must be positive")
+        return value
+
+    @field_validator(
+        "login_rate_limit_ip_max_failures",
+        "login_rate_limit_ip_window_seconds",
+        "login_rate_limit_account_max_failures",
+        "login_rate_limit_account_window_seconds",
+        "login_rate_limit_global_max_failures",
+        "login_rate_limit_global_window_seconds",
+    )
+    @classmethod
+    def validate_positive_rate_limit_settings(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("Login rate-limit settings must be positive")
         return value
 
     @field_validator("password_min_length")

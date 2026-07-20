@@ -57,6 +57,7 @@ def test_admin_can_create_user_with_normalized_email_and_audit(
     data = response.json()
     assert data["email"] == "advertiser@example.com"
     assert data["role"] == "advertiser"
+    assert data["must_change_password"] is True
     assert "password_hash" not in response.text
 
     stored_user = fetch_user_by_email(db_sessionmaker, "advertiser@example.com")
@@ -68,6 +69,7 @@ def test_admin_can_create_user_with_normalized_email_and_audit(
         json={"email": "ADVERTISER@example.com", "password": PASSWORD},
     )
     assert login_response.status_code == http_status.HTTP_200_OK
+    assert login_response.json()["user"]["must_change_password"] is True
 
     audit_events = fetch_audit_events(db_sessionmaker)
     assert [event.action for event in audit_events] == ["admin.user.created"]
