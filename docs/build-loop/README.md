@@ -1,10 +1,27 @@
 # Build Loop Ledger
 
-This directory is the local build-loop ledger for the Mobility AdTech & Audience Attribution Platform backend.
+This directory is the immutable build-loop ledger for the completed Mobility AdTech
+backend MVP.
+
+## Closure Boundary
+
+Slices 0–13 are complete and formally closed. This ledger remains the evidence trail
+for that backend delivery; it does not authorize a Slice 14.
+
+Post-closure frontend work is tracked outside this slice ledger:
+
+- Frontend F0–F6 are committed delivery work.
+- F7 hardening is committed on `f7-hardening` as post-closure delivery work. It is
+  not part of the closed backend MVP baseline this ledger records.
+
+See `../project-reconciliation.md` for the canonical repository, evidence pin, and
+project-wide status.
 
 ## Purpose
 
-The project is starting from a greenfield repo with only a local agent constraints document and the client product brief. This ledger keeps product context, Pro review packets, Pro responses, implementation prompts, slice reports, and slice status in one reviewable place.
+The project began as a greenfield backend delivery. This ledger keeps its product
+context, Pro review packets, Pro responses, implementation prompts, slice reports,
+and slice status in one reviewable place.
 
 ## Authority Model
 

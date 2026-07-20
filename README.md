@@ -1,6 +1,27 @@
-# Mobility AdTech API
+# Mobility AdTech Platform
 
-Backend foundation for the Mobility AdTech & Audience Attribution Platform.
+Monorepo for the Mobility AdTech & Audience Attribution Platform: a FastAPI/PostGIS
+backend and a Next.js frontend for advertiser, driver, and operator workflows.
+
+## Project Status
+
+- **Backend MVP:** Slices 0–13 are complete and formally closed. The frozen backend
+  contract is available at `docs/api/openapi.snapshot.json`.
+- **Frontend baseline:** F0–F6 are committed, covering the production foundation,
+  advertiser campaign workflows, zones, reporting/heatmaps, driver PWA, admin
+  console, and frontend hardening.
+- **F7 hardening:** **complete and committed** on `f7-hardening`. It adds
+  authentication hardening (current-password-verified changes, forced first-login
+  password change, sliding sessions with a 12-hour absolute cap, session-version
+  revocation, Redis-backed login rate limiting), an admin audit-trail API and UI,
+  a rich deterministic demo seed, backup/restore scripts with a revision-gated
+  restore, inert-without-DSN Sentry hooks, and backend + frontend + e2e CI. It is
+  verified locally; nothing is deployed, and staging remains research only
+  (`docs/staging-options.md`).
+
+Read `docs/project-reconciliation.md` before planning further work. It identifies
+the canonical repository, evidence baseline, delivery status, and the boundary
+between completed work and F7.
 
 ## Stack
 
@@ -16,7 +37,7 @@ Backend foundation for the Mobility AdTech & Audience Attribution Platform.
 
 ## Current Scope
 
-This repo currently contains Slice 13: project foundation, request IDs, expected error
+The closed backend MVP contains Slice 13: project foundation, request IDs, expected error
 envelope, SQLAlchemy/Alembic foundation, JWT login, current-user context, RBAC, admin
 user management, advertiser organizations, organization memberships, audit events,
 driver profiles, vehicle profiles, advertiser campaign metadata, campaign creative
@@ -32,9 +53,23 @@ linting. Slice 13 freezes the MVP frontend contract in
 `docs/api/openapi.snapshot.json` and adds hardening guardrails without adding product
 tables or product features.
 
-Business features such as settlement, withdrawals, advertiser billing, CSV/PDF
-exports, map tiles, heatmap cache tables, production seed automation, and frontend
-code are out of scope.
+The closed backend MVP excludes settlement, withdrawals, advertiser billing, CSV/PDF
+exports, map tiles, heatmap cache tables, and production seed automation. The frontend
+is present in `frontend/` as a separate, committed delivery stream (F0–F6 plus
+the F7 hardening layer described above); `frontend/README.md` documents the BFF
+architecture, local setup, and testing.
+
+## Documentation Map
+
+- `docs/project-reconciliation.md` — current project state and evidence baseline.
+- `docs/architecture.md` — verified current state (including F7) and designed target state.
+- `docs/runbook.md` — local and pilot operational procedures: backups, restore,
+  migrations, sessions, rate limiting, seed, Sentry, secret rotation.
+- `docs/staging-options.md` — hosting research only; revalidate pricing and provider
+  capabilities before approval.
+- `docs/decisions-log.md` and `docs/Product-Direction-Questionnaire.md` — product
+  decisions and unresolved client questions.
+- `docs/build-loop/` — immutable backend-MVP slice ledger and review evidence.
 
 ## Local Prerequisites
 
