@@ -1,4 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { sessionCookieOptions } from "@/lib/auth/cookie-options";
+import { tokenNeedsRefresh } from "@/lib/auth/token";
 
 const SESSION_COOKIE = process.env.SESSION_COOKIE_NAME ?? "mobility_session";
 
@@ -6,9 +8,39 @@ const SESSION_COOKIE = process.env.SESSION_COOKIE_NAME ?? "mobility_session";
  * Fast-path redirects only. Real authentication/authorization is enforced
  * by the FastAPI backend on every proxied call, and role checks happen in
  * the server layouts (`requireRole`). This just keeps signed-out users off
- * app routes (and signed-in users off /login) without a full render.
+ * app routes without a full render. The login page validates an existing
+ * cookie through `/me`; redirecting here based only on cookie presence would
+ * trap revoked sessions in a `/login` ↔ `/` loop.
  */
-export default function proxy(request: NextRequest) {
+interface RefreshResponse {
+  access_token: string;
+  expires_in: number;
+}
+
+async function responseWithRefresh(request: NextRequest, response: NextResponse) {
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  if (!token || request.method !== "GET" || !tokenNeedsRefresh(token, 30 * 60)) {
+    return response;
+  }
+  try {
+    const refreshed = await fetch(
+      `${process.env.API_BASE_URL ?? "http://localhost:8000"}/api/v1/auth/refresh`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      },
+    );
+    if (!refreshed.ok) return response;
+    const data = (await refreshed.json()) as RefreshResponse;
+    response.cookies.set(SESSION_COOKIE, data.access_token, sessionCookieOptions(data.expires_in));
+  } catch {
+    // Refresh is deliberately fail-open. The normal auth guard handles expiry.
+  }
+  return response;
+}
+
+export default async function proxy(request: NextRequest) {
   const hasSession = request.cookies.has(SESSION_COOKIE);
   const { pathname } = request.nextUrl;
 
@@ -22,21 +54,18 @@ export default function proxy(request: NextRequest) {
   const isAppRoute =
     pathname.startsWith("/advertiser") ||
     pathname.startsWith("/driver") ||
-    pathname.startsWith("/admin");
+    pathname.startsWith("/admin") ||
+    pathname === "/change-password";
 
   if (isAppRoute && !hasSession) {
     const login = new URL("/login", request.url);
     login.searchParams.set("from", pathname);
-    return NextResponse.redirect(login);
+    return responseWithRefresh(request, NextResponse.redirect(login));
   }
 
-  if (pathname === "/login" && hasSession) {
-    return NextResponse.redirect(new URL("/", request.url));
-  }
-
-  return NextResponse.next();
+  return responseWithRefresh(request, NextResponse.next());
 }
 
 export const config = {
-  matcher: ["/advertiser/:path*", "/driver/:path*", "/admin/:path*", "/login"],
+  matcher: ["/advertiser/:path*", "/driver/:path*", "/admin/:path*", "/change-password", "/login"],
 };

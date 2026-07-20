@@ -43,7 +43,14 @@ export async function requireRole(...roles: Role[]): Promise<MeResponse> {
   if (!roles.includes(me.user.role)) {
     redirect(roleHome(me.user.role));
   }
+  if (me.user.must_change_password) {
+    redirect(changePasswordPath(me.user.role));
+  }
   return me;
+}
+
+export function changePasswordPath(role: Role): string {
+  return role === "driver" ? "/driver/change-password" : "/change-password";
 }
 
 /** Where each role lands after login. */

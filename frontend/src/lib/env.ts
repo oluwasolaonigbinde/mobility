@@ -9,6 +9,10 @@ import { z } from "zod";
 const envSchema = z.object({
   API_BASE_URL: z.string().url().default("http://localhost:8000"),
   SESSION_COOKIE_NAME: z.string().min(1).default("mobility_session"),
+  LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 
@@ -19,6 +23,7 @@ export function env(): z.infer<typeof envSchema> {
     const parsed = envSchema.safeParse({
       API_BASE_URL: process.env.API_BASE_URL,
       SESSION_COOKIE_NAME: process.env.SESSION_COOKIE_NAME,
+      LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER: process.env.LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER,
       NODE_ENV: process.env.NODE_ENV,
     });
     if (!parsed.success) {

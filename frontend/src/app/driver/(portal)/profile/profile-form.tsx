@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { updateProfileAction, type DriverActionState } from "../actions";
+import { updateProfileAction, type DriverActionState } from "@/app/driver/actions";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 

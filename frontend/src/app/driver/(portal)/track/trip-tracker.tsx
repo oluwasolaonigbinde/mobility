@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { components } from "@/lib/api/schema";
-import { startTripAction, endTripAction, sendPingBatchAction } from "../actions";
+import { startTripAction, endTripAction, sendPingBatchAction } from "@/app/driver/actions";
 import { Panel } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 
@@ -22,6 +22,7 @@ interface BufferedPing {
 
 const FLUSH_INTERVAL_MS = 15_000;
 const FLUSH_AT_COUNT = 20;
+const KEEPALIVE_INTERVAL_MS = 10 * 60_000;
 
 type GpsState = "idle" | "granted" | "denied" | "unavailable";
 
@@ -55,6 +56,7 @@ export function TripTracker({
   const seqRef = useRef(0);
   const watchRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const keepaliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const flushingRef = useRef(false);
 
   const flush = useCallback(async (tripId: string) => {
@@ -92,6 +94,10 @@ export function TripTracker({
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    if (keepaliveRef.current) {
+      clearInterval(keepaliveRef.current);
+      keepaliveRef.current = null;
+    }
   }, []);
 
   const beginTracking = useCallback(
@@ -123,6 +129,12 @@ export function TripTracker({
         { enableHighAccuracy: true, maximumAge: 5_000, timeout: 20_000 },
       );
       timerRef.current = setInterval(() => void flush(tripId), FLUSH_INTERVAL_MS);
+      keepaliveRef.current = setInterval(() => {
+        void fetch("/driver/keepalive", {
+          cache: "no-store",
+          credentials: "same-origin",
+        }).catch(() => undefined);
+      }, KEEPALIVE_INTERVAL_MS);
     },
     [flush],
   );

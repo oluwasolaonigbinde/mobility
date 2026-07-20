@@ -10,6 +10,7 @@ const nav: NavItem[] = [
   { href: "/admin/assignments", label: "Assignments" },
   { href: "/admin/fraud", label: "Fraud" },
   { href: "/admin/payouts", label: "Payouts" },
+  { href: "/admin/audit", label: "Audit" },
   { href: "/admin/traffic", label: "Traffic" },
 ];
 
