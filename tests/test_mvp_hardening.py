@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from conftest import (
     auth_headers,
     create_test_campaign,
@@ -12,7 +14,7 @@ from app.main import create_app
 from app.models.user import UserRole
 
 SNAPSHOT_PATH = Path("docs/api/openapi.snapshot.json")
-EXPECTED_ALEMBIC_HEAD = "0010_payouts_and_earnings"
+EXPECTED_ALEMBIC_HEAD = "0012_audit_event_indexes"
 EXPECTED_MIGRATIONS = {
     "0001_enable_extensions.py",
     "0002_identity_and_organizations.py",
@@ -24,6 +26,8 @@ EXPECTED_MIGRATIONS = {
     "0008_route_analytics_and_fraud_flags.py",
     "0009_impression_estimation.py",
     "0010_payouts_and_earnings.py",
+    "0011_user_password_management.py",
+    "0012_audit_event_indexes.py",
 }
 MAJOR_CONTRACT_PATHS = {
     "health": "/api/v1/health",
@@ -126,7 +130,7 @@ def test_representative_protected_get_routes_reject_missing_auth(db_client) -> N
 
 
 def test_static_routes_precede_dynamic_siblings(settings) -> None:
-    routes = [route.path for route in create_app(settings).routes]
+    routes = list(create_app(settings).openapi()["paths"])
 
     assert routes.index("/api/v1/driver/campaign-assignments/active") < routes.index(
         "/api/v1/driver/campaign-assignments/{assignment_id}"
@@ -138,9 +142,9 @@ def test_static_routes_precede_dynamic_siblings(settings) -> None:
 
 def test_no_public_delete_routes_for_payout_ledger_critical_parents(settings) -> None:
     delete_paths = {
-        route.path
-        for route in create_app(settings).routes
-        if "DELETE" in getattr(route, "methods", set())
+        path
+        for path, operations in create_app(settings).openapi()["paths"].items()
+        if "delete" in operations
     }
 
     assert delete_paths == {"/api/v1/advertiser/campaigns/{campaign_id}/zones/{zone_id}"}
@@ -152,9 +156,9 @@ def test_no_slice_13_migration_or_product_tables_added() -> None:
     }
 
     assert migration_names == EXPECTED_MIGRATIONS
-    assert EXPECTED_ALEMBIC_HEAD in Path(
-        "alembic/versions/0010_payouts_and_earnings.py"
-    ).read_text(encoding="utf-8")
+
+    script = ScriptDirectory.from_config(Config("alembic.ini"))
+    assert script.get_heads() == [EXPECTED_ALEMBIC_HEAD]
 
 
 def test_cost_summary_invalid_date_range_uses_standard_error_envelope(

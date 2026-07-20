@@ -658,7 +658,6 @@ def test_slice10_adds_no_migration_or_reporting_tables() -> None:
 
     versions = {path.name for path in Path("alembic/versions").glob("*.py")}
     assert "0010_payouts_and_earnings.py" in versions
-    assert not any(name.startswith("0011") for name in versions)
     for migration in Path("alembic/versions").glob("*.py"):
         text = migration.read_text()
         for forbidden_table in [

@@ -34,6 +34,7 @@ class UserRead(BaseModel):
     phone: str | None
     role: UserRole
     status: UserStatus
+    must_change_password: bool
 
 
 class UserListResponse(BaseModel):

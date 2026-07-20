@@ -52,6 +52,7 @@ async def create_user(session: AsyncSession, payload: UserCreate, settings: Sett
         phone=payload.phone,
         role=payload.role,
         status=payload.status,
+        must_change_password=True,
     )
     session.add(user)
     try:

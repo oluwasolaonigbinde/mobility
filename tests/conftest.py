@@ -672,7 +672,26 @@ def fetch_user_by_email(
 def fetch_audit_events(db_sessionmaker: async_sessionmaker[AsyncSession]) -> list[AuditEvent]:
     async def fetch() -> list[AuditEvent]:
         async with db_sessionmaker() as session:
-            result = await session.execute(select(AuditEvent).order_by(AuditEvent.created_at))
+            result = await session.execute(
+                select(AuditEvent)
+                .where(~AuditEvent.action.like("auth.%"))
+                .order_by(AuditEvent.created_at)
+            )
+            return list(result.scalars().all())
+
+    return asyncio.run(fetch())
+
+
+def fetch_auth_audit_events(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+) -> list[AuditEvent]:
+    async def fetch() -> list[AuditEvent]:
+        async with db_sessionmaker() as session:
+            result = await session.execute(
+                select(AuditEvent)
+                .where(AuditEvent.action.like("auth.%"))
+                .order_by(AuditEvent.created_at, AuditEvent.id)
+            )
             return list(result.scalars().all())
 
     return asyncio.run(fetch())

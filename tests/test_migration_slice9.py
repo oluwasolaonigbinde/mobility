@@ -151,7 +151,7 @@ def test_slice9_migration_upgrades_postgres_and_creates_expected_schema(monkeypa
                 await engine.dispose()
 
         base_tables = asyncio.run(public_base_tables())
-        command.upgrade(alembic_config, "head")
+        command.upgrade(alembic_config, SLICE9_REVISION)
 
         async def inspect_schema() -> dict[str, object]:
             engine = create_async_engine(migration_url, poolclass=NullPool)

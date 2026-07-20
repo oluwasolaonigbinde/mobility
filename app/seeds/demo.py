@@ -4,9 +4,12 @@ import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status
@@ -55,6 +58,7 @@ from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle, VehicleStatus, VehicleType
 from app.schemas.impressions import TrafficDensityProfileCreate
 from app.schemas.trips import LocationPingBatchCreate, LocationPingCreate
+from app.seeds.rich import F7_DRIVER_PASSWORDS, F7_SEED_VERSION, RichSeedResult, build_rich_seed
 from app.services.campaign_zones import geometry_expression, validate_geometry_with_postgis
 from app.services.impressions import create_traffic_density_profile, estimate_trip_impressions
 from app.services.payouts import calculate_trip_payout
@@ -89,6 +93,7 @@ class DemoGraph:
     assignment: CampaignAssignment
     trips: list[TripSession]
     traffic_profile: TrafficDensityProfile
+    rich: RichSeedResult
 
 
 def demo_metadata(**extra: Any) -> dict[str, Any]:
@@ -139,13 +144,24 @@ async def ensure_database_ready(session: AsyncSession) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     version = await session.scalar(text("SELECT version_num FROM alembic_version"))
-    if version != "0010_payouts_and_earnings":
+    required = required_migration_head()
+    if version != required:
         raise AppError(
             "MIGRATION_HEAD_REQUIRED",
             "Run alembic upgrade head before the demo seed.",
             status_code=status.HTTP_400_BAD_REQUEST,
-            details={"current": version, "required": "0010_payouts_and_earnings"},
+            details={"current": version, "required": required},
         )
+
+
+def required_migration_head() -> str:
+    root = Path(__file__).resolve().parents[2]
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "alembic"))
+    head = ScriptDirectory.from_config(config).get_current_head()
+    if head is None:
+        raise RuntimeError("Alembic migration head is missing or ambiguous")
+    return head
 
 
 async def upsert_user(
@@ -185,6 +201,10 @@ async def upsert_user(
         user.full_name = full_name
         user.status = UserStatus.ACTIVE.value
         user.password_hash = hash_password(password)
+    # Seeded credentials are documented and used by e2e; forcing their first
+    # login through password rotation would make the repeatable demo unusable.
+    if hasattr(User, "must_change_password"):
+        user.must_change_password = False
     await session.flush()
     await session.refresh(user)
     return user
@@ -947,6 +967,15 @@ async def build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGra
             settings=settings,
         )
 
+    rich = await build_rich_seed(
+        session,
+        settings=settings,
+        admin=admin,
+        advertiser=advertiser,
+        organization=organization,
+        traffic_profile=traffic_profile,
+    )
+
     return DemoGraph(
         admin=admin,
         advertiser=advertiser,
@@ -960,11 +989,20 @@ async def build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGra
         assignment=assignment,
         trips=trips,
         traffic_profile=traffic_profile,
+        rich=rich,
     )
 
 
 async def counts(session: AsyncSession, graph: DemoGraph) -> dict[str, int]:
     trip_ids = [trip.id for trip in graph.trips]
+    rich_trip_count = int(
+        await session.scalar(
+            select(func.count(TripSession.id)).where(
+                TripSession.trip_metadata["seed_version"].as_string() == F7_SEED_VERSION
+            )
+        )
+        or 0
+    )
     return {
         "users": int(
             await session.scalar(
@@ -985,7 +1023,9 @@ async def counts(session: AsyncSession, graph: DemoGraph) -> dict[str, int]:
         "trips": len(graph.trips),
         "pings": int(
             await session.scalar(
-                select(func.count(LocationPing.id)).where(LocationPing.trip_session_id.in_(trip_ids))
+                select(func.count(LocationPing.id)).where(
+                    LocationPing.trip_session_id.in_(trip_ids)
+                )
             )
             or 0
         ),
@@ -1021,6 +1061,12 @@ async def counts(session: AsyncSession, graph: DemoGraph) -> dict[str, int]:
             )
             or 0
         ),
+        "f7_drivers": len(graph.rich.drivers),
+        "f7_campaigns": len(graph.rich.campaigns),
+        "f7_assignments": len(graph.rich.assignments),
+        "f7_trips": rich_trip_count,
+        "f7_trips_added": len(graph.rich.new_trips),
+        "f7_audit_events": graph.rich.audit_event_count,
     }
 
 
@@ -1036,6 +1082,8 @@ def print_summary(graph: DemoGraph, summary_counts: dict[str, int]) -> None:
     print(json.dumps(summary_counts, indent=2, sort_keys=True))
     print("Local-only demo credentials:")
     for email, password in DEMO_PASSWORDS.items():
+        print(f"- {email} / {password}")
+    for email, password in F7_DRIVER_PASSWORDS.items():
         print(f"- {email} / {password}")
     print("Sample frontend endpoints:")
     print("- POST /api/v1/auth/login")
