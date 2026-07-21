@@ -104,6 +104,8 @@ class Settings(BaseSettings):
     heatmap_max_cells: int = 5000
     heatmap_min_trips_per_cell: int = 1
     allow_demo_seed: bool = False
+    worker_sweep_interval_minutes: int = 5
+    worker_sweep_batch_size: int = 25
 
     @field_validator("api_v1_prefix")
     @classmethod
@@ -287,6 +289,22 @@ class Settings(BaseSettings):
     def validate_heatmap_min_trips_per_cell(cls, value: int) -> int:
         if value < 1:
             raise ValueError("HEATMAP_MIN_TRIPS_PER_CELL must be at least 1")
+        return value
+
+    @field_validator("worker_sweep_interval_minutes")
+    @classmethod
+    def validate_worker_sweep_interval_minutes(cls, value: int) -> int:
+        if not (1 <= value <= 60 and 60 % value == 0):
+            raise ValueError(
+                "WORKER_SWEEP_INTERVAL_MINUTES must be a divisor of 60 between 1 and 60"
+            )
+        return value
+
+    @field_validator("worker_sweep_batch_size")
+    @classmethod
+    def validate_worker_sweep_batch_size(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("WORKER_SWEEP_BATCH_SIZE must be positive")
         return value
 
     @field_validator("default_currency")

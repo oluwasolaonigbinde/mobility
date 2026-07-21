@@ -32,6 +32,7 @@ between completed work and F7.
 - Alembic
 - PostgreSQL with PostGIS
 - Redis
+- arq (background worker)
 - pytest and ruff
 - Docker Compose
 
@@ -413,4 +414,10 @@ Copy-Item .env.example .env
 docker compose up --build
 ```
 
-Compose starts the API, PostgreSQL/PostGIS, and Redis.
+Compose starts the API, the arq worker, PostgreSQL/PostGIS, and Redis. The
+`worker` service (no published port) automates post-trip processing — analytics,
+fraud flags, impression estimate, and payout calculation for ended trips — via an
+enqueue on trip end plus a Postgres-derived sweep; see "Post-trip processing
+worker" in `docs/runbook.md`. Its payout stage runs `payout_v1` as transitional
+infrastructure only, not the approved payment model; do not enable it against
+real driver earnings.

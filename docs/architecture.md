@@ -210,19 +210,22 @@ to conflict, the earlier-numbered principle wins.
                         │  Authorization: Bearer <JWT>, internal network
         ┌───────────────▼───────────────┐
         │  FastAPI  (app/)              │  /api/v1 — 81 operations
-        │  SQLAlchemy 2 async + Alembic │  request/response only,
-        │  services layer, audit trail  │  no queues, no WebSockets
+        │  SQLAlchemy 2 async + Alembic │  request/response + worker
+        │  services layer, audit trail  │  enqueue (§6.5); no WebSockets
         └───────┬───────────────┬───────┘
                 │               │
    ┌────────────▼─────────┐   ┌─▼──────────────────────────┐
    │ PostgreSQL 16 +      │   │ Redis 7                    │
    │ PostGIS 3.4          │   │ [BUILT] login rate-limit   │
-   │ 21 tables, geometry  │   │ counters (F7); fail-open   │
-   │ (Point/MultiPolygon) │   │ when unavailable           │
-   └──────────────────────┘   └────────────────────────────┘
+   │ 21 tables, geometry  │   │ counters (F7) + arq queue  │
+   │ (Point/MultiPolygon) │   │ (§6.5); both fail-open /   │
+   └──────────────────────┘   │ disposable                 │
+                              └────────────────────────────┘
 ```
 
-The target-state version of this diagram is §13.
+Not boxed above: the arq `worker` container (§6.5, §14) shares the FastAPI
+codebase/image and sits on the same Redis + Postgres. The target-state version
+of this diagram is §13.
 
 ## 6. Backend architecture
 
@@ -367,13 +370,19 @@ Every new endpoint must obey all of these:
 
 ### 6.5 Background / async story **[BUILT]**
 
-**None — strictly request/response.** No Celery, no `BackgroundTasks`, no
-schedulers, no WebSockets, no SSE. <!-- verified: grep BackgroundTasks|celery|websocket app/ → 0 hits -->
-Analytics recompute, impression estimation, and payout calculation are
-synchronous admin-triggered POSTs. Redis's first real consumer is **[BUILT] F7
-login rate limiting** (`app/core/rate_limit.py` — disposable counters, fail-open
-per P2); its second is the [TARGET] job queue (§14). Do not introduce
-queues/realtime ad hoc — §14 is the one sanctioned design.
+**One arq worker — everything else strictly request/response.** No Celery, no
+`BackgroundTasks`, no schedulers in the web process, no WebSockets, no SSE.
+<!-- verified: grep BackgroundTasks|celery|websocket app/ → 0 hits -->
+Until this change the story was "none — strictly request/response"; the §14
+trip-processing pipeline is now **[BUILT]**: one arq worker (`app/jobs/*`,
+compose service `worker`) completes missing analytics/fraud/impression/payout
+rows for ended trips, fed by a fail-open enqueue-after-commit on trip end
+(`app/core/trip_enqueue.py`) and backstopped by a Postgres-derived cron sweep.
+Admin recompute endpoints remain the synchronous recompute/override tools.
+Redis's consumers: **[BUILT] F7 login rate limiting** (`app/core/rate_limit.py`
+— disposable counters, fail-open per P2) and **[BUILT]** the arq queue (also
+disposable — the sweep re-derives work from Postgres). Do not introduce
+queues/realtime ad hoc — §14 remains the one sanctioned design.
 
 ## 7. Data model
 
@@ -601,9 +610,10 @@ in `.github/workflows/frontend.yml`). Backend contract tests
 
 | Service | Image/build | Host port | Notes |
 |---------|-------------|-----------|-------|
-| `api` | repo `Dockerfile` (python:3.12-slim), uvicorn `--reload`, source bind-mounted | **8000** | full env inlined; depends on db, redis |
+| `api` | repo `Dockerfile` (python:3.12-slim), uvicorn `--reload`, source bind-mounted | **8000** | shared `x-backend-env` anchor; depends on db, redis |
+| `worker` | repo `Dockerfile`, `arq app.jobs.worker.WorkerSettings`, source bind-mounted | — (none) | shared `x-backend-env` anchor; depends on db, redis; post-trip pipeline + sweep (§6.5, §14) |
 | `db` | `postgis/postgis:16-3.4` | **5433** (compose) → **5434 on this machine** via gitignored `docker-compose.override.yml` (5433 taken by another project) | volume `postgres_data` |
-| `redis` | `redis:7-alpine` | 6379 | provisioned, unused by app code (§6.5) |
+| `redis` | `redis:7-alpine` | 6379 | login-rate-limit counters + arq queue, both disposable (§6.5) |
 | `frontend` | `frontend/Dockerfile` (multi-stage node:22-alpine, standalone build, non-root user) | **3100**→3000, **profile `full` only** | `docker compose --profile full up`; local dev normally runs `npm run dev` on 3000 instead |
 
 Local quirks: the db override file is **gitignored** — fresh clones get 5433;
@@ -831,9 +841,16 @@ measured need.
 ### Relation to current code
 
 Purely additive: new `worker` compose service, `app/jobs/` package, arq
-dependency. First consumers: the trip-processing pipeline (§14.2, §16.1), §15
-(webhooks), §16 (payout release), §20 (notifications), §24 (retention). Redis
-remains disposable.
+dependency. The substrate and its first consumer, the trip-processing pipeline
+(§14.2), are now **[BUILT]** per the §14.3 rules — idempotent
+complete-missing-only stages (`app/services/trip_processing.py`), a
+Postgres-derived sweep with the trip-end enqueue as latency optimization only
+(rule 2; `app/core/trip_enqueue.py`), thin job wrappers (rule 3;
+`app/jobs/trip_processing.py`), structured per-run logs + Sentry (rule 4). Its
+payout stage runs `payout_v1` as transitional orchestration only — not the
+approved payment model (D2 hourly pay, Q4/Q5 pending). All other consumers —
+§15 (webhooks), §16 (payout release), §20 (notifications), §24 (retention) —
+remain [TARGET]. Redis remains disposable.
 
 ## 15. Money in — billing, payments, invoicing
 
@@ -1518,7 +1535,7 @@ blocking answers have landed; within a wave, order is dependency-driven.
 | Wave | Contents | Depends on |
 |------|----------|------------|
 | **F7 (done, 2026-07-20)** [BUILT] | Auth hardening (sliding session, `sv`, forced change, rate limiting), backend CI, audit API/UI, rich seed, backups/restore, Sentry hooks. Staging deploy deliberately deferred — research only (`docs/staging-options.md`), awaiting OJ approval | — |
-| **W1 — money correctness** | Worker substrate + trip-processing pipeline (§14) → payout v2 + caps (§16.1) → fraud review + holds (§17; the driver-facing dispute channel needs notifications — ship a minimal **in-app-only** notification slice here, §20, channel adapters wait for W2) → release scheduling (§16.2) → payout runs UI (§16.3 pilot form). Plus pre-pilot data-infra chores: retention job + ping partitioning (§24.2), audit backfill for unaudited flows (§6.4.9) | Q4, Q5, Q21, Q22 (retention window Q31 — ships with the 12-month config default if unanswered) |
+| **W1 — money correctness** | Worker substrate + trip-processing pipeline (§14) **[BUILT] (delivered 2026-07-21; payout stage transitional `payout_v1`, not D2)** → payout v2 + caps (§16.1) → fraud review + holds (§17; the driver-facing dispute channel needs notifications — ship a minimal **in-app-only** notification slice here, §20, channel adapters wait for W2) → release scheduling (§16.2) → payout runs UI (§16.3 pilot form). Plus pre-pilot data-infra chores: retention job + ping partitioning (§24.2), audit backfill for unaudited flows (§6.4.9) | Q4, Q5, Q21, Q22 (retention window Q31 — ships with the 12-month config default if unanswered) |
 | **W2 — the commercial layer** | Billing/invoices (§15) → file storage (§19) → approval workflows (§18 — campaign approval may precede files, but creative approval and activation evidence consume §19) → notification channel adapters + triggers (§20) | Q1–Q3, Q6, Q14, Q17, Q18, Q28, Q34 |
 | **W3 — reach** | Retargeting v1 per Q11 (§22) → matching recommender + activity sweeps (§21) → driver self-reg if Q13 says so (§23) | Q7, Q11, Q13, Q20 |
 | **Phase 2 (commissioned separately)** | Native driver app + refresh tokens + push (§23); gateway auto-collection (§15.3); Paystack Transfers (§16.3); edge-AI counting (out of scope here) | Pilot results |
@@ -1594,3 +1611,4 @@ that works under *all* still-open options, and say so in the PR (P10).
 | v1.2 | 2026-07-13 | Adversarial review round 2 (12 findings, fresh reviewer) applied. Load-bearing fix: **automated trip-processing pipeline** added as the worker's first job (§14.2 — analytics→fraud→impressions→payout on trip end + uncomputed-trip sweep; previously the target automated only consumers of facts nothing produced). Also: daily-cap concurrency rule (advisory lock per driver/campaign/Lagos-day, midnight + recompute policy); ledger `paid` status flagged as a check-constraint migration; payee abstraction honouring Q23's no-rework promise; `trip_sessions` coordinates added to retention purge; W1/W2 ordering fixed (in-app notification slice into W1; files before creative approval in W2; stale W3 retention row removed); budget "spend" defined as a billing computation; webhook event-row rule generalised per domain; email restored as a first-class channel; campaign approval placed relative to `scheduled`; reversal-recommendation home + negative-balance rule; test count corrected to 190. |
 | v1.3 | 2026-07-13 | Adversarial review round 3 (convergence gate; 4 blockers + 4 rideable) applied: reversal semantics reconciled with the built ledger (positive amounts, subtract-by-type netting in every summary — the naive design would have *added* money); §19 blocked-by corrected Q31→Q32; budget-rule and payout-floor [OPEN]s re-anchored (no numbered v2 question exists — confirm via decisions-log); `notifications` gains `provider_message_id` + `delivered` so §15.4 receipts are satisfiable; trip pipeline added to the §13 diagram; W1 retention-window dependency noted; `payout_calculations` v2 migration scope; changelog reordered. |
 | v1.4 | 2026-07-20 | **F7 reconciliation.** Part II re-verified against the committed F7 delivery and the pin moved from `d9a989c` to `301519d`. Promoted to [BUILT]: sliding session + 12h cap + `sv` revocation + `must_change_password` + change-password endpoint (§6.3), Redis login rate limiting with trusted-edge gating (§6.3/§12), auth audit events + admin audit API/UI + `0012` indexes (§6.4.9), migrations `0011`/`0012` (§7.2), revision-gated backup/restore scripts (§7.2/§10.4), Sentry hooks both tiers (§10.4/§12), backend CI job with PostGIS+Redis services (§10.3), rich `f7_rich_v1` seed namespace (§11), driver `(portal)` route group + change-password/keepalive routes + `/admin/audit` (§8.3). Counts updated by command: 82 ops / 66 paths (was 79/63), 12 migrations, 209 backend test functions in 35 files, 32 vitest cases, 48 Playwright project-expanded tests in 6 specs. Staging deploy explicitly deferred (research only). Legacy sv-less-token residual risk documented (§6.3). |
+| v1.5 | 2026-07-21 | **Worker substrate + automated post-trip processing [BUILT].** One arq worker (`app/jobs/worker.py`, new compose `worker` service, no host port) runs the §14.2 pipeline complete-missing-only — analytics→fraud→impressions→payout(+ledger, audited) for ended trips — via fail-open enqueue-after-commit on trip end (`app/core/trip_enqueue.py`) backstopped by a Postgres-derived cron sweep. New Settings: `WORKER_SWEEP_INTERVAL_MINUTES` (divisor of 60) and `WORKER_SWEEP_BATCH_SIZE`. No HTTP contract, schema, or migration change; admin endpoints unchanged as recompute tools. §6.5, §10.1, §14, §31 amended. Payout automation runs `payout_v1` as transitional infrastructure only — D2 (hourly pay) still pending Q4/Q5; not for production enablement. |
