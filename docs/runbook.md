@@ -8,8 +8,9 @@ This runbook covers the Docker Compose pilot stack. Run commands from the reposi
 |---|---|---|---|
 | Next.js BFF | `frontend` (`full` profile) | `frontend:3000` | Browser entry point and httpOnly session-cookie owner |
 | FastAPI | `api` | `api:8000` | API, auth, analytics, fraud, and payouts |
+| arq worker | `worker` | none (no port) | Automated post-trip processing pipeline and sweep |
 | PostGIS | `db` | `db:5432` | System of record |
-| Redis | `redis` | `redis:6379` | Login-rate-limit counters |
+| Redis | `redis` | `redis:6379` | Login-rate-limit counters and the arq job queue |
 
 Local port mappings are development conveniences. Do not expose API `8000`, frontend `3100`, Postgres, or Redis on a public host. Staging should expose only ports 80/443 on the reverse proxy.
 
@@ -171,6 +172,28 @@ Do not enable `LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER` until all of these are t
 6. A test proves forged direct headers cannot select a limiter bucket and distinct edge socket peers do receive distinct buckets.
 
 If any condition is absent, leave header trust off. The browser-to-API path is `browser → edge → Next/BFF → FastAPI`; FastAPI sees the BFF peer, not the edge peer.
+
+## Post-trip processing worker
+
+The `worker` service runs an arq worker (`arq app.jobs.worker.WorkerSettings`) that completes the pipeline for ended trips: analytics and fraud flags, one current-formula impression estimate, and one current-formula payout calculation plus its ledger entry. It fills missing stages only and never recomputes existing rows; the admin endpoints remain the forced-recompute tools. Work arrives two ways: a fail-open enqueue after each trip-end commit, and a periodic sweep that derives due trips from Postgres.
+
+```bash
+docker compose up -d worker
+docker compose logs -f worker
+docker compose stop worker
+```
+
+The worker publishes no host port. Settings: `WORKER_SWEEP_INTERVAL_MINUTES` (default `5`; must be a divisor of 60 between 1 and 60 — anything else fails Settings validation at startup) and `WORKER_SWEEP_BATCH_SIZE` (default `25` trips per sweep).
+
+| Failure | Effect | Recovery |
+|---|---|---|
+| Redis down at trip end | Trip end still returns 200; API logs a `event=trip_enqueue_failed` warning | Sweep completes the trip within one interval |
+| Redis data loss (flush, restart) | Queued jobs lost | Sweep re-derives all due work from Postgres |
+| Worker down | Ended trips accumulate unprocessed | Start the worker; sweeps drain the backlog in batches |
+
+Watch for `job=process_trip trip_id=... overall=... stages=...` per enqueued trip and `job=process_unprocessed_trips selected=... processed=... partial=... failed=... skipped=...` per sweep. A non-zero `failed` count, with a Sentry event per failure when a DSN is set, means trips need operator attention. Corrupt-data failures (for example `PAYOUT_SOURCE_MISMATCH`) are re-selected every sweep by design — there is no automated suppression. If at least `WORKER_SWEEP_BATCH_SIZE` such trips accumulate and are older than healthy work, they head-of-line block the batch until an operator resolves them; this is a documented pilot-scale trade-off.
+
+**Transitional money warning.** The automated payout stage runs the existing `payout_v1` engine solely as transitional infrastructure to prove worker orchestration. It is not the approved pilot payment model — D2 specifies hourly pay, and Q4/Q5 are still open. Do not enable this worker against production data or real driver earnings. Production enablement is a separate, explicitly approved delivery.
 
 ## Local Playwright reset and overrides
 

@@ -2,7 +2,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, status
 
-from app.api.v1.dependencies import DriverUserDependency, SessionDependency, SettingsDependency
+from app.api.v1.dependencies import (
+    DriverUserDependency,
+    SessionDependency,
+    SettingsDependency,
+    TripEnqueuerDependency,
+)
 from app.schemas.trips import (
     CurrentTripResponse,
     LocationPingBatchCreate,
@@ -114,6 +119,7 @@ async def driver_end_trip(
     payload: TripEndRequest,
     current_user: DriverUserDependency,
     session: SessionDependency,
+    enqueuer: TripEnqueuerDependency,
 ) -> TripRead:
     trip = await end_driver_trip(
         session,
@@ -122,6 +128,8 @@ async def driver_end_trip(
         payload=payload,
     )
     await session.commit()
+    # Fail-open latency optimization; the sweep is the guaranteed path (§14.3.2).
+    await enqueuer.enqueue_trip_processing(trip.id)
     return trip_response(await summarize_trip(session, trip))
 
 
