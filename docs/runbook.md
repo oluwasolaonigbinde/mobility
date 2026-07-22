@@ -175,7 +175,7 @@ If any condition is absent, leave header trust off. The browser-to-API path is `
 
 ## Post-trip processing worker
 
-The `worker` service runs an arq worker (`arq app.jobs.worker.WorkerSettings`) that completes the pipeline for ended trips: analytics and fraud flags, one current-formula impression estimate, and one current-formula payout calculation plus its ledger entry. It fills missing stages only and never recomputes existing rows; the admin endpoints remain the forced-recompute tools. Work arrives two ways: a fail-open enqueue after each trip-end commit, and a periodic sweep that derives due trips from Postgres.
+The `worker` service runs an arq worker (`arq app.jobs.worker_entry.WorkerSettings`) that completes the pipeline for ended trips: analytics and fraud flags, one current-formula impression estimate, and one current-formula payout calculation plus its ledger entry. It fills missing stages and refreshes an existing impression estimate when its analytics or open-fraud inputs are stale; it never rewrites a historical payout, and old-formula analytics must be recomputed through the admin endpoint. Work arrives two ways: a fail-open enqueue after each trip-end commit, and a periodic sweep that derives due trips from Postgres. The strict entry module rejects a missing `REDIS_URL` before arq constructs a worker or opens a socket.
 
 ```bash
 docker compose up -d worker
@@ -191,7 +191,13 @@ The worker publishes no host port. Settings: `WORKER_SWEEP_INTERVAL_MINUTES` (de
 | Redis data loss (flush, restart) | Queued jobs lost | Sweep re-derives all due work from Postgres |
 | Worker down | Ended trips accumulate unprocessed | Start the worker; sweeps drain the backlog in batches |
 
-Watch for `job=process_trip trip_id=... overall=... stages=...` per enqueued trip and `job=process_unprocessed_trips selected=... processed=... partial=... failed=... skipped=...` per sweep. A non-zero `failed` count, with a Sentry event per failure when a DSN is set, means trips need operator attention. Corrupt-data failures (for example `PAYOUT_SOURCE_MISMATCH`) are re-selected every sweep by design — there is no automated suppression. If at least `WORKER_SWEEP_BATCH_SIZE` such trips accumulate and are older than healthy work, they head-of-line block the batch until an operator resolves them; this is a documented pilot-scale trade-off.
+Watch for `job=process_trip trip_id=... overall=... stages=...` per enqueued trip and `job=process_unprocessed_trips selected=... processed=... partial=... failed=... skipped=...` per sweep. A non-zero `failed` count, with a stackful log and a Sentry event per failure when a DSN is set, means trips need operator attention. Savepoint convergence handles the six known uniqueness races inside the write services; any integrity error that escapes those services is a real failure and remains visible.
+
+The sweep reads due-work facts only from Postgres and attempts at most one keyset page per occurrence (`WORKER_SWEEP_BATCH_SIZE`, 25 trips by default). Its last `(ended_at, trip_id)` cursor is a disposable Redis traversal hint: the next occurrence resumes at the following page, and a short or empty page clears the cursor so the subsequent occurrence wraps to the oldest due trip. Redis loss merely restarts that traversal; it cannot mark work complete. Therefore a corrupt prefix can consume one occurrence but cannot permanently starve healthy trips behind it.
+
+Positive current-formula payout calculations missing ledger entries are money-invariant repair work. The sweep selects them even when analytics is on an old formula, heals every missing ledger for the trip, and audits all created ledger IDs. Zero, blocked, and insufficient-data calculations remain terminal. Old-formula analytics otherwise blocks impressions and payouts until the admin recompute endpoint writes the configured formula. Downstream rows carry source fingerprints; changed analytics requires an estimate refresh, and a payout whose source fingerprint changed fails clearly with `PAYOUT_CALCULATION_STALE` instead of rewriting historical money.
+
+Each trip run reads one timestamp from the database clock and injects it through analytics, impression, and payout services. This keeps the worker path frozen-time testable and prevents stages in one run from acquiring unrelated application-clock timestamps.
 
 **Transitional money warning.** The automated payout stage runs the existing `payout_v1` engine solely as transitional infrastructure to prove worker orchestration. It is not the approved pilot payment model — D2 specifies hourly pay, and Q4/Q5 are still open. Do not enable this worker against production data or real driver earnings. Production enablement is a separate, explicitly approved delivery.
 

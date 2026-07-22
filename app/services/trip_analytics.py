@@ -5,11 +5,13 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import delete, func, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from app.core.config import Settings
 from app.core.errors import AppError
+from app.db.integrity import is_expected_uniqueness_conflict
 from app.models.campaign_zone import CampaignZoneType
 from app.models.driver import DriverProfile
 from app.models.trip import LocationPing, TripSession, TripSessionStatus
@@ -23,10 +25,44 @@ from app.models.trip_analytics import (
 )
 from app.services.campaign_assignments import get_driver_profile_for_user
 from app.services.campaigns import comparable_campaign_datetime
+from app.services.provenance import stable_source_fingerprint
 from app.services.trips import trip_not_found
 
 DECIMAL_2 = Decimal("0.01")
 DECIMAL_4 = Decimal("0.0001")
+ANALYTICS_ROW_CONSTRAINTS = frozenset({"uq_trip_analytics_trip_session_id"})
+OPEN_FLAG_CONSTRAINTS = frozenset({"uq_fraud_flags_trip_open_flag_type"})
+ANALYTICS_FINGERPRINT_FIELDS = (
+    "assignment_id",
+    "campaign_id",
+    "driver_profile_id",
+    "vehicle_id",
+    "formula_version",
+    "status",
+    "ping_count",
+    "valid_ping_count",
+    "invalid_ping_count",
+    "started_at",
+    "ended_at",
+    "first_ping_at",
+    "last_ping_at",
+    "duration_seconds",
+    "active_tracking_seconds",
+    "moving_seconds",
+    "stationary_seconds",
+    "distance_m",
+    "avg_speed_mps",
+    "max_observed_speed_mps",
+    "avg_accuracy_m",
+    "poor_accuracy_ping_count",
+    "target_zone_distance_m",
+    "bonus_zone_distance_m",
+    "exclusion_zone_distance_m",
+    "target_zone_seconds",
+    "bonus_zone_seconds",
+    "exclusion_zone_seconds",
+    "quality_score",
+)
 
 
 @dataclass(frozen=True)
@@ -86,6 +122,35 @@ def analytics_not_found() -> AppError:
         "Trip analytics were not found",
         status_code=status.HTTP_404_NOT_FOUND,
     )
+
+
+def analytics_formula_version_mismatch(
+    *,
+    expected: str,
+    actual: str,
+) -> AppError:
+    return AppError(
+        "ANALYTICS_FORMULA_VERSION_MISMATCH",
+        "Trip analytics must be recomputed with the current formula before downstream processing",
+        status_code=status.HTTP_409_CONFLICT,
+        details={"expected_formula_version": expected, "actual_formula_version": actual},
+    )
+
+
+def ensure_current_analytics_formula(analytics: TripAnalytics, settings: Settings) -> None:
+    if analytics.formula_version != settings.route_analytics_formula_version:
+        raise analytics_formula_version_mismatch(
+            expected=settings.route_analytics_formula_version,
+            actual=analytics.formula_version,
+        )
+
+
+def analytics_output_fingerprint(analytics: TripAnalytics | dict) -> str:
+    values = {
+        field: analytics[field] if isinstance(analytics, dict) else getattr(analytics, field)
+        for field in ANALYTICS_FINGERPRINT_FIELDS
+    }
+    return stable_source_fingerprint(values)
 
 
 def ensure_postgis(session: AsyncSession) -> None:
@@ -415,14 +480,71 @@ async def upsert_analytics(
         select(TripAnalytics).where(TripAnalytics.trip_session_id == trip.id)
     )
     if analytics is None:
-        analytics = TripAnalytics(trip_session_id=trip.id, **values)
-        session.add(analytics)
-    else:
-        for field, value in values.items():
-            setattr(analytics, field, value)
+        candidate = TripAnalytics(trip_session_id=trip.id, **values)
+        try:
+            async with session.begin_nested():
+                session.add(candidate)
+                await session.flush()
+        except IntegrityError as exc:
+            if not is_expected_uniqueness_conflict(
+                exc,
+                constraints=ANALYTICS_ROW_CONSTRAINTS,
+            ):
+                raise
+            analytics = await session.scalar(
+                select(TripAnalytics).where(TripAnalytics.trip_session_id == trip.id)
+            )
+            if analytics is None:
+                raise
+        else:
+            analytics = candidate
+    for field, value in values.items():
+        setattr(analytics, field, value)
     await session.flush()
     await session.refresh(analytics)
     return analytics
+
+
+async def replace_open_fraud_flags(
+    session: AsyncSession,
+    *,
+    trip: TripSession,
+    analytics: TripAnalytics,
+    metrics: AnalyticsMetrics,
+    settings: Settings,
+    detected_at: datetime,
+) -> list[FraudFlag]:
+    for attempt in range(2):
+        flags = build_fraud_flags(
+            trip=trip,
+            analytics=analytics,
+            metrics=metrics,
+            settings=settings,
+            detected_at=detected_at,
+        )
+        try:
+            async with session.begin_nested():
+                await session.execute(
+                    delete(FraudFlag).where(
+                        FraudFlag.trip_session_id == trip.id,
+                        FraudFlag.status == FraudFlagStatus.OPEN.value,
+                    )
+                )
+                session.add_all(flags)
+                await session.flush()
+        except IntegrityError as exc:
+            if not is_expected_uniqueness_conflict(
+                exc,
+                constraints=OPEN_FLAG_CONSTRAINTS,
+            ):
+                raise
+            if attempt == 1:
+                raise
+            continue
+        for flag in flags:
+            await session.refresh(flag)
+        return flags
+    raise AssertionError("open fraud flag replacement exhausted retries")
 
 
 async def recompute_trip_analytics(
@@ -431,9 +553,10 @@ async def recompute_trip_analytics(
     trip_id: UUID,
     metadata: dict,
     settings: Settings,
+    now: datetime | None = None,
 ) -> AnalyticsComputation:
     ensure_postgis(session)
-    now = utc_now()
+    now = now or utc_now()
     trip = await get_admin_trip(session, trip_id)
     ensure_trip_ended(trip)
 
@@ -576,61 +699,54 @@ async def recompute_trip_analytics(
         "between_threshold_speed_classification": "stationary",
         "request_metadata": metadata,
     }
+    analytics_values = {
+        "assignment_id": trip.assignment_id,
+        "campaign_id": trip.campaign_id,
+        "driver_profile_id": trip.driver_profile_id,
+        "vehicle_id": trip.vehicle_id,
+        "formula_version": settings.route_analytics_formula_version,
+        "status": status_value,
+        "ping_count": ping_count,
+        "valid_ping_count": valid_ping_count,
+        "invalid_ping_count": ping_count - valid_ping_count,
+        "started_at": trip.started_at,
+        "ended_at": trip.ended_at,
+        "first_ping_at": first_ping_at,
+        "last_ping_at": last_ping_at,
+        "duration_seconds": duration_seconds,
+        "active_tracking_seconds": active_tracking_seconds,
+        "moving_seconds": moving_seconds,
+        "stationary_seconds": stationary_seconds,
+        "distance_m": total_distance_m.quantize(DECIMAL_2),
+        "avg_speed_mps": avg_speed_mps,
+        "max_observed_speed_mps": max_observed_speed_mps,
+        "avg_accuracy_m": avg_accuracy_m,
+        "poor_accuracy_ping_count": poor_accuracy_ping_count,
+        "target_zone_distance_m": target_zone_distance_m.quantize(DECIMAL_2),
+        "bonus_zone_distance_m": bonus_zone_distance_m.quantize(DECIMAL_2),
+        "exclusion_zone_distance_m": exclusion_zone_distance_m.quantize(DECIMAL_2),
+        "target_zone_seconds": target_zone_seconds,
+        "bonus_zone_seconds": bonus_zone_seconds,
+        "exclusion_zone_seconds": exclusion_zone_seconds,
+        "quality_score": quality_score,
+        "computed_at": now,
+        "analytics_metadata": analytics_metadata,
+        "updated_at": now,
+    }
+    analytics_metadata["output_fingerprint"] = analytics_output_fingerprint(analytics_values)
     analytics = await upsert_analytics(
         session,
         trip=trip,
-        values={
-            "assignment_id": trip.assignment_id,
-            "campaign_id": trip.campaign_id,
-            "driver_profile_id": trip.driver_profile_id,
-            "vehicle_id": trip.vehicle_id,
-            "formula_version": settings.route_analytics_formula_version,
-            "status": status_value,
-            "ping_count": ping_count,
-            "valid_ping_count": valid_ping_count,
-            "invalid_ping_count": ping_count - valid_ping_count,
-            "started_at": trip.started_at,
-            "ended_at": trip.ended_at,
-            "first_ping_at": first_ping_at,
-            "last_ping_at": last_ping_at,
-            "duration_seconds": duration_seconds,
-            "active_tracking_seconds": active_tracking_seconds,
-            "moving_seconds": moving_seconds,
-            "stationary_seconds": stationary_seconds,
-            "distance_m": total_distance_m.quantize(DECIMAL_2),
-            "avg_speed_mps": avg_speed_mps,
-            "max_observed_speed_mps": max_observed_speed_mps,
-            "avg_accuracy_m": avg_accuracy_m,
-            "poor_accuracy_ping_count": poor_accuracy_ping_count,
-            "target_zone_distance_m": target_zone_distance_m.quantize(DECIMAL_2),
-            "bonus_zone_distance_m": bonus_zone_distance_m.quantize(DECIMAL_2),
-            "exclusion_zone_distance_m": exclusion_zone_distance_m.quantize(DECIMAL_2),
-            "target_zone_seconds": target_zone_seconds,
-            "bonus_zone_seconds": bonus_zone_seconds,
-            "exclusion_zone_seconds": exclusion_zone_seconds,
-            "quality_score": quality_score,
-            "computed_at": now,
-            "analytics_metadata": analytics_metadata,
-            "updated_at": now,
-        },
+        values=analytics_values,
     )
-    await session.execute(
-        delete(FraudFlag).where(
-            FraudFlag.trip_session_id == trip.id,
-            FraudFlag.status == FraudFlagStatus.OPEN.value,
-        )
-    )
-    flags = build_fraud_flags(
+    flags = await replace_open_fraud_flags(
+        session,
         trip=trip,
         analytics=analytics,
         metrics=metrics,
         settings=settings,
         detected_at=now,
     )
-    session.add_all(flags)
-    await session.flush()
-    for flag in flags:
-        await session.refresh(flag)
     await session.refresh(analytics)
     return AnalyticsComputation(analytics=analytics, fraud_flags=flags)
 

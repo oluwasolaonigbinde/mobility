@@ -127,6 +127,8 @@ def test_build_trip_enqueuer_variants(settings) -> None:
 def test_real_redis_enqueue_dedupe_and_zero_retention() -> None:
     redis_url = os.environ.get("ARQ_TEST_REDIS_URL")
     if not redis_url:
+        if os.environ.get("CI"):
+            pytest.fail("ARQ_TEST_REDIS_URL missing in CI")
         pytest.skip("ARQ test Redis URL is not configured")
 
     trip_id = uuid4()

@@ -10,6 +10,7 @@ from starlette import status
 
 from app.core.config import Settings
 from app.core.errors import AppError
+from app.db.integrity import is_expected_uniqueness_conflict
 from app.models.impression import (
     ImpressionEstimate,
     ImpressionEstimateStatus,
@@ -27,11 +28,39 @@ from app.models.trip_analytics import (
 )
 from app.schemas.impressions import TrafficDensityProfileCreate, TrafficDensityProfileUpdate
 from app.services.campaigns import get_advertiser_campaign
-from app.services.trip_analytics import analytics_not_found
+from app.services.provenance import stable_source_fingerprint
+from app.services.trip_analytics import (
+    analytics_not_found,
+    analytics_output_fingerprint,
+    ensure_current_analytics_formula,
+)
 from app.services.trips import trip_not_found
 
 DECIMAL_2 = Decimal("0.01")
 DECIMAL_4 = Decimal("0.0001")
+DEFAULT_PROFILE_CONSTRAINTS = frozenset({"uq_traffic_density_profiles_active_default"})
+IMPRESSION_ESTIMATE_CONSTRAINTS = frozenset(
+    {"uq_impression_estimates_trip_formula_profile"}
+)
+IMPRESSION_FINGERPRINT_FIELDS = (
+    "trip_analytics_id",
+    "assignment_id",
+    "campaign_id",
+    "driver_profile_id",
+    "vehicle_id",
+    "status",
+    "estimated_impressions",
+    "base_distance_impressions",
+    "dwell_impressions",
+    "target_zone_impressions",
+    "bonus_zone_impressions",
+    "exclusion_zone_adjustment",
+    "quality_multiplier",
+    "fraud_adjustment_multiplier",
+    "confidence_score",
+    "started_at",
+    "ended_at",
+)
 
 
 @dataclass(frozen=True)
@@ -99,6 +128,94 @@ def profile_inactive() -> AppError:
         "Traffic density profile is not active",
         status_code=status.HTTP_400_BAD_REQUEST,
     )
+
+
+def impression_estimate_stale() -> AppError:
+    return AppError(
+        "IMPRESSION_ESTIMATE_STALE",
+        "The impression estimate must be recomputed from current trip analytics",
+        status_code=status.HTTP_409_CONFLICT,
+    )
+
+
+def _normalized_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def is_current_estimate_for_analytics(
+    estimate: ImpressionEstimate,
+    analytics: TripAnalytics,
+    settings: Settings,
+    *,
+    fraud_counts: dict[str, int] | None = None,
+) -> bool:
+    if (
+        estimate.formula_version != settings.impression_formula_version
+        or estimate.trip_analytics_id != analytics.id
+    ):
+        return False
+    metadata = estimate.estimate_metadata or {}
+    if fraud_counts is not None and metadata.get("fraud_flag_counts") != fraud_counts:
+        return False
+    source_fingerprint = metadata.get("source_analytics_fingerprint")
+    if source_fingerprint is not None:
+        return source_fingerprint == analytics_output_fingerprint(analytics)
+    source_formula_version = metadata.get(
+        "source_analytics_formula_version"
+    )
+    if source_formula_version is not None:
+        return (
+            source_formula_version == analytics.formula_version
+            and _normalized_utc(estimate.estimated_at)
+            >= _normalized_utc(analytics.computed_at)
+        )
+    return _normalized_utc(estimate.estimated_at) >= _normalized_utc(analytics.computed_at)
+
+
+def impression_output_fingerprint(
+    estimate: ImpressionEstimate | dict,
+    *,
+    formula_version: str | None = None,
+    traffic_density_profile_id: UUID | None = None,
+    source_analytics_fingerprint: str | None = None,
+) -> str:
+    values = {
+        field: estimate[field] if isinstance(estimate, dict) else getattr(estimate, field)
+        for field in IMPRESSION_FINGERPRINT_FIELDS
+    }
+    if isinstance(estimate, dict):
+        metadata = estimate.get("estimate_metadata") or {}
+        values["formula_version"] = formula_version
+        values["traffic_density_profile_id"] = traffic_density_profile_id
+        values["source_analytics_fingerprint"] = source_analytics_fingerprint
+        values["fraud_flag_counts"] = metadata.get("fraud_flag_counts")
+    else:
+        metadata = estimate.estimate_metadata or {}
+        values["formula_version"] = estimate.formula_version
+        values["traffic_density_profile_id"] = estimate.traffic_density_profile_id
+        values["source_analytics_fingerprint"] = metadata.get(
+            "source_analytics_fingerprint"
+        )
+        values["fraud_flag_counts"] = metadata.get("fraud_flag_counts")
+    return stable_source_fingerprint(values)
+
+
+def ensure_current_estimate_source(
+    estimate: ImpressionEstimate,
+    analytics: TripAnalytics,
+    settings: Settings,
+    *,
+    fraud_counts: dict[str, int] | None = None,
+) -> None:
+    if not is_current_estimate_for_analytics(
+        estimate,
+        analytics,
+        settings,
+        fraud_counts=fraud_counts,
+    ):
+        raise impression_estimate_stale()
 
 
 async def clear_other_active_defaults(
@@ -247,7 +364,12 @@ async def get_or_create_default_profile(
             await session.flush()
             await session.refresh(profile)
             return profile
-    except IntegrityError:
+    except IntegrityError as exc:
+        if not is_expected_uniqueness_conflict(
+            exc,
+            constraints=DEFAULT_PROFILE_CONSTRAINTS,
+        ):
+            raise
         existing_profile = await active_default_profile(session)
         if existing_profile is not None:
             return existing_profile
@@ -532,9 +654,11 @@ async def estimate_trip_impressions(
     traffic_density_profile_id: UUID | None,
     metadata: dict,
     settings: Settings,
+    now: datetime | None = None,
 ) -> ImpressionEstimate:
     trip = await get_trip_for_estimation(session, trip_id)
     analytics = await get_analytics_for_trip(session, trip.id)
+    ensure_current_analytics_formula(analytics, settings)
     profile = await resolve_active_profile(
         session,
         profile_id=traffic_density_profile_id,
@@ -547,7 +671,15 @@ async def estimate_trip_impressions(
         counts=counts,
         request_metadata=metadata,
         settings=settings,
-        estimated_at=utc_now(),
+        estimated_at=now or utc_now(),
+    )
+    source_analytics_fingerprint = analytics_output_fingerprint(analytics)
+    values["estimate_metadata"].update(
+        {
+            "source_analytics_formula_version": analytics.formula_version,
+            "source_analytics_computed_at": analytics.computed_at.isoformat(),
+            "source_analytics_fingerprint": source_analytics_fingerprint,
+        }
     )
     values.update(
         {
@@ -560,6 +692,12 @@ async def estimate_trip_impressions(
             "ended_at": analytics.ended_at,
         }
     )
+    values["estimate_metadata"]["output_fingerprint"] = impression_output_fingerprint(
+        values,
+        formula_version=settings.impression_formula_version,
+        traffic_density_profile_id=profile.id,
+        source_analytics_fingerprint=source_analytics_fingerprint,
+    )
     estimate = await session.scalar(
         select(ImpressionEstimate).where(
             ImpressionEstimate.trip_session_id == trip.id,
@@ -568,16 +706,35 @@ async def estimate_trip_impressions(
         )
     )
     if estimate is None:
-        estimate = ImpressionEstimate(
+        candidate = ImpressionEstimate(
             trip_session_id=trip.id,
             traffic_density_profile_id=profile.id,
             formula_version=settings.impression_formula_version,
             **values,
         )
-        session.add(estimate)
-    else:
-        for field, value in values.items():
-            setattr(estimate, field, value)
+        try:
+            async with session.begin_nested():
+                session.add(candidate)
+                await session.flush()
+        except IntegrityError as exc:
+            if not is_expected_uniqueness_conflict(
+                exc,
+                constraints=IMPRESSION_ESTIMATE_CONSTRAINTS,
+            ):
+                raise
+            estimate = await session.scalar(
+                select(ImpressionEstimate).where(
+                    ImpressionEstimate.trip_session_id == trip.id,
+                    ImpressionEstimate.formula_version == settings.impression_formula_version,
+                    ImpressionEstimate.traffic_density_profile_id == profile.id,
+                )
+            )
+            if estimate is None:
+                raise
+        else:
+            estimate = candidate
+    for field, value in values.items():
+        setattr(estimate, field, value)
     await session.flush()
     await session.refresh(estimate)
     return estimate

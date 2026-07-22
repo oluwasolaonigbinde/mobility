@@ -375,8 +375,9 @@ Every new endpoint must obey all of these:
 <!-- verified: grep BackgroundTasks|celery|websocket app/ → 0 hits -->
 Until this change the story was "none — strictly request/response"; the §14
 trip-processing pipeline is now **[BUILT]**: one arq worker (`app/jobs/*`,
-compose service `worker`) completes missing analytics/fraud/impression/payout
-rows for ended trips, fed by a fail-open enqueue-after-commit on trip end
+compose service `worker`) completes missing rows for ended trips and refreshes
+an impression estimate when its analytics or open-fraud inputs are stale. It is
+fed by a fail-open enqueue-after-commit on trip end
 (`app/core/trip_enqueue.py`) and backstopped by a Postgres-derived cron sweep.
 Admin recompute endpoints remain the synchronous recompute/override tools.
 Redis's consumers: **[BUILT] F7 login rate limiting** (`app/core/rate_limit.py`
@@ -611,7 +612,7 @@ in `.github/workflows/frontend.yml`). Backend contract tests
 | Service | Image/build | Host port | Notes |
 |---------|-------------|-----------|-------|
 | `api` | repo `Dockerfile` (python:3.12-slim), uvicorn `--reload`, source bind-mounted | **8000** | shared `x-backend-env` anchor; depends on db, redis |
-| `worker` | repo `Dockerfile`, `arq app.jobs.worker.WorkerSettings`, source bind-mounted | — (none) | shared `x-backend-env` anchor; depends on db, redis; post-trip pipeline + sweep (§6.5, §14) |
+| `worker` | repo `Dockerfile`, `arq app.jobs.worker_entry.WorkerSettings`, source bind-mounted | — (none) | shared `x-backend-env` anchor; depends on db, redis; strict pre-socket Redis config boundary; post-trip pipeline + sweep (§6.5, §14) |
 | `db` | `postgis/postgis:16-3.4` | **5433** (compose) → **5434 on this machine** via gitignored `docker-compose.override.yml` (5433 taken by another project) | volume `postgres_data` |
 | `redis` | `redis:7-alpine` | 6379 | login-rate-limit counters + arq queue, both disposable (§6.5) |
 | `frontend` | `frontend/Dockerfile` (multi-stage node:22-alpine, standalone build, non-root user) | **3100**→3000, **profile `full` only** | `docker compose --profile full up`; local dev normally runs `npm run dev` on 3000 instead |
@@ -842,11 +843,14 @@ measured need.
 
 Purely additive: new `worker` compose service, `app/jobs/` package, arq
 dependency. The substrate and its first consumer, the trip-processing pipeline
-(§14.2), are now **[BUILT]** per the §14.3 rules — idempotent
-complete-missing-only stages (`app/services/trip_processing.py`), a
-Postgres-derived sweep with the trip-end enqueue as latency optimization only
-(rule 2; `app/core/trip_enqueue.py`), thin job wrappers (rule 3;
-`app/jobs/trip_processing.py`), structured per-run logs + Sentry (rule 4). Its
+(§14.2), are now **[BUILT]** with each §14.3 rule implemented explicitly:
+named unique constraints, savepoint convergence, source fingerprints, and
+ledger repair make reruns idempotent (rule 1); Postgres alone defines due work,
+while Redis stores only a disposable traversal cursor and the trip-end enqueue
+remains a latency optimization (rule 2); wrappers delegate business work to
+services (rule 3); structured per-run logs, stackful failures, and explicit
+Sentry capture cover rule 4; and one DB-clock timestamp is injected through the
+three processing stages for rule 5. Its
 payout stage runs `payout_v1` as transitional orchestration only — not the
 approved payment model (D2 hourly pay, Q4/Q5 pending). All other consumers —
 §15 (webhooks), §16 (payout release), §20 (notifications), §24 (retention) —
@@ -1612,3 +1616,4 @@ that works under *all* still-open options, and say so in the PR (P10).
 | v1.3 | 2026-07-13 | Adversarial review round 3 (convergence gate; 4 blockers + 4 rideable) applied: reversal semantics reconciled with the built ledger (positive amounts, subtract-by-type netting in every summary — the naive design would have *added* money); §19 blocked-by corrected Q31→Q32; budget-rule and payout-floor [OPEN]s re-anchored (no numbered v2 question exists — confirm via decisions-log); `notifications` gains `provider_message_id` + `delivered` so §15.4 receipts are satisfiable; trip pipeline added to the §13 diagram; W1 retention-window dependency noted; `payout_calculations` v2 migration scope; changelog reordered. |
 | v1.4 | 2026-07-20 | **F7 reconciliation.** Part II re-verified against the committed F7 delivery and the pin moved from `d9a989c` to `301519d`. Promoted to [BUILT]: sliding session + 12h cap + `sv` revocation + `must_change_password` + change-password endpoint (§6.3), Redis login rate limiting with trusted-edge gating (§6.3/§12), auth audit events + admin audit API/UI + `0012` indexes (§6.4.9), migrations `0011`/`0012` (§7.2), revision-gated backup/restore scripts (§7.2/§10.4), Sentry hooks both tiers (§10.4/§12), backend CI job with PostGIS+Redis services (§10.3), rich `f7_rich_v1` seed namespace (§11), driver `(portal)` route group + change-password/keepalive routes + `/admin/audit` (§8.3). Counts updated by command: 82 ops / 66 paths (was 79/63), 12 migrations, 209 backend test functions in 35 files, 32 vitest cases, 48 Playwright project-expanded tests in 6 specs. Staging deploy explicitly deferred (research only). Legacy sv-less-token residual risk documented (§6.3). |
 | v1.5 | 2026-07-21 | **Worker substrate + automated post-trip processing [BUILT].** One arq worker (`app/jobs/worker.py`, new compose `worker` service, no host port) runs the §14.2 pipeline complete-missing-only — analytics→fraud→impressions→payout(+ledger, audited) for ended trips — via fail-open enqueue-after-commit on trip end (`app/core/trip_enqueue.py`) backstopped by a Postgres-derived cron sweep. New Settings: `WORKER_SWEEP_INTERVAL_MINUTES` (divisor of 60) and `WORKER_SWEEP_BATCH_SIZE`. No HTTP contract, schema, or migration change; admin endpoints unchanged as recompute tools. §6.5, §10.1, §14, §31 amended. Payout automation runs `payout_v1` as transitional infrastructure only — D2 (hourly pay) still pending Q4/Q5; not for production enablement. |
+| v1.6 | 2026-07-22 | **Worker correctness repair.** Added all-current-calculation ledger healing, resumable keyset sweep traversal, named-constraint race convergence, stale-formula/source-fingerprint blocking, DB-clock injection, strict pre-socket Redis configuration, CI ARQ Redis coverage, Compose sweep-variable passthrough, and stackful Sentry reporting. No HTTP contract, schema, formula, or migration change. |
