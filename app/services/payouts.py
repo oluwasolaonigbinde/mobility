@@ -10,6 +10,7 @@ from starlette import status
 
 from app.core.config import Settings
 from app.core.errors import AppError
+from app.db.integrity import is_expected_uniqueness_conflict
 from app.models.campaign import Campaign
 from app.models.driver import DriverProfile
 from app.models.impression import ImpressionEstimate, ImpressionEstimateStatus
@@ -33,8 +34,17 @@ from app.models.trip_analytics import (
 from app.schemas.payouts import CampaignPayoutRuleCreate, CampaignPayoutRuleUpdate
 from app.services.campaigns import get_advertiser_campaign
 from app.services.drivers import get_required_driver_profile_with_user_by_user_id
-from app.services.impressions import quantize_2, quantize_4
-from app.services.trip_analytics import analytics_not_found
+from app.services.impressions import (
+    ensure_current_estimate_source,
+    impression_output_fingerprint,
+    quantize_2,
+    quantize_4,
+)
+from app.services.trip_analytics import (
+    analytics_not_found,
+    analytics_output_fingerprint,
+    ensure_current_analytics_formula,
+)
 from app.services.trips import trip_not_found
 
 DECIMAL_2 = Decimal("0.01")
@@ -53,6 +63,10 @@ NON_NULL_RULE_UPDATE_FIELDS = {
     "high_fraud_multiplier",
 }
 PAYOUT_SOURCE_FIELDS = ("campaign_id", "assignment_id", "driver_profile_id", "vehicle_id")
+PAYOUT_CALCULATION_CONSTRAINTS = frozenset({"uq_payout_calculations_trip_formula_rule"})
+LEDGER_ENTRY_CONSTRAINTS = frozenset(
+    {"uq_earnings_ledger_entries_payout_calculation_id"}
+)
 
 
 @dataclass(frozen=True)
@@ -155,6 +169,14 @@ def payout_source_mismatch(mismatches: list[dict[str, str]]) -> AppError:
         "Trip, analytics, and impression estimate source fields must match",
         status_code=status.HTTP_400_BAD_REQUEST,
         details={"mismatches": mismatches},
+    )
+
+
+def payout_calculation_stale() -> AppError:
+    return AppError(
+        "PAYOUT_CALCULATION_STALE",
+        "The payout calculation predates the current analytics or impression source",
+        status_code=status.HTTP_409_CONFLICT,
     )
 
 
@@ -461,6 +483,50 @@ def ensure_payout_sources_match(
         raise payout_source_mismatch(mismatches)
 
 
+def ensure_current_payout_calculation_source(
+    calculation: PayoutCalculation,
+    *,
+    analytics: TripAnalytics,
+    estimate: ImpressionEstimate,
+    counts: dict[str, int],
+) -> None:
+    if (
+        calculation.trip_analytics_id != analytics.id
+        or calculation.impression_estimate_id != estimate.id
+    ):
+        raise payout_calculation_stale()
+    metadata = calculation.payout_metadata or {}
+    if metadata.get("fraud_flag_counts") != counts:
+        raise payout_calculation_stale()
+    calculated_at = calculation.calculated_at
+    estimated_at = estimate.estimated_at
+    if calculated_at.tzinfo is None:
+        calculated_at = calculated_at.replace(tzinfo=UTC)
+    if estimated_at.tzinfo is None:
+        estimated_at = estimated_at.replace(tzinfo=UTC)
+    analytics_fingerprint = metadata.get("source_analytics_fingerprint")
+    impression_fingerprint = metadata.get("source_impression_fingerprint")
+    if analytics_fingerprint is not None or impression_fingerprint is not None:
+        if (
+            analytics_fingerprint != analytics_output_fingerprint(analytics)
+            or impression_fingerprint != impression_output_fingerprint(estimate)
+        ):
+            raise payout_calculation_stale()
+        return
+    analytics_formula = metadata.get("source_analytics_formula_version")
+    impression_formula = metadata.get("source_impression_formula_version")
+    if analytics_formula is not None or impression_formula is not None:
+        if (
+            analytics_formula != analytics.formula_version
+            or impression_formula != estimate.formula_version
+            or calculated_at < estimated_at
+        ):
+            raise payout_calculation_stale()
+        return
+    if calculated_at < estimated_at:
+        raise payout_calculation_stale()
+
+
 async def resolve_payout_rule(
     session: AsyncSession,
     *,
@@ -718,13 +784,48 @@ async def ensure_ledger_entry(
         async with session.begin_nested():
             session.add(ledger_entry)
             await session.flush()
-    except IntegrityError:
+    except IntegrityError as exc:
+        if not is_expected_uniqueness_conflict(
+            exc,
+            constraints=LEDGER_ENTRY_CONSTRAINTS,
+        ):
+            raise
         existing = await ledger_for_calculation(session, calculation.id)
         if existing is not None:
             return existing
         raise
     await session.refresh(ledger_entry)
     return ledger_entry
+
+
+async def repair_missing_ledger_entries(
+    session: AsyncSession,
+    *,
+    trip_id: UUID,
+    formula_version: str,
+) -> list[EarningsLedgerEntry]:
+    ledger_exists = (
+        select(EarningsLedgerEntry.id)
+        .where(EarningsLedgerEntry.payout_calculation_id == PayoutCalculation.id)
+        .exists()
+    )
+    result = await session.execute(
+        select(PayoutCalculation)
+        .where(
+            PayoutCalculation.trip_session_id == trip_id,
+            PayoutCalculation.formula_version == formula_version,
+            PayoutCalculation.status == PayoutCalculationStatus.CALCULATED.value,
+            PayoutCalculation.final_payout > 0,
+            ~ledger_exists,
+        )
+        .order_by(PayoutCalculation.calculated_at, PayoutCalculation.id)
+    )
+    repaired: list[EarningsLedgerEntry] = []
+    for calculation in result.scalars().all():
+        ledger = await ensure_ledger_entry(session, calculation)
+        if ledger is not None:
+            repaired.append(ledger)
+    return repaired
 
 
 async def existing_payout_calculation(
@@ -767,10 +868,19 @@ async def calculate_trip_payout(
     payout_rule_id: UUID | None,
     metadata: dict,
     settings: Settings,
+    now: datetime | None = None,
 ) -> tuple[PayoutCalculation, EarningsLedgerEntry | None, bool]:
     trip = await get_trip_for_payout(session, trip_id)
     analytics = await get_analytics_for_trip(session, trip.id)
+    ensure_current_analytics_formula(analytics, settings)
     estimate = await get_impression_estimate_for_trip(session, trip_id=trip.id, settings=settings)
+    counts = await open_fraud_counts(session, trip.id)
+    ensure_current_estimate_source(
+        estimate,
+        analytics,
+        settings,
+        fraud_counts=counts,
+    )
     ensure_payout_sources_match(trip=trip, analytics=analytics, estimate=estimate)
 
     if payout_rule_id is None:
@@ -780,6 +890,12 @@ async def calculate_trip_payout(
             formula_version=settings.payout_formula_version,
         )
         if existing is not None:
+            ensure_current_payout_calculation_source(
+                existing,
+                analytics=analytics,
+                estimate=estimate,
+                counts=counts,
+            )
             ledger = await ensure_ledger_entry(session, existing)
             return existing, ledger, False
 
@@ -796,11 +912,16 @@ async def calculate_trip_payout(
         payout_rule_id=rule.id,
     )
     if existing is not None:
+        ensure_current_payout_calculation_source(
+            existing,
+            analytics=analytics,
+            estimate=estimate,
+            counts=counts,
+        )
         ledger = await ensure_ledger_entry(session, existing)
         return existing, ledger, False
 
-    counts = await open_fraud_counts(session, trip.id)
-    calculated_at = utc_now()
+    calculated_at = now or utc_now()
     if (
         analytics.status == TripAnalyticsStatus.INSUFFICIENT_DATA.value
         or estimate.status == ImpressionEstimateStatus.INSUFFICIENT_DATA.value
@@ -836,6 +957,16 @@ async def calculate_trip_payout(
             request_metadata=metadata,
             calculated_at=calculated_at,
         )
+    values["payout_metadata"].update(
+        {
+            "source_analytics_formula_version": analytics.formula_version,
+            "source_analytics_computed_at": analytics.computed_at.isoformat(),
+            "source_analytics_fingerprint": analytics_output_fingerprint(analytics),
+            "source_impression_formula_version": estimate.formula_version,
+            "source_impression_estimated_at": estimate.estimated_at.isoformat(),
+            "source_impression_fingerprint": impression_output_fingerprint(estimate),
+        }
+    )
 
     calculation = PayoutCalculation(
         trip_session_id=trip.id,
@@ -853,7 +984,12 @@ async def calculate_trip_payout(
         async with session.begin_nested():
             session.add(calculation)
             await session.flush()
-    except IntegrityError:
+    except IntegrityError as exc:
+        if not is_expected_uniqueness_conflict(
+            exc,
+            constraints=PAYOUT_CALCULATION_CONSTRAINTS,
+        ):
+            raise
         existing = await existing_payout_calculation(
             session,
             trip_id=trip.id,
@@ -862,6 +998,12 @@ async def calculate_trip_payout(
         )
         if existing is None:
             raise
+        ensure_current_payout_calculation_source(
+            existing,
+            analytics=analytics,
+            estimate=estimate,
+            counts=counts,
+        )
         ledger = await ensure_ledger_entry(session, existing)
         return existing, ledger, False
     await session.refresh(calculation)

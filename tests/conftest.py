@@ -416,6 +416,7 @@ def create_test_trip_analytics(
     campaign_id: UUID,
     driver_profile_id: UUID,
     vehicle_id: UUID,
+    formula_version: str = "route_analytics_v1",
     status: str = "computed",
     started_at=None,
     ended_at=None,
@@ -428,6 +429,7 @@ def create_test_trip_analytics(
     bonus_zone_distance_m=0,
     exclusion_zone_distance_m=0,
     quality_score=1,
+    computed_at=None,
     metadata: dict | None = None,
 ) -> TripAnalytics:
     async def create() -> TripAnalytics:
@@ -438,7 +440,7 @@ def create_test_trip_analytics(
                 campaign_id=campaign_id,
                 driver_profile_id=driver_profile_id,
                 vehicle_id=vehicle_id,
-                formula_version="route_analytics_v1",
+                formula_version=formula_version,
                 status=status,
                 ping_count=2,
                 valid_ping_count=2,
@@ -463,10 +465,18 @@ def create_test_trip_analytics(
                 bonus_zone_seconds=0,
                 exclusion_zone_seconds=0,
                 quality_score=quality_score,
-                computed_at=datetime.now(UTC),
+                computed_at=computed_at or datetime.now(UTC),
                 analytics_metadata=metadata or {},
             )
             session.add(analytics)
+            await session.flush()
+            await session.refresh(analytics)
+            if metadata is None:
+                from app.services.trip_analytics import analytics_output_fingerprint
+
+                analytics.analytics_metadata = {
+                    "output_fingerprint": analytics_output_fingerprint(analytics)
+                }
             await session.commit()
             await session.refresh(analytics)
             return analytics
@@ -487,6 +497,7 @@ def create_test_impression_estimate(
     formula_version: str = "impressions_v1",
     status: str = "estimated",
     estimated_impressions=0,
+    estimated_at=None,
     metadata: dict | None = None,
 ) -> ImpressionEstimate:
     async def create() -> ImpressionEstimate:
@@ -510,8 +521,12 @@ def create_test_impression_estimate(
                 quality_multiplier=1,
                 fraud_adjustment_multiplier=1,
                 confidence_score=1,
-                estimated_at=datetime.now(UTC),
-                estimate_metadata=metadata or {},
+                estimated_at=estimated_at or datetime.now(UTC),
+                estimate_metadata=(
+                    metadata
+                    if metadata is not None
+                    else {"fraud_flag_counts": {"low": 0, "medium": 0, "high": 0}}
+                ),
             )
             session.add(estimate)
             await session.commit()

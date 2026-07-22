@@ -1,8 +1,13 @@
 import asyncio
+import os
+import subprocess
+import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
 import sentry_sdk
+import yaml
 from arq.connections import RedisSettings
 from pydantic import ValidationError
 from sqlalchemy import text
@@ -127,3 +132,58 @@ def test_build_redis_settings_parses_dsn() -> None:
     assert redis_settings.host == "localhost"
     assert redis_settings.port == 6380
     assert redis_settings.database == 8
+
+
+def test_worker_entry_fails_before_worker_construction_without_redis_url() -> None:
+    env = os.environ.copy()
+    env.pop("REDIS_URL", None)
+    result = subprocess.run(
+        [sys.executable, "-c", "import app.jobs.worker_entry"],
+        cwd=Path(__file__).parents[1],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "REDIS_URL must be configured to run the arq worker" in result.stderr
+    assert "localhost:6379" not in result.stderr
+
+
+def test_worker_entry_exposes_configured_worker_settings() -> None:
+    env = os.environ.copy()
+    env["REDIS_URL"] = "redis://redis.example:6380/8"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from app.jobs.worker_entry import WorkerSettings; "
+            "print(WorkerSettings.redis_settings.host, WorkerSettings.redis_settings.database)",
+        ],
+        cwd=Path(__file__).parents[1],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "redis.example 8"
+
+
+def test_compose_worker_uses_strict_entry_and_passes_sweep_settings() -> None:
+    compose_path = Path(__file__).parents[1] / "docker-compose.yml"
+    compose = yaml.safe_load(compose_path.read_text())
+
+    backend_env = compose["x-backend-env"]
+    assert backend_env["WORKER_SWEEP_INTERVAL_MINUTES"] == (
+        "${WORKER_SWEEP_INTERVAL_MINUTES:-5}"
+    )
+    assert backend_env["WORKER_SWEEP_BATCH_SIZE"] == "${WORKER_SWEEP_BATCH_SIZE:-25}"
+    assert compose["services"]["worker"]["command"] == (
+        "arq app.jobs.worker_entry.WorkerSettings"
+    )
+    assert "ports" not in compose["services"]["worker"]

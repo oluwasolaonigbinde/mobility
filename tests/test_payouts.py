@@ -20,7 +20,7 @@ from conftest import (
     fetch_earnings_ledger_entries,
     fetch_payout_calculations,
 )
-from sqlalchemy import delete, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status as http_status
 
@@ -210,6 +210,40 @@ def add_fraud_flag(
                     detected_at=datetime.now(UTC),
                 )
             )
+            await session.flush()
+            counts = {"low": 0, "medium": 0, "high": 0}
+            rows = await session.execute(
+                select(FraudFlag.severity, func.count(FraudFlag.id))
+                .where(
+                    FraudFlag.trip_session_id == trip.id,
+                    FraudFlag.status == FraudFlagStatus.OPEN.value,
+                )
+                .group_by(FraudFlag.severity)
+            )
+            for open_severity, count in rows.all():
+                counts[str(open_severity)] = int(count)
+            estimate = await session.scalar(
+                select(ImpressionEstimate).where(
+                    ImpressionEstimate.trip_session_id == trip.id
+                )
+            )
+            metadata = dict(estimate.estimate_metadata)
+            metadata["fraud_flag_counts"] = counts
+            estimate.estimate_metadata = metadata
+            if counts["high"]:
+                estimate.fraud_adjustment_multiplier = Decimal("0.25")
+            elif counts["medium"]:
+                estimate.fraud_adjustment_multiplier = Decimal("0.70")
+            elif counts["low"]:
+                estimate.fraud_adjustment_multiplier = Decimal("0.90")
+            else:
+                estimate.fraud_adjustment_multiplier = Decimal("1.00")
+            await session.flush()
+            from app.services.impressions import impression_output_fingerprint
+
+            metadata = dict(estimate.estimate_metadata)
+            metadata["output_fingerprint"] = impression_output_fingerprint(estimate)
+            estimate.estimate_metadata = metadata
             await session.commit()
 
     asyncio.run(create())
