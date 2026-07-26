@@ -1,0 +1,6 @@
+{$EDGE_HOSTNAME} {
+	reverse_proxy frontend:3000 {
+		header_up -X-Forwarded-For
+		header_up X-Client-IP {http.request.remote.host}
+	}
+}

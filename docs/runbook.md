@@ -24,6 +24,78 @@ docker compose exec -T api python -c 'from urllib.request import urlopen; print(
 
 Never stop or kill a process on host port 3000 while operating this repository; it may belong to another project.
 
+## Provider-neutral pre-production topology
+
+`docker-compose.production.yml` is standalone: do not merge it with the
+development Compose file. Docker Compose v2.20.0 or newer is required for the
+long-form health dependencies used here. Copy `staging.env.example` to a
+root-readable path outside the repository, replace every `EXAMPLE-ONLY` value,
+and keep it out of source control.
+
+The release sequence is explicit:
+
+```bash
+export COMPOSE_FILE="$PWD/docker-compose.production.yml"
+export COMPOSE_ENV_FILE=/secure/path/mobility-staging.env
+export COMPOSE_ENV_FILES="$COMPOSE_ENV_FILE"
+
+# Render, validate, and build. A missing mandatory value fails the render.
+docker compose --env-file "$COMPOSE_ENV_FILE" config >/dev/null
+docker run --rm -e EDGE_HOSTNAME=http://localhost \
+  -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" \
+  caddy:2.8-alpine caddy validate --config /etc/caddy/Caddyfile
+docker compose --env-file "$COMPOSE_ENV_FILE" build api frontend
+
+# Start dependencies, apply migrations as a one-shot, then start the app.
+docker compose --env-file "$COMPOSE_ENV_FILE" up -d db redis
+docker compose --env-file "$COMPOSE_ENV_FILE" --profile release run --rm migrate
+docker compose --env-file "$COMPOSE_ENV_FILE" up -d api frontend edge
+docker compose --env-file "$COMPOSE_ENV_FILE" ps
+```
+
+The default production model contains `db`, `redis`, `api`, `frontend`, and
+`edge`. Only Caddy publishes host ports (80/443); API, frontend, PostGIS, and
+Redis remain private. The worker is excluded by default. Do not select its
+profile against real earnings while Q4/Q5 remain open. If separate written
+product authorization is later recorded:
+
+```bash
+docker compose --env-file "$COMPOSE_ENV_FILE" --profile worker up -d worker
+```
+
+Run the non-destructive release smoke with a pre-existing account. The password
+is read from stdin or a protected file, never a command-line argument:
+
+```bash
+export SMOKE_BASE_URL=https://staging.example.invalid
+read -rsp "Smoke password: " SMOKE_PASSWORD; echo
+printf '%s\n' "$SMOKE_PASSWORD" |
+  scripts/release_smoke.sh --email smoke-operator@example.invalid --password-stdin
+unset SMOKE_PASSWORD
+```
+
+The smoke checks the public login page, private API readiness, database
+revision, authenticated Redis, and login. It creates no users, campaigns,
+payments, or seed data, and discards the login response without printing it.
+Normal authentication audit and limiter telemetry are expected.
+
+For backup/restore under this topology, keep `COMPOSE_FILE` and
+`COMPOSE_ENV_FILES`/Compose environment configuration pointing at the same
+deployment, then run `scripts/db_backup.sh` or `scripts/db_restore.sh`. The
+restore script stops the API, frontend, and worker; it restarts the worker only
+when that worker was running before restore.
+
+Rollback application code by restoring the previous image tag and recreating
+`api`, `frontend`, and `edge`. Roll back data only with the reviewed restore
+procedure below. Teardown leaves named data volumes intact:
+
+```bash
+docker compose --env-file "$COMPOSE_ENV_FILE" --profile worker --profile release down
+```
+
+After an approved final backup and verification, deleting the named volumes is
+a separate destructive operation. Never combine it with routine teardown.
+
 ## Database backups
 
 Create a custom-format `pg_dump`:
@@ -57,11 +129,12 @@ scripts/db_restore.sh --upgrade backups/mobility_YYYYMMDDTHHMMSSZ.dump
 The sequence is:
 
 1. `pg_restore --list` pre-validates the file while the application remains up.
-2. The script captures the checked-out Alembic head, then stops API/frontend writers.
+2. The script captures the checked-out Alembic head and previous frontend/worker state, then stops API/frontend/worker writers.
 3. It restores and validates `mobility_restore_tmp`.
 4. It renames live `mobility` to `mobility_pre_restore_<UTC timestamp>` and the temporary database to `mobility`.
 5. With `--upgrade`, it migrates the restored database to the checked-out head.
-6. It starts the API, restores the frontend's previous running state, and polls the API health endpoint for up to 40 seconds.
+6. It starts the API, restores the frontend and worker only when each was
+   previously running, and polls the API health endpoint for up to 40 seconds.
 
 On a failure before the first rename, the script removes the temporary database and restarts the application; the live database is untouched. If only the first rename completed, it renames the safety database back automatically. If a post-swap migration, restart, or health check fails, it retains the failed restored database as `mobility_failed_restore_<timestamp>` and swaps the original back. The error output names the stage and prints exact recovery or pruning commands. If automatic recovery itself fails, keep application writers stopped and follow the SQL printed by the script from a `psql` session connected to `postgres`.
 

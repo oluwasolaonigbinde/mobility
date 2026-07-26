@@ -466,8 +466,9 @@ Notes:
 - **[BUILT]** Revision-gated restore: `scripts/db_restore.sh` restores into a
   temporary database, validates the dump's Alembic revision against the
   checked-out head (refusing unknown revisions; older ones need `--upgrade`),
-  and only then swaps it into place. Exercised by a local drill — it is **not**
-  a CI job.
+  and only then swaps it into place. API, frontend, and the opt-in worker are
+  quiesced during the swap; frontend/worker running state is preserved.
+  Exercised by a local drill — it is **not** a CI job.
 
 ## 8. Frontend architecture
 
@@ -658,6 +659,11 @@ One workflow: `.github/workflows/frontend.yml` (push triggers on `master`,
 - **[BUILT]** Production images exist for both tiers (root `Dockerfile`;
   `frontend/Dockerfile` standalone output, non-root). No deployment target is
   wired up.
+- **[BUILT]** `docker-compose.production.yml` provides a provider-neutral
+  production-style topology: only Caddy publishes 80/443, internal services
+  have health-gated startup, migrations are an explicit one-shot profile, and
+  the transitional payout worker is an opt-in profile. `staging.env.example`,
+  `Caddyfile`, and `scripts/release_smoke.sh` define the operator boundary.
 - **[BUILT] (F7)** Database backups (`scripts/db_backup.sh`, custom-format
   dumps, 14-dump retention) and temp-DB restore verification with an Alembic
   revision gate (`scripts/db_restore.sh`); Sentry browser DSN passed as a
@@ -1336,7 +1342,7 @@ assumes a specific vendor.
 | Env | Purpose | Shape |
 |-----|---------|-------|
 | **Local** | dev | compose as today (§10.1) + `worker` + MinIO when §14/§19 land |
-| **Staging** [PLANNED-F7] | client review, e2e against prod-like stack | single VM under OJ's account (swaps to client cloud when Q32 lands), compose-managed, seeded demo data, HTTPS via Caddy/Traefik with auto-certs |
+| **Staging** [BUILT topology / not deployed] | client review, e2e against prod-like stack | provider-neutral Compose + Caddy artifacts; demo seed prohibited; no provider/account selected |
 | **Production** | pilot launch | see below |
 
 ### 25.2 Production topology (pilot-sized)
