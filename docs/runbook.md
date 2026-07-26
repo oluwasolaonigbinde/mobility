@@ -26,16 +26,19 @@ Never stop or kill a process on host port 3000 while operating this repository; 
 
 ## Provider-neutral pre-production topology
 
-`docker-compose.production.yml` is standalone: do not merge it with the
-development Compose file. Docker Compose v2.20.0 or newer is required for the
-long-form health dependencies used here. Copy `staging.env.example` to a
+`docker-compose.production.yml` is an overlay for `docker-compose.yml`; always
+pass both files, in that order. Its explicit reset tags remove development host
+ports, source mounts, reload commands, and the frontend's opt-in profile. Docker
+Compose v2.33.1 or newer is required for reset tags, explicit egress gateway
+priority, and the long-form health
+dependencies used here. Copy `staging.env.example` to a
 root-readable path outside the repository, replace every `EXAMPLE-ONLY` value,
 and keep it out of source control.
 
 The release sequence is explicit:
 
 ```bash
-export COMPOSE_FILE="$PWD/docker-compose.production.yml"
+export COMPOSE_FILE="$PWD/docker-compose.yml:$PWD/docker-compose.production.yml"
 export COMPOSE_ENV_FILE=/secure/path/mobility-staging.env
 export COMPOSE_ENV_FILES="$COMPOSE_ENV_FILE"
 
@@ -55,7 +58,11 @@ docker compose --env-file "$COMPOSE_ENV_FILE" ps
 
 The default production model contains `db`, `redis`, `api`, `frontend`, and
 `edge`. Only Caddy publishes host ports (80/443); API, frontend, PostGIS, and
-Redis remain private. The worker is excluded by default. Do not select its
+Redis remain private. PostGIS and Redis attach only to the internal data
+network. API, frontend, and optional worker/migration containers also attach to
+a non-published egress bridge so runtime HTTPS integrations such as Sentry can
+reach the internet without exposing an inbound host port. The worker is
+excluded by default. Do not select its
 profile against real earnings while Q4/Q5 remain open. If separate written
 product authorization is later recorded:
 
@@ -144,12 +151,82 @@ After application and data verification, prune the retained safety database usin
 docker compose exec -T db dropdb -U mobility mobility_pre_restore_yyyymmddthhmmssz
 ```
 
-Restore rehearsal before release:
+Restore rehearsal before release (copy the whole block from the repository
+root). It uses its own Compose project and named volume, creates a deterministic
+marker, proves a valid restore returns the original value, proves the retained
+safety database contains the intentional mutation, compares the database
+revision exactly with the single checked-out Alembic head, and proves a
+truncated dump cannot change the live database. The trap removes the disposable
+stack, volume, dump, and temporary files on success or failure:
 
-1. Take a backup and record a known row.
-2. Change or delete that row in a disposable environment.
-3. Restore the valid dump and confirm the row and `/admin` return.
-4. Make a disposable truncated copy with `head -c 10000`; confirm restore fails at `pre-validate` without stopping the stack.
+```bash
+(
+set -Eeuo pipefail
+export COMPOSE_PROJECT_NAME=mobility-restore-drill
+export COMPOSE_FILE="$PWD/docker-compose.yml:$PWD/docker-compose.production.yml"
+export COMPOSE_ENV_FILES="$PWD/staging.env.example"
+BACKUP_PATH=""
+BACKUP_DIR="$(mktemp -d /tmp/mobility-restore-drill-backups.XXXXXX)"
+export BACKUP_DIR
+INVALID_DUMP="$(mktemp /tmp/mobility-invalid-dump.XXXXXX)"
+cleanup_restore_drill() {
+  docker compose --profile full --profile worker --profile release down -v --remove-orphans || true
+  rm -rf -- "$BACKUP_DIR"
+  rm -f -- "$INVALID_DUMP"
+}
+trap cleanup_restore_drill EXIT
+
+# Remove a volume left by an interrupted earlier rehearsal before creating data.
+docker compose --profile full --profile worker --profile release down -v --remove-orphans
+docker compose build api
+docker compose up -d db redis
+docker compose run --rm api alembic upgrade head
+docker compose exec -T db psql -U mobility -d mobility -v ON_ERROR_STOP=1 \
+  -c "CREATE TABLE restore_drill_marker (id integer PRIMARY KEY, marker text NOT NULL); INSERT INTO restore_drill_marker VALUES (1, 'known-before-backup');"
+
+BACKUP_OUTPUT="$(scripts/db_backup.sh)"
+printf '%s\n' "$BACKUP_OUTPUT"
+BACKUP_PATH="$(printf '%s\n' "$BACKUP_OUTPUT" | sed -n 's/^Backup complete: //p')"
+test -n "$BACKUP_PATH"
+docker compose exec -T db psql -U mobility -d mobility -v ON_ERROR_STOP=1 \
+  -c "UPDATE restore_drill_marker SET marker = 'known-after-backup-mutation' WHERE id = 1;"
+printf 'RESTORE\n' | scripts/db_restore.sh "$BACKUP_PATH"
+
+RESTORED_VALUE="$(docker compose exec -T db psql -U mobility -d mobility -At \
+  -c 'SELECT marker FROM restore_drill_marker WHERE id = 1;')"
+test "$RESTORED_VALUE" = "known-before-backup"
+SAFETY_DB="$(docker compose exec -T db psql -U mobility -d postgres -At \
+  -c "SELECT datname FROM pg_database WHERE datname LIKE 'mobility_pre_restore_%' ORDER BY datname DESC LIMIT 1;")"
+test -n "$SAFETY_DB"
+SAFETY_VALUE="$(docker compose exec -T db psql -U mobility -d "$SAFETY_DB" -At \
+  -c 'SELECT marker FROM restore_drill_marker WHERE id = 1;')"
+test "$SAFETY_VALUE" = "known-after-backup-mutation"
+
+CODE_HEADS="$(docker compose run --rm -T --no-deps api alembic heads | awk 'NF {print $1}')"
+DB_CURRENTS="$(docker compose exec -T db psql -U mobility -d mobility -At \
+  -c 'SELECT version_num FROM alembic_version;')"
+test "$(printf '%s\n' "$CODE_HEADS" | awk 'NF {count++} END {print count+0}')" -eq 1
+test "$(printf '%s\n' "$DB_CURRENTS" | awk 'NF {count++} END {print count+0}')" -eq 1
+CODE_HEAD="$(printf '%s\n' "$CODE_HEADS" | awk 'NF {print; exit}')"
+DB_CURRENT="$(printf '%s\n' "$DB_CURRENTS" | awk 'NF {print; exit}')"
+test "$DB_CURRENT" = "$CODE_HEAD"
+
+docker compose exec -T db psql -U mobility -d mobility -v ON_ERROR_STOP=1 \
+  -c "UPDATE restore_drill_marker SET marker = 'unchanged-after-invalid-restore' WHERE id = 1;"
+head -c 64 "$BACKUP_PATH" > "$INVALID_DUMP"
+if printf 'RESTORE\n' | scripts/db_restore.sh "$INVALID_DUMP"; then
+  echo 'ERROR: truncated dump unexpectedly restored' >&2
+  exit 1
+fi
+docker compose ps --status running --services | grep -qx api
+AFTER_INVALID="$(docker compose exec -T db psql -U mobility -d mobility -At \
+  -c 'SELECT marker FROM restore_drill_marker WHERE id = 1;')"
+test "$AFTER_INVALID" = "unchanged-after-invalid-restore"
+
+cleanup_restore_drill
+trap - EXIT
+)
+```
 
 ## Migrations
 

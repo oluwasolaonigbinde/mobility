@@ -10,14 +10,20 @@ backend and a Next.js frontend for advertiser, driver, and operator workflows.
 - **Frontend baseline:** F0–F6 are committed, covering the production foundation,
   advertiser campaign workflows, zones, reporting/heatmaps, driver PWA, admin
   console, and frontend hardening.
-- **F7 hardening:** **complete and committed** on `f7-hardening`. It adds
+- **F7 hardening:** **complete and merged to `master`**. It adds
   authentication hardening (current-password-verified changes, forced first-login
   password change, sliding sessions with a 12-hour absolute cap, session-version
   revocation, Redis-backed login rate limiting), an admin audit-trail API and UI,
   a rich deterministic demo seed, backup/restore scripts with a revision-gated
   restore, inert-without-DSN Sentry hooks, and backend + frontend + e2e CI. It is
-  verified locally; nothing is deployed, and staging remains research only
-  (`docs/staging-options.md`).
+  verified locally.
+- **Automated trip processing:** **complete on `master`**. An arq worker runs
+  the post-trip analytics → fraud → impressions → transitional payout pipeline,
+  with database-backed recovery sweeps and race-safe idempotency.
+- **Pre-production operations:** **complete locally on `master`**. The repository
+  includes a production Compose overlay, Caddy edge, release smoke checks, and a
+  rehearsed backup/restore procedure. Nothing is deployed yet; provider, domain,
+  budget, and operations ownership still require approval (`docs/staging-options.md`).
 
 Read `docs/project-reconciliation.md` before planning further work. It identifies
 the canonical repository, evidence baseline, delivery status, and the boundary

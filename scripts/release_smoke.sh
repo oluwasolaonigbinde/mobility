@@ -3,7 +3,8 @@
 set -Eeuo pipefail
 
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-readonly COMPOSE_FILE="${COMPOSE_FILE:-${REPO_ROOT}/docker-compose.production.yml}"
+readonly COMPOSE_BASE_FILE="${COMPOSE_BASE_FILE:-${REPO_ROOT}/docker-compose.yml}"
+readonly COMPOSE_PRODUCTION_FILE="${COMPOSE_PRODUCTION_FILE:-${REPO_ROOT}/docker-compose.production.yml}"
 readonly COMPOSE_ENV_FILE="${COMPOSE_ENV_FILE:-}"
 readonly SMOKE_BASE_URL="${SMOKE_BASE_URL:-}"
 
@@ -104,7 +105,7 @@ with os.fdopen(descriptor, "w", encoding="utf-8") as output:
     json.dump({"email": email, "password": password}, output)
 PY
 
-compose=(docker compose -f "${COMPOSE_FILE}" --env-file "${COMPOSE_ENV_FILE}")
+compose=(docker compose -f "${COMPOSE_BASE_FILE}" -f "${COMPOSE_PRODUCTION_FILE}" --env-file "${COMPOSE_ENV_FILE}")
 
 echo "Checking public edge/frontend..."
 curl --fail --silent --show-error --output /dev/null \

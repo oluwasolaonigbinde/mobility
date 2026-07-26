@@ -1,12 +1,12 @@
 # Project Reconciliation
 
-**Status:** current as of 20 July 2026. This document is the project-wide status
+**Status:** current as of 26 July 2026. This document is the project-wide status
 map; it does not replace the backend slice ledger or product decision records.
 
 ## Canonical Repository
 
-The canonical repository is `/Users/oluwasolaonigbinde/Downloads/mobility` on the
-`f7-hardening` branch. The sibling `mobility-master` directory is an obsolete
+The canonical repository is `/Users/oluwasolaonigbinde/Downloads/mobility` on
+`master`. The sibling `mobility-master` directory is an obsolete
 Slice-0-only copy and must not be used to determine delivery status.
 
 ## Verified Committed Baseline
@@ -16,17 +16,18 @@ Slice-0-only copy and must not be used to determine delivery status.
 | Backend Slices 0–13 | Closed | `docs/build-loop/slice-log.md`, closure commit `0dfb284`, and the final closure response |
 | Backend contract | Closure froze 63 API paths; F7 extends it to 66 | `docs/api/openapi.snapshot.json` (current), closure packet (historical 63-path freeze) |
 | Frontend F0–F6 | Committed | Git history from `9189fe4` through `a5bcbb6` |
+| F7 hardening | Merged to `master` | Git history `f40e0c4` through `236c2e4`; PR #1 |
+| Automated trip processing | Merged to `master` | Git history `159b0b1` and `4f69ef6` |
+| Pre-production operations | Merged to `master`, not deployed | Git history from `006d94e`; `docker-compose.production.yml`, `docs/runbook.md` |
 | Product direction | Decisions recorded, further answers pending | `docs/decisions-log.md` and `docs/Product-Direction-Questionnaire.md` |
 
 The final backend closure states that no Slice 14 is authorized. Any backend work
 after that closure is a separately scoped change, not a continuation of the old
 slice roadmap.
 
-## F7 Hardening — Committed and Verified
+## F7 Hardening — Merged and Verified
 
-F7 is **complete**: committed on `f7-hardening` (code pin `301519d`,
-followed by the documentation/evidence commit) and verified locally on
-20 July 2026. The delivery comprises:
+F7 is **complete** and merged to `master`. The delivery comprises:
 
 - Auth/session hardening: current-password-verified changes, forced first-login
   password change, sliding sessions with a 12-hour absolute cap,
@@ -49,6 +50,18 @@ idempotency and later-date append-only reruns; frontend lint/typecheck/unit/
 build green; 45 Playwright tests passing (3 project-scoped skips) including
 forced password changes, revoked-cookie login, 429 feedback, and the audit
 page; backup/restore drill with truncated-dump rejection.
+
+## Post-F7 Delivery
+
+- The arq worker automates complete-missing-only post-trip processing and uses a
+  Postgres-derived recovery sweep. Its payout stage remains transitional
+  `payout_v1`; do not enable it for real earnings until D2/Q4/Q5 are resolved.
+- The provider-neutral production Compose overlay now keeps only Caddy public,
+  isolates PostGIS/Redis, gives application services explicit outbound egress,
+  and removes development ports, reload commands, and source mounts.
+- The release smoke command and the exact disposable backup/restore rehearsal
+  are implemented. The rehearsal has passed valid restore, safety-database,
+  exact Alembic-head, and truncated-dump non-replacement checks.
 
 Still true after F7:
 
@@ -77,5 +90,5 @@ first:
 
 1. OJ-approved staging deployment (records provider, budget, operator, and the
    trusted-edge design per `docs/staging-options.md`).
-2. The first post-F7 build phase (W1 in `docs/architecture.md` §31), which
-   requires Somto's answers to the blocking questionnaire items.
+2. The next authorized product slice after the blocking questionnaire answers
+   land (W1 in `docs/architecture.md` §31).

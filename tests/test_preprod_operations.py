@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+DEVELOPMENT_COMPOSE = ROOT / "docker-compose.yml"
 PRODUCTION_COMPOSE = ROOT / "docker-compose.production.yml"
 STAGING_ENV = ROOT / "staging.env.example"
 
@@ -16,7 +17,14 @@ STAGING_ENV = ROOT / "staging.env.example"
 def compose_config(
     *, profiles: tuple[str, ...] = (), environment: dict[str, str] | None = None
 ) -> dict:
-    command = ["docker", "compose", "-f", str(PRODUCTION_COMPOSE)]
+    command = [
+        "docker",
+        "compose",
+        "-f",
+        str(DEVELOPMENT_COMPOSE),
+        "-f",
+        str(PRODUCTION_COMPOSE),
+    ]
     for profile in profiles:
         command.extend(("--profile", profile))
     command.extend(("--env-file", str(STAGING_ENV), "config", "--format", "json"))
@@ -58,6 +66,13 @@ def test_production_render_has_one_public_edge_and_no_development_mounts() -> No
     assert model["networks"]["app"]["internal"] is True
     assert model["networks"]["data"]["internal"] is True
     assert model["networks"]["edge"].get("internal", False) is False
+    assert model["networks"]["egress"].get("internal", False) is False
+    assert "egress" in services["api"]["networks"]
+    assert "egress" in services["frontend"]["networks"]
+    assert services["api"]["networks"]["egress"]["gw_priority"] == 1
+    assert services["frontend"]["networks"]["egress"]["gw_priority"] == 1
+    assert "egress" not in services["db"]["networks"]
+    assert "egress" not in services["redis"]["networks"]
 
 
 def test_trusted_client_ip_requires_explicit_three_setting_opt_in() -> None:
@@ -88,6 +103,8 @@ def test_profiles_keep_worker_default_off_and_migration_explicit() -> None:
     assert model["services"]["migrate"]["profiles"] == ["release"]
     assert model["services"]["migrate"]["command"] == ["alembic", "upgrade", "head"]
     assert model["services"]["migrate"]["restart"] == "no"
+    assert "egress" in model["services"]["worker"]["networks"]
+    assert "egress" in model["services"]["migrate"]["networks"]
 
 
 def test_healthchecks_and_dependencies_are_rendered() -> None:
@@ -154,6 +171,8 @@ def test_production_render_fails_clearly_when_required_value_is_missing(
         [
             "docker",
             "compose",
+            "-f",
+            str(DEVELOPMENT_COMPOSE),
             "-f",
             str(PRODUCTION_COMPOSE),
             "--env-file",
@@ -253,6 +272,25 @@ def test_smoke_success_redacts_secrets_and_cleans_temporary_files(tmp_path: Path
     assert "Release smoke passed." in result.stdout
     assert password not in result.stdout + result.stderr
     assert not any((tmp_path / "tmp").iterdir())
+
+
+def test_smoke_uses_the_base_and_production_compose_files() -> None:
+    smoke = (ROOT / "scripts/release_smoke.sh").read_text()
+
+    assert '-f "${COMPOSE_BASE_FILE}" -f "${COMPOSE_PRODUCTION_FILE}"' in smoke
+
+
+def test_backup_directory_can_be_isolated_for_restore_rehearsals() -> None:
+    backup = (ROOT / "scripts/db_backup.sh").read_text()
+    runbook = (ROOT / "docs/runbook.md").read_text()
+
+    assert 'BACKUP_DIR="${BACKUP_DIR:-${REPO_ROOT}/backups}"' in backup
+    assert 'BACKUP_DIR="$(mktemp -d /tmp/mobility-restore-drill-backups.' in runbook
+    assert 'export BACKUP_DIR' in runbook
+    assert 'down -v --remove-orphans' in runbook
+    assert 'awk \'NF {count++} END {print count+0}\'' in runbook
+    assert '"$CODE_HEADS"' in runbook
+    assert '"$DB_CURRENTS"' in runbook
 
 
 @pytest.mark.parametrize("failure", ["frontend", "api", "revision", "redis", "login", "multihead"])

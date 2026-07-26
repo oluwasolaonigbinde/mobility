@@ -659,9 +659,11 @@ One workflow: `.github/workflows/frontend.yml` (push triggers on `master`,
 - **[BUILT]** Production images exist for both tiers (root `Dockerfile`;
   `frontend/Dockerfile` standalone output, non-root). No deployment target is
   wired up.
-- **[BUILT]** `docker-compose.production.yml` provides a provider-neutral
-  production-style topology: only Caddy publishes 80/443, internal services
-  have health-gated startup, migrations are an explicit one-shot profile, and
+- **[BUILT]** `docker-compose.production.yml` overlays `docker-compose.yml` to
+  provide a provider-neutral production-style topology: only Caddy publishes
+  80/443, data services stay on an internal network, application containers
+  have a separate non-published egress bridge and health-gated startup,
+  migrations are an explicit one-shot profile, and
   the transitional payout worker is an opt-in profile. `staging.env.example`,
   `Caddyfile`, and `scripts/release_smoke.sh` define the operator boundary.
 - **[BUILT] (F7)** Database backups (`scripts/db_backup.sh`, custom-format

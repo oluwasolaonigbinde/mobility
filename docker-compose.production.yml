@@ -31,8 +31,10 @@ x-backend-service: &backend-service
     redis:
       condition: service_healthy
   networks:
-    - app
-    - data
+    app: {}
+    data: {}
+    egress:
+      gw_priority: 1
 
 services:
   db:
@@ -49,6 +51,7 @@ services:
       timeout: 5s
       retries: 20
     restart: unless-stopped
+    ports: !reset []
     networks:
       - data
 
@@ -63,6 +66,7 @@ services:
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     restart: unless-stopped
+    ports: !reset []
     networks:
       - data
 
@@ -75,6 +79,8 @@ services:
   api:
     <<: *backend-service
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports: !reset []
+    volumes: !reset []
     healthcheck:
       test:
         - CMD
@@ -92,8 +98,10 @@ services:
     <<: *backend-service
     profiles: ["worker"]
     command: ["arq", "app.jobs.worker_entry.WorkerSettings"]
+    volumes: !reset []
 
   frontend:
+    profiles: !reset []
     build:
       context: ./frontend
       args:
@@ -115,12 +123,15 @@ services:
       timeout: 3s
       retries: 20
     restart: unless-stopped
+    ports: !reset []
     depends_on:
       api:
         condition: service_healthy
     networks:
-      - edge
-      - app
+      edge: {}
+      app: {}
+      egress:
+        gw_priority: 1
 
   edge:
     image: caddy:2.8-alpine
@@ -158,3 +169,8 @@ networks:
     internal: true
   data:
     internal: true
+  # Outbound-only-by-publication convention: this ordinary bridge gives the
+  # application containers DNS/HTTPS egress (for example Sentry) but publishes
+  # no host port. Database and Redis never join it.
+  egress:
+    internal: false

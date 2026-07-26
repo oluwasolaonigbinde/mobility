@@ -32,10 +32,9 @@ Source: Hetzner's [15 June 2026 cloud price adjustment](https://docs.hetzner.com
 1. Provision a CX33 in the closest acceptable European region; enable provider firewall rules for SSH from operator IPs and public 80/443 only.
 2. Install Docker Engine and the Compose plugin; create a non-root deploy user and disable password SSH.
 3. Point an `A`/`AAAA` record such as `staging.example.com` at the VM. Configure Caddy to obtain/renew Let's Encrypt TLS and proxy only to `frontend:3000`.
-4. Use the committed standalone `docker-compose.production.yml`; do not merge
-   it with the development Compose file or create an override from the
-   development topology. Verify the rendered model publishes only Caddy
-   80/443, as described in the runbook.
+4. Use the committed `docker-compose.production.yml` as an overlay after
+   `docker-compose.yml`; do not run either file alone. Verify the merged model
+   publishes only Caddy 80/443, as described in the runbook.
 5. Store runtime secrets in a root-readable environment file outside Git. Pass `NEXT_PUBLIC_SENTRY_DSN` only during `docker compose build frontend`.
 6. Follow the runbook release sequence: start PostGIS/Redis privately, invoke
    the explicit `release` profile's one-shot `migrate` service, then start
