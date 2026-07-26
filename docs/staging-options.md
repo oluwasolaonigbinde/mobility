@@ -32,9 +32,14 @@ Source: Hetzner's [15 June 2026 cloud price adjustment](https://docs.hetzner.com
 1. Provision a CX33 in the closest acceptable European region; enable provider firewall rules for SSH from operator IPs and public 80/443 only.
 2. Install Docker Engine and the Compose plugin; create a non-root deploy user and disable password SSH.
 3. Point an `A`/`AAAA` record such as `staging.example.com` at the VM. Configure Caddy to obtain/renew Let's Encrypt TLS and proxy only to `frontend:3000`.
-4. Create a production override that removes all host `ports` mappings from frontend, API, Postgres, and Redis. Do not bind `8000`, `3100`, `5432/5433/5434`, or `6379` even to a public firewall-protected interface.
+4. Use the committed standalone `docker-compose.production.yml`; do not merge
+   it with the development Compose file or create an override from the
+   development topology. Verify the rendered model publishes only Caddy
+   80/443, as described in the runbook.
 5. Store runtime secrets in a root-readable environment file outside Git. Pass `NEXT_PUBLIC_SENTRY_DSN` only during `docker compose build frontend`.
-6. Start PostGIS/Redis privately, run `docker compose run --rm api alembic upgrade head`, then start API/frontend and verify health through Caddy.
+6. Follow the runbook release sequence: start PostGIS/Redis privately, invoke
+   the explicit `release` profile's one-shot `migrate` service, then start
+   API/frontend/Caddy and run `scripts/release_smoke.sh`.
 7. Schedule `scripts/db_backup.sh`; encrypt and copy selected dumps off the VM. Provider snapshots do not replace dumps. Record a restore rehearsal.
 8. Test that direct frontend/API connections fail, forged forwarding headers are replaced, and separate edge socket peers create separate limiter buckets before enabling trusted-client-IP mode.
 
@@ -122,20 +127,23 @@ The allowlist contains the internal BFF/Next peer CIDR, because the request path
 
 Before enabling trust, unpublish **both** frontend `3100:3000` and API `8000:8000` mappings, along with database/cache mappings. Otherwise an attacker can bypass the stripping edge, send a forged header directly to Next, and have the allowlisted BFF relay it. Verify from outside the private network that only 80/443 are reachable, then test forged-header rejection and distinct real client buckets.
 
-Illustrative Caddy intent (validate against the selected deployment and Caddy version before use):
+The committed provider-neutral `Caddyfile` implements and validates this
+header boundary:
 
 ```caddyfile
-staging.example.com {
-    # Ignore client forwarding headers; derive the internal value from the
-    # connection peer accepted by this edge.
-    request_header -X-Client-IP
-    request_header -X-Forwarded-For
-    request_header X-Client-IP {remote_host}
-    reverse_proxy frontend:3000
+{$EDGE_HOSTNAME} {
+    reverse_proxy frontend:3000 {
+        header_up -X-Forwarded-For
+        header_up X-Client-IP {http.request.remote.host}
+    }
 }
 ```
 
-If the provider places another load balancer in front, `{remote_host}` may be the provider proxy rather than the client. Use only that provider's documented trusted-proxy mechanism and test it; otherwise leave client-header trust disabled and accept the shared-BFF IP bucket documented in the runbook.
+If the provider places another load balancer in front,
+`{http.request.remote.host}` may be the provider proxy rather than the client.
+Use only that provider's documented trusted-proxy mechanism and test it;
+otherwise leave client-header trust disabled and accept the shared-BFF IP
+bucket documented in the runbook.
 
 ## Recommendation for client review
 

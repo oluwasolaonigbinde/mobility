@@ -5,6 +5,7 @@ set -Eeuo pipefail
 readonly DB_SERVICE="db"
 readonly API_SERVICE="api"
 readonly FRONTEND_SERVICE="frontend"
+readonly WORKER_SERVICE="worker"
 readonly DB_NAME="mobility"
 readonly DB_USER="mobility"
 readonly TEMP_DB="mobility_restore_tmp"
@@ -23,6 +24,7 @@ UPGRADE=false
 DUMP_FILE=""
 APP_STOPPED=0
 FRONTEND_WAS_RUNNING=0
+WORKER_WAS_RUNNING=0
 LIVE_RENAMED=0
 TEMP_RENAMED=0
 TEMP_CREATED=0
@@ -38,14 +40,17 @@ EOF
 }
 
 compose_ps_running() {
-  docker compose --profile full ps --status running --services 2>/dev/null \
+  docker compose --profile full --profile worker ps --status running --services 2>/dev/null \
     | grep -qx "$1"
 }
 
 start_app_surface() {
-  docker compose up -d "${API_SERVICE}" >/dev/null
+  docker compose up -d "${API_SERVICE}" >/dev/null || return
   if (( FRONTEND_WAS_RUNNING == 1 )); then
-    docker compose --profile full up -d "${FRONTEND_SERVICE}" >/dev/null
+    docker compose --profile full up -d "${FRONTEND_SERVICE}" >/dev/null || return
+  fi
+  if (( WORKER_WAS_RUNNING == 1 )); then
+    docker compose --profile worker up -d "${WORKER_SERVICE}" >/dev/null || return
   fi
 }
 
@@ -59,7 +64,8 @@ drop_temp_database() {
 }
 
 rollback_swap() {
-  docker compose --profile full stop "${API_SERVICE}" "${FRONTEND_SERVICE}" \
+  docker compose --profile full --profile worker stop \
+    "${API_SERVICE}" "${FRONTEND_SERVICE}" "${WORKER_SERVICE}" \
     >/dev/null 2>&1 || true
   docker compose exec -T "${DB_SERVICE}" psql \
     --username="${DB_USER}" --dbname=postgres --set=ON_ERROR_STOP=1 \
@@ -200,11 +206,15 @@ echo "Checked-out Alembic head: ${CODE_HEAD}"
 if compose_ps_running "${FRONTEND_SERVICE}"; then
   FRONTEND_WAS_RUNNING=1
 fi
+if compose_ps_running "${WORKER_SERVICE}"; then
+  WORKER_WAS_RUNNING=1
+fi
 
 STAGE="stop-writers"
-RESTORE_ERROR_DETAIL="could not stop API/frontend writers"
+RESTORE_ERROR_DETAIL="could not stop API/frontend/worker writers"
 APP_STOPPED=1
-docker compose --profile full stop "${API_SERVICE}" "${FRONTEND_SERVICE}"
+docker compose --profile full --profile worker stop \
+  "${API_SERVICE}" "${FRONTEND_SERVICE}" "${WORKER_SERVICE}"
 
 STAGE="prepare-temp"
 RESTORE_ERROR_DETAIL="could not prepare temporary database; live database untouched"

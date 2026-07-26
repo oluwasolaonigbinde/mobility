@@ -11,6 +11,11 @@ on:
       - "openapi.json"
       - "pyproject.toml"
       - "docker-compose.yml"
+      - "docker-compose.production.yml"
+      - "Caddyfile"
+      - "staging.env.example"
+      - "scripts/**"
+      - "docs/**"
       - ".github/workflows/frontend.yml"
   pull_request:
     paths:
@@ -21,6 +26,11 @@ on:
       - "openapi.json"
       - "pyproject.toml"
       - "docker-compose.yml"
+      - "docker-compose.production.yml"
+      - "Caddyfile"
+      - "staging.env.example"
+      - "scripts/**"
+      - "docs/**"
       - ".github/workflows/frontend.yml"
 
 defaults:
@@ -63,6 +73,8 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check .
       - run: pytest
+      - name: Pre-production static verification
+        run: scripts/verify_preprod.sh
 
   quality:
     name: lint · types · unit · contract · build
