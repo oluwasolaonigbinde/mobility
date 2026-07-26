@@ -134,12 +134,17 @@ def test_build_redis_settings_parses_dsn() -> None:
     assert redis_settings.database == 8
 
 
-def test_worker_entry_fails_before_worker_construction_without_redis_url() -> None:
+def test_worker_entry_fails_before_worker_construction_without_redis_url(tmp_path: Path) -> None:
+    repo_root = Path(__file__).parents[1]
     env = os.environ.copy()
     env.pop("REDIS_URL", None)
+    env["PYTHONPATH"] = os.pathsep.join(
+        path for path in (str(repo_root), env.get("PYTHONPATH", "")) if path
+    )
     result = subprocess.run(
         [sys.executable, "-c", "import app.jobs.worker_entry"],
-        cwd=Path(__file__).parents[1],
+        # Keep a developer's gitignored .env from satisfying the missing-config case.
+        cwd=tmp_path,
         env=env,
         capture_output=True,
         text=True,
