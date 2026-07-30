@@ -32,11 +32,16 @@ from app.schemas.payouts import (
     CampaignPayoutRuleUpdate,
     DriverEarningsCurrencySummary,
     DriverEarningsSummary,
+    DriverTripEarningsBreakdown,
+    DriverTripEarningsCapProgress,
     EarningsLedgerEntryListResponse,
     EarningsLedgerEntryRead,
     PayoutCalculationListResponse,
     PayoutCalculationRead,
     PayoutLedgerEntrySummary,
+    RecomputeDayTripResult,
+    RecomputePayoutDayRequest,
+    RecomputePayoutDayResult,
 )
 from app.services.audit import create_audit_event
 from app.services.payouts import (
@@ -44,11 +49,13 @@ from app.services.payouts import (
     calculate_trip_payout,
     create_campaign_payout_rule,
     driver_earnings_summary,
+    driver_trip_earnings_breakdown,
     get_campaign_payout_rule,
     ledger_for_calculation,
     list_campaign_payout_rules,
     list_driver_ledger_entries,
     list_payout_calculations,
+    recompute_payout_day,
     update_campaign_payout_rule,
 )
 
@@ -101,6 +108,9 @@ def payout_rule_response(rule: CampaignPayoutRule) -> CampaignPayoutRuleRead:
         low_fraud_multiplier=rule.low_fraud_multiplier,
         medium_fraud_multiplier=rule.medium_fraud_multiplier,
         high_fraud_multiplier=rule.high_fraud_multiplier,
+        hourly_rate_naira=rule.hourly_rate_naira,
+        daily_payable_hours_cap=rule.daily_payable_hours_cap,
+        eligibility_params=rule.eligibility_params,
         metadata=rule.rule_metadata,
         created_at=rule.created_at,
         updated_at=rule.updated_at,
@@ -165,6 +175,10 @@ async def payout_calculation_response(
         fraud_multiplier=calculation.fraud_multiplier,
         cap_adjustment=calculation.cap_adjustment,
         final_payout=calculation.final_payout,
+        eligible_seconds=calculation.eligible_seconds,
+        payable_seconds=calculation.payable_seconds,
+        excluded_seconds_by_reason=calculation.excluded_seconds_by_reason,
+        inputs_fingerprint=calculation.inputs_fingerprint,
         calculated_at=calculation.calculated_at,
         metadata=calculation.payout_metadata,
         ledger_entry=ledger_summary_response(ledger_entry) if ledger_entry else None,
@@ -444,11 +458,13 @@ async def advertiser_get_campaign_cost_summary(
     return CampaignCostSummary(
         campaign_id=summary.campaign_id,
         formula_version=summary.formula_version,
+        formula_versions=summary.formula_versions,
         totals_by_currency=[
             CampaignCostCurrencySummary(
                 currency=total.currency,
                 final_payout_total=total.final_payout_total,
                 gross_payout_total=total.gross_payout_total,
+                ledger_net_total=total.ledger_net_total,
                 calculated_trip_count=total.calculated_trip_count,
                 blocked_trip_count=total.blocked_trip_count,
                 insufficient_data_trip_count=total.insufficient_data_trip_count,
@@ -458,4 +474,120 @@ async def advertiser_get_campaign_cost_summary(
         ],
         start_at=summary.start_at,
         end_at=summary.end_at,
+    )
+
+
+@router.post(
+    "/admin/payouts/recompute-day",
+    response_model=RecomputePayoutDayResult,
+    summary="Recompute one driver/campaign/Lagos-day cap allocation",
+)
+async def admin_recompute_payout_day(
+    payload: RecomputePayoutDayRequest,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> RecomputePayoutDayResult:
+    outcome = await recompute_payout_day(
+        session,
+        campaign_id=payload.campaign_id,
+        driver_profile_id=payload.driver_profile_id,
+        lagos_date=payload.lagos_date,
+        request_metadata=payload.metadata,
+        settings=settings,
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=current_user.id,
+        action="admin.payout_day.recomputed",
+        entity_type="payout_day",
+        entity_id=(
+            f"{payload.campaign_id}:{payload.driver_profile_id}:{payload.lagos_date}"
+        ),
+        metadata={
+            "campaign_id": str(payload.campaign_id),
+            "driver_profile_id": str(payload.driver_profile_id),
+            "lagos_date": payload.lagos_date.isoformat(),
+            "cap_seconds": outcome.cap_seconds,
+            "adjustment_count": outcome.adjustment_count,
+            "reversal_count": outcome.reversal_count,
+            "trips": [
+                {
+                    "trip_session_id": str(trip.trip_session_id),
+                    "previous_posted_amount": str(trip.previous_posted_amount),
+                    "target_amount": str(trip.target_amount),
+                    "delta_amount": str(trip.delta_amount),
+                    "eligible_seconds": trip.eligible_seconds,
+                    "payable_seconds": trip.payable_seconds,
+                    "entry_id": str(trip.entry.id) if trip.entry is not None else None,
+                    "voided": trip.voided,
+                }
+                for trip in outcome.trips
+            ],
+        },
+    )
+    await session.commit()
+    return RecomputePayoutDayResult(
+        campaign_id=outcome.campaign_id,
+        driver_profile_id=outcome.driver_profile_id,
+        lagos_date=outcome.lagos_date,
+        cap_seconds=outcome.cap_seconds,
+        trips=[
+            RecomputeDayTripResult(
+                trip_session_id=trip.trip_session_id,
+                payout_calculation_id=trip.payout_calculation_id,
+                previous_posted_amount=trip.previous_posted_amount,
+                target_amount=trip.target_amount,
+                delta_amount=trip.delta_amount,
+                eligible_seconds=trip.eligible_seconds,
+                payable_seconds=trip.payable_seconds,
+                entry_id=trip.entry.id if trip.entry is not None else None,
+                entry_type=trip.entry.entry_type if trip.entry is not None else None,
+                voided=trip.voided,
+            )
+            for trip in outcome.trips
+        ],
+        adjustment_count=outcome.adjustment_count,
+        reversal_count=outcome.reversal_count,
+    )
+
+
+@router.get(
+    "/driver/trips/{trip_id}/earnings-breakdown",
+    response_model=DriverTripEarningsBreakdown,
+    summary="Read the current driver's trip earnings breakdown",
+)
+async def driver_get_trip_earnings_breakdown(
+    trip_id: UUID,
+    current_user: DriverUserDependency,
+    session: SessionDependency,
+) -> DriverTripEarningsBreakdown:
+    breakdown = await driver_trip_earnings_breakdown(
+        session,
+        user_id=current_user.id,
+        trip_id=trip_id,
+    )
+    cap = None
+    if (
+        breakdown.lagos_day is not None
+        and breakdown.cap_seconds is not None
+        and breakdown.day_payable_seconds is not None
+    ):
+        cap = DriverTripEarningsCapProgress(
+            lagos_day=breakdown.lagos_day,
+            cap_seconds=breakdown.cap_seconds,
+            day_payable_seconds=breakdown.day_payable_seconds,
+        )
+    return DriverTripEarningsBreakdown(
+        trip_session_id=breakdown.trip_session_id,
+        formula_version=breakdown.formula_version,
+        currency=breakdown.currency,
+        amount=breakdown.amount,
+        eligible_seconds=breakdown.eligible_seconds,
+        excluded_seconds_by_reason=breakdown.excluded_seconds_by_reason,
+        hourly_rate=breakdown.hourly_rate,
+        capped_seconds=breakdown.capped_seconds,
+        superseded_by_recompute=breakdown.superseded_by_recompute,
+        entries=[ledger_entry_response(entry) for entry in breakdown.entries],
+        cap=cap,
     )

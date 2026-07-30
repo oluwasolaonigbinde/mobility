@@ -306,6 +306,43 @@ Hardening:
   on :3100). **Verified**: built the image and smoke-tested the container
   — login 200 in 115ms, auth guard 307, PWA manifest public.
 
+### ✅ S1 — Payout engine v2: hourly pay + daily caps (30 Jul 2026)
+
+Full-stack money slice per `docs/next-steps.md` §S1 (D2/D4/D8; Q4/Q5; D9 in
+`decisions-log.md`). *Log honesty note:* the F7-hardening and worker slices
+(20–22 Jul) shipped without entries here — their record lives in
+`docs/project-reconciliation.md` and the architecture changelog (v1.4–v1.6);
+this entry resumes the per-phase log.
+
+- **Backend**: migration `0013` (v2 rule fields + model XOR, v1 columns
+  frozen-nullable, calculation time columns + inputs fingerprint,
+  one-trip_payout-per-trip guard index); pure eligibility classifier
+  (`app/services/payout_eligibility.py`, Σ eligible+excluded == session
+  duration invariant); `payout_v2` in `services/payouts.py` — integer payable
+  seconds, cap-before-price under `pg_advisory_xact_lock`
+  (driver/campaign/Africa-Lagos-day via zoneinfo), one ROUND_HALF_UP 2dp
+  quantization; per-rule formula dispatch (write-once v2; sweep/repair derive
+  the expected formula from the governing rule row); recompute-day true-up
+  posting append-only adjustment/reversal differentials; summary netting
+  (reversals negative per balance); driver breakdown endpoint; audit events
+  on every new mutation.
+- **Frontend**: rule editor refactored to both models (model selector,
+  replace-rule flow), driver ledger rows → `/driver/earnings/trips/[tripId]`
+  breakdown (verified time, exclusions by reason, rate × capped time =
+  amount, daily-cap progress bar), admin calculations table gains
+  Formula/Paid-time columns, `formatDuration`, shared
+  `lib/payouts/schema.ts` zod XOR.
+- **Contract**: all three baselines moved together (2 new endpoints, v2
+  fields; CI drift gate green).
+- **Verified**: full backend pytest (PostGIS+Redis) incl. new classifier
+  property tests, cap-concurrency race, recompute idempotency/differential,
+  v1-history regression; ruff; empty-DB migrate → `0013`; seed twice
+  (idempotent); frontend lint/typecheck/vitest/build; Playwright (desktop +
+  mobile) incl. new rules-editor + breakdown specs; live disposable-stack
+  simulation — real driver trip with live ping batches → worker → `payout_v2`
+  calculation + ledger → driver breakdown → rate change → recompute-day
+  adjustment, `rate × capped time == amount` after true-up.
+
 ### Remaining go-live items (not code, decisions)
 
 - Basemap tile licensing (env swap — see F2 note)

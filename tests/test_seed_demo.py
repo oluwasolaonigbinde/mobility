@@ -89,7 +89,7 @@ def test_no_seed_or_demo_migrations() -> None:
 
 
 def test_demo_seed_requires_the_code_migration_head() -> None:
-    assert required_migration_head() == "0012_audit_event_indexes"
+    assert required_migration_head() == "0013_payout_v2_hourly_caps"
 
 
 def test_readme_documents_demo_seed_workflow() -> None:

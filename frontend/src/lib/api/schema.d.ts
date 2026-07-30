@@ -300,6 +300,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payouts/recompute-day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recompute one driver/campaign/Lagos-day cap allocation */
+        post: operations["admin_recompute_payout_day_api_v1_admin_payouts_recompute_day_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/traffic-density-profiles": {
         parameters: {
             query?: never;
@@ -1022,6 +1039,23 @@ export interface paths {
         };
         /** Read current driver's trip analytics summary */
         get: operations["driver_get_trip_analytics_summary_api_v1_driver_trips__trip_id__analytics_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/trips/{trip_id}/earnings-breakdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the current driver's trip earnings breakdown */
+        get: operations["driver_get_trip_earnings_breakdown_api_v1_driver_trips__trip_id__earnings_breakdown_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1761,12 +1795,20 @@ export interface components {
             bonus_zone_bonus_rate_per_km?: number | string | null;
             /** Currency */
             currency?: string | null;
+            /** Daily Payable Hours Cap */
+            daily_payable_hours_cap?: number | string | null;
+            /** Eligibility Params */
+            eligibility_params?: {
+                [key: string]: unknown;
+            } | null;
             /** Estimated Impression Rate Per 1000 */
             estimated_impression_rate_per_1000?: number | string | null;
             /** Formula Version */
             formula_version?: string | null;
             /** High Fraud Multiplier */
             high_fraud_multiplier?: number | string | null;
+            /** Hourly Rate Naira */
+            hourly_rate_naira?: number | string | null;
             /** Low Fraud Multiplier */
             low_fraud_multiplier?: number | string | null;
             /** Max Payout Per Trip */
@@ -1820,12 +1862,20 @@ export interface components {
             created_by_user_id: string;
             /** Currency */
             currency: string;
+            /** Daily Payable Hours Cap */
+            daily_payable_hours_cap: string | null;
+            /** Eligibility Params */
+            eligibility_params: {
+                [key: string]: unknown;
+            } | null;
             /** Estimated Impression Rate Per 1000 */
             estimated_impression_rate_per_1000: string | null;
             /** Formula Version */
             formula_version: string;
             /** High Fraud Multiplier */
             high_fraud_multiplier: string | null;
+            /** Hourly Rate Naira */
+            hourly_rate_naira: string | null;
             /**
              * Id
              * Format: uuid
@@ -1869,10 +1919,18 @@ export interface components {
             bonus_zone_bonus_rate_per_km?: number | string | null;
             /** Currency */
             currency?: string | null;
+            /** Daily Payable Hours Cap */
+            daily_payable_hours_cap?: number | string | null;
+            /** Eligibility Params */
+            eligibility_params?: {
+                [key: string]: unknown;
+            } | null;
             /** Estimated Impression Rate Per 1000 */
             estimated_impression_rate_per_1000?: number | string | null;
             /** High Fraud Multiplier */
             high_fraud_multiplier?: number | string | null;
+            /** Hourly Rate Naira */
+            hourly_rate_naira?: number | string | null;
             /** Low Fraud Multiplier */
             low_fraud_multiplier?: number | string | null;
             /** Max Payout Per Trip */
@@ -2538,6 +2596,47 @@ export interface components {
              */
             trip_id: string;
         };
+        /** DriverTripEarningsBreakdown */
+        DriverTripEarningsBreakdown: {
+            /** Amount */
+            amount: string | null;
+            cap: components["schemas"]["DriverTripEarningsCapProgress"] | null;
+            /** Capped Seconds */
+            capped_seconds: number | null;
+            /** Currency */
+            currency: string;
+            /** Eligible Seconds */
+            eligible_seconds: number | null;
+            /** Entries */
+            entries: components["schemas"]["EarningsLedgerEntryRead"][];
+            /** Excluded Seconds By Reason */
+            excluded_seconds_by_reason: {
+                [key: string]: number;
+            } | null;
+            /** Formula Version */
+            formula_version: string;
+            /** Hourly Rate */
+            hourly_rate: string | null;
+            /** Superseded By Recompute */
+            superseded_by_recompute: boolean;
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
+        };
+        /** DriverTripEarningsCapProgress */
+        DriverTripEarningsCapProgress: {
+            /** Cap Seconds */
+            cap_seconds: number;
+            /** Day Payable Seconds */
+            day_payable_seconds: number;
+            /**
+             * Lagos Day
+             * Format: date
+             */
+            lagos_day: string;
+        };
         /** EarningsLedgerEntryListResponse */
         EarningsLedgerEntryListResponse: {
             /** Items */
@@ -3130,6 +3229,12 @@ export interface components {
              * Format: uuid
              */
             driver_profile_id: string;
+            /** Eligible Seconds */
+            eligible_seconds: number | null;
+            /** Excluded Seconds By Reason */
+            excluded_seconds_by_reason: {
+                [key: string]: number;
+            } | null;
             /** Final Payout */
             final_payout: string | null;
             /** Formula Version */
@@ -3150,11 +3255,15 @@ export interface components {
              * Format: uuid
              */
             impression_estimate_id: string;
+            /** Inputs Fingerprint */
+            inputs_fingerprint: string | null;
             ledger_entry?: components["schemas"]["PayoutLedgerEntrySummary"] | null;
             /** Metadata */
             metadata?: {
                 [key: string]: unknown;
             };
+            /** Payable Seconds */
+            payable_seconds: number | null;
             /**
              * Payout Rule Id
              * Format: uuid
@@ -3209,6 +3318,79 @@ export interface components {
             /** Average Quality Score */
             average_quality_score: string | null;
             fraud_flags: components["schemas"]["FraudFlagCounts"];
+        };
+        /** RecomputeDayTripResult */
+        RecomputeDayTripResult: {
+            /** Delta Amount */
+            delta_amount: string;
+            /** Eligible Seconds */
+            eligible_seconds: number;
+            /** Entry Id */
+            entry_id: string | null;
+            entry_type: components["schemas"]["EarningsLedgerEntryType"] | null;
+            /** Payable Seconds */
+            payable_seconds: number;
+            /** Payout Calculation Id */
+            payout_calculation_id: string | null;
+            /** Previous Posted Amount */
+            previous_posted_amount: string;
+            /** Target Amount */
+            target_amount: string;
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
+            /** Voided */
+            voided: boolean;
+        };
+        /** RecomputePayoutDayRequest */
+        RecomputePayoutDayRequest: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /**
+             * Lagos Date
+             * Format: date
+             */
+            lagos_date: string;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        /** RecomputePayoutDayResult */
+        RecomputePayoutDayResult: {
+            /** Adjustment Count */
+            adjustment_count: number;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Cap Seconds */
+            cap_seconds: number;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /**
+             * Lagos Date
+             * Format: date
+             */
+            lagos_date: string;
+            /** Reversal Count */
+            reversal_count: number;
+            /** Trips */
+            trips: components["schemas"]["RecomputeDayTripResult"][];
         };
         /** RouteAnalyticsSummary */
         RouteAnalyticsSummary: {
@@ -3893,6 +4075,8 @@ export interface components {
             insufficient_data_trip_count: number;
             /** Ledger Entry Count */
             ledger_entry_count: number;
+            /** Ledger Net Total */
+            ledger_net_total: string | null;
         };
         /** CampaignCostSummary */
         app__schemas__payouts__CampaignCostSummary: {
@@ -3905,6 +4089,8 @@ export interface components {
             end_at: string | null;
             /** Formula Version */
             formula_version: string;
+            /** Formula Versions */
+            formula_versions: string[];
             /** Start At */
             start_at: string | null;
             /** Totals By Currency */
@@ -4663,6 +4849,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PayoutCalculationListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_recompute_payout_day_api_v1_admin_payouts_recompute_day_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecomputePayoutDayRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecomputePayoutDayResult"];
                 };
             };
             /** @description Validation Error */
@@ -6393,6 +6612,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriverTripAnalyticsSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    driver_get_trip_earnings_breakdown_api_v1_driver_trips__trip_id__earnings_breakdown_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverTripEarningsBreakdown"];
                 };
             };
             /** @description Validation Error */

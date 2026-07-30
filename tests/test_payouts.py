@@ -1397,11 +1397,13 @@ def test_advertiser_cost_summary_is_scoped_and_aggregates_stored_calculations(
     assert own.status_code == http_status.HTTP_200_OK
     own_data = own.json()
     assert own_data["formula_version"] == "payout_v1"
+    assert own_data["formula_versions"] == ["payout_v1"]
     assert own_data["totals_by_currency"] == [
         {
             "currency": "NGN",
             "final_payout_total": "1044.00",
             "gross_payout_total": "1305.00",
+            "ledger_net_total": "1044.00",
             "calculated_trip_count": 1,
             "blocked_trip_count": 1,
             "insufficient_data_trip_count": 0,
@@ -1416,6 +1418,7 @@ def test_advertiser_cost_summary_is_scoped_and_aggregates_stored_calculations(
             "currency": "NGN",
             "final_payout_total": "0.00",
             "gross_payout_total": "0.00",
+            "ledger_net_total": "0.00",
             "calculated_trip_count": 0,
             "blocked_trip_count": 0,
             "insufficient_data_trip_count": 0,

@@ -1624,6 +1624,35 @@
             ],
             "title": "Currency"
           },
+          "daily_payable_hours_cap": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 24.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Payable Hours Cap"
+          },
+          "eligibility_params": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eligibility Params"
+          },
           "estimated_impression_rate_per_1000": {
             "anyOf": [
               {
@@ -1667,6 +1696,22 @@
               }
             ],
             "title": "High Fraud Multiplier"
+          },
+          "hourly_rate_naira": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hourly Rate Naira"
           },
           "low_fraud_multiplier": {
             "anyOf": [
@@ -1848,6 +1893,29 @@
             "title": "Currency",
             "type": "string"
           },
+          "daily_payable_hours_cap": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Payable Hours Cap"
+          },
+          "eligibility_params": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eligibility Params"
+          },
           "estimated_impression_rate_per_1000": {
             "anyOf": [
               {
@@ -1873,6 +1941,17 @@
               }
             ],
             "title": "High Fraud Multiplier"
+          },
+          "hourly_rate_naira": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hourly Rate Naira"
           },
           "id": {
             "format": "uuid",
@@ -1978,6 +2057,9 @@
           "low_fraud_multiplier",
           "medium_fraud_multiplier",
           "high_fraud_multiplier",
+          "hourly_rate_naira",
+          "daily_payable_hours_cap",
+          "eligibility_params",
           "created_at",
           "updated_at"
         ],
@@ -2054,6 +2136,35 @@
             ],
             "title": "Currency"
           },
+          "daily_payable_hours_cap": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 24.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Payable Hours Cap"
+          },
+          "eligibility_params": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eligibility Params"
+          },
           "estimated_impression_rate_per_1000": {
             "anyOf": [
               {
@@ -2086,6 +2197,22 @@
               }
             ],
             "title": "High Fraud Multiplier"
+          },
+          "hourly_rate_naira": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hourly Rate Naira"
           },
           "low_fraud_multiplier": {
             "anyOf": [
@@ -4201,6 +4328,141 @@
         "title": "DriverTripAnalyticsSummary",
         "type": "object"
       },
+      "DriverTripEarningsBreakdown": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "cap": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DriverTripEarningsCapProgress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "capped_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capped Seconds"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "eligible_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eligible Seconds"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/EarningsLedgerEntryRead"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "excluded_seconds_by_reason": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excluded Seconds By Reason"
+          },
+          "formula_version": {
+            "title": "Formula Version",
+            "type": "string"
+          },
+          "hourly_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hourly Rate"
+          },
+          "superseded_by_recompute": {
+            "title": "Superseded By Recompute",
+            "type": "boolean"
+          },
+          "trip_session_id": {
+            "format": "uuid",
+            "title": "Trip Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trip_session_id",
+          "formula_version",
+          "currency",
+          "amount",
+          "eligible_seconds",
+          "excluded_seconds_by_reason",
+          "hourly_rate",
+          "capped_seconds",
+          "superseded_by_recompute",
+          "entries",
+          "cap"
+        ],
+        "title": "DriverTripEarningsBreakdown",
+        "type": "object"
+      },
+      "DriverTripEarningsCapProgress": {
+        "properties": {
+          "cap_seconds": {
+            "title": "Cap Seconds",
+            "type": "integer"
+          },
+          "day_payable_seconds": {
+            "title": "Day Payable Seconds",
+            "type": "integer"
+          },
+          "lagos_day": {
+            "format": "date",
+            "title": "Lagos Day",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lagos_day",
+          "cap_seconds",
+          "day_payable_seconds"
+        ],
+        "title": "DriverTripEarningsCapProgress",
+        "type": "object"
+      },
       "EarningsLedgerEntryListResponse": {
         "properties": {
           "items": {
@@ -5584,6 +5846,31 @@
             "title": "Driver Profile Id",
             "type": "string"
           },
+          "eligible_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eligible Seconds"
+          },
+          "excluded_seconds_by_reason": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excluded Seconds By Reason"
+          },
           "final_payout": {
             "anyOf": [
               {
@@ -5642,6 +5929,17 @@
             "title": "Impression Estimate Id",
             "type": "string"
           },
+          "inputs_fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inputs Fingerprint"
+          },
           "ledger_entry": {
             "anyOf": [
               {
@@ -5656,6 +5954,17 @@
             "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
+          },
+          "payable_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payable Seconds"
           },
           "payout_rule_id": {
             "format": "uuid",
@@ -5731,6 +6040,10 @@
           "fraud_multiplier",
           "cap_adjustment",
           "final_payout",
+          "eligible_seconds",
+          "payable_seconds",
+          "excluded_seconds_by_reason",
+          "inputs_fingerprint",
           "calculated_at",
           "created_at",
           "updated_at"
@@ -5804,6 +6117,168 @@
           "fraud_flags"
         ],
         "title": "QualitySummary",
+        "type": "object"
+      },
+      "RecomputeDayTripResult": {
+        "properties": {
+          "delta_amount": {
+            "title": "Delta Amount",
+            "type": "string"
+          },
+          "eligible_seconds": {
+            "title": "Eligible Seconds",
+            "type": "integer"
+          },
+          "entry_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Id"
+          },
+          "entry_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EarningsLedgerEntryType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "payable_seconds": {
+            "title": "Payable Seconds",
+            "type": "integer"
+          },
+          "payout_calculation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payout Calculation Id"
+          },
+          "previous_posted_amount": {
+            "title": "Previous Posted Amount",
+            "type": "string"
+          },
+          "target_amount": {
+            "title": "Target Amount",
+            "type": "string"
+          },
+          "trip_session_id": {
+            "format": "uuid",
+            "title": "Trip Session Id",
+            "type": "string"
+          },
+          "voided": {
+            "title": "Voided",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "trip_session_id",
+          "payout_calculation_id",
+          "previous_posted_amount",
+          "target_amount",
+          "delta_amount",
+          "eligible_seconds",
+          "payable_seconds",
+          "entry_id",
+          "entry_type",
+          "voided"
+        ],
+        "title": "RecomputeDayTripResult",
+        "type": "object"
+      },
+      "RecomputePayoutDayRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "lagos_date": {
+            "format": "date",
+            "title": "Lagos Date",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "driver_profile_id",
+          "lagos_date"
+        ],
+        "title": "RecomputePayoutDayRequest",
+        "type": "object"
+      },
+      "RecomputePayoutDayResult": {
+        "properties": {
+          "adjustment_count": {
+            "title": "Adjustment Count",
+            "type": "integer"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "cap_seconds": {
+            "title": "Cap Seconds",
+            "type": "integer"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "lagos_date": {
+            "format": "date",
+            "title": "Lagos Date",
+            "type": "string"
+          },
+          "reversal_count": {
+            "title": "Reversal Count",
+            "type": "integer"
+          },
+          "trips": {
+            "items": {
+              "$ref": "#/components/schemas/RecomputeDayTripResult"
+            },
+            "title": "Trips",
+            "type": "array"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "driver_profile_id",
+          "lagos_date",
+          "cap_seconds",
+          "trips",
+          "adjustment_count",
+          "reversal_count"
+        ],
+        "title": "RecomputePayoutDayResult",
         "type": "object"
       },
       "RouteAnalyticsSummary": {
@@ -7859,12 +8334,24 @@
           "ledger_entry_count": {
             "title": "Ledger Entry Count",
             "type": "integer"
+          },
+          "ledger_net_total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ledger Net Total"
           }
         },
         "required": [
           "currency",
           "final_payout_total",
           "gross_payout_total",
+          "ledger_net_total",
           "calculated_trip_count",
           "blocked_trip_count",
           "insufficient_data_trip_count",
@@ -7896,6 +8383,13 @@
             "title": "Formula Version",
             "type": "string"
           },
+          "formula_versions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Formula Versions",
+            "type": "array"
+          },
           "start_at": {
             "anyOf": [
               {
@@ -7919,6 +8413,7 @@
         "required": [
           "campaign_id",
           "formula_version",
+          "formula_versions",
           "totals_by_currency",
           "start_at",
           "end_at"
@@ -9892,6 +10387,52 @@
           }
         ],
         "summary": "List payout calculations",
+        "tags": [
+          "Payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/payouts/recompute-day": {
+      "post": {
+        "operationId": "admin_recompute_payout_day_api_v1_admin_payouts_recompute_day_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecomputePayoutDayRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecomputePayoutDayResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Recompute one driver/campaign/Lagos-day cap allocation",
         "tags": [
           "Payouts"
         ]
@@ -13388,6 +13929,54 @@
         "summary": "Read current driver's trip analytics summary",
         "tags": [
           "Analytics"
+        ]
+      }
+    },
+    "/api/v1/driver/trips/{trip_id}/earnings-breakdown": {
+      "get": {
+        "operationId": "driver_get_trip_earnings_breakdown_api_v1_driver_trips__trip_id__earnings_breakdown_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trip_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Trip Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverTripEarningsBreakdown"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Read the current driver's trip earnings breakdown",
+        "tags": [
+          "Payouts"
         ]
       }
     },

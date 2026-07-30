@@ -86,6 +86,13 @@ class Settings(BaseSettings):
     impression_min_confidence: float = 0.0
     impression_max_confidence: float = 1.0
     payout_formula_version: str = "payout_v1"
+    payout_eligibility_stationary_radius_m: int = 200
+    payout_eligibility_stationary_window_min: int = 5
+    payout_eligibility_stationary_grace_min: int = 4
+    payout_eligibility_max_accuracy_m: int = 75
+    payout_eligibility_teleport_kmh: int = 180
+    payout_eligibility_max_ping_gap_seconds: int = 120
+    payout_default_hourly_rate_ngn: float = 0.0
     payout_default_base_rate_per_km: float = 0.0
     payout_default_base_rate_per_active_hour: float = 0.0
     payout_default_target_zone_bonus_rate_per_km: float = 0.0
@@ -236,6 +243,33 @@ class Settings(BaseSettings):
     def validate_impression_ratios(cls, value: float) -> float:
         if value < 0 or value > 1:
             raise ValueError("Impression ratio settings must be between 0 and 1")
+        return value
+
+    @field_validator(
+        "payout_eligibility_stationary_radius_m",
+        "payout_eligibility_stationary_window_min",
+        "payout_eligibility_max_accuracy_m",
+        "payout_eligibility_teleport_kmh",
+        "payout_eligibility_max_ping_gap_seconds",
+    )
+    @classmethod
+    def validate_positive_payout_eligibility_settings(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("Payout eligibility settings must be positive")
+        return value
+
+    @field_validator("payout_eligibility_stationary_grace_min")
+    @classmethod
+    def validate_payout_eligibility_grace(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("PAYOUT_ELIGIBILITY_STATIONARY_GRACE_MIN must be non-negative")
+        return value
+
+    @field_validator("payout_default_hourly_rate_ngn")
+    @classmethod
+    def validate_payout_default_hourly_rate(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("PAYOUT_DEFAULT_HOURLY_RATE_NGN must be nonnegative")
         return value
 
     @field_validator(

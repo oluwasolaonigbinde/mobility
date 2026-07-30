@@ -48,7 +48,8 @@ test("earnings tab shows totals and a trip-traceable ledger", async ({ page }) =
   await page.waitForURL("**/driver/earnings");
   await expect(page.getByText("Pending", { exact: true })).toBeVisible();
   await expect(page.getByText("Lifetime", { exact: true })).toBeVisible();
-  await expect(page.getByText("Trip payout").first()).toBeVisible();
+  // Ledger rows are links into the per-trip earnings breakdown.
+  await expect(page.locator('a[href*="/driver/earnings/trips/"]').first()).toBeVisible();
 });
 
 test("track tab offers trip control for the active assignment", async ({ page }) => {
@@ -83,4 +84,20 @@ test("PWA manifest is public and correctly scoped", async ({ request }) => {
   expect(manifest.scope).toBe("/driver");
   expect(manifest.display).toBe("standalone");
   expect(manifest.icons.length).toBeGreaterThanOrEqual(2);
+});
+
+test("ledger rows open the trip earnings breakdown", async ({ page }) => {
+  await loginAsDriver(page);
+  await page.goto("/driver/earnings");
+  await page.locator('a[href*="/driver/earnings/trips/"]').first().click();
+  await page.waitForURL("**/driver/earnings/trips/**");
+  await expect(page.getByRole("heading", { name: "Trip earnings" })).toBeVisible();
+  await expect(page.getByText("This trip earned")).toBeVisible();
+  // Renders whichever model the trip was computed under (v1 fallback copy or
+  // the v2 rate-x-time equation) - no model assumption (architecture 16.1).
+  await expect(
+    page.getByText(/Computed under the previous per-km formula|verified time/).first(),
+  ).toBeVisible();
+  await expect(page.getByText("Entries for this trip")).toBeVisible();
+  await expect(page.getByText("Trip payout").first()).toBeVisible();
 });

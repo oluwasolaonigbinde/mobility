@@ -61,3 +61,32 @@ export function formatKm(meters: string | number | null | undefined): string {
   if (!Number.isFinite(n)) return "—";
   return `${numberFmt.format(Math.round(n / 1000))} km`;
 }
+
+/** Whole seconds → "2h 41m" (sub-minute values show seconds). */
+export function formatDuration(seconds: string | number | null | undefined): string {
+  if (seconds === null || seconds === undefined) return "—";
+  const n = typeof seconds === "string" ? Number(seconds) : seconds;
+  if (!Number.isFinite(n) || n < 0) return "—";
+  const whole = Math.floor(n);
+  const hours = Math.floor(whole / 3600);
+  const minutes = Math.floor((whole % 3600) / 60);
+  if (hours === 0 && minutes === 0) return `${whole}s`;
+  if (hours === 0) return `${minutes}m`;
+  return `${hours}h ${minutes}m`;
+}
+
+/** Money with kobo always shown — for surfaces that prove an equation. */
+export function formatMoneyExact(
+  value: string | number | null | undefined,
+  currency: string = "NGN",
+): string {
+  if (value === null || value === undefined) return "—";
+  const n = typeof value === "string" ? Number(value) : value;
+  if (!Number.isFinite(n)) return "—";
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+}

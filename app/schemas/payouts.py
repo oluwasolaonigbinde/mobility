@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -31,11 +31,17 @@ REQUIRED_PAYOUT_RULE_UPDATE_FIELDS = {
     "low_fraud_multiplier",
     "medium_fraud_multiplier",
     "high_fraud_multiplier",
+    "hourly_rate_naira",
+    "daily_payable_hours_cap",
 }
 
 
 class DecimalStringMixin(BaseModel):
     @field_serializer(
+        "hourly_rate_naira",
+        "daily_payable_hours_cap",
+        "ledger_net_total",
+        "hourly_rate",
         "base_rate_per_km",
         "base_rate_per_active_hour",
         "target_zone_bonus_rate_per_km",
@@ -108,6 +114,13 @@ class CampaignPayoutRuleCreate(BaseModel):
         ge=Decimal("0"),
         le=Decimal("1"),
     )
+    hourly_rate_naira: Decimal | None = Field(default=None, ge=Decimal("0"))
+    daily_payable_hours_cap: Decimal | None = Field(
+        default=None,
+        gt=Decimal("0"),
+        le=Decimal("24"),
+    )
+    eligibility_params: dict[str, Any] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("currency")
@@ -153,6 +166,13 @@ class CampaignPayoutRuleUpdate(BaseModel):
         ge=Decimal("0"),
         le=Decimal("1"),
     )
+    hourly_rate_naira: Decimal | None = Field(default=None, ge=Decimal("0"))
+    daily_payable_hours_cap: Decimal | None = Field(
+        default=None,
+        gt=Decimal("0"),
+        le=Decimal("24"),
+    )
+    eligibility_params: dict[str, Any] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("currency")
@@ -188,16 +208,19 @@ class CampaignPayoutRuleRead(DecimalStringMixin):
     formula_version: str
     status: CampaignPayoutRuleStatus
     currency: str
-    base_rate_per_km: Decimal
-    base_rate_per_active_hour: Decimal
-    target_zone_bonus_rate_per_km: Decimal
-    bonus_zone_bonus_rate_per_km: Decimal
-    estimated_impression_rate_per_1000: Decimal
-    min_payout_per_trip: Decimal
+    base_rate_per_km: Decimal | None
+    base_rate_per_active_hour: Decimal | None
+    target_zone_bonus_rate_per_km: Decimal | None
+    bonus_zone_bonus_rate_per_km: Decimal | None
+    estimated_impression_rate_per_1000: Decimal | None
+    min_payout_per_trip: Decimal | None
     max_payout_per_trip: Decimal | None
-    low_fraud_multiplier: Decimal
-    medium_fraud_multiplier: Decimal
-    high_fraud_multiplier: Decimal
+    low_fraud_multiplier: Decimal | None
+    medium_fraud_multiplier: Decimal | None
+    high_fraud_multiplier: Decimal | None
+    hourly_rate_naira: Decimal | None
+    daily_payable_hours_cap: Decimal | None
+    eligibility_params: dict[str, Any] | None
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
@@ -250,16 +273,20 @@ class PayoutCalculationRead(DecimalStringMixin):
     formula_version: str
     status: PayoutCalculationStatus
     currency: str
-    distance_component: Decimal
-    active_time_component: Decimal
-    target_zone_bonus_component: Decimal
-    bonus_zone_bonus_component: Decimal
-    impression_component: Decimal
+    distance_component: Decimal | None
+    active_time_component: Decimal | None
+    target_zone_bonus_component: Decimal | None
+    bonus_zone_bonus_component: Decimal | None
+    impression_component: Decimal | None
     gross_payout: Decimal
-    quality_multiplier: Decimal
-    fraud_multiplier: Decimal
-    cap_adjustment: Decimal
+    quality_multiplier: Decimal | None
+    fraud_multiplier: Decimal | None
+    cap_adjustment: Decimal | None
     final_payout: Decimal
+    eligible_seconds: int | None
+    payable_seconds: int | None
+    excluded_seconds_by_reason: dict[str, int] | None
+    inputs_fingerprint: str | None
     calculated_at: datetime
     metadata: dict[str, Any] = Field(default_factory=dict)
     ledger_entry: PayoutLedgerEntrySummary | None = None
@@ -299,6 +326,7 @@ class CampaignCostCurrencySummary(DecimalStringMixin):
     currency: str
     final_payout_total: Decimal
     gross_payout_total: Decimal
+    ledger_net_total: Decimal
     calculated_trip_count: int
     blocked_trip_count: int
     insufficient_data_trip_count: int
@@ -308,6 +336,67 @@ class CampaignCostCurrencySummary(DecimalStringMixin):
 class CampaignCostSummary(BaseModel):
     campaign_id: UUID
     formula_version: str
+    formula_versions: list[str]
     totals_by_currency: list[CampaignCostCurrencySummary]
     start_at: datetime | None
     end_at: datetime | None
+
+
+class RecomputePayoutDayRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: UUID
+    driver_profile_id: UUID
+    lagos_date: date
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class RecomputeDayTripResult(DecimalStringMixin):
+    trip_session_id: UUID
+    payout_calculation_id: UUID | None
+    previous_posted_amount: Decimal
+    target_amount: Decimal
+    delta_amount: Decimal
+    eligible_seconds: int
+    payable_seconds: int
+    entry_id: UUID | None
+    entry_type: EarningsLedgerEntryType | None
+    voided: bool
+
+    @field_serializer(
+        "previous_posted_amount",
+        "target_amount",
+        "delta_amount",
+    )
+    def serialize_signed_decimal(self, value: Decimal) -> str:
+        return str(value)
+
+
+class RecomputePayoutDayResult(BaseModel):
+    campaign_id: UUID
+    driver_profile_id: UUID
+    lagos_date: date
+    cap_seconds: int
+    trips: list[RecomputeDayTripResult]
+    adjustment_count: int
+    reversal_count: int
+
+
+class DriverTripEarningsCapProgress(BaseModel):
+    lagos_day: date
+    cap_seconds: int
+    day_payable_seconds: int
+
+
+class DriverTripEarningsBreakdown(DecimalStringMixin):
+    trip_session_id: UUID
+    formula_version: str
+    currency: str
+    amount: Decimal
+    eligible_seconds: int | None
+    excluded_seconds_by_reason: dict[str, int] | None
+    hourly_rate: Decimal | None
+    capped_seconds: int | None
+    superseded_by_recompute: bool
+    entries: list[EarningsLedgerEntryRead]
+    cap: DriverTripEarningsCapProgress | None

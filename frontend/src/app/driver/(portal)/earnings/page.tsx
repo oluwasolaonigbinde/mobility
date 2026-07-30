@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { ApiError } from "@/lib/api/errors";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatDate, formatMoney, formatMoneyExact } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import type { components } from "@/lib/api/schema";
@@ -72,20 +73,41 @@ export default async function DriverEarningsPage() {
           </p>
         ) : (
           <ul className="divide-edge/60 divide-y">
-            {entries.map((e) => (
-              <li key={e.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
-                <div className="min-w-0">
-                  <p className="truncate text-sm">
-                    {e.description ?? e.entry_type.replace("_", " ")}
-                  </p>
-                  <p className="micro text-faint mt-0.5">{formatDate(e.occurred_at)}</p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="font-mono text-sm">{formatMoney(e.amount, e.currency)}</span>
-                  <StatusChip tone={statusTone[e.status]}>{e.status}</StatusChip>
-                </div>
-              </li>
-            ))}
+            {entries.map((e) => {
+              const row = (
+                <>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm">
+                      {e.description ?? e.entry_type.replace("_", " ")}
+                    </p>
+                    <p className="micro text-faint mt-0.5">{formatDate(e.occurred_at)}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="font-mono text-sm">
+                      {e.entry_type === "reversal" ? "−" : ""}
+                      {formatMoneyExact(e.amount, e.currency)}
+                    </span>
+                    <StatusChip tone={statusTone[e.status]}>{e.status}</StatusChip>
+                  </div>
+                </>
+              );
+              return (
+                <li key={e.id}>
+                  {e.trip_session_id ? (
+                    <Link
+                      href={`/driver/earnings/trips/${e.trip_session_id}`}
+                      className="hover:bg-raised/60 flex items-center justify-between gap-3 px-5 py-3.5 transition-colors"
+                    >
+                      {row}
+                    </Link>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3 px-5 py-3.5">
+                      {row}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </Panel>

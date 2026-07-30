@@ -50,6 +50,7 @@ from app.schemas.reports import (
     ZoneTypeCounts,
 )
 from app.services.campaigns import get_advertiser_campaign, get_required_advertiser_context
+from app.services.payouts import latest_payout_calculation_ids
 
 ZERO_2 = Decimal("0.00")
 ZERO_4 = Decimal("0.0000")
@@ -277,6 +278,7 @@ async def impression_summary_query(
     )
 
 
+
 async def dashboard_cost_summary(
     session: AsyncSession,
     organization_id: UUID,
@@ -288,7 +290,9 @@ async def dashboard_cost_summary(
 ) -> DashboardCostSummary:
     filters = [
         Campaign.organization_id == organization_id,
-        PayoutCalculation.formula_version == settings.payout_formula_version,
+        PayoutCalculation.id.in_(
+            latest_payout_calculation_ids(organization_id=organization_id)
+        ),
     ]
     apply_range(filters, PayoutCalculation.calculated_at, start_at, end_at)
     result = await session.execute(
@@ -339,7 +343,9 @@ async def campaign_cost_summary(
 ) -> CampaignCostSummary:
     filters = [
         PayoutCalculation.campaign_id == campaign_id,
-        PayoutCalculation.formula_version == settings.payout_formula_version,
+        PayoutCalculation.id.in_(
+            latest_payout_calculation_ids(campaign_id=campaign_id)
+        ),
     ]
     apply_range(filters, PayoutCalculation.calculated_at, start_at, end_at)
     result = await session.execute(
@@ -724,7 +730,9 @@ async def daily_metrics_for_campaign(
                     PayoutCalculation.gross_payout,
                 ).where(
                     PayoutCalculation.trip_session_id.in_(trip_ids),
-                    PayoutCalculation.formula_version == settings.payout_formula_version,
+                    PayoutCalculation.id.in_(
+                        latest_payout_calculation_ids(trip_ids=trip_ids)
+                    ),
                 )
             )
         ).all()
@@ -834,7 +842,9 @@ async def advertiser_campaign_trips(
             TripSession.id.in_(
                 select(PayoutCalculation.trip_session_id).where(
                     PayoutCalculation.status == payout_status,
-                    PayoutCalculation.formula_version == settings.payout_formula_version,
+                    PayoutCalculation.id.in_(
+                        latest_payout_calculation_ids(campaign_id=campaign.id)
+                    ),
                 )
             )
         )
@@ -891,7 +901,9 @@ async def advertiser_campaign_trips(
                 select(PayoutCalculation)
                 .where(
                     PayoutCalculation.trip_session_id.in_(trip_ids),
-                    PayoutCalculation.formula_version == settings.payout_formula_version,
+                    PayoutCalculation.id.in_(
+                        latest_payout_calculation_ids(trip_ids=trip_ids)
+                    ),
                 )
                 .order_by(PayoutCalculation.calculated_at.desc(), PayoutCalculation.id)
             )

@@ -583,10 +583,14 @@ def test_repairs_every_missing_ledger_before_stale_analytics_gate(
         "impressions": "skipped",
         "payout": "skipped",
     }
-    assert len(fetch_earnings_ledger_entries(db_sessionmaker)) == 2
+    # One trip_payout entry per trip across calculations (0013 guard): the
+    # older calculation's entry is repaired, the second is skipped instead of
+    # double-paying the same trip under a superseded rule.
+    entries = fetch_earnings_ledger_entries(db_sessionmaker)
+    assert len(entries) == 1
     events = worker_audit_events(db_sessionmaker)
     assert len(events) == 1
-    assert len(events[0].event_metadata["repaired_ledger_entry_ids"]) == 2
+    assert len(events[0].event_metadata["repaired_ledger_entry_ids"]) == 1
     assert find_due(db_sessionmaker, settings) == []
 
 

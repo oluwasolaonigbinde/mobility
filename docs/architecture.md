@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.4 — 2026-07-20. Canonical source of truth: current state AND target state.**
+**Version 1.8 — 2026-07-30. Canonical source of truth: current state AND target state.**
 
 This document defines both **what exists** (Part II, verified against commit
 **`301519d`** on branch `f7-hardening`) and **the architecture the
@@ -38,7 +38,7 @@ Every architectural claim below is tagged:
 | **[BUILT]** | Verified against commit `301519d` (the Part II pin). | Rely on it. If the code no longer matches, the doc is stale — flag it. |
 | **[PLANNED-F7]** | Historical tag for the F7 hardening plan. F7 is delivered — remaining occurrences mark F7 items that deliberately did **not** ship (e.g. staging deploy, which stayed research-only). | Treat like [TARGET]: do not build ad hoc. |
 | **[TARGET]** | The designed end-state architecture for functionality not yet built. Structure is decided; some parameters may still be [OPEN]. | Build **toward** it. New features must fit these boundaries. Do not implement a [TARGET] component ad hoc — it gets its own planned build phase. |
-| **[OPEN]** | Awaiting client (Somto) answers to `docs/Mobility_Product_Direction_Questionnaire_v2.docx` (Q1–Q34), or otherwise undecided. | Do not hard-code assumptions. Flag any design that would foreclose the open options. |
+| **[OPEN]** | A question the client has not answered, or otherwise undecided. **Since D8 (27 Jul 2026), per-question status lives in `docs/adopted-decisions.md`** — most Q1–Q34 items are now ADOPTED defaults (build to them, with the row's divergence guard); a Q-referencing [OPEN] below only retains its blocking force if that file still lists the Q as OPEN or CONFIRM-PENDING. The same applies to this doc's "Blocked-by: Q…" headers and any "until answers land" prose: they resolve per that file's statuses. | For genuinely-open items: do not hard-code assumptions; flag any design that would foreclose the open options. For ADOPTED items: build to the adopted direction. |
 
 **[TARGET] vs [OPEN]:** a [TARGET] section fixes the *shape* (which component, which
 boundary, which tables/ports) even when a business *parameter* inside it is [OPEN]
@@ -118,24 +118,25 @@ design for imaginary web scale (see P1, §4).
 
 ## 3. Product decisions & constraints
 
-Confirmed decisions live in **`docs/decisions-log.md`** (D1–D7, append-only,
-supersede-never-edit). Summary with build status:
+Confirmed decisions live in **`docs/decisions-log.md`** (D1–D8, append-only,
+supersede-never-edit; D8 resolves the questionnaire via adopted defaults —
+per-Q statuses in `docs/adopted-decisions.md`). Summary with build status:
 
 | # | Decision | Status vs code |
 |---|----------|----------------|
-| D1 | **Operator-led onboarding** — no self-serve signup; admin creates users/orgs | [BUILT] matches (§6.3). Driver self-registration remains [OPEN] (Q13) |
+| D1 | **Operator-led onboarding** — no self-serve signup; admin creates users/orgs. *Narrowed by D8/Q13: applies to advertisers/orgs; drivers get self-registration ([TARGET] §23)* | [BUILT] matches (§6.3); driver self-registration is ADOPTED (Q13), unbuilt |
 | D2 | **Driver pay = fixed hourly rate** (naira/hour × verified payable time) | [TARGET] §16 — the built engine (`payout_v1`) is still per-km + bonuses. Don't extend v1's rate components; don't hard-code either model into new surfaces |
 | D3 | **Screen-on MVP tracking** — installable PWA, phone mounted; native app phase 2, identical backend contract | [BUILT] matches (§8.6); native-app readiness rules in §23 |
 | D4 | **Payable-hours cap** per campaign/driver/day, shown in driver's offer | [TARGET] §16, part of the payout v2 rework |
 | D5 | **Hold-and-review fraud posture** — flags hold earnings for admin review; multipliers become secondary | Flags + multipliers are [BUILT]; the hold/review/dispute workflow is [TARGET] §17 |
 | D6 | **Retargeting is in the MVP** (shape open → Q11) | [TARGET] §22; privacy boundary fixed now, product shape open |
-| D7 | **In-platform creative upload** (pending approval, Q18) | [TARGET] §19; creatives stay metadata-only until built |
+| D7 | **In-platform creative upload** (Q18 — approval resolved by D8) | [TARGET] §19; creatives stay metadata-only until built |
 
 Hard constraints (violating any of these is an architecture change, not a feature):
 
 - **No realtime push** — no WebSockets/SSE ([BUILT] §6.5; reaffirmed for target, §14.4).
-- **No file upload/storage pipeline** until §19 is built as a phase (D7 pending).
-- **Operator-led** — no self-serve registration of any kind today.
+- **No file upload/storage pipeline** until §19 is built as a phase (D8 adopts Q18; the pipeline still arrives only as its planned phase).
+- **Operator-led** — no self-serve registration of any kind today (driver self-registration is ADOPTED via D8/Q13 but arrives only as its planned §23 phase).
 - **Browser never calls FastAPI** (§8.2). Native apps will (§23) — browsers never.
 - **Raw location data never leaves the analytics domain** (§22.2) — new, binding now.
 - Every build phase implementing a decision references its D-number in the commit
@@ -672,7 +673,7 @@ One workflow: `.github/workflows/frontend.yml` (push triggers on `master`,
   Docker build arg (`NEXT_PUBLIC_SENTRY_DSN`); backend/frontend `SENTRY_DSN`
   runtime knobs, inert when empty.
 - **[PLANNED-F7 → deferred]** Staging deploy did **not** ship: staging is
-  research only (`docs/staging-options.md`), gated on OJ's written approval.
+  research only (`docs/staging-options.md`), gated on an explicit project-owner go-ahead (deploys are never autonomous).
 - Target production topology: §25.
 
 ## 11. Testing strategy (current)
@@ -741,7 +742,9 @@ password reset): the relevant Part III sections.
 Everything in this part is **[TARGET]** unless tagged otherwise. Shapes are
 decided; parameters marked [OPEN] await client answers (§33). Nothing here is
 built ad hoc — each numbered area becomes one or more planned build phases (§31),
-each of which goes through the plan → adversarial review → OJ approval SOP.
+each of which goes through the plan → adversarial review → reconcile SOP
+(independent fresh-context review, findings reconciled by the orchestrator
+before implementation).
 
 ## 13. Target system overview
 
@@ -859,18 +862,21 @@ remains a latency optimization (rule 2); wrappers delegate business work to
 services (rule 3); structured per-run logs, stackful failures, and explicit
 Sentry capture cover rule 4; and one DB-clock timestamp is injected through the
 three processing stages for rule 5. Its
-payout stage runs `payout_v1` as transitional orchestration only — not the
-approved payment model (D2 hourly pay, Q4/Q5 pending). All other consumers —
-§15 (webhooks), §16 (payout release), §20 (notifications), §24 (retention) —
-remain [TARGET]. Redis remains disposable.
+payout stage dispatches per the governing rule row's model — `payout_v2`
+(D2 hourly pay, §16.1 [BUILT] S1) or frozen `payout_v1` history. Remaining
+consumers — §15 (webhooks), §16.2/16.3 (release/disbursement), §20
+(notifications), §24 (retention) — remain [TARGET]. Redis remains disposable.
 
 ## 15. Money in — billing, payments, invoicing
 
 Blocked-by: Q1 (pricing structure), Q2 (when advertisers pay), Q3 (payment
 methods), Q14 (quotes/invoices in-platform?), Q28 (VAT/invoice details), Q24
 (cancellations/refunds). The **shape** below is fixed; the parameters are not.
-**Do not build this domain until Section A answers land** — but no new feature
-may conflict with it.
+**Do not build this domain until Section A answers land** (per D8 /
+`adopted-decisions.md`, Section A is now answered by adopted
+defaults: the domain is buildable in its planned phase; only Q28's company
+facts remain outstanding, blocking real invoice issuance, not the build) — and
+no new feature may conflict with it.
 
 ### 15.1 Domain boundary
 
@@ -952,12 +958,26 @@ Blocked-by: Q4 (uniform vs per-campaign hourly rate), Q5 (what counts as a
 payable hour), Q22 (release schedule + corrections), Q27 (disbursement channel),
 D2/D4 (decided: hourly × verified payable time, daily cap).
 
-### 16.1 Payout engine v2 (D2, D4)
+### 16.1 Payout engine v2 (D2, D4) **[BUILT]**
+
+Delivered in S1 (D8 defaults; Q4/Q5 adopted): migration `0013`, eligibility
+classifier (`app/services/payout_eligibility.py` — pure interval timeline:
+`moving | stationary(+grace) | gps_gap | out_of_area | out_of_window |
+teleport | low_accuracy`, invariant Σ(eligible+excluded) == session duration),
+`payout_v2` computation in `services/payouts.py` (integer payable seconds,
+cap-before-price, one `ROUND_HALF_UP` 2dp quantization per ledger amount),
+per-rule formula dispatch, transaction-scoped `pg_advisory_xact_lock` cap
+concurrency, inputs fingerprint (rate, cap, eligibility params, ping set,
+campaign-zone state), admin recompute-day true-up, driver trip-breakdown
+endpoint + PWA screen, and reversal/adjustment netting in every summary
+(§16.2's same-change mandate). payout_v2 calculations are **write-once per
+trip**: input drift never auto-recomputes money — the admin endpoint flags it
+(409 stale) and the audited recompute-day true-up is the only corrective path.
 
 - New formula version **`payout_v2`** computing: `hourly_rate × verified_payable_hours`,
-  where payable hours are derived from trip analytics active time under
-  verification rules ([OPEN] Q5 — e.g. movement thresholds, zone requirements)
-  and capped per campaign/driver/day (D4).
+  where payable hours are derived from GPS-verified classified intervals under
+  the Q5 eligibility rules (movement, geofence, campaign window, signal
+  hygiene) and capped per campaign/driver/day (D4).
 - **Trigger:** v2 calculations are produced by the worker's trip-processing
   pipeline (§14.2) automatically on trip end — not by admin action. The admin
   "process trip" endpoints stay as recompute/override tools.
@@ -967,9 +987,13 @@ D2/D4 (decided: hourly × verified payable time, daily cap).
   **Postgres advisory lock on (driver_profile_id, campaign_id, Lagos-day)** for
   the read-remaining-cap → write-calculation critical section. A trip spanning
   Lagos midnight bills against the day its trip **started**. Recomputing an
-  earlier trip never retroactively reallocates cap already consumed by later
-  immutable calculations (P6) — the recompute uses the cap remaining at
-  recompute time and flags any discrepancy for admin review.
+  earlier trip never **automatically** reallocates cap already consumed by
+  later immutable calculations (P6) — input drift is flagged for admin review
+  (409 on the admin recompute surface); the **audited admin recompute-day
+  true-up** (`POST /admin/payouts/recompute-day`, S1) is the sanctioned
+  reallocation path: it re-runs the day's allocation under the same advisory
+  lock and posts append-only differential entries (`adjustment` up, positive
+  `reversal` down) — never edits.
 - `campaign_payout_rules` gains nullable v2 fields (`hourly_rate_naira`,
   `daily_payable_hours_cap`, verification parameters); a rule row is valid for
   exactly one model (v1 fields XOR v2 fields — DB check constraint). The v1
@@ -1021,9 +1045,17 @@ The sanctioned design: keep amounts non-negative — reversal entries carry
 **positive amounts with subtract-by-type semantics**, and every balance/summary
 computation (`driver_earnings_summary`, campaign cost summaries) **nets
 reversal-typed entries as negative**, shipped together with tests in the same
-change. A netted balance may go negative; it offsets against future earnings —
-never a collections flow. Money is never clawed back automatically
-([OPEN] Q21/Q22 whether the client wants auto-reversal later).
+change. **[BUILT] (S1):** the netting shipped with the first reversal-creating
+code (recompute-day) per this section's same-change mandate — sign convention
+applies per balance: a differential entry inherits the corrected trip's
+trip_payout entry status, pending/available buckets net reversals negative,
+`voided` stays an unsigned informational sum, and campaign summaries carry a
+separate `ledger_net_total` aggregate (differential entries have no
+`payout_calculation_id`, so calc-joined sums can never see them). A netted
+balance may go negative; it offsets against future earnings — never a
+collections flow. Money is never clawed back automatically ([OPEN] Q21/Q22
+whether the client wants auto-reversal later). The release sweep itself
+remains [TARGET] (S3).
 
 ### 16.3 Disbursement (Q27)
 
@@ -1513,7 +1545,9 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 |---------|---------|-----------|-----------|----------------|------------|
 | Any auth change | §6.3/§12/§23 | `core/security.py`, `services/auth.py` | users | — | — (F7 landed; extend, don't fork) |
 | Rate limiting | §12 F7 | `core/rate_limit.py` + Redis | — | — | [BUILT] for login; new buckets extend the same module |
-| Payout engine v2 | §16.1 | `services/payouts.py` + `jobs/` (trip pipeline, §14.2) | payout_rules, payout_calculations, ledger | v1 history rows | Q4, Q5 |
+| Payout engine v2 | §16.1 | `services/payouts.py` + `services/payout_eligibility.py` + `jobs/` (trip pipeline, §14.2) | payout_rules, payout_calculations, ledger | v1 history rows | [BUILT] S1 (Q4/Q5 adopted, D8) |
+| Payout recompute-day true-up | §16.1 | `services/payouts.py` + `api/v1/payouts.py` | ledger (append-only adjustment/reversal) | calculation edits, v1 days | [BUILT] S1 |
+| Driver trip earnings breakdown | §16.1 | `api/v1/payouts.py` + driver PWA `(portal)/earnings/trips/` | — | trip_analytics as driver-facing verified time | [BUILT] S1 |
 | Release scheduling | §16.2 | `jobs/` + `services/payouts.py` | ledger statuses | ledger edits (append-only) | Q22, worker (§14) |
 | Disbursement | §16.3 | `adapters/disbursement/`, `services/payouts.py` | payout_batches (new) | — | Q27 |
 | Fraud review workflow | §17 | `services/` + `api/v1/` fraud modules | fraud_flags lifecycle | detection engine internals | Q21 |
@@ -1546,8 +1580,8 @@ blocking answers have landed; within a wave, order is dependency-driven.
 
 | Wave | Contents | Depends on |
 |------|----------|------------|
-| **F7 (done, 2026-07-20)** [BUILT] | Auth hardening (sliding session, `sv`, forced change, rate limiting), backend CI, audit API/UI, rich seed, backups/restore, Sentry hooks. Staging deploy deliberately deferred — research only (`docs/staging-options.md`), awaiting OJ approval | — |
-| **W1 — money correctness** | Worker substrate + trip-processing pipeline (§14) **[BUILT] (delivered 2026-07-21; payout stage transitional `payout_v1`, not D2)** → payout v2 + caps (§16.1) → fraud review + holds (§17; the driver-facing dispute channel needs notifications — ship a minimal **in-app-only** notification slice here, §20, channel adapters wait for W2) → release scheduling (§16.2) → payout runs UI (§16.3 pilot form). Plus pre-pilot data-infra chores: retention job + ping partitioning (§24.2), audit backfill for unaudited flows (§6.4.9) | Q4, Q5, Q21, Q22 (retention window Q31 — ships with the 12-month config default if unanswered) |
+| **F7 (done, 2026-07-20)** [BUILT] | Auth hardening (sliding session, `sv`, forced change, rate limiting), backend CI, audit API/UI, rich seed, backups/restore, Sentry hooks. Staging deploy deliberately deferred — research only (`docs/staging-options.md`), awaiting an explicit project-owner go-ahead | — |
+| **W1 — money correctness** | Worker substrate + trip-processing pipeline (§14) **[BUILT] (delivered 2026-07-21)** → payout v2 + caps (§16.1) **[BUILT] (S1, delivered 2026-07-30 — hourly engine, per-rule model selection, advisory-lock caps, recompute-day, driver breakdown, summary netting)** → fraud review + holds (§17; the driver-facing dispute channel needs notifications — ship a minimal **in-app-only** notification slice here, §20, channel adapters wait for W2) → release scheduling (§16.2) → payout runs UI (§16.3 pilot form). Plus pre-pilot data-infra chores: retention job + ping partitioning (§24.2), audit backfill for unaudited flows (§6.4.9) | Q4, Q5, Q21, Q22 (retention window Q31 — ships with the 12-month config default if unanswered) |
 | **W2 — the commercial layer** | Billing/invoices (§15) → file storage (§19) → approval workflows (§18 — campaign approval may precede files, but creative approval and activation evidence consume §19) → notification channel adapters + triggers (§20) | Q1–Q3, Q6, Q14, Q17, Q18, Q28, Q34 |
 | **W3 — reach** | Retargeting v1 per Q11 (§22) → matching recommender + activity sweeps (§21) → driver self-reg if Q13 says so (§23) | Q7, Q11, Q13, Q20 |
 | **Phase 2 (commissioned separately)** | Native driver app + refresh tokens + push (§23); gateway auto-collection (§15.3); Paystack Transfers (§16.3); edge-AI counting (out of scope here) | Pilot results |
@@ -1575,10 +1609,20 @@ all consume it.
 
 ## 33. Open questions **[OPEN]**
 
-Source: `docs/Mobility_Product_Direction_Questionnaire_v2.docx` — 34 questions:
-**A. Core product decisions Q1–Q14 · B. Recommended MVP rules Q15–Q24 ·
-C. Pilot & launch Q25–Q34.** Answers flow into `docs/decisions-log.md` and then
-into this doc (amendment rule). Architecture impact map:
+**Status authority moved (D8, 27 Jul 2026):** the client did not answer the
+questionnaire, so best-practice defaults were adopted (drafted, adversarially
+reviewed, reconciled, delta-verified per the SOP). Per-question status (CONFIRMED / ADOPTED /
+CONFIRM-PENDING / OPEN), the adopted direction, and each row's mandatory
+**divergence guard** live in **`docs/adopted-decisions.md`** — read that file
+before treating any Q below (or any "Blocked-by: Q…" header) as blocking. Not
+adopted there: Q23 (CONFIRM-PENDING); OPEN: Q26 (legal wording only), Q28
+(company facts only), Q29, Q30, Q31, Q32 (client account action only), Q33.
+Client-facing artefact:
+`docs/Mobility_Working_Decisions_and_Open_Items.docx` (supersedes the
+questionnaire). Answers still flow client → `decisions-log.md` →
+`adopted-decisions.md` → this doc (amendment rule).
+
+The table below remains the routing map from each Q to the section it feeds:
 
 | Q | Topic | Feeds section |
 |---|-------|---------------|
@@ -1625,3 +1669,5 @@ that works under *all* still-open options, and say so in the PR (P10).
 | v1.4 | 2026-07-20 | **F7 reconciliation.** Part II re-verified against the committed F7 delivery and the pin moved from `d9a989c` to `301519d`. Promoted to [BUILT]: sliding session + 12h cap + `sv` revocation + `must_change_password` + change-password endpoint (§6.3), Redis login rate limiting with trusted-edge gating (§6.3/§12), auth audit events + admin audit API/UI + `0012` indexes (§6.4.9), migrations `0011`/`0012` (§7.2), revision-gated backup/restore scripts (§7.2/§10.4), Sentry hooks both tiers (§10.4/§12), backend CI job with PostGIS+Redis services (§10.3), rich `f7_rich_v1` seed namespace (§11), driver `(portal)` route group + change-password/keepalive routes + `/admin/audit` (§8.3). Counts updated by command: 82 ops / 66 paths (was 79/63), 12 migrations, 209 backend test functions in 35 files, 32 vitest cases, 48 Playwright project-expanded tests in 6 specs. Staging deploy explicitly deferred (research only). Legacy sv-less-token residual risk documented (§6.3). |
 | v1.5 | 2026-07-21 | **Worker substrate + automated post-trip processing [BUILT].** One arq worker (`app/jobs/worker.py`, new compose `worker` service, no host port) runs the §14.2 pipeline complete-missing-only — analytics→fraud→impressions→payout(+ledger, audited) for ended trips — via fail-open enqueue-after-commit on trip end (`app/core/trip_enqueue.py`) backstopped by a Postgres-derived cron sweep. New Settings: `WORKER_SWEEP_INTERVAL_MINUTES` (divisor of 60) and `WORKER_SWEEP_BATCH_SIZE`. No HTTP contract, schema, or migration change; admin endpoints unchanged as recompute tools. §6.5, §10.1, §14, §31 amended. Payout automation runs `payout_v1` as transitional infrastructure only — D2 (hourly pay) still pending Q4/Q5; not for production enablement. |
 | v1.6 | 2026-07-22 | **Worker correctness repair.** Added all-current-calculation ledger healing, resumable keyset sweep traversal, named-constraint race convergence, stale-formula/source-fingerprint blocking, DB-clock injection, strict pre-socket Redis configuration, CI ARQ Redis coverage, Compose sweep-variable passthrough, and stackful Sentry reporting. No HTTP contract, schema, formula, or migration change. |
+| v1.8 | 2026-07-30 | **S1 — Payout engine v2 [BUILT] (D2/D4/D8; Q4/Q5).** Migration `0013`: v2 rule fields (`hourly_rate_naira`, `daily_payable_hours_cap`, `eligibility_params`) + model XOR check, v1 columns relaxed nullable (history frozen), calculation `eligible_seconds`/`payable_seconds`/`excluded_seconds_by_reason`/`inputs_fingerprint`, one-trip_payout-per-trip partial unique index. Pure interval classifier (`payout_eligibility.py`, PAYOUT_ELIGIBILITY_* Settings, stay-point grace, target-zone-only geofence, null-accuracy excluded). Integer-seconds cap-before-price, single HALF_UP 2dp quantization (v1 stays HALF_EVEN, frozen); `pg_advisory_xact_lock` per driver/campaign/Lagos-day (zoneinfo). Per-rule formula dispatch; v2 write-once (drift → 409 flag, never auto-recompute; sweep/repair derive expected formula from the governing rule row). Recompute-day true-up (append-only adjustment/positive-reversal differentials) + §16.2 summary netting shipped same-change. Driver trip-breakdown endpoint + PWA screen; admin rule editor edits both models; reports formula-agnostic (latest calc per trip). §16.1→[BUILT], §16.2 netting [BUILT], §30 rows added, §16.1 recompute wording amended (day true-up is the sanctioned reallocation). Part II pin unchanged; Part III [BUILT] promotions are pinned by their changelog row. |
+| v1.7 | 2026-07-27 | **D8 — questionnaire resolved by adopted defaults.** Client unresponsive; best-practice defaults adopted for Q1–Q34 where a defensible standard exists (source of truth: new `docs/adopted-decisions.md`; client-facing `docs/Mobility_Working_Decisions_and_Open_Items.docx` supersedes the questionnaire). [OPEN] tag definition and §33 preamble now defer per-question status to that file, including this doc's "Blocked-by: Q…" headers and "until answers land" prose (§15's block amended directly); the §33 table is retained as the Q→section routing map. Q23 (owner-drivers) is CONFIRM-PENDING — §16.3 payee abstraction stays mandatory. Q11/Q34/Q13 adopted directions match the doc's existing proposed defaults (anonymised segments with export gated on Q31; in-app + advertiser email + ops WhatsApp; driver self-registration narrowing D1 to advertisers/orgs — §3 D1 row annotated). No tag promotions in the body: adopted ≠ built; [TARGET] sections build in their planned phases. Pre-existing "OJ approval" SOP references corrected to the actual flow (plan → adversarial review → reconcile — no human gate; §13 intro, §10.4, §31). |

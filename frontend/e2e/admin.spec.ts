@@ -87,3 +87,33 @@ test("audit trail shows login activity and supports filtering", async ({ page })
   await expect(page).toHaveURL(/action=auth.login.succeeded/);
   await expect(page.getByText("auth.login.succeeded").first()).toBeVisible();
 });
+
+test("payout rules editor supports both models and saves an hourly rule", async ({
+  page,
+}, testInfo) => {
+  // Each project mutates its own inert seeded campaign so parallel projects
+  // never race on the same rule row.
+  const campaignName =
+    testInfo.project.name === "mobile-chrome"
+      ? "F7 Festive Island Wrap"
+      : "F7 Airport Launch Draft";
+  await loginAsAdmin(page);
+  await page.goto("/admin/payouts/rules");
+  await page.getByRole("group", { name: "Campaign" }).getByText(campaignName).click();
+  await page.waitForURL("**/admin/payouts/rules?campaign=**");
+
+  const modelGroup = page.getByRole("group", { name: "Payout model" });
+  await expect(modelGroup.getByRole("button", { name: /Hourly \+ daily cap/ })).toBeVisible();
+  await expect(modelGroup.getByRole("button", { name: /Legacy per-km/ })).toBeVisible();
+
+  await modelGroup.getByRole("button", { name: /Hourly \+ daily cap/ }).click();
+  await page.getByLabel("Hourly rate").fill("1250");
+  await page.getByLabel("Daily payable-hours cap").fill("8");
+  await page.getByRole("button", { name: /Create rule|Update rule/ }).click();
+  await expect(page.getByText("✓ Rule saved")).toBeVisible();
+
+  // The saved hourly rule round-trips: reload shows the v2 fieldset populated.
+  await page.reload();
+  await expect(page.getByLabel("Hourly rate")).toHaveValue(/1250/);
+  await expect(page.getByLabel("Daily payable-hours cap")).toHaveValue(/8/);
+});

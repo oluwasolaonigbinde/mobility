@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatDate, formatDuration, formatMoney } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -55,7 +55,9 @@ export default async function AdminPayoutsPage({
             <thead>
               <tr className="border-edge micro text-muted border-b text-left">
                 <th className="px-6 py-3 font-normal">Trip</th>
+                <th className="px-4 py-3 font-normal">Formula</th>
                 <th className="px-4 py-3 text-right font-normal">Gross</th>
+                <th className="px-4 py-3 text-right font-normal">Paid time</th>
                 <th className="px-4 py-3 text-right font-normal">Quality ×</th>
                 <th className="px-4 py-3 text-right font-normal">Fraud ×</th>
                 <th className="px-4 py-3 text-right font-normal">Final</th>
@@ -66,7 +68,7 @@ export default async function AdminPayoutsPage({
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-muted px-6 py-10 text-center">
+                  <td colSpan={9} className="text-muted px-6 py-10 text-center">
                     No payout calculations yet — process a trip above.
                   </td>
                 </tr>
@@ -77,8 +79,14 @@ export default async function AdminPayoutsPage({
                     className="border-edge/60 border-b font-mono text-xs last:border-0"
                   >
                     <td className="text-muted px-6 py-3">{c.trip_session_id.slice(0, 8)}…</td>
+                    <td className="text-muted px-4 py-3">
+                      {c.formula_version === "payout_v2" ? "hourly v2" : c.formula_version}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       {formatMoney(c.gross_payout, c.currency)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {formatDuration(c.payable_seconds)}
                     </td>
                     <td className="px-4 py-3 text-right">{c.quality_multiplier ?? "—"}</td>
                     <td className="px-4 py-3 text-right">{c.fraud_multiplier ?? "—"}</td>
