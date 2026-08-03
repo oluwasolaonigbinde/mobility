@@ -306,6 +306,59 @@ Hardening:
   on :3100). **Verified**: built the image and smoke-tested the container
   — login 200 in 115ms, auth guard 307, PWA manifest public.
 
+### ✅ S4 — Data lifecycle: ping partitioning + retention + audit backfill (3 Aug 2026)
+
+Backend/data slice per `docs/next-steps.md` §S4 (Q31-param; §24.2, §6.4.9;
+D10 in `decisions-log.md`; architecture v1.9). Built in an isolated worktree
+off `f9cd8ca` in parallel with S2/S3 planning; revision `0014` claimed at
+plan time.
+
+- **Migration `0014`**: `location_pings` → monthly UTC-range partitions on
+  `recorded_at` by rename-and-attach (existing table becomes bounded
+  partition `location_pings_legacy`; zero row rewrites, ids preserved so
+  payout inputs fingerprints stay valid); composite PK `(id, recorded_at)`;
+  full 0007 schema fidelity (7 CHECKs, both CASCADE FKs, 4 indexes incl.
+  GiST, defaults); frozen 4-month in-migration premake (+ three prior
+  months on the empty-DB branch — the rich seed writes 56 days of history);
+  **no default partition**; new append-only
+  `data_purge_audit`; lossless downgrade (table rewrite; drops the
+  compliance artifact — dev-only).
+- **Worker**: `services/data_lifecycle.py` + thin `jobs/data_lifecycle.py`
+  crons (daily, staggered, unique): coverage-based idempotent premake
+  (⚙ `PARTITION_PREMAKE_MONTHS`, default 4), coverage alarm (logs, captures
+  to Sentry via the observability helper, re-raises), retention purge
+  (⚙ `PING_RETENTION_MONTHS`, default 12) holding a session-scoped advisory
+  lock on a dedicated AUTOCOMMIT connection across `DETACH … CONCURRENTLY`,
+  with FINALIZE/orphan recovery, evidence-before-destruction (the `dropped`
+  row commits atomically with `DROP TABLE`), and zero-remaining-pings batch
+  purge (straddling batches keep newer pings; recent zero-ping batches keep
+  serving idempotent replays).
+- **API**: new `GET /api/v1/health/partitions` (200 + `covered_until`, or
+  503 `degraded` when no partition covers now + 1 month — the dead-worker
+  detector); audit backfill with atomic same-transaction events:
+  `driver.trip.started/ended`, `admin.trip_analytics.recomputed`,
+  `admin.traffic_density_profile.created/updated`,
+  `admin.impression_estimate.created`. Ping-batch ingestion is an
+  **approved documented audit exemption** (`location_ping_batches` is the
+  compensating evidence; replays mutate nothing). The two analytics raw-SQL
+  ping lookups now carry `recorded_at` for partition pruning.
+- **Contract**: all three baselines moved for the health endpoint (CI drift
+  gate green).
+- **Tests**: Style-B migration suite (empty-DB chain, seeded conversion with
+  count/id/FK survival + `tableoid` month-boundary routing, downgrade cycle,
+  autogenerate-empty-diff gate with runtime partitions filtered and
+  pre-existing repo drift quarantined by name), lifecycle-jobs suite
+  (premake idempotency/exact-months, alarm capture+raise, health endpoint,
+  retention evidence + straddling batch + idempotent rerun, lock no-op,
+  interrupted-DETACH FINALIZE recovery), route-table-driven audit coverage
+  (named exemption + KNOWN_UNAUDITED registry; unregistered mutating routes
+  fail).
+- **Docs**: architecture §24.2→[BUILT] (+ `captured_at`→`recorded_at` and
+  trip_sessions-coordinates staleness amendments, §24.2.4 purge-table
+  amendment, §6.4.9 backfill + exception + residual note, §7.1/§7.2/§30/§34),
+  adopted-decisions Q31, decisions-log D10, runbook data-lifecycle section
+  (worker profile now mandatory in production; backup rotation ≤ 35 days).
+
 ### ✅ S1 — Payout engine v2: hourly pay + daily caps (30 Jul 2026)
 
 Full-stack money slice per `docs/next-steps.md` §S1 (D2/D4/D8; Q4/Q5; D9 in

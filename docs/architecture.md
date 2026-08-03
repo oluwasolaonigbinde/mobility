@@ -363,11 +363,27 @@ Every new endpoint must obey all of these:
    rate_limited`, `auth.password.changed/change_failed/change_rate_limited`),
    the admin-only filterable
    `GET /api/v1/admin/audit-events` API, the `/admin/audit` UI, and query
-   indexes (migration `0012`). Honesty note: the invariant still does not hold
-   everywhere — trip start/end (`api/v1/trips.py`), analytics recompute
-   (`api/v1/trip_analytics.py`), and traffic-density/impression flows
-   (`api/v1/impressions.py`) write no audit events. Backfilling these is a W1
-   chore (§31); do not copy their omission.
+   indexes (migration `0012`). **[BUILT] S4 backfill:** trip start/end
+   (`driver.trip.started/ended`), analytics recompute
+   (`admin.trip_analytics.recomputed`), traffic-density profile create/update
+   and impression estimation (`admin.traffic_density_profile.*`,
+   `admin.impression_estimate.created`) now write audit events atomically
+   with their mutation, and the route-table-driven regression test
+   (`tests/test_audit_route_coverage.py`) fails on any future unregistered
+   mutating route.
+   **Approved exception (S4, orchestrator-approved):** ping-batch ingestion
+   (`POST /driver/trips/{id}/pings`) writes NO audit event — at ~1 batch per
+   10–15 s per active vehicle it would make this append-only, indefinitely
+   retained table >90% telemetry noise. The immutable, idempotency-keyed,
+   payload-hashed `location_ping_batches` row is the compensating ingestion
+   evidence, and its destruction is itself evidenced in `data_purge_audit`
+   (§24.2.4). Idempotent replays perform no mutation and create no audit
+   event.
+   Residual honesty note (discovered by the S4 coverage test, outside its
+   approved scope): `POST /auth/refresh`, `PATCH /driver/profile`, and the
+   driver assignment accept/activate/deactivate routes still write no audit
+   events — registered as KNOWN_UNAUDITED in the coverage test; closing them
+   is follow-up work, not license to copy.
 
 ### 6.5 Background / async story **[BUILT]**
 
@@ -388,9 +404,9 @@ queues/realtime ad hoc — §14 remains the one sanctioned design.
 
 ## 7. Data model
 
-### 7.1 Entities **[BUILT]** — 21 tables
+### 7.1 Entities **[BUILT]** — 22 tables
 
-<!-- verified: grep -h "__tablename__" app/models/*.py | wc -l → 21 -->
+<!-- verified 2026-08-03: grep -h "__tablename__" app/models/*.py | wc -l → 22 -->
 
 Identity & orgs:
 
@@ -400,6 +416,7 @@ Identity & orgs:
 | `advertiser_organizations` | Advertiser tenant; currency; status |
 | `organization_memberships` | user ↔ advertiser_organization, with membership role/status |
 | `audit_events` | Append-only audit trail; `actor_user_id → users` (SET NULL); F7 adds created_at/action/entity query indexes (migration `0012`) |
+| `data_purge_audit` | Append-only purge-evidence lifecycle events (S4, §24.2.4 — NDPA compliance artifact; partial unique `dropped` per partition; migration `0014`) |
 
 Supply side (drivers/vehicles):
 
@@ -423,9 +440,9 @@ Matching & execution:
 |-------|------------------------------|
 | `campaign_assignments` | campaign ↔ driver_profile ↔ vehicle; status lifecycle; `assigned_by_user_id` |
 | `campaign_activation_events` | Assignment lifecycle event log |
-| `trip_sessions` | A tracked drive under an assignment; denormalized FKs to campaign/driver/vehicle; **PostGIS `geometry(Point,4326)`** columns |
-| `location_ping_batches` | Idempotent ingestion envelope (unique trip+key, payload hash, accepted count) |
-| `location_pings` | Individual GPS points per trip/batch |
+| `trip_sessions` | A tracked drive under an assignment; denormalized FKs to campaign/driver/vehicle; timestamps only — **no geometry columns** (stale pre-S4 claim corrected; only `location_pings.geom` carries coordinates) |
+| `location_ping_batches` | Idempotent ingestion envelope (unique trip+key, payload hash, accepted count); purged by retention only when zero pings remain (§24.2.1) |
+| `location_pings` | Individual GPS points per trip/batch; **monthly range-partitioned by `recorded_at`** with composite PK `(id, recorded_at)` (S4, migration `0014`, §24.2.2) |
 
 Derived (analytics → money):
 
@@ -443,9 +460,11 @@ Notes:
   `PostGISMultiPolygon`) that compile to `TEXT` on SQLite for unit tests — the
   project deliberately does **not** use GeoAlchemy2. Follow the same pattern for
   new geometry columns.
-- All PKs are UUIDs with `gen_random_uuid()` server defaults; timestamps are
-  timezone-aware with `func.now()` defaults; enums are Python `StrEnum` + DB
-  check constraints (not native PG enums).
+- All PKs are UUIDs with `gen_random_uuid()` server defaults (exception:
+  partitioned `location_pings` uses composite `(id, recorded_at)` because
+  PostgreSQL requires the partition key in unique constraints — S4);
+  timestamps are timezone-aware with `func.now()` defaults; enums are Python
+  `StrEnum` + DB check constraints (not native PG enums).
 - The derived chain is **trip_sessions → trip_analytics → (fraud_flags,
   impression_estimates) → payout_calculations → earnings_ledger_entries**; each
   step stores enough FK context (campaign, driver, vehicle) to be queried
@@ -455,10 +474,13 @@ Notes:
 
 ### 7.2 Migration policy **[BUILT]**
 
-- Alembic, 12 linear migrations `0001`–`0012` (extensions → identity/orgs →
+- Alembic, 14 linear migrations `0001`–`0014` (extensions → identity/orgs →
   drivers/vehicles → campaigns/creatives → zones → assignments → trip tracking →
   analytics/fraud → impressions → payouts → F7 password management → F7 audit
-  indexes). <!-- verified 2026-07-20: ls alembic/versions → 12; alembic heads → single head 0012 -->
+  indexes → S1 payout v2 → S4 ping partitioning + purge evidence).
+  <!-- verified 2026-08-03: ls alembic/versions → 14; alembic heads → single head 0014 -->
+  (Pre-existing doc drift note: this row still said "12" after S1 shipped
+  0013 — corrected here in the S4 commit.)
 - `0001` enables `pgcrypto` + `postgis`.
 - Shipped migrations are frozen history: schema changes come as **new**
   migrations, never edits to existing ones (per-slice migration tests
@@ -863,9 +885,12 @@ services (rule 3); structured per-run logs, stackful failures, and explicit
 Sentry capture cover rule 4; and one DB-clock timestamp is injected through the
 three processing stages for rule 5. Its
 payout stage dispatches per the governing rule row's model — `payout_v2`
-(D2 hourly pay, §16.1 [BUILT] S1) or frozen `payout_v1` history. Remaining
-consumers — §15 (webhooks), §16.2/16.3 (release/disbursement), §20
-(notifications), §24 (retention) — remain [TARGET]. Redis remains disposable.
+(D2 hourly pay, §16.1 [BUILT] S1) or frozen `payout_v1` history. §24's data
+lifecycle is **[BUILT]** (S4): three daily crons — partition premake,
+coverage alarm, retention purge — with logic in
+`app/services/data_lifecycle.py` per rule 3. Remaining consumers — §15
+(webhooks), §16.2/16.3 (release/disbursement), §20 (notifications) — remain
+[TARGET]. Redis remains disposable.
 
 ## 15. Money in — billing, payments, invoicing
 
@@ -1327,36 +1352,71 @@ single unpartitioned table to purge with `DELETE`s, but entirely fine for
 Postgres with partitioning. At 10× (500 vehicles) it is ~2.5B rows/year —
 still Postgres territory with partitions + retention, not a new datastore.
 
-### 24.2 Design
+### 24.2 Design **[BUILT]** (S4, 2026-08-03)
 
-1. **Retention job** (§14): purge raw `location_pings` (and `location_ping_batches`)
-   older than the retention window (proposed 12 months, [OPEN] Q31;
-   config `PING_RETENTION_MONTHS`). `trip_sessions` is raw location data too
-   (§22.2.1 — precise start/end Point geometry + timestamps): the same job
-   **nulls its coordinate columns** past the window, keeping the row
-   (durations, FKs, statuses) because the ledger and analytics reference it.
-   Aggregates (`trip_analytics`, `impression_estimates`, heatmap-feeding data)
-   are retained indefinitely — they carry the business value and no raw traces.
-2. **Monthly range partitioning** of `location_pings` (by `captured_at`) so
-   purge = `DROP PARTITION` (instant, no bloat). By the volume math above the
-   table passes 20M rows **within the first pilot month** — so partitioning is
-   **W1 pre-pilot work alongside the retention job (§31), not a deferred
-   trigger**. (Only if Q30 lands materially smaller than 50 vehicles may it
-   slip, and then the trigger is: table > 20M rows or p95 heatmap latency
-   > 2s.) The current live-aggregation heatmap (`app/services/heatmaps.py`
-   scans raw pings per request
-   <!-- verified: aggregation_sql() joins location_pings -->) is acceptable at
-   pilot scale; if it degrades, the sanctioned fix is **precomputed heatmap
-   cells materialised by a worker job**, not caching hacks.
+1. **Retention job** **[BUILT]** (§14): `purge_expired_ping_partitions` (arq
+   cron, daily, advisory-locked) drops fully-expired `location_pings`
+   partitions past ⚙ `PING_RETENTION_MONTHS` (default 12, Q31 param) and
+   purges `location_ping_batches` rows only when **zero pings remain** for
+   the batch (`NOT EXISTS`, plus a received_at guard so recent zero-ping
+   batches keep serving idempotent replays) — never by time window, because
+   `location_pings.batch_id` is `ON DELETE CASCADE` and a straddling batch
+   must keep its newer pings. The lock is **session-scoped**
+   (`pg_try_advisory_lock` on a dedicated AUTOCOMMIT connection held for the
+   whole run) because `DETACH … CONCURRENTLY` cannot run in a transaction
+   block; a concurrent run is a logged no-op. *Amendment (S4):* the original
+   "null `trip_sessions` coordinate columns" step is deleted — `trip_sessions`
+   has **no coordinate/geometry columns** (only `location_pings.geom` exists;
+   §7.1's and §22.2.1's contrary claims were stale). `started_at`/`ended_at`
+   are timestamps, not location data, and stay. Aggregates (`trip_analytics`,
+   `impression_estimates`, heatmap-feeding data) are retained indefinitely —
+   they carry the business value and no raw traces.
+2. **Monthly range partitioning** **[BUILT]** of `location_pings` by
+   **`recorded_at`** (*amendment: the previously-named `captured_at` column
+   never existed*) so purge = `DROP PARTITION` (instant, no bloat).
+   Migration `0014` converts by **rename-and-attach**: the pre-existing
+   table becomes the bounded partition `location_pings_legacy` covering
+   `[first month, next month boundary)` — no row rewritten, ids preserved
+   (payout input fingerprints embed ping ids). The parent recreates the 0007
+   schema exactly with composite PK `(id, recorded_at)`; all bounds are UTC
+   month boundaries. The ORM model carries the composite PK but deliberately
+   NOT `postgresql_partition_by` (metadata.create_all test schemas must stay
+   insertable; autogenerate cannot diff partitioning). `alembic/env.py`
+   filters runtime partitions (`location_pings_pYYYY_MM`, `…_legacy`) from
+   autogenerate. **No default partition exists** — it would forbid
+   `DETACH CONCURRENTLY` and tax every ATTACH; instead the daily
+   `premake_ping_partitions` cron idempotently keeps coverage through now +
+   ⚙ `PARTITION_PREMAKE_MONTHS` (default 4; the migration premakes with a
+   frozen constant 4), and the coverage alarm is two independent detectors:
+   the worker's daily `check_ping_partition_coverage` (raises through Sentry
+   when no partition covers now + 1 month) and the API's
+   `GET /api/v1/health/partitions` (503 `degraded` on the same condition —
+   catches a dead worker; deliberately not part of `/ready`). The
+   live-aggregation heatmap is unchanged and partition-safe (its
+   `recorded_at` filters prune); if it degrades, the sanctioned fix remains
+   **precomputed heatmap cells materialised by a worker job**, not caching
+   hacks.
 3. **Consent & policy (NDPR):** trip-scoped tracking is already the built
    posture (tracking only between explicit start/end — Q10-area, keep it);
    consent wording + privacy policy are client deliverables ([OPEN] Q31); the
    driver app surfaces consent at onboarding (§19.3 agreement flow).
-4. Deletion is audited (an audit event records the purge run + row counts).
+4. **Purge evidence** **[BUILT]** — *amendment (S4): a dedicated
+   `data_purge_audit` table supersedes the earlier "an audit event records
+   the purge run" sketch* (the compliance artifact must not couple to the
+   operational audit trail's shape/retention). Append-only lifecycle-EVENT
+   rows (`purge_started` → [`detach_finalized`] → `dropped` →
+   `batches_purged`), never updated; a partial unique index allows exactly
+   one `dropped` row per partition; the `dropped` row commits **in the same
+   transaction as `DROP TABLE`**, so evidence and destruction are atomic and
+   `purge_started` (with row count, range, retention config, run id) always
+   precedes destruction. Interrupted runs recover: pending detaches are
+   FINALIZEd, evidenced orphans are dropped, and unclaimed tables are never
+   touched.
 5. **Backups respect retention:** database backups (§25.2) resurrect purged
    pings unless they expire — backup retention must be **shorter than or equal
    to** a bounded rotation window (e.g. 35 days), so purged personal data ages
-   out of backups automatically. State this in the backup runbook.
+   out of backups automatically. Stated in the backup runbook (the local
+   14-dump rotation complies at any realistic cadence).
 6. **Data-subject rights (NDPR):** access/rectification/erasure requests have
    no automated pipeline at pilot scale — the sanctioned shape is a **manual
    SQL runbook** (P10) executed by a named admin and recorded in the audit
@@ -1560,8 +1620,9 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 | Matching/recommender | §21 | `services/campaign_assignments.py` | — | UI-layer constraint checks | Q7, Q16 |
 | Activity-floor sweep | §21 | `jobs/` | notifications | — | Q20, worker |
 | Retargeting/audience | §22 | `services/audience.py`, `jobs/` | audience_segments (new) | raw pings from any new code | Q11 |
-| Retention purge | §24 | `jobs/` | location_pings (delete) | aggregates | Q31 param, worker |
-| Ping partitioning | §24.2 | migration | location_pings | frozen migrations | W1 (pre-pilot, §24.2.2) |
+| Retention purge | §24 | `services/data_lifecycle.py` + `jobs/data_lifecycle.py` | location_pings partitions (drop), location_ping_batches (zero-ping delete), data_purge_audit (append) | aggregates, trip_sessions | [BUILT] S4 (Q31 param ⚙ PING_RETENTION_MONTHS) |
+| Ping partitioning | §24.2 | migration `0014` + premake/coverage jobs + `/health/partitions` | location_pings | frozen migrations, default partitions | [BUILT] S4 |
+| Purge evidence (data_purge_audit) | §24.2.4 | `models/data_purge.py` + `services/data_lifecycle.py` | data_purge_audit (append-only) | updates to existing rows | [BUILT] S4 |
 | Data-subject requests (NDPR) | §24.2.6 | ops runbook (no code at pilot) | — | ledger/audit deletes | Q31, counsel |
 | Quotes / packages | §15 | `services/billing.py` | invoices | report logic | Q1, Q14 |
 | Campaign cancellation / refunds | §15 | `services/billing.py` + campaign status | invoices, payments | ledger edits | Q24 |
@@ -1670,4 +1731,5 @@ that works under *all* still-open options, and say so in the PR (P10).
 | v1.5 | 2026-07-21 | **Worker substrate + automated post-trip processing [BUILT].** One arq worker (`app/jobs/worker.py`, new compose `worker` service, no host port) runs the §14.2 pipeline complete-missing-only — analytics→fraud→impressions→payout(+ledger, audited) for ended trips — via fail-open enqueue-after-commit on trip end (`app/core/trip_enqueue.py`) backstopped by a Postgres-derived cron sweep. New Settings: `WORKER_SWEEP_INTERVAL_MINUTES` (divisor of 60) and `WORKER_SWEEP_BATCH_SIZE`. No HTTP contract, schema, or migration change; admin endpoints unchanged as recompute tools. §6.5, §10.1, §14, §31 amended. Payout automation runs `payout_v1` as transitional infrastructure only — D2 (hourly pay) still pending Q4/Q5; not for production enablement. |
 | v1.6 | 2026-07-22 | **Worker correctness repair.** Added all-current-calculation ledger healing, resumable keyset sweep traversal, named-constraint race convergence, stale-formula/source-fingerprint blocking, DB-clock injection, strict pre-socket Redis configuration, CI ARQ Redis coverage, Compose sweep-variable passthrough, and stackful Sentry reporting. No HTTP contract, schema, formula, or migration change. |
 | v1.8 | 2026-07-30 | **S1 — Payout engine v2 [BUILT] (D2/D4/D8; Q4/Q5).** Migration `0013`: v2 rule fields (`hourly_rate_naira`, `daily_payable_hours_cap`, `eligibility_params`) + model XOR check, v1 columns relaxed nullable (history frozen), calculation `eligible_seconds`/`payable_seconds`/`excluded_seconds_by_reason`/`inputs_fingerprint`, one-trip_payout-per-trip partial unique index. Pure interval classifier (`payout_eligibility.py`, PAYOUT_ELIGIBILITY_* Settings, stay-point grace, target-zone-only geofence, null-accuracy excluded). Integer-seconds cap-before-price, single HALF_UP 2dp quantization (v1 stays HALF_EVEN, frozen); `pg_advisory_xact_lock` per driver/campaign/Lagos-day (zoneinfo). Per-rule formula dispatch; v2 write-once (drift → 409 flag, never auto-recompute; sweep/repair derive expected formula from the governing rule row). Recompute-day true-up (append-only adjustment/positive-reversal differentials) + §16.2 summary netting shipped same-change. Driver trip-breakdown endpoint + PWA screen; admin rule editor edits both models; reports formula-agnostic (latest calc per trip). §16.1→[BUILT], §16.2 netting [BUILT], §30 rows added, §16.1 recompute wording amended (day true-up is the sanctioned reallocation). Part II pin unchanged; Part III [BUILT] promotions are pinned by their changelog row. |
+| v1.9 | 2026-08-03 | **S4 — Data lifecycle [BUILT] (Q31-param; §24.2, §6.4.9).** Migration `0014`: `location_pings` → monthly range partitions by `recorded_at` via rename-and-attach (legacy partition `[first month, next boundary)`, no row rewrites, composite PK `(id, recorded_at)`, full 0007 schema fidelity, frozen 4-month in-migration premake, no default partition) + append-only `data_purge_audit`. Daily worker crons: coverage-based idempotent premake (⚙ `PARTITION_PREMAKE_MONTHS` 4), coverage alarm (Sentry capture + re-raise), advisory-locked retention purge (⚙ `PING_RETENTION_MONTHS` 12; session lock on dedicated AUTOCOMMIT connection across `DETACH … CONCURRENTLY`; FINALIZE/orphan recovery; evidence-before-destruction; zero-remaining-pings batch purge). New `GET /api/v1/health/partitions` (503 when coverage < now+1 month; contract baselines moved). §6.4.9 audit backfill: trip start/end, analytics recompute, traffic profiles, impression estimates — atomic with mutation; ping-batch ingestion is an approved documented exception (`location_ping_batches` is the compensating evidence); route-table-driven coverage test added (residual gaps registered: auth.refresh, driver profile/assignment routes). Amendments: §24.2.2 `captured_at`→`recorded_at`; §24.2.1 trip_sessions-coordinate step deleted (no such columns); §24.2.4 dedicated purge table; §7.1 22 tables; §7.2 14 migrations (also corrects S1's missed 12→13 bump); §30 rows. ORM keeps composite PK without `postgresql_partition_by` (create_all test schemas); `env.py` filters runtime partitions from autogenerate. Known pre-existing model↔migration index drift outside S4 quarantined by name in the autogenerate gate. |
 | v1.7 | 2026-07-27 | **D8 — questionnaire resolved by adopted defaults.** Client unresponsive; best-practice defaults adopted for Q1–Q34 where a defensible standard exists (source of truth: new `docs/adopted-decisions.md`; client-facing `docs/Mobility_Working_Decisions_and_Open_Items.docx` supersedes the questionnaire). [OPEN] tag definition and §33 preamble now defer per-question status to that file, including this doc's "Blocked-by: Q…" headers and "until answers land" prose (§15's block amended directly); the §33 table is retained as the Q→section routing map. Q23 (owner-drivers) is CONFIRM-PENDING — §16.3 payee abstraction stays mandatory. Q11/Q34/Q13 adopted directions match the doc's existing proposed defaults (anonymised segments with export gated on Q31; in-app + advertiser email + ops WhatsApp; driver self-registration narrowing D1 to advertisers/orgs — §3 D1 row annotated). No tag promotions in the body: adopted ≠ built; [TARGET] sections build in their planned phases. Pre-existing "OJ approval" SOP references corrected to the actual flow (plan → adversarial review → reconcile — no human gate; §13 intro, §10.4, §31). |

@@ -23,6 +23,7 @@ from test_trip_processing import (
 
 from app.core.config import get_settings
 from app.core.trip_enqueue import RedisTripProcessingEnqueuer
+from app.jobs import data_lifecycle as data_lifecycle_jobs
 from app.jobs import trip_processing as jobs
 from app.jobs.worker import WorkerSettings, sweep_cron_minutes
 from app.services.trip_processing import DueTrip, process_ended_trip
@@ -49,7 +50,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert registered.keep_result_s == 0
     assert registered.coroutine is jobs.process_trip
 
-    assert len(WorkerSettings.cron_jobs) == 1
+    assert len(WorkerSettings.cron_jobs) == 4
     cron_job = WorkerSettings.cron_jobs[0]
     assert isinstance(cron_job, CronJob)
     assert cron_job.coroutine is jobs.process_unprocessed_trips
@@ -57,6 +58,23 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert cron_job.max_tries == 1
     assert cron_job.keep_result_s == 0
     assert cron_job.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
+
+    lifecycle_crons = {
+        cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[1:]
+    }
+    assert set(lifecycle_crons) == {
+        data_lifecycle_jobs.premake_ping_partitions,
+        data_lifecycle_jobs.check_ping_partition_coverage,
+        data_lifecycle_jobs.purge_expired_ping_partitions,
+    }
+    for cron_job in lifecycle_crons.values():
+        assert isinstance(cron_job, CronJob)
+        assert cron_job.unique is True
+        # Daily, staggered hours so lifecycle DDL never stacks.
+        assert len(cron_job.hour) == 1
+    assert (
+        len({next(iter(job.hour)) for job in lifecycle_crons.values()}) == 3
+    )
 
 
 def test_process_trip_malformed_id_fails_before_any_write(db_sessionmaker, settings) -> None:

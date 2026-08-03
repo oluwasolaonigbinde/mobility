@@ -566,6 +566,22 @@ rows updated.
 
 ## S4 — Data lifecycle: ping partitioning + retention + audit backfill (Q31-param; §24.2, §6.4.9)
 
+> **STATUS: DELIVERED 3 Aug 2026** (D10; architecture v1.9, §24.2 → [BUILT]).
+> Built per this plan + its own reconciled implementation review. Notable
+> reconciliations vs. the text below: the migration is a single-transaction
+> blocking conversion (env.py wraps upgrades in one transaction — the
+> NOT VALID→VALIDATE split is kept for the ATTACH-no-scan property, not
+> onlineness); the empty-DB branch also premakes three prior months (the
+> rich seed writes 56 days of history; caught in the live drill); the
+> in-migration premake horizon is frozen
+> at 4 (never reads Settings); purge evidence is append-only lifecycle-EVENT
+> rows (no detached_at/dropped_at updates); ping-batch ingestion is an
+> approved audit exemption with `location_ping_batches` as compensating
+> evidence; coverage alarm = worker Sentry check + `GET
+> /api/v1/health/partitions`; residual pre-existing audit gaps and
+> model↔migration index drift outside S4's scope are registered in the new
+> tests as KNOWN lists, not silently blessed.
+
 **Architecture:** §24.2 (design is fixed there) + §6.4.9 (audit honesty
 note). **Placement:** migration + `jobs/` per §30. Independent of S1–S3;
 pre-pilot deadline.

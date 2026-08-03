@@ -14246,6 +14246,26 @@
         ]
       }
     },
+    "/api/v1/health/partitions": {
+      "get": {
+        "description": "503 when no partition covers now() + 1 month \u2014 the API-side detector\nfor the write-outage failure mode (catches a dead worker, which no\nworker-side check can). Deliberately separate from /ready: a partition\ngap a month out must not drop live API traffic.",
+        "operationId": "partitions_api_v1_health_partitions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Location-ping partition coverage check",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
     "/api/v1/health/ready": {
       "get": {
         "operationId": "ready_api_v1_health_ready_get",

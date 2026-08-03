@@ -1149,6 +1149,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/health/partitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Location-ping partition coverage check
+         * @description 503 when no partition covers now() + 1 month — the API-side detector
+         *     for the write-outage failure mode (catches a dead worker, which no
+         *     worker-side check can). Deliberately separate from /ready: a partition
+         *     gap a month out must not drop live API traffic.
+         */
+        get: operations["partitions_api_v1_health_partitions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health/ready": {
         parameters: {
             query?: never;
@@ -6808,6 +6831,26 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    partitions_api_v1_health_partitions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };

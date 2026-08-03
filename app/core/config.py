@@ -113,6 +113,8 @@ class Settings(BaseSettings):
     allow_demo_seed: bool = False
     worker_sweep_interval_minutes: int = 5
     worker_sweep_batch_size: int = 25
+    ping_retention_months: int = 12
+    partition_premake_months: int = 4
 
     @field_validator("api_v1_prefix")
     @classmethod
@@ -339,6 +341,20 @@ class Settings(BaseSettings):
     def validate_worker_sweep_batch_size(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("WORKER_SWEEP_BATCH_SIZE must be positive")
+        return value
+
+    @field_validator("ping_retention_months")
+    @classmethod
+    def validate_ping_retention_months(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("PING_RETENTION_MONTHS must be at least 1")
+        return value
+
+    @field_validator("partition_premake_months")
+    @classmethod
+    def validate_partition_premake_months(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("PARTITION_PREMAKE_MONTHS must be at least 1")
         return value
 
     @field_validator("default_currency")

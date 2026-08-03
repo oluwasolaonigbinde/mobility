@@ -351,6 +351,56 @@ Each trip run reads one timestamp from the database clock and injects it through
 
 **Transitional money warning.** The automated payout stage runs the existing `payout_v1` engine solely as transitional infrastructure to prove worker orchestration. It is not the approved pilot payment model — D2 specifies hourly pay, and Q4/Q5 are still open. Do not enable this worker against production data or real driver earnings. Production enablement is a separate, explicitly approved delivery.
 
+## Location-ping data lifecycle (S4)
+
+`location_pings` is range-partitioned by UTC month on `recorded_at`
+(migration `0014`; the pre-conversion table survives as the bounded
+partition `location_pings_legacy`). Three daily worker crons own the
+lifecycle — **running the worker is mandatory in production from S4
+onward** (`docker compose --profile worker up -d worker` in the production
+topology): retention enforcement is a legal obligation, and partition
+premake prevents a write outage on the hottest table.
+
+| Cron | What it does | Settings |
+|---|---|---|
+| `premake_ping_partitions` | Idempotently creates monthly partitions covering the current UTC month through now + `PARTITION_PREMAKE_MONTHS` (default 4). Coverage-based, so it coexists with the legacy partition. Runs the coverage check inline afterward. | `PARTITION_PREMAKE_MONTHS` |
+| `check_ping_partition_coverage` | Alarms when no partition covers now + 1 month: logs `status=uncovered`, captures to Sentry, and fails the job. | — |
+| `purge_expired_ping_partitions` | Drops partitions whose entire range is older than `PING_RETENTION_MONTHS` (default 12), with append-only evidence in `data_purge_audit`, then deletes ping batches that have zero remaining pings and are older than the window. Concurrent runs no-op via an advisory lock. | `PING_RETENTION_MONTHS` |
+
+**Monitoring (both detectors must be wired):**
+
+- Point uptime monitoring at `GET /api/v1/health/partitions` — 200 with
+  `covered_until` when a partition covers now + 1 month, 503 `degraded`
+  otherwise (also 503 if the table is not partitioned). This catches a dead
+  worker; do not fold it into `/ready` (a month-out coverage gap must not
+  drop live traffic).
+- Alert on Sentry events from `check_ping_partition_coverage` /
+  `premake_ping_partitions` failures.
+
+**Purge evidence.** Every purge writes `data_purge_audit` lifecycle rows:
+`purge_started` (with row count, range, retention config) commits **before**
+any destruction; `dropped` commits atomically with the `DROP TABLE`; a
+partial unique index allows exactly one `dropped` row per partition;
+`detach_finalized` records recovery of an interrupted concurrent detach.
+The table is append-only — never UPDATE or DELETE it. An interrupted run
+honestly shows `purge_started` without `dropped` and the next daily run
+completes it (pending detaches are FINALIZEd first; standalone partition
+tables are dropped only when the evidence trail claims them — an
+`orphan=... outcome=unclaimed_table` error log means a table the job refuses
+to touch: investigate manually).
+
+**Backups respect retention (§24.2.5):** backup rotation must stay ≤ 35
+days so purged pings age out of backups automatically — the local
+`scripts/db_backup.sh` newest-14 rotation complies at any realistic cadence;
+keep any off-host copies on the same bounded rotation.
+
+| Failure | Effect | Recovery |
+|---|---|---|
+| Worker down for days | Coverage shrinks; `/health/partitions` 503s ~1 month before writes would fail | Start the worker; premake catches up idempotently (4-month horizon ≈ 3 months of headroom) |
+| `no partition of relation found for row` on ping insert | Coverage exhausted (both alarms ignored) | Start worker or run premake once; the insert path recovers immediately — no data was lost, the write was rejected |
+| Retention crash mid-run | `data_purge_audit` shows the interrupted state | Next daily run recovers (FINALIZE + evidenced-orphan drop); no manual SQL needed |
+| Purge job logs `outcome=unclaimed_table` | A standalone `location_pings_*` table exists without evidence | Investigate manually before any drop — the job will never touch it |
+
 ## Local Playwright reset and overrides
 
 Playwright runs projects fully in parallel. Use a clean persistent database and relaxed local test thresholds:

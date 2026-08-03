@@ -195,6 +195,11 @@ class LocationPing(Base):
         Index("ix_location_pings_geom", "geom", postgresql_using="gist"),
     )
 
+    # Composite PK (id, recorded_at): the table is range-partitioned by
+    # recorded_at (migration 0014) and PostgreSQL requires the partition key
+    # in every unique constraint. Partitioning itself is declared only in the
+    # migration — metadata.create_all (SQLite units, PostGIS test schemas)
+    # must keep producing a plain insertable table.
     id: Mapped[UUID] = mapped_column(
         primary_key=True,
         default=uuid4,
@@ -208,7 +213,9 @@ class LocationPing(Base):
         ForeignKey("location_ping_batches.id", ondelete="CASCADE"),
         nullable=False,
     )
-    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), primary_key=True, nullable=False
+    )
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     sequence_number: Mapped[int | None] = mapped_column(Integer)
     latitude: Mapped[float] = mapped_column(Float, nullable=False)

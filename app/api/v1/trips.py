@@ -16,6 +16,7 @@ from app.schemas.trips import (
     TripRead,
     TripStartRequest,
 )
+from app.services.audit import create_audit_event
 from app.services.trips import (
     TripSummary,
     end_driver_trip,
@@ -62,6 +63,17 @@ async def driver_start_trip(
     session: SessionDependency,
 ) -> TripRead:
     trip = await start_driver_trip(session, user_id=current_user.id, payload=payload)
+    await create_audit_event(
+        session,
+        actor_user_id=current_user.id,
+        action="driver.trip.started",
+        entity_type="trip_session",
+        entity_id=str(trip.id),
+        metadata={
+            "assignment_id": str(trip.assignment_id),
+            "campaign_id": str(trip.campaign_id),
+        },
+    )
     await session.commit()
     return trip_response(await summarize_trip(session, trip))
 
@@ -126,6 +138,14 @@ async def driver_end_trip(
         user_id=current_user.id,
         trip_id=trip_id,
         payload=payload,
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=current_user.id,
+        action="driver.trip.ended",
+        entity_type="trip_session",
+        entity_id=str(trip.id),
+        metadata={"end_reason": trip.end_reason},
     )
     await session.commit()
     # Fail-open latency optimization; the sweep is the guaranteed path (§14.3.2).

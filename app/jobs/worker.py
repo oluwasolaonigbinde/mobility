@@ -7,6 +7,11 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import Settings, get_settings
 from app.core.observability import init_error_tracking
+from app.jobs.data_lifecycle import (
+    check_ping_partition_coverage,
+    premake_ping_partitions,
+    purge_expired_ping_partitions,
+)
 from app.jobs.trip_processing import process_trip, process_unprocessed_trips
 
 
@@ -59,7 +64,11 @@ class WorkerSettings:
             process_unprocessed_trips,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
             unique=True,
-        )
+        ),
+        # Data lifecycle (S4): daily, staggered hours so DDL never stacks.
+        cron(premake_ping_partitions, hour={1}, minute={10}, unique=True),
+        cron(check_ping_partition_coverage, hour={7}, minute={20}, unique=True),
+        cron(purge_expired_ping_partitions, hour={3}, minute={30}, unique=True),
     ]
     # Worker-level too: finish_failed_job stores max-retries failures under the
     # deterministic job id using this value (func-level keep_result not consulted).
