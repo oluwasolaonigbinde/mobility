@@ -377,70 +377,102 @@ def test_retention_is_a_noop_while_lock_is_held(monkeypatch) -> None:
         asyncio.run(drop_database(migration_url))
 
 
-def test_interrupted_detach_is_finalized_and_completed(monkeypatch) -> None:
-    source_url = configured_postgres_url()
-    migration_url = asyncio.run(create_database_from_url(source_url))
-    try:
-        upgrade_to(migration_url, "0013_payout_v2_hourly_caps", monkeypatch)
-        seed_ping_graph(migration_url)
-        upgrade_to(migration_url, "head", monkeypatch)
+def induce_pending_detach(migration_url: str, partition: str) -> None:
+    """Leave a real interrupted DETACH ... CONCURRENTLY behind: hold a
+    repeatable-read snapshot over the parent so the detach blocks between
+    its two internal transactions, then cancel it."""
 
-        async def interrupt_detach():
-            engine = create_async_engine(migration_url, poolclass=NullPool)
-            blocker = await engine.connect()
-            detacher = await engine.connect()
-            try:
-                # Hold a repeatable-read snapshot over the parent so DETACH
-                # CONCURRENTLY blocks between its two internal transactions.
-                blocker_ac = await blocker.execution_options(
-                    isolation_level="REPEATABLE READ"
+    async def interrupt_detach():
+        engine = create_async_engine(migration_url, poolclass=NullPool)
+        blocker = await engine.connect()
+        detacher = await engine.connect()
+        try:
+            blocker_ac = await blocker.execution_options(isolation_level="REPEATABLE READ")
+            await blocker_ac.execute(text("SELECT count(*) FROM location_pings"))
+
+            detacher_ac = await detacher.execution_options(isolation_level="AUTOCOMMIT")
+            with pytest.raises(asyncio.TimeoutError):
+                await asyncio.wait_for(
+                    detacher_ac.execute(
+                        text(
+                            "ALTER TABLE location_pings DETACH PARTITION"
+                            f" {partition} CONCURRENTLY"
+                        )
+                    ),
+                    timeout=2.0,
                 )
-                await blocker_ac.execute(text("SELECT count(*) FROM location_pings"))
+        finally:
+            await blocker.close()
+            await detacher.close()
+            await engine.dispose()
 
-                detacher_ac = await detacher.execution_options(
-                    isolation_level="AUTOCOMMIT"
-                )
-                with pytest.raises(asyncio.TimeoutError):
-                    await asyncio.wait_for(
-                        detacher_ac.execute(
-                            text(
-                                "ALTER TABLE location_pings DETACH PARTITION"
-                                " location_pings_legacy CONCURRENTLY"
-                            )
-                        ),
-                        timeout=2.0,
-                    )
-            finally:
-                await blocker.close()
-                await detacher.close()
-                await engine.dispose()
+    asyncio.run(interrupt_detach())
+    assert detach_pending_flags(migration_url, partition) == [True]
 
-        asyncio.run(interrupt_detach())
 
-        pending = asyncio.run(
+def detach_pending_flags(migration_url: str, partition: str) -> list[bool]:
+    return [
+        bool(row[0])
+        for row in asyncio.run(
             fetch_all(
                 migration_url,
                 """
                 SELECT inh.inhdetachpending
                 FROM pg_inherits inh
                 JOIN pg_class child ON child.oid = inh.inhrelid
-                WHERE child.relname = 'location_pings_legacy'
+                WHERE child.relname = :partition
                 """,
+                {"partition": partition},
             )
         )
-        assert pending == [(True,)]
+    ]
 
-        settings = make_settings()
 
-        async def run_retention():
-            engine = create_async_engine(migration_url, poolclass=NullPool)
-            sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
-            try:
-                return await run_ping_retention(engine, sessionmaker, settings=settings)
-            finally:
-                await engine.dispose()
+def insert_purge_started(migration_url: str, partition: str) -> None:
+    exec_sql(
+        migration_url,
+        "INSERT INTO data_purge_audit"
+        " (partition_name, event, retention_months, initiated_by, job_run_id)"
+        f" VALUES ('{partition}', 'purge_started', 12, 'system', 'test-crash-run')",
+    )
 
-        result = asyncio.run(run_retention())
+
+def run_retention_once(migration_url: str, now=None):
+    settings = make_settings()
+
+    async def run():
+        engine = create_async_engine(migration_url, poolclass=NullPool)
+        sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+        try:
+            return await run_ping_retention(engine, sessionmaker, settings=settings, now=now)
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(run())
+
+
+def seeded_migrated_db(monkeypatch) -> str:
+    source_url = configured_postgres_url()
+    migration_url = asyncio.run(create_database_from_url(source_url))
+    upgrade_to(migration_url, "0013_payout_v2_hourly_caps", monkeypatch)
+    seed_ping_graph(migration_url)
+    upgrade_to(migration_url, "head", monkeypatch)
+    return migration_url
+
+
+def expired_now():
+    return add_months(month_start(datetime.now(UTC)), 13) + timedelta(days=1)
+
+
+def test_authorized_expired_pending_detach_is_finalized_and_completed(monkeypatch) -> None:
+    migration_url = seeded_migrated_db(monkeypatch)
+    try:
+        # Simulate this job crashing after writing its evidence: the
+        # purge_started row exists, the detach was interrupted.
+        insert_purge_started(migration_url, "location_pings_legacy")
+        induce_pending_detach(migration_url, "location_pings_legacy")
+
+        result = run_retention_once(migration_url, now=expired_now())
         assert result["finalized"] == ["location_pings_legacy"]
         assert "location_pings_legacy" in result["dropped"]
 
@@ -448,5 +480,115 @@ def test_interrupted_detach_is_finalized_and_completed(monkeypatch) -> None:
         kinds = [event for event, name, _ in events if name == "location_pings_legacy"]
         assert kinds.index("detach_finalized") < kinds.index("dropped")
         assert "location_pings_legacy" not in partition_names(migration_url)
+    finally:
+        asyncio.run(drop_database(migration_url))
+
+
+def test_unclaimed_pending_detach_is_refused_and_left_untouched(monkeypatch) -> None:
+    migration_url = seeded_migrated_db(monkeypatch)
+    try:
+        # No purge_started evidence: this detach is not ours (e.g. manual).
+        induce_pending_detach(migration_url, "location_pings_legacy")
+
+        captured: list[Exception] = []
+        import app.services.data_lifecycle as service
+
+        monkeypatch.setattr(service, "capture_exception", captured.append)
+
+        batches_before = asyncio.run(
+            fetch_all(migration_url, "SELECT count(*) FROM location_ping_batches")
+        )
+        result = run_retention_once(migration_url, now=expired_now())
+        assert result["finalized"] == []
+        assert result["dropped"] == []
+        assert result["refused_pending"] == ["location_pings_legacy"]
+        # Untouched: still a partition, still pending.
+        assert "location_pings_legacy" in partition_names(migration_url)
+        assert detach_pending_flags(migration_url, "location_pings_legacy") == [True]
+        # Alerted.
+        assert len(captured) == 1
+        assert "location_pings_legacy" in str(captured[0])
+        # No destruction evidence was fabricated, and the batch purge was
+        # skipped (a pending partition is invisible through the parent — a
+        # purge here would cascade-delete its pings).
+        assert purge_events(migration_url) == []
+        assert (
+            asyncio.run(
+                fetch_all(migration_url, "SELECT count(*) FROM location_ping_batches")
+            )
+            == batches_before
+        )
+    finally:
+        asyncio.run(drop_database(migration_url))
+
+
+def test_non_expired_pending_detach_is_refused_and_left_untouched(monkeypatch) -> None:
+    migration_url = seeded_migrated_db(monkeypatch)
+    try:
+        # Evidence exists, but under current settings the partition is no
+        # longer retention-expired (e.g. the window was widened after a
+        # crash): refuse.
+        insert_purge_started(migration_url, "location_pings_legacy")
+        induce_pending_detach(migration_url, "location_pings_legacy")
+
+        captured: list[Exception] = []
+        import app.services.data_lifecycle as service
+
+        monkeypatch.setattr(service, "capture_exception", captured.append)
+
+        result = run_retention_once(migration_url)  # real clock: not expired
+        assert result["finalized"] == []
+        assert result["dropped"] == []
+        assert result["refused_pending"] == ["location_pings_legacy"]
+        assert "location_pings_legacy" in partition_names(migration_url)
+        assert detach_pending_flags(migration_url, "location_pings_legacy") == [True]
+        assert len(captured) == 1
+        events = purge_events(migration_url)
+        assert [e for e, _, _ in events] == ["purge_started"]
+    finally:
+        asyncio.run(drop_database(migration_url))
+
+
+def test_drop_refused_when_dropped_evidence_conflicts(monkeypatch) -> None:
+    migration_url = make_db(monkeypatch)
+    try:
+        # A standalone table matching the partition pattern, with a purge
+        # trail AND a pre-existing 'dropped' evidence row: the evidence
+        # cannot account for this table existing — fail closed.
+        exec_sql(migration_url, "CREATE TABLE location_pings_p2020_01 (id int)")
+        insert_purge_started(migration_url, "location_pings_p2020_01")
+        exec_sql(
+            migration_url,
+            "INSERT INTO data_purge_audit"
+            " (partition_name, event, retention_months, initiated_by, job_run_id)"
+            " VALUES ('location_pings_p2020_01', 'dropped', 12, 'system', 'old-run')",
+        )
+
+        with pytest.raises(RuntimeError, match="Refusing to drop location_pings_p2020_01"):
+            run_retention_once(migration_url)
+
+        # The table remains present; no second 'dropped' row was written.
+        tables = asyncio.run(
+            fetch_all(
+                migration_url,
+                "SELECT 1 FROM information_schema.tables"
+                " WHERE table_name = 'location_pings_p2020_01'",
+            )
+        )
+        assert tables == [(1,)]
+        dropped_rows = asyncio.run(
+            fetch_all(
+                migration_url,
+                "SELECT count(*) FROM data_purge_audit"
+                " WHERE partition_name = 'location_pings_p2020_01'"
+                " AND event = 'dropped'",
+            )
+        )
+        assert dropped_rows == [(1,)]
+
+        # The advisory lock was released despite the failure: a subsequent
+        # run still acquires it (and fails the same way, loudly).
+        with pytest.raises(RuntimeError):
+            run_retention_once(migration_url)
     finally:
         asyncio.run(drop_database(migration_url))

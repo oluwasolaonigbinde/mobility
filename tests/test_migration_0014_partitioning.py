@@ -518,14 +518,14 @@ def test_autogenerate_diff_is_empty_with_runtime_partitions_filtered(monkeypatch
             "ix_vehicles_plate_country_normalized",
             "ix_vehicles_status",
         }
-        known_drift_unique_tables = {"driver_profiles", "users"}
+        known_drift_constraints = {"uq_driver_profiles_user_id", "uq_users_email"}
 
         unexpected = []
         for diff in diffs:
             kind = diff[0]
             if kind in {"remove_index", "add_index"} and diff[1].name in known_drift_indexes:
                 continue
-            if kind == "remove_constraint" and diff[1].table.name in known_drift_unique_tables:
+            if kind == "remove_constraint" and diff[1].name in known_drift_constraints:
                 continue
             unexpected.append(diff)
 

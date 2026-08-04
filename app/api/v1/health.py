@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
@@ -6,6 +7,8 @@ from fastapi.responses import JSONResponse
 from app.core.config import Settings, get_settings
 from app.db.session import check_database, get_engine
 from app.services.data_lifecycle import check_partition_coverage, is_partitioned
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/health", tags=["Health"])
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
@@ -87,6 +90,7 @@ async def partitions(settings: SettingsDependency) -> JSONResponse:
                 )
             covered, upper = await check_partition_coverage(connection)
     except Exception:
+        logger.exception("health=partitions outcome=check_failed")
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={

@@ -83,7 +83,7 @@ AUDITED = {
         "admin.traffic_density_profile.updated"
     ),
     ("POST", "/api/v1/admin/trips/{trip_id}/estimate-impressions"): (
-        "admin.impression_estimate.created"
+        "admin.impression_estimate.computed"
     ),
 }
 
@@ -225,6 +225,79 @@ def test_trip_start_and_end_write_audit_events_and_pings_stay_exempt(
             return {row[0] for row in result.all()}
 
     assert asyncio.run(audited_trip_ids()) == {trip_id}
+
+
+def test_analytics_recompute_and_impression_estimate_write_audit_events(
+    postgis_db_client, postgis_db_sessionmaker
+) -> None:
+    db_client, db_sessionmaker = postgis_db_client, postgis_db_sessionmaker
+    from datetime import UTC as _UTC
+    from datetime import datetime as _datetime
+    from datetime import timedelta as _timedelta
+
+    from conftest import (
+        auth_headers,
+        create_test_traffic_density_profile,
+        create_test_trip_session,
+    )
+
+    from app.models.trip import TripSessionStatus
+
+    _, campaign, _, profile, vehicle, assignment = create_trip_ready_graph(
+        db_sessionmaker,
+        admin_email="audit-runtime-admin@example.com",
+        advertiser_email="audit-runtime-advertiser@example.com",
+        driver_email="audit-runtime-driver@example.com",
+        plate_number="AUD-1",
+    )
+    started_at = _datetime.now(_UTC) - _timedelta(hours=2)
+    ended_at = started_at + _timedelta(hours=1)
+    trip = create_test_trip_session(
+        db_sessionmaker,
+        assignment_id=assignment.id,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        started_by_user_id=profile.user_id,
+        trip_status=TripSessionStatus.ENDED,
+        started_at=started_at,
+        ended_at=ended_at,
+    )
+    headers = auth_headers(
+        db_client, "audit-runtime-admin@example.com", "long-secure-password"
+    )
+
+    # Zero pings -> insufficient-data path, dialect-neutral; the mutation
+    # (analytics upsert) still happens and must be audited.
+    recompute = db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/recompute-analytics", headers=headers, json={}
+    )
+    assert recompute.status_code == http_status.HTTP_200_OK, recompute.text
+    analytics_id = recompute.json()["id"]
+
+    create_test_traffic_density_profile(db_sessionmaker, is_default=True)
+    estimate = db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/estimate-impressions", headers=headers, json={}
+    )
+    assert estimate.status_code == http_status.HTTP_200_OK, estimate.text
+
+    actions = audit_actions(db_sessionmaker)
+    assert actions.count("admin.trip_analytics.recomputed") == 1
+    assert actions.count("admin.impression_estimate.computed") == 1
+
+    async def audited_entities(action: str) -> set[str]:
+        async with db_sessionmaker() as session:
+            result = await session.execute(
+                select(AuditEvent.entity_id).where(AuditEvent.action == action)
+            )
+            return {row[0] for row in result.all()}
+
+    assert asyncio.run(audited_entities("admin.trip_analytics.recomputed")) == {
+        analytics_id
+    }
+    assert asyncio.run(audited_entities("admin.impression_estimate.computed")) == {
+        estimate.json()["id"]
+    }
 
 
 def test_traffic_density_profile_mutations_write_audit_events(

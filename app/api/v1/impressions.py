@@ -241,7 +241,7 @@ async def admin_estimate_trip_impressions(
     await create_audit_event(
         session,
         actor_user_id=current_user.id,
-        action="admin.impression_estimate.created",
+        action="admin.impression_estimate.computed",
         entity_type="impression_estimate",
         entity_id=str(estimate.id),
         metadata={

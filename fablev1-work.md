@@ -329,7 +329,7 @@ plan time.
   to Sentry via the observability helper, re-raises), retention purge
   (⚙ `PING_RETENTION_MONTHS`, default 12) holding a session-scoped advisory
   lock on a dedicated AUTOCOMMIT connection across `DETACH … CONCURRENTLY`,
-  with FINALIZE/orphan recovery, evidence-before-destruction (the `dropped`
+  with evidence-gated FINALIZE/orphan recovery (refusals alert and pause destruction), evidence-before-destruction (the `dropped`
   row commits atomically with `DROP TABLE`), and zero-remaining-pings batch
   purge (straddling batches keep newer pings; recent zero-ping batches keep
   serving idempotent replays).
@@ -338,7 +338,7 @@ plan time.
   detector); audit backfill with atomic same-transaction events:
   `driver.trip.started/ended`, `admin.trip_analytics.recomputed`,
   `admin.traffic_density_profile.created/updated`,
-  `admin.impression_estimate.created`. Ping-batch ingestion is an
+  `admin.impression_estimate.computed`. Ping-batch ingestion is an
   **approved documented audit exemption** (`location_ping_batches` is the
   compensating evidence; replays mutate nothing). The two analytics raw-SQL
   ping lookups now carry `recorded_at` for partition pruning.

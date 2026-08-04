@@ -49,26 +49,27 @@ docker run --rm -e EDGE_HOSTNAME=http://localhost \
   caddy:2.8-alpine caddy validate --config /etc/caddy/Caddyfile
 docker compose --env-file "$COMPOSE_ENV_FILE" build api frontend
 
-# Start dependencies, apply migrations as a one-shot, then start the app.
+# Start dependencies, apply migrations as a one-shot, then start the app
+# and the worker (mandatory since S4 — payouts + data lifecycle).
 docker compose --env-file "$COMPOSE_ENV_FILE" up -d db redis
 docker compose --env-file "$COMPOSE_ENV_FILE" --profile release run --rm migrate
 docker compose --env-file "$COMPOSE_ENV_FILE" up -d api frontend edge
+docker compose --env-file "$COMPOSE_ENV_FILE" --profile worker up -d worker
 docker compose --env-file "$COMPOSE_ENV_FILE" ps
 ```
 
-The default production model contains `db`, `redis`, `api`, `frontend`, and
-`edge`. Only Caddy publishes host ports (80/443); API, frontend, PostGIS, and
-Redis remain private. PostGIS and Redis attach only to the internal data
-network. API, frontend, and optional worker/migration containers also attach to
-a non-published egress bridge so runtime HTTPS integrations such as Sentry can
-reach the internet without exposing an inbound host port. The worker is
-excluded by default. Do not select its
-profile against real earnings while Q4/Q5 remain open. If separate written
-product authorization is later recorded:
-
-```bash
-docker compose --env-file "$COMPOSE_ENV_FILE" --profile worker up -d worker
-```
+The production model contains `db`, `redis`, `api`, `frontend`, `edge`, and
+`worker`. Only Caddy publishes host ports (80/443); API, frontend, PostGIS,
+and Redis remain private. PostGIS and Redis attach only to the internal data
+network. API, frontend, and worker/migration containers also attach to a
+non-published egress bridge so runtime HTTPS integrations such as Sentry can
+reach the internet without exposing an inbound host port. The worker keeps
+its compose profile purely as an operational quiescing mechanism (the
+restore script stops and conditionally restarts it) — **it is a required
+service, not an optional one**: it computes payouts (`payout_v2`, S1) and
+enforces the location-ping data lifecycle (S4). A deployment without the
+worker accrues unprocessed trips, stops premaking partitions, and stops
+enforcing retention.
 
 Run the non-destructive release smoke with a pre-existing account. The password
 is read from stdin or a protected file, never a command-line argument:
@@ -349,7 +350,7 @@ Positive current-formula payout calculations missing ledger entries are money-in
 
 Each trip run reads one timestamp from the database clock and injects it through analytics, impression, and payout services. This keeps the worker path frozen-time testable and prevents stages in one run from acquiring unrelated application-clock timestamps.
 
-**Transitional money warning.** The automated payout stage runs the existing `payout_v1` engine solely as transitional infrastructure to prove worker orchestration. It is not the approved pilot payment model — D2 specifies hourly pay, and Q4/Q5 are still open. Do not enable this worker against production data or real driver earnings. Production enablement is a separate, explicitly approved delivery.
+**Money model.** The automated payout stage dispatches per the governing rule row's model: `payout_v2` (the approved hourly-pay engine, S1/D9 — Q4/Q5 adopted and delivered) or frozen `payout_v1` history. Since S4 the worker also owns the location-ping data lifecycle (partition premake, coverage alarm, retention purge), so running it in every deployed environment is mandatory, not optional.
 
 ## Location-ping data lifecycle (S4)
 
@@ -384,10 +385,18 @@ partial unique index allows exactly one `dropped` row per partition;
 `detach_finalized` records recovery of an interrupted concurrent detach.
 The table is append-only — never UPDATE or DELETE it. An interrupted run
 honestly shows `purge_started` without `dropped` and the next daily run
-completes it (pending detaches are FINALIZEd first; standalone partition
-tables are dropped only when the evidence trail claims them — an
-`orphan=... outcome=unclaimed_table` error log means a table the job refuses
-to touch: investigate manually).
+completes it. Recovery is deliberately gated: a pending detach is FINALIZEd
+only when a matching `purge_started` row exists **and** the partition is
+still retention-expired under current settings — anything else (a manual
+detach, a widened retention window) is refused with an error log
+(`pending_detach=... outcome=refused`) plus a Sentry event, and the run
+skips all destruction (partition sweep and batch purge) until an operator
+resolves it, because a pending partition is invisible through the parent
+and purging around it could cascade-delete retained pings. Standalone
+partition tables are dropped only when the evidence trail claims them and
+no `dropped` evidence already exists for the name (a conflict fails the run
+closed with `outcome=drop_refused`); an `orphan=... outcome=unclaimed_table`
+error log means a table the job refuses to touch: investigate manually.
 
 **Backups respect retention (§24.2.5):** backup rotation must stay ≤ 35
 days so purged pings age out of backups automatically — the local
@@ -398,7 +407,9 @@ keep any off-host copies on the same bounded rotation.
 |---|---|---|
 | Worker down for days | Coverage shrinks; `/health/partitions` 503s ~1 month before writes would fail | Start the worker; premake catches up idempotently (4-month horizon ≈ 3 months of headroom) |
 | `no partition of relation found for row` on ping insert | Coverage exhausted (both alarms ignored) | Start worker or run premake once; the insert path recovers immediately — no data was lost, the write was rejected |
-| Retention crash mid-run | `data_purge_audit` shows the interrupted state | Next daily run recovers (FINALIZE + evidenced-orphan drop); no manual SQL needed |
+| Retention crash mid-run | `data_purge_audit` shows the interrupted state | Next daily run recovers (evidence-gated FINALIZE + evidenced-orphan drop); no manual SQL needed |
+| Purge job logs `pending_detach=... outcome=refused` | A pending detach lacks purge evidence or is no longer retention-expired | Destruction is paused (sweep + batch purge skipped). Investigate: if the detach is legitimate, `ALTER TABLE location_pings DETACH PARTITION <name> FINALIZE` manually and dispose of the table deliberately; never let a pending detach linger |
+| Purge job logs `outcome=drop_refused` (run fails) | `dropped` evidence already exists for a table that is present again | Manual investigation — the evidence cannot account for the table; the job fails closed and retries daily |
 | Purge job logs `outcome=unclaimed_table` | A standalone `location_pings_*` table exists without evidence | Investigate manually before any drop — the job will never touch it |
 
 ## Local Playwright reset and overrides

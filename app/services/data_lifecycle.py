@@ -21,6 +21,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession
 
 from app.core.config import Settings
+from app.core.observability import capture_exception
 from app.models.data_purge import DataPurgeAudit, DataPurgeEvent
 
 logger = logging.getLogger(__name__)
@@ -239,6 +240,17 @@ async def _has_purge_trail(session: AsyncSession, name: str) -> bool:
     return result.scalar_one_or_none() is not None
 
 
+async def _has_started_event(session: AsyncSession, name: str) -> bool:
+    result = await session.execute(
+        text(
+            "SELECT 1 FROM data_purge_audit WHERE partition_name = :name"
+            " AND event = 'purge_started' LIMIT 1"
+        ),
+        {"name": name},
+    )
+    return result.scalar_one_or_none() is not None
+
+
 async def _detached_orphans(session: AsyncSession) -> list[str]:
     """Standalone tables matching the partition naming pattern that are no
     longer in the partition tree (detached but not dropped)."""
@@ -290,13 +302,43 @@ async def run_ping_retention(
                 now = now or await db_now(session)
                 cutoff = subtract_calendar_months(now, settings.ping_retention_months)
 
-                # Recovery first: finalize any interrupted concurrent detach
-                # (also required before a new DETACH CONCURRENTLY).
+                # Recovery first: a pending detach may be FINALIZEd (an
+                # irreversible step toward destruction) only when this job's
+                # own evidence trail claims it — a pre-existing
+                # `purge_started` row — AND it is still retention-expired
+                # under the current settings. Anything else (a manual detach,
+                # a retention window that has since widened) is not ours to
+                # destroy: log, alert, and leave it untouched.
                 pending = [p for p in await list_partitions(session) if p.detach_pending]
+                authorized: list[PartitionInfo] = []
+                refused: list[tuple[PartitionInfo, bool, bool]] = []
+                for partition in pending:
+                    started = await _has_started_event(session, partition.name)
+                    expired = partition.upper <= cutoff
+                    if started and expired:
+                        authorized.append(partition)
+                    else:
+                        refused.append((partition, started, expired))
                 # Release the session's read snapshot before DDL on the
                 # autocommit connection.
                 await session.rollback()
-                for partition in pending:
+                for partition, started, expired in refused:
+                    logger.error(
+                        "job=ping_retention pending_detach=%s outcome=refused"
+                        " purge_started=%s expired=%s",
+                        partition.name,
+                        started,
+                        expired,
+                    )
+                if refused:
+                    capture_exception(
+                        RuntimeError(
+                            "ping_retention refused to finalize pending detach(es)"
+                            " without purge evidence and retention eligibility: "
+                            + ", ".join(p.name for p, _, _ in refused)
+                        )
+                    )
+                for partition in authorized:
                     await autocommit.execute(
                         text(
                             f"ALTER TABLE {PARENT_TABLE} DETACH PARTITION"
@@ -331,10 +373,26 @@ async def run_ping_retention(
                     )
                     dropped.append(name)
 
-                # Main sweep: fully-expired partitions, oldest first.
-                for partition in await list_partitions(session):
-                    if partition.upper > cutoff:
-                        continue
+                # Main sweep: fully-expired partitions, oldest first. A
+                # refused pending detach blocks any new DETACH CONCURRENTLY
+                # on the parent, so skip the destructive sweep entirely
+                # until an operator resolves it (the refusal above already
+                # logged and alerted); the batch purge below stays safe.
+                expired_partitions = (
+                    []
+                    if refused
+                    else [
+                        p
+                        for p in await list_partitions(session)
+                        if p.upper <= cutoff
+                    ]
+                )
+                if refused:
+                    logger.error(
+                        "job=ping_retention outcome=sweep_skipped"
+                        " reason=refused_pending_detach"
+                    )
+                for partition in expired_partitions:
                     row_count = (
                         await session.execute(
                             text(f"SELECT count(*) FROM {partition.name}")
@@ -369,7 +427,30 @@ async def run_ping_retention(
                 # CASCADE, so a time-window predicate would delete retained
                 # pings) that are also older than the retention window (a
                 # recent zero-ping batch must keep serving idempotent
-                # replays).
+                # replays). Skipped entirely while a refused pending detach
+                # exists: a detach-pending partition is invisible to new
+                # queries through the parent, so NOT EXISTS would wrongly
+                # see its batches as empty and the FK cascade would destroy
+                # the very pings the refusal left untouched.
+                if refused:
+                    logger.error(
+                        "job=ping_retention outcome=batch_purge_skipped"
+                        " reason=refused_pending_detach"
+                    )
+                    await session.commit()
+                    logger.info(
+                        "job=ping_retention run_id=%s outcome=blocked"
+                        " refused=%d",
+                        job_run_id,
+                        len(refused),
+                    )
+                    return {
+                        "job_run_id": job_run_id,
+                        "finalized": finalized,
+                        "dropped": dropped,
+                        "batches_purged": 0,
+                        "refused_pending": [p.name for p, _, _ in refused],
+                    }
                 result = await session.execute(
                     text(
                         "DELETE FROM location_ping_batches b"
@@ -423,24 +504,40 @@ async def _drop_with_evidence(
 ) -> None:
     """Atomically record 'dropped' evidence and drop the table in one
     transaction (DROP TABLE is transactional). The partial unique index
-    allows exactly one 'dropped' row per partition; if the insert is
-    skipped, the drop still proceeds idempotently."""
-    await session.execute(
-        text(
-            "INSERT INTO data_purge_audit"
-            " (partition_name, range_from, range_to, event, retention_months,"
-            "  initiated_by, job_run_id)"
-            " VALUES (:name, :range_from, :range_to, 'dropped', :retention_months,"
-            "         'system', :job_run_id)"
-            " ON CONFLICT DO NOTHING"
-        ),
-        {
-            "name": name,
-            "range_from": partition.lower if partition else None,
-            "range_to": partition.upper if partition else None,
-            "retention_months": retention_months,
-            "job_run_id": job_run_id,
-        },
-    )
+    allows exactly one 'dropped' row per partition; if the insert conflicts
+    (evidence already claims this name was destroyed), something is wrong —
+    roll back and fail closed rather than destroy a table the evidence
+    cannot account for."""
+    inserted = (
+        await session.execute(
+            text(
+                "INSERT INTO data_purge_audit"
+                " (partition_name, range_from, range_to, event, retention_months,"
+                "  initiated_by, job_run_id)"
+                " VALUES (:name, :range_from, :range_to, 'dropped', :retention_months,"
+                "         'system', :job_run_id)"
+                " ON CONFLICT (partition_name) WHERE event = 'dropped' DO NOTHING"
+                " RETURNING id"
+            ),
+            {
+                "name": name,
+                "range_from": partition.lower if partition else None,
+                "range_to": partition.upper if partition else None,
+                "retention_months": retention_months,
+                "job_run_id": job_run_id,
+            },
+        )
+    ).scalar_one_or_none()
+    if inserted is None:
+        await session.rollback()
+        logger.error(
+            "job=ping_retention partition=%s outcome=drop_refused"
+            " reason=dropped_evidence_conflict",
+            name,
+        )
+        raise RuntimeError(
+            f"Refusing to drop {name}: a 'dropped' evidence row already exists"
+            " for this partition name — manual investigation required"
+        )
     await session.execute(text(f"DROP TABLE {name}"))
     await session.commit()
