@@ -54,8 +54,9 @@ page; backup/restore drill with truncated-dump rejection.
 ## Post-F7 Delivery
 
 - The arq worker automates complete-missing-only post-trip processing and uses a
-  Postgres-derived recovery sweep. Its payout stage remains transitional
-  `payout_v1`; do not enable it for real earnings until D2/Q4/Q5 are resolved.
+  Postgres-derived recovery sweep. S1 subsequently delivered the approved
+  `payout_v2` hourly-pay model, and S4 made the worker mandatory because it also
+  owns partition premaking, coverage monitoring, and ping retention.
 - The provider-neutral production Compose overlay now keeps only Caddy public,
   isolates PostGIS/Redis, gives application services explicit outbound egress,
   and removes development ports, reload commands, and source mounts.

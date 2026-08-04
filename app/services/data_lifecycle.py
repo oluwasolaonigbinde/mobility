@@ -40,6 +40,15 @@ RETENTION_LOCK_KEY = int.from_bytes(
     signed=True,
 )
 
+# Premake runs entirely inside one transaction, so a transaction-scoped
+# advisory lock is sufficient. Concurrent workers wait here, then refresh
+# catalog coverage after the winning transaction commits.
+PREMAKE_LOCK_KEY = int.from_bytes(
+    hashlib.sha256(b"datalifecycle:partition-premake").digest()[:8],
+    byteorder="big",
+    signed=True,
+)
+
 BOUND_SQL = text(
     """
     SELECT
@@ -169,6 +178,9 @@ async def premake_partitions(
     now + PARTITION_PREMAKE_MONTHS. Coverage-based, never name-based: the
     legacy partition covers the current month until it rolls over."""
     now = now or await db_now(session)
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(:key)"), {"key": PREMAKE_LOCK_KEY}
+    )
     partitions = await list_partitions(session)
     created: list[str] = []
     current = month_start(now)
@@ -232,21 +244,42 @@ async def _record_purge_event(
 async def _has_purge_trail(session: AsyncSession, name: str) -> bool:
     result = await session.execute(
         text(
-            "SELECT 1 FROM data_purge_audit WHERE partition_name = :name"
-            " AND event IN ('purge_started', 'detach_finalized') LIMIT 1"
+            "SELECT 1 FROM data_purge_audit trail"
+            " WHERE trail.partition_name = :name"
+            " AND trail.event IN ('purge_started', 'detach_finalized')"
+            " AND trail.range_from IS NOT NULL AND trail.range_to IS NOT NULL"
+            " AND EXISTS (SELECT 1 FROM data_purge_audit started"
+            "             WHERE started.partition_name = trail.partition_name"
+            "             AND started.event = 'purge_started'"
+            "             AND started.range_from = trail.range_from"
+            "             AND started.range_to = trail.range_to"
+            "             AND started.row_count IS NOT NULL) LIMIT 1"
         ),
         {"name": name},
     )
     return result.scalar_one_or_none() is not None
 
 
-async def _has_started_event(session: AsyncSession, name: str) -> bool:
+async def _has_matching_started_event(
+    session: AsyncSession, partition: PartitionInfo
+) -> bool:
     result = await session.execute(
         text(
-            "SELECT 1 FROM data_purge_audit WHERE partition_name = :name"
-            " AND event = 'purge_started' LIMIT 1"
+            "SELECT 1 FROM data_purge_audit started"
+            " WHERE started.partition_name = :name"
+            " AND started.event = 'purge_started'"
+            " AND started.range_from = :range_from"
+            " AND started.range_to = :range_to"
+            " AND started.row_count IS NOT NULL"
+            " AND NOT EXISTS (SELECT 1 FROM data_purge_audit dropped"
+            "                 WHERE dropped.partition_name = started.partition_name"
+            "                 AND dropped.event = 'dropped') LIMIT 1"
         ),
-        {"name": name},
+        {
+            "name": partition.name,
+            "range_from": partition.lower,
+            "range_to": partition.upper,
+        },
     )
     return result.scalar_one_or_none() is not None
 
@@ -313,7 +346,7 @@ async def run_ping_retention(
                 authorized: list[PartitionInfo] = []
                 refused: list[tuple[PartitionInfo, bool, bool]] = []
                 for partition in pending:
-                    started = await _has_started_event(session, partition.name)
+                    started = await _has_matching_started_event(session, partition)
                     expired = partition.upper <= cutoff
                     if started and expired:
                         authorized.append(partition)

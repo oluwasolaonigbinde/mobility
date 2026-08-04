@@ -25,9 +25,11 @@ import app.db.session as db_session
 from app.core.config import Settings, get_settings
 from app.jobs import data_lifecycle as jobs
 from app.services.data_lifecycle import (
+    PREMAKE_LOCK_KEY,
     RETENTION_LOCK_KEY,
     add_months,
     check_partition_coverage,
+    list_partitions,
     month_start,
     premake_partitions,
     run_ping_retention,
@@ -61,9 +63,9 @@ async def with_session(migration_url, fn):
         await engine.dispose()
 
 
-def exec_sql(migration_url: str, sql: str) -> None:
+def exec_sql(migration_url: str, sql: str, params: dict | None = None) -> None:
     async def fn(session):
-        await session.execute(text(sql))
+        await session.execute(text(sql), params or {})
         await session.commit()
 
     run_async(with_session(migration_url, fn))
@@ -125,6 +127,46 @@ def test_premake_is_idempotent_and_coverage_based(monkeypatch) -> None:
                 migration_url,
                 lambda s: premake_partitions(s, settings=settings, now=future_now),
             )
+        )
+        assert result["created"] == []
+    finally:
+        asyncio.run(drop_database(migration_url))
+
+
+def test_concurrent_premake_waits_and_refreshes_coverage(monkeypatch) -> None:
+    migration_url = make_db(monkeypatch)
+    settings = make_settings()
+    hole = month_partition(2)
+    try:
+        exec_sql(migration_url, f"DROP TABLE {hole}")
+
+        async def run_concurrently():
+            engine = create_async_engine(migration_url, poolclass=NullPool)
+            sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+            try:
+                async with sessionmaker() as blocker:
+                    await blocker.execute(
+                        text("SELECT pg_advisory_xact_lock(:key)"),
+                        {"key": PREMAKE_LOCK_KEY},
+                    )
+                    async with sessionmaker() as waiting:
+                        task = asyncio.create_task(
+                            premake_partitions(waiting, settings=settings)
+                        )
+                        with pytest.raises(TimeoutError):
+                            await asyncio.wait_for(asyncio.shield(task), timeout=0.1)
+                        await blocker.commit()
+                        return await task
+            finally:
+                await engine.dispose()
+
+        result = asyncio.run(run_concurrently())
+        assert result["created"] == [hole]
+
+        # A second worker refreshes coverage after acquiring the lock and
+        # observes the committed partition instead of attempting CREATE.
+        result = run_async(
+            with_session(migration_url, lambda s: premake_partitions(s, settings=settings))
         )
         assert result["created"] == []
     finally:
@@ -428,12 +470,46 @@ def detach_pending_flags(migration_url: str, partition: str) -> list[bool]:
     ]
 
 
-def insert_purge_started(migration_url: str, partition: str) -> None:
+def insert_purge_started(
+    migration_url: str,
+    partition: str,
+    *,
+    complete: bool = True,
+    mismatched_bounds: bool = False,
+) -> None:
+    range_from = None
+    range_to = None
+    row_count = None
+    if complete:
+        partitions = run_async(
+            with_session(migration_url, lambda session: list_partitions(session))
+        )
+        info = next((item for item in partitions if item.name == partition), None)
+        if info is not None:
+            range_from = info.lower
+            range_to = info.upper
+        else:
+            match = partition.removeprefix("location_pings_p")
+            range_from = datetime.strptime(match, "%Y_%m").replace(tzinfo=UTC)
+            range_to = add_months(range_from, 1)
+        if mismatched_bounds:
+            range_from = add_months(range_from, -1)
+        row_count = asyncio.run(
+            fetch_all(migration_url, f"SELECT count(*) FROM {partition}")
+        )[0][0]
     exec_sql(
         migration_url,
         "INSERT INTO data_purge_audit"
-        " (partition_name, event, retention_months, initiated_by, job_run_id)"
-        f" VALUES ('{partition}', 'purge_started', 12, 'system', 'test-crash-run')",
+        " (partition_name, range_from, range_to, event, row_count,"
+        "  retention_months, initiated_by, job_run_id)"
+        " VALUES (:partition, :range_from, :range_to, 'purge_started', :row_count,"
+        "         12, 'system', 'test-crash-run')",
+        {
+            "partition": partition,
+            "range_from": range_from,
+            "range_to": range_to,
+            "row_count": row_count,
+        },
     )
 
 
@@ -518,6 +594,35 @@ def test_unclaimed_pending_detach_is_refused_and_left_untouched(monkeypatch) -> 
             )
             == batches_before
         )
+    finally:
+        asyncio.run(drop_database(migration_url))
+
+
+@pytest.mark.parametrize("evidence", ["null_bounds", "mismatched_bounds", "terminal"])
+def test_nonmatching_pending_detach_evidence_is_refused(monkeypatch, evidence) -> None:
+    migration_url = seeded_migrated_db(monkeypatch)
+    try:
+        insert_purge_started(
+            migration_url,
+            "location_pings_legacy",
+            complete=evidence != "null_bounds",
+            mismatched_bounds=evidence == "mismatched_bounds",
+        )
+        if evidence == "terminal":
+            exec_sql(
+                migration_url,
+                "INSERT INTO data_purge_audit"
+                " (partition_name, event, retention_months, initiated_by, job_run_id)"
+                " VALUES ('location_pings_legacy', 'dropped', 12, 'system', 'old-run')",
+            )
+        induce_pending_detach(migration_url, "location_pings_legacy")
+
+        result = run_retention_once(migration_url, now=expired_now())
+        assert result["finalized"] == []
+        assert result["dropped"] == []
+        assert result["refused_pending"] == ["location_pings_legacy"]
+        assert "location_pings_legacy" in partition_names(migration_url)
+        assert detach_pending_flags(migration_url, "location_pings_legacy") == [True]
     finally:
         asyncio.run(drop_database(migration_url))
 

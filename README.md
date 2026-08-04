@@ -18,7 +18,7 @@ backend and a Next.js frontend for advertiser, driver, and operator workflows.
   restore, inert-without-DSN Sentry hooks, and backend + frontend + e2e CI. It is
   verified locally.
 - **Automated trip processing:** **complete on `master`**. An arq worker runs
-  the post-trip analytics → fraud → impressions → transitional payout pipeline,
+  the post-trip analytics → fraud → impressions → approved payout-v2 pipeline,
   with database-backed recovery sweeps and race-safe idempotency.
 - **Pre-production operations:** **complete locally on `master`**. The repository
   includes a production Compose overlay, Caddy edge, release smoke checks, and a
@@ -424,6 +424,7 @@ Compose starts the API, the arq worker, PostgreSQL/PostGIS, and Redis. The
 `worker` service (no published port) automates post-trip processing — analytics,
 fraud flags, impression estimate, and payout calculation for ended trips — via an
 enqueue on trip end plus a Postgres-derived sweep; see "Post-trip processing
-worker" in `docs/runbook.md`. Its payout stage runs `payout_v1` as transitional
-infrastructure only, not the approved payment model; do not enable it against
-real driver earnings.
+worker" in `docs/runbook.md`. Its payout stage uses the approved `payout_v2`
+hourly-pay and daily-cap model. Since S4, this worker is also responsible for
+partition premaking, coverage monitoring, and retention, so it is mandatory in
+production.

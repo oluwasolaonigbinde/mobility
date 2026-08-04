@@ -688,7 +688,8 @@ One workflow: `.github/workflows/frontend.yml` (push triggers on `master`,
   80/443, data services stay on an internal network, application containers
   have a separate non-published egress bridge and health-gated startup,
   migrations are an explicit one-shot profile, and
-  the transitional payout worker is an opt-in profile. `staging.env.example`,
+  the mandatory worker uses a profile only for deliberate operational
+  quiescing. `staging.env.example`,
   `Caddyfile`, and `scripts/release_smoke.sh` define the operator boundary.
 - **[BUILT] (F7)** Database backups (`scripts/db_backup.sh`, custom-format
   dumps, 14-dump retention) and temp-DB restore verification with an Alembic
