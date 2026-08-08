@@ -20,7 +20,7 @@ The table below is the closed backend-MVP ledger, not the whole project roadmap.
 - F7 hardening is committed on `f7-hardening` as post-closure delivery work. It
   must not be represented as part of the closed backend MVP.
 - Project-wide reconciliation and evidence sources are recorded in
-  `../project-reconciliation.md`.
+  `../progress.md`.
 
 Pro returned `Verdict: SIGNED OFF` for the initial context packet. The roadmap is saved at `docs/build-loop/pro-responses/initial-roadmap.md`, and the initial reconciliation is saved at `docs/build-loop/pro-responses/initial-context-reconciliation.md`.
 

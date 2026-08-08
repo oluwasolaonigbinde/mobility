@@ -1213,3 +1213,84 @@ def test_recompute_day_refuses_currency_drift(
     # No differential entries were posted.
     entries = fetch_earnings_ledger_entries(postgis_db_sessionmaker)
     assert all(entry.entry_type == "trip_payout" for entry in entries)
+
+
+# --- RM1: cross-midnight trips charge each Lagos day's own cap (D4/D14) -----
+
+# 22:30 UTC == 23:30 Africa/Lagos: a 2 h session ends 01:30 Lagos the next day.
+CROSS_START = datetime(2026, 7, 20, 22, 30, tzinfo=UTC)
+CROSS_END = CROSS_START + timedelta(hours=2)
+
+
+def test_cross_midnight_trip_splits_payable_seconds_across_both_lagos_days(
+    postgis_db_sessionmaker, settings
+) -> None:
+    # Cap 1 h per Lagos day. 30 min of the trip falls on the 20th (under cap,
+    # fully payable) and 90 min on the 21st (capped to 60 min).
+    graph = build_v2_graph(
+        postgis_db_sessionmaker,
+        "v2-midnight",
+        started_at=CROSS_START,
+        ended_at=CROSS_END,
+        daily_cap_hours="1.00",
+    )
+    pipeline_to_v2(
+        postgis_db_sessionmaker,
+        settings,
+        graph,
+        points=moving_points(CROSS_START, minutes=120),
+        idempotency_key="midnight-1",
+    )
+
+    calculation = fetch_payout_calculations(postgis_db_sessionmaker)[0]
+    assert calculation.eligible_seconds == 7200
+    assert calculation.payable_seconds_by_day == {
+        "2026-07-20": 1800,
+        "2026-07-21": 3600,
+    }
+    # Charging the whole trip to the start day would have capped it at 3600.
+    assert calculation.payable_seconds == 5400
+    assert calculation.final_payout == price_payable_seconds(5400, Decimal("1200.00"))
+
+
+def test_cross_midnight_trip_consumes_the_following_days_cap(
+    postgis_db_sessionmaker, settings
+) -> None:
+    # The leak the fix closes: post-midnight hours used to be billed to the
+    # start day, leaving the next day's cap fully available for another trip.
+    graph = build_v2_graph(
+        postgis_db_sessionmaker,
+        "v2-midnight-cap",
+        started_at=CROSS_START,
+        ended_at=CROSS_END,
+        daily_cap_hours="1.00",
+    )
+    pipeline_to_v2(
+        postgis_db_sessionmaker,
+        settings,
+        graph,
+        points=moving_points(CROSS_START, minutes=120),
+        idempotency_key="midnight-cap-1",
+    )
+
+    # A second trip later on 21 Jul Lagos: that day's cap is already spent.
+    second_start = datetime(2026, 7, 21, 8, 0, tzinfo=UTC)
+    second_trip = _add_second_trip(
+        postgis_db_sessionmaker, graph, started_at=second_start
+    )
+    add_pings(
+        postgis_db_sessionmaker,
+        trip_id=second_trip.id,
+        points=moving_points(second_start),
+        idempotency_key="midnight-cap-2",
+    )
+    run_pipeline(postgis_db_sessionmaker, second_trip.id, settings)
+
+    calculations = {
+        calculation.trip_session_id: calculation
+        for calculation in fetch_payout_calculations(postgis_db_sessionmaker)
+    }
+    second = calculations[second_trip.id]
+    assert second.eligible_seconds == 1800
+    assert second.payable_seconds == 0
+    assert second.final_payout == Decimal("0.00")

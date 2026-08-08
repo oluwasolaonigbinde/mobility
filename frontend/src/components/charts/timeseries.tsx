@@ -111,13 +111,20 @@ function Grid({ ticks, max }: { ticks: number[]; max: number }) {
         const y = PAD.top + IH - (max === 0 ? 0 : (t / max) * IH);
         return (
           <g key={t}>
-            <line x1={PAD.left} x2={W - PAD.right} y1={y} y2={y} stroke="#262a33" strokeWidth={1} />
+            <line
+              x1={PAD.left}
+              x2={W - PAD.right}
+              y1={y}
+              y2={y}
+              stroke="var(--chart-grid, var(--color-edge))"
+              strokeWidth={1}
+            />
             <text
               x={PAD.left - 8}
               y={y + 3}
               textAnchor="end"
               fontSize={10}
-              fill="#5a6071"
+              fill="var(--chart-tick, var(--color-faint))"
               fontFamily="var(--font-mono)"
             >
               {compactNumber(t)}
@@ -147,7 +154,7 @@ function XLabels({ points }: { points: SeriesPoint[] }) {
             y={H - 8}
             textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}
             fontSize={10}
-            fill="#5a6071"
+            fill="var(--chart-tick, var(--color-faint))"
             fontFamily="var(--font-mono)"
           >
             {points[i]?.label}
@@ -174,7 +181,7 @@ export function AreaTimeseries({ points, color, currency, ariaLabel }: ChartBase
 
   const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${xFor(i)},${yFor(p.value)}`).join(" ");
   const area = `${line} L${xFor(points.length - 1)},${PAD.top + IH} L${xFor(0)},${PAD.top + IH} Z`;
-  const gid = `area-${color.replace("#", "")}`;
+  const gid = `area-${color.replace(/[^a-zA-Z0-9_-]/g, "")}`;
 
   return (
     <svg
@@ -188,7 +195,8 @@ export function AreaTimeseries({ points, color, currency, ariaLabel }: ChartBase
     >
       <defs>
         <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.28} />
+          {/* Light themes thin the fill via --chart-area-alpha (heavy washes read as ink smears on paper) */}
+          <stop offset="0%" stopColor={color} style={{ stopOpacity: "var(--chart-area-alpha, 0.28)" }} />
           <stop offset="100%" stopColor={color} stopOpacity={0.02} />
         </linearGradient>
       </defs>
@@ -202,7 +210,7 @@ export function AreaTimeseries({ points, color, currency, ariaLabel }: ChartBase
         y={yFor(points.at(-1)!.value) - 10}
         textAnchor="end"
         fontSize={11}
-        fill="#eaedf2"
+        fill="var(--color-ink)"
         fontFamily="var(--font-mono)"
       >
         {format(points.at(-1)!.value)}
@@ -215,7 +223,7 @@ export function AreaTimeseries({ points, color, currency, ariaLabel }: ChartBase
             x2={xFor(idx)}
             y1={PAD.top}
             y2={PAD.top + IH}
-            stroke="#3a4250"
+            stroke="var(--color-edge-strong)"
             strokeWidth={1}
           />
           <circle
@@ -223,7 +231,7 @@ export function AreaTimeseries({ points, color, currency, ariaLabel }: ChartBase
             cy={yFor(points[idx].value)}
             r={5}
             fill={color}
-            stroke="#121419"
+            stroke="var(--color-panel)"
             strokeWidth={2}
           />
           <Tooltip point={points[idx]} x={xFor(idx)} format={format} />

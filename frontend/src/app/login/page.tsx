@@ -2,15 +2,24 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser, roleHome } from "@/lib/auth/current-user";
 import { Panel } from "@/components/ui/panel";
+import { env } from "@/lib/env";
 import { LoginForm } from "./login-form";
+import { demoLoginRoleFromPath } from "./demo-role";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string | string[] }>;
+}) {
   const me = await getCurrentUser();
   if (me) {
     redirect(roleHome(me.user.role));
   }
+  const config = env();
+  const role = demoLoginRoleFromPath((await searchParams).from);
+  const demoLoginRole = config.DEMO_LOGIN_ENABLED ? role : undefined;
 
   return (
     <main className="bg-atmosphere relative flex flex-1 items-center justify-center overflow-hidden p-6">
@@ -29,7 +38,7 @@ export default async function LoginPage() {
         </p>
 
         <Panel className="p-6">
-          <LoginForm />
+          <LoginForm demoLoginRole={demoLoginRole} />
         </Panel>
 
         <p className="micro text-faint mt-6 flex items-center gap-2">

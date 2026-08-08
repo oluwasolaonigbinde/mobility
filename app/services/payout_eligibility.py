@@ -12,7 +12,12 @@ Invariant (property-tested): eligible_seconds + sum of every excluded reason
 
 import math
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
+
+# The payable day is the Africa/Lagos calendar day (D4 cap, D9c). Frozen
+# product rule, not configuration.
+LAGOS_TZ = ZoneInfo("Africa/Lagos")
 
 REASON_MOVING = "moving"
 REASON_STATIONARY = "stationary"
@@ -68,6 +73,10 @@ class EligibilityBreakdown:
     eligible_seconds: int
     excluded_seconds_by_reason: dict[str, int]
     teleport_incident_count: int
+    # Eligible seconds split by Africa/Lagos calendar day (ISO date -> seconds).
+    # A trip that crosses midnight contributes to two days; the cap is applied
+    # per day against its own allowance (RM1, D4/D14). Sums to eligible_seconds.
+    eligible_seconds_by_day: dict[str, int]
 
     @property
     def total_seconds(self) -> int:
@@ -104,11 +113,20 @@ def _stay_point_regions(
     Detection runs over the full ping series so exclusions like out_of_area
     never reset the grace clock; only a gps_gap interval (position unknown)
     breaks a stretch. Returns [start_offset, end_offset) pairs of the
-    *excluded* portion (anchor time + grace .. last ping inside the radius).
+    *excluded* portion (anchor time + granted grace .. last ping inside the
+    radius).
+
+    Grace is a **whole-session budget** (RM1/RM2, D14), not a per-stay
+    allowance: `stationary_grace_seconds` is granted once across the trip and
+    consumed by each confirmed stay in chronological order. The previous
+    per-episode reset let a driver renew the exemption indefinitely by
+    nudging the vehicle between stops, so an entire shift of parked time could
+    be paid in grace-sized slices.
     """
     regions: list[tuple[int, int]] = []
     count = len(pings)
     anchor = 0
+    grace_remaining = max(0, params.stationary_grace_seconds)
     while anchor < count - 1:
         last_inside = anchor
         for j in range(anchor + 1, count):
@@ -127,14 +145,41 @@ def _stay_point_regions(
             last_inside = j
         duration = raw_seconds[last_inside] - raw_seconds[anchor]
         if last_inside > anchor and duration >= params.stationary_window_seconds:
-            excluded_from = offsets[anchor] + params.stationary_grace_seconds
-            excluded_to = offsets[last_inside]
-            if excluded_from < excluded_to:
-                regions.append((excluded_from, excluded_to))
+            span_start = offsets[anchor]
+            span_end = offsets[last_inside]
+            granted = min(grace_remaining, max(0, span_end - span_start))
+            grace_remaining -= granted
+            excluded_from = span_start + granted
+            if excluded_from < span_end:
+                regions.append((excluded_from, span_end))
             anchor = last_inside + 1
         else:
             anchor += 1
     return regions
+
+
+def lagos_day_at(start: datetime, offset_seconds: int) -> str:
+    """ISO Africa/Lagos calendar date of an offset into the session."""
+    return (_utc(start) + timedelta(seconds=offset_seconds)).astimezone(LAGOS_TZ).date().isoformat()
+
+
+def _lagos_midnight_offsets(start: datetime, duration: int) -> list[int]:
+    """Offsets of every Africa/Lagos midnight strictly inside the session.
+
+    These become slice boundaries so no interval spans two payable days
+    (RM1): the D4 cap is per calendar day, so a cross-midnight trip must
+    charge each day's allowance separately.
+    """
+    offsets: list[int] = []
+    day: date = _utc(start).astimezone(LAGOS_TZ).date()
+    while True:
+        day = day + timedelta(days=1)
+        boundary = datetime.combine(day, time.min, tzinfo=LAGOS_TZ).astimezone(UTC)
+        offset = math.floor((boundary - _utc(start)).total_seconds())
+        if offset >= duration:
+            return offsets
+        if offset > 0:
+            offsets.append(offset)
 
 
 def classify_session(
@@ -165,6 +210,7 @@ def classify_session(
             eligible_seconds=0,
             excluded_seconds_by_reason={},
             teleport_incident_count=0,
+            eligible_seconds_by_day={},
         )
 
     if not ordered:
@@ -172,6 +218,7 @@ def classify_session(
             eligible_seconds=0,
             excluded_seconds_by_reason={REASON_GPS_GAP: duration},
             teleport_incident_count=0,
+            eligible_seconds_by_day={},
         )
 
     window_from = off((_utc(window_start_at) - start).total_seconds()) if window_start_at else 0
@@ -212,6 +259,7 @@ def classify_session(
     # and stay-region grace boundaries — classification is constant per slice.
     cuts = {0, duration, window_from, window_to}
     cuts.update(offsets)
+    cuts.update(_lagos_midnight_offsets(start, duration))
     for region_start, region_end in stay_regions:
         cuts.add(min(max(0, region_start), duration))
         cuts.add(min(max(0, region_end), duration))
@@ -232,6 +280,7 @@ def classify_session(
         return None
 
     eligible = 0
+    eligible_by_day: dict[str, int] = {}
     for slice_start, slice_end in zip(boundaries, boundaries[1:], strict=False):
         length = slice_end - slice_start
         if length <= 0:
@@ -264,6 +313,10 @@ def classify_session(
             excluded[REASON_STATIONARY] += length
             continue
         eligible += length
+        # Slices never span a Lagos midnight (boundary is a cut), so the
+        # slice start's day owns the whole slice.
+        day_key = lagos_day_at(start, slice_start)
+        eligible_by_day[day_key] = eligible_by_day.get(day_key, 0) + length
 
     return EligibilityBreakdown(
         eligible_seconds=eligible,
@@ -271,4 +324,5 @@ def classify_session(
             reason: seconds for reason, seconds in excluded.items() if seconds > 0
         },
         teleport_incident_count=teleport_incidents,
+        eligible_seconds_by_day=eligible_by_day,
     )

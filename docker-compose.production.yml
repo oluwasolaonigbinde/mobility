@@ -112,6 +112,7 @@ services:
       API_BASE_URL: http://api:8000
       SESSION_COOKIE_NAME: mobility_session
       LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER: ${LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER:-false}
+      DEMO_LOGIN_ENABLED: "false"
       SENTRY_DSN: ${SENTRY_DSN:-}
       NODE_ENV: production
     healthcheck:

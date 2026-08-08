@@ -8,6 +8,11 @@ see what exists, why it's built that way, and what's next.
 - **Backend:** slices 1–13 complete (`slice-13-mvp-hardening` = frozen 78-endpoint MVP contract)
 - **Frontend:** `frontend/` — built branch-per-phase (`frontend-00-…`, `frontend-01-…`, …)
 - **Design source:** the Vantage pitch prototype (https://oluwasolaonigbinde.github.io/vantage/) — the client bought this look; the app ports it faithfully.
+- **Scope note (4 Aug 2026, D11):** this is a chronological journal — any
+  "deferred/future" lists inside reflect their entry's date, not current scope.
+  Binding scope = `docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx`
+  via `docs/decisions-log.md` D11; sequencing = `docs/architecture.md` §31
+  (retargeting, driver mobile app, exports, and pilot deployment are in-MVP).
 
 ---
 

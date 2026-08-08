@@ -22,7 +22,7 @@ const statusTone: Record<LedgerStatus, "green" | "amber" | "coral" | "default"> 
 export default async function DriverEarningsPage() {
   const api = createApiClient(await getSessionToken());
 
-  const [summary, ledger] = await Promise.all([
+  const [summary, ledger, assignments] = await Promise.all([
     api.GET("/api/v1/driver/earnings/summary").catch((e) => {
       if (e instanceof ApiError && e.status === 404) return { data: undefined };
       throw e;
@@ -31,10 +31,24 @@ export default async function DriverEarningsPage() {
       if (e instanceof ApiError && e.status === 404) return { data: undefined };
       throw e;
     }),
+    api
+      .GET("/api/v1/driver/campaign-assignments", { params: { query: { limit: 50 } } })
+      .catch((e) => {
+        if (e instanceof ApiError && e.status === 404) return { data: undefined };
+        throw e;
+      }),
   ]);
 
   const totals = summary.data?.totals_by_currency ?? [];
   const entries = ledger.data?.items ?? [];
+  const campaignNames = new Map(
+    (assignments.data?.items ?? []).map((item) => [
+      item.campaign_id,
+      item.campaign?.name ?? "Campaign",
+    ]),
+  );
+  const availableEntries = entries.filter((entry) => entry.status === "available").length;
+  const pendingEntries = entries.filter((entry) => entry.status === "pending").length;
 
   return (
     <div className="animate-rise flex flex-col gap-4">
@@ -63,9 +77,28 @@ export default async function DriverEarningsPage() {
         </div>
       ))}
 
+      <Panel className="p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="micro text-muted">Payout journey</p>
+            <p className="mt-2 text-sm font-medium">
+              {availableEntries} available · {pendingEntries} pending
+            </p>
+            <p className="text-muted mt-1 text-xs leading-5">
+              Open a trip below to see its verified time, rate, cap progress, exclusions, and ledger
+              trail.
+            </p>
+          </div>
+          <span className="bg-green/10 text-green flex size-10 shrink-0 items-center justify-center rounded-full font-mono">
+            ₦
+          </span>
+        </div>
+      </Panel>
+
       <Panel className="overflow-hidden">
         <div className="border-edge border-b px-5 py-3.5">
           <h2 className="micro text-muted">Ledger · every naira traced to a trip</h2>
+          <p className="text-faint mt-1 text-xs">{entries.length} recent entries</p>
         </div>
         {entries.length === 0 ? (
           <p className="text-muted px-5 py-10 text-center text-sm">
@@ -77,8 +110,10 @@ export default async function DriverEarningsPage() {
               const row = (
                 <>
                   <div className="min-w-0">
-                    <p className="truncate text-sm">
-                      {e.description ?? e.entry_type.replace("_", " ")}
+                    <p className="truncate text-sm font-medium">
+                      {campaignNames.get(e.campaign_id) ??
+                        e.description ??
+                        e.entry_type.replace("_", " ")}
                     </p>
                     <p className="micro text-faint mt-0.5">{formatDate(e.occurred_at)}</p>
                   </div>
@@ -101,9 +136,7 @@ export default async function DriverEarningsPage() {
                       {row}
                     </Link>
                   ) : (
-                    <div className="flex items-center justify-between gap-3 px-5 py-3.5">
-                      {row}
-                    </div>
+                    <div className="flex items-center justify-between gap-3 px-5 py-3.5">{row}</div>
                   )}
                 </li>
               );

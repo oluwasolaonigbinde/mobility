@@ -104,7 +104,7 @@ export default async function CampaignReportPage({
           <p className="text-faint mb-4 text-xs">GPS-verified exposure, formula {""}v1</p>
           <AreaTimeseries
             points={impressionSeries}
-            color="#ffa62b"
+            color="var(--color-amber)"
             ariaLabel="Daily estimated impressions"
           />
         </Panel>
@@ -113,7 +113,7 @@ export default async function CampaignReportPage({
           <p className="text-faint mb-4 text-xs">Driver payouts attributed to this campaign</p>
           <BarTimeseries
             points={payoutSeries}
-            color="#4ade80"
+            color="var(--color-green)"
             currency={cost?.currency ?? "NGN"}
             ariaLabel="Daily media spend"
           />

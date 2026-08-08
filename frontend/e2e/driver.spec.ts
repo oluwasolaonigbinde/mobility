@@ -18,7 +18,9 @@ test("driver home shows earnings and the active campaign with app chrome", async
   await loginAsDriver(page);
   await expect(page.getByText("Vantage. DRIVER")).toBeVisible();
   await expect(page.getByText("Available earnings")).toBeVisible();
-  await expect(page.getByText("Demo Lagos Mobility Campaign")).toBeVisible();
+  await expect(page.getByText("Demo Lagos Mobility Campaign", { exact: true })).toHaveCount(3);
+  await expect(page.getByText("Recent activity")).toBeVisible();
+  await expect(page.getByText("Campaigns", { exact: true })).toBeVisible();
   // Bottom tab bar — the app chrome
   const nav = page.getByRole("navigation", { name: "Driver app" });
   for (const tab of ["Home", "Jobs", "Track", "Earnings", "Profile"]) {
@@ -26,7 +28,7 @@ test("driver home shows earnings and the active campaign with app chrome", async
   }
 });
 
-test("jobs tab lists the seeded assignment with its lifecycle action", async ({ page }) => {
+test("jobs tab tells a three-campaign lifecycle story", async ({ page }) => {
   await loginAsDriver(page);
   await page
     .getByRole("navigation", { name: "Driver app" })
@@ -34,7 +36,9 @@ test("jobs tab lists the seeded assignment with its lifecycle action", async ({ 
     .click();
   await page.waitForURL("**/driver/assignments");
   await expect(page.getByText("Demo Lagos Mobility Campaign")).toBeVisible();
-  await expect(page.getByText("DEMO-001")).toBeVisible();
+  await expect(page.getByText("Airtel Lagos Commute")).toBeVisible();
+  await expect(page.getByText("PalmPay Market Routes")).toBeVisible();
+  await expect(page.getByText("DEMO-001 · car", { exact: true })).toHaveCount(3);
   // Seeded assignment is active → the one offered action is Deactivate
   await expect(page.getByRole("button", { name: "Deactivate" })).toBeVisible();
 });
@@ -48,6 +52,7 @@ test("earnings tab shows totals and a trip-traceable ledger", async ({ page }) =
   await page.waitForURL("**/driver/earnings");
   await expect(page.getByText("Pending", { exact: true })).toBeVisible();
   await expect(page.getByText("Lifetime", { exact: true })).toBeVisible();
+  await expect(page.getByText("Payout journey")).toBeVisible();
   // Ledger rows are links into the per-trip earnings breakdown.
   await expect(page.locator('a[href*="/driver/earnings/trips/"]').first()).toBeVisible();
 });
@@ -61,6 +66,8 @@ test("track tab offers trip control for the active assignment", async ({ page })
   await page.waitForURL("**/driver/track");
   // Either ready-to-start or already tracking — both are valid live states
   await expect(page.getByRole("button", { name: /Start trip|End trip/ })).toBeVisible();
+  await expect(page.getByText("How a trip becomes earnings")).toBeVisible();
+  await expect(page.getByText("Recent verified activity")).toBeVisible();
 });
 
 test("profile tab shows driver details and vehicles", async ({ page }) => {
@@ -73,6 +80,7 @@ test("profile tab shows driver details and vehicles", async ({ page }) => {
   await expect(page.getByText("driver@demo.mobility.local")).toBeVisible();
   await expect(page.getByRole("button", { name: "Save details" })).toBeVisible();
   await expect(page.getByText("DEMO-001")).toBeVisible();
+  await expect(page.getByText("Driver readiness")).toBeVisible();
 });
 
 test("PWA manifest is public and correctly scoped", async ({ request }) => {

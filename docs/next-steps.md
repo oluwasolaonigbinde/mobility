@@ -6,7 +6,7 @@ independent adversarial review → reconcile). It sequences the W1-remainder
 work from `architecture.md` §31 and fixes the slice-level design decisions,
 grounded in researched industry practice (anchors cited per slice).
 
-**Precedence:** `architecture.md` > `adopted-decisions.md` > this plan. This
+**Precedence:** `architecture.md` > `decisions-log.md` > this plan. This
 plan adds detail inside the architecture's fixed shapes; where it proposes an
 architecture amendment, it says so explicitly and the implementing slice makes
 that amendment in the same commit (amendment rule, architecture §1). If
@@ -15,7 +15,7 @@ implementation reality contradicts this plan, stop and flag — don't improvise.
 ## How to run a slice (binding on every implementing agent)
 
 1. **Read first:** `architecture.md` §1/§30 (placement + amendment rule), the
-   slice's referenced sections, `adopted-decisions.md` (statuses + divergence
+   slice's referenced sections, `decisions-log.md` (statuses + divergence
    guards), and this plan's slice entry. Cite Q/D numbers in commits.
 2. **Per-slice SOP:** this document is direction, not your implementation
    plan. Each slice still gets its own detailed implementation plan →
@@ -27,10 +27,11 @@ implementation reality contradicts this plan, stop and flag — don't improvise.
    `schema.d.ts`, `docs/api/openapi.snapshot.json`), migrations sequential
    from `0013` and frozen once shipped, live end-to-end verification against
    the compose stack (the worker slice's disposable-stack simulation is the
-   model), `fablev1-work.md` build log updated per phase.
+   model), `docs/progress.md` updated per landed slice (the old
+   `fablev1-work.md` journal is archived — do not extend it).
 4. **Docs in the same commit:** architecture tag moves ([TARGET] → [BUILT]),
-   `adopted-decisions.md` build-implication updates, changelog row, and any
-   new decisions recorded in `decisions-log.md`.
+   `decisions-log.md` Part 2 build-implication updates, changelog row, and
+   any new decisions recorded as Part 1 rows.
 5. **Settings discipline:** every tunable this plan marks `⚙` is a typed
    `Settings` field with the stated default — never a literal in code. Values
    that affect computed money are part of the computation fingerprint (S1).
@@ -158,23 +159,20 @@ campaign/driver/Lagos-day, computed automatically on trip end.
    changing it means `payout_v3`). Driver-visible
    day totals are **sums of posted entries, never re-derived**. Never round
    per-interval (drift), never cap after pricing (lost-kobo disputes).
-5. **Lagos-day attribution per architecture:** a trip bills against the
-   Africa/Lagos day its trip **started** (§16.1 — simpler than midnight
-   splitting; the cap is a budget, not a shift rule). Use
-   `zoneinfo("Africa/Lagos")`, never a hardcoded UTC+1. Cap concurrency =
-   the sanctioned **advisory lock on (driver_profile_id, campaign_id,
-   Lagos-day)** around the read-remaining-cap → write critical section.
-   Mechanics (no advisory-lock code exists anywhere in the repo yet — S1
-   builds the helper from scratch): **transaction-scoped
-   `pg_advisory_xact_lock`** only (session-scoped locks leak across pooled
-   asyncpg connections); lock key = first 8 bytes of
+5. **Lagos-calendar-day attribution per architecture (D4/D14, RM1):** split
+   the classified timeline at every `Africa/Lagos` midnight and return
+   `eligible_seconds_by_day`. Apply the daily cap independently to every
+   touched day under a **transaction-scoped advisory lock on
+   (driver_profile_id, campaign_id, Lagos-day)**, acquiring multiple day
+   locks in deterministic order. Persist the capped allocation as
+   `payable_seconds_by_day`; cap accounting and recompute-day read that stored
+   allocation rather than re-deriving it. Use `zoneinfo("Africa/Lagos")`, never
+   a hardcoded UTC+1. Lock key = first 8 bytes of
    `sha256(f"paycap:{driver_profile_id}:{campaign_id}:{lagos_date}")` as a
    signed bigint, derived in one shared helper so the pipeline stage and the
-   recompute-day tool lock identically. Process a driver's same-day trips in
-   deterministic order (trip start, then id) so recompute reproduces
-   allocations. (Research preferred a locked `driver_campaign_day`
-   accumulator row — rejected here under P10/§16.1 "no new table until
-   measured cost says otherwise"; revisit only if cap discrepancies recur.)
+   recompute-day tool lock identically. (A locked `driver_campaign_day`
+   accumulator row remains unnecessary unless measured cap discrepancies
+   justify it.)
 6. **Voids on capped days — admin day-true-up, not auto-reallocation.**
    Architecture §16.1 forbids retroactive cap reallocation and says
    discrepancies are flagged for admin review. Ship the review tool with it:
@@ -263,7 +261,9 @@ rate + campaign override), no v1 row rewrites ever.
 Unit: classifier edge cases (gap at session edge, teleport sandwich,
 stationary-with-grace crossing a window boundary, both-endpoints geofence
 rule, accuracy filter); money (rounding at 2dp, cap-truncate-then-price,
-sum-of-entries invariant); Lagos-day attribution (trip starting 23:50).
+sum-of-entries invariant); Lagos-day attribution (a trip crossing Lagos
+midnight splits eligible seconds, caps each day independently, persists the
+payable allocation, and reproduces it during recompute-day).
 Property test: Σ(eligible + excluded-by-reason) == session duration.
 Concurrency: two same-day trips computed in parallel never jointly exceed the
 cap (advisory-lock test, like the worker slice's admin-race test). Pipeline:
@@ -275,7 +275,7 @@ history rows still render in reports.
 
 Worker produces `payout_v2` calculations + ledger entries for trips under a
 v2 rule with zero admin action; v1 paths untouched and green; driver can see
-the breakdown; architecture §16.1 → [BUILT]; adopted-decisions Q4/Q5 rows
+the breakdown; architecture §16.1 → [BUILT]; decisions-log Part 2 Q4/Q5 rows
 note delivery.
 
 **Research anchors:** [Uber CatchME](https://www.uber.com/us/en/blog/mapping-accuracy-with-catchme/) ·
@@ -316,7 +316,7 @@ notification slice (in-app only; channel adapters are W2).
    (the top of the code's low/medium/high scale — there is no `critical`)
    **never auto-release**; instead the sweep **auto-escalates** (re-notify
    admin + SLA-breach view) after ⚙ `FLAG_ESCALATION_DAYS` (default 3).
-   Update `adopted-decisions.md` Q21 and architecture §17 with this policy in
+   Update `decisions-log.md` Q21 and architecture §17 with this policy in
    the slice commit; record in `decisions-log.md`.
 3. **Review outcomes are three, not two:** release (dismiss), **adjust**
    (partial — confirm flag + post a **partial `reversal`** for the
@@ -747,5 +747,5 @@ ingestion/analytics thresholds, which are untouched).
 
 If Somto's answers land mid-flight and contradict an adopted default, stop,
 record the superseding row in `decisions-log.md`, and re-plan the affected
-slice (divergence guards in `adopted-decisions.md` were designed to make this
+slice (divergence guards in `decisions-log.md` were designed to make this
 cheap — use them).

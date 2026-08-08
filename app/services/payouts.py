@@ -939,20 +939,43 @@ def latest_payout_calculation_ids(
     return select(ranked.c.calculation_id).where(ranked.c.recency_rank == 1)
 
 
+def day_allocation_seconds(
+    by_day: dict | None,
+    payable_seconds: int | None,
+    trip_started_at: datetime,
+    day_key: str,
+) -> int:
+    """Seconds a calculation charges to one Lagos day.
+
+    Reads the stored per-day allocation (RM1). Rows written before 0015 have
+    no allocation map: they charged the whole trip to its start day, so that
+    is what they consume — never re-derive them, the audited recompute-day
+    tool is the only corrective path (D9)."""
+    if by_day:
+        return int(by_day.get(day_key, 0) or 0)
+    if payable_seconds and lagos_day_for(trip_started_at).isoformat() == day_key:
+        return int(payable_seconds)
+    return 0
+
+
 async def day_consumed_payable_seconds(
     session: AsyncSession,
     *,
     driver_profile_id: UUID,
     campaign_id: UUID,
-    day_utc_range: tuple[datetime, datetime],
+    lagos_day: date,
     exclude_trip_id: UUID | None = None,
 ) -> int:
     """Payable seconds already allocated for the driver/campaign/Lagos-day.
 
-    Per-trip MAX dedupes a trip calculated under two v2 rule rows (counted
-    once, conservatively the larger); trips whose trip_payout entry is voided
-    consume nothing. Callers hold the paycap advisory lock."""
-    day_start_utc, day_end_utc = day_utc_range
+    Counts every trip that *overlaps* the day, charging each only the seconds
+    its stored allocation assigns to that day (RM1) — a cross-midnight trip
+    consumes each day's allowance separately. Per-trip MAX dedupes a trip
+    calculated under two v2 rule rows (counted once, conservatively the
+    larger); trips whose trip_payout entry is voided consume nothing. Callers
+    hold that day's paycap advisory lock."""
+    day_key = lagos_day.isoformat()
+    day_start_utc, day_end_utc = lagos_day_utc_range(lagos_day)
     voided_trip_payout = (
         select(EarningsLedgerEntry.id)
         .where(
@@ -966,7 +989,9 @@ async def day_consumed_payable_seconds(
     per_trip = (
         select(
             PayoutCalculation.trip_session_id.label("trip_id"),
-            func.max(PayoutCalculation.payable_seconds).label("payable"),
+            PayoutCalculation.payable_seconds_by_day.label("by_day"),
+            PayoutCalculation.payable_seconds.label("payable"),
+            TripSession.started_at.label("started_at"),
         )
         .join(TripSession, TripSession.id == PayoutCalculation.trip_session_id)
         .where(
@@ -974,22 +999,26 @@ async def day_consumed_payable_seconds(
             PayoutCalculation.campaign_id == campaign_id,
             PayoutCalculation.formula_version == PAYOUT_V2,
             PayoutCalculation.status == PayoutCalculationStatus.CALCULATED.value,
-            TripSession.started_at >= day_start_utc,
+            # Overlap, not start-day containment: a trip that began yesterday
+            # can still consume today's cap (RM1).
             TripSession.started_at < day_end_utc,
+            func.coalesce(TripSession.ended_at, TripSession.started_at) >= day_start_utc,
             ~voided_trip_payout,
         )
-        .group_by(PayoutCalculation.trip_session_id)
     )
     if exclude_trip_id is not None:
         per_trip = per_trip.where(PayoutCalculation.trip_session_id != exclude_trip_id)
     rows = await session.execute(per_trip)
-    consumed_by_trip = {row.trip_id: int(row.payable or 0) for row in rows.all()}
+    consumed_by_trip: dict[UUID, int] = {}
+    for row in rows.all():
+        seconds = day_allocation_seconds(row.by_day, row.payable, row.started_at, day_key)
+        consumed_by_trip[row.trip_id] = max(consumed_by_trip.get(row.trip_id, 0), seconds)
 
     # A recompute-day true-up supersedes the calculation's figure: the latest
     # non-voided differential entry stores the day's authoritative
     # payable_seconds for its trip (calculations are write-once).
     recompute_entries = await session.execute(
-        select(EarningsLedgerEntry)
+        select(EarningsLedgerEntry, TripSession.started_at.label("trip_started_at"))
         .join(TripSession, TripSession.id == EarningsLedgerEntry.trip_session_id)
         .where(
             EarningsLedgerEntry.driver_profile_id == driver_profile_id,
@@ -1001,8 +1030,8 @@ async def day_consumed_payable_seconds(
                     EarningsLedgerEntryType.REVERSAL.value,
                 )
             ),
-            TripSession.started_at >= day_start_utc,
             TripSession.started_at < day_end_utc,
+            func.coalesce(TripSession.ended_at, TripSession.started_at) >= day_start_utc,
         )
         .order_by(
             EarningsLedgerEntry.occurred_at,
@@ -1010,14 +1039,20 @@ async def day_consumed_payable_seconds(
             EarningsLedgerEntry.id,
         )
     )
-    for entry in recompute_entries.scalars().all():
+    for entry, trip_started_at in recompute_entries.all():
         if exclude_trip_id is not None and entry.trip_session_id == exclude_trip_id:
             continue
         metadata = entry.ledger_metadata or {}
         if not metadata.get("recompute_day"):
             continue
-        payable = (metadata.get("breakdown") or {}).get("payable_seconds")
-        if payable is not None:
+        breakdown_meta = metadata.get("breakdown") or {}
+        by_day = breakdown_meta.get("payable_seconds_by_day")
+        payable = breakdown_meta.get("payable_seconds")
+        if by_day is not None:
+            consumed_by_trip[entry.trip_session_id] = int(by_day.get(day_key, 0) or 0)
+        elif payable is not None and lagos_day_for(trip_started_at).isoformat() == day_key:
+            # Pre-RM1 differential: a whole-trip figure, which could only ever
+            # have been charged to the trip's own start day.
             consumed_by_trip[entry.trip_session_id] = int(payable)
     return sum(consumed_by_trip.values())
 
@@ -1458,11 +1493,16 @@ async def calculate_trip_payout_v2(
     )
 
     lagos_day = lagos_day_for(trip.started_at)
-    day_range = lagos_day_utc_range(lagos_day)
-    # Advisory lock BEFORE reading cap consumption; never inside a savepoint.
-    await acquire_paycap_lock(
-        session, paycap_lock_key(trip.driver_profile_id, trip.campaign_id, lagos_day)
-    )
+    # Every Lagos day the trip's eligible time touches (RM1): a cross-midnight
+    # trip charges each day's own cap. Sorted so concurrent workers always take
+    # the locks in the same order and cannot deadlock.
+    day_keys = sorted(breakdown.eligible_seconds_by_day) or [lagos_day.isoformat()]
+    lagos_days = [date.fromisoformat(key) for key in day_keys]
+    # Advisory locks BEFORE reading cap consumption; never inside a savepoint.
+    for day in lagos_days:
+        await acquire_paycap_lock(
+            session, paycap_lock_key(trip.driver_profile_id, trip.campaign_id, day)
+        )
 
     if (
         analytics.status == TripAnalyticsStatus.INSUFFICIENT_DATA.value
@@ -1478,20 +1518,31 @@ async def calculate_trip_payout_v2(
         status_value = PayoutCalculationStatus.CALCULATED.value
 
     cap_seconds = daily_cap_seconds(rule)
-    consumed_before = await day_consumed_payable_seconds(
-        session,
-        driver_profile_id=trip.driver_profile_id,
-        campaign_id=trip.campaign_id,
-        day_utc_range=day_range,
-        exclude_trip_id=trip.id,
-    )
-    if status_value == PayoutCalculationStatus.CALCULATED.value:
-        # Cap before pricing, in integer seconds.
-        payable_seconds = max(
-            0, min(breakdown.eligible_seconds, cap_seconds - consumed_before)
+    consumed_by_day: dict[str, int] = {}
+    payable_by_day: dict[str, int] = {}
+    for day in lagos_days:
+        key = day.isoformat()
+        consumed_by_day[key] = await day_consumed_payable_seconds(
+            session,
+            driver_profile_id=trip.driver_profile_id,
+            campaign_id=trip.campaign_id,
+            lagos_day=day,
+            exclude_trip_id=trip.id,
         )
-    else:
-        payable_seconds = 0
+    if status_value == PayoutCalculationStatus.CALCULATED.value:
+        # Cap before pricing, in integer seconds, independently per Lagos day.
+        for key in day_keys:
+            allotted = max(
+                0,
+                min(
+                    breakdown.eligible_seconds_by_day.get(key, 0),
+                    cap_seconds - consumed_by_day[key],
+                ),
+            )
+            if allotted > 0:
+                payable_by_day[key] = allotted
+    payable_seconds = sum(payable_by_day.values())
+    consumed_before = sum(consumed_by_day.values())
     hourly_rate = Decimal(rule.hourly_rate_naira)
     amount = price_payable_seconds(payable_seconds, hourly_rate)
 
@@ -1503,10 +1554,13 @@ async def calculate_trip_payout_v2(
         "fraud_flag_counts": counts,
         "request_metadata": metadata,
         "lagos_day": lagos_day.isoformat(),
+        "lagos_days": day_keys,
         "cap": {
             "cap_seconds": cap_seconds,
             "consumed_before_seconds": consumed_before,
             "payable_seconds": payable_seconds,
+            "consumed_before_seconds_by_day": consumed_by_day,
+            "payable_seconds_by_day": payable_by_day,
         },
         "rates": {"hourly_rate_naira": str(hourly_rate)},
         "eligibility_params": params.as_metadata(),
@@ -1523,8 +1577,10 @@ async def calculate_trip_payout_v2(
         "teleport_incident_count": breakdown.teleport_incident_count,
         "components": {
             "eligible_seconds": breakdown.eligible_seconds,
+            "eligible_seconds_by_day": breakdown.eligible_seconds_by_day,
             "excluded_seconds_by_reason": breakdown.excluded_seconds_by_reason,
             "payable_seconds": payable_seconds,
+            "payable_seconds_by_day": payable_by_day,
             "amount": str(amount),
         },
         "source_analytics_formula_version": analytics.formula_version,
@@ -1551,6 +1607,7 @@ async def calculate_trip_payout_v2(
         final_payout=amount,
         eligible_seconds=breakdown.eligible_seconds,
         payable_seconds=payable_seconds,
+        payable_seconds_by_day=payable_by_day,
         excluded_seconds_by_reason=breakdown.excluded_seconds_by_reason,
         inputs_fingerprint=inputs_fingerprint,
         calculated_at=calculated_at,
@@ -2233,8 +2290,10 @@ async def recompute_payout_day(
             TripSession.driver_profile_id == driver_profile_id,
             TripSession.status == TripSessionStatus.ENDED.value,
             TripSession.ended_at.is_not(None),
-            TripSession.started_at >= day_range[0],
+            # Overlap, not start-day containment (RM1): a trip that began the
+            # previous evening can hold part of this day's cap.
             TripSession.started_at < day_range[1],
+            TripSession.ended_at >= day_range[0],
         )
         .order_by(TripSession.started_at, TripSession.id)
     )
@@ -2265,6 +2324,7 @@ async def recompute_payout_day(
     cap_seconds = daily_cap_seconds(rule)
     hourly_rate = Decimal(rule.hourly_rate_naira)
     cap_remaining = cap_seconds
+    day_key = lagos_date.isoformat()
     outcomes: list[RecomputeDayTripOutcome] = []
     adjustment_count = 0
     reversal_count = 0
@@ -2291,6 +2351,7 @@ async def recompute_payout_day(
         if voided or calculation.status == PayoutCalculationStatus.BLOCKED.value:
             eligible_seconds = 0
             payable_seconds = 0
+            payable_by_day: dict[str, int] = {}
             target_amount = Decimal("0.00")
         else:
             ping_rows = await load_eligibility_pings(
@@ -2305,8 +2366,21 @@ async def recompute_payout_day(
                 params=params,
             )
             eligible_seconds = breakdown.eligible_seconds
-            payable_seconds = max(0, min(eligible_seconds, cap_remaining))
-            cap_remaining -= payable_seconds
+            # Re-allocate only the day being recomputed; the trip's seconds on
+            # any other Lagos day keep their stored allocation, because those
+            # days' caps are not being re-run under this lock (RM1).
+            day_eligible = breakdown.eligible_seconds_by_day.get(day_key, 0)
+            day_payable = max(0, min(day_eligible, cap_remaining))
+            cap_remaining -= day_payable
+            other_days = {
+                key: int(value)
+                for key, value in (calculation.payable_seconds_by_day or {}).items()
+                if key != day_key
+            }
+            payable_by_day = dict(other_days)
+            if day_payable > 0:
+                payable_by_day[day_key] = day_payable
+            payable_seconds = sum(payable_by_day.values())
             target_amount = price_payable_seconds(payable_seconds, hourly_rate)
 
         posted = await _posted_amount_for_trip(
@@ -2355,6 +2429,7 @@ async def recompute_payout_day(
                     "breakdown": {
                         "eligible_seconds": eligible_seconds,
                         "payable_seconds": payable_seconds,
+                        "payable_seconds_by_day": payable_by_day,
                         "hourly_rate_naira": str(hourly_rate),
                         "cap_seconds": cap_seconds,
                         "target_amount": str(target_amount),
@@ -2507,7 +2582,7 @@ async def driver_trip_earnings_breakdown(
                 session,
                 driver_profile_id=profile.id,
                 campaign_id=trip.campaign_id,
-                day_utc_range=lagos_day_utc_range(lagos_day_value),
+                lagos_day=lagos_day_value,
             )
 
     return DriverTripBreakdown(

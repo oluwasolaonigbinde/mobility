@@ -5,29 +5,12 @@ backend and a Next.js frontend for advertiser, driver, and operator workflows.
 
 ## Project Status
 
-- **Backend MVP:** Slices 0–13 are complete and formally closed. The frozen backend
-  contract is available at `docs/api/openapi.snapshot.json`.
-- **Frontend baseline:** F0–F6 are committed, covering the production foundation,
-  advertiser campaign workflows, zones, reporting/heatmaps, driver PWA, admin
-  console, and frontend hardening.
-- **F7 hardening:** **complete and merged to `master`**. It adds
-  authentication hardening (current-password-verified changes, forced first-login
-  password change, sliding sessions with a 12-hour absolute cap, session-version
-  revocation, Redis-backed login rate limiting), an admin audit-trail API and UI,
-  a rich deterministic demo seed, backup/restore scripts with a revision-gated
-  restore, inert-without-DSN Sentry hooks, and backend + frontend + e2e CI. It is
-  verified locally.
-- **Automated trip processing:** **complete on `master`**. An arq worker runs
-  the post-trip analytics → fraud → impressions → approved payout-v2 pipeline,
-  with database-backed recovery sweeps and race-safe idempotency.
-- **Pre-production operations:** **complete locally on `master`**. The repository
-  includes a production Compose overlay, Caddy edge, release smoke checks, and a
-  rehearsed backup/restore procedure. Nothing is deployed yet; provider, domain,
-  budget, and operations ownership still require approval (`docs/staging-options.md`).
-
-Read `docs/project-reconciliation.md` before planning further work. It identifies
-the canonical repository, evidence baseline, delivery status, and the boundary
-between completed work and F7.
+Delivery status lives in **one place**: `docs/progress.md` — what has been
+delivered vs. the client-promised MVP scope, current roadmap wave, and what is
+outstanding. Read it (plus `docs/architecture.md`) before planning any work.
+Summary as of Aug 2026: backend slices 0–13 closed; frontend F0–F7 merged;
+worker pipeline, payout v2 (S1), and data lifecycle (S4) delivered; nothing
+deployed yet.
 
 ## Stack
 
@@ -42,7 +25,12 @@ between completed work and F7.
 - pytest and ruff
 - Docker Compose
 
-## Current Scope
+## Delivered Backend Baseline (closed slices 0–13)
+
+Full MVP scope is defined by the client proposal
+(`docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx`, D11) and
+sequenced in `docs/architecture.md` §31; the exclusions below describe only
+what the *closed backend slice loop* did not build, not the project's scope.
 
 The closed backend MVP contains Slice 13: project foundation, request IDs, expected error
 envelope, SQLAlchemy/Alembic foundation, JWT login, current-user context, RBAC, admin
@@ -68,15 +56,24 @@ architecture, local setup, and testing.
 
 ## Documentation Map
 
-- `docs/project-reconciliation.md` — current project state and evidence baseline.
-- `docs/architecture.md` — verified current state (including F7) and designed target state.
-- `docs/runbook.md` — local and pilot operational procedures: backups, restore,
-  migrations, sessions, rate limiting, seed, Sentry, secret rotation.
-- `docs/staging-options.md` — hosting research only; revalidate pricing and provider
-  capabilities before approval.
-- `docs/decisions-log.md` and `docs/Product-Direction-Questionnaire.md` — product
-  decisions and unresolved client questions.
-- `docs/build-loop/` — immutable backend-MVP slice ledger and review evidence.
+Four living docs, one loop: client decisions change → architecture amends →
+agents build → progress records it. Scope is fixed by the client proposal.
+
+1. `docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx` — **scope**:
+   the binding client-facing MVP promise (decisions-log D11). Never edited by
+   agents.
+2. `docs/architecture.md` — **design**: verified current state and the target
+   architecture that fulfils the proposal, with the §31 wave roadmap.
+3. `docs/decisions-log.md` — **decisions**: Part 1 append-only D-row history,
+   Part 2 current Q1–Q34 statuses + divergence guards.
+4. `docs/progress.md` — **delivered so far**: evolving summary of work done
+   vs. the promise; updated with every landed slice.
+
+Supporting reference: `docs/runbook.md` (operations), `docs/next-steps.md`
+(current slice plan, retired when its slices ship), `docs/staging-options.md`
+(hosting research), `docs/api/openapi.snapshot.json` (frozen contract).
+History: `docs/build-loop/` (closed backend ledger), `docs/archive/`
+(superseded artefacts and journals).
 
 ## Local Prerequisites
 

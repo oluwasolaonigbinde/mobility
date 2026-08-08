@@ -340,6 +340,11 @@ class PayoutCalculation(Base):
     cap_adjustment: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     eligible_seconds: Mapped[int | None] = mapped_column(Integer)
     payable_seconds: Mapped[int | None] = mapped_column(Integer)
+    # Payable seconds charged to each Africa/Lagos calendar day (ISO date ->
+    # seconds), summing to payable_seconds. A cross-midnight trip charges each
+    # day's own cap (RM1, D4/D14); this is the stored allocation the cap
+    # accounting and recompute-day read back.
+    payable_seconds_by_day: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     excluded_seconds_by_reason: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     inputs_fingerprint: Mapped[str | None] = mapped_column(Text)
     final_payout: Mapped[Decimal] = mapped_column(

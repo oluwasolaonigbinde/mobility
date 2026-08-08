@@ -1,5 +1,14 @@
 # Product Brief Summary
 
+> **HISTORICAL DOCUMENT (superseded for scope).** This summary described the
+> original *backend-only* build loop (slices 0–13, closed). Its
+> "Deferred/Future Scope" list applied to that loop only — frontend, mobile
+> app, deployment, and **online-to-offline retargeting are all in the current
+> MVP scope**. The binding scope baseline is
+> `docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx` (see
+> decisions-log **D11** and `docs/architecture.md`). Do not plan or bound new
+> work from this file.
+
 ## Project
 
 Mobility AdTech & Audience Attribution Platform
@@ -56,7 +65,7 @@ Advertisers place campaigns on shared ride vehicles. The platform tracks vehicle
 
 The client brief mentions React/Next.js, Flutter or React Native, Node.js or FastAPI, PostgreSQL, Redis, AWS/GCP, Docker, and Mapbox. No backend stack has been chosen or implemented locally. Pro owns the backend stack decision.
 
-## Deferred/Future Scope
+## Deferred/Future Scope (historical — applied to backend slices 0–13 only; superseded by D11)
 
 - Offline-to-online retargeting
 - Anonymous audience pooling

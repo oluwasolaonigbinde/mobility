@@ -261,7 +261,7 @@ export function TripTracker({
             <p className="micro text-muted">Ready to drive</p>
             <p className="mt-2 text-base font-medium">{assignment?.campaign?.name}</p>
             <p className="micro text-faint mt-1">
-              {assignment?.vehicle?.plate_number} · earnings accrue per verified km
+              {assignment?.vehicle?.plate_number} · earnings accrue from verified driving time
             </p>
           </Panel>
           <Button type="button" onClick={start} disabled={busy} className="h-14 w-full text-base">

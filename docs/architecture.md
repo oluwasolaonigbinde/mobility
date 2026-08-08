@@ -1,6 +1,22 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.8 — 2026-07-30. Canonical source of truth: current state AND target state.**
+**Version 1.15 — 2026-08-06. Canonical source of truth: current state AND target state.**
+
+> **Read §35 before building anything.** An independent review (6 Aug 2026,
+> code-verified) produced a remediation register with gates. Seven rows are
+> live defects in already-built code; the rest are requirements the owning
+> slice must honour. Gates in §35.3 block dependent work.
+
+> **Scope baseline (D11) and translation contract:** the client-facing proposal
+> `docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx` is the binding
+> statement of **what** the MVP must deliver — the requirements floor. **This
+> doc is its architectural translation**: it converts those requirements into
+> system design using best-practice decisions, and agents build from this doc,
+> not from proposal literalism. Where the proposal's wording and this doc
+> differ, the resolution is recorded in `docs/decisions-log.md` (e.g. D12:
+> hourly pay supersedes Module E's "mileage-based" phrasing) — never silently
+> diverge in either direction. Narrower scope claims in older docs (notably
+> `docs/build-loop/`) are historical.
 
 This document defines both **what exists** (Part II, verified against commit
 **`301519d`** on branch `f7-hardening`) and **the architecture the
@@ -38,7 +54,7 @@ Every architectural claim below is tagged:
 | **[BUILT]** | Verified against commit `301519d` (the Part II pin). | Rely on it. If the code no longer matches, the doc is stale — flag it. |
 | **[PLANNED-F7]** | Historical tag for the F7 hardening plan. F7 is delivered — remaining occurrences mark F7 items that deliberately did **not** ship (e.g. staging deploy, which stayed research-only). | Treat like [TARGET]: do not build ad hoc. |
 | **[TARGET]** | The designed end-state architecture for functionality not yet built. Structure is decided; some parameters may still be [OPEN]. | Build **toward** it. New features must fit these boundaries. Do not implement a [TARGET] component ad hoc — it gets its own planned build phase. |
-| **[OPEN]** | A question the client has not answered, or otherwise undecided. **Since D8 (27 Jul 2026), per-question status lives in `docs/adopted-decisions.md`** — most Q1–Q34 items are now ADOPTED defaults (build to them, with the row's divergence guard); a Q-referencing [OPEN] below only retains its blocking force if that file still lists the Q as OPEN or CONFIRM-PENDING. The same applies to this doc's "Blocked-by: Q…" headers and any "until answers land" prose: they resolve per that file's statuses. | For genuinely-open items: do not hard-code assumptions; flag any design that would foreclose the open options. For ADOPTED items: build to the adopted direction. |
+| **[OPEN]** | A question the client has not answered, or otherwise undecided. **Since D8 (27 Jul 2026), per-question status lives in `docs/decisions-log.md` Part 2** — most Q1–Q34 items are now ADOPTED defaults (build to them, with the row's divergence guard); a Q-referencing [OPEN] below only retains its blocking force if that file still lists the Q as OPEN or CONFIRM-PENDING. The same applies to this doc's "Blocked-by: Q…" headers and any "until answers land" prose: they resolve per that file's statuses. | For genuinely-open items: do not hard-code assumptions; flag any design that would foreclose the open options. For ADOPTED items: build to the adopted direction. |
 
 **[TARGET] vs [OPEN]:** a [TARGET] section fixes the *shape* (which component, which
 boundary, which tables/ports) even when a business *parameter* inside it is [OPEN]
@@ -64,7 +80,8 @@ changelog (§34).
 ### Reading paths
 
 - **"Where does feature X go?"** → §30 placement map, then the referenced section.
-- **"What exists today?"** → Part II (§5–§12).
+- **"What exists today?"** → Part II (§5–§12); delivered-work summary vs. the
+  client promise → `docs/progress.md`.
 - **"How should I build the next phase?"** → §31 roadmap, then the relevant Part III section.
 - **"What can't be decided yet?"** → §33 open questions.
 
@@ -91,8 +108,10 @@ product is:
 1. **Advertiser side** — self-serve portal: campaigns with zone targeting,
    creative upload with ops approval, attribution reports, exposure heatmaps,
    quotes/invoices, prepaid funding (gateway later), budget enforcement.
-2. **Driver side** — installable app (PWA now, **native app phase 2** with
-   background GPS — same API contract), campaign offers with transparent hourly
+2. **Driver side** — installable app (PWA delivered as the interim surface;
+   the **driver mobile app** — React Native or Flutter, background GPS,
+   offline/retry sync, push where required — is **in the MVP window per D11**,
+   same API contract), campaign offers with transparent hourly
    pay + daily payable-hours cap, trip tracking, earnings ledger with
    release-schedule payouts, dispute channel.
 3. **Operator side** — the control plane: onboarding (KYC depth [OPEN] Q26),
@@ -101,8 +120,10 @@ product is:
    disbursement, audit trail.
 4. **Platform layer** — notifications (in-app + WhatsApp/SMS), payment collection
    and disbursement integrations (Paystack/Flutterwave family, [OPEN] Q3/Q27),
-   NDPR-compliant data retention, offline-to-online **retargeting** on anonymised
-   exposure aggregates (D6, shape [OPEN] Q11).
+   NDPR-compliant data retention, and **online-to-offline retargeting** at
+   full proposal Module G scope (D6/D11): retargeting source records +
+   campaign/zone linkage + follow-up-targeting insights, on top of Q11's
+   anonymised exposure aggregates (§22).
 5. **Future layers** (post-MVP, explicitly out of current scope): edge-AI
    vehicle/pedestrian counting; multi-city scale-out; audience attribution
    network.
@@ -118,23 +139,27 @@ design for imaginary web scale (see P1, §4).
 
 ## 3. Product decisions & constraints
 
-Confirmed decisions live in **`docs/decisions-log.md`** (D1–D8, append-only,
-supersede-never-edit; D8 resolves the questionnaire via adopted defaults —
-per-Q statuses in `docs/adopted-decisions.md`). Summary with build status:
+Confirmed decisions live in **`docs/decisions-log.md`** (Part 1: append-only
+D-rows, supersede-never-edit; Part 2: per-Q statuses — D8 resolved the
+questionnaire via adopted defaults). Summary with build status:
 
 | # | Decision | Status vs code |
 |---|----------|----------------|
 | D1 | **Operator-led onboarding** — no self-serve signup; admin creates users/orgs. *Narrowed by D8/Q13: applies to advertisers/orgs; drivers get self-registration ([TARGET] §23)* | [BUILT] matches (§6.3); driver self-registration is ADOPTED (Q13), unbuilt |
-| D2 | **Driver pay = fixed hourly rate** (naira/hour × verified payable time) | [TARGET] §16 — the built engine (`payout_v1`) is still per-km + bonuses. Don't extend v1's rate components; don't hard-code either model into new surfaces |
-| D3 | **Screen-on MVP tracking** — installable PWA, phone mounted; native app phase 2, identical backend contract | [BUILT] matches (§8.6); native-app readiness rules in §23 |
+| D2 | **Driver pay = fixed hourly rate** (naira/hour × verified payable time; reconfirmed D12 against the proposal's Module E wording) | [BUILT] §16.1 — `payout_v2` (S1, D9). v1 history is frozen; never extend v1's per-km rate components; don't hard-code either model into new surfaces |
+| D3 | **Screen-on MVP tracking** — installable PWA, phone mounted; native app later, identical backend contract. *Timing superseded by D11: the driver mobile app ships inside the MVP window, not as a separately commissioned phase 2* | [BUILT] matches (§8.6); native-app readiness rules in §23; mobile-app build is [TARGET] W4 (§31) |
 | D4 | **Payable-hours cap** per campaign/driver/day, shown in driver's offer | [TARGET] §16, part of the payout v2 rework |
 | D5 | **Hold-and-review fraud posture** — flags hold earnings for admin review; multipliers become secondary | Flags + multipliers are [BUILT]; the hold/review/dispute workflow is [TARGET] §17 |
-| D6 | **Retargeting is in the MVP** (shape open → Q11) | [TARGET] §22; privacy boundary fixed now, product shape open |
+| D6 | **Retargeting is in the MVP** (shape adopted → Q11, scope extended → D11) | [TARGET] §22; privacy boundary fixed now |
 | D7 | **In-platform creative upload** (Q18 — approval resolved by D8) | [TARGET] §19; creatives stay metadata-only until built |
+| D11 | **The 5-month client MVP proposal is the binding scope baseline** — driver mobile app in the MVP window; retargeting at full Module G scope (sources + linkage + follow-up insights); basic CSV/PDF export and pilot deployment in scope | [TARGET] §22/§23/§31 W4; narrower scope statements in older docs are historical |
 
 Hard constraints (violating any of these is an architecture change, not a feature):
 
-- **No realtime push** — no WebSockets/SSE ([BUILT] §6.5; reaffirmed for target, §14.4).
+- **No realtime web push** — no WebSockets/SSE ([BUILT] §6.5; reaffirmed for
+  target, §14.4). Mobile FCM push (W4, §20/§23) is a store-and-forward
+  notification channel adapter, not a realtime-web mechanism — it does not
+  relax this constraint.
 - **No file upload/storage pipeline** until §19 is built as a phase (D8 adopts Q18; the pipeline still arrives only as its planned phase).
 - **Operator-led** — no self-serve registration of any kind today (driver self-registration is ADOPTED via D8/Q13 but arrives only as its planned §23 phase).
 - **Browser never calls FastAPI** (§8.2). Native apps will (§23) — browsers never.
@@ -474,11 +499,12 @@ Notes:
 
 ### 7.2 Migration policy **[BUILT]**
 
-- Alembic, 14 linear migrations `0001`–`0014` (extensions → identity/orgs →
+- Alembic, 15 linear migrations `0001`–`0015` (extensions → identity/orgs →
   drivers/vehicles → campaigns/creatives → zones → assignments → trip tracking →
   analytics/fraud → impressions → payouts → F7 password management → F7 audit
-  indexes → S1 payout v2 → S4 ping partitioning + purge evidence).
-  <!-- verified 2026-08-03: ls alembic/versions → 14; alembic heads → single head 0014 -->
+  indexes → S1 payout v2 → S4 ping partitioning + purge evidence → RM1 payout-day
+  allocation).
+  <!-- verified 2026-08-06: ls alembic/versions → 15; alembic heads → single head 0015_payout_day_allocation -->
   (Pre-existing doc drift note: this row still said "12" after S1 shipped
   0013 — corrected here in the S4 commit.)
 - `0001` enables `pgcrypto` + `postgis`.
@@ -776,7 +802,7 @@ before implementation).
    Advertiser browser        Admin browser          Driver phone
         │                        │                 ┌───────────────────────┐
         │                        │                 │ PWA (now)             │
-        │                        │                 │ Native app (phase 2,  │
+        │                        │                 │ Mobile app (W4/D11,   │
         │                        │                 │ background GPS)       │
         └───────────┬────────────┘                 └───┬───────────────┬───┘
                     │ HTTPS (cookie session)           │ PWA: cookie   │ native: bearer
@@ -900,7 +926,7 @@ Blocked-by: Q1 (pricing structure), Q2 (when advertisers pay), Q3 (payment
 methods), Q14 (quotes/invoices in-platform?), Q28 (VAT/invoice details), Q24
 (cancellations/refunds). The **shape** below is fixed; the parameters are not.
 **Do not build this domain until Section A answers land** (per D8 /
-`adopted-decisions.md`, Section A is now answered by adopted
+`decisions-log.md` Part 2, Section A is now answered by adopted
 defaults: the domain is buildable in its planned phase; only Q28's company
 facts remain outstanding, blocking real invoice issuance, not the build) — and
 no new feature may conflict with it.
@@ -1012,8 +1038,17 @@ trip**: input drift never auto-recomputes money — the admin endpoint flags it
   sanctions concurrent workers — two same-driver trips computed concurrently
   must not jointly exceed the cap. Rule: payout computation for a trip takes a
   **Postgres advisory lock on (driver_profile_id, campaign_id, Lagos-day)** for
-  the read-remaining-cap → write-calculation critical section. A trip spanning
-  Lagos midnight bills against the day its trip **started**. Recomputing an
+  the read-remaining-cap → write-calculation critical section. **A trip
+  spanning Lagos midnight bills each day separately** *(amended 6 Aug 2026 —
+  RM1/D14; it previously billed the whole trip to the day it started, which
+  contradicted D4's calendar-day cap)*: `classify_session` cuts the timeline at
+  every Africa/Lagos midnight and returns `eligible_seconds_by_day`, the
+  calculation takes **one lock per touched day in sorted order** (deterministic
+  ordering is what keeps concurrent workers deadlock-free), caps each day
+  against its own allowance, and persists the split in
+  `payout_calculations.payable_seconds_by_day` — which is what cap accounting
+  and recompute-day read back, so a trip's consumption is reproducible rather
+  than re-derived. Recomputing an
   earlier trip never **automatically** reallocates cap already consumed by
   later immutable calculations (P6) — input drift is flagged for admin review
   (409 on the admin recompute surface); the **audited admin recompute-day
@@ -1243,8 +1278,9 @@ follow. Email is a first-class channel adapter (transactional provider, [OPEN])
   (`app/adapters/messaging/` — provider [OPEN]; in-app "dispatch" is a no-op,
   the row itself is the notification).
 - In-app UI: notification list + unread badge, **polled** (P8) via TanStack
-  Query (§27.2). No push infrastructure in the MVP target; native-app push
-  (FCM) becomes a new channel adapter in phase 2 (§23) without schema change.
+  Query (§27.2). Web surfaces stay poll-only (no WebSockets/SSE); mobile-app
+  push (FCM) arrives as a new channel adapter in the W4 mobile-app build
+  (§23, D11) without schema change.
 
 ### 20.2 Rules
 
@@ -1277,10 +1313,27 @@ vehicle), competitor-separation policy.
   km/hours per week to ops (notification, §20) — data already exists in
   `trip_analytics`.
 
-## 22. Retargeting & the audience privacy boundary (D6)
+## 22. Retargeting & the audience privacy boundary (D6, D11)
 
-Blocked-by: Q11 (dashboard-only insights vs anonymised exportable segments vs
-platform integrations). D6 fixes that *something* ships in the MVP.
+Q11 is ADOPTED (anonymised exposure-based segments + controlled export, export
+gated on Q31 — see `decisions-log.md` Part 2), and **D11 fixes the full MVP scope**
+to the client proposal's Module G ("Online-to-Offline Retargeting &
+Location-Based Follow-Up Targeting"). The MVP retargeting workstream therefore
+has two halves:
+
+1. **Inbound (online → offline planning):** advertiser-created **retargeting
+   source records** — website traffic, digital campaign audiences, CRM/upload
+   references, UTM campaign sources, or manually supplied audience/location
+   insights — linked to campaigns and target-zone planning, storing segment
+   *metadata only* (never raw personal identity data).
+2. **Outbound (exposure → follow-up insight):** Q11's anonymised
+   exposure-segment aggregation (§22.3) feeding follow-up-targeting insights in
+   advertiser reports/dashboards and admin retargeting monitoring, with
+   consent/estimated-attribution disclaimers in the product structure.
+
+Automated ad-platform activation (Meta/Google/TikTok/programmatic) stays out of
+the MVP unless the client supplies accounts, legal approval, API access, and
+budget — the proposal's own condition. Prepare adapter seams, nothing more.
 
 ### 22.1 What the data actually is
 
@@ -1310,14 +1363,37 @@ estimated impressions). Whatever Q11 chooses, the platform's audience product is
 4. Retention rules (§24) apply upstream: purged pings are simply gone; audience
    aggregates (which carry no personal data) persist.
 
-### 22.3 Shape (finalised when Q11 lands)
+### 22.3 Shape (Q11 adopted; scope per D11)
 
 New domain `app/services/audience.py` + `audience_segments` table (segment
 definition: zones/cells × time window × campaign scope; materialised counts;
 version stamp per P6). Worker jobs materialise segments from analytics
 aggregates. Export/activation (CSV of cells, or platform integrations) is an
-adapter decision downstream of Q11 — the aggregation model is the same for all
-three shapes, which is why this can be designed now (P10).
+adapter decision downstream of the same aggregation model — export ships
+disabled until Q31 legal sign-off.
+
+### 22.4 Retargeting sources & follow-up insights (D11) [TARGET]
+
+The inbound half of Module G: a `retargeting_sources` table (advertiser-scoped;
+type ∈ website-traffic / digital-campaign-audience / CRM-upload-reference /
+UTM-source / manual-insight; free-form segment metadata; consent/disclaimer
+status) with linkage to campaigns and target zones, plus
+follow-up-targeting insight surfaces (report sections + dashboard views built
+from §22.3 aggregates filtered through the linked sources' zones/time windows).
+Privacy boundary §22.2 applies unchanged: source records hold planning
+metadata, never identity data, and never join to raw pings. Admin gets a
+retargeting source/insight monitoring view. Placement: same audience domain
+(`services/audience.py`), advertiser + admin API surfaces, frontend under the
+existing role IA.
+
+Two proposal-promised metrics are the named product faces of these same
+aggregates (they are analytics surfaces, not new data): **high-exposure zone
+insights** (top-ranked exposure cells/zones per campaign and city — advertiser
++ admin dashboard views and report sections, feeding the follow-up-targeting
+recommendations) and the **exposure score** (a formula-versioned composite per
+campaign/route — `exposure_v1` per P6 — surfaced beside estimated impressions
+in dashboards and reports). Both read `trip_analytics`/`impression_estimates`
+aggregates only, k-floor rules of §22.2 apply to any zone-level display.
 
 ## 23. Identity evolution & native-app readiness
 
@@ -1329,9 +1405,10 @@ three shapes, which is why this can be designed now (P10).
   onboarding queue (KYC docs per Q26 through §19). The service layer already
   separates user creation from admin UI, so this is additive. Until then:
   operator-led only (D1).
-- **Native driver app (phase 2, D3):** consumes the **same** `/api/v1/driver/*`
-  contract (already cookie-free bearer — verified posture). Two additions when
-  commissioned, [TARGET] not yet designed in detail:
+- **Driver mobile app (in the MVP window per D11; was "phase 2" under D3):**
+  React Native or Flutter per the client proposal; consumes the **same**
+  `/api/v1/driver/*` contract (already cookie-free bearer — verified posture).
+  Two additions when the W4 build starts, [TARGET] not yet designed in detail:
   1. **Long-lived refresh credential** for native clients — designed as an
      extension of F7's `POST /api/v1/auth/refresh` sliding-session endpoint
      (§6.3), not a parallel mechanism: native clients get a longer-lived
@@ -1625,7 +1702,10 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 | Budget enforcement | §15.5 | `jobs/` + `services/billing.py` + campaign status | campaign status | hard deletes | policy confirmation (Q9-adjacent, via decisions-log) |
 | Matching/recommender | §21 | `services/campaign_assignments.py` | — | UI-layer constraint checks | Q7, Q16 |
 | Activity-floor sweep | §21 | `jobs/` | notifications | — | Q20, worker |
-| Retargeting/audience | §22 | `services/audience.py`, `jobs/` | audience_segments (new) | raw pings from any new code | Q11 |
+| Retargeting/audience | §22 | `services/audience.py`, `jobs/` | audience_segments, retargeting_sources (new) | raw pings from any new code | Q31 (export gate only — build proceeds per Q11/D11) |
+| High-exposure zone insights | §22.4 | `services/audience.py` + report/dashboard surfaces | — | raw pings; zone display below the k-floor (§22.2) | W3 (D11) |
+| Exposure score (campaign/route metric) | §22.4 | `services/route_analytics.py`/`services/impressions.py` (`exposure_v1`, P6-versioned) | impression_estimates or a derived column | rescoring frozen formula versions | W3 (D11) |
+| CSV/PDF report export | §27 report surfaces + §16.3 payout report | report/payout endpoints + frontend download actions | — | heavy generation inline in the request path (use the worker, §14) | W4 (D11; Q12 labelling rules apply) |
 | Retention purge | §24 | `services/data_lifecycle.py` + `jobs/data_lifecycle.py` | location_pings partitions (drop), location_ping_batches (zero-ping delete), data_purge_audit (append) | aggregates, trip_sessions | [BUILT] S4 (Q31 param ⚙ PING_RETENTION_MONTHS) |
 | Ping partitioning | §24.2 | migration `0014` + premake/coverage jobs + `/health/partitions` | location_pings | frozen migrations, default partitions | [BUILT] S4 |
 | Purge evidence (data_purge_audit) | §24.2.4 | `models/data_purge.py` + `services/data_lifecycle.py` | data_purge_audit (append-only) | updates to existing rows | [BUILT] S4 |
@@ -1636,7 +1716,7 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 | Password reset (advertiser/admin) | §23 | `services/auth.py` | users | — | post-F7; needs email channel (§20) |
 | WhatsApp opt-in / phone verification | §20 | `services/notifications.py` | users/driver_profiles phone fields | — | Q34 |
 | Driver self-registration | §23 | `services/users.py` + new auth endpoint | users, driver_profiles | operator-led invariant until Q13 | Q13 |
-| Native app support | §23 | auth + notifications | refresh tokens (new) | driver API contract breaks | phase-2 commission |
+| Driver mobile app (native) | §23 | React Native/Flutter client + auth + notifications | refresh tokens (new) | driver API contract breaks | D11: in-MVP, W4 (§31) |
 | New admin/advertiser/driver page | §27 | `frontend/src/app/{role}/` | — | BFF invariant, raw hex | backend feature |
 | Polling/live UI | §27.2 | TanStack Query layer | — | WebSockets/SSE | — |
 
@@ -1648,16 +1728,20 @@ blocking answers have landed; within a wave, order is dependency-driven.
 | Wave | Contents | Depends on |
 |------|----------|------------|
 | **F7 (done, 2026-07-20)** [BUILT] | Auth hardening (sliding session, `sv`, forced change, rate limiting), backend CI, audit API/UI, rich seed, backups/restore, Sentry hooks. Staging deploy deliberately deferred — research only (`docs/staging-options.md`), awaiting an explicit project-owner go-ahead | — |
-| **W1 — money correctness** | Worker substrate + trip-processing pipeline (§14) **[BUILT] (delivered 2026-07-21)** → payout v2 + caps (§16.1) **[BUILT] (S1, delivered 2026-07-30 — hourly engine, per-rule model selection, advisory-lock caps, recompute-day, driver breakdown, summary netting)** → fraud review + holds (§17; the driver-facing dispute channel needs notifications — ship a minimal **in-app-only** notification slice here, §20, channel adapters wait for W2) → release scheduling (§16.2) → payout runs UI (§16.3 pilot form). Plus pre-pilot data-infra chores: retention job + ping partitioning (§24.2), audit backfill for unaudited flows (§6.4.9) | Q4, Q5, Q21, Q22 (retention window Q31 — ships with the 12-month config default if unanswered) |
+| **W0 — review remediation (§35)** *(new, 6 Aug 2026, D13)* | **Runs before/with the W1 remainder.** Live-code defects first: cap-day allocation RM1, stationary farming RM2, trip seal + client queue RM3/RM4/RM5, admin correction authority RM6, integrity mapping RM7. Then the specification rows each owning slice must honour (RM8–RM18). Start the native/finality spike and synthetic staging lane now (RM17) | Nothing — this is corrective work on built code; RM1 needs the v2-vs-v3 formula decision recorded first |
+| **W1 — money correctness** | Worker substrate + trip-processing pipeline (§14) **[BUILT] (delivered 2026-07-21)** → payout v2 + caps (§16.1) **[BUILT] (S1, delivered 2026-07-30 — hourly engine, per-rule model selection, advisory-lock caps, recompute-day, driver breakdown, summary netting; see §35 RM1/RM2/RM6 for verified corrections)** → fraud review + holds (§17 — **must implement RM8's transition table and assessment record**; the driver-facing dispute channel needs notifications — ship a minimal **in-app-only** notification slice here, §20, channel adapters wait for W2) → release scheduling (§16.2) → payout runs UI (§16.3 pilot form — **must implement RM10/RM11**). Plus pre-pilot data-infra chores: retention job + ping partitioning (§24.2), audit backfill for unaudited flows (§6.4.9) | Q4, Q5, Q21, Q22 (retention window Q31 — ships with the 12-month config default if unanswered) |
 | **W2 — the commercial layer** | Billing/invoices (§15) → file storage (§19) → approval workflows (§18 — campaign approval may precede files, but creative approval and activation evidence consume §19) → notification channel adapters + triggers (§20) | Q1–Q3, Q6, Q14, Q17, Q18, Q28, Q34 |
-| **W3 — reach** | Retargeting v1 per Q11 (§22) → matching recommender + activity sweeps (§21) → driver self-reg if Q13 says so (§23) | Q7, Q11, Q13, Q20 |
-| **Phase 2 (commissioned separately)** | Native driver app + refresh tokens + push (§23); gateway auto-collection (§15.3); Paystack Transfers (§16.3); edge-AI counting (out of scope here) | Pilot results |
+| **W3 — reach** | Retargeting per Q11 + D11 Module G scope (§22: exposure segments + source records + campaign linkage + follow-up-insight report/dashboard surfaces) → exposure score + high-exposure zone views (§22.4) → matching recommender + activity sweeps (§21) → driver self-reg (Q13 adopted, §23) | Q7, Q20; Q31 gates export only |
+| **W4 — mobile app + pilot readiness (D11)** | Driver mobile app (React Native or Flutter, §23: background GPS, offline/retry sync, refresh credential, FCM push adapter §20) → basic CSV/PDF export where still missing → pilot deployment (staging go-ahead + `docker-compose.production.yml` path, §25) → onboarding/training materials + post-MVP roadmap doc | W1–W3; Q29/Q30/Q32 for launch facts; Q31 sign-off gates live pilot data collection |
+| **Phase 2 (post-MVP, per proposal §8)** | Gateway auto-collection (§15.3); Paystack Transfers / automated driver payouts (§16.3); edge-AI counting; automated ad-platform integrations; multi-city optimisation | Pilot results |
 
 Sequencing rationale: W1 first because D2/D4/D5 change **how money is
 computed** — every week built on `payout_v1` deepens the rework; W2 second
 because it's what sales/ops need to run real campaigns; W3 third because it
-extends reach rather than correctness. The worker (§14) leads W1 because W1–W3
-all consume it.
+extends reach rather than correctness; W4 last because the mobile app and
+pilot deployment package flows the earlier waves must already have proven —
+starting it before W1–W3 stabilise would ship an app around moving contracts.
+The worker (§14) leads W1 because every later wave consumes it.
 
 ## 32. Risks, assumptions & client dependencies
 
@@ -1671,8 +1755,9 @@ all consume it.
 | R6 | **NDPR compliance depends on client deliverables** (policy, consent wording, DPO contact — Q31). Retention tech (§24) is ours; the words are theirs. | Flag at every review until landed. |
 | R7 | **Vendor choices unowned** (cloud Q32, payments Q3/Q27, messaging Q34, tiles). Adapters (P5) keep them swappable; but contracts/accounts gate launch dates. | Track in §33; escalate at pilot planning. |
 | R8 | **Volume math (§24.1) is estimated**, not measured (ping rate assumed ~1/s tracked). Validate against real pilot telemetry in month 1; retune partitioning trigger. | First staging review. |
+| R9 | **Resolved (D12, 4 Aug 2026).** Hourly model confirmed: earnings = hourly rate × verified payable hours; proposal Module E's "mileage-based" phrasing is superseded requirement-era wording (mileage/zones/quality are verification + analytics inputs, not rate components). | Closed — decisions-log D12. Residual: OJ aligns the client-facing proposal wording at its next revision (comms, not code). |
 | A1 | Assumption: pilot ≤50 vehicles, ≤3 advertisers, one city (Q30 default). All sizing flows from it. | Re-run sizing if Q30 answers bigger. |
-| A2 | Assumption: advertiser/admin remain web-only; only drivers get a native app. | Q-check at phase-2 commissioning. |
+| A2 | Assumption: advertiser/admin remain web-only; only drivers get a native app (in-MVP per D11, W4). | Q-check at W4 kickoff. |
 
 ## 33. Open questions **[OPEN]**
 
@@ -1680,14 +1765,14 @@ all consume it.
 questionnaire, so best-practice defaults were adopted (drafted, adversarially
 reviewed, reconciled, delta-verified per the SOP). Per-question status (CONFIRMED / ADOPTED /
 CONFIRM-PENDING / OPEN), the adopted direction, and each row's mandatory
-**divergence guard** live in **`docs/adopted-decisions.md`** — read that file
+**divergence guard** live in **`docs/decisions-log.md` Part 2** — read it
 before treating any Q below (or any "Blocked-by: Q…" header) as blocking. Not
 adopted there: Q23 (CONFIRM-PENDING); OPEN: Q26 (legal wording only), Q28
 (company facts only), Q29, Q30, Q31, Q32 (client account action only), Q33.
 Client-facing artefact:
 `docs/Mobility_Working_Decisions_and_Open_Items.docx` (supersedes the
-questionnaire). Answers still flow client → `decisions-log.md` →
-`adopted-decisions.md` → this doc (amendment rule).
+questionnaire). Answers still flow client → `decisions-log.md` (new Part 1
+row + Part 2 status flip) → this doc (amendment rule).
 
 The table below remains the routing map from each Q to the section it feeds:
 
@@ -1724,6 +1809,61 @@ The table below remains the routing map from each Q to the section it feeds:
 **Rule:** if your feature touches one of these areas, design the smallest thing
 that works under *all* still-open options, and say so in the PR (P10).
 
+## 35. Remediation register (independent review, 6 Aug 2026) **[TARGET]**
+
+Two independent reviews (broad architecture + money-path red team) were run on
+the doc packet, then **every code-checkable claim was verified against the
+implementation** before acceptance. This register is the authoritative
+remediation list: agents fix from here, and each row's gate says when. Origin
+IDs (F##/G##/H##) are the reviewers' numbering, kept for traceability. Full
+reconciliation, including rejected findings, is decisions-log **D13**.
+
+**Verification status legend:** `CODE-CONFIRMED` = verified against the
+implementation. `DESIGN-GAP` = about an unbuilt ([TARGET]) domain, so it is a
+specification requirement, not a live defect. `WORSE` = the code is worse than
+the reviewer described.
+
+### 35.1 Live defects in built code (fix before real-driver GPS or any release)
+
+| ID | Origin | Status | Defect (verified location) | Required correction | Gate |
+|----|--------|--------|---------------------------|---------------------|------|
+| **RM1** ✅ **[FIXED 6 Aug 2026]** | G8/F03 | RESOLVED — migration `0015`, `payout_v2` per D14 | **Cross-midnight cap allocation is wrong.** The cap lock and day attribution derive from `trip.started_at` (`services/payouts.py:1460`, key at `:137-141`; day-consumption query filters trips by `started_at`, `:977-978`) and no interval splitting at Lagos midnight exists (`payout_eligibility.py:213-218` slices only on session/ping/window/stay edges). D4 is a **calendar-day** cap, so a 23:59 start charges post-midnight hours to the wrong day and the next day's full cap remains available. | **Done.** `classify_session` now cuts the timeline at every Africa/Lagos midnight and returns `eligible_seconds_by_day`; `calculate_trip_payout_v2` locks every touched day in sorted order (deadlock-free) and caps each day against its own allowance; the allocation persists in `payout_calculations.payable_seconds_by_day` (migration `0015`, backfilled to the old start-day attribution for existing rows). `day_consumed_payable_seconds` now counts trips that *overlap* the day, charging each only its stored day allocation. Recompute-day re-allocates only the day under its lock, preserving each trip's other-day allocations. Fixed inside `payout_v2` per **D14**. Remaining follow-up: mirror the split in the driver-facing cap-progress UI. | Before any earnings release |
+| **RM2** ⚠ **[HALF FIXED 6 Aug 2026]** | H3 | PARTIALLY RESOLVED — grace budget fixed; sub-window aggregation **still open** | **Stationary time is farmable, and worse than reported.** Grace is per stationary *episode* (`payout_eligibility.py:96-137`; anchor resets at `:134`) with no per-trip/day budget and no hysteresis — a single ping ≥ `stationary_radius_m` (200 m default) ends a stay. **Additionally: a stay shorter than `stationary_window_seconds` (5 min default) is never excluded at all** (`:129`), so a stop-4:59 → hop-200 m → repeat cycle is **100 % payable without touching grace**. | **Half done.** `stationary_grace_seconds` is now a **whole-session budget** consumed in chronological order, so repeated stops can no longer renew the exemption (property-tested: three parked stretches forgive one allowance, not three). **Still open — and it is a money-policy question, not a bug:** a stay shorter than `stationary_window_seconds` is still never excluded, so a stop-4:59 → hop-200 m → repeat cycle remains fully payable. Closing it needs a rule that separates *parked* from *stuck in Lagos traffic* — and traffic time is genuine advertising exposure the proposal explicitly values, so an over-tight threshold would underpay honest drivers. Options to decide between: rolling-window net-displacement test, cumulative sub-window stay budget, or leave it to the RM9 fraud rule plus pilot tuning. **Do not pick thresholds without a recorded decision.** | Before pilot launch |
+| **RM3** | F01 | CODE-CONFIRMED + **WORSE** | **No trip-finality protocol, and late data is unrecoverable.** Trip end commits and enqueues the write-once money chain immediately (`api/v1/trips.py:150-152`); the sweep has no minimum age since `ended_at` (`trip_processing.py:542-570`). `TripEndRequest` carries no completeness signal (`schemas/trips.py:20-24`, `extra="forbid"`), optional `sequence_number` is only an ORDER BY tiebreaker — no contiguity check. Worse than reported: a post-end batch is **rejected 400 outright** (`services/trips.py:371-377`), so stranded points can never arrive; and the PWA's `end()` flushes once, re-buffers on failure, and ends the trip anyway without checking the buffer is empty (`trip-tracker.tsx:169-176`). | Add the seal protocol: client finalization watermark (point count + high-water mark), server grace/cutoff before the money chain, `sealed` as the sole post-trip trigger, and a quarantine-plus-controlled-reopen path for late batches instead of a flat 400. Client must not end a trip with a non-empty buffer without recording an explicit incompleteness marker. | Before real-driver GPS |
+| **RM4** | *(new — found in verification)* | CODE-CONFIRMED | **Ping-batch retries can double-insert.** The client mints a fresh `crypto.randomUUID()` per flush attempt (`trip-tracker.tsx:67-75`) and its own comment claims "backend dedupes by content window anyway" — **false**: dedup is exactly `(trip_session_id, idempotency_key)` (migration `0007:152-156`). A batch that persists but whose response is lost is retried under a new key and its pings are inserted twice. This also **invalidates the money-path review's "retry the exact same batch is PREVENTED BY DESIGN"** row — the protection exists server-side but the client defeats it. | Mint the idempotency key **once per batch** at buffer-cut time, persist it with the batch, and reuse it across every retry. Keep the server-side payload-hash conflict check (`services/trips.py:383-397`, correctly returns 409 on same-key/different-payload). Consider a server-side content-window duplicate check as defence in depth. | Before real-driver GPS |
+| **RM5** | *(new — found in verification)* | CODE-CONFIRMED | **PWA loses unsent pings on reload.** The buffer is an in-memory ref (`trip-tracker.tsx:55`); no IndexedDB/sessionStorage, no `beforeunload`/`visibilitychange`/`sendBeacon`, and `driver-sw.js` is asset-only with no background sync. A reload remounts with an empty buffer and `seqRef` restarting at 0. D11's promised offline/retry durability does not exist. | Persist the queue in IndexedDB with ACK-then-delete semantics and a monotonic sequence that survives reload; recover it on the resume path (`trip-tracker.tsx:142-147`). This is the PWA half of RM3's protocol and a prerequisite for the native client (RM14). | Before real-driver GPS |
+| **RM6** | G1 | CODE-CONFIRMED + **WORSE** | **A single admin can manufacture earnings.** `recompute-day` requires only `role == admin` (`api/v1/payouts.py:480-489`, `dependencies.py:113-120`) — no named-adjuster capability, no maker-checker anywhere in the repo. Payout rules are mutated in place with no version/history table (`services/payouts.py:518-564`), and recompute prices at the rule's **current** terms by design (`:2209`, `:2265-2324`). Worse than reported: the rule-update audit event records only changed field **names**, not before/after values (`api/v1/payouts.py:292`), so raise-recompute-restore leaves no value trail. | Make payout rules immutable and effective-dated; bind each accepted offer/trip to a rule version; require an explicit `correction_order` (affected date, approved terms, reason, projected delta, creator, **separate** approver) for positive retroactive corrections; forbid creator-approves-own; post positive corrections as `pending` with their own release date. Record before/after values in the rule-update audit event. | Before pilot launch |
+| **RM7** | H2 (partial) | CODE-CONFIRMED (minor) | **Exclusivity races surface as 500s.** The four exclusivity indexes exist and hold (see D13 rejected list), but their names are absent from `EXPECTED_UNIQUE_CONSTRAINTS` (`db/integrity.py:6-15`), so a lost race raises an unhandled `IntegrityError` instead of a clean 409. | Register the four constraint names in the integrity map with appropriate error envelopes. Small, isolated fix. | Before pilot launch |
+
+### 35.2 Specification requirements for unbuilt domains (fix in the owning slice)
+
+| ID | Origin | Status | Requirement | Owning section / slice |
+|----|--------|--------|-------------|------------------------|
+| **RM8** | F02/G4 | CODE-CONFIRMED (predicates) | Every fraud predicate today is **open-only** (`services/payouts.py:1037-1049`; min-floor gate `:1153-1163`; duplicate in `services/impressions.py:427-439`), statuses are `open/acknowledged/dismissed` with **no `confirmed`**, and the dedup index covers only `open` (`0008:338-342`). So `acknowledged` ("under review") currently reads identically to `dismissed`. Not yet exploitable — no acknowledge/dismiss endpoint exists — and the code comments the deferral. Also **no per-trip fraud-assessment record** exists: absence of a flag is indistinguishable from a clean assessment for any consumer. | Define one authoritative transition table with `hold_active` true for `open`, `acknowledged`, and unresolved `confirmed`; only `dismissed` releases. Add a per-trip assessment record (`pending/clean/flagged/error` + version + fingerprint) and require it current-and-successful before release. Extend the dedup index across non-terminal states. Serialize flag changes against release in one transaction. | §17, **S2 — before S3** |
+| **RM9** | G2 + F17 | DESIGN-GAP (irreducible) | GPS proves a *driver-controlled phone* moved, never that the *approved branded vehicle* moved. All eight fraud rules are per-trip (`services/trip_analytics.py:347-487`) and **no cross-trip/cross-account route or payload comparison exists** — an identical route replayed under a different trip or account is undetected. | Compensating controls, not a GPS redesign: bind assignment → one device + one vehicle; server-nonce start-of-shift proof-of-display; periodic evidence renewal for high earners; randomized physical spot checks; cross-trip/account identical-and-time-shifted route detection; hold the day on a missed challenge or concurrent session. Native attestation improves signal quality only — never treat it as proof the advertised vehicle moved. | §17/§19/§21, before pilot |
+| **RM10** | F05/G3 | DESIGN-GAP | Payout batches have no finality contract: no reserved state, no one-active-line-per-entry constraint, no frozen payee/amount snapshot, no export hash, no per-line bank outcome, no reconciliation-before-`paid`. | `draft → reserved → exported → submitted → reconciled/completed | void`; atomic reservation with a DB constraint of one non-void line per ledger entry; snapshot verified bank-account version + beneficiary + amount; hash the export and invalidate on any change; unique external transfer reference per line; mark paid **only** from line-level reconciliation evidence; maker ≠ approver/reconciler. | §16.3, **S3** |
+| **RM11** | F04 | DESIGN-GAP (**downgraded** from BLOCKER) | The reviewers' "paid reversal is never recovered" scenario is **not current code**: statuses are `pending/available/voided/reversed` with **no `paid`**, no payout run exists, and `AVAILABLE` is set only by the demo seed. The status-inheritance mechanism is real (`services/payouts.py:2326-2331`) and correctly nets reversals within their bucket. It becomes a genuine defect only when S3 introduces cash payment. | When S3 lands: define `earned_net`, `released_available`, `cash_paid`, `carry_forward_debt`, `batch_payable`; post post-payment corrections to a carry-forward debit bucket and allocate future available credits against it; property-test "posting a reversal never increases any balance" across the payment boundary. Never model a new cash obligation as already paid. | §16.2/§16.3, **S3** |
+| **RM12** | G5/F08 | DESIGN-GAP | Nothing bounds driver liability by confirmed funding: invoice status proves an advertiser price was paid, §15.5 separates spend from driver cost, D4 caps per driver-day but not per campaign, and Q9 expansions apply immediately. Commercial terms are also not effective-dated, so recompute can price past work under never-accepted terms (compounding RM6). | Immutable campaign financial authorization (funded amount, approved subsidy, max driver liability); reserve `rate × cap × covered vehicle-days` at offer/assignment activation; Q9 expansions apply immediately only inside pre-funded headroom, else `pending_funding`; block new sessions past the reserve while honouring hours already validly performed. Add effective-dated snapshots for offers, payout rules, zones, eligibility params, and tax/billing config; each eligible interval resolves the revision then in force. Keep the liability reserve distinct from advertiser budget/spend. | §15/§16.1/§21, **W2 entry** |
+| **RM13** | G6, G7/F07, F06 | DESIGN-GAP | Three commercial-lifecycle contracts are missing: (a) **receipt identity** — no canonical external cash-receipt uniqueness, currency/amount match, or reconciled state, so one transfer can fund two obligations; (b) **cancellation** — no `financial_cutoff_at` that ingestion/classification/recompute/release all honour, and no settlement entity; (c) **activation** — campaign/assignment/installation/trip gates are described separately, not as one atomic invariant. | (a) One receipt = one immutable row (unique bank/provider transaction id, amount, currency, payer, evidence) with separate allocation rows; `observed → reconciled → confirmed | reversed`; activation counts only confirmed allocations; a reversal withdraws funding authority at a recorded cutoff. (b) One idempotent cancellation command under a campaign lock setting an immutable cutoff; clip payable intervals at it; append-only settlement revisions with unique external refund reference. (c) One atomic activation service that locks and re-reads every prerequisite and stores an activation snapshot; trip start rechecks campaign + assignment + approved evidence. | §15/§18/§21, **W2** |
+| **RM14** | F16 | DESIGN-GAP | The binding native app is "not yet designed in detail" while W4 places it last. Background execution, permission state, durable offline store, tracking health, battery policy, OS termination, token rotation, and store-review evidence are all unspecified — and RM3/RM5 show the PWA has no durable queue to inherit. | Native ADR + thin real-device spike **now**, in parallel with W2 (see RM17). Preserve explicit Start/End. Android foreground-service location + iOS background mode with staged permissions; encrypted persistent queue; per-device rotating refresh family with reuse detection and revocation in secure storage; visible `active/degraded/stopped` health; route-completeness, accuracy, sync-latency and 4-hour battery SLOs; kill/reboot/revocation/airplane/low-power/OEM test matrix; start store privacy disclosures early. | §23, spike now → **W4** |
+| **RM15** | F09/F10/F11 | DESIGN-GAP | Privacy is treated as consent wording, not an operating model: no DPIA, ROPA, controller/processor allocation, or purpose-by-purpose lawful-basis matrix; **`k` counts distinct vehicles, which is not a valid anonymity claim** (a vehicle is a proxy for an owner-driver, not a data subject); the existing advertiser heatmap is exempt from the floor until a later release; retention beyond ping partitions is unscheduled and DSR/vendor/cross-border handling is incomplete. | Before any real-driver GPS: name controller/processor/privacy owner, complete a DPIA + ROPA, assign lawful basis per purpose, record notice/consent version + withdrawal. Before any advertiser heatmap: one central disclosure-control service on every query — coarse fixed cells/buckets, minimum vehicles **and** trips **and** days, contributor caps, complementary suppression, restricted filters, query-history limits, differencing tests; thresholds chosen from real pilot density; treat outputs as personal until a documented re-identification test says otherwise. Add a retention schedule per data class and a tested manual DSR runbook spanning DB, object store, device, logs, backups, and processors; keep a subprocessor/region register. | §22.2/§24, **before real GPS / before heatmap** |
+| **RM16** | F12/F14/F15 | DESIGN-GAP | The sellable metric has a `formula_version` but no metric class, methodology, provenance, uncertainty, or reproducibility contract, and no proof-of-performance binding creative + installation + assignment + measured period. Module G's free-form source metadata would admit personal identifiers, and "audience/attribution" overclaims what route aggregates establish. | Publish a Measurement Methodology Contract: label MVP output **modelled potential contacts** (not verified views, reach, audience, or attribution); define the metric hierarchy, units, source provenance and vintage, missing-data rules, uncertainty, and correction/reissue policy; immutable `measurement_run` per issued report; proof-of-performance manifest. Constrain Module G to typed allowlisted aggregate planning fields with provenance/basis/expiry/DSR metadata; reject identifiers and free text; rename outputs to planning source / coverage cell / contextual follow-up recommendation. | §22.4/§27, **before first issued report** |
+| **RM17** | F18 | DESIGN-GAP | W4 serialises native app, exports, first deployment, and pilot readiness after every other wave, so the largest empirical risks (store review, background GPS on real devices, first production-like environment) arrive with no stabilisation runway. | Rebaseline §31: run the native/finality spike (RM3/RM5/RM14) and a **synthetic-data** staging deployment in parallel with W2; freeze the ping/auth/seal contract early; exercise devices weekly; procure accounts/domain/store assets now. W4 becomes integration, hardening, training, and pilot — not first discovery. Neither lane authorises real-data collection. | §31, **now** |
+| **RM18** | F17 | DESIGN-GAP | KYC/financial/location controls are incomplete: malware scanning optional, NIN/BVN/bank fields unencrypted at field level with no key governance, raw-route/KYC reads unaudited, no breach workflow, and known audit gaps (auth.refresh, driver profile/assignment routes) remain open from D10(g). | Managed KMS + field encryption or vaulting for national/financial identifiers; mandatory type/size/malware checks on driver uploads; short-lived purpose-scoped GETs with privileged-read audit for raw routes and KYC; encrypted mobile store; log/push redaction; close the D10(g) audit gaps; add incident contacts, breach register, and one tabletop drill. | §12/§19, **before KYC/native beta** |
+
+### 35.3 Gates
+
+No slice in the right-hand column starts until its listed rows are closed.
+
+| Gate | Blocks | Rows |
+|------|--------|------|
+| **G-money** | Any earnings release, export, or transfer | RM1, RM6, RM8, RM10, RM11 |
+| **G-GPS** | Any real-driver tracking, PWA or native | RM2, RM3, RM4, RM5, RM9, RM15 (privacy artifacts), RM18 |
+| **G-commercial** | Invoice issuance, production spend, campaign activation | RM12, RM13 |
+| **G-advertiser** | Any live advertiser heatmap (**including the existing one**) or issued report | RM15 (disclosure control), RM16 |
+| **G-moduleG** | Any live retargeting ingestion, display, or export | RM15, RM16 |
+| **G-pilot** | Production pilot | all of the above + RM14, RM17 |
+
 ## 34. Doc changelog
 
 | Version | Date | Change |
@@ -1738,4 +1878,10 @@ that works under *all* still-open options, and say so in the PR (P10).
 | v1.6 | 2026-07-22 | **Worker correctness repair.** Added all-current-calculation ledger healing, resumable keyset sweep traversal, named-constraint race convergence, stale-formula/source-fingerprint blocking, DB-clock injection, strict pre-socket Redis configuration, CI ARQ Redis coverage, Compose sweep-variable passthrough, and stackful Sentry reporting. No HTTP contract, schema, formula, or migration change. |
 | v1.8 | 2026-07-30 | **S1 — Payout engine v2 [BUILT] (D2/D4/D8; Q4/Q5).** Migration `0013`: v2 rule fields (`hourly_rate_naira`, `daily_payable_hours_cap`, `eligibility_params`) + model XOR check, v1 columns relaxed nullable (history frozen), calculation `eligible_seconds`/`payable_seconds`/`excluded_seconds_by_reason`/`inputs_fingerprint`, one-trip_payout-per-trip partial unique index. Pure interval classifier (`payout_eligibility.py`, PAYOUT_ELIGIBILITY_* Settings, stay-point grace, target-zone-only geofence, null-accuracy excluded). Integer-seconds cap-before-price, single HALF_UP 2dp quantization (v1 stays HALF_EVEN, frozen); `pg_advisory_xact_lock` per driver/campaign/Lagos-day (zoneinfo). Per-rule formula dispatch; v2 write-once (drift → 409 flag, never auto-recompute; sweep/repair derive expected formula from the governing rule row). Recompute-day true-up (append-only adjustment/positive-reversal differentials) + §16.2 summary netting shipped same-change. Driver trip-breakdown endpoint + PWA screen; admin rule editor edits both models; reports formula-agnostic (latest calc per trip). §16.1→[BUILT], §16.2 netting [BUILT], §30 rows added, §16.1 recompute wording amended (day true-up is the sanctioned reallocation). Part II pin unchanged; Part III [BUILT] promotions are pinned by their changelog row. |
 | v1.9 | 2026-08-03 | **S4 — Data lifecycle [BUILT] (Q31-param; §24.2, §6.4.9).** Migration `0014`: `location_pings` → monthly range partitions by `recorded_at` via rename-and-attach (legacy partition `[first month, next boundary)`, no row rewrites, composite PK `(id, recorded_at)`, full 0007 schema fidelity, frozen 4-month in-migration premake, no default partition) + append-only `data_purge_audit`. Daily worker crons: coverage-based idempotent premake (⚙ `PARTITION_PREMAKE_MONTHS` 4), coverage alarm (Sentry capture + re-raise), advisory-locked retention purge (⚙ `PING_RETENTION_MONTHS` 12; session lock on dedicated AUTOCOMMIT connection across `DETACH … CONCURRENTLY`; evidence-gated FINALIZE/orphan recovery; evidence-before-destruction; zero-remaining-pings batch purge). New `GET /api/v1/health/partitions` (503 when coverage < now+1 month; contract baselines moved). §6.4.9 audit backfill: trip start/end, analytics recompute, traffic profiles, impression estimates — atomic with mutation; ping-batch ingestion is an approved documented exception (`location_ping_batches` is the compensating evidence); route-table-driven coverage test added (residual gaps registered: auth.refresh, driver profile/assignment routes). Amendments: §24.2.2 `captured_at`→`recorded_at`; §24.2.1 trip_sessions-coordinate step deleted (no such columns); §24.2.4 dedicated purge table; §7.1 22 tables; §7.2 14 migrations (also corrects S1's missed 12→13 bump); §30 rows. ORM keeps composite PK without `postgresql_partition_by` (create_all test schemas); `env.py` filters runtime partitions from autogenerate. Known pre-existing model↔migration index drift outside S4 quarantined by name in the autogenerate gate. |
+| v1.10 | 2026-08-04 | **D11 — realignment to the client-facing 5-month MVP proposal** (`docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx`, now the binding scope baseline). No code change; scope/roadmap amendments only. Driver mobile app (React Native/Flutter, background GPS, offline sync, push) moved from "Phase 2 (commissioned separately)" into the MVP window as new wave **W4** (§31) — D3's screen-on PWA remains the interim surface and its identical-backend-contract promise stands (§23 reworded). Retargeting scope extended to full proposal Module G (§22 intro rewritten; new §22.4 retargeting sources + follow-up insights; `retargeting_sources` added to §30; Q11's exposure-segment model and §22.2 privacy boundary unchanged; export still Q31-gated; no automated ad-platform push without client accounts/legal/budget). §2.2 end-state, §3 decision table (D3 annotated, D11 row), §30 rows, §31 W3/W4/Phase-2 split, A2 updated. Companion changes: `decisions-log.md` D11, `adopted-decisions.md` Q11, historical banners on `docs/build-loop/README.md` + `product-brief.md`, `project-reconciliation.md` authority row, root `README.md` doc map. |
+| v1.15 | 2026-08-06 | **RM1 fixed; RM2 half fixed (D14).** Migration `0015_payout_day_allocation` adds `payout_calculations.payable_seconds_by_day` (backfilled to the pre-fix start-day attribution). `classify_session` cuts the timeline at Africa/Lagos midnight and returns `eligible_seconds_by_day`; `calculate_trip_payout_v2` takes one advisory lock per touched day in sorted order and caps each day independently; `day_consumed_payable_seconds` counts overlapping trips by stored day allocation; recompute-day re-allocates only its own day. Stationary grace became a whole-session budget (RM2's renewable-exemption half). Fixed inside `payout_v2`, not `payout_v3`, per **D14** — no real payout has ever been computed, so the D9(a) freeze has nothing to protect yet. §16.1 amended; §35 RM1/RM2 rows updated. Verified: 455 backend tests green against PostGIS + Redis (8 new: 6 classifier property tests, 2 end-to-end cross-midnight cap tests), ruff clean. RM2's sub-window aggregation stays open as a money-policy decision (parked vs Lagos traffic). |
+| v1.14 | 2026-08-06 | **D13 — independent review reconciled; §35 remediation register added.** Two external reviews (broad architecture + money-path red team) run on the doc packet, every code-checkable claim then verified against the implementation. New **§35** is the authoritative remediation list: §35.1 seven live defects in built code (RM1 cross-midnight cap allocation; RM2 stationary farming, worse than reported — sub-window stays never excluded; RM3 no trip seal, late batches rejected outright; **RM4 client regenerates the idempotency key per retry → double-insert**, found in verification, invalidates the red team's "replay prevented by design" row; **RM5 in-memory ping buffer loses points on reload**, found in verification; RM6 single-admin retroactive repricing with value-less rule audit; RM7 missing IntegrityError→409 mapping), §35.2 eleven specification rows for unbuilt domains (RM8–RM18), §35.3 six gates blocking dependent slices. New wave **W0** in §31 sequences the corrective work. Four findings rejected with recorded reasons (client-timestamp manipulation, assignment exclusivity, trip exclusivity — all already handled in code; post-payment reversal downgraded to an S3 requirement) — see decisions-log D13. No scope change. |
+| v1.13 | 2026-08-04 | **D12 — hourly pay reconfirmed; translation contract stated.** Header banner now defines this doc as the binding architectural *translation* of the proposal's requirements — agents build from this doc; proposal-vs-architecture wording differences resolve only via decisions-log rows. R9 closed by D12 (earnings = hourly rate × verified payable hours; Module E's "mileage-based" phrasing is superseded requirement-era wording; client-comms residual with OJ). Also corrected the §3 D2 row's stale status cell, which still claimed `payout_v1` per-km was the built engine — `payout_v2` has been [BUILT] since S1 (v1.8). |
+| v1.12 | 2026-08-04 | **Proposal coverage audit (D11 follow-through).** Feature-by-feature check of the proposal against this doc found two promised surfaces with no architecture home and one wording conflict. Added: §22.4 names **high-exposure zone insights** and the **exposure score** (`exposure_v1`, P6-versioned) as analytics surfaces over existing aggregates (k-floor applies); §30 rows for both + **CSV/PDF report export** (W4, worker-generated); §31 W3 contents updated. New risk **R9**: proposal Module E says "mileage-based earnings" while the pay model is hourly per client-sourced D2 (delivered `payout_v2`) — D2 stands; OJ reconfirms wording with the client; a reversal would be a new D-row + `payout_v3`. |
+| v1.11 | 2026-08-04 | **Doc-system consolidation (no scope or design change).** Four-doc model adopted: proposal docx (scope) → this doc (design) → agent work → `docs/progress.md` (delivered summary), with `docs/decisions-log.md` as the decisions input. Concretely: `adopted-decisions.md` merged into `decisions-log.md` as its Part 2 (Q-status references here updated; historical changelog rows below keep the old filename); `project-reconciliation.md` replaced by `docs/progress.md` (delivered-vs-promise summary incl. proposal module A–G mapping); `fablev1-work.md` journal and the v1 questionnaire moved to `docs/archive/`; README doc map rewritten around the model. Older rows citing the pre-merge filenames describe the state at their date. |
 | v1.7 | 2026-07-27 | **D8 — questionnaire resolved by adopted defaults.** Client unresponsive; best-practice defaults adopted for Q1–Q34 where a defensible standard exists (source of truth: new `docs/adopted-decisions.md`; client-facing `docs/Mobility_Working_Decisions_and_Open_Items.docx` supersedes the questionnaire). [OPEN] tag definition and §33 preamble now defer per-question status to that file, including this doc's "Blocked-by: Q…" headers and "until answers land" prose (§15's block amended directly); the §33 table is retained as the Q→section routing map. Q23 (owner-drivers) is CONFIRM-PENDING — §16.3 payee abstraction stays mandatory. Q11/Q34/Q13 adopted directions match the doc's existing proposed defaults (anonymised segments with export gated on Q31; in-app + advertiser email + ops WhatsApp; driver self-registration narrowing D1 to advertisers/orgs — §3 D1 row annotated). No tag promotions in the body: adopted ≠ built; [TARGET] sections build in their planned phases. Pre-existing "OJ approval" SOP references corrected to the actual flow (plan → adversarial review → reconcile — no human gate; §13 intro, §10.4, §31). |

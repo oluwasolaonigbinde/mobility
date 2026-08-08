@@ -50,6 +50,7 @@ from app.models.payout import (
     CampaignPayoutRule,
     CampaignPayoutRuleStatus,
     EarningsLedgerEntry,
+    EarningsLedgerEntryStatus,
     PayoutCalculation,
 )
 from app.models.trip import LocationPing, LocationPingBatch, TripSession, TripSessionStatus
@@ -213,12 +214,12 @@ async def upsert_user(
 async def upsert_organization(session: AsyncSession) -> AdvertiserOrganization:
     organization = await session.scalar(
         select(AdvertiserOrganization).where(
-            AdvertiserOrganization.name == "Demo Mobility Advertiser"
+            AdvertiserOrganization.billing_email == "billing@demo.mobility.local"
         )
     )
     if organization is None:
         organization = AdvertiserOrganization(
-            name="Demo Mobility Advertiser",
+            name="Demo Advertiser",
             billing_email="billing@demo.mobility.local",
             country_code="NG",
             currency="NGN",
@@ -226,6 +227,7 @@ async def upsert_organization(session: AsyncSession) -> AdvertiserOrganization:
         )
         session.add(organization)
     else:
+        organization.name = "Demo Advertiser"
         organization.billing_email = "billing@demo.mobility.local"
         organization.country_code = "NG"
         organization.currency = "NGN"
@@ -345,7 +347,10 @@ async def upsert_campaign(
     )
     values = {
         "created_by_user_id": advertiser.id,
-        "description": "Local-only demo campaign for Lagos mobility frontend integration.",
+        "description": (
+            "A citywide vehicle advertising campaign reaching commuters "
+            "across high-traffic routes in Lagos."
+        ),
         "status": CampaignStatus.ACTIVE.value,
         "start_at": now - timedelta(days=3650),
         "end_at": now + timedelta(days=3650),
@@ -458,9 +463,10 @@ async def upsert_zones(
     campaign: Campaign,
     advertiser: User,
     settings: Settings,
+    zone_specs: list[tuple[str, str, dict[str, Any]]] | None = None,
 ) -> list[CampaignZone]:
     zones = []
-    for name, zone_type, geometry in zone_geometries():
+    for name, zone_type, geometry in zone_specs or zone_geometries():
         validated = await validate_geometry_with_postgis(session, geometry, settings)
         zone = await session.scalar(
             select(CampaignZone).where(
@@ -593,6 +599,30 @@ async def ensure_activation_event(
 def trip_specs(now: datetime) -> list[tuple[str, datetime, list[tuple[float, float]]]]:
     return [
         (
+            "demo-trip-0",
+            now.replace(hour=7, minute=40, second=0, microsecond=0) - timedelta(days=6),
+            [
+                (6.4720, 3.3610),
+                (6.4800, 3.3740),
+                (6.4910, 3.3870),
+                (6.5030, 3.3990),
+                (6.5140, 3.4120),
+                (6.5260, 3.4250),
+            ],
+        ),
+        (
+            "demo-trip-00",
+            now.replace(hour=16, minute=20, second=0, microsecond=0) - timedelta(days=4),
+            [
+                (6.5310, 3.3710),
+                (6.5200, 3.3830),
+                (6.5070, 3.3950),
+                (6.4930, 3.4080),
+                (6.4790, 3.4210),
+                (6.4640, 3.4350),
+            ],
+        ),
+        (
             "demo-trip-1",
             now.replace(hour=8, minute=15, second=0, microsecond=0) - timedelta(days=2),
             [
@@ -619,6 +649,129 @@ def trip_specs(now: datetime) -> list[tuple[str, datetime, list[tuple[float, flo
     ]
 
 
+def palmpay_trip_specs(
+    now: datetime,
+) -> list[tuple[str, datetime, list[tuple[float, float]]]]:
+    return [
+        (
+            "palmpay-wuse-trip-1",
+            now.replace(hour=7, minute=45, second=0, microsecond=0) - timedelta(days=3),
+            [
+                (9.0465, 7.4550),
+                (9.0550, 7.4620),
+                (9.0645, 7.4685),
+                (9.0740, 7.4740),
+                (9.0830, 7.4810),
+                (9.0910, 7.4880),
+            ],
+        ),
+        (
+            "palmpay-wuse-trip-2",
+            now.replace(hour=13, minute=10, second=0, microsecond=0) - timedelta(days=2),
+            [
+                (9.0910, 7.4520),
+                (9.0830, 7.4590),
+                (9.0750, 7.4660),
+                (9.0660, 7.4730),
+                (9.0570, 7.4810),
+                (9.0490, 7.4900),
+            ],
+        ),
+        (
+            "palmpay-wuse-trip-3",
+            now.replace(hour=17, minute=20, second=0, microsecond=0) - timedelta(days=1),
+            [
+                (9.0500, 7.4900),
+                (9.0580, 7.4820),
+                (9.0670, 7.4750),
+                (9.0760, 7.4680),
+                (9.0850, 7.4610),
+                (9.0930, 7.4540),
+            ],
+        ),
+    ]
+
+
+def palmpay_market_trip_specs(
+    now: datetime,
+) -> list[tuple[str, datetime, list[tuple[float, float]]]]:
+    return [
+        (
+            "demo-story-palmpay-market-1",
+            now.replace(hour=8, minute=20, second=0, microsecond=0) - timedelta(days=10),
+            [
+                (6.6010, 3.3510),
+                (6.5840, 3.3660),
+                (6.5670, 3.3810),
+                (6.5500, 3.3970),
+                (6.5330, 3.4130),
+                (6.5160, 3.4290),
+            ],
+        ),
+        (
+            "demo-story-palmpay-market-2",
+            now.replace(hour=13, minute=40, second=0, microsecond=0) - timedelta(days=6),
+            [
+                (6.5160, 3.4290),
+                (6.5310, 3.4160),
+                (6.5470, 3.4030),
+                (6.5630, 3.3900),
+                (6.5790, 3.3770),
+                (6.5950, 3.3640),
+            ],
+        ),
+        (
+            "demo-story-palmpay-market-3",
+            now.replace(hour=17, minute=15, second=0, microsecond=0) - timedelta(days=2),
+            [
+                (6.4720, 3.3610),
+                (6.4800, 3.3740),
+                (6.4910, 3.3870),
+                (6.5030, 3.3990),
+                (6.5140, 3.4120),
+                (6.5260, 3.4250),
+            ],
+        ),
+    ]
+
+
+def palmpay_market_zone_specs() -> list[tuple[str, str, dict[str, Any]]]:
+    return [
+        (
+            "Lagos Market Corridor",
+            CampaignZoneType.TARGET.value,
+            {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [3.345, 6.460],
+                        [3.440, 6.460],
+                        [3.440, 6.610],
+                        [3.345, 6.610],
+                        [3.345, 6.460],
+                    ]
+                ],
+            },
+        ),
+        (
+            "Mainland Retail Bonus",
+            CampaignZoneType.BONUS.value,
+            {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [3.375, 6.490],
+                        [3.420, 6.490],
+                        [3.420, 6.580],
+                        [3.375, 6.580],
+                        [3.375, 6.490],
+                    ]
+                ],
+            },
+        ),
+    ]
+
+
 async def upsert_trips_and_pings(
     session: AsyncSession,
     *,
@@ -627,9 +780,10 @@ async def upsert_trips_and_pings(
     profile: DriverProfile,
     vehicle: Vehicle,
     driver: User,
+    specs: list[tuple[str, datetime, list[tuple[float, float]]]] | None = None,
 ) -> list[TripSession]:
     trips = []
-    for trip_key, started_at, coordinates in trip_specs(utc_now()):
+    for trip_key, started_at, coordinates in specs or trip_specs(utc_now()):
         ended_at = started_at + timedelta(minutes=42)
         trip = await find_demo_trip(session, assignment_id=assignment.id, trip_key=trip_key)
         if trip is None:
@@ -670,6 +824,224 @@ async def upsert_trips_and_pings(
         await session.refresh(trip)
         trips.append(trip)
     return trips
+
+
+async def upsert_driver_story_campaigns(
+    session: AsyncSession,
+    *,
+    settings: Settings,
+    organization: AdvertiserOrganization,
+    advertiser: User,
+    admin: User,
+    driver: User,
+    profile: DriverProfile,
+    vehicle: Vehicle,
+    traffic_profile: TrafficDensityProfile,
+) -> None:
+    """Add truthful lifecycle breadth to the primary driver demo persona."""
+
+    now = utc_now()
+    specs = (
+        {
+            "name": "Airtel Lagos Commute",
+            "description": "Completed commuter campaign across Lagos mainland routes.",
+            "campaign_status": CampaignStatus.COMPLETED,
+            "assignment_status": CampaignAssignmentStatus.COMPLETED,
+            "start_at": now - timedelta(days=120),
+            "end_at": now - timedelta(days=45),
+            "activity": "airtel",
+        },
+        {
+            "name": "PalmPay Market Routes",
+            "description": "Active market-district campaign with completed demo routes.",
+            "campaign_status": CampaignStatus.ACTIVE,
+            "assignment_status": CampaignAssignmentStatus.COMPLETED,
+            "start_at": now - timedelta(days=30),
+            "end_at": now + timedelta(days=60),
+            "activity": "palmpay_market",
+        },
+    )
+    for spec in specs:
+        campaign = await session.scalar(
+            select(Campaign).where(
+                Campaign.organization_id == organization.id,
+                Campaign.name == spec["name"],
+            )
+        )
+        campaign_values = {
+            "created_by_user_id": advertiser.id,
+            "description": spec["description"],
+            "status": spec["campaign_status"].value,
+            "start_at": spec["start_at"],
+            "end_at": spec["end_at"],
+            "budget_amount": Decimal("1800000.00"),
+            "daily_budget_amount": Decimal("90000.00"),
+            "currency": "NGN",
+            "campaign_metadata": demo_metadata(driver_story=True),
+        }
+        if campaign is None:
+            campaign = Campaign(
+                organization_id=organization.id,
+                name=spec["name"],
+                **campaign_values,
+            )
+            session.add(campaign)
+        else:
+            for field, value in campaign_values.items():
+                setattr(campaign, field, value)
+        await session.flush()
+
+        assignment = await session.scalar(
+            select(CampaignAssignment).where(
+                CampaignAssignment.campaign_id == campaign.id,
+                CampaignAssignment.driver_profile_id == profile.id,
+                CampaignAssignment.vehicle_id == vehicle.id,
+            )
+        )
+        assignment_status = spec["assignment_status"]
+        assignment_values = {
+            "assigned_by_user_id": admin.id,
+            "status": assignment_status.value,
+            "offered_at": spec["start_at"] - timedelta(days=5),
+            "accepted_at": spec["start_at"] - timedelta(days=4)
+            if assignment_status == CampaignAssignmentStatus.COMPLETED
+            else None,
+            "activated_at": spec["start_at"]
+            if assignment_status == CampaignAssignmentStatus.COMPLETED
+            else None,
+            "deactivated_at": None,
+            "cancelled_at": None,
+            "completed_at": (
+                spec["end_at"]
+                if spec["activity"] == "airtel"
+                else now - timedelta(days=1)
+            ),
+            "notes": (
+                "Successfully completed with consistent weekly activity."
+                if spec["activity"] == "airtel"
+                else "Completed sample market-route activity for the client demo."
+            ),
+            "assignment_metadata": demo_metadata(driver_story=True),
+        }
+        if assignment is None:
+            assignment = CampaignAssignment(
+                campaign_id=campaign.id,
+                driver_profile_id=profile.id,
+                vehicle_id=vehicle.id,
+                **assignment_values,
+            )
+            session.add(assignment)
+        else:
+            for field, value in assignment_values.items():
+                setattr(assignment, field, value)
+        await session.flush()
+
+        if spec["activity"] == "palmpay_market":
+            creative = await session.scalar(
+                select(CampaignCreative).where(
+                    CampaignCreative.campaign_id == campaign.id,
+                    CampaignCreative.name == "PalmPay Market Route Wrap",
+                )
+            )
+            creative_values = {
+                "creative_type": CreativeType.IMAGE.value,
+                "placement": CreativePlacement.VEHICLE_EXTERIOR.value,
+                "asset_url": "https://example.com/palmpay-market-route-wrap.png",
+                "mime_type": "image/png",
+                "width_px": 1600,
+                "height_px": 900,
+                "duration_seconds": None,
+                "checksum": "sha256-palmpay-market-route-demo",
+                "status": CreativeStatus.READY.value,
+                "creative_metadata": demo_metadata(driver_story=True),
+            }
+            if creative is None:
+                creative = CampaignCreative(
+                    campaign_id=campaign.id,
+                    name="PalmPay Market Route Wrap",
+                    **creative_values,
+                )
+                session.add(creative)
+            else:
+                for field, value in creative_values.items():
+                    setattr(creative, field, value)
+            await session.flush()
+            await upsert_zones(
+                session,
+                campaign=campaign,
+                advertiser=advertiser,
+                settings=settings,
+                zone_specs=palmpay_market_zone_specs(),
+            )
+
+        if assignment_status != CampaignAssignmentStatus.COMPLETED:
+            continue
+
+        story_trip_specs = (
+            [
+                (
+                    "demo-story-airtel-1",
+                    now.replace(hour=9, minute=10, second=0, microsecond=0)
+                    - timedelta(days=70),
+                    [
+                        (6.6010, 3.3510),
+                        (6.5840, 3.3660),
+                        (6.5670, 3.3810),
+                        (6.5500, 3.3970),
+                        (6.5330, 3.4130),
+                        (6.5160, 3.4290),
+                    ],
+                ),
+                (
+                    "demo-story-airtel-2",
+                    now.replace(hour=15, minute=30, second=0, microsecond=0)
+                    - timedelta(days=58),
+                    [
+                        (6.5160, 3.4290),
+                        (6.5310, 3.4160),
+                        (6.5470, 3.4030),
+                        (6.5630, 3.3900),
+                        (6.5790, 3.3770),
+                        (6.5950, 3.3640),
+                    ],
+                ),
+            ]
+            if spec["activity"] == "airtel"
+            else palmpay_market_trip_specs(now)
+        )
+        trips = await upsert_trips_and_pings(
+            session,
+            assignment=assignment,
+            campaign=campaign,
+            profile=profile,
+            vehicle=vehicle,
+            driver=driver,
+            specs=story_trip_specs,
+        )
+        await upsert_payout_rule(session, campaign=campaign, admin=admin)
+        for trip in trips:
+            await recompute_trip_analytics(
+                session,
+                trip_id=trip.id,
+                metadata=demo_metadata(seed_step="analytics", driver_story=True),
+                settings=settings,
+            )
+            await estimate_trip_impressions(
+                session,
+                trip_id=trip.id,
+                traffic_density_profile_id=traffic_profile.id,
+                metadata=demo_metadata(seed_step="impressions", driver_story=True),
+                settings=settings,
+            )
+            _calculation, ledger_entry, _created = await calculate_trip_payout(
+                session,
+                trip_id=trip.id,
+                payout_rule_id=None,
+                metadata=demo_metadata(seed_step="payout", driver_story=True),
+                settings=settings,
+            )
+            if ledger_entry is not None:
+                ledger_entry.status = EarningsLedgerEntryStatus.AVAILABLE.value
 
 
 async def find_demo_trip(
@@ -874,6 +1246,224 @@ async def upsert_payout_rule(
     return rule
 
 
+async def upsert_palmpay_graph(
+    session: AsyncSession,
+    *,
+    settings: Settings,
+    organization: AdvertiserOrganization,
+    advertiser: User,
+    admin: User,
+    traffic_profile: TrafficDensityProfile,
+) -> None:
+    now = utc_now()
+    campaign = await session.scalar(
+        select(Campaign).where(
+            Campaign.organization_id == organization.id,
+            Campaign.name == "PalmPay Wuse Blitz",
+        )
+    )
+    campaign_values = {
+        "created_by_user_id": advertiser.id,
+        "description": (
+            "Premium door-panel advertising across high-traffic ride-hail routes in Wuse II."
+        ),
+        "status": CampaignStatus.ACTIVE.value,
+        "start_at": now - timedelta(days=30),
+        "end_at": now + timedelta(days=60),
+        "budget_amount": Decimal("2500000.00"),
+        "daily_budget_amount": Decimal("125000.00"),
+        "currency": "NGN",
+        "campaign_metadata": demo_metadata(showcase="palmpay_wuse"),
+    }
+    if campaign is None:
+        campaign = Campaign(
+            organization_id=organization.id,
+            name="PalmPay Wuse Blitz",
+            **campaign_values,
+        )
+        session.add(campaign)
+    else:
+        for field, value in campaign_values.items():
+            setattr(campaign, field, value)
+    await session.flush()
+
+    creative = await session.scalar(
+        select(CampaignCreative).where(
+            CampaignCreative.campaign_id == campaign.id,
+            CampaignCreative.name == "Door panel — teal",
+        )
+    )
+    creative_values = {
+        "creative_type": CreativeType.IMAGE.value,
+        "placement": CreativePlacement.VEHICLE_EXTERIOR.value,
+        "asset_url": "https://example.com/palmpay-wuse-door-panel.png",
+        "mime_type": "image/png",
+        "width_px": 1600,
+        "height_px": 900,
+        "duration_seconds": None,
+        "checksum": "sha256-palmpay-wuse-demo",
+        "status": CreativeStatus.READY.value,
+        "creative_metadata": demo_metadata(showcase="palmpay_wuse"),
+    }
+    if creative is None:
+        creative = CampaignCreative(
+            campaign_id=campaign.id,
+            name="Door panel — teal",
+            **creative_values,
+        )
+        session.add(creative)
+    else:
+        for field, value in creative_values.items():
+            setattr(creative, field, value)
+    await session.flush()
+
+    driver = await upsert_user(
+        session,
+        email="driver.wuse@demo.mobility.local",
+        password="DemoWuseDriver12345!",
+        full_name="Musa Abdullahi",
+        role=UserRole.DRIVER,
+        settings=settings,
+    )
+    profile = await session.scalar(select(DriverProfile).where(DriverProfile.user_id == driver.id))
+    if profile is None:
+        profile = DriverProfile(
+            user_id=driver.id,
+            onboarding_status=DriverOnboardingStatus.ACTIVE.value,
+            license_number="DRV-DEMO-WUSE-001",
+            service_city="Abuja",
+            country_code="NG",
+            profile_metadata=demo_metadata(service_area="Wuse II"),
+        )
+        session.add(profile)
+    else:
+        profile.onboarding_status = DriverOnboardingStatus.ACTIVE.value
+        profile.license_number = "DRV-DEMO-WUSE-001"
+        profile.service_city = "Abuja"
+        profile.country_code = "NG"
+        profile.profile_metadata = demo_metadata(service_area="Wuse II")
+    await session.flush()
+
+    normalized_plate = normalize_plate_number("ABJ-101")
+    vehicle = await session.scalar(
+        select(Vehicle).where(
+            Vehicle.plate_country_code == "NG",
+            Vehicle.plate_number_normalized == normalized_plate,
+        )
+    )
+    if vehicle is None:
+        vehicle = Vehicle(
+            driver_profile_id=profile.id,
+            plate_number="ABJ-101",
+            plate_number_normalized=normalized_plate,
+            plate_country_code="NG",
+            vehicle_type=VehicleType.CAR.value,
+            make="Toyota",
+            model="Camry",
+            year=2022,
+            color="Silver",
+            status=VehicleStatus.ACTIVE.value,
+            vehicle_metadata=demo_metadata(wrap_ready=True, service_area="Wuse II"),
+        )
+        session.add(vehicle)
+    else:
+        vehicle.driver_profile_id = profile.id
+        vehicle.plate_number = "ABJ-101"
+        vehicle.vehicle_type = VehicleType.CAR.value
+        vehicle.make = "Toyota"
+        vehicle.model = "Camry"
+        vehicle.year = 2022
+        vehicle.color = "Silver"
+        vehicle.status = VehicleStatus.ACTIVE.value
+        vehicle.vehicle_metadata = demo_metadata(wrap_ready=True, service_area="Wuse II")
+    await session.flush()
+
+    await upsert_zones(
+        session,
+        campaign=campaign,
+        advertiser=advertiser,
+        settings=settings,
+        zone_specs=[
+            (
+                "Wuse II Core",
+                CampaignZoneType.TARGET.value,
+                {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [
+                            [7.44, 9.035],
+                            [7.505, 9.035],
+                            [7.505, 9.105],
+                            [7.44, 9.105],
+                            [7.44, 9.035],
+                        ]
+                    ],
+                },
+            ),
+            (
+                "Wuse II Retail Bonus",
+                CampaignZoneType.BONUS.value,
+                {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [
+                            [7.455, 9.05],
+                            [7.49, 9.05],
+                            [7.49, 9.09],
+                            [7.455, 9.09],
+                            [7.455, 9.05],
+                        ]
+                    ],
+                },
+            ),
+        ],
+    )
+    assignment = await upsert_assignment(
+        session,
+        campaign=campaign,
+        profile=profile,
+        vehicle=vehicle,
+        admin=admin,
+        driver=driver,
+    )
+    trips = await upsert_trips_and_pings(
+        session,
+        assignment=assignment,
+        campaign=campaign,
+        profile=profile,
+        vehicle=vehicle,
+        driver=driver,
+        specs=palmpay_trip_specs(now),
+    )
+    await upsert_payout_rule(session, campaign=campaign, admin=admin)
+    await session.flush()
+    for trip in trips:
+        await recompute_trip_analytics(
+            session,
+            trip_id=trip.id,
+            metadata=demo_metadata(seed_step="analytics", showcase="palmpay_wuse"),
+            settings=settings,
+        )
+        await estimate_trip_impressions(
+            session,
+            trip_id=trip.id,
+            traffic_density_profile_id=traffic_profile.id,
+            metadata=demo_metadata(seed_step="impressions", showcase="palmpay_wuse"),
+            settings=settings,
+        )
+        existing_payout_id = await session.scalar(
+            select(PayoutCalculation.id).where(PayoutCalculation.trip_session_id == trip.id)
+        )
+        if existing_payout_id is None:
+            await calculate_trip_payout(
+                session,
+                trip_id=trip.id,
+                payout_rule_id=None,
+                metadata=demo_metadata(seed_step="payout", showcase="palmpay_wuse"),
+                settings=settings,
+            )
+
+
 async def build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGraph:
     admin = await upsert_user(
         session,
@@ -959,13 +1549,38 @@ async def build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGra
             metadata=demo_metadata(seed_step="impressions"),
             settings=settings,
         )
-        await calculate_trip_payout(
-            session,
-            trip_id=trip.id,
-            payout_rule_id=None,
-            metadata=demo_metadata(seed_step="payout"),
-            settings=settings,
+        existing_payout_id = await session.scalar(
+            select(PayoutCalculation.id).where(PayoutCalculation.trip_session_id == trip.id)
         )
+        if existing_payout_id is None:
+            await calculate_trip_payout(
+                session,
+                trip_id=trip.id,
+                payout_rule_id=None,
+                metadata=demo_metadata(seed_step="payout"),
+                settings=settings,
+            )
+
+    await upsert_driver_story_campaigns(
+        session,
+        settings=settings,
+        organization=organization,
+        advertiser=advertiser,
+        admin=admin,
+        driver=driver,
+        profile=driver_profile,
+        vehicle=vehicle,
+        traffic_profile=traffic_profile,
+    )
+
+    await upsert_palmpay_graph(
+        session,
+        settings=settings,
+        organization=organization,
+        advertiser=advertiser,
+        admin=admin,
+        traffic_profile=traffic_profile,
+    )
 
     rich = await build_rich_seed(
         session,

@@ -303,3 +303,120 @@ def test_property_every_random_session_partitions_exactly() -> None:
             seconds > 0 for seconds in breakdown.excluded_seconds_by_reason.values()
         )
         assert breakdown.total_seconds == duration
+
+
+# --- RM1: per-Lagos-day allocation (D4 calendar-day cap, D14) ---------------
+
+# 22:30 UTC = 23:30 Africa/Lagos (UTC+1): a 2h session crosses Lagos midnight.
+CROSS_MIDNIGHT_START = datetime(2026, 7, 20, 22, 30, tzinfo=UTC)
+
+
+def cross_midnight_pings(duration: int, *, step: int = 30) -> list[EligibilityPing]:
+    return [
+        EligibilityPing(
+            recorded_at=CROSS_MIDNIGHT_START + timedelta(seconds=second),
+            latitude=BASE_LAT + (second // step) * LAT_STEP_30M,
+            longitude=BASE_LON,
+            accuracy_m=10.0,
+            in_area=True,
+        )
+        for second in range(0, duration + 1, step)
+    ]
+
+
+def classify_cross_midnight(duration: int):
+    return classify_session(
+        session_started_at=CROSS_MIDNIGHT_START,
+        session_ended_at=CROSS_MIDNIGHT_START + timedelta(seconds=duration),
+        pings=cross_midnight_pings(duration),
+        window_start_at=None,
+        window_end_at=None,
+        params=PARAMS,
+    )
+
+
+def test_day_allocation_sums_to_eligible_seconds() -> None:
+    breakdown = classify(moving_pings(0, 1800))
+    assert sum(breakdown.eligible_seconds_by_day.values()) == breakdown.eligible_seconds
+
+
+def test_single_day_trip_allocates_to_one_lagos_day() -> None:
+    breakdown = classify(moving_pings(0, 1800))
+    assert list(breakdown.eligible_seconds_by_day) == ["2026-07-20"]
+
+
+def test_cross_midnight_trip_splits_eligible_time_across_two_lagos_days() -> None:
+    duration = 7200  # 23:30 -> 01:30 Lagos
+    breakdown = classify_cross_midnight(duration)
+    assert sorted(breakdown.eligible_seconds_by_day) == ["2026-07-20", "2026-07-21"]
+    # 30 minutes fall on the 20th, the remainder on the 21st.
+    assert breakdown.eligible_seconds_by_day["2026-07-20"] == 1800
+    assert sum(breakdown.eligible_seconds_by_day.values()) == breakdown.eligible_seconds
+    assert breakdown.total_seconds == duration
+
+
+def test_cross_midnight_split_is_exact_at_the_boundary() -> None:
+    # Every second before Lagos midnight belongs to the 20th, none after.
+    breakdown = classify_cross_midnight(3600)
+    assert breakdown.eligible_seconds_by_day["2026-07-20"] == 1800
+    assert breakdown.eligible_seconds_by_day["2026-07-21"] == (
+        breakdown.eligible_seconds - 1800
+    )
+
+
+def test_day_allocation_never_exceeds_eligible_for_random_sessions() -> None:
+    rng = random.Random(20260806)
+    for _ in range(60):
+        duration = rng.choice([600, 1800, 3600, 7200])
+        pings = cross_midnight_pings(duration, step=rng.choice([15, 30, 60]))
+        breakdown = classify_session(
+            session_started_at=CROSS_MIDNIGHT_START,
+            session_ended_at=CROSS_MIDNIGHT_START + timedelta(seconds=duration),
+            pings=pings,
+            window_start_at=None,
+            window_end_at=None,
+            params=PARAMS,
+        )
+        assert breakdown.total_seconds == duration
+        assert sum(breakdown.eligible_seconds_by_day.values()) == breakdown.eligible_seconds
+        assert all(value > 0 for value in breakdown.eligible_seconds_by_day.values())
+
+
+# --- RM2: stationary grace is a session budget, not a per-stay allowance ----
+
+
+def parked_stretch(start_second: int, end_second: int, *, lat: float, step: int = 30):
+    """Pings that never leave the stay radius (a parked vehicle)."""
+    return [
+        ping(second, lat=lat) for second in range(start_second, end_second + 1, step)
+    ]
+
+
+def test_repeated_stays_cannot_renew_the_grace_allowance() -> None:
+    # Three long parked stretches separated by 200 m+ hops — the farming
+    # pattern. Grace is granted once for the whole session, so total
+    # grace-forgiven time can never exceed stationary_grace_seconds.
+    pings: list[EligibilityPing] = []
+    for index in range(3):
+        base = index * 1200
+        lat = BASE_LAT + index * 0.0045  # ~500 m apart: a real reposition
+        pings.extend(parked_stretch(base, base + 1080, lat=lat))
+    duration = 3600
+    breakdown = classify(pings, duration=duration)
+    assert_invariant(breakdown, duration)
+    stationary = breakdown.excluded_seconds_by_reason.get("stationary", 0)
+    parked_total = 3 * 1080
+    # Exactly one grace allowance is forgiven across all three stays. Under the
+    # old per-episode grace this was parked_total - 3 * grace (2520s), i.e. an
+    # extra 480 payable seconds per hour of parking, renewable indefinitely.
+    assert stationary == parked_total - PARAMS.stationary_grace_seconds
+    assert stationary == 3000
+
+
+def test_single_stay_still_receives_its_grace() -> None:
+    # One genuine stop is not penalised: the first grace seconds stay payable.
+    pings = moving_pings(0, 300) + parked_stretch(330, 1800, lat=BASE_LAT + 0.003)
+    breakdown = classify(pings, duration=1800)
+    assert_invariant(breakdown, 1800)
+    assert breakdown.excluded_seconds_by_reason.get("stationary", 0) > 0
+    assert breakdown.eligible_seconds >= PARAMS.stationary_grace_seconds
