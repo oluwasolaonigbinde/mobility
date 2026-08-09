@@ -89,7 +89,7 @@ def test_no_seed_or_demo_migrations() -> None:
 
 
 def test_demo_seed_requires_the_code_migration_head() -> None:
-    assert required_migration_head() == "0016_trip_seal_protocol"
+    assert required_migration_head() == "0017_seal_review_hardening"
 
 
 def test_readme_documents_demo_seed_workflow() -> None:

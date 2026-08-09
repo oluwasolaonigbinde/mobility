@@ -471,6 +471,10 @@ async def run_ping_retention(
                         "job=ping_retention outcome=batch_purge_skipped"
                         " reason=refused_pending_detach"
                     )
+                    logger.error(
+                        "job=ping_retention outcome=quarantine_purge_skipped"
+                        " reason=refused_pending_detach"
+                    )
                     await session.commit()
                     logger.info(
                         "job=ping_retention run_id=%s outcome=blocked"
@@ -483,6 +487,8 @@ async def run_ping_retention(
                         "finalized": finalized,
                         "dropped": dropped,
                         "batches_purged": 0,
+                        "quarantines_purged": 0,
+                        "purge_blocked_reason": "refused_pending_detach",
                         "refused_pending": [p.name for p, _, _ in refused],
                     }
                 result = await session.execute(

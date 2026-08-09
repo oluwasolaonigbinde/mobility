@@ -24,6 +24,7 @@ from app.models.trip_analytics import (
     TripAnalytics,
 )
 from app.services.audit import create_audit_event
+from app.services.campaign_assignments import as_aware_utc
 from app.services.impressions import (
     estimate_trip_impressions,
     is_current_estimate_for_analytics,
@@ -149,7 +150,37 @@ async def process_ended_trip(
     analytics = await session.scalar(
         select(TripAnalytics).where(TripAnalytics.trip_session_id == trip.id)
     )
-    if analytics is not None:
+    # A same-version analytics row computed BEFORE the seal may not cover the
+    # late batches that arrived in the recovery window — reusing it would let
+    # a stale (possibly insufficient_data) result flow into the write-once
+    # money chain. Recompute over the sealed ping set instead of reusing.
+    analytics_predates_seal = (
+        analytics is not None
+        and analytics.formula_version == settings.route_analytics_formula_version
+        and trip.sealed_at is not None
+        and as_aware_utc(analytics.computed_at) < as_aware_utc(trip.sealed_at)
+    )
+    if analytics_predates_seal:
+        computation = await recompute_trip_analytics(
+            session,
+            trip_id=trip.id,
+            metadata=dict(WORKER_METADATA),
+            settings=settings,
+            now=processing_now,
+        )
+        analytics = computation.analytics
+        stages.append(
+            StageResult(
+                stage="analytics",
+                outcome="created",
+                reason="preseal_analytics_recomputed",
+                row_ids={
+                    "trip_analytics_id": str(computation.analytics.id),
+                    "open_fraud_flag_count": str(len(computation.fraud_flags)),
+                },
+            )
+        )
+    elif analytics is not None:
         if analytics.formula_version != settings.route_analytics_formula_version:
             stages.extend(
                 [

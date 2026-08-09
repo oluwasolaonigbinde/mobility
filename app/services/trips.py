@@ -15,6 +15,7 @@ from app.core.errors import AppError
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.driver import DriverProfile
+from app.models.payout import PayoutCalculation
 from app.models.trip import (
     LocationPing,
     LocationPingBatch,
@@ -346,21 +347,33 @@ async def end_driver_trip(
     payload: TripEndRequest,
 ) -> TripEndResult:
     trip = await get_driver_trip(session, user_id=user_id, trip_id=trip_id)
-    if trip.status != TripSessionStatus.ACTIVE.value:
+    now = utc_now()
+    # Guarded transition (like ended -> sealed): two concurrent end requests
+    # must not both pass a read-then-write check — the loser would overwrite
+    # a seal and trip the sealed-fields constraint as a 500.
+    result = await session.execute(
+        update(TripSession)
+        .where(
+            TripSession.id == trip.id,
+            TripSession.status == TripSessionStatus.ACTIVE.value,
+        )
+        .values(
+            status=TripSessionStatus.ENDED.value,
+            ended_at=now,
+            end_reason=payload.end_reason,
+            client_batch_count=payload.client_batch_count,
+            client_ping_count=payload.client_ping_count,
+            client_complete=payload.client_complete,
+            updated_at=now,
+        )
+    )
+    if result.rowcount != 1:
         raise AppError(
             "TRIP_ALREADY_ENDED",
             "Trip is already ended",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
-    now = utc_now()
-    trip.status = TripSessionStatus.ENDED.value
-    trip.ended_at = now
-    trip.end_reason = payload.end_reason
-    trip.client_batch_count = payload.client_batch_count
-    trip.client_ping_count = payload.client_ping_count
-    trip.client_complete = payload.client_complete
-    trip.updated_at = now
-    await session.flush()
+    await session.refresh(trip)
 
     # Fast path: the watermark is already satisfied at end time — seal in the
     # same transaction so complete trips reach the money chain with no grace
@@ -674,11 +687,16 @@ async def get_quarantined_batch_for_review(
     trip_id: UUID,
     quarantine_id: UUID,
 ) -> tuple[QuarantinedPingBatch, TripSession]:
+    # FOR UPDATE: apply and discard must serialize on the row — otherwise two
+    # admins can both observe `quarantined` and produce a discarded row whose
+    # pings were nevertheless applied (with both audit events written).
     quarantine = await session.scalar(
-        select(QuarantinedPingBatch).where(
+        select(QuarantinedPingBatch)
+        .where(
             QuarantinedPingBatch.id == quarantine_id,
             QuarantinedPingBatch.trip_session_id == trip_id,
         )
+        .with_for_update()
     )
     if quarantine is None:
         raise quarantine_not_found()
@@ -715,10 +733,27 @@ async def apply_quarantined_ping_batch(
     Money is deliberately NOT recomputed here: payout_v2 is write-once and the
     corrective path is the admin recompute-day tool (§16.1). The result names
     the affected Africa/Lagos days so the admin can run it per day.
+
+    Apply is allowed only AFTER the trip's initial payout calculation exists:
+    a sealed-but-not-yet-processed trip would otherwise silently include the
+    applied pings in its first (write-once) computation, making initial money
+    depend on admin timing instead of flowing through recompute-day.
     """
     quarantine, trip = await get_quarantined_batch_for_review(
         session, trip_id=trip_id, quarantine_id=quarantine_id
     )
+    calculation_exists = await session.scalar(
+        select(PayoutCalculation.id)
+        .where(PayoutCalculation.trip_session_id == trip.id)
+        .limit(1)
+    )
+    if calculation_exists is None:
+        raise AppError(
+            "QUARANTINE_APPLY_BLOCKED",
+            "The trip's initial payout has not been computed yet — wait for the"
+            " worker to process the sealed trip, then apply and run recompute-day",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     payload = LocationPingBatchCreate(
         idempotency_key=quarantine.idempotency_key,
         pings=quarantine.payload.get("pings", []),

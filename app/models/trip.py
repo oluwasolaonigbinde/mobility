@@ -216,6 +216,17 @@ class QuarantinedPingBatch(Base):
             "(status = 'quarantined') = (resolved_at IS NULL)",
             name="ck_quarantined_ping_batches_resolution",
         ),
+        # Resolution facts travel together: a resolved row always names its
+        # actor and note, and only applied rows carry an applied batch.
+        CheckConstraint(
+            "(status = 'quarantined') = "
+            "(resolved_by_user_id IS NULL AND resolution_note IS NULL)",
+            name="ck_quarantined_ping_batches_resolution_actor",
+        ),
+        CheckConstraint(
+            "applied_batch_id IS NULL OR status = 'applied'",
+            name="ck_quarantined_ping_batches_applied_batch",
+        ),
         UniqueConstraint(
             "trip_session_id",
             "idempotency_key",

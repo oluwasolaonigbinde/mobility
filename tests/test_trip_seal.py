@@ -10,6 +10,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+from conftest import create_test_payout_rule, create_test_trip_analytics
 from sqlalchemy import select
 from starlette import status as http_status
 from test_trips import (
@@ -29,6 +30,8 @@ from app.models.trip import (
     TripSession,
     TripSessionStatus,
 )
+from app.models.trip_analytics import TripAnalytics
+from app.services.trip_analytics import recompute_trip_analytics
 from app.services.trip_processing import (
     find_unprocessed_trips,
     process_ended_trip,
@@ -102,6 +105,14 @@ def test_end_with_satisfied_watermark_fast_seals(db_client, db_sessionmaker) -> 
     assert body["sealed_at"] is not None
     assert body["seal_reason"] == TripSealReason.CLIENT_COMPLETE.value
     assert "trip.sealed" in audit_actions(db_sessionmaker)
+
+    # Guarded active->ended transition: a second end request (the loser of a
+    # race) must map to a clean 400, never overwrite the seal or surface a
+    # constraint violation as a 500.
+    second = end_trip(db_client, trip_id)
+    assert second.status_code == http_status.HTTP_400_BAD_REQUEST
+    assert second.json()["error"]["code"] == "TRIP_ALREADY_ENDED"
+    assert fetch_trip(db_sessionmaker, trip_id).status == TripSessionStatus.SEALED.value
 
 
 def test_incomplete_end_stays_ended_then_late_batch_seals(db_client, db_sessionmaker) -> None:
@@ -221,9 +232,11 @@ def test_post_seal_batch_is_quarantined_with_ack_semantics(db_client, db_session
 
 
 def test_admin_applies_quarantined_batch_with_audit_and_lagos_days(
-    db_client, db_sessionmaker
+    db_client, db_sessionmaker, settings
 ) -> None:
-    _, _, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
+    admin, campaign, driver, profile, vehicle, assignment = create_trip_ready_graph(
+        db_sessionmaker
+    )
     trip_id = start_trip(db_client, assignment.id).json()["id"]
     recorded = datetime.now(UTC)
     end_trip(db_client, trip_id, watermark={"client_batch_count": 0, "client_complete": True})
@@ -253,6 +266,46 @@ def test_admin_applies_quarantined_batch_with_audit_and_lagos_days(
         json={},
     )
     assert missing_note.status_code == http_status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    # Apply is BLOCKED until the trip's initial (write-once) payout exists —
+    # otherwise admin timing would decide whether the applied pings enter the
+    # first computation or wait for recompute-day.
+    blocked = db_client.post(
+        f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply",
+        headers=admin_headers(db_client),
+        json={"note": "too early"},
+    )
+    assert blocked.status_code == http_status.HTTP_409_CONFLICT
+    assert blocked.json()["error"]["code"] == "QUARANTINE_APPLY_BLOCKED"
+
+    # Give the sealed trip its initial processing: rule + pre-seeded analytics
+    # (computed after the seal) let the pipeline produce the calculation.
+    create_test_payout_rule(
+        db_sessionmaker,
+        campaign_id=campaign.id,
+        created_by_user_id=admin.id,
+        base_rate_per_km=10,
+    )
+    create_test_trip_analytics(
+        db_sessionmaker,
+        trip_session_id=fetch_trip(db_sessionmaker, trip_id).id,
+        assignment_id=assignment.id,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        formula_version=settings.route_analytics_formula_version,
+        computed_at=datetime.now(UTC) + timedelta(minutes=1),
+    )
+
+    async def process():
+        async with db_sessionmaker() as session:
+            result = await process_ended_trip(
+                session, trip_id=UUID(trip_id), settings=settings
+            )
+            await session.commit()
+            return result
+
+    assert asyncio.run(process()).overall in {"completed", "partial"}
 
     pings_before = len(fetch_all(db_sessionmaker, LocationPing))
     applied = db_client.post(
@@ -332,3 +385,82 @@ def test_ended_window_ingest_skips_assignment_active_gate(db_client, db_sessionm
     late = send_batch(db_client, trip_id, "post-deactivation")
     assert late.status_code == http_status.HTTP_200_OK
     assert late.json()["quarantined"] is False
+
+
+def test_preseal_analytics_is_recomputed_before_money(
+    postgis_db_client, postgis_db_sessionmaker, settings
+) -> None:
+    """Finding: analytics computed during the recovery window (pre-seal) must
+    never be reused for the write-once money chain — the sealed ping set may
+    contain late batches the analytics never saw."""
+    admin, campaign, driver, profile, vehicle, assignment = create_trip_ready_graph(
+        postgis_db_sessionmaker
+    )
+    trip_id = start_trip(postgis_db_client, assignment.id).json()["id"]
+    recorded = datetime.now(UTC)
+    assert (
+        send_batch(postgis_db_client, trip_id, "b1", recorded_at=recorded).status_code == 200
+    )
+    # Incomplete end: 2 batches announced, 1 delivered -> stays `ended`.
+    end_trip(
+        postgis_db_client,
+        trip_id,
+        watermark={"client_batch_count": 2, "client_ping_count": 2, "client_complete": False},
+    )
+    assert (
+        fetch_trip(postgis_db_sessionmaker, trip_id).status == TripSessionStatus.ENDED.value
+    )
+
+    # Analytics computed DURING the recovery window (sees only batch b1).
+    async def compute_preseal():
+        async with postgis_db_sessionmaker() as session:
+            computation = await recompute_trip_analytics(
+                session, trip_id=UUID(trip_id), metadata={}, settings=settings
+            )
+            await session.commit()
+            return computation.analytics.computed_at
+
+    preseal_computed_at = asyncio.run(compute_preseal())
+
+    # The missing batch arrives and completes the watermark -> seal.
+    late = send_batch(postgis_db_client, trip_id, "b2", recorded_at=recorded)
+    assert late.json()["quarantined"] is False
+    trip = fetch_trip(postgis_db_sessionmaker, trip_id)
+    assert trip.status == TripSessionStatus.SEALED.value
+    assert preseal_computed_at.replace(tzinfo=UTC) < trip.sealed_at.replace(tzinfo=UTC)
+
+    create_test_payout_rule(
+        postgis_db_sessionmaker,
+        campaign_id=campaign.id,
+        created_by_user_id=admin.id,
+        base_rate_per_km=10,
+    )
+
+    async def process():
+        async with postgis_db_sessionmaker() as session:
+            result = await process_ended_trip(
+                session, trip_id=UUID(trip_id), settings=settings
+            )
+            await session.commit()
+            return result
+
+    result = asyncio.run(process())
+    analytics_stage = next(stage for stage in result.stages if stage.stage == "analytics")
+    assert analytics_stage.outcome == "created"
+    assert analytics_stage.reason == "preseal_analytics_recomputed"
+
+    async def fetch_analytics():
+        async with postgis_db_sessionmaker() as session:
+            return await session.scalar(
+                select(TripAnalytics).where(TripAnalytics.trip_session_id == UUID(trip_id))
+            )
+
+    analytics = asyncio.run(fetch_analytics())
+    # Recomputed over the sealed ping set: both batches counted, stamp advanced.
+    assert analytics.ping_count == 2
+    assert analytics.computed_at.replace(tzinfo=UTC) >= trip.sealed_at.replace(tzinfo=UTC)
+
+    # A second run reuses (no perpetual recompute churn).
+    second = asyncio.run(process())
+    second_stage = next(stage for stage in second.stages if stage.stage == "analytics")
+    assert second_stage.outcome == "reused"

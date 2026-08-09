@@ -325,6 +325,32 @@ def test_retention_purges_expired_partitions_with_evidence(monkeypatch) -> None:
 
         run_async(with_session(migration_url, add_recent_empty_batch))
 
+        # Quarantined payloads are raw location data (RM3): a retention-expired
+        # row must purge with evidence; a recent one must survive.
+        async def add_quarantines(session):
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO quarantined_ping_batches
+                        (trip_session_id, idempotency_key, payload_hash, payload,
+                         ping_count, received_at, status)
+                    VALUES
+                        (:trip_id, 'quarantine-old', 'hash-q-old', '{"pings": []}'::jsonb,
+                         1, :old_received, 'quarantined'),
+                        (:trip_id, 'quarantine-recent', 'hash-q-new', '{"pings": []}'::jsonb,
+                         1, :recent_received, 'quarantined')
+                    """
+                ),
+                {
+                    "trip_id": seeded["trip_id"],
+                    "old_received": current_month,
+                    "recent_received": injected_now - timedelta(days=1),
+                },
+            )
+            await session.commit()
+
+        run_async(with_session(migration_url, add_quarantines))
+
         legacy_ping_count = asyncio.run(
             fetch_all(migration_url, "SELECT count(*) FROM location_pings_legacy")
         )[0][0]
@@ -345,6 +371,7 @@ def test_retention_purges_expired_partitions_with_evidence(monkeypatch) -> None:
         assert result["dropped"] == ["location_pings_legacy"]
         assert result["finalized"] == []
         assert result["batches_purged"] == 2  # oldest + middle: zero pings remain
+        assert result["quarantines_purged"] == 1  # the retention-expired row only
 
         names = partition_names(migration_url)
         assert "location_pings_legacy" not in names
@@ -371,10 +398,19 @@ def test_retention_purges_expired_partitions_with_evidence(monkeypatch) -> None:
         trips = asyncio.run(fetch_all(migration_url, "SELECT count(*) FROM trip_sessions"))
         assert trips == [(1,)]
 
+        surviving_quarantines = asyncio.run(
+            fetch_all(
+                migration_url,
+                "SELECT idempotency_key FROM quarantined_ping_batches",
+            )
+        )
+        assert [row[0] for row in surviving_quarantines] == ["quarantine-recent"]
+
         events = purge_events(migration_url)
         assert ("purge_started", "location_pings_legacy", legacy_ping_count) in events
         assert ("dropped", "location_pings_legacy", None) in events
         assert ("batches_purged", None, 2) in events
+        assert ("quarantined_batches_purged", None, 1) in events
         # Evidence precedes destruction: purge_started ordered before dropped.
         event_kinds = [event for event, name, _ in events if name == "location_pings_legacy"]
         assert event_kinds.index("purge_started") < event_kinds.index("dropped")
@@ -383,6 +419,7 @@ def test_retention_purges_expired_partitions_with_evidence(monkeypatch) -> None:
         result = asyncio.run(run_retention())
         assert result["dropped"] == []
         assert result["batches_purged"] == 0
+        assert result["quarantines_purged"] == 0
         assert purge_events(migration_url) == events
     finally:
         asyncio.run(drop_database(migration_url))
@@ -641,15 +678,37 @@ def test_non_expired_pending_detach_is_refused_and_left_untouched(monkeypatch) -
 
         monkeypatch.setattr(service, "capture_exception", captured.append)
 
+        # A refused run must block ALL destruction — including quarantine
+        # purge — and say so explicitly in its result.
+        exec_sql(
+            migration_url,
+            "INSERT INTO quarantined_ping_batches"
+            " (trip_session_id, idempotency_key, payload_hash, payload, ping_count,"
+            "  received_at, status)"
+            " SELECT id, 'quarantine-blocked', 'hash-qb', '{\"pings\": []}'::jsonb, 1,"
+            "        now() - interval '20 months', 'quarantined'"
+            " FROM trip_sessions LIMIT 1",
+        )
+
         result = run_retention_once(migration_url)  # real clock: not expired
         assert result["finalized"] == []
         assert result["dropped"] == []
         assert result["refused_pending"] == ["location_pings_legacy"]
+        assert result["quarantines_purged"] == 0
+        assert result["purge_blocked_reason"] == "refused_pending_detach"
         assert "location_pings_legacy" in partition_names(migration_url)
         assert detach_pending_flags(migration_url, "location_pings_legacy") == [True]
         assert len(captured) == 1
         events = purge_events(migration_url)
         assert [e for e, _, _ in events] == ["purge_started"]
+        # The retention-expired quarantine row survived the blocked run.
+        quarantines = asyncio.run(
+            fetch_all(
+                migration_url,
+                "SELECT idempotency_key FROM quarantined_ping_batches",
+            )
+        )
+        assert [row[0] for row in quarantines] == ["quarantine-blocked"]
     finally:
         asyncio.run(drop_database(migration_url))
 
