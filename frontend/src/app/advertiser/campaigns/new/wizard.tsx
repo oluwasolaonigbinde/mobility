@@ -98,7 +98,9 @@ export function CampaignWizard({ currency }: { currency: string }) {
   const errorClass = "mt-1 text-xs text-coral";
 
   return (
-    <form onSubmit={form.handleSubmit(submit)} noValidate>
+    // pb-24 keeps the footer's Continue/Back clear of the floating theme
+    // pill (fixed bottom-right) when the page is scrolled to its end.
+    <form onSubmit={form.handleSubmit(submit)} noValidate className="pb-24">
       {/* Stepper */}
       <ol className="mb-6 flex items-center gap-2" aria-label="Progress">
         {STEPS.map((label, i) => (

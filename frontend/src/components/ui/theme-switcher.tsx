@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
 import { cx } from "@/lib/cx";
 import { DEFAULT_THEME, THEMES, applyTheme, currentTheme } from "@/lib/themes";
 
@@ -23,6 +24,7 @@ export function ThemeSwitcher() {
   const [open, setOpen] = useState(false);
   const active = useSyncExternalStore(subscribeThemeAttr, currentTheme, () => DEFAULT_THEME);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!open) return;
@@ -41,11 +43,16 @@ export function ThemeSwitcher() {
   }, [open]);
 
   if (THEMES.length < 2) return null;
+  // Never on the driver PWA: the floating pill would sit on top of the
+  // bottom tab bar. The pitch/demo audience is the advertiser/admin desktop.
+  if (pathname?.startsWith("/driver")) return null;
 
   const activeMeta = THEMES.find((t) => t.slug === active);
 
   return (
-    <div ref={rootRef} className="fixed right-4 bottom-4 z-50 print:hidden">
+    // hidden below lg: on small screens the pill overlaps page-bottom
+    // actions (verified via Playwright pointer-interception traces).
+    <div ref={rootRef} className="fixed right-4 bottom-4 z-50 hidden print:hidden lg:block">
       {open ? (
         <div className="border-edge-strong bg-panel shadow-panel animate-rise absolute right-0 bottom-14 w-72 rounded-xl border p-2">
           <p className="micro text-faint px-2 pt-1 pb-2">Visual direction</p>

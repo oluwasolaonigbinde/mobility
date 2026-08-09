@@ -18,8 +18,14 @@ test("driver home shows earnings and the active campaign with app chrome", async
   await loginAsDriver(page);
   await expect(page.getByText("Vantage. DRIVER")).toBeVisible();
   await expect(page.getByText("Available earnings")).toBeVisible();
-  await expect(page.getByText("Demo Lagos Mobility Campaign", { exact: true })).toHaveCount(3);
+  // Active-campaign card names the campaign; recent activity lists whichever
+  // campaigns the enriched seed wrote most recently — so assert presence, not
+  // an exact count tied to seed ordering.
+  await expect(
+    page.getByText("Demo Lagos Mobility Campaign", { exact: true }).first(),
+  ).toBeVisible();
   await expect(page.getByText("Recent activity")).toBeVisible();
+  await expect(page.getByText("Every earning links back to a verified trip.")).toBeVisible();
   await expect(page.getByText("Campaigns", { exact: true })).toBeVisible();
   // Bottom tab bar — the app chrome
   const nav = page.getByRole("navigation", { name: "Driver app" });
