@@ -73,6 +73,14 @@ AUDITED = {
     # S4 backfill (§6.4.9):
     ("POST", "/api/v1/driver/trips/start"): "driver.trip.started",
     ("POST", "/api/v1/driver/trips/{trip_id}/end"): "driver.trip.ended",
+    (
+        "POST",
+        "/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply",
+    ): "admin.trip.quarantined_batch.applied",
+    (
+        "POST",
+        "/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/discard",
+    ): "admin.trip.quarantined_batch.discarded",
     ("POST", "/api/v1/admin/trips/{trip_id}/recompute-analytics"): (
         "admin.trip_analytics.recomputed"
     ),

@@ -323,7 +323,7 @@ def _add_second_trip(db_sessionmaker, graph, *, started_at, minutes: int = 30):
         driver_profile_id=graph.profile.id,
         vehicle_id=graph.vehicle.id,
         started_by_user_id=graph.driver.id,
-        trip_status=TripSessionStatus.ENDED,
+        trip_status=TripSessionStatus.SEALED,
         started_at=started_at,
         ended_at=started_at + timedelta(minutes=minutes),
     )

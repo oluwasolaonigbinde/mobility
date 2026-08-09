@@ -111,6 +111,11 @@ class Settings(BaseSettings):
     heatmap_max_cells: int = 5000
     heatmap_min_trips_per_cell: int = 1
     allow_demo_seed: bool = False
+    # RM3 seal protocol: recovery window after an incomplete/legacy trip end
+    # before the sweep force-seals; and how far past ended_at a late ping's
+    # recorded_at may fall (matches location_ping_future_skew tolerance).
+    trip_seal_grace_seconds: int = 600
+    location_ping_end_skew_seconds: int = 300
     worker_sweep_interval_minutes: int = 5
     worker_sweep_batch_size: int = 25
     ping_retention_months: int = 12
@@ -180,6 +185,8 @@ class Settings(BaseSettings):
         "max_location_pings_per_batch",
         "location_ping_future_skew_seconds",
         "location_ping_start_skew_seconds",
+        "location_ping_end_skew_seconds",
+        "trip_seal_grace_seconds",
         "max_location_accuracy_m",
         "max_location_speed_mps",
     )

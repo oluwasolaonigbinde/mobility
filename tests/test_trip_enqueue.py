@@ -48,7 +48,15 @@ def end_trip(db_client, trip_id: str):
     return db_client.post(
         f"/api/v1/driver/trips/{trip_id}/end",
         headers=driver_headers(db_client),
-        json={"end_reason": "driver_ended", "metadata": {}},
+        json={
+            "end_reason": "driver_ended",
+            # Complete watermark: fast-seals at end time (RM3), which is the
+            # sole path that enqueues processing.
+            "client_batch_count": 0,
+            "client_ping_count": 0,
+            "client_complete": True,
+            "metadata": {},
+        },
     )
 
 
@@ -71,11 +79,11 @@ def test_trip_end_commits_before_enqueue_and_calls_once(db_client, db_sessionmak
     assert response.status_code == http_status.HTTP_200_OK
     body = response.json()
     assert body["id"] == trip_id
-    assert body["status"] == "ended"
+    assert body["status"] == "sealed"
     assert body["ended_at"] is not None
     assert spy.calls == [UUID(trip_id)]
     status_at_enqueue, ended_at_at_enqueue = spy.observed[0]
-    assert status_at_enqueue == "ended"
+    assert status_at_enqueue == "sealed"
     assert ended_at_at_enqueue is not None
 
 
@@ -98,7 +106,7 @@ def test_trip_end_fails_open_when_redis_unreachable(db_client, db_sessionmaker, 
     assert "event=trip_enqueue_failed" in caplog.text
     assert trip_id in caplog.text
     trips = fetch_trip_sessions(db_sessionmaker)
-    assert trips[0].status == "ended"
+    assert trips[0].status == "sealed"
     assert trips[0].ended_at is not None
 
 

@@ -183,7 +183,10 @@ async def get_admin_trip(session: AsyncSession, trip_id: UUID) -> TripSession:
 
 
 def ensure_trip_ended(trip: TripSession) -> None:
-    if trip.status != TripSessionStatus.ENDED.value or trip.ended_at is None:
+    # Analytics are diagnostics, not money: both `ended` (in the RM3 recovery
+    # window) and `sealed` trips qualify. Only the payout stage is sealed-only.
+    finalized = (TripSessionStatus.ENDED.value, TripSessionStatus.SEALED.value)
+    if trip.status not in finalized or trip.ended_at is None:
         raise AppError(
             "TRIP_NOT_ENDED",
             "Trip analytics can only be computed for ended trips",

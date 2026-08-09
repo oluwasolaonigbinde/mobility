@@ -13,6 +13,7 @@ class DataPurgeEvent(StrEnum):
     DETACH_FINALIZED = "detach_finalized"
     DROPPED = "dropped"
     BATCHES_PURGED = "batches_purged"
+    QUARANTINED_BATCHES_PURGED = "quarantined_batches_purged"
 
 
 class DataPurgeAudit(Base):
@@ -28,11 +29,13 @@ class DataPurgeAudit(Base):
     __tablename__ = "data_purge_audit"
     __table_args__ = (
         CheckConstraint(
-            "event IN ('purge_started', 'detach_finalized', 'dropped', 'batches_purged')",
+            "event IN ('purge_started', 'detach_finalized', 'dropped', 'batches_purged', "
+            "'quarantined_batches_purged')",
             name="ck_data_purge_audit_event",
         ),
         CheckConstraint(
-            "partition_name IS NOT NULL OR event = 'batches_purged'",
+            "partition_name IS NOT NULL"
+            " OR event IN ('batches_purged', 'quarantined_batches_purged')",
             name="ck_data_purge_audit_partition_name_required",
         ),
         Index(

@@ -50,7 +50,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert registered.keep_result_s == 0
     assert registered.coroutine is jobs.process_trip
 
-    assert len(WorkerSettings.cron_jobs) == 4
+    assert len(WorkerSettings.cron_jobs) == 5
     cron_job = WorkerSettings.cron_jobs[0]
     assert isinstance(cron_job, CronJob)
     assert cron_job.coroutine is jobs.process_unprocessed_trips
@@ -59,8 +59,14 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert cron_job.keep_result_s == 0
     assert cron_job.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
+    seal_cron = WorkerSettings.cron_jobs[1]
+    assert isinstance(seal_cron, CronJob)
+    assert seal_cron.coroutine is jobs.seal_ended_trips_job
+    assert seal_cron.unique is True
+    assert seal_cron.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
+
     lifecycle_crons = {
-        cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[1:]
+        cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[2:]
     }
     assert set(lifecycle_crons) == {
         data_lifecycle_jobs.premake_ping_partitions,

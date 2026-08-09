@@ -406,7 +406,9 @@ async def get_trip_for_estimation(session: AsyncSession, trip_id: UUID) -> TripS
     trip = await session.get(TripSession, trip_id)
     if trip is None:
         raise trip_not_found()
-    if trip.status != TripSessionStatus.ENDED.value or trip.ended_at is None:
+    # Estimates are diagnostics, not money: `ended` and `sealed` both qualify.
+    finalized = (TripSessionStatus.ENDED.value, TripSessionStatus.SEALED.value)
+    if trip.status not in finalized or trip.ended_at is None:
         raise AppError(
             "TRIP_NOT_ENDED",
             "Impressions can only be estimated for ended trips",

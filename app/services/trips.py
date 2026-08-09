@@ -4,8 +4,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
@@ -14,7 +15,15 @@ from app.core.errors import AppError
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.driver import DriverProfile
-from app.models.trip import LocationPing, LocationPingBatch, TripSession, TripSessionStatus
+from app.models.trip import (
+    LocationPing,
+    LocationPingBatch,
+    QuarantinedPingBatch,
+    QuarantinedPingBatchStatus,
+    TripSealReason,
+    TripSession,
+    TripSessionStatus,
+)
 from app.models.vehicle import Vehicle
 from app.schemas.trips import (
     LocationPingBatchCreate,
@@ -22,6 +31,7 @@ from app.schemas.trips import (
     TripEndRequest,
     TripStartRequest,
 )
+from app.services.audit import create_audit_event
 from app.services.campaign_assignments import (
     as_aware_utc,
     ensure_active_driver_profile,
@@ -41,8 +51,22 @@ class TripSummary:
 
 @dataclass(frozen=True)
 class PingBatchResult:
-    batch: LocationPingBatch
+    batch: LocationPingBatch | None
     duplicate: bool
+    quarantine: QuarantinedPingBatch | None = None
+    # Set when this ingest completed the trip's watermark and sealed it —
+    # the route enqueues processing after commit (fail-open, §14.3.2).
+    sealed_now: bool = False
+
+    @property
+    def quarantined(self) -> bool:
+        return self.quarantine is not None
+
+
+@dataclass(frozen=True)
+class TripEndResult:
+    trip: TripSession
+    sealed_now: bool
 
 
 def utc_now() -> datetime:
@@ -248,13 +272,79 @@ async def summarize_trip(session: AsyncSession, trip: TripSession) -> TripSummar
     )
 
 
+async def count_trip_batches(session: AsyncSession, trip_id: UUID) -> int:
+    count = await session.scalar(
+        select(func.count(LocationPingBatch.id)).where(
+            LocationPingBatch.trip_session_id == trip_id
+        )
+    )
+    return int(count or 0)
+
+
+def watermark_satisfied(trip: TripSession, server_batch_count: int) -> bool:
+    """The seal predicate (RM3): the server holds every batch the client cut.
+
+    Batches are the durable idempotent unit, so the batch count is the
+    watermark; client_ping_count and client_complete are diagnostic evidence
+    only (individual pings may be legitimately rejected by bounds checks).
+    """
+    return trip.client_batch_count is not None and server_batch_count >= trip.client_batch_count
+
+
+async def try_seal_trip(
+    session: AsyncSession,
+    trip: TripSession,
+    *,
+    reason: TripSealReason,
+    now: datetime,
+    actor_user_id: UUID | None = None,
+) -> bool:
+    """One-way ended -> sealed transition, safe under concurrent attempts.
+
+    Guarded UPDATE (§14.3 rule 1): exactly one caller wins the transition;
+    every other concurrent seal attempt sees rowcount 0 and must not audit,
+    enqueue, or re-seal. The winner writes the audit event here so every seal
+    path (end fast-path, late-batch ingest, grace sweep) is audited once.
+    """
+    result = await session.execute(
+        update(TripSession)
+        .where(
+            TripSession.id == trip.id,
+            TripSession.status == TripSessionStatus.ENDED.value,
+        )
+        .values(
+            status=TripSessionStatus.SEALED.value,
+            sealed_at=now,
+            seal_reason=reason.value,
+            updated_at=now,
+        )
+    )
+    sealed = result.rowcount == 1
+    if sealed:
+        await session.refresh(trip)
+        await create_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action="trip.sealed",
+            entity_type="trip_session",
+            entity_id=str(trip.id),
+            metadata={
+                "seal_reason": reason.value,
+                "client_batch_count": trip.client_batch_count,
+                "client_ping_count": trip.client_ping_count,
+                "client_complete": trip.client_complete,
+            },
+        )
+    return sealed
+
+
 async def end_driver_trip(
     session: AsyncSession,
     *,
     user_id: UUID,
     trip_id: UUID,
     payload: TripEndRequest,
-) -> TripSession:
+) -> TripEndResult:
     trip = await get_driver_trip(session, user_id=user_id, trip_id=trip_id)
     if trip.status != TripSessionStatus.ACTIVE.value:
         raise AppError(
@@ -266,10 +356,26 @@ async def end_driver_trip(
     trip.status = TripSessionStatus.ENDED.value
     trip.ended_at = now
     trip.end_reason = payload.end_reason
+    trip.client_batch_count = payload.client_batch_count
+    trip.client_ping_count = payload.client_ping_count
+    trip.client_complete = payload.client_complete
     trip.updated_at = now
     await session.flush()
+
+    # Fast path: the watermark is already satisfied at end time — seal in the
+    # same transaction so complete trips reach the money chain with no grace
+    # delay. Incomplete/legacy ends stay `ended` for the recovery window.
+    sealed_now = False
+    if watermark_satisfied(trip, await count_trip_batches(session, trip.id)):
+        sealed_now = await try_seal_trip(
+            session,
+            trip,
+            reason=TripSealReason.CLIENT_COMPLETE,
+            now=now,
+            actor_user_id=user_id,
+        )
     await session.refresh(trip)
-    return trip
+    return TripEndResult(trip=trip, sealed_now=sealed_now)
 
 
 def canonical_datetime(value: datetime) -> str:
@@ -338,6 +444,19 @@ def ensure_ping_bounds(
             "Location ping recorded_at is before the allowed trip start skew",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+    if trip.ended_at is not None:
+        # Late (post-end) delivery window: only points recorded during the
+        # trip are ingestible. Skew matches the future-skew tolerance so a
+        # fast client clock cannot poison its own final batch (RM3).
+        latest = as_aware_utc(trip.ended_at) + timedelta(
+            seconds=settings.location_ping_end_skew_seconds
+        )
+        if recorded_at > latest:
+            raise AppError(
+                "INVALID_RECORDED_AT",
+                "Location ping recorded_at is after the trip ended",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
     if ping.accuracy_m is not None and ping.accuracy_m > settings.max_location_accuracy_m:
         raise AppError(
             "INVALID_ACCURACY",
@@ -369,18 +488,29 @@ async def ingest_location_ping_batch(
     settings: Settings,
 ) -> PingBatchResult:
     trip = await get_driver_trip(session, user_id=user_id, trip_id=trip_id)
-    if trip.status != TripSessionStatus.ACTIVE.value:
-        raise AppError(
-            "TRIP_NOT_ACTIVE",
-            "Location pings can only be accepted for an active trip",
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-    assignment = await session.get(CampaignAssignment, trip.assignment_id)
-    if assignment is None:
+    # Lock the trip row and re-read status before deciding live vs quarantine:
+    # under READ COMMITTED a concurrent seal (grace sweep or a racing end
+    # request) must not land while this insert is mid-flight, or live pings
+    # would silently join a sealed trip's already-fingerprinted money inputs.
+    trip = await session.scalar(
+        select(TripSession).where(TripSession.id == trip.id).with_for_update()
+    )
+    if trip is None:
         raise trip_not_found()
-    ensure_assignment_active(assignment)
+    if trip.status == TripSessionStatus.ACTIVE.value:
+        assignment = await session.get(CampaignAssignment, trip.assignment_id)
+        if assignment is None:
+            raise trip_not_found()
+        ensure_assignment_active(assignment)
+    # `ended` = the RM3 recovery window: late batches are accepted, and the
+    # assignment-active gate is deliberately skipped — delivery of evidence
+    # already recorded must not depend on the assignment still being active.
+    # `sealed` falls through to the quarantine path below.
 
     digest = payload_hash(payload)
+    # Live-batch dedup first, for every status: a batch uploaded pre-seal
+    # whose response was lost and is retried post-seal must return its
+    # original ACK, never a conflict and never a quarantine row.
     existing_batch = await session.scalar(
         select(LocationPingBatch).where(
             LocationPingBatch.trip_session_id == trip.id,
@@ -398,6 +528,16 @@ async def ingest_location_ping_batch(
 
     ensure_ping_batch_size(payload, settings)
     received_at = utc_now()
+
+    if trip.status == TripSessionStatus.SEALED.value:
+        return await quarantine_ping_batch(
+            session,
+            trip=trip,
+            payload=payload,
+            digest=digest,
+            received_at=received_at,
+        )
+
     for ping in payload.pings:
         ensure_ping_bounds(trip=trip, ping=ping, now=received_at, settings=settings)
 
@@ -433,4 +573,251 @@ async def ingest_location_ping_batch(
     trip.updated_at = received_at
     await session.flush()
     await session.refresh(batch)
-    return PingBatchResult(batch=batch, duplicate=False)
+
+    # A late batch may complete the watermark of an ended trip: the data is
+    # now complete by the client's own accounting, so seal without waiting
+    # for grace (RM3; decision recorded in decisions-log).
+    sealed_now = False
+    if trip.status == TripSessionStatus.ENDED.value and watermark_satisfied(
+        trip, await count_trip_batches(session, trip.id)
+    ):
+        sealed_now = await try_seal_trip(
+            session,
+            trip,
+            reason=TripSealReason.LATE_DATA_COMPLETE,
+            now=received_at,
+            actor_user_id=user_id,
+        )
+    return PingBatchResult(batch=batch, duplicate=False, sealed_now=sealed_now)
+
+
+async def quarantine_ping_batch(
+    session: AsyncSession,
+    *,
+    trip: TripSession,
+    payload: LocationPingBatchCreate,
+    digest: str,
+    received_at: datetime,
+) -> PingBatchResult:
+    existing = await session.scalar(
+        select(QuarantinedPingBatch).where(
+            QuarantinedPingBatch.trip_session_id == trip.id,
+            QuarantinedPingBatch.idempotency_key == payload.idempotency_key,
+        )
+    )
+    if existing is not None:
+        if existing.payload_hash != digest:
+            raise AppError(
+                "IDEMPOTENCY_KEY_CONFLICT",
+                "Idempotency key was already used with a different payload",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+        return PingBatchResult(batch=None, duplicate=True, quarantine=existing)
+
+    quarantine = QuarantinedPingBatch(
+        trip_session_id=trip.id,
+        idempotency_key=payload.idempotency_key,
+        payload_hash=digest,
+        payload=canonical_ping_payload(payload),
+        ping_count=len(payload.pings),
+        received_at=received_at,
+        status=QuarantinedPingBatchStatus.QUARANTINED.value,
+    )
+    session.add(quarantine)
+    await session.flush()
+    await session.refresh(quarantine)
+    return PingBatchResult(batch=None, duplicate=False, quarantine=quarantine)
+
+
+# --- post-seal quarantine review (admin, RM3 controlled reopen) ---------------
+
+LAGOS_TZ = ZoneInfo("Africa/Lagos")
+
+
+def quarantine_not_found() -> AppError:
+    return AppError(
+        "QUARANTINED_BATCH_NOT_FOUND",
+        "Quarantined ping batch was not found",
+        status_code=status.HTTP_404_NOT_FOUND,
+    )
+
+
+async def list_quarantined_ping_batches(
+    session: AsyncSession,
+    *,
+    trip_id: UUID | None,
+    batch_status: str | None,
+    limit: int,
+    offset: int,
+) -> tuple[list[QuarantinedPingBatch], int]:
+    conditions = []
+    if trip_id is not None:
+        conditions.append(QuarantinedPingBatch.trip_session_id == trip_id)
+    if batch_status is not None:
+        conditions.append(QuarantinedPingBatch.status == batch_status)
+    total = await session.scalar(
+        select(func.count(QuarantinedPingBatch.id)).where(*conditions)
+    )
+    result = await session.execute(
+        select(QuarantinedPingBatch)
+        .where(*conditions)
+        .order_by(QuarantinedPingBatch.created_at.asc(), QuarantinedPingBatch.id)
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(result.scalars().all()), int(total or 0)
+
+
+async def get_quarantined_batch_for_review(
+    session: AsyncSession,
+    *,
+    trip_id: UUID,
+    quarantine_id: UUID,
+) -> tuple[QuarantinedPingBatch, TripSession]:
+    quarantine = await session.scalar(
+        select(QuarantinedPingBatch).where(
+            QuarantinedPingBatch.id == quarantine_id,
+            QuarantinedPingBatch.trip_session_id == trip_id,
+        )
+    )
+    if quarantine is None:
+        raise quarantine_not_found()
+    if quarantine.status != QuarantinedPingBatchStatus.QUARANTINED.value:
+        raise AppError(
+            "QUARANTINED_BATCH_ALREADY_RESOLVED",
+            "Quarantined ping batch was already resolved",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    trip = await session.get(TripSession, trip_id)
+    if trip is None:
+        raise trip_not_found()
+    return quarantine, trip
+
+
+@dataclass(frozen=True)
+class QuarantineApplyResult:
+    quarantine: QuarantinedPingBatch
+    batch: LocationPingBatch
+    affected_lagos_days: list[str]
+
+
+async def apply_quarantined_ping_batch(
+    session: AsyncSession,
+    *,
+    trip_id: UUID,
+    quarantine_id: UUID,
+    admin_user_id: UUID,
+    note: str,
+    settings: Settings,
+) -> QuarantineApplyResult:
+    """Insert a quarantined batch's pings as live evidence (audited).
+
+    Money is deliberately NOT recomputed here: payout_v2 is write-once and the
+    corrective path is the admin recompute-day tool (§16.1). The result names
+    the affected Africa/Lagos days so the admin can run it per day.
+    """
+    quarantine, trip = await get_quarantined_batch_for_review(
+        session, trip_id=trip_id, quarantine_id=quarantine_id
+    )
+    payload = LocationPingBatchCreate(
+        idempotency_key=quarantine.idempotency_key,
+        pings=quarantine.payload.get("pings", []),
+        metadata=quarantine.payload.get("metadata") or {},
+    )
+    ensure_ping_batch_size(payload, settings)
+    now = utc_now()
+    for ping in payload.pings:
+        ensure_ping_bounds(trip=trip, ping=ping, now=now, settings=settings)
+
+    batch = LocationPingBatch(
+        trip_session_id=trip.id,
+        idempotency_key=quarantine.idempotency_key,
+        payload_hash=quarantine.payload_hash,
+        pings_accepted=len(payload.pings),
+        received_at=quarantine.received_at,
+        batch_metadata=dict(payload.metadata),
+    )
+    session.add(batch)
+    await session.flush()
+    lagos_days: set[str] = set()
+    for ping in payload.pings:
+        session.add(
+            LocationPing(
+                trip_session_id=trip.id,
+                batch_id=batch.id,
+                recorded_at=ping.recorded_at,
+                received_at=now,
+                sequence_number=ping.sequence_number,
+                latitude=ping.lat,
+                longitude=ping.lon,
+                accuracy_m=ping.accuracy_m,
+                speed_mps=ping.speed_mps,
+                heading_degrees=ping.heading_degrees,
+                altitude_m=ping.altitude_m,
+                geom=point_value(session, lon=ping.lon, lat=ping.lat),
+                ping_metadata=ping.metadata,
+            )
+        )
+        lagos_days.add(
+            as_aware_utc(ping.recorded_at).astimezone(LAGOS_TZ).date().isoformat()
+        )
+    quarantine.status = QuarantinedPingBatchStatus.APPLIED.value
+    quarantine.resolved_at = now
+    quarantine.resolved_by_user_id = admin_user_id
+    quarantine.resolution_note = note
+    quarantine.applied_batch_id = batch.id
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=admin_user_id,
+        action="admin.trip.quarantined_batch.applied",
+        entity_type="quarantined_ping_batch",
+        entity_id=str(quarantine.id),
+        metadata={
+            "trip_session_id": str(trip.id),
+            "applied_batch_id": str(batch.id),
+            "ping_count": quarantine.ping_count,
+            "affected_lagos_days": sorted(lagos_days),
+            "note": note,
+        },
+    )
+    await session.refresh(quarantine)
+    await session.refresh(batch)
+    return QuarantineApplyResult(
+        quarantine=quarantine,
+        batch=batch,
+        affected_lagos_days=sorted(lagos_days),
+    )
+
+
+async def discard_quarantined_ping_batch(
+    session: AsyncSession,
+    *,
+    trip_id: UUID,
+    quarantine_id: UUID,
+    admin_user_id: UUID,
+    note: str,
+) -> QuarantinedPingBatch:
+    quarantine, trip = await get_quarantined_batch_for_review(
+        session, trip_id=trip_id, quarantine_id=quarantine_id
+    )
+    now = utc_now()
+    quarantine.status = QuarantinedPingBatchStatus.DISCARDED.value
+    quarantine.resolved_at = now
+    quarantine.resolved_by_user_id = admin_user_id
+    quarantine.resolution_note = note
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=admin_user_id,
+        action="admin.trip.quarantined_batch.discarded",
+        entity_type="quarantined_ping_batch",
+        entity_id=str(quarantine.id),
+        metadata={
+            "trip_session_id": str(trip.id),
+            "ping_count": quarantine.ping_count,
+            "note": note,
+        },
+    )
+    await session.refresh(quarantine)
+    return quarantine

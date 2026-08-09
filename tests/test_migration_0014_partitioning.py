@@ -10,6 +10,7 @@ import os
 import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -21,7 +22,6 @@ from conftest import (
     create_test_campaign_assignment,
     create_test_driver_profile,
     create_test_organization,
-    create_test_trip_session,
     create_test_user,
     create_test_vehicle,
 )
@@ -293,15 +293,34 @@ def seed_ping_graph(migration_url: str) -> dict:
         vehicle_id=vehicle.id,
         assigned_by_user_id=admin.id,
     )
-    trip = create_test_trip_session(
-        sessionmaker,
-        assignment_id=assignment.id,
-        campaign_id=campaign.id,
-        driver_profile_id=profile.id,
-        vehicle_id=vehicle.id,
-        started_by_user_id=driver.id,
-        started_at=months[0] + timedelta(hours=8),
-    )
+    # Raw SQL: this seed runs at revision 0013, before the 0016 seal columns
+    # exist — the current ORM model would INSERT columns the old schema lacks.
+    trip_id = uuid4()
+
+    async def add_trip() -> None:
+        async with sessionmaker() as session:
+            await session.execute(
+                text(
+                    "INSERT INTO trip_sessions (id, assignment_id, campaign_id,"
+                    " driver_profile_id, vehicle_id, started_by_user_id, status,"
+                    " started_at, metadata)"
+                    " VALUES (:id, :assignment_id, :campaign_id, :driver_profile_id,"
+                    " :vehicle_id, :started_by_user_id, 'active', :started_at, '{}')"
+                ),
+                {
+                    "id": trip_id,
+                    "assignment_id": assignment.id,
+                    "campaign_id": campaign.id,
+                    "driver_profile_id": profile.id,
+                    "vehicle_id": vehicle.id,
+                    "started_by_user_id": driver.id,
+                    "started_at": months[0] + timedelta(hours=8),
+                },
+            )
+            await session.commit()
+
+    asyncio.run(add_trip())
+    trip = SimpleNamespace(id=trip_id)
 
     async def add_batch(key: str, recorded_ats: list[datetime]) -> tuple[str, list[str]]:
         async with sessionmaker() as session:

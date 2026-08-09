@@ -326,7 +326,7 @@ If any condition is absent, leave header trust off. The browser-to-API path is `
 
 ## Post-trip processing worker
 
-The `worker` service runs an arq worker (`arq app.jobs.worker_entry.WorkerSettings`) that completes the pipeline for ended trips: analytics and fraud flags, one current-formula impression estimate, and one current-formula payout calculation plus its ledger entry. It fills missing stages and refreshes an existing impression estimate when its analytics or open-fraud inputs are stale; it never rewrites a historical payout, and old-formula analytics must be recomputed through the admin endpoint. Work arrives two ways: a fail-open enqueue after each trip-end commit, and a periodic sweep that derives due trips from Postgres. The strict entry module rejects a missing `REDIS_URL` before arq constructs a worker or opens a socket.
+The `worker` service runs an arq worker (`arq app.jobs.worker_entry.WorkerSettings`) that completes the pipeline for **sealed** trips (D15 — a trip seals at end when the client watermark is satisfied, when a late batch completes it, or via the seal sweep after `TRIP_SEAL_GRACE_SECONDS`; the money chain never runs on merely-ended trips): analytics and fraud flags, one current-formula impression estimate, and one current-formula payout calculation plus its ledger entry. It fills missing stages and refreshes an existing impression estimate when its analytics or open-fraud inputs are stale; it never rewrites a historical payout, and old-formula analytics must be recomputed through the admin endpoint. Work arrives two ways: a fail-open enqueue after each seal commit, and a periodic sweep that derives due (sealed) trips from Postgres. A sibling seal sweep on the same cadence force-seals ended trips past the recovery grace and logs `job=seal_ended_trips sealed=... enqueued=...`. The strict entry module rejects a missing `REDIS_URL` before arq constructs a worker or opens a socket.
 
 ```bash
 docker compose up -d worker
@@ -334,7 +334,7 @@ docker compose logs -f worker
 docker compose stop worker
 ```
 
-The worker publishes no host port. Settings: `WORKER_SWEEP_INTERVAL_MINUTES` (default `5`; must be a divisor of 60 between 1 and 60 — anything else fails Settings validation at startup) and `WORKER_SWEEP_BATCH_SIZE` (default `25` trips per sweep).
+The worker publishes no host port. Settings: `WORKER_SWEEP_INTERVAL_MINUTES` (default `5`; must be a divisor of 60 between 1 and 60 — anything else fails Settings validation at startup), `WORKER_SWEEP_BATCH_SIZE` (default `25` trips per sweep), and `TRIP_SEAL_GRACE_SECONDS` (default `600` — how long an incomplete/legacy trip end waits for late GPS batches before the seal sweep finalizes it).
 
 | Failure | Effect | Recovery |
 |---|---|---|

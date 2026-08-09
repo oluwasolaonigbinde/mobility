@@ -35,7 +35,13 @@ from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.impression import TrafficDensityProfile
 from app.models.organization import AdvertiserOrganization
 from app.models.payout import CampaignPayoutRule, CampaignPayoutRuleStatus
-from app.models.trip import LocationPing, LocationPingBatch, TripSession, TripSessionStatus
+from app.models.trip import (
+    LocationPing,
+    LocationPingBatch,
+    TripSealReason,
+    TripSession,
+    TripSessionStatus,
+)
 from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle, VehicleStatus, VehicleType
 from app.schemas.trips import LocationPingBatchCreate, LocationPingCreate
@@ -594,9 +600,11 @@ async def _create_trip(
         driver_profile_id=asset.profile.id,
         vehicle_id=asset.vehicle.id,
         started_by_user_id=asset.user.id,
-        status=TripSessionStatus.ENDED.value,
+        status=TripSessionStatus.SEALED.value,
         started_at=started_at,
         ended_at=ended_at,
+        sealed_at=ended_at,
+        seal_reason=TripSealReason.CLIENT_COMPLETE.value,
         end_reason="f7_demo_completed",
         trip_metadata=f7_metadata(seed_trip_key=trip_key, anomaly=anomaly),
     )

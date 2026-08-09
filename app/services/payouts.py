@@ -568,10 +568,14 @@ async def get_trip_for_payout(session: AsyncSession, trip_id: UUID) -> TripSessi
     trip = await session.get(TripSession, trip_id)
     if trip is None:
         raise trip_not_found()
-    if trip.status != TripSessionStatus.ENDED.value or trip.ended_at is None:
+    # Money is sealed-only (RM3): an `ended` trip may still be receiving late
+    # batches inside the grace window, and write-once payout_v2 must never
+    # fingerprint an incomplete ping set. This also covers the admin
+    # recompute endpoints — corrections only ever reprice sealed trips.
+    if trip.status != TripSessionStatus.SEALED.value or trip.ended_at is None:
         raise AppError(
-            "TRIP_NOT_ENDED",
-            "Payout can only be calculated for ended trips",
+            "TRIP_NOT_SEALED",
+            "Payout can only be calculated for sealed trips",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     return trip
@@ -2288,7 +2292,12 @@ async def recompute_payout_day(
         .where(
             TripSession.campaign_id == campaign_id,
             TripSession.driver_profile_id == driver_profile_id,
-            TripSession.status == TripSessionStatus.ENDED.value,
+            # Sealed trips are the ones that hold money; `ended` (pre-seal)
+            # trips are included defensively — they have no calculations yet,
+            # but excluding them here must never be the thing that frees cap.
+            TripSession.status.in_(
+                [TripSessionStatus.ENDED.value, TripSessionStatus.SEALED.value]
+            ),
             TripSession.ended_at.is_not(None),
             # Overlap, not start-day containment (RM1): a trip that began the
             # previous evening can hold part of this day's cap.

@@ -26,8 +26,9 @@ and Git history win.
 | Automated post-trip pipeline (arq worker) | Complete, merged | Git `159b0b1`, `4f69ef6`; architecture v1.5–v1.6 |
 | S1 — payout engine v2 (hourly pay + daily caps, D2/D4/D9) | Complete, merged — RM1 fixed + RM2 half fixed (6 Aug, migration `0015`); **RM6 and RM2's sub-window half still open** | Git `f9cd8ca`; architecture v1.8/v1.15, §16.1 [BUILT] |
 | S4 — data lifecycle (ping partitions, retention purge, audit backfill, D10) | Complete, merged | Git `a879a3d`…`4f487e7`; architecture v1.9, §24.2 [BUILT] |
+| W0-F — trip finality protocol + durable client queue (RM3/RM4/RM5, D15) | Complete — sealed-only money chain, post-seal quarantine, IndexedDB queue with stable retry keys | Migration `0016`; architecture v1.16, §35 rows closed; `tests/test_trip_seal.py`; live compose e2e |
 | Pre-production ops (production Compose overlay, release smoke, backup/restore rehearsal) | Complete locally, **not deployed** | Git from `006d94e`; `docker-compose.production.yml`, `docs/runbook.md` |
-| Current API contract | 15 migrations, contract baselines current | `docs/api/openapi.snapshot.json` + `openapi.json` + `schema.d.ts` drift checks |
+| Current API contract | 16 migrations, contract baselines current | `docs/api/openapi.snapshot.json` + `openapi.json` + `schema.d.ts` drift checks |
 
 **Nothing is deployed.** Staging/production remain research-only
 (`docs/staging-options.md`) pending provider, budget, and operator approval
@@ -36,15 +37,16 @@ and Git history win.
 ## Where we are in the roadmap (architecture §31)
 
 - **W0 — review remediation (new, 6 Aug 2026, D13):** **in progress** — RM1
-  (cross-midnight cap allocation) fixed and RM2's renewable-grace half fixed,
-  6 Aug 2026 (migration `0015`, 455 tests green on PostGIS). It leads the
-  remaining work. An independent code-verified review found **seven live defects in
+  fixed and RM2's renewable-grace half fixed 6 Aug 2026 (migration `0015`);
+  **RM3/RM4/RM5 (trip seal protocol, stable retry keys, durable client queue)
+  fixed 9 Aug 2026** (migration `0016`, D15, 465 tests green on PostGIS). It
+  leads the remaining work. An independent code-verified review found **seven live defects in
   already-built code** (architecture §35.1) plus eleven specification rows for
   unbuilt domains. The live ones — cross-midnight cap allocation, stationary
   time farming, no trip-seal protocol, ping double-insert on retry, in-memory
   ping buffer, single-admin retroactive repricing, integrity error mapping —
   gate real-driver GPS and any earnings release (§35.3). Still open: RM2's
-  sub-window stationary aggregation (needs a money-policy decision), RM3–RM7.
+  sub-window stationary aggregation (needs a money-policy decision), RM6, RM7.
 - **W1 — money correctness:** worker ✅, payout v2 ✅ (S1), data lifecycle ✅
   (S4). **Remaining: S2 fraud review + holds (§17, Q21 — must implement RM8),
   S3 release scheduling + payout runs UI (§16.2/§16.3, Q22, Q27 — must
@@ -65,7 +67,7 @@ and Git history win.
 | --- | --- | --- |
 | A. Admin platform | Login/RBAC, user+org onboarding, drivers/vehicles, assignments, fraud-flag console, payout rules UI, traffic profiles, audit UI | Campaign/creative approval queues (W2), installation evidence (W2), payout release ops (W1-S3), retargeting monitoring (W3), exports (W4) |
 | B. Advertiser dashboard | Campaigns CRUD, zones editor, analytics, heatmaps, reports + charts, cost summaries | Creative *upload* (W2 — metadata-only today), billing/invoices (W2), retargeting setup + insights, exposure score + high-exposure zone views (W3), CSV/PDF export (W4) |
-| C. Driver app | Installable PWA: jobs, live trip tracking (idempotent ping batches), earnings + S1 trip breakdown, profile | Offer accept/decline (W3 §21), self-registration (W3), notifications (W1-S2 minimal → W2 channels), **mobile app** (W4) |
+| C. Driver app | Installable PWA: jobs, live trip tracking (idempotent ping batches), earnings + S1 trip breakdown, profile, durable offline ping queue + trip seal protocol (D15) | Offer accept/decline (W3 §21), self-registration (W3), notifications (W1-S2 minimal → W2 channels), **mobile app** (W4) |
 | D. Analytics & impression engine | Route analytics, fraud flags, impression estimates, exposure/heatmap aggregation, payout eligibility classifier | Exposure score metric (`exposure_v1`) + high-exposure zone identification + retargeting insight capture (W3) |
 | E. Dynamic driver payouts | Payout v2 hourly engine, caps, write-once calcs, recompute-day, ledger | Fraud hold/review (S2), release scheduling + weekly batch + payout report (S3, Q27) |
 | F. Heatmaps & reporting | Campaign heatmaps, route visualization, report screens, daily metrics | High-exposure zone + follow-up-targeting report sections (W3), CSV/PDF export (W4) |

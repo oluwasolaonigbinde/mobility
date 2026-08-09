@@ -317,6 +317,7 @@ async def run_ping_retention(
     dropped: list[str] = []
     finalized: list[str] = []
     batches_purged = 0
+    quarantines_purged = 0
 
     lock_conn = await engine.connect()
     try:
@@ -505,6 +506,30 @@ async def run_ping_retention(
                     )
                 else:
                     await session.commit()
+
+                # Quarantined post-seal batches store raw coordinates in
+                # their payload JSONB (RM3) — the same retention window
+                # applies. received_at is safe here: quarantine rows never
+                # own location_pings rows, so no cascade hazard exists.
+                quarantine_result = await session.execute(
+                    text(
+                        "DELETE FROM quarantined_ping_batches"
+                        " WHERE received_at < :cutoff"
+                    ),
+                    {"cutoff": cutoff},
+                )
+                quarantines_purged = quarantine_result.rowcount or 0
+                if quarantines_purged:
+                    await _record_purge_event(
+                        session,
+                        partition=None,
+                        event=DataPurgeEvent.QUARANTINED_BATCHES_PURGED,
+                        row_count=quarantines_purged,
+                        retention_months=settings.ping_retention_months,
+                        job_run_id=job_run_id,
+                    )
+                else:
+                    await session.commit()
         finally:
             await autocommit.execute(
                 text("SELECT pg_advisory_unlock(:key)"), {"key": RETENTION_LOCK_KEY}
@@ -513,17 +538,20 @@ async def run_ping_retention(
         await lock_conn.close()
 
     logger.info(
-        "job=ping_retention run_id=%s finalized=%d dropped=%d batches_purged=%d",
+        "job=ping_retention run_id=%s finalized=%d dropped=%d batches_purged=%d"
+        " quarantines_purged=%d",
         job_run_id,
         len(finalized),
         len(dropped),
         batches_purged,
+        quarantines_purged,
     )
     return {
         "job_run_id": job_run_id,
         "finalized": finalized,
         "dropped": dropped,
         "batches_purged": batches_purged,
+        "quarantines_purged": quarantines_purged,
     }
 
 

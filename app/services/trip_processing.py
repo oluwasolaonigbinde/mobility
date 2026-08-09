@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
@@ -16,7 +16,7 @@ from app.models.payout import (
     PayoutCalculation,
     PayoutCalculationStatus,
 )
-from app.models.trip import TripSession, TripSessionStatus
+from app.models.trip import TripSealReason, TripSession, TripSessionStatus
 from app.models.trip_analytics import (
     FraudFlag,
     FraudFlagSeverity,
@@ -37,7 +37,7 @@ from app.services.payouts import (
     repair_missing_ledger_entries,
 )
 from app.services.trip_analytics import recompute_trip_analytics
-from app.services.trips import trip_not_found
+from app.services.trips import trip_not_found, try_seal_trip
 
 WORKER_METADATA = {"source": "worker"}
 AUDIT_ACTION_TRIP_PROCESSING = "worker.trip_processing.completed"
@@ -117,11 +117,14 @@ async def process_ended_trip(
     trip = await session.get(TripSession, trip_id)
     if trip is None:
         raise trip_not_found()
-    if trip.status != TripSessionStatus.ENDED.value or trip.ended_at is None:
+    # Sealed is the SOLE money-chain trigger (RM3): an `ended` trip may still
+    # be receiving late batches inside the grace window and must not have its
+    # write-once money computed from an incomplete ping set.
+    if trip.status != TripSessionStatus.SEALED.value or trip.ended_at is None:
         return TripProcessingResult(
             trip_id=trip_id,
             overall="blocked",
-            stages=[StageResult(stage="trip", outcome="blocked", reason="trip_not_ended")],
+            stages=[StageResult(stage="trip", outcome="blocked", reason="trip_not_sealed")],
         )
 
     processing_now = now or await database_now(session)
@@ -540,7 +543,7 @@ async def find_unprocessed_trip_page(
         .exists()
     )
     statement = select(TripSession.id, TripSession.ended_at).where(
-        TripSession.status == TripSessionStatus.ENDED.value,
+        TripSession.status == TripSessionStatus.SEALED.value,
         TripSession.ended_at.is_not(None),
         or_(
             ~analytics_exists,
@@ -596,3 +599,42 @@ async def find_unprocessed_trips(
             settings=settings,
         )
     ]
+
+
+async def seal_due_trips(
+    session: AsyncSession,
+    *,
+    settings: Settings,
+    now: datetime | None = None,
+    limit: int | None = None,
+) -> list[UUID]:
+    """Force-seal ended trips whose recovery grace has expired (RM3).
+
+    The guaranteed path for incomplete/legacy ends: after
+    ``trip_seal_grace_seconds`` the trip seals with reason ``grace_expired``
+    even if the client watermark was never satisfied — late data past this
+    point goes to quarantine. Each seal is a guarded transition (winner-only),
+    so a concurrent late-batch seal or duplicate cron fire cannot double-seal.
+    """
+    processing_now = now or await database_now(session)
+    cutoff = processing_now - timedelta(seconds=settings.trip_seal_grace_seconds)
+    result = await session.execute(
+        select(TripSession)
+        .where(
+            TripSession.status == TripSessionStatus.ENDED.value,
+            TripSession.ended_at.is_not(None),
+            TripSession.ended_at <= cutoff,
+        )
+        .order_by(TripSession.ended_at.asc(), TripSession.id.asc())
+        .limit(limit or settings.worker_sweep_batch_size)
+    )
+    sealed_ids: list[UUID] = []
+    for trip in result.scalars().all():
+        if await try_seal_trip(
+            session,
+            trip,
+            reason=TripSealReason.GRACE_EXPIRED,
+            now=processing_now,
+        ):
+            sealed_ids.append(trip.id)
+    return sealed_ids

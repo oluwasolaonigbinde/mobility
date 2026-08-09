@@ -353,6 +353,23 @@ export interface paths {
         patch: operations["admin_update_traffic_density_profile_api_v1_admin_traffic_density_profiles__profile_id__patch"];
         trace?: never;
     };
+    "/api/v1/admin/trips/quarantined-batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List quarantined ping batches */
+        get: operations["admin_list_quarantined_batches_api_v1_admin_trips_quarantined_batches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/trips/{trip_id}/analytics": {
         parameters: {
             query?: never;
@@ -398,6 +415,40 @@ export interface paths {
         put?: never;
         /** Estimate impressions for one analyzed trip */
         post: operations["admin_estimate_trip_impressions_api_v1_admin_trips__trip_id__estimate_impressions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply a quarantined ping batch as live trip evidence */
+        post: operations["admin_apply_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discard a quarantined ping batch */
+        post: operations["admin_discard_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__discard_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3088,6 +3139,11 @@ export interface components {
             /** Duplicate */
             duplicate: boolean;
             /**
+             * Quarantined
+             * @default false
+             */
+            quarantined: boolean;
+            /**
              * Trip Id
              * Format: uuid
              */
@@ -3341,6 +3397,81 @@ export interface components {
             /** Average Quality Score */
             average_quality_score: string | null;
             fraud_flags: components["schemas"]["FraudFlagCounts"];
+        };
+        /** QuarantineApplyResponse */
+        QuarantineApplyResponse: {
+            /** Accepted Count */
+            accepted_count: number;
+            /** Affected Lagos Days */
+            affected_lagos_days: string[];
+            /**
+             * Applied Batch Id
+             * Format: uuid
+             */
+            applied_batch_id: string;
+            /**
+             * Quarantine Id
+             * Format: uuid
+             */
+            quarantine_id: string;
+            /**
+             * Trip Id
+             * Format: uuid
+             */
+            trip_id: string;
+        };
+        /** QuarantineResolveRequest */
+        QuarantineResolveRequest: {
+            /** Note */
+            note: string;
+        };
+        /** QuarantinedPingBatchListResponse */
+        QuarantinedPingBatchListResponse: {
+            /** Items */
+            items: components["schemas"]["QuarantinedPingBatchRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** QuarantinedPingBatchRead */
+        QuarantinedPingBatchRead: {
+            /** Applied Batch Id */
+            applied_batch_id?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Idempotency Key */
+            idempotency_key: string;
+            /** Ping Count */
+            ping_count: number;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Resolution Note */
+            resolution_note?: string | null;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /** Resolved By User Id */
+            resolved_by_user_id?: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
         };
         /** RecomputeDayTripResult */
         RecomputeDayTripResult: {
@@ -3732,6 +3863,12 @@ export interface components {
         };
         /** TripEndRequest */
         TripEndRequest: {
+            /** Client Batch Count */
+            client_batch_count?: number | null;
+            /** Client Complete */
+            client_complete?: boolean | null;
+            /** Client Ping Count */
+            client_ping_count?: number | null;
             /** End Reason */
             end_reason?: string | null;
             /** Metadata */
@@ -3811,6 +3948,10 @@ export interface components {
             };
             /** Ping Count */
             ping_count: number;
+            /** Seal Reason */
+            seal_reason?: string | null;
+            /** Sealed At */
+            sealed_at?: string | null;
             /**
              * Started At
              * Format: date-time
@@ -3832,7 +3973,7 @@ export interface components {
          * TripSessionStatus
          * @enum {string}
          */
-        TripSessionStatus: "active" | "ended";
+        TripSessionStatus: "active" | "ended" | "sealed";
         /** TripStartRequest */
         TripStartRequest: {
             /**
@@ -5052,6 +5193,40 @@ export interface operations {
             };
         };
     };
+    admin_list_quarantined_batches_api_v1_admin_trips_quarantined_batches_get: {
+        parameters: {
+            query?: {
+                trip_id?: string | null;
+                status?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuarantinedPingBatchListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_get_trip_analytics_api_v1_admin_trips__trip_id__analytics_get: {
         parameters: {
             query?: never;
@@ -5140,6 +5315,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImpressionEstimateRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_apply_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: string;
+                quarantine_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuarantineResolveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuarantineApplyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_discard_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__discard_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: string;
+                quarantine_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuarantineResolveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuarantinedPingBatchRead"];
                 };
             };
             /** @description Validation Error */

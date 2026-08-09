@@ -574,8 +574,11 @@ def test_pings_require_active_owned_trip_and_active_assignment(db_client, db_ses
 
     assert other.status_code == http_status.HTTP_404_NOT_FOUND
     assert other.json()["error"]["code"] == "TRIP_NOT_FOUND"
-    assert ended.status_code == http_status.HTTP_400_BAD_REQUEST
-    assert ended.json()["error"]["code"] == "TRIP_NOT_ACTIVE"
+    # RM3: an ended (not yet sealed) trip is inside its recovery window —
+    # late batches are accepted as live evidence, no longer rejected 400.
+    assert ended.status_code == http_status.HTTP_200_OK
+    assert ended.json()["accepted_count"] == 1
+    assert ended.json()["quarantined"] is False
     assert inactive_assignment.status_code == http_status.HTTP_400_BAD_REQUEST
     assert inactive_assignment.json()["error"]["code"] == "CAMPAIGN_ASSIGNMENT_NOT_ACTIVE"
 

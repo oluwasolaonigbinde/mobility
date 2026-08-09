@@ -53,7 +53,13 @@ from app.models.payout import (
     EarningsLedgerEntryStatus,
     PayoutCalculation,
 )
-from app.models.trip import LocationPing, LocationPingBatch, TripSession, TripSessionStatus
+from app.models.trip import (
+    LocationPing,
+    LocationPingBatch,
+    TripSealReason,
+    TripSession,
+    TripSessionStatus,
+)
 from app.models.trip_analytics import TripAnalytics
 from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle, VehicleStatus, VehicleType
@@ -793,9 +799,11 @@ async def upsert_trips_and_pings(
                 driver_profile_id=profile.id,
                 vehicle_id=vehicle.id,
                 started_by_user_id=driver.id,
-                status=TripSessionStatus.ENDED.value,
+                status=TripSessionStatus.SEALED.value,
                 started_at=started_at,
                 ended_at=ended_at,
+                sealed_at=ended_at,
+                seal_reason=TripSealReason.CLIENT_COMPLETE.value,
                 end_reason="demo_completed",
                 trip_metadata=demo_metadata(seed_trip_key=trip_key),
             )
@@ -808,9 +816,11 @@ async def upsert_trips_and_pings(
             trip.driver_profile_id = profile.id
             trip.vehicle_id = vehicle.id
             trip.started_by_user_id = driver.id
-            trip.status = TripSessionStatus.ENDED.value
+            trip.status = TripSessionStatus.SEALED.value
             trip.started_at = started_at
             trip.ended_at = ended_at
+            trip.sealed_at = ended_at
+            trip.seal_reason = TripSealReason.CLIENT_COMPLETE.value
             trip.end_reason = "demo_completed"
             trip.trip_metadata = demo_metadata(seed_trip_key=trip_key)
             await session.flush()
@@ -912,9 +922,7 @@ async def upsert_driver_story_campaigns(
             "deactivated_at": None,
             "cancelled_at": None,
             "completed_at": (
-                spec["end_at"]
-                if spec["activity"] == "airtel"
-                else now - timedelta(days=1)
+                spec["end_at"] if spec["activity"] == "airtel" else now - timedelta(days=1)
             ),
             "notes": (
                 "Successfully completed with consistent weekly activity."
@@ -981,8 +989,7 @@ async def upsert_driver_story_campaigns(
             [
                 (
                     "demo-story-airtel-1",
-                    now.replace(hour=9, minute=10, second=0, microsecond=0)
-                    - timedelta(days=70),
+                    now.replace(hour=9, minute=10, second=0, microsecond=0) - timedelta(days=70),
                     [
                         (6.6010, 3.3510),
                         (6.5840, 3.3660),
@@ -994,8 +1001,7 @@ async def upsert_driver_story_campaigns(
                 ),
                 (
                     "demo-story-airtel-2",
-                    now.replace(hour=15, minute=30, second=0, microsecond=0)
-                    - timedelta(days=58),
+                    now.replace(hour=15, minute=30, second=0, microsecond=0) - timedelta(days=58),
                     [
                         (6.5160, 3.4290),
                         (6.5310, 3.4160),
