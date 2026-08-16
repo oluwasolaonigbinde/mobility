@@ -93,19 +93,61 @@ CANONICAL_ITEMS = (
         "leaf: W3-00C, W3-00D, W3-00E, W3-01D, W3-02A, W3-02B; "
         "external: EXT-BASEMAP",
     ),
-    ("W4-02B", "PKG-08", "leaf: W4-02A; external: EXT-REPORT-METHOD"),
+    ("W4-02B", "PKG-08", "leaf: W4-02A"),
     ("W4-03A", "PKG-08", "leaf: R17-A, W4-01D, W4-02B; external: EXT-RELEASE-ENV"),
     (
         "W4-03B",
         "PKG-08",
-        "all-prior; external: EXT-PILOT-FACTS, EXT-Q28-COMPANY, "
-        "EXT-COMMERCIAL-VALUES, EXT-EVIDENCE-POLICY, EXT-LEGAL-PRIVACY, "
-        "EXT-DISBURSEMENT-PROVIDER, EXT-PILOT-PERMITS",
+        "all-prior; external: EXT-PILOT-FACTS, EXT-REPORT-METHOD, "
+        "EXT-Q28-COMPANY, EXT-COMMERCIAL-VALUES, EXT-EVIDENCE-POLICY, "
+        "EXT-LEGAL-PRIVACY, EXT-DISBURSEMENT-PROVIDER, EXT-PILOT-PERMITS",
     ),
     ("W4-04A", "PKG-09", "leaf: W4-03A, W4-03B"),
     ("W4-03C", "PKG-09", "leaf: W4-03B, W4-04A"),
     ("W4-04B", "PKG-09", "leaf: W4-04A, W4-03C"),
 )
+
+# Stable external-input identities, in register order. States and evidence are
+# mutable; adding, removing, renaming, or reordering an id requires an
+# explicit validator diff — a docs/progress.md edit alone cannot erase a gate.
+CANONICAL_EXTERNAL_IDS = (
+    "EXT-STAGING-APPROVAL",
+    "EXT-RM2-POLICY",
+    "EXT-PAYMENT-PROVIDER",
+    "EXT-STORAGE-PROVIDER",
+    "EXT-MALWARE-SCANNER",
+    "EXT-KMS-CUSTODY",
+    "EXT-EMAIL-PROVIDER",
+    "EXT-BUDGET-POLICY",
+    "EXT-PHONE-OPERATOR",
+    "EXT-BASEMAP",
+    "EXT-STORE-ASSETS",
+    "EXT-RELEASE-ENV",
+    "EXT-PILOT-FACTS",
+    "EXT-REPORT-METHOD",
+    "EXT-Q28-COMPANY",
+    "EXT-COMMERCIAL-VALUES",
+    "EXT-EVIDENCE-POLICY",
+    "EXT-LEGAL-PRIVACY",
+    "EXT-DISBURSEMENT-PROVIDER",
+    "EXT-AD-PLATFORM",
+    "EXT-PILOT-PERMITS",
+)
+
+# Authoritative headings must occur exactly once at top level; the boundary
+# headings that close them are pinned too, so a decoy cannot truncate a
+# section. All parsing runs on the sanitized authoritative view.
+AUTHORITATIVE_HEADINGS = (
+    "## External prerequisite register",
+    "## Canonical repository",
+    "## Executable package queue",
+    "## Executable package contracts",
+    "## Architecture traceability — non-executable parent groups",
+    "## Mandatory checklist item register",
+    "## Checklist item specifications",
+    "## Coverage proof",
+)
+CONTROLLER_LABELS = ("Controller state", "Control package", "Current checkpoint")
 
 
 @dataclass(frozen=True)
@@ -131,21 +173,89 @@ def _plain(value: str) -> str:
     return value.replace("**", "").replace("`", "").strip()
 
 
+def _blank_preserving_newlines(segment: str) -> str:
+    return "".join("\n" if char == "\n" else " " for char in segment)
+
+
+def _authoritative_view(text: str, errors: list[str]) -> str:
+    """Blank HTML comments and fenced code blocks, preserving every newline.
+
+    Hidden or fenced content can decoy human-invisible authoritative
+    sections/pointers, so it never participates in validation. Unbalanced
+    markers fail loudly instead of silently hiding part of the document.
+    """
+    pieces: list[str] = []
+    position = 0
+    while True:
+        start = text.find("<!--", position)
+        if start < 0:
+            pieces.append(text[position:])
+            break
+        end = text.find("-->", start + 4)
+        pieces.append(text[position:start])
+        if end < 0:
+            errors.append(
+                f"line {text[:start].count(chr(10)) + 1}: unterminated HTML comment"
+            )
+            pieces.append(_blank_preserving_newlines(text[start:]))
+            break
+        pieces.append(_blank_preserving_newlines(text[start : end + 3]))
+        position = end + 3
+    lines = "".join(pieces).split("\n")
+    fence_open_line: int | None = None
+    for index, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            fence_open_line = None if fence_open_line is not None else index + 1
+            lines[index] = " " * len(line)
+        elif fence_open_line is not None:
+            lines[index] = " " * len(line)
+    if fence_open_line is not None:
+        errors.append(f"line {fence_open_line}: unclosed code fence")
+    return "\n".join(lines)
+
+
+def _check_unique_authority_markers(text: str, errors: list[str]) -> None:
+    for heading in AUTHORITATIVE_HEADINGS:
+        title = heading.removeprefix("## ")
+        occurrences = re.findall(
+            rf"^#{{2,6}}\s+{re.escape(title)}\b.*$", text, re.MULTILINE
+        )
+        if len(occurrences) != 1:
+            errors.append(
+                f"authoritative heading {title!r} must appear exactly once at any "
+                f"heading level; found {len(occurrences)}"
+            )
+    for label in CONTROLLER_LABELS:
+        count = len(re.findall(rf"\*\*{label}:\*\*", text))
+        if count != 1:
+            errors.append(
+                f"controller field {label!r} must appear exactly once; found {count}"
+            )
+
+
 def _section(text: str, heading: str, next_heading: str) -> tuple[str, int]:
-    start = text.find(heading)
-    if start < 0:
+    match = re.search(rf"^{re.escape(heading)}\b.*$", text, re.MULTILINE)
+    if not match:
         raise ValueError(f"missing section {heading!r}")
-    end = text.find(next_heading, start + len(heading))
-    if end < 0:
+    start = match.start()
+    boundary = re.compile(rf"^{re.escape(next_heading)}\b.*$", re.MULTILINE)
+    end_match = boundary.search(text, match.end())
+    if not end_match:
         raise ValueError(f"missing section boundary {next_heading!r}")
-    return text[start:end], text[:start].count("\n") + 1
+    return text[start : end_match.start()], text[:start].count("\n") + 1
 
 
 def _table(section: str, header_prefix: str, base_line: int) -> list[tuple[int, list[str]]]:
     lines = section.splitlines()
-    index = next((i for i, line in enumerate(lines) if line.startswith(header_prefix)), None)
-    if index is None:
+    matches = [i for i, line in enumerate(lines) if line.startswith(header_prefix)]
+    if not matches:
         raise ValueError(f"missing table header {header_prefix!r}")
+    if len(matches) > 1:
+        raise ValueError(
+            f"table header {header_prefix!r} must appear exactly once in its "
+            f"section; found {len(matches)}"
+        )
+    index = matches[0]
     rows: list[tuple[int, list[str]]] = []
     for row_index, line in enumerate(lines[index + 2 :], start=index + 2):
         if not line.startswith("|"):
@@ -202,6 +312,9 @@ def _parse_item_prerequisites(
 def validate_text(text: str) -> list[str]:
     errors: list[str] = []
 
+    text = _authoritative_view(text, errors)
+    _check_unique_authority_markers(text, errors)
+
     try:
         external_section, external_line = _section(
             text, "## External prerequisite register", "## Canonical repository"
@@ -226,6 +339,11 @@ def validate_text(text: str) -> list[str]:
         if state == "PRESENT" and evidence in {"", "—"}:
             errors.append(f"line {line}: PRESENT input {external_id} must cite evidence")
         external_states[external_id] = state
+    if tuple(external_states) != CANONICAL_EXTERNAL_IDS:
+        errors.append(
+            "external register identities/order changed: expected "
+            f"{list(CANONICAL_EXTERNAL_IDS)}, found {list(external_states)}"
+        )
 
     try:
         package_section, package_line = _section(
@@ -275,11 +393,29 @@ def validate_text(text: str) -> list[str]:
         errors.append(str(exc))
         package_card_ids = []
         contract_line = 0
+        contract_section = ""
     if [package.package_id for package in packages] != package_card_ids:
         errors.append(
             "package queue ids must equal package card ids in order "
             f"(cards near line {contract_line})"
         )
+    canonical_numbers_by_package: dict[str, set[int]] = {}
+    for number, (_, owner_package, _) in enumerate(CANONICAL_ITEMS, start=1):
+        canonical_numbers_by_package.setdefault(owner_package, set()).add(number)
+    card_chunks = re.split(r"^### (PKG-\d{2}) —.*$", contract_section, flags=re.MULTILINE)
+    for card_id, card_body in zip(card_chunks[1::2], card_chunks[2::2], strict=False):
+        owns_match = re.search(
+            r"- \*\*Owns:\*\* checklist (\d+)[–-](\d+)", card_body
+        )
+        if not owns_match:
+            errors.append(f"package card {card_id} is missing an Owns: checklist A–B declaration")
+            continue
+        declared = set(range(int(owns_match.group(1)), int(owns_match.group(2)) + 1))
+        if declared != canonical_numbers_by_package.get(card_id, set()):
+            errors.append(
+                f"package card {card_id} Owns declaration does not match the "
+                "canonical checklist membership"
+            )
 
     try:
         parent_section, parent_line = _section(
@@ -361,6 +497,7 @@ def validate_text(text: str) -> list[str]:
         errors.append(str(exc))
         specification_ids = []
         specification_line = 0
+        specification_section = ""
     if item_ids != specification_ids:
         errors.append(
             "checklist ids must equal specification-card ids in order "
@@ -458,6 +595,16 @@ def validate_text(text: str) -> list[str]:
                     errors.append(
                         f"line {item.line}: blocked input {external_id} is not registered MISSING"
                     )
+            direct_missing = {
+                dependency
+                for dependency in external_dependencies
+                if external_states.get(dependency) == "MISSING"
+            }
+            if set(named) != direct_missing:
+                errors.append(
+                    f"line {item.line}: {item.item_id} must name exactly its missing "
+                    f"direct external inputs ({', '.join(sorted(direct_missing)) or 'none'})"
+                )
 
     package_items = {
         package.package_id: [item for item in items if item.package_id == package.package_id]
@@ -467,6 +614,8 @@ def validate_text(text: str) -> list[str]:
         owned = package_items.get(package.package_id, [])
         if package.status == "DONE" and any(item.status != "DONE" for item in owned):
             errors.append(f"line {package.line}: DONE package contains unfinished checklist items")
+        if package.status == "QUEUED" and any(item.status == "DONE" for item in owned):
+            errors.append(f"line {package.line}: QUEUED package contains DONE checklist items")
         if package.status == "BLOCKED":
             if not any(item.status != "DONE" for item in owned):
                 errors.append(f"line {package.line}: BLOCKED package has no unfinished work")
@@ -491,10 +640,22 @@ def validate_text(text: str) -> list[str]:
             errors.append(
                 "active package bypasses an earlier package that is neither DONE nor BLOCKED"
             )
+        for later in packages:
+            if later.number > active.number and later.status not in {"QUEUED", "BLOCKED"}:
+                errors.append(
+                    f"line {later.line}: package after the active frontier must be "
+                    "QUEUED or BLOCKED"
+                )
         if controller_state != "ACTIVE":
             errors.append("controller must be ACTIVE while a package is active")
         if package_pointer != active.package_id:
             errors.append("control package pointer does not match the active package")
+        owned_active = package_items.get(active.package_id, [])
+        # A REVIEW package with every owned item DONE is the consolidated
+        # closure review; any other active state still needs runnable work.
+        closure_review = active.status == "REVIEW" and bool(owned_active) and all(
+            item.status == "DONE" for item in owned_active
+        )
         if not checkpoint_match:
             errors.append("active package requires a Current checkpoint")
         else:
@@ -504,10 +665,10 @@ def validate_text(text: str) -> list[str]:
                 errors.append("current checkpoint does not belong to the active package")
             elif checkpoint.package_id != active.package_id:
                 errors.append("current checkpoint item is mapped to another package")
-            elif active.status != "REVIEW" and not runnable(checkpoint):
+            elif not closure_review and not runnable(checkpoint):
                 errors.append("current checkpoint is not a dependency-satisfied runnable TODO")
-        if active.status != "REVIEW" and not any(
-            runnable(item) for item in package_items[active.package_id]
+        if not closure_review and not any(
+            runnable(item) for item in owned_active
         ):
             errors.append("active package has no runnable TODO checklist item")
     elif not active_packages:
@@ -531,6 +692,21 @@ def validate_text(text: str) -> list[str]:
             )
             if not pointed or pointed.status != "BLOCKED":
                 errors.append("paused control package must point to a BLOCKED package")
+            if pointed:
+                for other in packages:
+                    if other.number < pointed.number and other.status not in {"DONE", "BLOCKED"}:
+                        errors.append(
+                            f"line {other.line}: paused control package bypasses an earlier "
+                            "package that is neither DONE nor BLOCKED"
+                        )
+                    if other.number > pointed.number and other.status not in {
+                        "QUEUED",
+                        "BLOCKED",
+                    }:
+                        errors.append(
+                            f"line {other.line}: package after the paused control package "
+                            "must be QUEUED or BLOCKED"
+                        )
             checkpoint = None
             if not checkpoint_match:
                 errors.append("paused controller requires a Current checkpoint")

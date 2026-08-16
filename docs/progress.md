@@ -108,6 +108,13 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
   (no §9 movement), CI green (backend, contract-drift, e2e). Independent plan
   review PASS and independent API/concurrency checkpoint review PASS against
   the exact candidate. Architecture v1.25; §35.1 RM7 closed.
+- **Control-plane remediation (16 Aug 2026, task-master correction):** the
+  queue validator now rejects six independently reproduced bypass classes
+  (hidden/fenced decoys, shadow documents, REVIEW pause-avoidance, frontier/
+  QUEUED-DONE drift, Owns drift, external-id erasure) and `EXT-REPORT-METHOD`
+  moved from W4-02B's build prerequisite to W4-03B's live pilot gate to match
+  the register's recorded semantics. Closes no checklist item; validator +
+  33 tests green; architecture v1.26.
 
 ### PKG-02 — money integrity and payout operations
 
@@ -276,9 +283,9 @@ verification, gates or required specialist review.
 | 63 | **W4-01C — PWA onboarding and campaign journey** | PKG-07 | TODO | Onboarding, vehicle, offers, activation and tracking integrate through governed BFF/API contracts. | leaf: W4-01B, W3-04C, W3-03B, W2-03D |
 | 64 | **W4-01D — PWA earnings, disputes and release rehearsal** | PKG-07 | TODO | History, earnings, disputes, notifications, installability and production-PWA release evidence are complete. | leaf: W4-01C, MNY-08C, MNY-11A, W2-04A, W2-04C |
 | 65 | **W4-02A — governed maps and report experience** | PKG-08 | TODO | Existing maps/reports consume safe runs; performance analysis is standard and ROI is absent unless its data/method gate passes. | leaf: W3-00C, W3-00D, W3-00E, W3-01D, W3-02A, W3-02B; external: EXT-BASEMAP |
-| 66 | **W4-02B — bounded CSV/PDF issuance** | PKG-08 | TODO | Async hashed exports reproduce the frozen performance/conditional-ROI decision and honor privacy/legal gates. | leaf: W4-02A; external: EXT-REPORT-METHOD |
+| 66 | **W4-02B — bounded CSV/PDF issuance** | PKG-08 | TODO | Async hashed exports reproduce the frozen performance/conditional-ROI decision and honor privacy/legal gates. | leaf: W4-02A |
 | 67 | **W4-03A — client-owned release environment** | PKG-08 | TODO | Approved account/domain hosts a hardened release candidate with recovery. | leaf: R17-A, W4-01D, W4-02B; external: EXT-RELEASE-ENV |
-| 68 | **W4-03B — Cardvert pilot gate and acceptance suite** | PKG-08 | TODO | One suite proves every §35 gate and the Abuja journey, including contextual activation, performance/conditional-ROI reporting, automated transfer and permit evidence. | all-prior; external: EXT-PILOT-FACTS, EXT-Q28-COMPANY, EXT-COMMERCIAL-VALUES, EXT-EVIDENCE-POLICY, EXT-LEGAL-PRIVACY, EXT-DISBURSEMENT-PROVIDER, EXT-PILOT-PERMITS |
+| 68 | **W4-03B — Cardvert pilot gate and acceptance suite** | PKG-08 | TODO | One suite proves every §35 gate and the Abuja journey, including contextual activation, performance/conditional-ROI reporting, automated transfer and permit evidence. | all-prior; external: EXT-PILOT-FACTS, EXT-REPORT-METHOD, EXT-Q28-COMPANY, EXT-COMMERCIAL-VALUES, EXT-EVIDENCE-POLICY, EXT-LEGAL-PRIVACY, EXT-DISBURSEMENT-PROVIDER, EXT-PILOT-PERMITS |
 | 69 | **W4-04A — role-based onboarding and training** | PKG-09 | TODO | Admin, advertiser and driver materials are rehearsed against the release candidate. | leaf: W4-03A, W4-03B |
 | 70 | **W4-03C — controlled pilot and stabilization** | PKG-09 | TODO | Approved users run a monitored pilot with payout/report replay and rollback criteria. | leaf: W4-03B, W4-04A |
 | 71 | **W4-04B — handover, support and roadmap closure** | PKG-09 | TODO | Owners accept deployment/system/support docs, known risks and post-MVP roadmap. | leaf: W4-04A, W4-03C |
@@ -1074,7 +1081,9 @@ names never authorize work or replace the package queue.
   run with hash/version/access/suppression/reissue; segment export remains
   disabled until Q31 (§27/§30, D11/D20/Q11/Q12/Q27/Q30/Q31). Issuance uses the
   Campaign Performance Analysis title by default and reproduces the frozen ROI
-  gate decision.
+  gate decision. Build/test is synthetic performance-only per the register:
+  `EXT-REPORT-METHOD` gates first live issuance at the W4-03B pilot gate, not
+  this item's build entry.
 - **Acceptance:** file reproduces source run, cannot leak suppressed data,
   authorization holds, legal switch fails closed and ROI is absent unless both
   required data and approved method are present.
@@ -1096,7 +1105,9 @@ names never authorize work or replace the package queue.
 
 - **Scope / authority:** one launch checklist mechanically proves G-money,
   G-GPS, G-commercial, G-advertiser, G-moduleG and G-pilot; records the real
-  company/commercial facts, evidence policy, Q26/Q31 legal/privacy approval,
+  company/commercial facts, evidence policy, the approved measurement/ROI
+  methodology (`EXT-REPORT-METHOD` — the live-issuance gate W4-02B builds
+  against synthetically), Q26/Q31 legal/privacy approval,
   automated-disbursement provider readiness, D19 permit evidence and D18/D20
   Cardvert/Abuja pilot facts, reporting rule and owners (§35.3).
 - **Acceptance:** full advertiser→admin→PWA→GPS→measurement→retargeting/export

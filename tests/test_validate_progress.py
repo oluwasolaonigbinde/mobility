@@ -5,6 +5,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
     "validate_progress", ROOT / "scripts" / "validate_progress.py"
@@ -315,3 +317,211 @@ def test_ci_push_validation_covers_arbitrary_branches() -> None:
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
     push_block = workflow.split("  push:\n", 1)[1].split("  pull_request:\n", 1)[0]
     assert "branches:" not in push_block
+
+
+# --- Control-plane hardening regressions (task-master correction, 16 Aug 2026) ---
+
+
+def test_rejects_hidden_controller_pointer_decoy() -> None:
+    decoy = (
+        "<!--\n"
+        "**Controller state:** `ACTIVE`\n"
+        "**Control package:** `PKG-01`\n"
+        "**Current checkpoint:** `PKG-01 / FND-02A`\n"
+        "-->\n"
+    )
+    text = (
+        _progress()
+        .replace("### Current control pointer", "### Current control pointer\n\n" + decoy)
+        .replace("**Control package:** `PKG-01`", "**Control package:** `PKG-09`")
+    )
+    errors = _errors(text)
+    assert any("control package pointer does not match" in error for error in errors)
+
+
+def test_rejects_fenced_decoy_package_queue() -> None:
+    fence = (
+        "```md\n"
+        "## Executable package queue\n\n"
+        "| # | Package | Status | Outcome | Package prerequisites |\n"
+        "| ---: | --- | --- | --- | --- |\n"
+        "```\n\n"
+    )
+    text = _progress().replace(
+        "## Executable package queue", fence + "## Executable package queue", 1
+    ).replace(
+        "| 1 | **PKG-01 — foundations and empirical risk proof** | **IN PROGRESS** |",
+        "| 1 | **PKG-01 — foundations and empirical risk proof** | DONE |",
+    )
+    errors = _errors(text)
+    assert any("DONE package contains unfinished" in error for error in errors)
+
+
+def test_rejects_unterminated_comment() -> None:
+    text = _progress().replace(
+        "### Current control pointer", "<!--\n### Current control pointer", 1
+    )
+    assert any("unterminated HTML comment" in error for error in _errors(text))
+
+
+def test_rejects_unclosed_fence() -> None:
+    text = _progress().replace(
+        "## Executable package queue", "```\n## Executable package queue", 1
+    )
+    assert any("unclosed code fence" in error for error in _errors(text))
+
+
+def test_rejects_sublevel_heading_decoy_table() -> None:
+    decoy = (
+        "### Executable package queue (decoy)\n\n"
+        "| # | Package | Status | Outcome | Package prerequisites |\n"
+        "| ---: | --- | --- | --- | --- |\n\n"
+    )
+    text = _progress().replace(
+        "| # | Package | Status | Outcome | Package prerequisites |",
+        decoy + "| # | Package | Status | Outcome | Package prerequisites |",
+        1,
+    )
+    errors = _errors(text)
+    assert any("must appear exactly once at any heading level" in error for error in errors)
+    assert any("must appear exactly once in its" in error for error in errors)
+
+
+def test_review_cannot_avoid_pause_with_blocked_checkpoint() -> None:
+    text = _progress().replace(
+        "| 1 | **PKG-01 — foundations and empirical risk proof** | **IN PROGRESS** |",
+        "| 1 | **PKG-01 — foundations and empirical risk proof** | REVIEW |",
+    ).replace(
+        "**Current checkpoint:** `PKG-01 / FND-02A`",
+        "**Current checkpoint:** `PKG-01 / FND-07`",
+    )
+    errors = _errors(text)
+    assert any(
+        "current checkpoint is not a dependency-satisfied runnable TODO" in error
+        for error in errors
+    )
+
+
+def test_review_valid_only_when_all_items_done_or_runnable() -> None:
+    # Direction 1: REVIEW with unfinished work and a runnable checkpoint is valid.
+    reviewing = _progress().replace(
+        "| 1 | **PKG-01 — foundations and empirical risk proof** | **IN PROGRESS** |",
+        "| 1 | **PKG-01 — foundations and empirical risk proof** | REVIEW |",
+    )
+    assert _errors(reviewing) == []
+    # Direction 2: REVIEW with every owned item DONE (consolidated closure
+    # review) is valid even though nothing is runnable.
+    lines = []
+    for line in reviewing.splitlines():
+        if re.match(r"\| [1-9] \| \*\*(?!PKG-).*\| PKG-01 \|", line):
+            line = re.sub(
+                r"\| (?:TODO|BLOCKED — EXT-[A-Z0-9-]+) \|", "| DONE |", line, count=1
+            )
+        if line.startswith("| **EXT-STAGING-APPROVAL** |") or line.startswith(
+            "| **EXT-RM2-POLICY** |"
+        ):
+            line = line.replace("| MISSING |", "| PRESENT |", 1).replace(
+                "| — |", "| owner-recorded evidence |", 1
+            )
+        lines.append(line)
+    assert _errors("\n".join(lines) + "\n") == []
+
+
+def test_rejects_done_item_in_queued_package() -> None:
+    text = _progress().replace(
+        "| 10 | **MNY-08A — current fraud assessments** | PKG-02 | TODO |",
+        "| 10 | **MNY-08A — current fraud assessments** | PKG-02 | DONE |",
+    )
+    errors = _errors(text)
+    assert any("QUEUED package contains DONE checklist items" in error for error in errors)
+
+
+def test_rejects_nonqueued_package_after_active_frontier() -> None:
+    text = _progress().replace(
+        "| 3 | **PKG-03 — commercial contracts and billing** | QUEUED |",
+        "| 3 | **PKG-03 — commercial contracts and billing** | DONE |",
+    )
+    errors = _errors(text)
+    assert any(
+        "package after the active frontier must be QUEUED or BLOCKED" in error
+        for error in errors
+    )
+
+
+def test_later_blocked_package_still_validates() -> None:
+    text = _progress().replace(
+        "| 8 | **PKG-08 — governed reporting and pilot readiness** | QUEUED |",
+        "| 8 | **PKG-08 — governed reporting and pilot readiness** | BLOCKED |",
+    ).replace(
+        "| 65 | **W4-02A — governed maps and report experience** | PKG-08 | TODO |",
+        "| 65 | **W4-02A — governed maps and report experience** | PKG-08 "
+        "| BLOCKED — EXT-BASEMAP |",
+    ).replace(
+        "| 67 | **W4-03A — client-owned release environment** | PKG-08 | TODO |",
+        "| 67 | **W4-03A — client-owned release environment** | PKG-08 "
+        "| BLOCKED — EXT-RELEASE-ENV |",
+    )
+    assert _errors(text) == []
+
+
+def test_rejects_package_contract_ownership_drift() -> None:
+    text = _progress().replace(
+        "- **Owns:** checklist 1–9.",
+        "- **Owns:** checklist 1–71.",
+    )
+    errors = _errors(text)
+    assert any(
+        "PKG-01 Owns declaration does not match the canonical checklist membership" in error
+        for error in errors
+    )
+
+
+def test_report_method_gates_pilot_not_w4_02b_build() -> None:
+    text = _progress()
+    row_66 = next(line for line in text.splitlines() if line.startswith("| 66 | **W4-02B"))
+    row_68 = next(line for line in text.splitlines() if line.startswith("| 68 | **W4-03B"))
+    assert "EXT-REPORT-METHOD" not in row_66
+    assert row_66.rstrip().endswith("| leaf: W4-02A |")
+    assert "EXT-REPORT-METHOD" in row_68
+    assert _errors(text) == []
+    regressed = text.replace(
+        "| leaf: W4-02A |", "| leaf: W4-02A; external: EXT-REPORT-METHOD |", 1
+    )
+    assert any(
+        "checklist 66 identity/package/prerequisites changed" in error
+        for error in _errors(regressed)
+    )
+
+
+@pytest.mark.parametrize("external_id", ["EXT-STORE-ASSETS", "EXT-AD-PLATFORM"])
+def test_rejects_stable_external_id_erasure(external_id: str) -> None:
+    text = _progress()
+    row = next(line for line in text.splitlines() if line.startswith(f"| **{external_id}**"))
+    errors = _errors(text.replace(row + "\n", ""))
+    assert any("external register identities/order changed" in error for error in errors)
+
+
+def test_blocked_item_names_all_direct_missing_inputs() -> None:
+    text = _progress().replace(
+        "| 68 | **W4-03B — Cardvert pilot gate and acceptance suite** | PKG-08 | TODO |",
+        "| 68 | **W4-03B — Cardvert pilot gate and acceptance suite** | PKG-08 "
+        "| BLOCKED — EXT-Q28-COMPANY |",
+    )
+    errors = _errors(text)
+    assert any(
+        "W4-03B must name exactly its missing direct external inputs" in error
+        for error in errors
+    )
+
+
+def test_rejects_stale_control_package_pointer() -> None:
+    text = _progress().replace(
+        "**Control package:** `PKG-01`", "**Control package:** `PKG-09`"
+    )
+    errors = _errors(text)
+    assert any("control package pointer does not match" in error for error in errors)
+
+
+def test_ci_explicitly_runs_progress_validation() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+    assert "scripts/validate_progress.py" in workflow
