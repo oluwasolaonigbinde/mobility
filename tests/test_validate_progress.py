@@ -208,7 +208,8 @@ def test_done_item_requires_present_external_prerequisites() -> None:
 def test_all_done_terminal_complete_state_is_valid() -> None:
     text = _progress()
     text = re.sub(
-        r"^(\| \d+ \| \*\*PKG-\d{2} —.*?\| )(?:\*\*NEXT\*\*|\*\*IN PROGRESS\*\*|\*\*REVIEW\*\*|QUEUED)( \|)",
+        r"^(\| \d+ \| \*\*PKG-\d{2} —.*?\| )"
+        r"(?:\*\*NEXT\*\*|\*\*IN PROGRESS\*\*|\*\*REVIEW\*\*|QUEUED)( \|)",
         r"\1DONE\2",
         text,
         flags=re.MULTILINE,
