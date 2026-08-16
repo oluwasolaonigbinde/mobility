@@ -560,3 +560,9 @@ def test_rejects_full_shadow_duplicate_document() -> None:
     text = _progress()
     errors = _errors(text + "\n\n" + text)
     assert any("must appear exactly once" in error for error in errors)
+
+
+def test_ci_e2e_boot_is_fail_closed() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+    assert "pg_isready" in workflow
+    assert workflow.count("never became ready") >= 2

@@ -124,9 +124,17 @@ jobs:
           cp .env.example .env
           sed -i 's/ALLOW_DEMO_SEED=false/ALLOW_DEMO_SEED=true/' .env
           docker compose up -d --build api db redis
-          # wait for readiness
+          # Fail-closed readiness: /health can answer before Postgres accepts
+          # connections, so migrations must wait on the database itself, and
+          # both loops must fail the job instead of falling through.
+          for i in $(seq 1 60); do
+            docker compose exec -T db pg_isready -U mobility -d mobility && break
+            if [ "$i" = "60" ]; then echo "::error::Postgres never became ready"; exit 1; fi
+            sleep 2
+          done
           for i in $(seq 1 60); do
             curl -sf http://localhost:8000/api/v1/health && break
+            if [ "$i" = "60" ]; then echo "::error::API never became ready"; exit 1; fi
             sleep 2
           done
           docker compose exec -T api alembic upgrade head
