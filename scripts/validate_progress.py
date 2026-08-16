@@ -218,7 +218,7 @@ def _check_unique_authority_markers(text: str, errors: list[str]) -> None:
     for heading in AUTHORITATIVE_HEADINGS:
         title = heading.removeprefix("## ")
         occurrences = re.findall(
-            rf"^#{{2,6}}\s+{re.escape(title)}\b.*$", text, re.MULTILINE
+            rf"^#{{1,6}}\s+{re.escape(title)}\b.*$", text, re.MULTILINE
         )
         if len(occurrences) != 1:
             errors.append(
@@ -404,13 +404,16 @@ def validate_text(text: str) -> list[str]:
         canonical_numbers_by_package.setdefault(owner_package, set()).add(number)
     card_chunks = re.split(r"^### (PKG-\d{2}) —.*$", contract_section, flags=re.MULTILINE)
     for card_id, card_body in zip(card_chunks[1::2], card_chunks[2::2], strict=False):
-        owns_match = re.search(
+        owns_matches = re.findall(
             r"- \*\*Owns:\*\* checklist (\d+)[–-](\d+)", card_body
         )
-        if not owns_match:
-            errors.append(f"package card {card_id} is missing an Owns: checklist A–B declaration")
+        if len(owns_matches) != 1:
+            errors.append(
+                f"package card {card_id} must declare exactly one Owns: checklist "
+                f"A–B range; found {len(owns_matches)}"
+            )
             continue
-        declared = set(range(int(owns_match.group(1)), int(owns_match.group(2)) + 1))
+        declared = set(range(int(owns_matches[0][0]), int(owns_matches[0][1]) + 1))
         if declared != canonical_numbers_by_package.get(card_id, set()):
             errors.append(
                 f"package card {card_id} Owns declaration does not match the "

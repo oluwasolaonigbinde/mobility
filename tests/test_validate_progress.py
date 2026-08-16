@@ -333,7 +333,10 @@ def test_rejects_hidden_controller_pointer_decoy() -> None:
     text = (
         _progress()
         .replace("### Current control pointer", "### Current control pointer\n\n" + decoy)
-        .replace("**Control package:** `PKG-01`", "**Control package:** `PKG-09`")
+        .replace(
+            "**Control package:** `PKG-01` — see package queue row 1",
+            "**Control package:** `PKG-09` — see package queue row 1",
+        )
     )
     errors = _errors(text)
     assert any("control package pointer does not match" in error for error in errors)
@@ -525,3 +528,35 @@ def test_rejects_stale_control_package_pointer() -> None:
 def test_ci_explicitly_runs_progress_validation() -> None:
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
     assert "scripts/validate_progress.py" in workflow
+
+
+def test_rejects_h1_shadow_section_with_divergent_statuses() -> None:
+    shadow = (
+        "# Executable package queue\n\n"
+        "| # | Package | Status | Outcome | Package prerequisites |\n"
+        "| ---: | --- | --- | --- | --- |\n"
+        "| 1 | **PKG-01 — foundations and empirical risk proof** | DONE | x | none |\n\n"
+    )
+    text = _progress().replace(
+        "## Executable package queue", shadow + "## Executable package queue", 1
+    )
+    errors = _errors(text)
+    assert any("must appear exactly once at any heading level" in error for error in errors)
+
+
+def test_rejects_duplicate_contradictory_owns_declaration() -> None:
+    text = _progress().replace(
+        "- **Owns:** checklist 1–9.",
+        "- **Owns:** checklist 1–9.\n- **Owns:** checklist 1–71.",
+        1,
+    )
+    errors = _errors(text)
+    assert any(
+        "PKG-01 must declare exactly one Owns: checklist" in error for error in errors
+    )
+
+
+def test_rejects_full_shadow_duplicate_document() -> None:
+    text = _progress()
+    errors = _errors(text + "\n\n" + text)
+    assert any("must appear exactly once" in error for error in errors)
