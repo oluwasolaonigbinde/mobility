@@ -31,7 +31,7 @@ def _paused_at_final_gate() -> str:
         match = re.match(r"\| (\d+) \| \*\*PKG-", line)
         if match:
             number = int(match.group(1))
-            current = "**NEXT**" if number == 1 else "QUEUED"
+            current = "**IN PROGRESS**" if number == 1 else "QUEUED"
             replacement = "DONE" if number < 8 else "BLOCKED" if number == 8 else "QUEUED"
             line = line.replace(f"| {current} |", f"| {replacement} |", 1)
         item_match = re.match(r"\| (\d+) \| \*\*(?!PKG-).*\| PKG-\d{2} \|", line)
@@ -54,7 +54,7 @@ def _paused_at_final_gate() -> str:
         )
         .replace("**Control package:** `PKG-01`", "**Control package:** `PKG-08`")
         .replace(
-            "**Current checkpoint:** `PKG-01 / R14-A`",
+            "**Current checkpoint:** `PKG-01 / FND-07`",
             "**Current checkpoint:** `PKG-08 / W4-03B`",
         )
     )
@@ -93,8 +93,8 @@ def test_rejects_checklist_mapping_or_card_drift() -> None:
 
 def test_rejects_forward_dependency_and_unready_checkpoint() -> None:
     text = re.sub(
-        r"^(\| 1 \| \*\*R14-A —.*\| )none \|$",
-        r"\1leaf: R14-B |",
+        r"^(\| 6 \| \*\*FND-07 —.*\| )none \|$",
+        r"\1leaf: MNY-06A |",
         _progress(),
         flags=re.MULTILINE,
     )
@@ -105,7 +105,7 @@ def test_rejects_forward_dependency_and_unready_checkpoint() -> None:
 
 def test_rejects_done_package_with_unfinished_items() -> None:
     text = _progress().replace(
-        "| 1 | **PKG-01 — foundations and empirical risk proof** | **NEXT** |",
+        "| 1 | **PKG-01 — foundations and empirical risk proof** | **IN PROGRESS** |",
         "| 1 | **PKG-01 — foundations and empirical risk proof** | DONE |",
     )
     errors = _errors(text)
@@ -116,7 +116,7 @@ def test_rejects_falsely_blocked_package_with_runnable_todo() -> None:
     text = (
         _progress()
         .replace(
-            "| 1 | **PKG-01 — foundations and empirical risk proof** | **NEXT** |",
+            "| 1 | **PKG-01 — foundations and empirical risk proof** | **IN PROGRESS** |",
             "| 1 | **PKG-01 — foundations and empirical risk proof** | BLOCKED |",
         )
         .replace(
@@ -141,7 +141,7 @@ def test_dependency_safe_later_package_checkpoint_is_allowed() -> None:
     text = (
         _progress()
         .replace(
-            "| 1 | **PKG-01 — foundations and empirical risk proof** | **NEXT** |",
+            "| 1 | **PKG-01 — foundations and empirical risk proof** | **IN PROGRESS** |",
             "| 1 | **PKG-01 — foundations and empirical risk proof** | BLOCKED |",
         )
         .replace(
@@ -150,7 +150,7 @@ def test_dependency_safe_later_package_checkpoint_is_allowed() -> None:
         )
         .replace("**Control package:** `PKG-01`", "**Control package:** `PKG-02`")
         .replace(
-            "**Current checkpoint:** `PKG-01 / R14-A`",
+            "**Current checkpoint:** `PKG-01 / FND-07`",
             "**Current checkpoint:** `PKG-02 / MNY-08A`",
         )
     )
@@ -208,7 +208,7 @@ def test_done_item_requires_present_external_prerequisites() -> None:
 def test_all_done_terminal_complete_state_is_valid() -> None:
     text = _progress()
     text = re.sub(
-        r"^(\| \d+ \| \*\*PKG-\d{2} —.*?\| )(?:\*\*NEXT\*\*|QUEUED)( \|)",
+        r"^(\| \d+ \| \*\*PKG-\d{2} —.*?\| )(?:\*\*NEXT\*\*|\*\*IN PROGRESS\*\*|\*\*REVIEW\*\*|QUEUED)( \|)",
         r"\1DONE\2",
         text,
         flags=re.MULTILINE,
@@ -231,7 +231,7 @@ def test_all_done_terminal_complete_state_is_valid() -> None:
     text = text.replace("**Controller state:** `ACTIVE`", "**Controller state:** `COMPLETE`")
     text = text.replace("**Control package:** `PKG-01`", "**Control package:** `PKG-09`")
     text = text.replace(
-        "**Current checkpoint:** `PKG-01 / R14-A`",
+        "**Current checkpoint:** `PKG-01 / FND-07`",
         "**Current checkpoint:** `PKG-09 / W4-04B`",
     )
     assert _errors(text) == []

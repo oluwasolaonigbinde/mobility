@@ -60,13 +60,13 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 
 **Controller state:** `ACTIVE`
 **Control package:** `PKG-01` — see package queue row 1 and package card.
-**Current checkpoint:** `PKG-01 / R14-A` — non-authorizing internal pointer.
+**Current checkpoint:** `PKG-01 / FND-07` — non-authorizing internal pointer.
 
 ## Executable package queue
 
 | # | Package | Status | Outcome | Package prerequisites |
 | ---: | --- | --- | --- | --- |
-| 1 | **PKG-01 — foundations and empirical risk proof** | **NEXT** | Resolve remaining foundations, production-PWA/staging risk and correction authority. | none |
+| 1 | **PKG-01 — foundations and empirical risk proof** | **IN PROGRESS** | Resolve remaining foundations, production-PWA/staging risk and correction authority. | none |
 | 2 | **PKG-02 — money integrity and payout operations** | QUEUED | Fraud holds, release, protected payees, payout batches and debt work end to end. | none — checklist DAG gates entry |
 | 3 | **PKG-03 — commercial contracts and billing** | QUEUED | Accepted terms, receipts, invoices, funding, refunds and budgets form one money-safe flow. | none — checklist DAG gates entry |
 | 4 | **PKG-04 — secure evidence, activation and communications** | QUEUED | Secure files/KYC, campaign evidence/activation/cancellation and notifications integrate. | none — checklist DAG gates entry |
@@ -84,6 +84,19 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
   remain explicitly externally blocked while independent work proceeds.
 - **Closure:** production-PWA protocol/device proof and staging evidence exist or have recorded
   external disposition; RM2/RM6/RM7 corrections and all specialist reviews pass.
+- **Package plan (activated 16 Aug 2026, canonical branch `feat/pkg-01`):**
+  internal checkpoints under the controller's disjoint-ownership rule.
+  Canonical/controller work: **FND-07** (first runnable checkpoint — integrity
+  409 envelopes, RM7), R14-B device evidence after R14-A integrates, aggregate
+  verification and every control/authority-document update. Delegated
+  contributor branches (integrated only by the controller, never self-merged):
+  `feat/pkg-01-pro-pwa-contract` → R14-A ADR/capability contract;
+  `feat/pkg-01-pro-money` → MNY-06A/B/C chain. FND-02A is a prepared decision
+  packet (parameterized options + executable fixtures + independent
+  product/money review) resolved by one owner selection; `EXT-RM2-POLICY`
+  then clears and FND-02B implements it serialized against the MNY-06
+  integration unless a disjoint file manifest is proven. R17-A stays externally blocked on
+  `EXT-STAGING-APPROVAL`; no local substitute counts as evidence.
 
 ### PKG-02 — money integrity and payout operations
 
