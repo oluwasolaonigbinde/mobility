@@ -7,11 +7,13 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from app.core.config import Settings
 from app.core.errors import AppError
+from app.db.integrity import integrity_constraint_name
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.driver import DriverProfile
@@ -40,6 +42,19 @@ from app.services.campaign_assignments import (
     ensure_vehicle_belongs_to_driver,
     get_driver_profile_for_user,
 )
+
+# FND-07 (RM7): a lost race on either trip-exclusivity index returns the same
+# stable 409 code as the pre-check that guards it, never a 500.
+TRIP_CONFLICT_ENVELOPES = {
+    "uq_trip_sessions_driver_profile_active": (
+        "ACTIVE_TRIP_EXISTS_FOR_DRIVER",
+        "An active trip already exists for this driver",
+    ),
+    "uq_trip_sessions_vehicle_active": (
+        "ACTIVE_TRIP_EXISTS_FOR_VEHICLE",
+        "An active trip already exists for this vehicle",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -210,7 +225,17 @@ async def start_driver_trip(
         trip_metadata=payload.metadata,
     )
     session.add(trip)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        # FND-07 (RM7): a lost race on either trip-exclusivity index returns
+        # the same stable 409 code as the pre-check; anything else re-raises.
+        envelope = TRIP_CONFLICT_ENVELOPES.get(integrity_constraint_name(exc) or "")
+        if envelope is None:
+            raise
+        await session.rollback()
+        code, message = envelope
+        raise AppError(code, message, status_code=status.HTTP_409_CONFLICT) from exc
     await session.refresh(trip)
     return trip
 

@@ -2,10 +2,12 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from app.core.errors import AppError
+from app.db.integrity import integrity_constraint_name
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_assignment import (
     CampaignActivationEvent,
@@ -23,6 +25,19 @@ from app.schemas.campaign_assignments import (
 )
 from app.services.campaigns import comparable_campaign_datetime
 from app.services.drivers import get_driver_profile_by_user_id
+
+# FND-07 (RM7): a lost race on either assignment-exclusivity index returns the
+# same stable 409 code as the pre-check that guards it, never a 500.
+ASSIGNMENT_CONFLICT_ENVELOPES = {
+    "uq_campaign_assignments_campaign_vehicle_non_terminal": (
+        "DUPLICATE_CAMPAIGN_VEHICLE_ASSIGNMENT",
+        "A non-terminal assignment already exists for this campaign and vehicle",
+    ),
+    "uq_campaign_assignments_vehicle_active": (
+        "ACTIVE_ASSIGNMENT_EXISTS_FOR_VEHICLE",
+        "Another assignment is already active for this vehicle",
+    ),
+}
 
 NON_TERMINAL_ASSIGNMENT_STATUSES = {
     CampaignAssignmentStatus.OFFERED.value,
@@ -122,6 +137,23 @@ async def ensure_no_other_active_assignment_for_vehicle(
             "Another assignment is already active for this vehicle",
             status_code=status.HTTP_409_CONFLICT,
         )
+
+
+async def flush_translating_exclusivity_conflict(session: AsyncSession) -> None:
+    """Flush, mapping a lost exclusivity race to its stable 409 envelope.
+
+    Any other integrity failure re-raises untouched: unrelated constraint
+    violations must stay unexpected (FND-07 acceptance).
+    """
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        envelope = ASSIGNMENT_CONFLICT_ENVELOPES.get(integrity_constraint_name(exc) or "")
+        if envelope is None:
+            raise
+        await session.rollback()
+        code, message = envelope
+        raise AppError(code, message, status_code=status.HTTP_409_CONFLICT) from exc
 
 
 def ensure_campaign_assignable(campaign: Campaign, now: datetime) -> None:
@@ -246,7 +278,7 @@ async def create_campaign_assignment(
         assignment_metadata=payload.metadata,
     )
     session.add(assignment)
-    await session.flush()
+    await flush_translating_exclusivity_conflict(session)
     await create_activation_event(
         session,
         assignment=assignment,
@@ -451,7 +483,7 @@ async def activate_driver_assignment(
     previous_status = assignment.status
     assignment.status = CampaignAssignmentStatus.ACTIVE.value
     assignment.activated_at = now
-    await session.flush()
+    await flush_translating_exclusivity_conflict(session)
     await create_activation_event(
         session,
         assignment=assignment,
