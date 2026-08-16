@@ -1,8 +1,14 @@
 # Next Steps — W1 Remainder Slice Plan (S1–S4) + W2 Opener
 
-**Audience: implementing agents.** This is the direction-level plan for the
-next build slices, produced 27 Jul 2026 via the SOP (research → draft →
-independent adversarial review → reconcile). It sequences the W1-remainder
+> **HISTORICAL RESEARCH ONLY — NOT THE WORK QUEUE (10 Aug 2026).** Agents may
+> not select or start work from this file. `docs/progress.md` is the sole
+> operational delivery control and marks exactly one authorised package. The
+> S2, S3, and S5 designs below predate architecture §35 RM8 and RM10–RM13;
+> reconcile any reusable detail against the current architecture before use.
+
+**Audience: historical/planning reference.** This was the direction-level plan
+for the then-next build slices, produced 27 Jul 2026 via the SOP (research →
+draft → independent adversarial review → reconcile). It sequences the W1-remainder
 work from `architecture.md` §31 and fixes the slice-level design decisions,
 grounded in researched industry practice (anchors cited per slice).
 
@@ -12,7 +18,10 @@ architecture amendment, it says so explicitly and the implementing slice makes
 that amendment in the same commit (amendment rule, architecture §1). If
 implementation reality contradicts this plan, stop and flag — don't improvise.
 
-## How to run a slice (binding on every implementing agent)
+## Historical slice procedure (superseded)
+
+The procedure below described how these slices were meant to run at the time.
+It is no longer binding; root `AGENTS.md` and `docs/progress.md` now govern.
 
 1. **Read first:** `architecture.md` §1/§30 (placement + amendment rule), the
    slice's referenced sections, `decisions-log.md` (statuses + divergence

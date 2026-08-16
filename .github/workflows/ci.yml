@@ -1,8 +1,7 @@
-name: frontend
+name: ci
 
 on:
   push:
-    branches: ["master", "main", "frontend-*", "f7-*"]
     paths:
       - "frontend/**"
       - "app/**"
@@ -16,7 +15,9 @@ on:
       - "staging.env.example"
       - "scripts/**"
       - "docs/**"
-      - ".github/workflows/frontend.yml"
+      - "AGENTS.md"
+      - ".pre-commit-config.yaml"
+      - ".github/workflows/ci.yml"
   pull_request:
     paths:
       - "frontend/**"
@@ -31,7 +32,9 @@ on:
       - "staging.env.example"
       - "scripts/**"
       - "docs/**"
-      - ".github/workflows/frontend.yml"
+      - "AGENTS.md"
+      - ".pre-commit-config.yaml"
+      - ".github/workflows/ci.yml"
 
 defaults:
   run:
@@ -70,6 +73,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Validate delivery packages and checklist
+        run: python scripts/validate_progress.py
       - run: pip install -e ".[dev]"
       - run: ruff check .
       - run: pytest

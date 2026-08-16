@@ -27,9 +27,11 @@ deployed yet.
 
 ## Delivered Backend Baseline (closed slices 0–13)
 
-Full MVP scope is defined by the client proposal
-(`docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx`, D11) and
-sequenced in `docs/architecture.md` §31; the exclusions below describe only
+Full MVP scope starts with the client proposal
+(`docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx`, D11) **as
+superseded by the direct client answers and approvals recorded in decisions-log D18–D20**,
+and is designed in `docs/architecture.md`; execution order lives exclusively
+in `docs/progress.md`. The exclusions below describe only
 what the *closed backend slice loop* did not build, not the project's scope.
 
 The closed backend MVP contains Slice 13: project foundation, request IDs, expected error
@@ -56,22 +58,29 @@ architecture, local setup, and testing.
 
 ## Documentation Map
 
-Four living docs, one loop: client decisions change → architecture amends →
-agents build → progress records it. Scope is fixed by the client proposal.
+Four living authorities, one locked loop: client decisions change →
+architecture amends → `docs/progress.md` authorises one of nine packages →
+agents complete its mandatory checklist and review it once → progress records
+evidence and promotes the next dependency-safe package. The proposal is the
+scope baseline; later direct client decisions, currently D18–D20, override any
+conflict. Root `AGENTS.md` enforces this loop.
 
-1. `docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx` — **scope**:
-   the binding client-facing MVP promise (decisions-log D11). Never edited by
-   agents.
+1. `docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx` — **scope
+   baseline**: the client-facing MVP promise (D11), interpreted through later
+   direct client decisions, currently D18–D20. Never edited by agents.
 2. `docs/architecture.md` — **design**: verified current state and the target
    architecture that fulfils the proposal, with the §31 wave roadmap.
 3. `docs/decisions-log.md` — **decisions**: Part 1 append-only D-row history,
    Part 2 current Q1–Q34 statuses + divergence guards.
-4. `docs/progress.md` — **delivered so far**: evolving summary of work done
-   vs. the promise; updated with every landed slice.
+4. `docs/progress.md` — **delivery control**: the intended MVP, delivered
+   evidence, nine-package remainder, 71-item acceptance checklist, and the sole
+   authorised `NEXT` package; updated
+   with every landed package.
 
 Supporting reference: `docs/runbook.md` (operations), `docs/next-steps.md`
-(current slice plan, retired when its slices ship), `docs/staging-options.md`
-(hosting research), `docs/api/openapi.snapshot.json` (frozen contract).
+(historical W1 planning research — never the current queue),
+`docs/staging-options.md` (hosting research), `docs/api/openapi.snapshot.json`
+(frozen contract).
 History: `docs/build-loop/` (closed backend ledger), `docs/archive/`
 (superseded artefacts and journals).
 
