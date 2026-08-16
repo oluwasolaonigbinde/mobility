@@ -54,7 +54,7 @@ def _paused_at_final_gate() -> str:
         )
         .replace("**Control package:** `PKG-01`", "**Control package:** `PKG-08`")
         .replace(
-            "**Current checkpoint:** `PKG-01 / FND-07`",
+            "**Current checkpoint:** `PKG-01 / FND-02A`",
             "**Current checkpoint:** `PKG-08 / W4-03B`",
         )
     )
@@ -93,7 +93,7 @@ def test_rejects_checklist_mapping_or_card_drift() -> None:
 
 def test_rejects_forward_dependency_and_unready_checkpoint() -> None:
     text = re.sub(
-        r"^(\| 6 \| \*\*FND-07 —.*\| )none \|$",
+        r"^(\| 4 \| \*\*FND-02A —.*\| )none \|$",
         r"\1leaf: MNY-06A |",
         _progress(),
         flags=re.MULTILINE,
@@ -150,7 +150,7 @@ def test_dependency_safe_later_package_checkpoint_is_allowed() -> None:
         )
         .replace("**Control package:** `PKG-01`", "**Control package:** `PKG-02`")
         .replace(
-            "**Current checkpoint:** `PKG-01 / FND-07`",
+            "**Current checkpoint:** `PKG-01 / FND-02A`",
             "**Current checkpoint:** `PKG-02 / MNY-08A`",
         )
     )
@@ -232,7 +232,7 @@ def test_all_done_terminal_complete_state_is_valid() -> None:
     text = text.replace("**Controller state:** `ACTIVE`", "**Controller state:** `COMPLETE`")
     text = text.replace("**Control package:** `PKG-01`", "**Control package:** `PKG-09`")
     text = text.replace(
-        "**Current checkpoint:** `PKG-01 / FND-07`",
+        "**Current checkpoint:** `PKG-01 / FND-02A`",
         "**Current checkpoint:** `PKG-09 / W4-04B`",
     )
     assert _errors(text) == []

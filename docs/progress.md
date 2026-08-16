@@ -60,7 +60,7 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 
 **Controller state:** `ACTIVE`
 **Control package:** `PKG-01` — see package queue row 1 and package card.
-**Current checkpoint:** `PKG-01 / FND-07` — non-authorizing internal pointer.
+**Current checkpoint:** `PKG-01 / FND-02A` — non-authorizing internal pointer.
 
 ## Executable package queue
 
@@ -97,6 +97,17 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
   then clears and FND-02B implements it serialized against the MNY-06
   integration unless a disjoint file manifest is proven. R17-A stays externally blocked on
   `EXT-STAGING-APPROVAL`; no local substitute counts as evidence.
+- **FND-07 evidence (DONE 16 Aug 2026):** candidate `58794a4` on
+  `feat/pkg-01` (collateral model-drift fix `139bfcb`). Four exclusivity
+  constraint names registered in the `app/db/integrity.py` classifier; lost
+  races at assignment create/activate and trip start translate to the same
+  stable 409 codes as their pre-checks; unrelated integrity failures re-raise.
+  Verified: `tests/test_integrity.py` + `tests/test_exclusivity_conflicts.py`
+  (pre-check-defeated API envelopes, PostGIS two-transaction races), full
+  suite 501 passed on PostGIS, regenerated contract artifacts byte-identical
+  (no §9 movement), CI green (backend, contract-drift, e2e). Independent plan
+  review PASS and independent API/concurrency checkpoint review PASS against
+  the exact candidate. Architecture v1.25; §35.1 RM7 closed.
 
 ### PKG-02 — money integrity and payout operations
 
@@ -205,7 +216,7 @@ verification, gates or required specialist review.
 | 3 | **R17-A — external synthetic staging drill** | PKG-01 | BLOCKED — EXT-STAGING-APPROVAL | Existing production-like topology is deployed and recovery-tested with synthetic data. | external: EXT-STAGING-APPROVAL |
 | 4 | **FND-02A — stationary-time policy decision** | PKG-01 | TODO | Owner records a versionable rule separating traffic exposure from parked-time farming. | none |
 | 5 | **FND-02B — stationary policy implementation** | PKG-01 | BLOCKED — EXT-RM2-POLICY | Classifier, fingerprints and earnings explanations implement the recorded rule. | leaf: FND-02A; external: EXT-RM2-POLICY |
-| 6 | **FND-07 — exclusivity conflict envelopes** | PKG-01 | TODO | Four known assignment/trip races return stable 409 errors, not 500s. | none |
+| 6 | **FND-07 — exclusivity conflict envelopes** | PKG-01 | DONE | Four known assignment/trip races return stable 409 errors, not 500s. | none |
 | 7 | **MNY-06A — immutable payout-rule revisions** | PKG-01 | TODO | Financial rule history becomes effective-dated, immutable and value-audited. | none |
 | 8 | **MNY-06B — assignment/trip rule binding and payout_v3** | PKG-01 | TODO | Accepted driver terms freeze base/premium rates, zone/eligibility revisions and the `payout_v3` rule used by each interval/trip. | leaf: MNY-06A |
 | 9 | **MNY-06C — maker-checker correction orders** | PKG-01 | TODO | Retroactive recompute requires a projected order and separate approver. | leaf: MNY-06B |
@@ -1250,10 +1261,11 @@ only with demo/synthetic data until their owning checklist items land:
   fixed 9 Aug 2026** (migration `0016`, D15, 465 tests green on PostGIS). It
   leads the remaining work. An independent code-verified review originally
   found seven defects in already-built code (architecture §35.1) plus eleven
-  specification rows for unbuilt domains. RM1/RM3/RM4/RM5 are now closed and
-  RM2 is half closed. Still open: RM2's sub-window stationary aggregation
-  (needs a money-policy decision), RM6, and RM7; they gate real-driver GPS or
-  earnings release as specified in §35.3.
+  specification rows for unbuilt domains. RM1/RM3/RM4/RM5 are now closed,
+  RM7 closed 16 Aug 2026 (PKG-01 FND-07, architecture v1.25) and RM2 is half
+  closed. Still open: RM2's sub-window stationary aggregation (needs a
+  money-policy decision) and RM6; they gate real-driver GPS or earnings
+  release as specified in §35.3.
 - **W1 — money correctness:** worker ✅, payout v2 ✅ (S1), data lifecycle ✅
   (S4). **Remaining: the legacy S2 group (MNY-08A/B/C + MNY-09A) for fraud
   review/holds, then the legacy S3 group (MNY-03A + MNY-10A/B/C + MNY-11A)
