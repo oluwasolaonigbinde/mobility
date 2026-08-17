@@ -1,0 +1,254 @@
+{
+  "schema_version": "fnd-02a-fixtures-v1",
+  "rate_symbols": {
+    "base": "BASE_RATE_NGN_PER_HOUR",
+    "premium": "PREMIUM_RATE_NGN_PER_HOUR"
+  },
+  "fixtures": [
+    {
+      "id": "slow_creeping_lagos_traffic",
+      "description": "Slow congestion: each short interval looks stationary, but each completed rolling window has meaningful cumulative displacement.",
+      "tags": [
+        "honest_traffic",
+        "rolling_displacement",
+        "base_and_premium"
+      ],
+      "timeline": [
+        {
+          "repeat": 6,
+          "pattern": [
+            {
+              "seconds": 60,
+              "lagos_day": "D0",
+              "tier": "base",
+              "signal": "valid",
+              "stationary_candidate": true,
+              "episode_id": "creep-base-{index}",
+              "episode_duration_seconds": 60,
+              "rolling_relation": "above"
+            }
+          ]
+        },
+        {
+          "repeat": 6,
+          "pattern": [
+            {
+              "seconds": 60,
+              "lagos_day": "D0",
+              "tier": "premium",
+              "signal": "valid",
+              "stationary_candidate": true,
+              "episode_id": "creep-premium-{index}",
+              "episode_duration_seconds": 60,
+              "rolling_relation": "above"
+            }
+          ]
+        }
+      ],
+      "expected_by_option": {
+        "A": {
+          "payable": "All otherwise valid seconds remain payable because each rolling-window displacement is above RD_MIN_DISPLACEMENT_M.",
+          "excluded": "Only pre-existing signal/window/area exclusions, if any; none in this fixture.",
+          "held": "0",
+          "review": "false",
+          "explanation": "moving/rolling displacement above threshold"
+        },
+        "B": {
+          "payable": "The first min(total short-candidate seconds, CSB_BUDGET_SECONDS) remain payable.",
+          "excluded": "Short-candidate seconds strictly above CSB_BUDGET_SECONDS become stationary_subwindow_budget_exceeded.",
+          "held": "0",
+          "review": "false",
+          "explanation": "shows the underpayment trade-off if honest congestion exhausts the cumulative budget"
+        },
+        "C": {
+          "payable": "All otherwise valid seconds are gross-payable under the existing classifier.",
+          "excluded": "Only pre-existing reasons; none in this fixture.",
+          "held": "All gross-payable seconds in the selected hold scope if the inclusive seconds/count trigger fires; otherwise 0.",
+          "review": "true only when the trigger fires and MNY-08A/B exists",
+          "explanation": "stationary_pattern_hold_pending_review"
+        }
+      }
+    },
+    {
+      "id": "stop_4m59_hop_repeat_two_hours",
+      "description": "Twenty-four cycles of a 4:59 stop followed by a repositioning hop beyond the stay radius; total duration is two hours.",
+      "tags": [
+        "adversarial",
+        "rm2",
+        "stop_hop",
+        "required"
+      ],
+      "timeline": [
+        {
+          "repeat": 24,
+          "pattern": [
+            {
+              "seconds": 299,
+              "lagos_day": "D0",
+              "tier": "base",
+              "signal": "valid",
+              "stationary_candidate": true,
+              "episode_id": "farm-stop-{index}",
+              "episode_duration_seconds": 299,
+              "rolling_relation": "below"
+            },
+            {
+              "seconds": 1,
+              "lagos_day": "D0",
+              "tier": "base",
+              "signal": "valid",
+              "stationary_candidate": false,
+              "episode_id": null,
+              "episode_duration_seconds": null,
+              "rolling_relation": "above"
+            }
+          ]
+        }
+      ],
+      "expected_by_option": {
+        "A": {
+          "payable": "Hop seconds plus the one whole-scope grace and any windows not yet confirmed by RD_CONFIRM_WINDOWS.",
+          "excluded": "Confirmed below/equal-displacement stop windows after grace are stationary_rolling_displacement.",
+          "held": "0",
+          "review": "false",
+          "explanation": "must not remain fully payable under a completed option-A parameter set"
+        },
+        "B": {
+          "payable": "Hop seconds plus the first CSB_BUDGET_SECONDS of short-stop candidate time.",
+          "excluded": "All candidate seconds strictly above the cumulative budget are stationary_subwindow_budget_exceeded.",
+          "held": "0",
+          "review": "false",
+          "explanation": "the repositioning hops do not replenish the budget"
+        },
+        "C": {
+          "payable": "Existing-classifier gross payable time remains unchanged.",
+          "excluded": "No new stationary exclusion is created by option C.",
+          "held": "All otherwise payable seconds in the selected scope once the inclusive trigger fires.",
+          "review": "required; release remains fail-closed",
+          "explanation": "cannot close RM2 until MNY-08A/B supplies the authoritative hold"
+        }
+      }
+    },
+    {
+      "id": "single_long_parked_stay",
+      "description": "One uninterrupted parked episode that is at or above the existing stationary-window threshold.",
+      "tags": [
+        "parked",
+        "existing_grace",
+        "required"
+      ],
+      "timeline": [
+        {
+          "seconds": 1800,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "long-park",
+          "episode_duration_seconds": 1800,
+          "rolling_relation": "below"
+        }
+      ],
+      "expected_by_option": {
+        "A": {
+          "payable": "min(SG_SECONDS, episode seconds).",
+          "excluded": "Episode seconds after the one whole-scope grace are stationary_rolling_displacement.",
+          "held": "0",
+          "review": "false",
+          "explanation": "existing long-stay behavior remains bounded by one grace budget"
+        },
+        "B": {
+          "payable": "min(SG_SECONDS, episode seconds).",
+          "excluded": "Episode seconds after grace are stationary; the sub-window budget is not used for a long stay.",
+          "held": "0",
+          "review": "false",
+          "explanation": "existing long-stay path remains unchanged"
+        },
+        "C": {
+          "payable": "min(SG_SECONDS, episode seconds).",
+          "excluded": "Episode seconds after grace are stationary under the existing classifier.",
+          "held": "0 unless a separately approved option-C rule includes long-stay evidence; this packet does not.",
+          "review": "false in this corpus",
+          "explanation": "option C is scoped to the open short-stay hole, not a second long-stay penalty"
+        }
+      }
+    },
+    {
+      "id": "genuine_brief_stops",
+      "description": "Two genuine brief stops embedded in otherwise moving, valid campaign time.",
+      "tags": [
+        "honest_stop",
+        "required"
+      ],
+      "timeline": [
+        {
+          "seconds": 300,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "stationary_candidate": false,
+          "rolling_relation": "above"
+        },
+        {
+          "seconds": 30,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "brief-1",
+          "episode_duration_seconds": 30,
+          "rolling_relation": "above"
+        },
+        {
+          "seconds": 300,
+          "lagos_day": "D0",
+          "tier": "premium",
+          "signal": "valid",
+          "stationary_candidate": false,
+          "rolling_relation": "above"
+        },
+        {
+          "seconds": 45,
+          "lagos_day": "D0",
+          "tier": "premium",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "brief-2",
+          "episode_duration_seconds": 45,
+          "rolling_relation": "above"
+        },
+        {
+          "seconds": 300,
+          "lagos_day": "D0",
+          "tier": "premium",
+          "signal": "valid",
+          "stationary_candidate": false,
+          "rolling_relation": "above"
+        }
+      ],
+      "expected_by_option": {
+        "A": {
+          "payable": "All seconds remain payable because cumulative rolling displacement stays above threshold.",
+          "excluded": "None.",
+          "held": "0",
+          "review": "false",
+          "explanation": "brief stops do not erase meaninful rolling movement"
+        },
+        "B": {
+          "payable": "All seconds remain payable while the combined brief-stop time is within CSB_BUDGET_SECONDS.",
+          "excluded": "Only the portion strictly above the budget, if the owner selects a smaller budget.",
+          "held": "0",
+          "review": "false",
+          "explanation": "budget makes the honest-stop allowance explicit"
+        },
+        "C": {
+          "payable": "All seconds are gross-payable unless the owner-selected inclusive trigger is reached.",
+          "excluded": "None.",
+          "held": "0 below the trigger; otherwise the selected scope is held for review.",
+          "review": "parameter-dependent",
+          "explanation": "false-positive behavior is visible rather than silently decided"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "effective_at": "[OWNER TO SELECT]",
+  "eligibility_revision": "[OWNER TO SELECT]",
+  "effective_application": "new_acceptances_only",
+  "stationary_radius_m": null,
+  "stationary_window_seconds": null,
+  "stationary_grace_seconds": null,
+  "max_accuracy_m": null,
+  "teleport_kmh": null,
+  "max_ping_gap_seconds": null,
+  "rolling_window_seconds": null,
+  "minimum_net_displacement_m": null,
+  "confirmation_windows": null,
+  "release_windows": null,
+  "reset_scope": "[OWNER TO SELECT: trip | lagos_day]",
+  "gps_gap_state": "reset_detector"
+}

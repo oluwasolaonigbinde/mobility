@@ -1,0 +1,18 @@
+{
+  "effective_at": "[OWNER TO SELECT]",
+  "eligibility_revision": "[OWNER TO SELECT]",
+  "effective_application": "new_acceptances_only",
+  "stationary_radius_m": null,
+  "stationary_window_seconds": null,
+  "stationary_grace_seconds": null,
+  "max_accuracy_m": null,
+  "teleport_kmh": null,
+  "max_ping_gap_seconds": null,
+  "hold_candidate_seconds_trigger": null,
+  "hold_episode_count_trigger": null,
+  "trigger_logic": "[OWNER TO SELECT: any | all]",
+  "hold_scope": "[OWNER TO SELECT: trip | lagos_day]",
+  "fraud_assessment_version": "[OWNER TO SELECT]",
+  "gps_gap_state": "retain_evidence",
+  "hold_infrastructure_ready": false
+}

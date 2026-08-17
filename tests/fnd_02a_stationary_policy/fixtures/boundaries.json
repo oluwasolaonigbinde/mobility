@@ -1,0 +1,289 @@
+{
+  "schema_version": "fnd-02a-fixtures-v1",
+  "rate_symbols": {
+    "base": "BASE_RATE_NGN_PER_HOUR",
+    "premium": "PREMIUM_RATE_NGN_PER_HOUR"
+  },
+  "fixtures": [
+    {
+      "id": "africa_lagos_midnight_boundary",
+      "description": "A short-pattern episode straddles Africa/Lagos midnight; pay is always split by day while policy-state reset follows the selected scope.",
+      "tags": [
+        "lagos_midnight",
+        "reset_scope",
+        "required"
+      ],
+      "timeline": [
+        {
+          "seconds": 240,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "midnight-pattern",
+          "episode_duration_seconds": 480,
+          "rolling_relation": "below"
+        },
+        {
+          "seconds": 240,
+          "lagos_day": "D1",
+          "tier": "premium",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "midnight-pattern",
+          "episode_duration_seconds": 480,
+          "rolling_relation": "below"
+        }
+      ],
+      "expected_by_option": {
+        "A": {
+          "payable": "Rate-tier seconds remain day-split. Detector state carries across midnight only when RD_RESET_SCOPE=trip; lagos_day starts fresh state.",
+          "excluded": "Confirmed rolling-stationary time after the shared grace, according to the selected reset scope.",
+          "held": "0",
+          "review": "false",
+          "explanation": "Africa/Lagos day boundary is explicit, never UTC or implicit"
+        },
+        "B": {
+          "payable": "Each day keeps its own rate tier. Budget carries only when CSB_SCOPE=trip; lagos_day restores a new budget at midnight.",
+          "excluded": "Candidate seconds above the selected scope budget.",
+          "held": "0",
+          "review": "false",
+          "explanation": "owner must choose trip-vs-Lagos-day reset"
+        },
+        "C": {
+          "payable": "Base/premium gross time remains day-split.",
+          "excluded": "Only existing reasons.",
+          "held": "Evidence and hold carry across midnight only when HOLD_SCOPE=trip; lagos_day evaluates each day independently.",
+          "review": "parameter-dependent",
+          "explanation": "hold scope is explicit and immutable in the assessment revision"
+        }
+      }
+    },
+    {
+      "id": "ping_cadence_dense",
+      "description": "A normalized stationary episode observed at a dense ping cadence.",
+      "tags": [
+        "cadence",
+        "equivalence",
+        "required"
+      ],
+      "timeline": [
+        {
+          "seconds": 300,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "cadence-equivalent",
+          "episode_duration_seconds": 300,
+          "rolling_relation": "equal"
+        }
+      ],
+      "expected_by_option": {
+        "A": {
+          "payable": "Identical to ping_cadence_sparse for the same normalized rolling observables.",
+          "excluded": "Equal displacement is stationary because the boundary is inclusive; grace applies once.",
+          "held": "0",
+          "review": "false",
+          "explanation": "classification depends on elapsed time/displacement, not ping count"
+        },
+        "B": {
+          "payable": "Identical to ping_cadence_sparse; elapsed candidate seconds, not ping count, consume budget.",
+          "excluded": "Long-vs-short boundary and budget use elapsed seconds.",
+          "held": "0",
+          "review": "false",
+          "explanation": "cadence-invariant elapsed-time accounting"
+        },
+        "C": {
+          "payable": "Identical gross payable time to ping_cadence_sparse.",
+          "excluded": "Identical existing reasons.",
+          "held": "Identical because evidence uses elapsed seconds and unique episodes, not ping count.",
+          "review": "identical between cadence variants",
+          "explanation": "cadence-invariant evidence"
+        }
+      }
+    },
+    {
+      "id": "ping_cadence_sparse",
+      "description": "The same normalized stationary episode as ping_cadence_dense, observed at a sparse ping cadence.",
+      "tags": [
+        "cadence",
+        "equivalence",
+        "required"
+      ],
+      "timeline": [
+        {
+          "seconds": 300,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "cadence-equivalent",
+          "episode_duration_seconds": 300,
+          "rolling_relation": "equal"
+        }
+      ],
+      "expected_by_option": {
+        "A": {
+          "payable": "Identical to ping_cadence_dense for the same normalized rolling observables.",
+          "excluded": "Equal displacement is stationary because the boundary is inclusive; grace applies once.",
+          "held": "0",
+          "review": "false",
+          "explanation": "classification depends on elapsed time/displacement, not ping count"
+        },
+        "B": {
+          "payable": "Identical to ping_cadence_dense; elapsed candidate seconds, not ping count, consume budget.",
+          "excluded": "Long-vs-short boundary and budget use elapsed seconds.",
+          "held": "0",
+          "review": "false",
+          "explanation": "cadence-invariant elapsed-time accounting"
+        },
+        "C": {
+          "payable": "Identical gross payable time to ping_cadence_dense.",
+          "excluded": "Identical existing reasons.",
+          "held": "Identical because evidence uses elapsed seconds and unique episodes, not ping count.",
+          "review": "identical between cadence variants",
+          "explanation": "cadence-invariant evidence"
+        }
+      }
+    },
+    {
+      "id": "boundary_equality",
+      "description": "Exact equality probes: rolling displacement equals its threshold; cumulative candidate time reaches its budget; hold evidence reaches its trigger.",
+      "tags": [
+        "equality",
+        "boundary",
+        "required"
+      ],
+      "timeline": [
+        {
+          "seconds": 120,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "equality-1",
+          "episode_duration_seconds": 120,
+          "rolling_relation": "equal"
+        },
+        {
+          "seconds": 120,
+          "lagos_day": "D0",
+          "tier": "premium",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "equality-2",
+          "episode_duration_seconds": 120,
+          "rolling_relation": "equal"
+        }
+      ],
+      "expected_by_option": {
+        "A": {
+          "payable": "Equal displacement is stationary; only shared grace and unconfirmed windows remain payable.",
+          "excluded": "Confirmed equality windows after grace are stationary_rolling_displacement.",
+          "held": "0",
+          "review": "false",
+          "explanation": "RD displacement boundary is <=, not <"
+        },
+        "B": {
+          "payable": "Candidate time through exactly CSB_BUDGET_SECONDS remains payable.",
+          "excluded": "Only time strictly above the budget is stationary_subwindow_budget_exceeded.",
+          "held": "0",
+          "review": "false",
+          "explanation": "budget equality is inclusive"
+        },
+        "C": {
+          "payable": "Existing-classifier gross payable time is unchanged.",
+          "excluded": "No new exclusion.",
+          "held": "The scope is held when seconds or episode evidence equals the selected inclusive trigger.",
+          "review": "required at equality",
+          "explanation": "hold triggers are >=, not >"
+        }
+      }
+    },
+    {
+      "id": "jitter_around_rolling_boundary",
+      "description": "Alternating below/above/equal rolling windows expose confirmation and release hysteresis without hiding the owner-selected counts.",
+      "tags": [
+        "jitter",
+        "hysteresis",
+        "required"
+      ],
+      "timeline": [
+        {
+          "seconds": 60,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "jitter-1",
+          "episode_duration_seconds": 60,
+          "rolling_relation": "below"
+        },
+        {
+          "seconds": 60,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "jitter-2",
+          "episode_duration_seconds": 60,
+          "rolling_relation": "above"
+        },
+        {
+          "seconds": 60,
+          "lagos_day": "D0",
+          "tier": "premium",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "jitter-3",
+          "episode_duration_seconds": 60,
+          "rolling_relation": "equal"
+        },
+        {
+          "seconds": 60,
+          "lagos_day": "D0",
+          "tier": "premium",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "jitter-4",
+          "episode_duration_seconds": 60,
+          "rolling_relation": "below"
+        },
+        {
+          "seconds": 60,
+          "lagos_day": "D0",
+          "tier": "premium",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "jitter-5",
+          "episode_duration_seconds": 60,
+          "rolling_relation": "above"
+        }
+      ],
+      "expected_by_option": {
+        "A": {
+          "payable": "Depends exactly on RD_CONFIRM_WINDOWS and RD_RELEASE_WINDOWS; qualifying and release runs are backdated to their run starts.",
+          "excluded": "Only windows confirmed stationary after shared grace.",
+          "held": "0",
+          "review": "false",
+          "explanation": "jitter behavior is explicit rather than an implicit implementation detail"
+        },
+        "B": {
+          "payable": "First min(total short-candidate seconds, CSB_BUDGET_SECONDS) remain payable regardless of jitter labels.",
+          "excluded": "Candidate seconds strictly above budget.",
+          "held": "0",
+          "review": "false",
+          "explanation": "option B intentionally ignores rolling jitter"
+        },
+        "C": {
+          "payable": "All valid seconds are gross-payable before hold.",
+          "excluded": "No new stationary exclusion.",
+          "held": "The inclusive evidence trigger determines the whole-scope hold.",
+          "review": "parameter-dependent",
+          "explanation": "option C intentionally treats the pattern as review evidence"
+        }
+      }
+    }
+  ]
+}

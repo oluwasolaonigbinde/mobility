@@ -1,0 +1,117 @@
+{
+  "schema_version": "fnd-02a-fixtures-v1",
+  "rate_symbols": {
+    "base": "BASE_RATE_NGN_PER_HOUR",
+    "premium": "PREMIUM_RATE_NGN_PER_HOUR"
+  },
+  "fixtures": [
+    {
+      "id": "mixed_partition_and_money_expression",
+      "description": "A mixed session covers base/premium valid time, window/area exclusions, GPS gap, low accuracy, teleport and stationary evidence.",
+      "tags": [
+        "partition_invariant",
+        "money_expression",
+        "required"
+      ],
+      "timeline": [
+        {
+          "seconds": 120,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "stationary_candidate": false,
+          "rolling_relation": "above"
+        },
+        {
+          "seconds": 60,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "in_window": false,
+          "stationary_candidate": true,
+          "episode_id": "mixed-window",
+          "episode_duration_seconds": 60,
+          "rolling_relation": "below"
+        },
+        {
+          "seconds": 60,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "in_area": false,
+          "stationary_candidate": true,
+          "episode_id": "mixed-area",
+          "episode_duration_seconds": 60,
+          "rolling_relation": "below"
+        },
+        {
+          "seconds": 60,
+          "lagos_day": "D0",
+          "tier": "premium",
+          "signal": "gps_gap",
+          "stationary_candidate": false,
+          "rolling_relation": null
+        },
+        {
+          "seconds": 60,
+          "lagos_day": "D1",
+          "tier": "premium",
+          "signal": "low_accuracy",
+          "stationary_candidate": true,
+          "episode_id": "mixed-low",
+          "episode_duration_seconds": 60,
+          "rolling_relation": "below"
+        },
+        {
+          "seconds": 60,
+          "lagos_day": "D1",
+          "tier": "premium",
+          "signal": "teleport",
+          "stationary_candidate": false,
+          "rolling_relation": "above"
+        },
+        {
+          "seconds": 180,
+          "lagos_day": "D1",
+          "tier": "premium",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "mixed-valid-short",
+          "episode_duration_seconds": 180,
+          "rolling_relation": "below"
+        },
+        {
+          "seconds": 120,
+          "lagos_day": "D1",
+          "tier": "premium",
+          "signal": "valid",
+          "stationary_candidate": false,
+          "rolling_relation": "above"
+        }
+      ],
+      "expected_by_option": {
+        "A": {
+          "payable": "Valid in-window/in-area base and premium seconds not masked by confirmed rolling stationary time.",
+          "excluded": "Every second has exactly one reason: gps_gap, low_accuracy, teleport, out_of_window, out_of_area or stationary_rolling_displacement.",
+          "held": "0",
+          "review": "false",
+          "explanation": "payable + excluded equals session duration"
+        },
+        "B": {
+          "payable": "Valid in-window/in-area seconds through the selected cumulative allowance.",
+          "excluded": "Existing reasons plus stationary_subwindow_budget_exceeded; never double-counted.",
+          "held": "0",
+          "review": "false",
+          "explanation": "payable + excluded equals session duration"
+        },
+        "C": {
+          "payable": "Existing-classifier gross base/premium seconds.",
+          "excluded": "Existing reasons only; payable + excluded equals duration.",
+          "held": "A subset overlay of payable time, never a third partition.",
+          "review": "true only for triggered scopes",
+          "explanation": "money remains symbolic: seconds multiply BASE_RATE/PREMIUM_RATE without a naira value"
+        }
+      }
+    }
+  ]
+}

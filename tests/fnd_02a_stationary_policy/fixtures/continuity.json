@@ -1,0 +1,269 @@
+{
+  "schema_version": "fnd-02a-fixtures-v1",
+  "rate_symbols": {
+    "base": "BASE_RATE_NGN_PER_HOUR",
+    "premium": "PREMIUM_RATE_NGN_PER_HOUR"
+  },
+  "fixtures": [
+    {
+      "id": "out_of_area_parked_does_not_reset",
+      "description": "One parked episode crosses an out-of-area slice and returns in-area; the middle exclusion must not create fresh stationary allowance.",
+      "tags": [
+        "out_of_area",
+        "no_reset",
+        "required"
+      ],
+      "timeline": [
+        {
+          "seconds": 240,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "in_area": true,
+          "stationary_candidate": true,
+          "episode_id": "park-through-area",
+          "episode_duration_seconds": 720,
+          "rolling_relation": "below"
+        },
+        {
+          "seconds": 240,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "in_area": false,
+          "stationary_candidate": true,
+          "episode_id": "park-through-area",
+          "episode_duration_seconds": 720,
+          "rolling_relation": "below"
+        },
+        {
+          "seconds": 240,
+          "lagos_day": "D0",
+          "tier": "premium",
+          "signal": "valid",
+          "in_area": true,
+          "stationary_candidate": true,
+          "episode_id": "park-through-area",
+          "episode_duration_seconds": 720,
+          "rolling_relation": "below"
+        }
+      ],
+      "expected_by_option": {
+        "A": {
+          "payable": "At most one shared grace across the full parked episode; out-of-area time itself is never payable.",
+          "excluded": "Middle slice is out_of_area; confirmed stationary time after grace remains excluded before and after it.",
+          "held": "0",
+          "review": "false",
+          "explanation": "out_of_area has outcome precedence but does not reset detector/grace state"
+        },
+        "B": {
+          "payable": "Long-stay grace only; no fresh allowance on re-entry.",
+          "excluded": "Middle slice is out_of_area and remaining long-stay time is stationary after grace.",
+          "held": "0",
+          "review": "false",
+          "explanation": "area transitions do not reset stationary state or spent budget"
+        },
+        "C": {
+          "payable": "Existing long-stay grace only.",
+          "excluded": "Middle slice is out_of_area; remaining long-stay time is stationary.",
+          "held": "0 in the short-pattern-only option-C corpus.",
+          "review": "false",
+          "explanation": "area exclusion cannot be used to renew grace or erase evidence"
+        }
+      }
+    },
+    {
+      "id": "gps_gap_position_unknown",
+      "description": "Short stationary evidence appears before and after an interval whose position is unknown.",
+      "tags": [
+        "gps_gap",
+        "missing_data",
+        "required"
+      ],
+      "timeline": [
+        {
+          "seconds": 240,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "pre-gap",
+          "episode_duration_seconds": 240,
+          "rolling_relation": "below"
+        },
+        {
+          "seconds": 180,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "gps_gap",
+          "stationary_candidate": false,
+          "rolling_relation": null
+        },
+        {
+          "seconds": 240,
+          "lagos_day": "D0",
+          "tier": "premium",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "post-gap",
+          "episode_duration_seconds": 240,
+          "rolling_relation": "below"
+        }
+      ],
+      "expected_by_option": {
+        "A": {
+          "payable": "Gap seconds are never payable; pre/post-gap rolling runs are evaluated independently because the detector resets.",
+          "excluded": "Gap is gps_gap; confirmed rolling-stationary windows are excluded after shared grace.",
+          "held": "0",
+          "review": "false",
+          "explanation": "position-unknown intervals cannot bridge displacement"
+        },
+        "B": {
+          "payable": "Gap is excluded; spent short-stay budget is retained across the gap and cannot be replenished by missing data.",
+          "excluded": "gps_gap plus candidate time strictly above the one scope budget.",
+          "held": "0",
+          "review": "false",
+          "explanation": "gap ends the positional episode but not the spent budget"
+        },
+        "C": {
+          "payable": "Gap is excluded; otherwise valid time remains gross-payable.",
+          "excluded": "gps_gap.",
+          "held": "Evidence before and after the gap remains in the selected scope and can trigger a hold; no displacement is inferred across the gap.",
+          "review": "required if trigger fires",
+          "explanation": "gap retains suspicion evidence but supplies no position claim"
+        }
+      }
+    },
+    {
+      "id": "signal_precedence_low_null_teleport",
+      "description": "Low accuracy, null accuracy and teleport intervals overlap stationary-looking evidence and must win the reason precedence.",
+      "tags": [
+        "accuracy",
+        "teleport",
+        "precedence",
+        "required"
+      ],
+      "timeline": [
+        {
+          "seconds": 60,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "low_accuracy",
+          "stationary_candidate": true,
+          "episode_id": "bad-accuracy",
+          "episode_duration_seconds": 60,
+          "rolling_relation": "below"
+        },
+        {
+          "seconds": 60,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "null_accuracy",
+          "stationary_candidate": true,
+          "episode_id": "null-accuracy",
+          "episode_duration_seconds": 60,
+          "rolling_relation": "below"
+        },
+        {
+          "seconds": 60,
+          "lagos_day": "D0",
+          "tier": "premium",
+          "signal": "teleport",
+          "stationary_candidate": true,
+          "episode_id": "teleport",
+          "episode_duration_seconds": 60,
+          "rolling_relation": "below"
+        },
+        {
+          "seconds": 60,
+          "lagos_day": "D0",
+          "tier": "premium",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "valid-short",
+          "episode_duration_seconds": 60,
+          "rolling_relation": "below"
+        }
+      ],
+      "expected_by_option": {
+        "A": {
+          "payable": "Only the valid slice can become payable or rolling-stationary.",
+          "excluded": "Low and null accuracy map to low_accuracy; teleport maps to teleport before stationary policy.",
+          "held": "0",
+          "review": "false",
+          "explanation": "signal precedence is unchanged"
+        },
+        "B": {
+          "payable": "Only the valid slice can spend the sub-window budget.",
+          "excluded": "Low/null accuracy and teleport retain their existing reasons; they do not consume new-policy evidence.",
+          "held": "0",
+          "review": "false",
+          "explanation": "invalid position cannot manufacture or erase stationary budget evidence"
+        },
+        "C": {
+          "payable": "Only the valid slice is gross-payable.",
+          "excluded": "Low/null accuracy and teleport retain precedence.",
+          "held": "Only valid short-pattern evidence can contribute to the trigger.",
+          "review": "parameter-dependent",
+          "explanation": "invalid signal is not fraud-policy movement evidence"
+        }
+      }
+    },
+    {
+      "id": "campaign_window_boundary_no_reset",
+      "description": "A stationary episode begins outside the campaign window and continues inside it; the boundary controls pay but does not reset evidence.",
+      "tags": [
+        "campaign_window",
+        "no_reset",
+        "required"
+      ],
+      "timeline": [
+        {
+          "seconds": 240,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "in_window": false,
+          "stationary_candidate": true,
+          "episode_id": "window-crossing-park",
+          "episode_duration_seconds": 480,
+          "rolling_relation": "below"
+        },
+        {
+          "seconds": 240,
+          "lagos_day": "D0",
+          "tier": "premium",
+          "signal": "valid",
+          "in_window": true,
+          "stationary_candidate": true,
+          "episode_id": "window-crossing-park",
+          "episode_duration_seconds": 480,
+          "rolling_relation": "below"
+        }
+      ],
+      "expected_by_option": {
+        "A": {
+          "payable": "Out-of-window seconds are never payable; in-window time receives no fresh detector/grace state.",
+          "excluded": "First slice is out_of_window; later confirmed stationary time is excluded after the one shared grace.",
+          "held": "0",
+          "review": "false",
+          "explanation": "window precedence without detector reset"
+        },
+        "B": {
+          "payable": "Out-of-window seconds are never payable; any short-budget state spent there remains spent on entry.",
+          "excluded": "out_of_window plus stationary time above the applicable allowance.",
+          "held": "0",
+          "review": "false",
+          "explanation": "campaign eligibility boundary is not a farming reset"
+        },
+        "C": {
+          "payable": "Only the in-window slice is gross-payable.",
+          "excluded": "First slice is out_of_window.",
+          "held": "Valid positional evidence on both sides can trigger a hold of the in-window payable slice.",
+          "review": "parameter-dependent",
+          "explanation": "out-of-window evidence can inform review but cannot earn"
+        }
+      }
+    }
+  ]
+}
