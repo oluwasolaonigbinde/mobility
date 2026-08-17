@@ -7,7 +7,7 @@ from copy import deepcopy
 import pytest
 
 from .evaluator import evaluate
-from .model import PolicyChoice, fixture_by_id, load_fixtures
+from .model import fixture_by_id, load_fixtures, PolicyChoice
 from .witness import params as _params
 
 
@@ -344,4 +344,3 @@ def test_every_fixture_partitions_duration_and_keeps_money_symbolic(
             assert "BASE_RATE_NGN_PER_HOUR" in expression
             assert "PREMIUM_RATE_NGN_PER_HOUR" in expression
             assert "₦" not in expression
-

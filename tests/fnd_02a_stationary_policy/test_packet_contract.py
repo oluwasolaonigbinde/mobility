@@ -12,10 +12,10 @@ import pytest
 from .evaluator import evaluate
 from .model import (
     DependencyUnavailableError,
-    PolicyChoice,
-    UnsetPolicyError,
     fixture_by_id,
     load_fixtures,
+    PolicyChoice,
+    UnsetPolicyError,
     validate_parameters,
 )
 from .witness import params as _params
