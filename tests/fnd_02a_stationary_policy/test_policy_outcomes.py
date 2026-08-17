@@ -325,6 +325,7 @@ def test_rolling_jitter_obeys_owner_selected_confirmation_and_release_counts() -
     assert slow_release.excluded_seconds_by_reason["stationary_rolling_displacement"] == 180
     assert immediate_release.excluded_seconds_by_reason["stationary_rolling_displacement"] == 120
 
+
 @pytest.mark.parametrize("choice", list(PolicyChoice))
 def test_every_fixture_partitions_duration_and_keeps_money_symbolic(
     choice: PolicyChoice,

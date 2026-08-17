@@ -53,6 +53,7 @@ def test_fixture_corpus_covers_every_required_case_and_option_output() -> None:
                 "explanation",
             }
 
+
 @pytest.mark.parametrize("choice", list(PolicyChoice))
 def test_unset_policy_parameters_fail_closed(choice: PolicyChoice) -> None:
     with pytest.raises(UnsetPolicyError, match="remain unset"):
