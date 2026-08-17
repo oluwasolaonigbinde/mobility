@@ -21,7 +21,6 @@ from .model import (
 from .witness import params as _params
 
 
-
 def test_fixture_corpus_covers_every_required_case_and_option_output() -> None:
     fixtures = load_fixtures()
     fixture_ids = {fixture.fixture_id for fixture in fixtures}
@@ -116,4 +115,3 @@ def test_cli_refuses_an_unset_owner_parameter_file(tmp_path: Path) -> None:
     )
     assert completed.returncode == 2
     assert "remain unset" in completed.stderr
-
