@@ -3,23 +3,21 @@ import { mkdirSync } from "node:fs";
 
 import { expect, test } from "@playwright/test";
 
-test("export pinned source snapshot for isolated implementation", async ({}, testInfo) => {
+test("export local validation dependencies", async ({}, testInfo) => {
   if (testInfo.project.name === "chromium") {
-    mkdirSync("test-results", { recursive: true });
-    execFileSync("tar", [
-      "-czf",
-      "test-results/mobility-source.tar.gz",
-      "--exclude=.git",
-      "--exclude=frontend/node_modules",
-      "--exclude=frontend/.next",
-      "--exclude=frontend/test-results",
-      "--exclude=.pytest_cache",
-      "--exclude=**/__pycache__",
-      "-C",
-      "..",
-      ".",
-    ]);
+    mkdirSync("test-results/python-deps", { recursive: true });
+    execFileSync("python3", [
+      "-m",
+      "pip",
+      "install",
+      "--target",
+      "test-results/python-deps",
+      "aiosqlite>=0.20,<1.0",
+      "redis>=5,<6",
+      "arq>=0.28,<0.29",
+      "ruff>=0.6,<1.0",
+    ], { stdio: "inherit" });
   }
 
-  expect("source-export-only").toBe("intentional-artifact-failure");
+  expect("dependency-export-only").toBe("intentional-artifact-failure");
 });
