@@ -261,6 +261,31 @@ def test_ping_cadence_variants_produce_identical_outcomes() -> None:
         )
 
 
+def test_subwindow_partition_invariance_holds_for_options_b_and_c() -> None:
+    single = fixture_by_id("ping_cadence_dense")
+    split = fixture_by_id("ping_cadence_dense_repartitioned")
+    assert single.total_seconds == split.total_seconds
+
+    for choice in (
+        PolicyChoice.CUMULATIVE_SUBWINDOW_BUDGET,
+        PolicyChoice.FRAUD_DEFERRAL_HOLD,
+    ):
+        overrides: dict[str, object] = {}
+        if choice is PolicyChoice.CUMULATIVE_SUBWINDOW_BUDGET:
+            # A budget below the episode length forces exclusions that must
+            # split identically across the repartitioned segments.
+            overrides["cumulative_budget_seconds"] = single.total_seconds // 2
+        params = _params(choice, **overrides)
+        single_outcome = evaluate(single, choice, deepcopy(params))
+        split_outcome = evaluate(split, choice, deepcopy(params))
+        assert single_outcome.payable_seconds == split_outcome.payable_seconds
+        assert single_outcome.held_seconds == split_outcome.held_seconds
+        assert (
+            single_outcome.excluded_seconds_by_reason
+            == split_outcome.excluded_seconds_by_reason
+        )
+
+
 def test_boundary_equality_rules_are_inclusive() -> None:
     fixture = fixture_by_id("boundary_equality")
 

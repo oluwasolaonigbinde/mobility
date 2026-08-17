@@ -148,6 +148,69 @@
       }
     },
     {
+      "id": "ping_cadence_dense_repartitioned",
+      "description": "The same physical 300-second sub-window episode as ping_cadence_dense, split into three consecutive 100-second segments that continue one episode (same episode_id and episode_duration_seconds).",
+      "tags": [
+        "cadence",
+        "partition_invariance"
+      ],
+      "timeline": [
+        {
+          "seconds": 100,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "cadence-equivalent",
+          "episode_duration_seconds": 300,
+          "rolling_relation": "equal"
+        },
+        {
+          "seconds": 100,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "cadence-equivalent",
+          "episode_duration_seconds": 300,
+          "rolling_relation": "equal"
+        },
+        {
+          "seconds": 100,
+          "lagos_day": "D0",
+          "tier": "base",
+          "signal": "valid",
+          "stationary_candidate": true,
+          "episode_id": "cadence-equivalent",
+          "episode_duration_seconds": 300,
+          "rolling_relation": "equal"
+        }
+      ],
+      "expected_by_option": {
+        "A": {
+          "payable": "Not an option-A invariance proof: rolling_relation labels are normalized fixture inputs, so this abstraction cannot demonstrate RD_WINDOW_S partition invariance.",
+          "excluded": "Whatever the labeled equal windows confirm after grace; FND-02B production tests must prove elapsed-time normalization on real traces.",
+          "held": "0",
+          "review": "false",
+          "explanation": "option-A partition invariance is deferred to FND-02B production evidence"
+        },
+        "B": {
+          "payable": "Identical to ping_cadence_dense for any budget: elapsed candidate seconds spend the budget in the same order regardless of segment partition.",
+          "excluded": "Identical to ping_cadence_dense; only elapsed seconds above the budget are excluded.",
+          "held": "0",
+          "review": "false",
+          "explanation": "partition-invariant elapsed-time budget accounting (tested)"
+        },
+        "C": {
+          "payable": "Identical gross payable time to ping_cadence_dense.",
+          "excluded": "Identical existing reasons.",
+          "held": "Identical because elapsed seconds sum identically and the continued episode_id keeps one unique episode.",
+          "review": "identical between partitions",
+          "explanation": "partition-invariant evidence (tested)"
+        }
+      }
+    },
+    {
       "id": "boundary_equality",
       "description": "Exact equality probes: rolling displacement equals its threshold; cumulative candidate time reaches its budget; hold evidence reaches its trigger.",
       "tags": [

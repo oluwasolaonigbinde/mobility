@@ -74,6 +74,10 @@ session scratchpad.
 10. Option C cannot be made financially authoritative today. MNY-08A/B in
     PKG-02 must first provide current assessments, serialized review states and
     one shared `hold_active` predicate used by every money consumer.
+11. The selected policy acts purely upstream of D4's per-Lagos-day cap
+    allocation: exclusions and holds change eligible seconds only. RM1 midnight
+    slicing, per-day cap accounting and the cap-before-price ordering are
+    unchanged by all three options.
 
 ## Shared contract for all three choices
 
@@ -116,7 +120,7 @@ approved value source. A deployment default is not owner approval.
 |---|---|---|---|---|
 | `SR_M` / `stationary_radius_m` | metres, positive | Existing stay-radius fact. Equality (`distance >= SR_M`) exits a stay anchor. | Never inferred through `gps_gap`; low/null accuracy and teleport keep precedence. | Frozen in `ELIGIBILITY_REVISION`; no mutation of prior revisions. |
 | `SW_S` / `stationary_window_seconds` | seconds, positive | Existing confirmed-stay boundary. `episode_duration >= SW_S` uses the existing long-stay path; `< SW_S` is the open sub-window class. | Gap breaks a positional episode. Area/window boundaries do not create a new allowance. | Frozen in the revision used by newly accepted work. |
-| `SG_S` / `stationary_grace_seconds` | seconds, non-negative | One chronological allowance for the selected scope; never per episode. | An excluded area/window slice can consume chronological grace but cannot renew it. | Frozen and fingerprinted. |
+| `SG_S` / `stationary_grace_seconds` | seconds, non-negative | One **whole-session** chronological budget; it never renews at an Africa/Lagos midnight cut, regardless of any selected day scope, and is never per episode. | An excluded area/window slice can consume chronological grace but cannot renew it. | Frozen and fingerprinted. |
 | `ACC_M` / `max_accuracy_m` | metres, positive | Existing inclusive quality ceiling: null or worse-than-ceiling accuracy is invalid. | `low_accuracy` wins before stationary policy. | Frozen and fingerprinted. |
 | `TP_KMH` / `teleport_kmh` | km/h, positive | Existing impossible-speed boundary. | `teleport` wins before stationary policy. | Frozen and fingerprinted. |
 | `GAP_S` / `max_ping_gap_seconds` | seconds, positive | Existing gap boundary. A larger interval is position-unknown. | `gps_gap` wins; option-specific state behavior is fixed below. | Frozen and fingerprinted. |

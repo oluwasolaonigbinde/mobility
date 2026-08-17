@@ -54,7 +54,7 @@ allowance.
 | Symbol / template field | Unit/type | Scope/reset boundary | Inclusivity | Gap/missing behavior | Version timing |
 |---|---|---|---|---|---|
 | `CSB_BUDGET_S` / `cumulative_budget_seconds` | seconds, non-negative | One cumulative allowance per `CSB_SCOPE`. Hops, out-of-area and out-of-window slices do not replenish it. | Candidate time `<= CSB_BUDGET_S` is payable; only `>` is excluded. | Invalid signal contributes no candidate evidence. | Frozen and fingerprinted. |
-| `CSB_SCOPE` / `budget_scope` | `trip` or `lagos_day` | `trip`: one allowance for the full trip. `lagos_day`: new alowance exactly at Africa/Lagos midnight. | Exact midnight belongs to the new scope. | A gap ends positional continuity but does not restore spent budget. | Owner must select one. |
+| `CSB_SCOPE` / `budget_scope` | `trip` or `lagos_day` | `trip`: one allowance for the full trip. `lagos_day`: new allowance exactly at Africa/Lagos midnight. | Exact midnight belongs to the new scope. | A gap ends positional continuity but does not restore spent budget. | Owner must select one. |
 | `gps_gap_state` | fixed enum | `retain_spent_budget` | Not variable. | Gap interval is excluded; prior spent remains. | Recorded in revision metadata. |
 
 ### Expected user explanation
@@ -78,10 +78,17 @@ exclusions still apply.
 This is structurally consistent with D5/Q21, but it is **not immediately
 implementable as an RM2 closure**. The repository currently lacks the required
 MNY-08A/B current assessment, serialized state machine and shared
-iold_active money predicate. The option-C template therefore records
+`hold_active` money predicate. The option-C template therefore records
 `hold_infrastructure_ready: false`, and the evaluator refuses to run until that
 fact is explicitly changed in a test/decision environment. FND-02B alone must
 not simulate a release hold with a local flag or duplicate predicate.
+
+Follow-up ownership for option C maps to the §35.1 RM9 register row
+(fraud-rule compensating controls) in addition to the MNY-08A/B hold
+infrastructure dependency. The pilot-tuning path is explicit: the selected
+thresholds enter as reviewable configuration, pilot evidence feeds RM9 tuning,
+and any later tightening becomes a new policy revision under the same D14
+discipline — never a silent change.
 
 ### Option-C parameters
 
@@ -91,7 +98,7 @@ not simulate a release hold with a local flag or duplicate predicate.
 | `HOLD_EPISODE_TRIGGER` / `hold_episode_count_trigger` | unique episodes, positive integer | Counts unique short episodes in scope; radius-breaking hops create new episodes. | `episode_count >= trigger` fires. | Invalid signal does not create an episode. | Frozen and fingerprinted. |
 | `HOLD_TRIGGER_LOGIC` / `trigger_logic` | `any` or `all` | `any`: either threshold fires. `all`: both must fire. | Equality satisfies each predicate. | Not reset by area/window exclusion or GPS gap. | Owner must select one. |
 | `HOLD_SCOPE` / `hold_scope` | `trip` or `lagos_day` | Trigger retroactively holds all otherwise payable seconds in that scope. | Exact midnight belongs to the new Lagos-day scope. | Evidence carries across gap inside the same selected scope. | Owner must select one. |
-| `FRAUD_ASSESSMENT_VERSION` / `fraud_assessment_version` | immutable stable ID | Identifies evidence formula and trigger set consumed by MNY-08A/B. | Missing ID fails closed. | Errors/stale assessment remain held, never silently clean. | Effective with the bound eligibity revision. |
+| `FRAUD_ASSESSMENT_VERSION` / `fraud_assessment_version` | immutable stable ID | Identifies evidence formula and trigger set consumed by MNY-08A/B. | Missing ID fails closed. | Errors/stale assessment remain held, never silently clean. | Effective with the bound eligibility revision. |
 | `gps_gap_state` | fixed enum | `retain_evidence` | Not variable. | Retains evidence but never infers movement through the gap. | Recorded in assessment metadata. |
 | `hold_infrastructure_ready` | boolean capability fact | Must be `true` only after MNY-08A/B is integrated and verified. | `false` causes evaluator refusal. | Not a policy threshold. | Currently `false`. |
 

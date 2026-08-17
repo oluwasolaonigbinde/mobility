@@ -159,37 +159,34 @@ def evaluate(fixture: Fixture, choice: PolicyChoice, params: dict[str, Any]) -> 
     seconds = [segment.seconds for segment in segments]
     long_flags = [_is_long_stationary(segment, params) for segment in segments]
 
+    grace = int(params["stationary_grace_seconds"])
+    # Ordered per-option exclusion layers: each is (reason, per-segment seconds).
     if choice is PolicyChoice.ROLLING_DISPLACEMENT:
         rolling_flags = _rolling_stationary_flags(segments, params)
         stationary_flags = [
             long_flag or rolling
             for long_flag, rolling in zip(long_flags, rolling_flags, strict=True)
         ]
-        stationary_excluded = _grace_exclusions(
-            stationary_flags, seconds, int(params["stationary_grace_seconds"])
-        )
-        stationary_reason = "stationary_rolling_displacement"
+        stationary_layers = [
+            (
+                "stationary_rolling_displacement",
+                _grace_exclusions(stationary_flags, seconds, grace),
+            )
+        ]
         held_scopes: set[str] = set()
         hold_scope = "trip"
     elif choice is PolicyChoice.CUMULATIVE_SUBWINDOW_BUDGET:
-        stationary_excluded = _grace_exclusions(
-            long_flags, seconds, int(params["stationary_grace_seconds"])
-        )
-        budget_excluded = _subwindow_budget_exclusions(segments, params)
-        stationary_excluded = [
-            long_excluded + short_excluded
-            for long_excluded, short_excluded in zip(
-                stationary_excluded, budget_excluded, strict=True
-            )
+        stationary_layers = [
+            ("stationary", _grace_exclusions(long_flags, seconds, grace)),
+            (
+                "stationary_subwindow_budget_exceeded",
+                _subwindow_budget_exclusions(segments, params),
+            ),
         ]
-        stationary_reason = "stationary_subwindow_budget_exceeded"
         held_scopes = set()
         hold_scope = "trip"
     else:
-        stationary_excluded = _grace_exclusions(
-            long_flags, seconds, int(params["stationary_grace_seconds"])
-        )
-        stationary_reason = "stationary"
+        stationary_layers = [("stationary", _grace_exclusions(long_flags, seconds, grace))]
         held_scopes = _hold_scopes(segments, params)
         hold_scope = str(params["hold_scope"])
 
@@ -214,11 +211,14 @@ def evaluate(fixture: Fixture, choice: PolicyChoice, params: dict[str, Any]) -> 
             explanation_codes.add("out_of_area")
             continue
 
-        stationary = min(segment.seconds, stationary_excluded[index])
-        if stationary:
-            excluded[stationary_reason] += stationary
-            explanation_codes.add(stationary_reason)
-        payable = segment.seconds - stationary
+        remaining = segment.seconds
+        for stationary_reason, layer in stationary_layers:
+            stationary = min(remaining, layer[index])
+            if stationary:
+                excluded[stationary_reason] += stationary
+                explanation_codes.add(stationary_reason)
+                remaining -= stationary
+        payable = remaining
         payable_by_index[index] = payable
         if segment.tier == "base":
             payable_base += payable

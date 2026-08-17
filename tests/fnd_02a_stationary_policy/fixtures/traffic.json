@@ -232,7 +232,7 @@
           "excluded": "None.",
           "held": "0",
           "review": "false",
-          "explanation": "brief stops do not erase meaninful rolling movement"
+          "explanation": "brief stops do not erase meaningful rolling movement"
         },
         "B": {
           "payable": "All seconds remain payable while the combined brief-stop time is within CSB_BUDGET_SECONDS.",

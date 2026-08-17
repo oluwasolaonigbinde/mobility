@@ -16,13 +16,17 @@ hash.
 
 - `SR_M` (metres): **[OWNER TO SELECT]**
 - `SW_S` (seconds): **[OWNER TO SELECT]**
-- `SG_S` (seconds, one whole scope): **[OWNER TO SELECT]**
+- `SG_S` (seconds, one whole-session budget — never renews at a Lagos midnight): **[OWNER TO SELECT]**
 - `ACC_M` (metres): **[OWNER TO SELECT]**
 - `TP_KMH` (km/h): **[OWNER TO SELECT]**
 - `GAP_S` (seconds): **[OWNER TO SELECT]**
 - `ELIGIBILITY_REVISION`: **[OWNER TO SELECT]**
 - `EFFECTIVE_AT` (RFC3339): **[OWNER TO SELECT]**
 - Effective application: `new_acceptances_only` **[OWNER ACKNOWLEDGE]**
+- Cap interaction: the selected policy acts purely upstream of D4's
+  per-Lagos-day cap allocation — exclusions/holds change eligible seconds only;
+  RM1 midnight slicing, per-day cap accounting and the cap-before-price
+  ordering are unchanged by all three options: **[OWNER ACKNOWLEDGE]**
 
 ### 3A. Complete only for option A
 
@@ -48,6 +52,12 @@ hash.
 - `HOLD_SCOPE`: **[trip | lagos_day — OWNER TO SELECT]**
 - `FRAUD_ASSESSMENT_VERSION`: **[OWNER TO SELECT]**
 - Acknowledge that FND-02B cannot close RM2 until MNY-08A/B is integrated:
+  **[OWNER ACKNOWLEDGE]**
+- Acknowledge option-C follow-up ownership: beyond the MNY-08A/B hold
+  infrastructure dependency, fraud-rule compensating controls map to the §35.1
+  RM9 register row. Thresholds enter as reviewable configuration, pilot
+  evidence feeds RM9 tuning, and any later tightening becomes a new policy
+  revision under the same D14 discipline, never a silent change:
   **[OWNER ACKNOWLEDGE]**
 
 ### 4. Required independent sign-off
