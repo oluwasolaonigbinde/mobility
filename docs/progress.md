@@ -108,6 +108,18 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
   (no §9 movement), CI green (backend, contract-drift, e2e). Independent plan
   review PASS and independent API/concurrency checkpoint review PASS against
   the exact candidate. Architecture v1.25; §35.1 RM7 closed.
+- **R14-A integration progress (16 Aug 2026 — item stays TODO):** Pro
+  contribution `bc64707` (parent `e74412c`, six new files) verified
+  (merge-base, manifest, 123-test/typecheck/lint/build preflight reproduced)
+  and squash-integrated with two review-driven corrections in the canonical
+  commit: capture/`health=active` requires a valid session or explicit
+  `activeTrip` continuation, and probe evidence is labelled and documented as
+  capability-only, never runtime lock ownership. Independent
+  PWA/security/architecture review FIX→corrections applied; re-review of the
+  corrected SHA pending at commit time, recorded in PR #2. ADR 014;
+  architecture v1.27. Outstanding for DONE: representative Android/iPhone
+  capability, denial and revocation probe evidence (R14-B device work is
+  separate and not started).
 - **Control-plane remediation (16 Aug 2026, task-master correction):** the
   queue validator now rejects six independently reproduced bypass classes
   (hidden/fenced decoys, shadow documents, REVIEW pause-avoidance, frontier/
