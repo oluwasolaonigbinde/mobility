@@ -11,7 +11,6 @@ from .model import fixture_by_id, load_fixtures, PolicyChoice
 from .witness import params as _params
 
 
-
 def test_stop_hop_farming_is_not_fully_releaseable_for_completed_options() -> None:
     fixture = fixture_by_id("stop_4m59_hop_repeat_two_hours")
 
