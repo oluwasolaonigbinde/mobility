@@ -7,7 +7,7 @@ from copy import deepcopy
 import pytest
 
 from .evaluator import evaluate
-from .model import fixture_by_id, load_fixtures, PolicyChoice
+from .model import PolicyChoice, fixture_by_id, load_fixtures
 from .witness import params as _params
 
 
