@@ -127,8 +127,17 @@ jobs:
           # Fail-closed readiness: /health can answer before Postgres accepts
           # connections, so migrations must wait on the database itself, and
           # both loops must fail the job instead of falling through.
+          # pg_isready must probe TCP (-h 127.0.0.1): the unix socket answers
+          # during the image's first-boot init server while db:5432 TCP (what
+          # alembic/the API dial) is not accepting yet. Require two consecutive
+          # successes to ride out the init-phase restart window.
+          ok=0
           for i in $(seq 1 60); do
-            docker compose exec -T db pg_isready -U mobility -d mobility && break
+            if docker compose exec -T db pg_isready -h 127.0.0.1 -U mobility -d mobility; then
+              ok=$((ok + 1)); [ "$ok" = "2" ] && break
+            else
+              ok=0
+            fi
             if [ "$i" = "60" ]; then echo "::error::Postgres never became ready"; exit 1; fi
             sleep 2
           done
