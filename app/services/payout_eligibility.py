@@ -66,6 +66,29 @@ class EligibilityPing:
     longitude: float
     accuracy_m: float | None
     in_area: bool
+    # payout_v3 tier resolution only (MNY-06B): membership of the binding's
+    # frozen premium (target) zones. Plays no role in eligibility/exclusion.
+    in_premium: bool = False
+
+
+@dataclass(frozen=True)
+class EligibleSlice:
+    """One eligible elementary slice, in chronological order (MNY-06B).
+
+    Slices are already cut at every ping offset, Lagos midnight, window edge,
+    and stay-region boundary, so premium membership — like in_area — is
+    constant within a slice: premium iff both governing pings are inside a
+    frozen premium zone. payout_v2 ignores these; payout_v3 prices them.
+    """
+
+    start_offset: int
+    end_offset: int
+    day: str
+    premium: bool
+
+    @property
+    def length(self) -> int:
+        return self.end_offset - self.start_offset
 
 
 @dataclass(frozen=True)
@@ -77,6 +100,9 @@ class EligibilityBreakdown:
     # A trip that crosses midnight contributes to two days; the cap is applied
     # per day against its own allowance (RM1, D4/D14). Sums to eligible_seconds.
     eligible_seconds_by_day: dict[str, int]
+    # Chronological eligible slices with day + tier (payout_v3 only). Slice
+    # lengths always sum to eligible_seconds.
+    eligible_slices: tuple[EligibleSlice, ...] = ()
 
     @property
     def total_seconds(self) -> int:
@@ -281,6 +307,7 @@ def classify_session(
 
     eligible = 0
     eligible_by_day: dict[str, int] = {}
+    eligible_slices: list[EligibleSlice] = []
     for slice_start, slice_end in zip(boundaries, boundaries[1:], strict=False):
         length = slice_end - slice_start
         if length <= 0:
@@ -317,6 +344,16 @@ def classify_session(
         # slice start's day owns the whole slice.
         day_key = lagos_day_at(start, slice_start)
         eligible_by_day[day_key] = eligible_by_day.get(day_key, 0) + length
+        # Tier resolution (MNY-06B): like in_area, premium requires both
+        # governing pings inside the frozen premium area.
+        eligible_slices.append(
+            EligibleSlice(
+                start_offset=slice_start,
+                end_offset=slice_end,
+                day=day_key,
+                premium=ordered[index].in_premium and ordered[index + 1].in_premium,
+            )
+        )
 
     return EligibilityBreakdown(
         eligible_seconds=eligible,
@@ -325,4 +362,5 @@ def classify_session(
         },
         teleport_incident_count=teleport_incidents,
         eligible_seconds_by_day=eligible_by_day,
+        eligible_slices=tuple(eligible_slices),
     )

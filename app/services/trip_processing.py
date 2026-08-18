@@ -9,6 +9,7 @@ from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.impression import ImpressionEstimate
 from app.models.payout import (
+    AssignmentRuleBinding,
     CampaignPayoutRule,
     CampaignPayoutRuleStatus,
     EarningsLedgerEntry,
@@ -565,6 +566,15 @@ async def find_unprocessed_trip_page(
         )
         .exists()
     )
+    # MNY-06B: a bound assignment's trips price from the frozen binding, so
+    # they stay payable (and must stay selected) even if the rule row is
+    # later deactivated.
+    rule_binding_exists = (
+        select(AssignmentRuleBinding.id)
+        .where(AssignmentRuleBinding.assignment_id == TripSession.assignment_id)
+        .correlate(TripSession)
+        .exists()
+    )
     governing_formula_calculation_exists = (
         select(PayoutCalculation.id)
         .where(
@@ -582,7 +592,7 @@ async def find_unprocessed_trip_page(
             and_(
                 current_analytics_exists,
                 current_estimate_exists,
-                active_rule_exists,
+                or_(active_rule_exists, rule_binding_exists),
                 or_(
                     # The dispatcher computes fresh only when NO calculation
                     # exists at all (formula-agnostic reuse; payout_v2 is

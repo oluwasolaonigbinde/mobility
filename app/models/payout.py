@@ -271,6 +271,79 @@ class CampaignPayoutRuleRevision(Base):
     )
 
 
+class AssignmentRuleBinding(Base):
+    """Acceptance-time payout value freeze (MNY-06B, D18/Q4).
+
+    Created inside the accept transaction: the campaign's revision effective
+    at acceptance is snapshotted verbatim so later revisions can NEVER
+    reprice accepted work. The premium tier area is frozen as the campaign's
+    target-zone ids plus a deterministic geometry hash (PR11); the stationary
+    sub-window policy stays fail-closed and is only recorded as a marker
+    (EXT-RM2-POLICY). Assignments accepted before revisions existed have no
+    binding and keep payout_v2 exactly as before.
+    """
+
+    __tablename__ = "assignment_rule_bindings"
+    __table_args__ = (
+        CheckConstraint(
+            "hourly_rate_naira >= 0",
+            name="ck_assignment_rule_bindings_hourly_rate_non_negative",
+        ),
+        CheckConstraint(
+            "premium_hourly_rate_naira IS NULL OR premium_hourly_rate_naira >= 0",
+            name="ck_assignment_rule_bindings_premium_rate_non_negative",
+        ),
+        UniqueConstraint(
+            "assignment_id",
+            name="uq_assignment_rule_bindings_assignment_id",
+        ),
+        Index("ix_assignment_rule_bindings_revision_id", "revision_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        default=uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    assignment_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaign_assignments.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    revision_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaign_payout_rule_revisions.id"),
+        nullable=False,
+    )
+    hourly_rate_naira: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    premium_hourly_rate_naira: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    daily_payable_hours_cap: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
+    eligibility_params: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
+        default=dict,
+        server_default=text("'{}'"),
+        nullable=False,
+    )
+    formula_version: Mapped[str] = mapped_column(Text, nullable=False)
+    # Campaign target-zone ids (as strings) frozen at binding time (PR11).
+    premium_zone_ids: Mapped[list[Any]] = mapped_column(
+        JSON,
+        default=list,
+        server_default=text("'[]'"),
+        nullable=False,
+    )
+    premium_zone_geometry_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    stationary_policy_marker: Mapped[str] = mapped_column(
+        Text,
+        default="ext-rm2-fail-closed",
+        server_default=text("'ext-rm2-fail-closed'"),
+        nullable=False,
+    )
+    bound_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
 class PayoutCalculation(Base):
     __tablename__ = "payout_calculations"
     __table_args__ = (

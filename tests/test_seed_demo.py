@@ -89,7 +89,7 @@ def test_no_seed_or_demo_migrations() -> None:
 
 
 def test_demo_seed_requires_the_code_migration_head() -> None:
-    assert required_migration_head() == "0018_payout_rule_revisions"
+    assert required_migration_head() == "0019_assignment_rule_bindings"
 
 
 def test_readme_documents_demo_seed_workflow() -> None:

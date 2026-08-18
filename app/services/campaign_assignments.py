@@ -1,7 +1,9 @@
+import hashlib
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import Text as SQLText
+from sqlalchemy import cast, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
@@ -15,7 +17,9 @@ from app.models.campaign_assignment import (
     CampaignAssignment,
     CampaignAssignmentStatus,
 )
+from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.driver import DriverOnboardingStatus, DriverProfile
+from app.models.payout import AssignmentRuleBinding, CampaignPayoutRuleRevision
 from app.models.user import User
 from app.models.vehicle import Vehicle, VehicleStatus
 from app.schemas.campaign_assignments import (
@@ -415,6 +419,63 @@ async def list_assignment_events(
     return list(result.scalars().all())
 
 
+def premium_zone_geometry_hash(rows: list[tuple]) -> str:
+    """Deterministic hash of the frozen premium tier area (PR11): sha256 over
+    the target zones' (id, geometry) pairs sorted by id."""
+    return hashlib.sha256(
+        "\n".join(f"{row[0]}:{row[1]}" for row in rows).encode()
+    ).hexdigest()
+
+
+async def create_rule_binding_for_accept(
+    session: AsyncSession,
+    *,
+    assignment: CampaignAssignment,
+    now: datetime,
+) -> AssignmentRuleBinding | None:
+    """Freeze the campaign's effective revision onto the accepted assignment
+    (MNY-06B). Resolved at the accept transaction's snapshot read (PR10): the
+    revision with the greatest effective_from <= now. A campaign without an
+    effective revision gets NO binding — the assignment stays payout_v2."""
+    revision = await session.scalar(
+        select(CampaignPayoutRuleRevision)
+        .where(
+            CampaignPayoutRuleRevision.campaign_id == assignment.campaign_id,
+            CampaignPayoutRuleRevision.effective_from <= now,
+        )
+        .order_by(CampaignPayoutRuleRevision.effective_from.desc())
+        .limit(1)
+    )
+    if revision is None:
+        return None
+    zone_rows = (
+        await session.execute(
+            select(CampaignZone.id, cast(CampaignZone.geom, SQLText))
+            .where(
+                CampaignZone.campaign_id == assignment.campaign_id,
+                CampaignZone.zone_type == CampaignZoneType.TARGET.value,
+            )
+            .order_by(CampaignZone.id)
+        )
+    ).all()
+    binding = AssignmentRuleBinding(
+        assignment_id=assignment.id,
+        revision_id=revision.id,
+        hourly_rate_naira=revision.hourly_rate_naira,
+        premium_hourly_rate_naira=revision.premium_hourly_rate_naira,
+        daily_payable_hours_cap=revision.daily_payable_hours_cap,
+        eligibility_params=revision.eligibility_params or {},
+        formula_version=revision.formula_version,
+        premium_zone_ids=[str(row[0]) for row in zone_rows],
+        premium_zone_geometry_hash=premium_zone_geometry_hash(zone_rows),
+        stationary_policy_marker="ext-rm2-fail-closed",
+        bound_at=now,
+    )
+    session.add(binding)
+    await session.flush()
+    return binding
+
+
 async def accept_driver_assignment(
     session: AsyncSession,
     *,
@@ -423,7 +484,21 @@ async def accept_driver_assignment(
     payload: CampaignAssignmentTransition,
 ) -> CampaignAssignment:
     now = utc_now()
-    assignment = await get_driver_assignment(session, user_id=user_id, assignment_id=assignment_id)
+    driver_profile = await get_driver_profile_for_user(session, user_id)
+    # PR2: lock the assignment row BEFORE the status check so a concurrent
+    # accept serializes here — the loser re-reads ACCEPTED and gets the
+    # existing deterministic 400, and the binding insert below can never hit
+    # uq(assignment_id) from a live race.
+    assignment = await session.scalar(
+        select(CampaignAssignment)
+        .where(
+            CampaignAssignment.id == assignment_id,
+            CampaignAssignment.driver_profile_id == driver_profile.id,
+        )
+        .with_for_update()
+    )
+    if assignment is None:
+        raise assignment_not_found()
     if assignment.status != CampaignAssignmentStatus.OFFERED.value:
         raise AppError(
             "INVALID_ASSIGNMENT_TRANSITION",
@@ -436,6 +511,7 @@ async def accept_driver_assignment(
     assignment.status = CampaignAssignmentStatus.ACCEPTED.value
     assignment.accepted_at = now
     await session.flush()
+    await create_rule_binding_for_accept(session, assignment=assignment, now=now)
     await create_activation_event(
         session,
         assignment=assignment,
