@@ -1002,14 +1002,23 @@ def test_rule_api_supports_both_models_with_xor_validation(
     assert rule["base_rate_per_km"] is None
     assert rule["eligibility_params"] == {"stationary_grace_min": 5}
 
-    # v2 update may tune v2 fields but never v1 fields.
+    # v2 value mutation is retired (MNY-06A): revisions are the only value
+    # path. Non-value updates (status, metadata) still work.
     updated = db_client.patch(
         f"{base}/{rule['id']}",
         headers=headers,
         json={"hourly_rate_naira": "1300.00"},
     )
-    assert updated.status_code == http_status.HTTP_200_OK
-    assert updated.json()["hourly_rate_naira"] == "1300.00"
+    assert updated.status_code == http_status.HTTP_409_CONFLICT
+    assert updated.json()["error"]["code"] == "PAYOUT_RULE_MUTATION_RETIRED"
+    assert updated.json()["error"]["details"]["retired_fields"] == ["hourly_rate_naira"]
+    metadata_update = db_client.patch(
+        f"{base}/{rule['id']}",
+        headers=headers,
+        json={"metadata": {"note": "still mutable"}},
+    )
+    assert metadata_update.status_code == http_status.HTTP_200_OK
+    assert metadata_update.json()["hourly_rate_naira"] == "1200.00"
     cross_model = db_client.patch(
         f"{base}/{rule['id']}",
         headers=headers,
@@ -1017,9 +1026,28 @@ def test_rule_api_supports_both_models_with_xor_validation(
     )
     assert cross_model.status_code == http_status.HTTP_400_BAD_REQUEST
 
-    # A v1 rule create still works and serializes every rate as a string.
-    v1_created = db_client.post(
+    # The v2 create above opened the campaign's revision chain (genesis):
+    # further rule creation for that campaign is retired (PR3a).
+    chained = db_client.post(
         base,
+        headers=headers,
+        json={"base_rate_per_km": "10.00", "status": "inactive"},
+    )
+    assert chained.status_code == http_status.HTTP_409_CONFLICT
+    assert chained.json()["error"]["code"] == "PAYOUT_RULE_REVISIONS_EXIST"
+
+    # A v1 rule create still works (on an unchained campaign) and serializes
+    # every rate as a string.
+    v1_campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=advertiser.id,
+        name="Rules Org v1 campaign",
+        campaign_status=CampaignStatus.ACTIVE,
+    )
+    v1_base = f"/api/v1/admin/campaigns/{v1_campaign.id}/payout-rules"
+    v1_created = db_client.post(
+        v1_base,
         headers=headers,
         json={"base_rate_per_km": "10.00", "status": "inactive"},
     )
@@ -1036,7 +1064,7 @@ def test_rule_api_supports_both_models_with_xor_validation(
     assert v1_rule["hourly_rate_naira"] is None
     # v1 rules must not set v2 fields.
     v1_mixed = db_client.patch(
-        f"{base}/{v1_rule['id']}",
+        f"{v1_base}/{v1_rule['id']}",
         headers=headers,
         json={"hourly_rate_naira": "900.00"},
     )

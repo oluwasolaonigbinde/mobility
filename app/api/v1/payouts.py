@@ -14,6 +14,7 @@ from app.api.v1.dependencies import (
 from app.core.errors import AppError
 from app.models.payout import (
     CampaignPayoutRule,
+    CampaignPayoutRuleRevision,
     CampaignPayoutRuleStatus,
     EarningsLedgerEntry,
     EarningsLedgerEntryStatus,
@@ -29,6 +30,9 @@ from app.schemas.payouts import (
     CampaignPayoutRuleCreate,
     CampaignPayoutRuleListResponse,
     CampaignPayoutRuleRead,
+    CampaignPayoutRuleRevisionCreate,
+    CampaignPayoutRuleRevisionListResponse,
+    CampaignPayoutRuleRevisionRead,
     CampaignPayoutRuleUpdate,
     DriverEarningsCurrencySummary,
     DriverEarningsSummary,
@@ -48,6 +52,7 @@ from app.services.payouts import (
     advertiser_campaign_cost_summary,
     calculate_trip_payout,
     create_campaign_payout_rule,
+    create_payout_rule_revision,
     driver_earnings_summary,
     driver_trip_earnings_breakdown,
     get_campaign_payout_rule,
@@ -55,6 +60,7 @@ from app.services.payouts import (
     list_campaign_payout_rules,
     list_driver_ledger_entries,
     list_payout_calculations,
+    list_payout_rule_revisions,
     recompute_payout_day,
     update_campaign_payout_rule,
 )
@@ -115,6 +121,52 @@ def payout_rule_response(rule: CampaignPayoutRule) -> CampaignPayoutRuleRead:
         created_at=rule.created_at,
         updated_at=rule.updated_at,
     )
+
+
+def payout_rule_revision_response(
+    revision: CampaignPayoutRuleRevision,
+) -> CampaignPayoutRuleRevisionRead:
+    return CampaignPayoutRuleRevisionRead(
+        id=revision.id,
+        campaign_id=revision.campaign_id,
+        payout_rule_id=revision.payout_rule_id,
+        revision_number=revision.revision_number,
+        effective_from=revision.effective_from,
+        hourly_rate_naira=revision.hourly_rate_naira,
+        premium_hourly_rate_naira=revision.premium_hourly_rate_naira,
+        daily_payable_hours_cap=revision.daily_payable_hours_cap,
+        eligibility_params=revision.eligibility_params,
+        formula_version=revision.formula_version,
+        reason=revision.reason,
+        created_by_user_id=revision.created_by_user_id,
+        created_at=revision.created_at,
+    )
+
+
+def payout_rule_revision_audit_values(
+    revision: CampaignPayoutRuleRevision | None,
+) -> dict | None:
+    """Value-complete audit payload (A3): full money-bearing values, Decimal
+    as string, never field names alone (closes RM6 for this path)."""
+    if revision is None:
+        return None
+    return {
+        "revision_number": revision.revision_number,
+        "effective_from": revision.effective_from.isoformat(),
+        "hourly_rate_naira": str(revision.hourly_rate_naira),
+        "premium_hourly_rate_naira": (
+            str(revision.premium_hourly_rate_naira)
+            if revision.premium_hourly_rate_naira is not None
+            else None
+        ),
+        "daily_payable_hours_cap": (
+            str(revision.daily_payable_hours_cap)
+            if revision.daily_payable_hours_cap is not None
+            else None
+        ),
+        "eligibility_params": revision.eligibility_params,
+        "formula_version": revision.formula_version,
+    }
 
 
 def ledger_summary_response(entry: EarningsLedgerEntry) -> PayoutLedgerEntrySummary:
@@ -200,7 +252,7 @@ async def admin_create_campaign_payout_rule(
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> CampaignPayoutRuleRead:
-    rule = await create_campaign_payout_rule(
+    rule, genesis_revision = await create_campaign_payout_rule(
         session,
         campaign_id=campaign_id,
         created_by_user_id=current_user.id,
@@ -213,7 +265,11 @@ async def admin_create_campaign_payout_rule(
         action="admin.campaign_payout_rule.created",
         entity_type="campaign_payout_rule",
         entity_id=str(rule.id),
-        metadata={"campaign_id": str(campaign_id), "status": rule.status},
+        metadata={
+            "campaign_id": str(campaign_id),
+            "status": rule.status,
+            "genesis_revision": payout_rule_revision_audit_values(genesis_revision),
+        },
     )
     await session.commit()
     return payout_rule_response(rule)
@@ -293,6 +349,73 @@ async def admin_update_campaign_payout_rule(
     )
     await session.commit()
     return payout_rule_response(rule)
+
+
+@router.post(
+    "/admin/campaigns/{campaign_id}/payout-rules/{rule_id}/revisions",
+    response_model=CampaignPayoutRuleRevisionRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create an effective-dated payout-rule revision (supersede)",
+)
+async def admin_create_payout_rule_revision(
+    campaign_id: UUID,
+    rule_id: UUID,
+    payload: CampaignPayoutRuleRevisionCreate,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+) -> CampaignPayoutRuleRevisionRead:
+    revision, previous = await create_payout_rule_revision(
+        session,
+        campaign_id=campaign_id,
+        rule_id=rule_id,
+        payload=payload,
+        actor_user_id=current_user.id,
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=current_user.id,
+        action="admin.payout_rule_revision.created",
+        entity_type="campaign_payout_rule_revision",
+        entity_id=str(revision.id),
+        metadata={
+            "campaign_id": str(campaign_id),
+            "payout_rule_id": str(rule_id),
+            "reason": revision.reason,
+            "before": payout_rule_revision_audit_values(previous),
+            "after": payout_rule_revision_audit_values(revision),
+        },
+    )
+    await session.commit()
+    return payout_rule_revision_response(revision)
+
+
+@router.get(
+    "/admin/campaigns/{campaign_id}/payout-rules/{rule_id}/revisions",
+    response_model=CampaignPayoutRuleRevisionListResponse,
+    summary="List a campaign's payout-rule revisions",
+)
+async def admin_list_payout_rule_revisions(
+    campaign_id: UUID,
+    rule_id: UUID,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> CampaignPayoutRuleRevisionListResponse:
+    del current_user
+    revisions, total = await list_payout_rule_revisions(
+        session,
+        campaign_id=campaign_id,
+        rule_id=rule_id,
+        limit=limit,
+        offset=offset,
+    )
+    return CampaignPayoutRuleRevisionListResponse(
+        items=[payout_rule_revision_response(revision) for revision in revisions],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.post(

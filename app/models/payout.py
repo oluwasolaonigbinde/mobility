@@ -198,6 +198,79 @@ class CampaignPayoutRule(Base):
     )
 
 
+class CampaignPayoutRuleRevision(Base):
+    """Append-only effective-dated payout value revisions (MNY-06A, D18).
+
+    The revision current at time T is the row with the greatest
+    effective_from <= T. Non-overlap is by construction: no update/delete
+    path exists, uq(campaign_id, effective_from) makes boundaries
+    deterministic, and uq(campaign_id, revision_number) serializes
+    concurrent supersedes fail-closed (PR1). Revisions are payout_v3-only
+    value sources; payout_v2 keeps pricing from the frozen rule row (PR3).
+    """
+
+    __tablename__ = "campaign_payout_rule_revisions"
+    __table_args__ = (
+        CheckConstraint(
+            "revision_number >= 1",
+            name="ck_campaign_payout_rule_revisions_number_ge_1",
+        ),
+        CheckConstraint(
+            "hourly_rate_naira >= 0",
+            name="ck_campaign_payout_rule_revisions_hourly_rate_non_negative",
+        ),
+        CheckConstraint(
+            "premium_hourly_rate_naira IS NULL OR premium_hourly_rate_naira >= 0",
+            name="ck_campaign_payout_rule_revisions_premium_rate_non_negative",
+        ),
+        UniqueConstraint(
+            "campaign_id",
+            "revision_number",
+            name="uq_campaign_payout_rule_revisions_campaign_number",
+        ),
+        UniqueConstraint(
+            "campaign_id",
+            "effective_from",
+            name="uq_campaign_payout_rule_revisions_campaign_effective",
+        ),
+        Index("ix_campaign_payout_rule_revisions_campaign_id", "campaign_id"),
+        Index("ix_campaign_payout_rule_revisions_payout_rule_id", "payout_rule_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        default=uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    campaign_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaigns.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    payout_rule_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaign_payout_rules.id"),
+        nullable=False,
+    )
+    revision_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    hourly_rate_naira: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    premium_hourly_rate_naira: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    daily_payable_hours_cap: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
+    eligibility_params: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
+        default=dict,
+        server_default=text("'{}'"),
+        nullable=False,
+    )
+    formula_version: Mapped[str] = mapped_column(Text, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    created_by_user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
 class PayoutCalculation(Base):
     __tablename__ = "payout_calculations"
     __table_args__ = (

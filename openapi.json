@@ -2066,6 +2066,208 @@
         "title": "CampaignPayoutRuleRead",
         "type": "object"
       },
+      "CampaignPayoutRuleRevisionCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "daily_payable_hours_cap": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 24.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Daily Payable Hours Cap"
+          },
+          "effective_from": {
+            "format": "date-time",
+            "title": "Effective From",
+            "type": "string"
+          },
+          "eligibility_params": {
+            "additionalProperties": true,
+            "title": "Eligibility Params",
+            "type": "object"
+          },
+          "hourly_rate_naira": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Hourly Rate Naira"
+          },
+          "premium_hourly_rate_naira": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Premium Hourly Rate Naira"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "effective_from",
+          "hourly_rate_naira",
+          "daily_payable_hours_cap",
+          "reason"
+        ],
+        "title": "CampaignPayoutRuleRevisionCreate",
+        "type": "object"
+      },
+      "CampaignPayoutRuleRevisionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CampaignPayoutRuleRevisionRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "CampaignPayoutRuleRevisionListResponse",
+        "type": "object"
+      },
+      "CampaignPayoutRuleRevisionRead": {
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by_user_id": {
+            "format": "uuid",
+            "title": "Created By User Id",
+            "type": "string"
+          },
+          "daily_payable_hours_cap": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Payable Hours Cap"
+          },
+          "effective_from": {
+            "format": "date-time",
+            "title": "Effective From",
+            "type": "string"
+          },
+          "eligibility_params": {
+            "additionalProperties": true,
+            "title": "Eligibility Params",
+            "type": "object"
+          },
+          "formula_version": {
+            "title": "Formula Version",
+            "type": "string"
+          },
+          "hourly_rate_naira": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hourly Rate Naira"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "payout_rule_id": {
+            "format": "uuid",
+            "title": "Payout Rule Id",
+            "type": "string"
+          },
+          "premium_hourly_rate_naira": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Premium Hourly Rate Naira"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "revision_number": {
+            "title": "Revision Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "campaign_id",
+          "payout_rule_id",
+          "revision_number",
+          "effective_from",
+          "hourly_rate_naira",
+          "premium_hourly_rate_naira",
+          "daily_payable_hours_cap",
+          "eligibility_params",
+          "formula_version",
+          "reason",
+          "created_by_user_id",
+          "created_at"
+        ],
+        "title": "CampaignPayoutRuleRevisionRead",
+        "type": "object"
+      },
       "CampaignPayoutRuleStatus": {
         "enum": [
           "active",
@@ -9645,6 +9847,153 @@
           }
         ],
         "summary": "Update a campaign payout rule",
+        "tags": [
+          "Payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/campaigns/{campaign_id}/payout-rules/{rule_id}/revisions": {
+      "get": {
+        "operationId": "admin_list_payout_rule_revisions_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__revisions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rule Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignPayoutRuleRevisionListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List a campaign's payout-rule revisions",
+        "tags": [
+          "Payouts"
+        ]
+      },
+      "post": {
+        "operationId": "admin_create_payout_rule_revision_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__revisions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignPayoutRuleRevisionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignPayoutRuleRevisionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create an effective-dated payout-rule revision (supersede)",
         "tags": [
           "Payouts"
         ]

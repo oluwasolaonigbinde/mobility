@@ -39,6 +39,7 @@ REQUIRED_PAYOUT_RULE_UPDATE_FIELDS = {
 class DecimalStringMixin(BaseModel):
     @field_serializer(
         "hourly_rate_naira",
+        "premium_hourly_rate_naira",
         "daily_payable_hours_cap",
         "ledger_net_total",
         "hourly_rate",
@@ -228,6 +229,57 @@ class CampaignPayoutRuleRead(DecimalStringMixin):
 
 class CampaignPayoutRuleListResponse(BaseModel):
     items: list[CampaignPayoutRuleRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class CampaignPayoutRuleRevisionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    effective_from: datetime
+    hourly_rate_naira: Decimal = Field(ge=Decimal("0"))
+    premium_hourly_rate_naira: Decimal | None = Field(default=None, ge=Decimal("0"))
+    daily_payable_hours_cap: Decimal = Field(gt=Decimal("0"), le=Decimal("24"))
+    eligibility_params: dict[str, Any] = Field(default_factory=dict)
+    reason: str
+
+    @field_validator("effective_from")
+    @classmethod
+    def validate_effective_from(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+            raise ValueError("Datetime must include timezone information")
+        return value
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("reason must not be empty")
+        return trimmed
+
+
+class CampaignPayoutRuleRevisionRead(DecimalStringMixin):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    campaign_id: UUID
+    payout_rule_id: UUID
+    revision_number: int
+    effective_from: datetime
+    hourly_rate_naira: Decimal
+    premium_hourly_rate_naira: Decimal | None
+    daily_payable_hours_cap: Decimal | None
+    eligibility_params: dict[str, Any]
+    formula_version: str
+    reason: str
+    created_by_user_id: UUID
+    created_at: datetime
+
+
+class CampaignPayoutRuleRevisionListResponse(BaseModel):
+    items: list[CampaignPayoutRuleRevisionRead]
     total: int
     limit: int
     offset: int

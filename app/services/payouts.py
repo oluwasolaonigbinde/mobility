@@ -21,6 +21,7 @@ from app.models.driver import DriverProfile
 from app.models.impression import ImpressionEstimate, ImpressionEstimateStatus
 from app.models.payout import (
     CampaignPayoutRule,
+    CampaignPayoutRuleRevision,
     CampaignPayoutRuleStatus,
     EarningsLedgerEntry,
     EarningsLedgerEntryStatus,
@@ -36,7 +37,11 @@ from app.models.trip_analytics import (
     TripAnalytics,
     TripAnalyticsStatus,
 )
-from app.schemas.payouts import CampaignPayoutRuleCreate, CampaignPayoutRuleUpdate
+from app.schemas.payouts import (
+    CampaignPayoutRuleCreate,
+    CampaignPayoutRuleRevisionCreate,
+    CampaignPayoutRuleUpdate,
+)
 from app.services.campaigns import get_advertiser_campaign
 from app.services.drivers import get_required_driver_profile_with_user_by_user_id
 from app.services.impressions import (
@@ -65,7 +70,14 @@ DECIMAL_2 = Decimal("0.01")
 ZERO = Decimal("0")
 PAYOUT_V1 = "payout_v1"
 PAYOUT_V2 = "payout_v2"
+PAYOUT_V3 = "payout_v3"
 PAYOUT_FORMULA_VERSIONS = frozenset({PAYOUT_V1, PAYOUT_V2})
+# Classified in-service by name (MNY-06A) — the FND-07 shared classifier in
+# app/db/integrity.py is a reserved surface and stays untouched.
+RULE_REVISION_UNIQUE_CONSTRAINTS = (
+    "uq_campaign_payout_rule_revisions_campaign_number",
+    "uq_campaign_payout_rule_revisions_campaign_effective",
+)
 LAGOS_TZ = ZoneInfo("Africa/Lagos")
 SECONDS_PER_HOUR = Decimal("3600")
 V2_RULE_FIELDS = {"hourly_rate_naira", "daily_payable_hours_cap", "eligibility_params"}
@@ -262,6 +274,42 @@ def invalid_rule_values(message: str) -> AppError:
     )
 
 
+def invalid_rule_revision(message: str) -> AppError:
+    return AppError(
+        "INVALID_PAYOUT_RULE_REVISION",
+        message,
+        status_code=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+def rule_revision_conflict() -> AppError:
+    return AppError(
+        "PAYOUT_RULE_REVISION_CONFLICT",
+        "A concurrent revision was created for this campaign; re-read the"
+        " revision chain and retry",
+        status_code=status.HTTP_409_CONFLICT,
+    )
+
+
+def rule_mutation_retired(fields: list[str]) -> AppError:
+    return AppError(
+        "PAYOUT_RULE_MUTATION_RETIRED",
+        "payout_v2 rule values are immutable; create a payout-rule revision"
+        " instead of editing the rule",
+        status_code=status.HTTP_409_CONFLICT,
+        details={"retired_fields": fields},
+    )
+
+
+def rule_revisions_exist() -> AppError:
+    return AppError(
+        "PAYOUT_RULE_REVISIONS_EXIST",
+        "This campaign's payout values are governed by an immutable revision"
+        " chain; create a new revision instead of a new rule",
+        status_code=status.HTTP_409_CONFLICT,
+    )
+
+
 def payout_source_mismatch(mismatches: list[dict[str, str]]) -> AppError:
     return AppError(
         "PAYOUT_SOURCE_MISMATCH",
@@ -451,6 +499,15 @@ async def deactivate_other_active_rules(
     await session.execute(statement)
 
 
+async def campaign_has_rule_revisions(session: AsyncSession, campaign_id: UUID) -> bool:
+    revision_id = await session.scalar(
+        select(CampaignPayoutRuleRevision.id)
+        .where(CampaignPayoutRuleRevision.campaign_id == campaign_id)
+        .limit(1)
+    )
+    return revision_id is not None
+
+
 async def create_campaign_payout_rule(
     session: AsyncSession,
     *,
@@ -458,8 +515,12 @@ async def create_campaign_payout_rule(
     created_by_user_id: UUID,
     payload: CampaignPayoutRuleCreate,
     settings: Settings,
-) -> CampaignPayoutRule:
+) -> tuple[CampaignPayoutRule, CampaignPayoutRuleRevision | None]:
     await get_campaign(session, campaign_id)
+    # PR3(a): once a campaign has an immutable revision chain, rule creation
+    # (and with it deactivate_other_active_rules) is retired for it.
+    if await campaign_has_rule_revisions(session, campaign_id):
+        raise rule_revisions_exist()
     values = create_rule_values(payload, settings)
     if values["status"] == CampaignPayoutRuleStatus.ACTIVE.value:
         await deactivate_other_active_rules(session, campaign_id=campaign_id)
@@ -471,7 +532,30 @@ async def create_campaign_payout_rule(
     session.add(rule)
     await session.flush()
     await session.refresh(rule)
-    return rule
+    genesis = None
+    if (
+        rule.formula_version == PAYOUT_V2
+        and rule.status == CampaignPayoutRuleStatus.ACTIVE.value
+    ):
+        # PR3: a new campaign's governing rule and revision 1 are atomic —
+        # the genesis snapshot of the campaign's payout_v3 value chain.
+        genesis = CampaignPayoutRuleRevision(
+            campaign_id=campaign_id,
+            payout_rule_id=rule.id,
+            revision_number=1,
+            effective_from=rule.created_at,
+            hourly_rate_naira=rule.hourly_rate_naira,
+            premium_hourly_rate_naira=None,
+            daily_payable_hours_cap=rule.daily_payable_hours_cap,
+            eligibility_params=rule.eligibility_params or {},
+            formula_version=PAYOUT_V3,
+            reason="genesis: initial payout_v2 rule values at rule creation",
+            created_by_user_id=created_by_user_id,
+        )
+        session.add(genesis)
+        await session.flush()
+        await session.refresh(genesis)
+    return rule, genesis
 
 
 async def list_campaign_payout_rules(
@@ -544,8 +628,11 @@ async def update_campaign_payout_rule(
     if "status" in update_values and update_values["status"] is not None:
         update_values["status"] = update_values["status"].value
     if rule.formula_version == PAYOUT_V2:
-        if "eligibility_params" in update_values:
-            validate_eligibility_params_overlay(update_values["eligibility_params"])
+        # MNY-06A: v2 value mutation is retired — the append-only revision
+        # chain is the only value-change path.
+        retired_fields = sorted(field for field in V2_RULE_FIELDS if field in update_values)
+        if retired_fields:
+            raise rule_mutation_retired(retired_fields)
     else:
         prospective_min = update_values.get("min_payout_per_trip", rule.min_payout_per_trip)
         prospective_max = update_values.get("max_payout_per_trip", rule.max_payout_per_trip)
@@ -562,6 +649,120 @@ async def update_campaign_payout_rule(
     await session.flush()
     await session.refresh(rule)
     return rule, changed_fields
+
+
+def _is_rule_revision_unique_conflict(exc: IntegrityError) -> bool:
+    message = str(exc.orig) if exc.orig is not None else str(exc)
+    return any(name in message for name in RULE_REVISION_UNIQUE_CONSTRAINTS)
+
+
+def _ensure_utc_aware(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
+async def latest_payout_rule_revision(
+    session: AsyncSession,
+    campaign_id: UUID,
+) -> CampaignPayoutRuleRevision | None:
+    return await session.scalar(
+        select(CampaignPayoutRuleRevision)
+        .where(CampaignPayoutRuleRevision.campaign_id == campaign_id)
+        .order_by(CampaignPayoutRuleRevision.revision_number.desc())
+        .limit(1)
+    )
+
+
+async def create_payout_rule_revision(
+    session: AsyncSession,
+    *,
+    campaign_id: UUID,
+    rule_id: UUID,
+    payload: CampaignPayoutRuleRevisionCreate,
+    actor_user_id: UUID,
+) -> tuple[CampaignPayoutRuleRevision, CampaignPayoutRuleRevision | None]:
+    """Append one immutable revision to the campaign's value chain (PR1).
+
+    Guards: effective_from strictly after the latest revision's (no
+    retro-insertion — retroactivity is MNY-06C's correction order) and not
+    before the DB clock. revision_number is latest + 1 read in-transaction;
+    the two unique constraints serialize concurrent supersedes fail-closed,
+    and the loser surfaces as a stable 409. Returns (revision, previous) so
+    the caller can audit full before/after values.
+    """
+    rule = await get_campaign_payout_rule(session, campaign_id=campaign_id, rule_id=rule_id)
+    if rule.formula_version != PAYOUT_V2:
+        raise invalid_rule_revision(
+            "payout-rule revisions extend the hourly (payout_v2) rule model;"
+            f" this rule is {rule.formula_version}"
+        )
+    if rule.status != CampaignPayoutRuleStatus.ACTIVE.value:
+        raise rule_inactive()
+    validate_eligibility_params_overlay(payload.eligibility_params)
+
+    if session.get_bind().dialect.name == "postgresql":
+        db_now = await session.scalar(select(func.now()))
+    else:
+        db_now = utc_now()
+    latest = await latest_payout_rule_revision(session, campaign_id)
+    if latest is not None and payload.effective_from <= _ensure_utc_aware(
+        latest.effective_from
+    ):
+        raise invalid_rule_revision(
+            "effective_from must be strictly after the latest revision's"
+            " effective_from; retroactive changes require a correction order"
+        )
+    if payload.effective_from < _ensure_utc_aware(db_now):
+        raise invalid_rule_revision("effective_from must not be before the database clock")
+
+    revision = CampaignPayoutRuleRevision(
+        campaign_id=campaign_id,
+        payout_rule_id=rule.id,
+        revision_number=(latest.revision_number + 1) if latest is not None else 1,
+        effective_from=payload.effective_from,
+        hourly_rate_naira=payload.hourly_rate_naira,
+        premium_hourly_rate_naira=payload.premium_hourly_rate_naira,
+        daily_payable_hours_cap=payload.daily_payable_hours_cap,
+        eligibility_params=payload.eligibility_params,
+        formula_version=PAYOUT_V3,
+        reason=payload.reason,
+        created_by_user_id=actor_user_id,
+    )
+    try:
+        async with session.begin_nested():
+            session.add(revision)
+            await session.flush()
+    except IntegrityError as exc:
+        if _is_rule_revision_unique_conflict(exc):
+            raise rule_revision_conflict() from exc
+        raise
+    await session.refresh(revision)
+    return revision, latest
+
+
+async def list_payout_rule_revisions(
+    session: AsyncSession,
+    *,
+    campaign_id: UUID,
+    rule_id: UUID,
+    limit: int,
+    offset: int,
+) -> tuple[list[CampaignPayoutRuleRevision], int]:
+    await get_campaign_payout_rule(session, campaign_id=campaign_id, rule_id=rule_id)
+    total = await session.scalar(
+        select(func.count())
+        .select_from(CampaignPayoutRuleRevision)
+        .where(CampaignPayoutRuleRevision.campaign_id == campaign_id)
+    )
+    result = await session.execute(
+        select(CampaignPayoutRuleRevision)
+        .where(CampaignPayoutRuleRevision.campaign_id == campaign_id)
+        .order_by(CampaignPayoutRuleRevision.revision_number.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(result.scalars().all()), int(total or 0)
 
 
 async def get_trip_for_payout(session: AsyncSession, trip_id: UUID) -> TripSession:

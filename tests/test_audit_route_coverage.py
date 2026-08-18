@@ -66,6 +66,10 @@ AUDITED = {
     ("PATCH", "/api/v1/admin/campaigns/{campaign_id}/payout-rules/{rule_id}"): (
         "admin.campaign_payout_rule.updated"
     ),
+    (
+        "POST",
+        "/api/v1/admin/campaigns/{campaign_id}/payout-rules/{rule_id}/revisions",
+    ): "admin.payout_rule_revision.created",
     ("POST", "/api/v1/admin/trips/{trip_id}/calculate-payout"): (
         "admin.payout_calculation.created"
     ),

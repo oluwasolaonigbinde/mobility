@@ -160,6 +160,24 @@ export interface paths {
         patch: operations["admin_update_campaign_payout_rule_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__patch"];
         trace?: never;
     };
+    "/api/v1/admin/campaigns/{campaign_id}/payout-rules/{rule_id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a campaign's payout-rule revisions */
+        get: operations["admin_list_payout_rule_revisions_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__revisions_get"];
+        put?: never;
+        /** Create an effective-dated payout-rule revision (supersede) */
+        post: operations["admin_create_payout_rule_revision_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__revisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/drivers": {
         parameters: {
             query?: never;
@@ -1977,6 +1995,86 @@ export interface components {
             updated_at: string;
             /** Updated By User Id */
             updated_by_user_id: string | null;
+        };
+        /** CampaignPayoutRuleRevisionCreate */
+        CampaignPayoutRuleRevisionCreate: {
+            /** Daily Payable Hours Cap */
+            daily_payable_hours_cap: number | string;
+            /**
+             * Effective From
+             * Format: date-time
+             */
+            effective_from: string;
+            /** Eligibility Params */
+            eligibility_params?: {
+                [key: string]: unknown;
+            };
+            /** Hourly Rate Naira */
+            hourly_rate_naira: number | string;
+            /** Premium Hourly Rate Naira */
+            premium_hourly_rate_naira?: number | string | null;
+            /** Reason */
+            reason: string;
+        };
+        /** CampaignPayoutRuleRevisionListResponse */
+        CampaignPayoutRuleRevisionListResponse: {
+            /** Items */
+            items: components["schemas"]["CampaignPayoutRuleRevisionRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** CampaignPayoutRuleRevisionRead */
+        CampaignPayoutRuleRevisionRead: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Created By User Id
+             * Format: uuid
+             */
+            created_by_user_id: string;
+            /** Daily Payable Hours Cap */
+            daily_payable_hours_cap: string | null;
+            /**
+             * Effective From
+             * Format: date-time
+             */
+            effective_from: string;
+            /** Eligibility Params */
+            eligibility_params: {
+                [key: string]: unknown;
+            };
+            /** Formula Version */
+            formula_version: string;
+            /** Hourly Rate Naira */
+            hourly_rate_naira: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Payout Rule Id
+             * Format: uuid
+             */
+            payout_rule_id: string;
+            /** Premium Hourly Rate Naira */
+            premium_hourly_rate_naira: string | null;
+            /** Reason */
+            reason: string;
+            /** Revision Number */
+            revision_number: number;
         };
         /**
          * CampaignPayoutRuleStatus
@@ -4687,6 +4785,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignPayoutRuleRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_list_payout_rule_revisions_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__revisions_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                campaign_id: string;
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignPayoutRuleRevisionListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_create_payout_rule_revision_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__revisions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignPayoutRuleRevisionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignPayoutRuleRevisionRead"];
                 };
             };
             /** @description Validation Error */
