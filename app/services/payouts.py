@@ -320,6 +320,28 @@ def payout_source_mismatch(mismatches: list[dict[str, str]]) -> AppError:
     )
 
 
+def recompute_requires_correction_order() -> AppError:
+    """PR7: the direct execute path is retired — ALL retroactive recomputes
+    execute only through an approved maker-checker correction order,
+    regardless of delta sign."""
+    return AppError(
+        "RECOMPUTE_REQUIRES_CORRECTION_ORDER",
+        "Direct day recompute is retired; project and execute an approved"
+        " payout correction order instead",
+        status_code=status.HTTP_409_CONFLICT,
+    )
+
+
+def correction_release_at_required() -> AppError:
+    return AppError(
+        "CORRECTION_RELEASE_AT_REQUIRED",
+        "The projected correction contains positive deltas; execution requires"
+        " an explicit release_at for the pending entries (Q22 — no default is"
+        " invented)",
+        status_code=status.HTTP_400_BAD_REQUEST,
+    )
+
+
 def payout_calculation_stale() -> AppError:
     return AppError(
         "PAYOUT_CALCULATION_STALE",
@@ -2829,10 +2851,106 @@ class RecomputeDayOutcome:
     reversal_count: int
 
 
-def payout_day_mixed_formulas() -> AppError:
+@dataclass(frozen=True)
+class DayTripTarget:
+    """One trip's recomputed target for a Lagos day (PR6 pure core output).
+
+    Carries everything both consumers need: the writer (differential ledger
+    entries) and the correction-order projection (per-trip deltas plus the
+    PR12 fingerprint inputs). No database write happens to produce one.
+    """
+
+    trip_session_id: UUID
+    vehicle_id: UUID | None
+    payout_calculation_id: UUID
+    formula_version: str
+    currency: str
+    previous_posted_amount: Decimal
+    target_amount: Decimal
+    delta_amount: Decimal
+    eligible_seconds: int
+    payable_seconds: int
+    payable_by_day: dict[str, int]
+    payable_by_day_tier: dict[str, dict[str, int]] | None
+    hourly_rate: Decimal
+    premium_hourly_rate: Decimal | None
+    cap_seconds: int
+    voided: bool
+    current_ping_fingerprint: str | None
+    stored_inputs_fingerprint: str | None
+    governing_values: dict
+
+
+@dataclass(frozen=True)
+class DayComputation:
+    """PR6 pure computation core result for one driver/campaign/Lagos-day."""
+
+    campaign_id: UUID
+    driver_profile_id: UUID
+    lagos_date: date
+    currency: str | None
+    trips: list[DayTripTarget]
+    zone_state_fingerprint: str
+    window_start_at: datetime | None
+    window_end_at: datetime | None
+
+
+async def _latest_recompute_breakdown(
+    session: AsyncSession, trip_id: UUID
+) -> dict | None:
+    """The trip's latest non-voided recompute-day breakdown, if any.
+
+    A prior true-up supersedes the write-once calculation's stored per-day
+    allocation (the same chain day_consumed_payable_seconds reads): when day B
+    of a cross-midnight trip is recomputed after a day-A true-up, day A's
+    authoritative allocation comes from that entry, never from the stale
+    calculation row — otherwise the day-B run would silently revert day A's
+    correction."""
+    entries = await session.execute(
+        select(EarningsLedgerEntry)
+        .where(
+            EarningsLedgerEntry.trip_session_id == trip_id,
+            EarningsLedgerEntry.status != EarningsLedgerEntryStatus.VOIDED.value,
+            EarningsLedgerEntry.entry_type.in_(
+                (
+                    EarningsLedgerEntryType.ADJUSTMENT.value,
+                    EarningsLedgerEntryType.REVERSAL.value,
+                )
+            ),
+        )
+        .order_by(
+            EarningsLedgerEntry.occurred_at,
+            EarningsLedgerEntry.created_at,
+            EarningsLedgerEntry.id,
+        )
+    )
+    breakdown: dict | None = None
+    for entry in entries.scalars().all():
+        metadata = entry.ledger_metadata or {}
+        if metadata.get("recompute_day") and metadata.get("breakdown"):
+            breakdown = metadata["breakdown"]
+    return breakdown
+
+
+def payout_day_unsupported_formula() -> AppError:
+    """The v2-vs-v3 mixed-day refusal is retired (PR6): the recompute core
+    prices both engines under one shared cap pool. Only formula versions with
+    no seconds-based repricing model (payout_v1) still refuse."""
     return AppError(
-        "PAYOUT_DAY_MIXED_FORMULAS",
-        "The day holds calculations under both payout models; resolve manually",
+        "PAYOUT_DAY_UNSUPPORTED_FORMULA",
+        "The day holds calculations without a seconds-based payout model"
+        " (payout_v1); recompute supports payout_v2 and payout_v3 only",
+        status_code=status.HTTP_409_CONFLICT,
+    )
+
+
+def payout_day_currency_mismatch() -> AppError:
+    # A currency drift would zero the posted-position sum and double-pay the
+    # day; refuse instead of true-ing up.
+    return AppError(
+        "PAYOUT_DAY_CURRENCY_MISMATCH",
+        "The day's calculations and the governing rule use "
+        "different currencies; resolve manually",
         status_code=status.HTTP_409_CONFLICT,
     )
 
@@ -2855,41 +2973,31 @@ async def _posted_amount_for_trip(
     return quantize_2(Decimal(str(total or 0)))
 
 
-async def recompute_payout_day(
+async def compute_payout_day_targets(
     session: AsyncSession,
     *,
     campaign_id: UUID,
     driver_profile_id: UUID,
     lagos_date: date,
-    request_metadata: dict,
     settings: Settings,
-    now: datetime | None = None,
-) -> RecomputeDayOutcome:
-    """Admin day true-up (16.1 amendment, next-steps S1 decision 6).
+) -> DayComputation:
+    """PR6 v3-aware recompute core, shared by dry-run projection and execution.
 
-    Re-runs the Lagos day's cap allocation for one driver/campaign under the
-    same advisory lock as the pipeline and posts append-only differential
-    entries: adjustment for upward deltas (freed cap), positive reversal for
-    downward deltas (netted negative in summaries). Calculations are never
-    edited; running twice with unchanged inputs posts nothing.
+    Re-runs one driver/campaign/Lagos-day under the same advisory lock as the
+    pipeline and returns per-trip targets WITHOUT writing anything: payout_v2
+    trips reprice from the governing rule row (existing recompute logic
+    preserved) and payout_v3 trips from each trip's FROZEN acceptance-time
+    binding — later revisions never reprice accepted work. The D4 cap is ONE
+    shared chronological pool across both engines (PR4/PR5): trips consume it
+    in start order against their own governing cap, and within a payout_v3
+    trip the day's eligible slices fill chronologically, each second priced at
+    its own tier. Calculations are never edited; a run with unchanged inputs
+    targets exactly the posted position.
     """
     ensure_postgis(session)
-    recompute_at = now or utc_now()
-    rule = await resolve_payout_rule(session, campaign_id=campaign_id, payout_rule_id=None)
-    if rule.formula_version != PAYOUT_V2:
-        raise invalid_rule_values(
-            "recompute-day applies only to campaigns governed by a payout_v2 rule"
-        )
-    profile = await session.get(DriverProfile, driver_profile_id)
-    if profile is None:
-        raise AppError(
-            "DRIVER_PROFILE_NOT_FOUND",
-            "Driver profile was not found",
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
     campaign = await get_campaign(session, campaign_id)
-    params = effective_eligibility_params(settings, rule)
     day_range = lagos_day_utc_range(lagos_date)
+    day_key = lagos_date.isoformat()
 
     await acquire_paycap_lock(
         session, paycap_lock_key(driver_profile_id, campaign_id, lagos_date)
@@ -2925,33 +3033,45 @@ async def recompute_payout_day(
             .order_by(PayoutCalculation.calculated_at, PayoutCalculation.id)
         )
         for calculation in calc_result.scalars().all():
-            if calculation.formula_version != PAYOUT_V2:
-                raise payout_day_mixed_formulas()
-            if calculation.currency != rule.currency:
-                # A currency drift would zero the posted-position sum and
-                # double-pay the day; refuse instead of true-ing up.
-                raise AppError(
-                    "PAYOUT_DAY_CURRENCY_MISMATCH",
-                    "The day's calculations and the governing rule use "
-                    "different currencies; resolve manually",
-                    status_code=status.HTTP_409_CONFLICT,
-                )
+            # Latest calculation per trip wins (calculated_at asc overwrite),
+            # mirroring the reuse path and the day-pool accounting.
             calculations_by_trip[calculation.trip_session_id] = calculation
 
-    cap_seconds = daily_cap_seconds(rule)
-    hourly_rate = Decimal(rule.hourly_rate_naira)
-    cap_remaining = cap_seconds
-    day_key = lagos_date.isoformat()
-    outcomes: list[RecomputeDayTripOutcome] = []
-    adjustment_count = 0
-    reversal_count = 0
-    recompute_run_id = str(
-        UUID(bytes=hashlib.sha256(
-            f"recompute:{campaign_id}:{driver_profile_id}:{lagos_date}:"
-            f"{recompute_at.isoformat()}".encode()
-        ).digest()[:16])
-    )
+    latest_calculations = [
+        calculations_by_trip[trip.id] for trip in trips if trip.id in calculations_by_trip
+    ]
+    if any(
+        calculation.formula_version not in (PAYOUT_V2, PAYOUT_V3)
+        for calculation in latest_calculations
+    ):
+        raise payout_day_unsupported_formula()
+    currencies = {calculation.currency for calculation in latest_calculations}
+    if len(currencies) > 1:
+        raise payout_day_currency_mismatch()
+    day_currency = next(iter(currencies), None)
 
+    rule: CampaignPayoutRule | None = None
+    v2_params = None
+    if any(
+        calculation.formula_version == PAYOUT_V2
+        for calculation in latest_calculations
+    ):
+        rule = await resolve_payout_rule(
+            session, campaign_id=campaign_id, payout_rule_id=None
+        )
+        if rule.formula_version != PAYOUT_V2:
+            raise invalid_rule_values(
+                "recompute-day requires the governing rule to be payout_v2 for"
+                " the day's payout_v2 calculations"
+            )
+        if rule.currency != day_currency:
+            raise payout_day_currency_mismatch()
+        v2_params = effective_eligibility_params(settings, rule)
+
+    zone_state = await campaign_zone_state(session, campaign_id)
+
+    consumed = 0  # ONE shared chronological cap pool across engines (PR5).
+    targets: list[DayTripTarget] = []
     for trip in trips:
         calculation = calculations_by_trip.get(trip.id)
         if calculation is None:
@@ -2962,6 +3082,62 @@ async def recompute_payout_day(
             trip_payout_entry is not None
             and trip_payout_entry.status == EarningsLedgerEntryStatus.VOIDED.value
         )
+        formula_version = calculation.formula_version
+
+        binding: AssignmentRuleBinding | None = None
+        if formula_version == PAYOUT_V3:
+            binding = await binding_for_assignment(session, trip.assignment_id)
+            if binding is None:
+                raise AppError(
+                    "PAYOUT_BINDING_NOT_FOUND",
+                    "A payout_v3 calculation exists but its assignment has no"
+                    " frozen rule binding; resolve manually",
+                    status_code=status.HTTP_409_CONFLICT,
+                )
+            trip_cap_seconds = int(
+                Decimal(binding.daily_payable_hours_cap) * SECONDS_PER_HOUR
+            )
+            hourly_rate = Decimal(binding.hourly_rate_naira)
+            premium_hourly_rate = (
+                Decimal(binding.premium_hourly_rate_naira)
+                if binding.premium_hourly_rate_naira is not None
+                else None
+            )
+            v3_params = effective_eligibility_params_overlay(
+                settings, binding.eligibility_params
+            )
+            governing_values = {
+                "engine": PAYOUT_V3,
+                "binding_id": binding.id,
+                "revision_id": binding.revision_id,
+                "hourly_rate_naira": hourly_rate,
+                "premium_hourly_rate_naira": premium_hourly_rate,
+                "daily_payable_hours_cap": Decimal(binding.daily_payable_hours_cap),
+                # Resolved effective params, not just the frozen overlay: a
+                # settings change that shifts classification must drift the
+                # PR12 projection fingerprint.
+                "eligibility_params": v3_params.as_metadata(),
+                "frozen_eligibility_params": binding.eligibility_params or {},
+                "premium_zone_ids": list(binding.premium_zone_ids or []),
+                "premium_zone_geometry_hash": binding.premium_zone_geometry_hash,
+                "stationary_policy_marker": binding.stationary_policy_marker,
+                "currency": calculation.currency,
+            }
+        else:
+            trip_cap_seconds = daily_cap_seconds(rule)
+            hourly_rate = Decimal(rule.hourly_rate_naira)
+            premium_hourly_rate = None
+            governing_values = {
+                "engine": PAYOUT_V2,
+                "payout_rule_id": rule.id,
+                "hourly_rate_naira": hourly_rate,
+                "daily_payable_hours_cap": Decimal(rule.daily_payable_hours_cap),
+                "eligibility_params": v2_params.as_metadata(),
+                "currency": rule.currency,
+            }
+
+        ping_fingerprint: str | None = None
+        payable_by_day_tier: dict[str, dict[str, int]] | None = None
         # blocked stays 0 (fraud posture, S2); insufficient_data is priced
         # from a fresh classification — the admin escape hatch for trips whose
         # analytics healed after the write-once calculation (D9).
@@ -2969,29 +3145,42 @@ async def recompute_payout_day(
             eligible_seconds = 0
             payable_seconds = 0
             payable_by_day: dict[str, int] = {}
+            if formula_version == PAYOUT_V3:
+                payable_by_day_tier = {}
             target_amount = Decimal("0.00")
-        else:
+        elif formula_version == PAYOUT_V2:
             ping_rows = await load_eligibility_pings(
                 session, trip_id=trip.id, campaign_id=campaign_id
             )
+            ping_fingerprint = ping_set_fingerprint(ping_rows)
             breakdown = classify_session(
                 session_started_at=trip.started_at,
                 session_ended_at=trip.ended_at,
                 pings=[row.ping for row in ping_rows],
                 window_start_at=campaign.start_at,
                 window_end_at=campaign.end_at,
-                params=params,
+                params=v2_params,
             )
             eligible_seconds = breakdown.eligible_seconds
             # Re-allocate only the day being recomputed; the trip's seconds on
             # any other Lagos day keep their stored allocation, because those
-            # days' caps are not being re-run under this lock (RM1).
+            # days' caps are not being re-run under this lock (RM1). A prior
+            # true-up's breakdown supersedes the calculation row for those
+            # days (same chain as day_consumed_payable_seconds).
             day_eligible = breakdown.eligible_seconds_by_day.get(day_key, 0)
-            day_payable = max(0, min(day_eligible, cap_remaining))
-            cap_remaining -= day_payable
+            day_payable = max(0, min(day_eligible, trip_cap_seconds - consumed))
+            consumed += day_payable
+            prior_breakdown = await _latest_recompute_breakdown(session, trip.id)
+            if (
+                prior_breakdown is not None
+                and prior_breakdown.get("payable_seconds_by_day") is not None
+            ):
+                stored_by_day = prior_breakdown["payable_seconds_by_day"]
+            else:
+                stored_by_day = calculation.payable_seconds_by_day
             other_days = {
                 key: int(value)
-                for key, value in (calculation.payable_seconds_by_day or {}).items()
+                for key, value in (stored_by_day or {}).items()
                 if key != day_key
             }
             payable_by_day = dict(other_days)
@@ -2999,62 +3188,248 @@ async def recompute_payout_day(
                 payable_by_day[day_key] = day_payable
             payable_seconds = sum(payable_by_day.values())
             target_amount = price_payable_seconds(payable_seconds, hourly_rate)
+        else:
+            premium_zone_uuids = [
+                UUID(str(zone_id)) for zone_id in binding.premium_zone_ids or []
+            ]
+            ping_rows = await load_eligibility_pings(
+                session,
+                trip_id=trip.id,
+                campaign_id=campaign_id,
+                premium_zone_ids=premium_zone_uuids,
+            )
+            ping_fingerprint = ping_set_fingerprint(ping_rows)
+            breakdown = classify_session(
+                session_started_at=trip.started_at,
+                session_ended_at=trip.ended_at,
+                pings=[row.ping for row in ping_rows],
+                window_start_at=campaign.start_at,
+                window_end_at=campaign.end_at,
+                params=v3_params,
+            )
+            eligible_seconds = breakdown.eligible_seconds
+            # PR4 chronological fill of the recomputed day only: the trip's
+            # earliest eligible seconds on this day draw the shared pool
+            # first, whatever their tier.
+            remaining = max(0, trip_cap_seconds - consumed)
+            day_tiers = {"base": 0, "premium": 0}
+            for eligible_slice in breakdown.eligible_slices:
+                if eligible_slice.day != day_key:
+                    continue
+                take = min(eligible_slice.length, remaining)
+                if take <= 0:
+                    continue
+                remaining -= take
+                consumed += take
+                day_tiers["premium" if eligible_slice.premium else "base"] += take
+            # Other Lagos days keep their stored per-tier allocation — their
+            # caps are not re-run under this day's lock (RM1). A prior
+            # true-up's breakdown supersedes the calculation metadata (same
+            # chain as day_consumed_payable_seconds).
+            prior_breakdown = await _latest_recompute_breakdown(session, trip.id)
+            if (
+                prior_breakdown is not None
+                and prior_breakdown.get("payable_seconds_by_day_tier") is not None
+            ):
+                stored_tiers = prior_breakdown["payable_seconds_by_day_tier"]
+            else:
+                stored_tiers = (
+                    (calculation.payout_metadata or {}).get("cap") or {}
+                ).get("payable_seconds_by_day_tier") or {}
+            payable_by_day_tier = {
+                key: {
+                    "base": int(value.get("base", 0) or 0),
+                    "premium": int(value.get("premium", 0) or 0),
+                }
+                for key, value in stored_tiers.items()
+                if key != day_key
+            }
+            if day_tiers["base"] + day_tiers["premium"] > 0:
+                payable_by_day_tier[day_key] = day_tiers
+            payable_by_day = {
+                key: tiers["base"] + tiers["premium"]
+                for key, tiers in payable_by_day_tier.items()
+            }
+            payable_seconds = sum(payable_by_day.values())
+            base_seconds = sum(tiers["base"] for tiers in payable_by_day_tier.values())
+            premium_seconds = sum(
+                tiers["premium"] for tiers in payable_by_day_tier.values()
+            )
+            target_amount = price_tiered_payable_seconds(
+                base_seconds,
+                premium_seconds,
+                hourly_rate,
+                premium_hourly_rate if premium_hourly_rate is not None else hourly_rate,
+            )
 
         posted = await _posted_amount_for_trip(
             session,
             trip_session_id=trip.id,
             driver_profile_id=driver_profile_id,
-            currency=rule.currency,
+            currency=calculation.currency,
         )
         delta = quantize_2(target_amount - posted)
+        targets.append(
+            DayTripTarget(
+                trip_session_id=trip.id,
+                vehicle_id=trip.vehicle_id,
+                payout_calculation_id=calculation.id,
+                formula_version=formula_version,
+                currency=calculation.currency,
+                previous_posted_amount=posted,
+                target_amount=target_amount,
+                delta_amount=delta,
+                eligible_seconds=eligible_seconds,
+                payable_seconds=payable_seconds,
+                payable_by_day=payable_by_day,
+                payable_by_day_tier=payable_by_day_tier,
+                hourly_rate=hourly_rate,
+                premium_hourly_rate=premium_hourly_rate,
+                cap_seconds=trip_cap_seconds,
+                voided=voided,
+                current_ping_fingerprint=ping_fingerprint,
+                stored_inputs_fingerprint=calculation.inputs_fingerprint,
+                governing_values=governing_values,
+            )
+        )
+
+    return DayComputation(
+        campaign_id=campaign_id,
+        driver_profile_id=driver_profile_id,
+        lagos_date=lagos_date,
+        currency=day_currency,
+        trips=targets,
+        zone_state_fingerprint=zone_state.fingerprint,
+        window_start_at=campaign.start_at,
+        window_end_at=campaign.end_at,
+    )
+
+
+async def write_day_differentials(
+    session: AsyncSession,
+    *,
+    computation: DayComputation,
+    request_metadata: dict,
+    recompute_at: datetime,
+    correction_order_id: UUID | None = None,
+    release_at: datetime | None = None,
+) -> RecomputeDayOutcome:
+    """Execution mode of the PR6 core: posts append-only differential entries
+    for the computation's nonzero deltas — adjustment for upward deltas (freed
+    cap), positive reversal for downward deltas (netted negative in
+    summaries). Under a correction order (MNY-06C), positive deltas post as
+    PENDING with the order's own release_at (Q22); negative deltas keep the
+    reversal semantics — carry-forward debt when a reversal exceeds the
+    balance is MNY-11A's scope and is deliberately NOT implemented here.
+    Calculations are never edited; running twice with unchanged inputs posts
+    nothing.
+    """
+    campaign_id = computation.campaign_id
+    driver_profile_id = computation.driver_profile_id
+    lagos_date = computation.lagos_date
+    profile = await session.get(DriverProfile, driver_profile_id)
+    if profile is None:
+        raise AppError(
+            "DRIVER_PROFILE_NOT_FOUND",
+            "Driver profile was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    outcomes: list[RecomputeDayTripOutcome] = []
+    adjustment_count = 0
+    reversal_count = 0
+    recompute_run_id = str(
+        UUID(bytes=hashlib.sha256(
+            f"recompute:{campaign_id}:{driver_profile_id}:{lagos_date}:"
+            f"{recompute_at.isoformat()}".encode()
+        ).digest()[:16])
+    )
+
+    for target in computation.trips:
         entry: EarningsLedgerEntry | None = None
+        delta = target.delta_amount
         if delta != 0:
+            trip_payout_entry = await trip_payout_entry_for_trip(
+                session, target.trip_session_id
+            )
             entry_type = (
                 EarningsLedgerEntryType.ADJUSTMENT.value
                 if delta > 0
                 else EarningsLedgerEntryType.REVERSAL.value
             )
-            inherited_status = (
-                trip_payout_entry.status
-                if trip_payout_entry is not None
-                and trip_payout_entry.status != EarningsLedgerEntryStatus.VOIDED.value
-                else EarningsLedgerEntryStatus.PENDING.value
-            )
+            if delta > 0 and correction_order_id is not None:
+                # Q22: positive correction deltas post as pending with their
+                # own release date, never inheriting availability.
+                if release_at is None:
+                    raise correction_release_at_required()
+                entry_status = EarningsLedgerEntryStatus.PENDING.value
+            else:
+                entry_status = (
+                    trip_payout_entry.status
+                    if trip_payout_entry is not None
+                    and trip_payout_entry.status
+                    != EarningsLedgerEntryStatus.VOIDED.value
+                    else EarningsLedgerEntryStatus.PENDING.value
+                )
+            breakdown_metadata = {
+                "eligible_seconds": target.eligible_seconds,
+                "payable_seconds": target.payable_seconds,
+                "payable_seconds_by_day": target.payable_by_day,
+                "hourly_rate_naira": str(target.hourly_rate),
+                "cap_seconds": target.cap_seconds,
+                "target_amount": str(target.target_amount),
+                "previous_posted_amount": str(target.previous_posted_amount),
+                "delta_amount": str(delta),
+            }
+            if target.payable_by_day_tier is not None:
+                breakdown_metadata["payable_seconds_by_day_tier"] = (
+                    target.payable_by_day_tier
+                )
+                breakdown_metadata["premium_hourly_rate_naira"] = (
+                    str(target.premium_hourly_rate)
+                    if target.premium_hourly_rate is not None
+                    else None
+                )
+            ledger_metadata = {
+                "recompute_day": True,
+                "recompute_run_id": recompute_run_id,
+                "lagos_day": lagos_date.isoformat(),
+                "payout_calculation_id": str(target.payout_calculation_id),
+                "formula_version": target.formula_version,
+                "breakdown": breakdown_metadata,
+                "request_metadata": request_metadata,
+            }
+            if target.formula_version == PAYOUT_V3:
+                ledger_metadata["binding_id"] = str(
+                    target.governing_values["binding_id"]
+                )
+                ledger_metadata["revision_id"] = str(
+                    target.governing_values["revision_id"]
+                )
+            if correction_order_id is not None:
+                ledger_metadata["correction_order_id"] = str(correction_order_id)
             entry = EarningsLedgerEntry(
                 payout_calculation_id=None,
                 driver_profile_id=driver_profile_id,
                 driver_user_id=profile.user_id,
                 campaign_id=campaign_id,
-                trip_session_id=trip.id,
-                vehicle_id=trip.vehicle_id,
+                trip_session_id=target.trip_session_id,
+                vehicle_id=target.vehicle_id,
                 entry_type=entry_type,
-                status=inherited_status,
+                status=entry_status,
                 amount=abs(delta),
-                currency=rule.currency,
+                currency=target.currency,
                 description=(
                     "Day true-up adjustment"
                     if delta > 0
                     else "Day true-up reversal"
                 ),
                 occurred_at=recompute_at,
-                ledger_metadata={
-                    "recompute_day": True,
-                    "recompute_run_id": recompute_run_id,
-                    "lagos_day": lagos_date.isoformat(),
-                    "payout_calculation_id": str(calculation.id),
-                    "formula_version": PAYOUT_V2,
-                    "breakdown": {
-                        "eligible_seconds": eligible_seconds,
-                        "payable_seconds": payable_seconds,
-                        "payable_seconds_by_day": payable_by_day,
-                        "hourly_rate_naira": str(hourly_rate),
-                        "cap_seconds": cap_seconds,
-                        "target_amount": str(target_amount),
-                        "previous_posted_amount": str(posted),
-                        "delta_amount": str(delta),
-                    },
-                    "request_metadata": request_metadata,
-                },
+                release_at=(
+                    release_at
+                    if delta > 0 and correction_order_id is not None
+                    else None
+                ),
+                ledger_metadata=ledger_metadata,
             )
             session.add(entry)
             await session.flush()
@@ -3064,15 +3439,15 @@ async def recompute_payout_day(
                 reversal_count += 1
         outcomes.append(
             RecomputeDayTripOutcome(
-                trip_session_id=trip.id,
-                payout_calculation_id=calculation.id,
-                previous_posted_amount=posted,
-                target_amount=target_amount,
+                trip_session_id=target.trip_session_id,
+                payout_calculation_id=target.payout_calculation_id,
+                previous_posted_amount=target.previous_posted_amount,
+                target_amount=target.target_amount,
                 delta_amount=delta,
-                eligible_seconds=eligible_seconds,
-                payable_seconds=payable_seconds,
+                eligible_seconds=target.eligible_seconds,
+                payable_seconds=target.payable_seconds,
                 entry=entry,
-                voided=voided,
+                voided=target.voided,
             )
         )
 
@@ -3080,10 +3455,40 @@ async def recompute_payout_day(
         campaign_id=campaign_id,
         driver_profile_id=driver_profile_id,
         lagos_date=lagos_date,
-        cap_seconds=cap_seconds,
+        cap_seconds=max((target.cap_seconds for target in computation.trips), default=0),
         trips=outcomes,
         adjustment_count=adjustment_count,
         reversal_count=reversal_count,
+    )
+
+
+async def recompute_payout_day(
+    session: AsyncSession,
+    *,
+    campaign_id: UUID,
+    driver_profile_id: UUID,
+    lagos_date: date,
+    request_metadata: dict,
+    settings: Settings,
+    now: datetime | None = None,
+) -> RecomputeDayOutcome:
+    """Admin day true-up (16.1 amendment, next-steps S1 decision 6), now the
+    PR6 core in execution mode. Direct API access is retired (PR7): every
+    retroactive recompute runs through an approved correction order, whose
+    executor calls the core and writer with the order's id and release_at."""
+    recompute_at = now or utc_now()
+    computation = await compute_payout_day_targets(
+        session,
+        campaign_id=campaign_id,
+        driver_profile_id=driver_profile_id,
+        lagos_date=lagos_date,
+        settings=settings,
+    )
+    return await write_day_differentials(
+        session,
+        computation=computation,
+        request_metadata=request_metadata,
+        recompute_at=recompute_at,
     )
 
 

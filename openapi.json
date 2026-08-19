@@ -6267,6 +6267,280 @@
         "title": "PayoutCalculationStatus",
         "type": "string"
       },
+      "PayoutCorrectionOrderCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "lagos_day": {
+            "format": "date",
+            "title": "Lagos Day",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "lagos_day",
+          "reason"
+        ],
+        "title": "PayoutCorrectionOrderCreate",
+        "type": "object"
+      },
+      "PayoutCorrectionOrderExecuteRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "release_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Release At"
+          }
+        },
+        "title": "PayoutCorrectionOrderExecuteRequest",
+        "type": "object"
+      },
+      "PayoutCorrectionOrderListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PayoutCorrectionOrderRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "PayoutCorrectionOrderListResponse",
+        "type": "object"
+      },
+      "PayoutCorrectionOrderRead": {
+        "properties": {
+          "approved_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By User Id"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by_user_id": {
+            "format": "uuid",
+            "title": "Created By User Id",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "executed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executed At"
+          },
+          "executed_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executed By User Id"
+          },
+          "execution_result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Result"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lagos_day": {
+            "format": "date",
+            "title": "Lagos Day",
+            "type": "string"
+          },
+          "projected_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projected At"
+          },
+          "projected_delta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projected Delta"
+          },
+          "projection_fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projection Fingerprint"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PayoutCorrectionOrderStatus"
+          }
+        },
+        "required": [
+          "id",
+          "campaign_id",
+          "lagos_day",
+          "status",
+          "created_by_user_id",
+          "approved_by_user_id",
+          "executed_by_user_id",
+          "reason",
+          "projected_delta",
+          "projection_fingerprint",
+          "projected_at",
+          "decided_at",
+          "executed_at",
+          "execution_result",
+          "created_at"
+        ],
+        "title": "PayoutCorrectionOrderRead",
+        "type": "object"
+      },
+      "PayoutCorrectionOrderStatus": {
+        "enum": [
+          "draft",
+          "pending_approval",
+          "approved",
+          "rejected",
+          "executed",
+          "stale"
+        ],
+        "title": "PayoutCorrectionOrderStatus",
+        "type": "string"
+      },
+      "PayoutDayProjection": {
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "lagos_day": {
+            "format": "date",
+            "title": "Lagos Day",
+            "type": "string"
+          },
+          "projected_delta": {
+            "additionalProperties": true,
+            "title": "Projected Delta",
+            "type": "object"
+          },
+          "projection_fingerprint": {
+            "title": "Projection Fingerprint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "lagos_day",
+          "projected_delta",
+          "projection_fingerprint"
+        ],
+        "title": "PayoutDayProjection",
+        "type": "object"
+      },
       "PayoutLedgerEntrySummary": {
         "properties": {
           "amount": {
@@ -10985,8 +11259,463 @@
         ]
       }
     },
+    "/api/v1/admin/payouts/correction-orders": {
+      "get": {
+        "operationId": "admin_list_correction_orders_api_v1_admin_payouts_correction_orders_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campaign_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PayoutCorrectionOrderStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutCorrectionOrderListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List payout correction orders",
+        "tags": [
+          "Payouts"
+        ]
+      },
+      "post": {
+        "operationId": "admin_create_correction_order_api_v1_admin_payouts_correction_orders_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutCorrectionOrderCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutCorrectionOrderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Project a campaign/Lagos-day correction into a draft order",
+        "tags": [
+          "Payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/payouts/correction-orders/{order_id}": {
+      "get": {
+        "operationId": "admin_get_correction_order_api_v1_admin_payouts_correction_orders__order_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutCorrectionOrderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Read one payout correction order",
+        "tags": [
+          "Payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/payouts/correction-orders/{order_id}/approve": {
+      "post": {
+        "operationId": "admin_approve_correction_order_api_v1_admin_payouts_correction_orders__order_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutCorrectionOrderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Approve a correction order (approver must differ from creator)",
+        "tags": [
+          "Payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/payouts/correction-orders/{order_id}/execute": {
+      "post": {
+        "operationId": "admin_execute_correction_order_api_v1_admin_payouts_correction_orders__order_id__execute_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/PayoutCorrectionOrderExecuteRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutCorrectionOrderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Execute an approved correction order (idempotent)",
+        "tags": [
+          "Payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/payouts/correction-orders/{order_id}/reject": {
+      "post": {
+        "operationId": "admin_reject_correction_order_api_v1_admin_payouts_correction_orders__order_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutCorrectionOrderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Reject a pending correction order",
+        "tags": [
+          "Payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/payouts/correction-orders/{order_id}/submit": {
+      "post": {
+        "operationId": "admin_submit_correction_order_api_v1_admin_payouts_correction_orders__order_id__submit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutCorrectionOrderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Submit a draft correction order for approval",
+        "tags": [
+          "Payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/payouts/day-projection": {
+      "get": {
+        "description": "Side-effect-free replacement for the retired direct recompute: the PR6\ncore in dry-run mode. Writes nothing and changes no order state.",
+        "operationId": "admin_project_payout_day_api_v1_admin_payouts_day_projection_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lagos_day",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "Lagos Day",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutDayProjection"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Dry-run projection of one campaign/Lagos-day recompute",
+        "tags": [
+          "Payouts"
+        ]
+      }
+    },
     "/api/v1/admin/payouts/recompute-day": {
       "post": {
+        "description": "PR7: the direct execute path is retired. Every retroactive recompute \u2014\nregardless of delta sign \u2014 runs through an approved maker-checker\ncorrection order. The route stays registered so the contract and the\naudit-coverage table remain consistent; it always answers 409.",
         "operationId": "admin_recompute_payout_day_api_v1_admin_payouts_recompute_day_post",
         "requestBody": {
           "content": {
@@ -11025,7 +11754,7 @@
             "OAuth2PasswordBearer": []
           }
         ],
-        "summary": "Recompute one driver/campaign/Lagos-day cap allocation",
+        "summary": "Retired: direct day recompute now requires a correction order",
         "tags": [
           "Payouts"
         ]

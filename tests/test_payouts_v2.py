@@ -696,14 +696,17 @@ def test_recompute_day_refuses_v1_campaigns_and_mixed_days(
     )
     run_pipeline(postgis_db_sessionmaker, graph.trip.id, settings)
 
-    # v1-governed campaign -> 400.
+    # The v2-vs-v3 mixed-day refusal is retired (MNY-06C/PR6): both engines
+    # now recompute under one shared cap pool. A payout_v1 calculation still
+    # refuses — it has no seconds-based repricing model.
     try:
         run_recompute(postgis_db_sessionmaker, settings, graph)
-        raise AssertionError("expected INVALID_PAYOUT_RULE")
+        raise AssertionError("expected PAYOUT_DAY_UNSUPPORTED_FORMULA")
     except AppError as exc:
-        assert exc.code == "INVALID_PAYOUT_RULE"
+        assert exc.code == "PAYOUT_DAY_UNSUPPORTED_FORMULA"
 
-    # Switch to v2: the day now holds a v1 calculation -> mixed-day refusal.
+    # Switching the campaign to v2 does not legitimise the day: it still
+    # holds the v1 calculation.
     deactivate_rules(postgis_db_sessionmaker, graph.campaign.id)
     graph.rule = create_v2_rule(
         postgis_db_sessionmaker,
@@ -712,9 +715,9 @@ def test_recompute_day_refuses_v1_campaigns_and_mixed_days(
     )
     try:
         run_recompute(postgis_db_sessionmaker, settings, graph)
-        raise AssertionError("expected PAYOUT_DAY_MIXED_FORMULAS")
+        raise AssertionError("expected PAYOUT_DAY_UNSUPPORTED_FORMULA")
     except AppError as exc:
-        assert exc.code == "PAYOUT_DAY_MIXED_FORMULAS"
+        assert exc.code == "PAYOUT_DAY_UNSUPPORTED_FORMULA"
 
 
 # --- Driver breakdown + API surface ------------------------------------------
@@ -866,11 +869,14 @@ def test_breakdown_permissions_and_ownership(db_client, db_sessionmaker, setting
     )
 
 
-def test_recompute_day_endpoint_permissions_and_audit(
+def test_recompute_day_endpoint_is_retired_behind_correction_orders(
     postgis_db_client, postgis_db_sessionmaker, settings
 ) -> None:
+    """PR7: the direct execute path always answers 409 and mutates nothing —
+    retroactive recomputes run only through approved correction orders."""
     graph = build_v2_graph(postgis_db_sessionmaker, "rc-api")
     pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
+    entries_before = len(fetch_earnings_ledger_entries(postgis_db_sessionmaker))
 
     body = {
         "campaign_id": str(graph.campaign.id),
@@ -893,20 +899,18 @@ def test_recompute_day_endpoint_permissions_and_audit(
     response = postgis_db_client.post(
         "/api/v1/admin/payouts/recompute-day", json=body, headers=admin_headers
     )
-    assert response.status_code == http_status.HTTP_200_OK
-    payload = response.json()
-    assert payload["adjustment_count"] == 0
-    assert payload["reversal_count"] == 0
-    assert payload["trips"][0]["delta_amount"] == "0.00"
+    assert response.status_code == http_status.HTTP_409_CONFLICT
+    assert response.json()["error"]["code"] == "RECOMPUTE_REQUIRES_CORRECTION_ORDER"
 
-    events = [
+    # No money movement, no legacy audit event.
+    assert (
+        len(fetch_earnings_ledger_entries(postgis_db_sessionmaker)) == entries_before
+    )
+    assert not [
         event
         for event in fetch_audit_events(postgis_db_sessionmaker)
         if event.action == "admin.payout_day.recomputed"
     ]
-    assert len(events) == 1
-    assert events[0].event_metadata["campaign_id"] == str(graph.campaign.id)
-    assert events[0].event_metadata["trips"][0]["delta_amount"] == "0.00"
 
 
 # --- Rule CRUD API (model XOR) -----------------------------------------------

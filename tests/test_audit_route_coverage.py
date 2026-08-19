@@ -73,7 +73,22 @@ AUDITED = {
     ("POST", "/api/v1/admin/trips/{trip_id}/calculate-payout"): (
         "admin.payout_calculation.created"
     ),
-    ("POST", "/api/v1/admin/payouts/recompute-day"): "admin.payout_day.recomputed",
+    # MNY-06C maker-checker correction orders (Q22):
+    ("POST", "/api/v1/admin/payouts/correction-orders"): (
+        "admin.payout_correction_order.created"
+    ),
+    ("POST", "/api/v1/admin/payouts/correction-orders/{order_id}/submit"): (
+        "admin.payout_correction_order.submitted"
+    ),
+    ("POST", "/api/v1/admin/payouts/correction-orders/{order_id}/approve"): (
+        "admin.payout_correction_order.approved"
+    ),
+    ("POST", "/api/v1/admin/payouts/correction-orders/{order_id}/reject"): (
+        "admin.payout_correction_order.rejected"
+    ),
+    ("POST", "/api/v1/admin/payouts/correction-orders/{order_id}/execute"): (
+        "admin.payout_correction_order.executed"
+    ),
     # S4 backfill (§6.4.9):
     ("POST", "/api/v1/driver/trips/start"): "driver.trip.started",
     ("POST", "/api/v1/driver/trips/{trip_id}/end"): "driver.trip.ended",
@@ -100,6 +115,13 @@ AUDITED = {
 }
 
 EXEMPT = {
+    ("POST", "/api/v1/admin/payouts/recompute-day"): (
+        "Retired endpoint (MNY-06C/PR7): the direct day-recompute execute"
+        " path always answers 409 RECOMPUTE_REQUIRES_CORRECTION_ORDER and"
+        " performs no mutation — retroactive recomputes execute only through"
+        " the audited correction-order endpoints above. The route stays"
+        " registered so the API contract remains stable for old clients."
+    ),
     ("POST", "/api/v1/driver/trips/{trip_id}/pings"): (
         "Approved architecture exception (S4): high-volume telemetry —"
         " one batch per ~10-15s per active vehicle would make the"

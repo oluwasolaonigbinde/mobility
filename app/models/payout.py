@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any
@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import (
     JSON,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -45,6 +46,15 @@ class EarningsLedgerEntryStatus(StrEnum):
     AVAILABLE = "available"
     VOIDED = "voided"
     REVERSED = "reversed"
+
+
+class PayoutCorrectionOrderStatus(StrEnum):
+    DRAFT = "draft"
+    PENDING_APPROVAL = "pending_approval"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    EXECUTED = "executed"
+    STALE = "stale"
 
 
 PAYOUT_RULE_MODEL_XOR_SQL = (
@@ -344,6 +354,69 @@ class AssignmentRuleBinding(Base):
     )
 
 
+class PayoutCorrectionOrder(Base):
+    """Maker-checker retroactive recompute authority (MNY-06C, Q22).
+
+    A named adjuster PROJECTS a campaign/Lagos-day correction (the PR6 core in
+    dry-run) into a draft order; a DIFFERENT admin approves it (enforced at
+    the service layer and by the approver CHECK below); execution re-verifies
+    the PR12 projection fingerprint and runs the same core in execution mode.
+    States: draft -> pending_approval -> approved -> executed, with rejected
+    (from pending_approval) and stale (fingerprint drift detected at approve
+    or execute) as terminal ends — a stale order is never revived, re-project
+    a new one. Executed orders are idempotent: re-execution returns the
+    recorded execution_result and never recomputes.
+    """
+
+    __tablename__ = "payout_correction_orders"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('draft', 'pending_approval', 'approved', 'rejected',"
+            " 'executed', 'stale')",
+            name="ck_payout_correction_orders_status",
+        ),
+        CheckConstraint(
+            "approved_by_user_id IS NULL OR approved_by_user_id <> created_by_user_id",
+            name="ck_payout_correction_orders_approver_not_creator",
+        ),
+        Index("ix_payout_correction_orders_campaign_id", "campaign_id"),
+        Index(
+            "ix_payout_correction_orders_campaign_day",
+            "campaign_id",
+            "lagos_day",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        default=uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    campaign_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaigns.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    lagos_day: Mapped[date] = mapped_column(Date, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id"), nullable=False
+    )
+    approved_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
+    executed_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    projected_delta: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    projection_fingerprint: Mapped[str | None] = mapped_column(Text)
+    projected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    execution_result: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
 class PayoutCalculation(Base):
     __tablename__ = "payout_calculations"
     __table_args__ = (
@@ -584,6 +657,11 @@ class EarningsLedgerEntry(Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Q22 (MNY-06C): positive correction-order deltas post as PENDING with
+    # their own release date stored here. NOTHING consumes release_at yet —
+    # the release sweep that moves pending entries to available on this date
+    # is MNY-03A (PKG-02) scope; until then the column is evidence only.
+    release_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ledger_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
         JSON,

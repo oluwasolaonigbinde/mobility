@@ -17,7 +17,9 @@ from app.models.payout import (
     EarningsLedgerEntryStatus,
     EarningsLedgerEntryType,
     PayoutCalculationStatus,
+    PayoutCorrectionOrderStatus,
 )
+from app.schemas.campaigns import ensure_timezone_aware
 
 REQUIRED_PAYOUT_RULE_UPDATE_FIELDS = {
     "status",
@@ -432,6 +434,71 @@ class RecomputePayoutDayResult(BaseModel):
     trips: list[RecomputeDayTripResult]
     adjustment_count: int
     reversal_count: int
+
+
+class PayoutCorrectionOrderCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: UUID
+    lagos_day: date
+    reason: str
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("reason must not be empty")
+        return trimmed
+
+
+class PayoutCorrectionOrderExecuteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Q22: positive deltas post as pending with their OWN release date — no
+    # default is invented, so executing an order with positive deltas without
+    # release_at fails with 400.
+    release_at: datetime | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("release_at")
+    @classmethod
+    def validate_release_at(cls, value: datetime | None) -> datetime | None:
+        return ensure_timezone_aware(value)
+
+
+class PayoutCorrectionOrderRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    campaign_id: UUID
+    lagos_day: date
+    status: PayoutCorrectionOrderStatus
+    created_by_user_id: UUID
+    approved_by_user_id: UUID | None
+    executed_by_user_id: UUID | None
+    reason: str
+    projected_delta: dict[str, Any] | None
+    projection_fingerprint: str | None
+    projected_at: datetime | None
+    decided_at: datetime | None
+    executed_at: datetime | None
+    execution_result: dict[str, Any] | None
+    created_at: datetime
+
+
+class PayoutCorrectionOrderListResponse(BaseModel):
+    items: list[PayoutCorrectionOrderRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class PayoutDayProjection(BaseModel):
+    campaign_id: UUID
+    lagos_day: date
+    projected_delta: dict[str, Any]
+    projection_fingerprint: str
 
 
 class DriverTripEarningsCapProgress(BaseModel):

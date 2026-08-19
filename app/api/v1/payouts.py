@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -21,6 +21,8 @@ from app.models.payout import (
     EarningsLedgerEntryType,
     PayoutCalculation,
     PayoutCalculationStatus,
+    PayoutCorrectionOrder,
+    PayoutCorrectionOrderStatus,
 )
 from app.schemas.campaigns import ensure_timezone_aware
 from app.schemas.payouts import (
@@ -42,12 +44,26 @@ from app.schemas.payouts import (
     EarningsLedgerEntryRead,
     PayoutCalculationListResponse,
     PayoutCalculationRead,
+    PayoutCorrectionOrderCreate,
+    PayoutCorrectionOrderExecuteRequest,
+    PayoutCorrectionOrderListResponse,
+    PayoutCorrectionOrderRead,
+    PayoutDayProjection,
     PayoutLedgerEntrySummary,
-    RecomputeDayTripResult,
     RecomputePayoutDayRequest,
     RecomputePayoutDayResult,
 )
 from app.services.audit import create_audit_event
+from app.services.payout_corrections import (
+    approve_correction_order,
+    create_correction_order,
+    execute_correction_order,
+    get_correction_order,
+    list_correction_orders,
+    project_campaign_day,
+    reject_correction_order,
+    submit_correction_order,
+)
 from app.services.payouts import (
     advertiser_campaign_cost_summary,
     calculate_trip_payout,
@@ -61,7 +77,7 @@ from app.services.payouts import (
     list_driver_ledger_entries,
     list_payout_calculations,
     list_payout_rule_revisions,
-    recompute_payout_day,
+    recompute_requires_correction_order,
     update_campaign_payout_rule,
 )
 
@@ -603,7 +619,7 @@ async def advertiser_get_campaign_cost_summary(
 @router.post(
     "/admin/payouts/recompute-day",
     response_model=RecomputePayoutDayResult,
-    summary="Recompute one driver/campaign/Lagos-day cap allocation",
+    summary="Retired: direct day recompute now requires a correction order",
 )
 async def admin_recompute_payout_day(
     payload: RecomputePayoutDayRequest,
@@ -611,68 +627,305 @@ async def admin_recompute_payout_day(
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> RecomputePayoutDayResult:
-    outcome = await recompute_payout_day(
+    """PR7: the direct execute path is retired. Every retroactive recompute —
+    regardless of delta sign — runs through an approved maker-checker
+    correction order. The route stays registered so the contract and the
+    audit-coverage table remain consistent; it always answers 409."""
+    del payload, current_user, session, settings
+    raise recompute_requires_correction_order()
+
+
+def correction_order_response(order: PayoutCorrectionOrder) -> PayoutCorrectionOrderRead:
+    return PayoutCorrectionOrderRead(
+        id=order.id,
+        campaign_id=order.campaign_id,
+        lagos_day=order.lagos_day,
+        status=PayoutCorrectionOrderStatus(order.status),
+        created_by_user_id=order.created_by_user_id,
+        approved_by_user_id=order.approved_by_user_id,
+        executed_by_user_id=order.executed_by_user_id,
+        reason=order.reason,
+        projected_delta=order.projected_delta,
+        projection_fingerprint=order.projection_fingerprint,
+        projected_at=order.projected_at,
+        decided_at=order.decided_at,
+        executed_at=order.executed_at,
+        execution_result=order.execution_result,
+        created_at=order.created_at,
+    )
+
+
+def correction_order_audit_values(order: PayoutCorrectionOrder) -> dict:
+    """Value-complete audit payload (C4): the order's full state, money
+    amounts as Decimal strings inside projected_delta/execution_result."""
+    return {
+        "campaign_id": str(order.campaign_id),
+        "lagos_day": order.lagos_day.isoformat(),
+        "status": order.status,
+        "reason": order.reason,
+        "created_by_user_id": str(order.created_by_user_id),
+        "approved_by_user_id": (
+            str(order.approved_by_user_id)
+            if order.approved_by_user_id is not None
+            else None
+        ),
+        "executed_by_user_id": (
+            str(order.executed_by_user_id)
+            if order.executed_by_user_id is not None
+            else None
+        ),
+        "projection_fingerprint": order.projection_fingerprint,
+        "projected_delta": order.projected_delta,
+        "projected_at": (
+            order.projected_at.isoformat() if order.projected_at is not None else None
+        ),
+        "decided_at": (
+            order.decided_at.isoformat() if order.decided_at is not None else None
+        ),
+        "executed_at": (
+            order.executed_at.isoformat() if order.executed_at is not None else None
+        ),
+        "execution_result": order.execution_result,
+    }
+
+
+@router.get(
+    "/admin/payouts/day-projection",
+    response_model=PayoutDayProjection,
+    summary="Dry-run projection of one campaign/Lagos-day recompute",
+)
+async def admin_project_payout_day(
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+    campaign_id: UUID,
+    lagos_day: date,
+) -> PayoutDayProjection:
+    """Side-effect-free replacement for the retired direct recompute: the PR6
+    core in dry-run mode. Writes nothing and changes no order state."""
+    del current_user
+    projection = await project_campaign_day(
+        session, campaign_id=campaign_id, lagos_day=lagos_day, settings=settings
+    )
+    return PayoutDayProjection(
+        campaign_id=campaign_id,
+        lagos_day=lagos_day,
+        projected_delta=projection.projected_delta,
+        projection_fingerprint=projection.fingerprint,
+    )
+
+
+@router.post(
+    "/admin/payouts/correction-orders",
+    response_model=PayoutCorrectionOrderRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Project a campaign/Lagos-day correction into a draft order",
+)
+async def admin_create_correction_order(
+    payload: PayoutCorrectionOrderCreate,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> PayoutCorrectionOrderRead:
+    order = await create_correction_order(
         session,
         campaign_id=payload.campaign_id,
-        driver_profile_id=payload.driver_profile_id,
-        lagos_date=payload.lagos_date,
-        request_metadata=payload.metadata,
+        lagos_day=payload.lagos_day,
+        reason=payload.reason,
+        created_by_user_id=current_user.id,
         settings=settings,
     )
     await create_audit_event(
         session,
         actor_user_id=current_user.id,
-        action="admin.payout_day.recomputed",
-        entity_type="payout_day",
-        entity_id=(
-            f"{payload.campaign_id}:{payload.driver_profile_id}:{payload.lagos_date}"
-        ),
+        action="admin.payout_correction_order.created",
+        entity_type="payout_correction_order",
+        entity_id=str(order.id),
         metadata={
-            "campaign_id": str(payload.campaign_id),
-            "driver_profile_id": str(payload.driver_profile_id),
-            "lagos_date": payload.lagos_date.isoformat(),
-            "cap_seconds": outcome.cap_seconds,
-            "adjustment_count": outcome.adjustment_count,
-            "reversal_count": outcome.reversal_count,
-            "trips": [
-                {
-                    "trip_session_id": str(trip.trip_session_id),
-                    "previous_posted_amount": str(trip.previous_posted_amount),
-                    "target_amount": str(trip.target_amount),
-                    "delta_amount": str(trip.delta_amount),
-                    "eligible_seconds": trip.eligible_seconds,
-                    "payable_seconds": trip.payable_seconds,
-                    "entry_id": str(trip.entry.id) if trip.entry is not None else None,
-                    "voided": trip.voided,
-                }
-                for trip in outcome.trips
-            ],
+            "status_before": None,
+            "status_after": order.status,
+            **correction_order_audit_values(order),
         },
     )
     await session.commit()
-    return RecomputePayoutDayResult(
-        campaign_id=outcome.campaign_id,
-        driver_profile_id=outcome.driver_profile_id,
-        lagos_date=outcome.lagos_date,
-        cap_seconds=outcome.cap_seconds,
-        trips=[
-            RecomputeDayTripResult(
-                trip_session_id=trip.trip_session_id,
-                payout_calculation_id=trip.payout_calculation_id,
-                previous_posted_amount=trip.previous_posted_amount,
-                target_amount=trip.target_amount,
-                delta_amount=trip.delta_amount,
-                eligible_seconds=trip.eligible_seconds,
-                payable_seconds=trip.payable_seconds,
-                entry_id=trip.entry.id if trip.entry is not None else None,
-                entry_type=trip.entry.entry_type if trip.entry is not None else None,
-                voided=trip.voided,
-            )
-            for trip in outcome.trips
-        ],
-        adjustment_count=outcome.adjustment_count,
-        reversal_count=outcome.reversal_count,
+    return correction_order_response(order)
+
+
+@router.get(
+    "/admin/payouts/correction-orders",
+    response_model=PayoutCorrectionOrderListResponse,
+    summary="List payout correction orders",
+)
+async def admin_list_correction_orders(
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    campaign_id: UUID | None = None,
+    status: PayoutCorrectionOrderStatus | None = None,
+) -> PayoutCorrectionOrderListResponse:
+    del current_user
+    orders, total = await list_correction_orders(
+        session,
+        limit=limit,
+        offset=offset,
+        campaign_id=campaign_id,
+        order_status=status,
     )
+    return PayoutCorrectionOrderListResponse(
+        items=[correction_order_response(order) for order in orders],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get(
+    "/admin/payouts/correction-orders/{order_id}",
+    response_model=PayoutCorrectionOrderRead,
+    summary="Read one payout correction order",
+)
+async def admin_get_correction_order(
+    order_id: UUID,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+) -> PayoutCorrectionOrderRead:
+    del current_user
+    order = await get_correction_order(session, order_id)
+    return correction_order_response(order)
+
+
+@router.post(
+    "/admin/payouts/correction-orders/{order_id}/submit",
+    response_model=PayoutCorrectionOrderRead,
+    summary="Submit a draft correction order for approval",
+)
+async def admin_submit_correction_order(
+    order_id: UUID,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+) -> PayoutCorrectionOrderRead:
+    order = await submit_correction_order(
+        session, order_id=order_id, actor_user_id=current_user.id
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=current_user.id,
+        action="admin.payout_correction_order.submitted",
+        entity_type="payout_correction_order",
+        entity_id=str(order.id),
+        metadata={
+            "status_before": PayoutCorrectionOrderStatus.DRAFT.value,
+            "status_after": order.status,
+            **correction_order_audit_values(order),
+        },
+    )
+    await session.commit()
+    return correction_order_response(order)
+
+
+@router.post(
+    "/admin/payouts/correction-orders/{order_id}/approve",
+    response_model=PayoutCorrectionOrderRead,
+    summary="Approve a correction order (approver must differ from creator)",
+)
+async def admin_approve_correction_order(
+    order_id: UUID,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> PayoutCorrectionOrderRead:
+    order = await approve_correction_order(
+        session, order_id=order_id, actor_user_id=current_user.id, settings=settings
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=current_user.id,
+        action="admin.payout_correction_order.approved",
+        entity_type="payout_correction_order",
+        entity_id=str(order.id),
+        metadata={
+            "status_before": PayoutCorrectionOrderStatus.PENDING_APPROVAL.value,
+            "status_after": order.status,
+            **correction_order_audit_values(order),
+        },
+    )
+    await session.commit()
+    return correction_order_response(order)
+
+
+@router.post(
+    "/admin/payouts/correction-orders/{order_id}/reject",
+    response_model=PayoutCorrectionOrderRead,
+    summary="Reject a pending correction order",
+)
+async def admin_reject_correction_order(
+    order_id: UUID,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+) -> PayoutCorrectionOrderRead:
+    order = await reject_correction_order(
+        session, order_id=order_id, actor_user_id=current_user.id
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=current_user.id,
+        action="admin.payout_correction_order.rejected",
+        entity_type="payout_correction_order",
+        entity_id=str(order.id),
+        metadata={
+            "status_before": PayoutCorrectionOrderStatus.PENDING_APPROVAL.value,
+            "status_after": order.status,
+            "rejected_by_user_id": str(current_user.id),
+            **correction_order_audit_values(order),
+        },
+    )
+    await session.commit()
+    return correction_order_response(order)
+
+
+@router.post(
+    "/admin/payouts/correction-orders/{order_id}/execute",
+    response_model=PayoutCorrectionOrderRead,
+    summary="Execute an approved correction order (idempotent)",
+)
+async def admin_execute_correction_order(
+    order_id: UUID,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+    payload: Annotated[PayoutCorrectionOrderExecuteRequest | None, Body()] = None,
+) -> PayoutCorrectionOrderRead:
+    request = payload or PayoutCorrectionOrderExecuteRequest()
+    order, executed_now = await execute_correction_order(
+        session,
+        order_id=order_id,
+        actor_user_id=current_user.id,
+        release_at=request.release_at,
+        request_metadata=request.metadata,
+        settings=settings,
+    )
+    if executed_now:
+        await create_audit_event(
+            session,
+            actor_user_id=current_user.id,
+            action="admin.payout_correction_order.executed",
+            entity_type="payout_correction_order",
+            entity_id=str(order.id),
+            metadata={
+                "status_before": PayoutCorrectionOrderStatus.APPROVED.value,
+                "status_after": order.status,
+                "release_at": (
+                    request.release_at.isoformat()
+                    if request.release_at is not None
+                    else None
+                ),
+                **correction_order_audit_values(order),
+            },
+        )
+        await session.commit()
+    # Idempotent replay: no mutation happened, return the recorded result.
+    return correction_order_response(order)
 
 
 @router.get(
