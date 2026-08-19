@@ -1225,6 +1225,7 @@ otherwise synthetic/provider-neutral checklist item or its package.
 | **EXT-DISBURSEMENT-PROVIDER** | MISSING | Approved automated bank-transfer provider, account, sandbox, signing/webhook credentials and production approval | — | Provider-neutral MNY-10B/C can build/test; financially effective submission and W4-03B cannot proceed |
 | **EXT-AD-PLATFORM** | MISSING | Named ad-platform accounts, legal approval, API access/credentials and activation budget for aggregate geography/time/context activation | — | W3-01D can build/test provider-neutrally; any live aggregate contextual push remains disabled; person-level activation is outside the pilot |
 | **EXT-PILOT-PERMITS** | MISSING | Abuja permit/authority evidence for the selected vehicles/campaigns | — | D19 assigns Terrax ownership and vendor coordination; W4-03B/launch remains blocked until evidence is approved |
+| **EXT-RM2-CALIBRATION-DATA** | MISSING | P1 parked-jitter and P2 Abuja-congestion field corpora (devices, participants, locations) per the owner-authorized 19 Aug 2026 Option-A collection program | — | Feeds the FND-02A final numeric selection that resolves `EXT-RM2-POLICY`; capture spec + P3 tooling on `feat/pkg-01-fnd02a-calibration`; blocks no checklist item's build entry directly |
 
 Post-pilot work remains explicitly deferred: the native background driver app
 and store distribution, expanded recurring billing, edge-AI vehicle/pedestrian

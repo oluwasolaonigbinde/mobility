@@ -132,6 +132,7 @@ CANONICAL_EXTERNAL_IDS = (
     "EXT-DISBURSEMENT-PROVIDER",
     "EXT-AD-PLATFORM",
     "EXT-PILOT-PERMITS",
+    "EXT-RM2-CALIBRATION-DATA",
 )
 
 # Authoritative headings must occur exactly once at top level; the boundary
