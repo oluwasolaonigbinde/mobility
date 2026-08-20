@@ -39,6 +39,11 @@ EXCLUSION_REASONS = (
 )
 
 STATIONARY_POLICY_V1 = "stationary-rd-v1"
+D22_ROLLING_WINDOW_SECONDS = 120
+D22_ROLLING_STRIDE_SECONDS = 120
+D22_ROLLING_MAX_DISPLACEMENT_M = 25.0
+D22_ROLLING_CONFIRMATION_WINDOWS = 2
+D22_ROLLING_RELEASE_WINDOWS = 1
 
 EARTH_RADIUS_M = 6371000.0
 
@@ -51,11 +56,11 @@ class EligibilityParams:
     max_accuracy_m: float
     teleport_kmh: float
     max_ping_gap_seconds: int
-    rolling_window_seconds: int = 120
-    rolling_stride_seconds: int = 120
-    rolling_max_displacement_m: float = 25.0
-    rolling_confirmation_windows: int = 2
-    rolling_release_windows: int = 1
+    rolling_window_seconds: int = D22_ROLLING_WINDOW_SECONDS
+    rolling_stride_seconds: int = D22_ROLLING_STRIDE_SECONDS
+    rolling_max_displacement_m: float = D22_ROLLING_MAX_DISPLACEMENT_M
+    rolling_confirmation_windows: int = D22_ROLLING_CONFIRMATION_WINDOWS
+    rolling_release_windows: int = D22_ROLLING_RELEASE_WINDOWS
 
     def as_legacy_metadata(self) -> dict[str, float | int]:
         return {

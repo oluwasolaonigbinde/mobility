@@ -29,7 +29,14 @@ from app.schemas.campaign_assignments import (
 )
 from app.services.campaigns import comparable_campaign_datetime
 from app.services.drivers import get_driver_profile_by_user_id
-from app.services.payout_eligibility import STATIONARY_POLICY_V1
+from app.services.payout_eligibility import (
+    D22_ROLLING_CONFIRMATION_WINDOWS,
+    D22_ROLLING_MAX_DISPLACEMENT_M,
+    D22_ROLLING_RELEASE_WINDOWS,
+    D22_ROLLING_STRIDE_SECONDS,
+    D22_ROLLING_WINDOW_SECONDS,
+    STATIONARY_POLICY_V1,
+)
 
 # FND-07 (RM7): a lost race on either assignment-exclusivity index returns the
 # same stable 409 code as the pre-check that guards it, never a 500.
@@ -432,8 +439,9 @@ premium_zone_geometry_hash = frozen_zone_geometry_hash
 def resolved_eligibility_snapshot(settings: Settings, overlay: dict | None) -> dict:
     """Freeze every classifier value effective at acceptance.
 
-    This records existing settings and revision overrides only; it does not
-    alter the classifier or decide the still-open FND-02B policy.
+    Existing common values retain their configured fallbacks. D22's rolling
+    values are fixed policy defaults: only an effective revision overlay may
+    tune them for later acceptances.
     """
     overlay = overlay or {}
 
@@ -469,29 +477,29 @@ def resolved_eligibility_snapshot(settings: Settings, overlay: dict | None) -> d
         "rolling_window_seconds": int(
             value(
                 "rolling_window_seconds",
-                settings.payout_eligibility_rolling_window_seconds,
+                D22_ROLLING_WINDOW_SECONDS,
             )
         ),
         "rolling_stride_seconds": int(
             value(
                 "rolling_stride_seconds",
-                settings.payout_eligibility_rolling_stride_seconds,
+                D22_ROLLING_STRIDE_SECONDS,
             )
         ),
         "rolling_max_displacement_m": value(
             "rolling_max_displacement_m",
-            settings.payout_eligibility_rolling_max_displacement_m,
+            D22_ROLLING_MAX_DISPLACEMENT_M,
         ),
         "rolling_confirmation_windows": int(
             value(
                 "rolling_confirmation_windows",
-                settings.payout_eligibility_rolling_confirmation_windows,
+                D22_ROLLING_CONFIRMATION_WINDOWS,
             )
         ),
         "rolling_release_windows": int(
             value(
                 "rolling_release_windows",
-                settings.payout_eligibility_rolling_release_windows,
+                D22_ROLLING_RELEASE_WINDOWS,
             )
         ),
     }

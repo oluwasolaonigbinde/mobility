@@ -52,6 +52,11 @@ from app.services.impressions import (
     quantize_4,
 )
 from app.services.payout_eligibility import (
+    D22_ROLLING_CONFIRMATION_WINDOWS,
+    D22_ROLLING_MAX_DISPLACEMENT_M,
+    D22_ROLLING_RELEASE_WINDOWS,
+    D22_ROLLING_STRIDE_SECONDS,
+    D22_ROLLING_WINDOW_SECONDS,
     STATIONARY_POLICY_V1,
     EligibilityParams,
     EligibilityPing,
@@ -986,29 +991,29 @@ def effective_eligibility_params_overlay(
         rolling_window_seconds=int(
             value(
                 "rolling_window_seconds",
-                settings.payout_eligibility_rolling_window_seconds,
+                D22_ROLLING_WINDOW_SECONDS,
             )
         ),
         rolling_stride_seconds=int(
             value(
                 "rolling_stride_seconds",
-                settings.payout_eligibility_rolling_stride_seconds,
+                D22_ROLLING_STRIDE_SECONDS,
             )
         ),
         rolling_max_displacement_m=value(
             "rolling_max_displacement_m",
-            settings.payout_eligibility_rolling_max_displacement_m,
+            D22_ROLLING_MAX_DISPLACEMENT_M,
         ),
         rolling_confirmation_windows=int(
             value(
                 "rolling_confirmation_windows",
-                settings.payout_eligibility_rolling_confirmation_windows,
+                D22_ROLLING_CONFIRMATION_WINDOWS,
             )
         ),
         rolling_release_windows=int(
             value(
                 "rolling_release_windows",
-                settings.payout_eligibility_rolling_release_windows,
+                D22_ROLLING_RELEASE_WINDOWS,
             )
         ),
     )

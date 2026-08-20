@@ -59,15 +59,16 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 ### Current control pointer
 
 **Controller state:** `ACTIVE`
-**Control package:** `PKG-01` — see package queue row 1 and package card.
-**Current checkpoint:** `PKG-01 / FND-02A` — non-authorizing internal pointer.
+**Control package:** `PKG-02` — see package queue row 2 and package card.
+**Current checkpoint:** `PKG-02 / MNY-08A` — non-authorizing internal pointer;
+PKG-02 is promoted but no implementation has started.
 
 ## Executable package queue
 
 | # | Package | Status | Outcome | Package prerequisites |
 | ---: | --- | --- | --- | --- |
-| 1 | **PKG-01 — foundations and empirical risk proof** | **IN PROGRESS** | Resolve remaining foundations, production-PWA/staging risk and correction authority. | none |
-| 2 | **PKG-02 — money integrity and payout operations** | QUEUED | Fraud holds, release, protected payees, payout batches and debt work end to end. | none — checklist DAG gates entry |
+| 1 | **PKG-01 — foundations and empirical risk proof** | DONE | Resolve remaining foundations, production-PWA/staging risk and correction authority. | none |
+| 2 | **PKG-02 — money integrity and payout operations** | **NEXT** | Fraud holds, release, protected payees, payout batches and debt work end to end. | none — checklist DAG gates entry |
 | 3 | **PKG-03 — commercial contracts and billing** | QUEUED | Accepted terms, receipts, invoices, funding, refunds and budgets form one money-safe flow. | none — checklist DAG gates entry |
 | 4 | **PKG-04 — secure evidence, activation and communications** | QUEUED | Secure files/KYC, campaign evidence/activation/cancellation and notifications integrate. | none — checklist DAG gates entry |
 | 5 | **PKG-05 — privacy, measurement and retargeting** | QUEUED | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
@@ -130,18 +131,34 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
   money/security, architecture/concurrency/frozen-terms, and minimal-change
   reviews all PASS with no remaining P0–P2 findings. Architecture v1.28;
   §35.1 RM6 closed.
-- **R14-A integration progress (16 Aug 2026; D23 build reconciliation pending):** Pro
+- **FND-02A/B evidence (DONE 20 Aug 2026):** D22 records the reviewed,
+  provisional 120-second/25-metre/2-confirm/1-release per-trip policy for new
+  acceptances. The classifier combines deterministic rolling displacement with
+  the existing long-stay path before one shared grace allocation; complete
+  common and rolling terms plus `stationary-rd-v1` freeze into payout-v3
+  bindings/fingerprints, while payout-v2 metadata/fingerprints remain exact.
+  Payout and correction evidence persist the stationary reason/detector proof,
+  and driver/admin surfaces explain it. Focused PostGIS classifier, binding,
+  payout and correction suites passed; historical NULL revision overlays are
+  read compatibly as `{}`; frontend explanations and the live desktop/mobile
+  payout-rule journey passed. Architecture v1.30; §35.1 RM2 closed.
+- **R14-A build evidence (DONE 20 Aug 2026):** Pro
   contribution `bc64707` (parent `e74412c`, six new files) verified
   (merge-base, manifest, 123-test/typecheck/lint/build preflight reproduced)
   and squash-integrated with two review-driven corrections in the canonical
   commit: capture/`health=active` requires a valid session or explicit
   `activeTrip` continuation, and probe evidence is labelled and documented as
   capability-only, never runtime lock ownership. Independent
-  PWA/security/architecture review FIX→corrections applied; re-review of the
-  corrected SHA pending at commit time, recorded in PR #2. ADR 014;
-  architecture v1.27. D23 now makes the executable capability/denial/revocation
-  contract the build acceptance; representative Android/iPhone execution is
-  retained as incomplete post-build validation and still gates real pilot use.
+  PWA/security/architecture review corrections and the D23 deferred-gate
+  specialist corrections are integrated. ADR 014; architecture v1.30.
+- **R14-B/R17-A build evidence (DONE 20 Aug 2026):** deterministic queue,
+  tracker, seal and capability checks passed; the complete live browser suite
+  passed across desktop/mobile profiles (55 passed, 3 intentional skips).
+  Production Compose/edge configuration, release/recovery contracts and Caddy
+  validation passed provider-neutrally with synthetic data. The three deferred
+  rows below remain `NOT RUN`; no physical-device, route/battery or external
+  staging evidence is claimed, and their later real-use gates are enforced by
+  the progress validator.
 - **Control-plane remediation (16 Aug 2026, task-master correction):** the
   queue validator now rejects six independently reproduced bypass classes
   (hidden/fenced decoys, shadow documents, REVIEW pause-avoidance, frontier/
@@ -252,11 +269,11 @@ verification, gates or required specialist review.
 
 | # | Checklist item | Package | Status | Observable outcome | Prerequisites |
 | ---: | --- | --- | --- | --- | --- |
-| 1 | **R14-A — production-PWA direction and protocol ADR** | PKG-01 | TODO | Executable evidence freezes installability, screen-on, permission, visibility, session, queue and seal semantics for the pilot PWA. | none |
-| 2 | **R14-B — cross-profile interrupted-trip build proof** | PKG-01 | TODO | Desktop and mobile browser profiles prove the complete interrupted synthetic-trip contract; physical Android/iPhone route and battery runs remain deferred validation. | leaf: R14-A |
-| 3 | **R17-A — production-like release/recovery build proof** | PKG-01 | TODO | Provider-neutral production-like topology, release smoke and recovery controls verify locally with synthetic data; external deployment remains deferred validation. | none |
-| 4 | **FND-02A — stationary-time policy decision** | PKG-01 | TODO | Owner records a versionable rule separating traffic exposure from parked-time farming. | none |
-| 5 | **FND-02B — stationary policy implementation** | PKG-01 | TODO | Classifier, fingerprints and earnings explanations implement the recorded rule. | leaf: FND-02A; external: EXT-RM2-POLICY |
+| 1 | **R14-A — production-PWA direction and protocol ADR** | PKG-01 | DONE | Executable evidence freezes installability, screen-on, permission, visibility, session, queue and seal semantics for the pilot PWA. | none |
+| 2 | **R14-B — cross-profile interrupted-trip build proof** | PKG-01 | DONE | Desktop and mobile browser profiles prove the complete interrupted synthetic-trip contract; physical Android/iPhone route and battery runs remain deferred validation. | leaf: R14-A |
+| 3 | **R17-A — production-like release/recovery build proof** | PKG-01 | DONE | Provider-neutral production-like topology, release smoke and recovery controls verify locally with synthetic data; external deployment remains deferred validation. | none |
+| 4 | **FND-02A — stationary-time policy decision** | PKG-01 | DONE | Owner records a versionable rule separating traffic exposure from parked-time farming. | none |
+| 5 | **FND-02B — stationary policy implementation** | PKG-01 | DONE | Classifier, fingerprints and earnings explanations implement the recorded rule. | leaf: FND-02A; external: EXT-RM2-POLICY |
 | 6 | **FND-07 — exclusivity conflict envelopes** | PKG-01 | DONE | Four known assignment/trip races return stable 409 errors, not 500s. | none |
 | 7 | **MNY-06A — immutable payout-rule revisions** | PKG-01 | DONE | Financial rule history becomes effective-dated, immutable and value-audited. | none |
 | 8 | **MNY-06B — assignment/trip rule binding and payout_v3** | PKG-01 | DONE | Accepted driver terms freeze base/premium rates, zone/eligibility revisions and the `payout_v3` rule used by each interval/trip. | leaf: MNY-06A |
@@ -434,8 +451,8 @@ names never authorize work or replace the package queue.
   stays immutable. W3 recommendation/offer redesign remains later.
 - **Acceptance:** later revision never reprices accepted work; accept-vs-revise
   races are deterministic; payout fingerprint records all bindings; reports
-  explain tier/reason and formula version; `EXT-RM2-POLICY` remains fail-closed
-  for its unresolved stationary sub-window parameters.
+  explain tier/reason and formula version; the D22 stationary marker and
+  complete resolved values freeze at acceptance and unknown markers fail closed.
 - **Verify / review:** acceptance→trip→payout integration, race and driver e2e;
   money/architecture/concurrency review.
 
@@ -1278,7 +1295,7 @@ present; person-level activation is outside the pilot.
 
 ## Canonical repository
 
-`/Users/oluwasolaonigbinde/Projects/mobility` on `master`. The former
+`/Users/oluwasolaonigbinde/Projects/mobility-pkg01` on `feat/pkg-01`. The former
 `mobility-master` directory was an obsolete Slice-0-only copy — never use it
 to determine delivery status. When documentation conflicts, committed source
 and Git history win.
@@ -1291,11 +1308,12 @@ and Git history win.
 | Frontend F0–F6 (advertiser/driver/admin surfaces) | Complete as built demo/synthetic surfaces; the later RM4/RM5 PWA defects were closed by W0-F (D15/D16). Live authorization remains governed below. | Git `9189fe4`…`a5bcbb6`; `docs/archive/fablev1-work.md` journal |
 | F7 auth/session hardening + audit + CI + backups | Complete, merged | Git `f40e0c4`…`236c2e4` (PR #1); architecture changelog v1.4 |
 | Automated post-trip pipeline (arq worker) | Complete, merged | Git `159b0b1`, `4f69ef6`; architecture v1.5–v1.6 |
-| S1 — payout engine v2 (hourly pay + daily caps, D2/D4/D9) | Complete, merged — RM1 fixed + RM2 half fixed (6 Aug, migration `0015`); **RM6 and RM2's sub-window half still open** | Git `f9cd8ca`; architecture v1.8/v1.15, §16.1 [BUILT] |
+| S1 — payout engine v2 (hourly pay + daily caps, D2/D4/D9) | Complete, merged — RM1 fixed and the original whole-trip stationary grace retained for immutable payout-v2 history | Git `f9cd8ca`; architecture v1.8/v1.15, §16.1 [BUILT] |
+| PKG-01 — foundations and empirical risk proof | Complete — RM2/RM6/RM7 closed; payout-v3 frozen parked-time behavior, PWA protocol/interrupted-flow build proof and provider-neutral release/recovery proof delivered; physical/live validation remains explicitly deferred | Git `d2cd424`…`be726a2` plus the package closure commit; architecture v1.30; D22/D23; automated/PostGIS/frontend/browser/recovery evidence |
 | S4 — data lifecycle (ping partitions, retention purge, audit backfill, D10) | Complete, merged | Git `a879a3d`…`4f487e7`; architecture v1.9, §24.2 [BUILT] |
 | W0-F — trip finality protocol + durable client queue (RM3/RM4/RM5, D15) | Complete — sealed-only money chain, post-seal quarantine, IndexedDB queue with stable retry keys; independently reviewed and hardened (D16: apply-after-initial-payout, pre-seal analytics recompute, fail-closed client) | Migrations `0016`+`0017`; architecture v1.16/v1.17; `tests/test_trip_seal.py`; live compose e2e |
 | Pre-production ops (production Compose overlay, release smoke, backup/restore rehearsal) | Complete locally, **not deployed** | Git from `006d94e`; `docker-compose.production.yml`, `docs/runbook.md` |
-| Current API contract | 17 migrations, contract baselines current | `docs/api/openapi.snapshot.json` + `openapi.json` + `schema.d.ts` drift checks |
+| Current API contract | 21 migrations, contract baselines current | `docs/api/openapi.snapshot.json` + `openapi.json` + `schema.d.ts` drift checks; PKG-01 baseline comparison byte-identical |
 
 **Nothing is deployed.** Staging/production remain research-only
 (`docs/staging-options.md`) pending provider, budget, and operator approval
@@ -1321,17 +1339,18 @@ only with demo/synthetic data until their owning checklist items land:
 
 ## Where we are in the roadmap (architecture §31)
 
-- **W0 — review remediation (new, 6 Aug 2026, D13):** **partially complete** — RM1
+- **W0 — review remediation (new, 6 Aug 2026, D13):** **complete for PKG-01's
+  built-code defects** — RM1
   fixed and RM2's renewable-grace half fixed 6 Aug 2026 (migration `0015`);
   **RM3/RM4/RM5 (trip seal protocol, stable retry keys, durable client queue)
   fixed 9 Aug 2026** (migration `0016`, D15, 465 tests green on PostGIS). It
   leads the remaining work. An independent code-verified review originally
   found seven defects in already-built code (architecture §35.1) plus eleven
   specification rows for unbuilt domains. RM1/RM3/RM4/RM5 are now closed,
-  RM7 closed 16 Aug 2026 (PKG-01 FND-07, architecture v1.25) and RM2 is half
-  closed. Still open: RM2's sub-window stationary aggregation (needs a
-  money-policy decision) and RM6; they gate real-driver GPS or earnings
-  release as specified in §35.3.
+  RM7 closed 16 Aug 2026 (PKG-01 FND-07, architecture v1.25); RM6 closed with
+  payout-v3 revision/binding/correction authority, and RM2 closed under D22's
+  acceptance-frozen rolling-displacement rule (architecture v1.30). Later
+  tuning from real-route data creates a new revision and never rewrites history.
 - **W1 — money correctness:** worker ✅, payout v2 ✅ (S1), data lifecycle ✅
   (S4). **Remaining: the legacy S2 group (MNY-08A/B/C + MNY-09A) for fraud
   review/holds, then the legacy S3 group (MNY-03A + MNY-10A/B/C + MNY-11A)
@@ -1356,7 +1375,7 @@ only with demo/synthetic data until their owning checklist items land:
 | B. Advertiser dashboard | Campaigns CRUD, zones editor, analytics, demo heatmaps/reports/charts and payout-derived cost summaries | Company profile (W2-00D), creative *upload* (W2 — metadata-only today), billing/invoices (W2), governed approval/activation (W2), retargeting setup + insights, exposure score + high-exposure zone views (W3), disclosure-safe reports + CSV/PDF export (W4) |
 | C. Driver app | Installable PWA: jobs, synthetic/demo trip tracking (idempotent ping batches), earnings + S1 trip breakdown, basic profile, durable offline ping queue + trip seal protocol (D15) | Offer accept/decline, self-registration, KYC and driver-owned vehicle lifecycle (W3); verified contact/notifications (W2); **production screen-on PWA/device proof** (W4). Native background app is Phase 2 |
 | D. Analytics & impression engine | Route analytics, fraud flags, impression estimates, exposure/heatmap aggregation, payout eligibility classifier | Exposure score metric (`exposure_v1`) + high-exposure zone identification + retargeting insight capture (W3) |
-| E. Dynamic driver payouts | Demo-capable payout v2 hourly engine, caps, write-once calcs, recompute-day and ledger | `payout_v3` base/premium zone terms + RM6 authority, fraud hold/review, clean/flagged release and automated provider submission/reconciliation; G-money controls live use |
+| E. Dynamic driver payouts | Demo-capable payout v2 history plus payout-v3 acceptance-frozen base/premium and parked-time terms, immutable revisions, maker-checker corrections, caps, write-once calculations and driver/admin explanations | Fraud hold/review, clean/flagged release and automated provider submission/reconciliation; G-money controls live use |
 | F. Heatmaps & reporting | Demo heatmap/route/report screens and daily metrics | Central disclosure/methodology/runs (W3), high-exposure zone + follow-up-targeting sections (W3), governed UI + CSV/PDF (W4); G-advertiser controls live use |
 | G. Online-to-offline retargeting | — (privacy boundary designed, §22) | Entire module (W3): sources, segments, linkage, insights, controlled export and gated aggregate geography/time/context activation; identifiers/person-level payloads reject and live actions require legal/`EXT-AD-PLATFORM` inputs |
 

@@ -454,6 +454,51 @@ def test_accept_freezes_effective_revision_with_zone_snapshot(
     int(binding.premium_zone_geometry_hash, 16)  # hex digest
 
 
+def test_rolling_policy_changes_only_through_revision_overlay(settings) -> None:
+    same_revision: dict = {}
+    first_acceptance = resolved_eligibility_snapshot(settings, same_revision)
+    runtime_mutated = settings.model_copy(
+        update={
+            "payout_eligibility_rolling_window_seconds": 999,
+            "payout_eligibility_rolling_stride_seconds": 998,
+            "payout_eligibility_rolling_max_displacement_m": 997.0,
+            "payout_eligibility_rolling_confirmation_windows": 996,
+            "payout_eligibility_rolling_release_windows": 995,
+        }
+    )
+
+    second_acceptance = resolved_eligibility_snapshot(runtime_mutated, same_revision)
+
+    rolling_keys = {
+        "rolling_window_seconds",
+        "rolling_stride_seconds",
+        "rolling_max_displacement_m",
+        "rolling_confirmation_windows",
+        "rolling_release_windows",
+    }
+    assert {key: first_acceptance[key] for key in rolling_keys} == {
+        key: second_acceptance[key] for key in rolling_keys
+    }
+
+    later_revision = resolved_eligibility_snapshot(
+        runtime_mutated,
+        {
+            "rolling_window_seconds": 180,
+            "rolling_stride_seconds": 180,
+            "rolling_max_displacement_m": 30,
+            "rolling_confirmation_windows": 3,
+            "rolling_release_windows": 2,
+        },
+    )
+    assert {key: later_revision[key] for key in rolling_keys} == {
+        "rolling_window_seconds": 180,
+        "rolling_stride_seconds": 180,
+        "rolling_max_displacement_m": 30.0,
+        "rolling_confirmation_windows": 3,
+        "rolling_release_windows": 2,
+    }
+
+
 def test_accept_without_revisions_creates_no_binding_and_trip_stays_v2(
     postgis_db_sessionmaker, settings
 ) -> None:

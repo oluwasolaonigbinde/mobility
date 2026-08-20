@@ -21,6 +21,32 @@ def _progress() -> str:
     return (ROOT / "docs" / "progress.md").read_text()
 
 
+def _pkg01_active() -> str:
+    """Reconstruct the immediately preceding valid frontier for transition tests."""
+    text = (
+        _progress()
+        .replace(
+            "| 1 | **PKG-01 — foundations and empirical risk proof** | DONE |",
+            "| 1 | **PKG-01 — foundations and empirical risk proof** | **IN PROGRESS** |",
+        )
+        .replace(
+            "| 2 | **PKG-02 — money integrity and payout operations** | **NEXT** |",
+            "| 2 | **PKG-02 — money integrity and payout operations** | QUEUED |",
+        )
+        .replace("**Control package:** `PKG-02`", "**Control package:** `PKG-01`")
+        .replace(
+            "**Current checkpoint:** `PKG-02 / MNY-08A`",
+            "**Current checkpoint:** `PKG-01 / FND-02A`",
+        )
+    )
+    lines = []
+    for line in text.splitlines():
+        if re.match(r"\| [1-5] \| \*\*.*\| PKG-01 \| DONE \|", line):
+            line = line.replace("| DONE |", "| TODO |", 1)
+        lines.append(line)
+    return "\n".join(lines) + "\n"
+
+
 def _errors(text: str) -> list[str]:
     return VALIDATOR.validate_text(text)
 
@@ -33,9 +59,13 @@ def _paused_at_final_gate() -> str:
         match = re.match(r"\| (\d+) \| \*\*PKG-", line)
         if match:
             number = int(match.group(1))
-            current = "**IN PROGRESS**" if number == 1 else "QUEUED"
             replacement = "DONE" if number < 8 else "BLOCKED" if number == 8 else "QUEUED"
-            line = line.replace(f"| {current} |", f"| {replacement} |", 1)
+            line = re.sub(
+                r"\| (?:\*\*NEXT\*\*|\*\*IN PROGRESS\*\*|\*\*REVIEW\*\*|QUEUED|DONE|BLOCKED) \|",
+                f"| {replacement} |",
+                line,
+                count=1,
+            )
         item_match = re.match(r"\| (\d+) \| \*\*(?!PKG-).*\| PKG-\d{2} \|", line)
         if item_match:
             number = int(item_match.group(1))
@@ -56,9 +86,9 @@ def _paused_at_final_gate() -> str:
             "**Controller state:** `ACTIVE`",
             "**Controller state:** `PAUSED — EXT-LEGAL-PRIVACY`",
         )
-        .replace("**Control package:** `PKG-01`", "**Control package:** `PKG-08`")
+        .replace("**Control package:** `PKG-02`", "**Control package:** `PKG-08`")
         .replace(
-            "**Current checkpoint:** `PKG-01 / FND-02A`",
+            "**Current checkpoint:** `PKG-02 / MNY-08A`",
             "**Current checkpoint:** `PKG-08 / W4-03B`",
         )
     )
@@ -70,7 +100,7 @@ def test_repository_progress_is_valid() -> None:
 
 def test_rejects_second_active_package_and_stale_pointer() -> None:
     text = (
-        _progress()
+        _pkg01_active()
         .replace(
             "| 2 | **PKG-02 — money integrity and payout operations** | QUEUED |",
             "| 2 | **PKG-02 — money integrity and payout operations** | REVIEW |",
@@ -99,7 +129,7 @@ def test_rejects_forward_dependency_and_unready_checkpoint() -> None:
     text = re.sub(
         r"^(\| 4 \| \*\*FND-02A —.*\| )none \|$",
         r"\1leaf: MNY-08A |",
-        _progress(),
+        _pkg01_active(),
         flags=re.MULTILINE,
     )
     errors = _errors(text)
@@ -108,7 +138,7 @@ def test_rejects_forward_dependency_and_unready_checkpoint() -> None:
 
 
 def test_rejects_done_package_with_unfinished_items() -> None:
-    text = _progress().replace(
+    text = _pkg01_active().replace(
         "| 1 | **PKG-01 — foundations and empirical risk proof** | **IN PROGRESS** |",
         "| 1 | **PKG-01 — foundations and empirical risk proof** | DONE |",
     )
@@ -118,7 +148,7 @@ def test_rejects_done_package_with_unfinished_items() -> None:
 
 def test_rejects_falsely_blocked_package_with_runnable_todo() -> None:
     text = (
-        _progress()
+        _pkg01_active()
         .replace(
             "| 1 | **PKG-01 — foundations and empirical risk proof** | **IN PROGRESS** |",
             "| 1 | **PKG-01 — foundations and empirical risk proof** | BLOCKED |",
@@ -132,7 +162,7 @@ def test_rejects_falsely_blocked_package_with_runnable_todo() -> None:
 
 
 def test_blocked_item_must_name_its_missing_registered_input() -> None:
-    text = _progress().replace(
+    text = _pkg01_active().replace(
         "| 5 | **FND-02B — stationary policy implementation** | PKG-01 | TODO |",
         "| 5 | **FND-02B — stationary policy implementation** | PKG-01 "
         "| BLOCKED — EXT-EMAIL-PROVIDER |",
@@ -144,7 +174,7 @@ def test_blocked_item_must_name_its_missing_registered_input() -> None:
 
 def test_next_package_after_completed_package_is_allowed() -> None:
     text = (
-        _progress()
+        _pkg01_active()
         .replace(
             "| 1 | **PKG-01 — foundations and empirical risk proof** | **IN PROGRESS** |",
             "| 1 | **PKG-01 — foundations and empirical risk proof** | DONE |",
@@ -214,8 +244,14 @@ def test_deferred_validation_rows_and_gates_are_pinned() -> None:
         "informational only",
         1,
     )
-    assert any("deferred validation identities/order/gates changed" in error for error in _errors(removed))
-    assert any("deferred validation identities/order/gates changed" in error for error in _errors(weakened))
+    assert any(
+        "deferred validation identities/order/gates changed" in error
+        for error in _errors(removed)
+    )
+    assert any(
+        "deferred validation identities/order/gates changed" in error
+        for error in _errors(weakened)
+    )
 
 
 def test_pilot_acceptance_rejects_incomplete_deferred_validation() -> None:
@@ -224,7 +260,10 @@ def test_pilot_acceptance_rejects_incomplete_deferred_validation() -> None:
         "| 68 | **W4-03B — Cardvert pilot gate and acceptance suite** | PKG-08 | DONE |",
     )
     errors = _errors(text)
-    assert any("W4-03B cannot be DONE while deferred validation remains incomplete" in error for error in errors)
+    assert any(
+        "W4-03B cannot be DONE while deferred validation remains incomplete" in error
+        for error in errors
+    )
 
 
 def test_release_environment_rejects_incomplete_live_staging_validation() -> None:
@@ -233,7 +272,10 @@ def test_release_environment_rejects_incomplete_live_staging_validation() -> Non
         "| 67 | **W4-03A — client-owned release environment** | PKG-08 | DONE |",
     )
     errors = _errors(text)
-    assert any("W4-03A cannot be DONE while DV-STAGING-LIVE is incomplete" in error for error in errors)
+    assert any(
+        "W4-03A cannot be DONE while DV-STAGING-LIVE is incomplete" in error
+        for error in errors
+    )
 
 
 def test_all_done_terminal_complete_state_is_valid() -> None:
@@ -263,9 +305,9 @@ def test_all_done_terminal_complete_state_is_valid() -> None:
         external_lines.append(line)
     text = "\n".join(external_lines) + "\n"
     text = text.replace("**Controller state:** `ACTIVE`", "**Controller state:** `COMPLETE`")
-    text = text.replace("**Control package:** `PKG-01`", "**Control package:** `PKG-09`")
+    text = text.replace("**Control package:** `PKG-02`", "**Control package:** `PKG-09`")
     text = text.replace(
-        "**Current checkpoint:** `PKG-01 / FND-02A`",
+        "**Current checkpoint:** `PKG-02 / MNY-08A`",
         "**Current checkpoint:** `PKG-09 / W4-04B`",
     )
     assert _errors(text) == []
@@ -362,11 +404,11 @@ def test_rejects_hidden_controller_pointer_decoy() -> None:
         "-->\n"
     )
     text = (
-        _progress()
+        _pkg01_active()
         .replace("### Current control pointer", "### Current control pointer\n\n" + decoy)
         .replace(
-            "**Control package:** `PKG-01` — see package queue row 1",
-            "**Control package:** `PKG-09` — see package queue row 1",
+            "**Control package:** `PKG-01` — see package queue row 2",
+            "**Control package:** `PKG-09` — see package queue row 2",
         )
     )
     errors = _errors(text)
@@ -381,7 +423,7 @@ def test_rejects_fenced_decoy_package_queue() -> None:
         "| ---: | --- | --- | --- | --- |\n"
         "```\n\n"
     )
-    text = _progress().replace(
+    text = _pkg01_active().replace(
         "## Executable package queue", fence + "## Executable package queue", 1
     ).replace(
         "| 1 | **PKG-01 — foundations and empirical risk proof** | **IN PROGRESS** |",
@@ -392,7 +434,7 @@ def test_rejects_fenced_decoy_package_queue() -> None:
 
 
 def test_rejects_unterminated_comment() -> None:
-    text = _progress().replace(
+    text = _pkg01_active().replace(
         "### Current control pointer", "<!--\n### Current control pointer", 1
     )
     assert any("unterminated HTML comment" in error for error in _errors(text))
@@ -422,7 +464,7 @@ def test_rejects_sublevel_heading_decoy_table() -> None:
 
 
 def test_review_cannot_avoid_pause_with_blocked_checkpoint() -> None:
-    text = _progress().replace(
+    text = _pkg01_active().replace(
         "| 1 | **PKG-01 — foundations and empirical risk proof** | **IN PROGRESS** |",
         "| 1 | **PKG-01 — foundations and empirical risk proof** | REVIEW |",
     ).replace(
@@ -438,7 +480,7 @@ def test_review_cannot_avoid_pause_with_blocked_checkpoint() -> None:
 
 def test_review_valid_only_when_all_items_done_or_runnable() -> None:
     # Direction 1: REVIEW with unfinished work and a runnable checkpoint is valid.
-    reviewing = _progress().replace(
+    reviewing = _pkg01_active().replace(
         "| 1 | **PKG-01 — foundations and empirical risk proof** | **IN PROGRESS** |",
         "| 1 | **PKG-01 — foundations and empirical risk proof** | REVIEW |",
     )
@@ -462,7 +504,7 @@ def test_review_valid_only_when_all_items_done_or_runnable() -> None:
 
 
 def test_rejects_done_item_in_queued_package() -> None:
-    text = _progress().replace(
+    text = _pkg01_active().replace(
         "| 10 | **MNY-08A — current fraud assessments** | PKG-02 | TODO |",
         "| 10 | **MNY-08A — current fraud assessments** | PKG-02 | DONE |",
     )
@@ -550,7 +592,7 @@ def test_blocked_item_names_all_direct_missing_inputs() -> None:
 
 def test_rejects_stale_control_package_pointer() -> None:
     text = _progress().replace(
-        "**Control package:** `PKG-01`", "**Control package:** `PKG-09`"
+        "**Control package:** `PKG-02`", "**Control package:** `PKG-09`"
     )
     errors = _errors(text)
     assert any("control package pointer does not match" in error for error in errors)
