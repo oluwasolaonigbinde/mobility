@@ -81,6 +81,9 @@ test("R14-A harness probes capabilities without requesting location on load", as
   await expect(
     page.getByRole("heading", { name: "Production PWA capability probe" }),
   ).toBeVisible();
+  await expect(
+    page.getByText(/Physical Android\/iPhone journeys.*still required post-build/),
+  ).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(() => {

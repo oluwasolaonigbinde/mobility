@@ -280,7 +280,9 @@ export function CapabilityProbe() {
       </section>
 
       <p className="rounded border p-3 text-xs leading-5">
-        R14-A remains TODO. Fable/R14-B owns physical Android/iPhone journey evidence, measurements, and independent reviews.
+        Automated build evidence exercises this contract. Physical Android/iPhone
+        journeys, route accuracy and battery measurements are still required
+        post-build before real pilot use; this probe does not claim they ran.
       </p>
     </div>
   );

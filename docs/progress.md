@@ -80,10 +80,13 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 
 ### PKG-01 — foundations and empirical risk proof
 
-- **Owns:** checklist 1–9. R14-A is the initial checkpoint; R17-A and FND-02B
-  remain explicitly externally blocked while independent work proceeds.
-- **Closure:** production-PWA protocol/device proof and staging evidence exist or have recorded
-  external disposition; RM2/RM6/RM7 corrections and all specialist reviews pass.
+- **Owns:** checklist 1–9. D23 separates runnable build evidence from later
+  real-world validation without weakening any real-GPS, release or pilot gate.
+- **Closure:** production-PWA protocol and interrupted synthetic-flow build proof,
+  provider-neutral production-like release/recovery proof, RM2/RM6/RM7
+  corrections, required reviews and exact CI agree. Physical-device/route/
+  battery and external-staging evidence remain explicitly incomplete post-build
+  validation until their registered inputs and later pilot/release gates exist.
 - **Package plan (activated 16 Aug 2026, canonical branch `feat/pkg-01`):**
   internal checkpoints under the controller's disjoint-ownership rule.
   Canonical/controller work: **FND-07** (first runnable checkpoint — integrity
@@ -93,10 +96,11 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
   `feat/pkg-01-pro-pwa-contract` → R14-A ADR/capability contract;
   `feat/pkg-01-pro-money` → MNY-06A/B/C chain. FND-02A is a prepared decision
   packet (parameterized options + executable fixtures + independent
-  product/money review) resolved by one owner selection; `EXT-RM2-POLICY`
-  then clears and FND-02B implements it serialized against the MNY-06
-  integration unless a disjoint file manifest is proven. R17-A stays externally blocked on
-  `EXT-STAGING-APPROVAL`; no local substitute counts as evidence.
+  product/money review) resolved by D22's owner-selected synthetic Option A;
+  `EXT-RM2-POLICY` is present and FND-02B implements it on the MNY-06 binding.
+  R14-A/B and R17-A close only on their automated/synthetic build contracts;
+  D23 records physical-device and external-staging execution as deferred,
+  incomplete validation rather than fabricated evidence or a build blocker.
 - **FND-07 evidence (DONE 16 Aug 2026):** candidate `58794a4` on
   `feat/pkg-01` (collateral model-drift fix `139bfcb`). Four exclusivity
   constraint names registered in the `app/db/integrity.py` classifier; lost
@@ -126,7 +130,7 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
   money/security, architecture/concurrency/frozen-terms, and minimal-change
   reviews all PASS with no remaining P0–P2 findings. Architecture v1.28;
   §35.1 RM6 closed.
-- **R14-A integration progress (16 Aug 2026 — item stays TODO):** Pro
+- **R14-A integration progress (16 Aug 2026; D23 build reconciliation pending):** Pro
   contribution `bc64707` (parent `e74412c`, six new files) verified
   (merge-base, manifest, 123-test/typecheck/lint/build preflight reproduced)
   and squash-integrated with two review-driven corrections in the canonical
@@ -135,9 +139,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
   capability-only, never runtime lock ownership. Independent
   PWA/security/architecture review FIX→corrections applied; re-review of the
   corrected SHA pending at commit time, recorded in PR #2. ADR 014;
-  architecture v1.27. Outstanding for DONE: representative Android/iPhone
-  capability, denial and revocation probe evidence (R14-B device work is
-  separate and not started).
+  architecture v1.27. D23 now makes the executable capability/denial/revocation
+  contract the build acceptance; representative Android/iPhone execution is
+  retained as incomplete post-build validation and still gates real pilot use.
 - **Control-plane remediation (16 Aug 2026, task-master correction):** the
   queue validator now rejects six independently reproduced bypass classes
   (hidden/fenced decoys, shadow documents, REVIEW pause-avoidance, frontier/
@@ -248,11 +252,11 @@ verification, gates or required specialist review.
 
 | # | Checklist item | Package | Status | Observable outcome | Prerequisites |
 | ---: | --- | --- | --- | --- | --- |
-| 1 | **R14-A — production-PWA direction and protocol ADR** | PKG-01 | TODO | Evidence freezes installability, screen-on, permission, visibility, session, queue and seal semantics for the pilot PWA. | none |
-| 2 | **R14-B — cross-platform PWA real-device spike** | PKG-01 | TODO | The installable PWA completes interrupted synthetic trips on supported Android and iOS browser/device combinations. | leaf: R14-A |
-| 3 | **R17-A — external synthetic staging drill** | PKG-01 | BLOCKED — EXT-STAGING-APPROVAL | Existing production-like topology is deployed and recovery-tested with synthetic data. | external: EXT-STAGING-APPROVAL |
+| 1 | **R14-A — production-PWA direction and protocol ADR** | PKG-01 | TODO | Executable evidence freezes installability, screen-on, permission, visibility, session, queue and seal semantics for the pilot PWA. | none |
+| 2 | **R14-B — cross-profile interrupted-trip build proof** | PKG-01 | TODO | Desktop and mobile browser profiles prove the complete interrupted synthetic-trip contract; physical Android/iPhone route and battery runs remain deferred validation. | leaf: R14-A |
+| 3 | **R17-A — production-like release/recovery build proof** | PKG-01 | TODO | Provider-neutral production-like topology, release smoke and recovery controls verify locally with synthetic data; external deployment remains deferred validation. | none |
 | 4 | **FND-02A — stationary-time policy decision** | PKG-01 | TODO | Owner records a versionable rule separating traffic exposure from parked-time farming. | none |
-| 5 | **FND-02B — stationary policy implementation** | PKG-01 | BLOCKED — EXT-RM2-POLICY | Classifier, fingerprints and earnings explanations implement the recorded rule. | leaf: FND-02A; external: EXT-RM2-POLICY |
+| 5 | **FND-02B — stationary policy implementation** | PKG-01 | TODO | Classifier, fingerprints and earnings explanations implement the recorded rule. | leaf: FND-02A; external: EXT-RM2-POLICY |
 | 6 | **FND-07 — exclusivity conflict envelopes** | PKG-01 | DONE | Four known assignment/trip races return stable 409 errors, not 500s. | none |
 | 7 | **MNY-06A — immutable payout-rule revisions** | PKG-01 | DONE | Financial rule history becomes effective-dated, immutable and value-audited. | none |
 | 8 | **MNY-06B — assignment/trip rule binding and payout_v3** | PKG-01 | DONE | Accepted driver terms freeze base/premium rates, zone/eligibility revisions and the `payout_v3` rule used by each interval/trip. | leaf: MNY-06A |
@@ -343,34 +347,42 @@ names never authorize work or replace the package queue.
   background execution, native secure credentials and store release are Phase 2.
 - **Acceptance:** ADR freezes the PWA threat/protocol/test matrix, names
   supported/rejected browser states and introduces no silent API/auth break.
-- **Verify / review:** OpenAPI/BFF contract fixtures plus browser capability and
-  denial/revocation probes on representative Android/iOS devices; independent
-  PWA, security and architecture review.
+- **Verify / review:** OpenAPI/BFF contract fixtures plus deterministic browser
+  capability, denial and revocation probes and independent PWA/security/
+  architecture review. Representative Android/iPhone execution is a D23
+  post-build validation gate and is never claimed by this build proof.
 
-#### R14-B — cross-platform PWA real-device spike
+#### R14-B — cross-profile interrupted-trip build proof
 
 - **Scope / authority:** the installable PWA proves explicit Start/End,
   screen-on enforcement, permission and visibility degradation, durable
   IndexedDB queue, Web Locks single-writer, stable retry keys, seal watermark
   and BFF session recovery (§23, D18/RM17, D15/D16). Synthetic routes only.
-- **Acceptance:** no acknowledged batch is lost/duplicated; reload, offline,
+- **Acceptance:** no acknowledged batch is lost/duplicated; desktop and mobile
+  browser profiles show that reload, offline,
   permission revocation, storage/lock failure or screen/background transition
-  recovers or fails closed visibly; device/browser completeness, latency,
-  accuracy and four-hour battery results are recorded.
-- **Verify / review:** real-device adversarial matrix and live Compose
-  trip→seal→worker payout; independent PWA/security/data-loss review.
+  recovers or fails closed visibly through trip→seal→worker payout. Physical
+  device/browser completeness, latency, route accuracy and four-hour battery
+  measurements remain incomplete post-build validation.
+- **Verify / review:** deterministic capability/queue/tracker tests, desktop and
+  mobile browser-profile synthetic journey, backend seal/payout integration and
+  independent PWA/security/data-loss review. D23 defers, but does not waive,
+  the representative physical-device matrix before real pilot use.
 
-#### R17-A — external synthetic staging drill
+#### R17-A — production-like release/recovery build proof
 
-- **Scope / authority:** deploy the existing edge/API/frontend/PostGIS/Redis/
-  worker topology to an approved production-like environment; exercise secrets,
-  migrations, queue-loss recovery, rollback, observability and restore (§25,
-  §31, RM17, Q32). Do not rebuild the locally proven overlay.
-- **Acceptance:** synthetic sealed trip completes; exact backup marker/revision
-  restores; public edge and failure evidence are captured; no personal data.
-- **Verify / review:** readiness/smoke, live trip, worker recovery and restore
-  rehearsal; deployment/security review. Missing spend/provider approval moves
-  this leaf to BLOCKED rather than substituting another local rehearsal.
+- **Scope / authority:** verify the existing edge/API/frontend/PostGIS/Redis/
+  worker topology, typed secret contract, migrations, queue-loss recovery,
+  rollback, observability, release smoke and restore controls in a provider-
+  neutral production-like build (§25, §31, RM17, Q32). Do not deploy externally
+  or invent account/spend approval.
+- **Acceptance:** production compose and edge configuration resolve, release and
+  backup/restore safety contracts pass with synthetic data, and the sealed-trip
+  worker path remains covered; no personal data or external environment claim.
+- **Verify / review:** deterministic pre-production configuration, smoke,
+  migration, worker-recovery and restore tests plus deployment/security review.
+  Approved-environment deployment, public-edge evidence and a live restore drill
+  remain explicit D23 post-build validation before W4 release/pilot.
 
 #### FND-02A — stationary-time policy decision
 
@@ -1222,8 +1234,8 @@ otherwise synthetic/provider-neutral checklist item or its package.
 
 | ID | State | Input | Evidence | Needed by / exact effect |
 | --- | --- | --- | --- | --- |
-| **EXT-STAGING-APPROVAL** | MISSING | External staging provider/account/spend approval | — | R17-A deployment |
-| **EXT-RM2-POLICY** | MISSING | Owner-approved RM2 stationary policy and parameters | — | FND-02B implementation |
+| **EXT-STAGING-APPROVAL** | MISSING | External staging provider/account/spend approval | — | Deferred external staging deployment/restore validation and later W4 release/pilot; D23 says it does not block R17-A's provider-neutral build proof |
+| **EXT-RM2-POLICY** | PRESENT | Owner-approved RM2 stationary policy and parameters | `docs/decisions-log.md` D22; reviewed synthetic Option A | FND-02B implementation binds 120s/25m/2-confirm/1-release/per-trip values for new acceptances |
 | **EXT-PAYMENT-PROVIDER** | MISSING | Payment provider/sandbox/signing secrets | — | Live W2-01C adapter and provider refunds |
 | **EXT-STORAGE-PROVIDER** | MISSING | Production object-storage provider, account and region | — | W2-02A production adoption |
 | **EXT-MALWARE-SCANNER** | MISSING | Malware scanner/provider | — | W2-02B fail-closed scan integration |
@@ -1243,7 +1255,19 @@ otherwise synthetic/provider-neutral checklist item or its package.
 | **EXT-DISBURSEMENT-PROVIDER** | MISSING | Approved automated bank-transfer provider, account, sandbox, signing/webhook credentials and production approval | — | Provider-neutral MNY-10B/C can build/test; financially effective submission and W4-03B cannot proceed |
 | **EXT-AD-PLATFORM** | MISSING | Named ad-platform accounts, legal approval, API access/credentials and activation budget for aggregate geography/time/context activation | — | W3-01D can build/test provider-neutrally; any live aggregate contextual push remains disabled; person-level activation is outside the pilot |
 | **EXT-PILOT-PERMITS** | MISSING | Abuja permit/authority evidence for the selected vehicles/campaigns | — | D19 assigns Terrax ownership and vendor coordination; W4-03B/launch remains blocked until evidence is approved |
-| **EXT-RM2-CALIBRATION-DATA** | MISSING | P1 parked-jitter and P2 Abuja-congestion field corpora (devices, participants, locations) per the owner-authorized 19 Aug 2026 Option-A collection program | — | Feeds the FND-02A final numeric selection that resolves `EXT-RM2-POLICY`; capture spec + P3 tooling on `feat/pkg-01-fnd02a-calibration`; blocks no checklist item's build entry directly |
+| **EXT-RM2-CALIBRATION-DATA** | MISSING | P1 parked-jitter and P2 Abuja-congestion field corpora (devices, participants, locations) per the owner-authorized 19 Aug 2026 Option-A collection program | — | Optional post-build calibration for a later effective revision; D22's reviewed synthetic selection is build-authoritative and this input blocks no checklist item |
+
+### Deferred post-build validation register
+
+D23 keeps the following evidence visibly incomplete. These rows are not claims
+that physical or external validation ran; they preserve the later gate and the
+owner/action needed to run it.
+
+| Validation | State | Deferred evidence | Required before |
+| --- | --- | --- | --- |
+| **DV-PWA-PHYSICAL-MATRIX** | NOT RUN — DEVICE ACCESS REQUIRED | Representative Android/iPhone installability, grant/denial/revocation, reload/offline/visibility/storage/lock behavior and completeness/sync-latency measurements | W4 production-PWA pilot acceptance / any real driver GPS |
+| **DV-PWA-ROUTE-BATTERY** | NOT RUN — DEVICE/ROUTE ACCESS REQUIRED | Controlled real-route accuracy and four-hour battery measurement on the supported physical matrix | W4 production-PWA pilot acceptance |
+| **DV-STAGING-LIVE** | NOT RUN — EXT-STAGING-APPROVAL | Deploy provider-neutral topology to an approved external environment; capture public-edge smoke, worker recovery, exact backup marker/revision restore and rollback evidence | W4 client-owned release and pilot gates |
 
 Post-pilot work remains explicitly deferred: the native background driver app
 and store distribution, expanded recurring billing, edge-AI vehicle/pedestrian

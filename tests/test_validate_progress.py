@@ -47,6 +47,8 @@ def _paused_at_final_gate() -> str:
             line = line.replace("| MISSING |", "| PRESENT |", 1).replace(
                 "| — |", "| fixture evidence |", 1
             )
+        if line.startswith("| **DV-"):
+            line = re.sub(r"\| NOT RUN — [^|]+\|", "| COMPLETE |", line, count=1)
         package_lines.append(line)
     text = "\n".join(package_lines) + "\n"
     return (
@@ -131,20 +133,21 @@ def test_rejects_falsely_blocked_package_with_runnable_todo() -> None:
 
 def test_blocked_item_must_name_its_missing_registered_input() -> None:
     text = _progress().replace(
-        "BLOCKED — EXT-STAGING-APPROVAL",
-        "BLOCKED — EXT-EMAIL-PROVIDER",
+        "| 5 | **FND-02B — stationary policy implementation** | PKG-01 | TODO |",
+        "| 5 | **FND-02B — stationary policy implementation** | PKG-01 "
+        "| BLOCKED — EXT-EMAIL-PROVIDER |",
         1,
     )
     errors = _errors(text)
     assert any("is not an item prerequisite" in error for error in errors)
 
 
-def test_dependency_safe_later_package_checkpoint_is_allowed() -> None:
+def test_next_package_after_completed_package_is_allowed() -> None:
     text = (
         _progress()
         .replace(
             "| 1 | **PKG-01 — foundations and empirical risk proof** | **IN PROGRESS** |",
-            "| 1 | **PKG-01 — foundations and empirical risk proof** | BLOCKED |",
+            "| 1 | **PKG-01 — foundations and empirical risk proof** | DONE |",
         )
         .replace(
             "| 2 | **PKG-02 — money integrity and payout operations** | QUEUED |",
@@ -156,18 +159,11 @@ def test_dependency_safe_later_package_checkpoint_is_allowed() -> None:
             "**Current checkpoint:** `PKG-02 / MNY-08A`",
         )
     )
-    # Close every runnable PKG-01 obligation while leaving only the genuine
-    # staging blocker, then activate independent PKG-02 work.
+    # Close every PKG-01 obligation, then activate PKG-02.
     lines = []
     for line in text.splitlines():
-        if re.match(r"\| ([124-9]) \| \*\*.*\| PKG-01 \| TODO \|", line):
+        if re.match(r"\| ([1-9]) \| \*\*.*\| PKG-01 \| TODO \|", line):
             line = line.replace("| TODO |", "| DONE |", 1)
-        if line.startswith("| 5 | **FND-02B —"):
-            line = line.replace("| BLOCKED — EXT-RM2-POLICY |", "| DONE |", 1)
-        if line.startswith("| **EXT-RM2-POLICY** |"):
-            line = line.replace("| MISSING |", "| PRESENT |", 1).replace(
-                "| — |", "| owner decision fixture |", 1
-            )
         lines.append(line)
     text = "\n".join(lines) + "\n"
     assert _errors(text) == []
@@ -196,15 +192,48 @@ def test_done_item_requires_done_item_dependencies() -> None:
 
 def test_done_item_requires_present_external_prerequisites() -> None:
     text = _progress().replace(
-        "| 3 | **R17-A — external synthetic staging drill** | PKG-01 "
-        "| BLOCKED — EXT-STAGING-APPROVAL |",
-        "| 3 | **R17-A — external synthetic staging drill** | PKG-01 | DONE |",
+        "| 25 | **W2-01C — gateway adapter and webhook ingestion** | PKG-03 | TODO |",
+        "| 25 | **W2-01C — gateway adapter and webhook ingestion** | PKG-03 | DONE |",
     )
     errors = _errors(text)
     assert any(
-        "DONE item R17-A has missing external prerequisites: EXT-STAGING-APPROVAL" in error
+        "DONE item W2-01C has missing external prerequisites: EXT-PAYMENT-PROVIDER" in error
         for error in errors
     )
+
+
+def test_deferred_validation_rows_and_gates_are_pinned() -> None:
+    removed = re.sub(
+        r"^\| \*\*DV-PWA-PHYSICAL-MATRIX\*\* \|.*\n",
+        "",
+        _progress(),
+        flags=re.MULTILINE,
+    )
+    weakened = _progress().replace(
+        "W4 client-owned release and pilot gates",
+        "informational only",
+        1,
+    )
+    assert any("deferred validation identities/order/gates changed" in error for error in _errors(removed))
+    assert any("deferred validation identities/order/gates changed" in error for error in _errors(weakened))
+
+
+def test_pilot_acceptance_rejects_incomplete_deferred_validation() -> None:
+    text = _progress().replace(
+        "| 68 | **W4-03B — Cardvert pilot gate and acceptance suite** | PKG-08 | TODO |",
+        "| 68 | **W4-03B — Cardvert pilot gate and acceptance suite** | PKG-08 | DONE |",
+    )
+    errors = _errors(text)
+    assert any("W4-03B cannot be DONE while deferred validation remains incomplete" in error for error in errors)
+
+
+def test_release_environment_rejects_incomplete_live_staging_validation() -> None:
+    text = _progress().replace(
+        "| 67 | **W4-03A — client-owned release environment** | PKG-08 | TODO |",
+        "| 67 | **W4-03A — client-owned release environment** | PKG-08 | DONE |",
+    )
+    errors = _errors(text)
+    assert any("W4-03A cannot be DONE while DV-STAGING-LIVE is incomplete" in error for error in errors)
 
 
 def test_all_done_terminal_complete_state_is_valid() -> None:
@@ -229,6 +258,8 @@ def test_all_done_terminal_complete_state_is_valid() -> None:
             line = line.replace("| MISSING |", "| PRESENT |", 1).replace(
                 "| — |", "| terminal acceptance evidence |", 1
             )
+        if line.startswith("| **DV-"):
+            line = re.sub(r"\| NOT RUN — [^|]+\|", "| COMPLETE |", line, count=1)
         external_lines.append(line)
     text = "\n".join(external_lines) + "\n"
     text = text.replace("**Controller state:** `ACTIVE`", "**Controller state:** `COMPLETE`")

@@ -1,8 +1,8 @@
 # ADR 014 — R14-A production-PWA capability and protocol contract
 
-- **Status:** Candidate for Fable integration; R14-A remains `TODO`
+- **Status:** Accepted build contract; physical-device validation remains not run
 - **Date:** 2026-08-16
-- **Authority:** `docs/progress.md` R14-A; architecture §1/§9/§23/§30/§35; D15, D16, D18/Q10
+- **Authority:** `docs/progress.md` R14-A/R14-B; architecture §1/§9/§23/§30/§35; D15, D16, D18/Q10, D23
 - **Executable probe:** authenticated `/driver/capabilities`
 - **Contract:** `r14-a-v1`; backend protocol remains `d15-d16-v1`
 
@@ -36,7 +36,9 @@ No timer, service worker, instruction-only keep-awake step, browser-specific exc
 
 ## Candidate device matrix
 
-Support is capability-gated, not user-agent-gated. R14-B records the exact physical builds that pass.
+Support is capability-gated, not user-agent-gated. R14-B supplies deterministic
+desktop/mobile browser-profile build proof; W4 records the exact physical builds
+that pass before pilot admission.
 
 | Runtime | R14-A disposition | Conditions |
 | --- | --- | --- |
@@ -115,16 +117,21 @@ The redacted JSON report contains browser-reported metadata, states, decisions a
 
 Automated tests cover every environment-independent state/action mapping, denial/revocation, offline queue policy, storage/lock/session failure, probe helper outcome and the complete D15/D16 constant. Playwright proves no location prompt occurs before the explicit button and exercises the authenticated harness with deterministic primitives.
 
-## R14-A / R14-B boundary
+## Build proof / deferred validation boundary
 
-This ADR and harness freeze an executable candidate contract; they do **not** complete R14-A or supply R14-B evidence. Fable still owns:
+This ADR and harness freeze the executable R14-A contract. D23 permits R14-A
+and R14-B build completion from the deterministic contract, queue/tracker,
+desktop/mobile browser-profile and synthetic trip→seal→worker payout evidence.
+They do **not** claim that physical validation ran. W4 still owns:
 
 - exact Android and iPhone device/OS/browser build records;
-- installed-PWA Start → visible capture → End → seal → worker payout journey;
+- physical installed-PWA Start → visible capture → End → seal → worker payout journey;
 - physical denial/revocation, hidden/background, reload, offline/retry, storage and lock failure evidence;
 - no acknowledged loss/duplication proof;
 - completeness, synchronization latency, accuracy and four-hour battery measurements;
 - BFF expiry/revocation recovery under real device conditions; and
-- independent PWA, security, architecture and data-loss reviews.
+- independent physical-validation PWA, security, architecture and data-loss reviews.
 
-Until those gates pass and Fable reconciles authority documents, `docs/progress.md` must keep R14-A `TODO` and must not claim device support.
+Until those physical gates pass, `docs/progress.md` must retain the corresponding
+deferred-validation rows as NOT RUN and the product must not claim supported
+device builds or admit real-driver GPS/pilot use.

@@ -21,7 +21,7 @@ CHECKLIST_STATUSES = {"TODO", "DONE"}
 CANONICAL_ITEMS = (
     ("R14-A", "PKG-01", "none"),
     ("R14-B", "PKG-01", "leaf: R14-A"),
-    ("R17-A", "PKG-01", "external: EXT-STAGING-APPROVAL"),
+    ("R17-A", "PKG-01", "none"),
     ("FND-02A", "PKG-01", "none"),
     ("FND-02B", "PKG-01", "leaf: FND-02A; external: EXT-RM2-POLICY"),
     ("FND-07", "PKG-01", "none"),
@@ -135,11 +135,18 @@ CANONICAL_EXTERNAL_IDS = (
     "EXT-RM2-CALIBRATION-DATA",
 )
 
+CANONICAL_DEFERRED_VALIDATIONS = (
+    ("DV-PWA-PHYSICAL-MATRIX", "W4 production-PWA pilot acceptance / any real driver GPS"),
+    ("DV-PWA-ROUTE-BATTERY", "W4 production-PWA pilot acceptance"),
+    ("DV-STAGING-LIVE", "W4 client-owned release and pilot gates"),
+)
+
 # Authoritative headings must occur exactly once at top level; the boundary
 # headings that close them are pinned too, so a decoy cannot truncate a
 # section. All parsing runs on the sanitized authoritative view.
 AUTHORITATIVE_HEADINGS = (
     "## External prerequisite register",
+    "## Deferred post-build validation register",
     "## Canonical repository",
     "## Executable package queue",
     "## Executable package contracts",
@@ -316,6 +323,8 @@ def validate_text(text: str) -> list[str]:
     text = _authoritative_view(text, errors)
     _check_unique_authority_markers(text, errors)
 
+    external_section = ""
+    external_line = 0
     try:
         external_section, external_line = _section(
             text, "## External prerequisite register", "## Canonical repository"
@@ -344,6 +353,37 @@ def validate_text(text: str) -> list[str]:
         errors.append(
             "external register identities/order changed: expected "
             f"{list(CANONICAL_EXTERNAL_IDS)}, found {list(external_states)}"
+        )
+
+    try:
+        deferred_rows = _table(
+            external_section, "| Validation | State |", external_line
+        )
+    except ValueError as exc:
+        errors.append(str(exc))
+        deferred_rows = []
+    deferred_states: dict[str, str] = {}
+    deferred_contract: list[tuple[str, str]] = []
+    for line, cells in deferred_rows:
+        if len(cells) != 4:
+            errors.append(f"line {line}: deferred validation row must have 4 cells")
+            continue
+        validation_id = _plain(cells[0])
+        state = _plain(cells[1])
+        required_before = _plain(cells[3])
+        if not re.fullmatch(r"DV-[A-Z0-9-]+", validation_id):
+            errors.append(f"line {line}: invalid deferred validation id {validation_id!r}")
+            continue
+        if state != "COMPLETE" and not state.startswith("NOT RUN — "):
+            errors.append(
+                f"line {line}: {validation_id} state must be COMPLETE or NOT RUN — reason"
+            )
+        deferred_states[validation_id] = state
+        deferred_contract.append((validation_id, required_before))
+    if tuple(deferred_contract) != CANONICAL_DEFERRED_VALIDATIONS:
+        errors.append(
+            "deferred validation identities/order/gates changed: expected "
+            f"{list(CANONICAL_DEFERRED_VALIDATIONS)}, found {deferred_contract}"
         )
 
     try:
@@ -524,6 +564,21 @@ def validate_text(text: str) -> list[str]:
         )
         earlier_ids.add(item.item_id)
     status_by_id = {item.item_id: item.status for item in items}
+    incomplete_deferred = [
+        validation_id
+        for validation_id, _ in CANONICAL_DEFERRED_VALIDATIONS
+        if deferred_states.get(validation_id) != "COMPLETE"
+    ]
+    if status_by_id.get("W4-03B") == "DONE" and incomplete_deferred:
+        errors.append(
+            "W4-03B cannot be DONE while deferred validation remains incomplete: "
+            + ", ".join(incomplete_deferred)
+        )
+    if (
+        status_by_id.get("W4-03A") == "DONE"
+        and deferred_states.get("DV-STAGING-LIVE") != "COMPLETE"
+    ):
+        errors.append("W4-03A cannot be DONE while DV-STAGING-LIVE is incomplete")
 
     def runnable(item: Item) -> bool:
         if item.status != "TODO":
@@ -686,6 +741,11 @@ def validate_text(text: str) -> list[str]:
                 errors.append("COMPLETE controller must retain PKG-09 as control package")
             if not checkpoint_match or checkpoint_match.groups() != ("PKG-09", "W4-04B"):
                 errors.append("COMPLETE controller must retain PKG-09 / W4-04B checkpoint")
+            if incomplete_deferred:
+                errors.append(
+                    "COMPLETE controller requires deferred validation COMPLETE: "
+                    + ", ".join(incomplete_deferred)
+                )
         else:
             if not re.fullmatch(r"PAUSED — EXT-[A-Z0-9-]+", controller_state):
                 errors.append(
