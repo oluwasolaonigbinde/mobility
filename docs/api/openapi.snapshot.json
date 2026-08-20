@@ -4543,6 +4543,39 @@
             ],
             "title": "Amount"
           },
+          "base_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Amount"
+          },
+          "base_hourly_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Hourly Rate"
+          },
+          "base_payable_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Payable Seconds"
+          },
           "cap": {
             "anyOf": [
               {
@@ -4615,6 +4648,39 @@
             ],
             "title": "Hourly Rate"
           },
+          "premium_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Premium Amount"
+          },
+          "premium_hourly_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Premium Hourly Rate"
+          },
+          "premium_payable_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Premium Payable Seconds"
+          },
           "superseded_by_recompute": {
             "title": "Superseded By Recompute",
             "type": "boolean"
@@ -4634,6 +4700,12 @@
           "excluded_seconds_by_reason",
           "hourly_rate",
           "capped_seconds",
+          "base_payable_seconds",
+          "premium_payable_seconds",
+          "base_hourly_rate",
+          "premium_hourly_rate",
+          "base_amount",
+          "premium_amount",
           "superseded_by_recompute",
           "entries",
           "cap"

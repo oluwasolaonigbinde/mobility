@@ -2902,6 +2902,12 @@ export interface components {
         DriverTripEarningsBreakdown: {
             /** Amount */
             amount: string | null;
+            /** Base Amount */
+            base_amount: string | null;
+            /** Base Hourly Rate */
+            base_hourly_rate: string | null;
+            /** Base Payable Seconds */
+            base_payable_seconds: number | null;
             cap: components["schemas"]["DriverTripEarningsCapProgress"] | null;
             /** Capped Seconds */
             capped_seconds: number | null;
@@ -2919,6 +2925,12 @@ export interface components {
             formula_version: string;
             /** Hourly Rate */
             hourly_rate: string | null;
+            /** Premium Amount */
+            premium_amount: string | null;
+            /** Premium Hourly Rate */
+            premium_hourly_rate: string | null;
+            /** Premium Payable Seconds */
+            premium_payable_seconds: number | null;
             /** Superseded By Recompute */
             superseded_by_recompute: boolean;
             /**

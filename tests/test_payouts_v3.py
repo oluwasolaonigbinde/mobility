@@ -29,8 +29,7 @@ from conftest import (
     fetch_earnings_ledger_entries,
     fetch_payout_calculations,
 )
-from sqlalchemy import Text as SQLText
-from sqlalchemy import cast, delete, select
+from sqlalchemy import delete, func, select, update
 from starlette import status as http_status
 from test_payout_rule_revisions import service_create_revision
 from test_payouts_v2 import (
@@ -53,6 +52,8 @@ from app.models.payout import (
     AssignmentRuleBinding,
     CampaignPayoutRuleRevision,
     EarningsLedgerEntry,
+    EarningsLedgerEntryStatus,
+    EarningsLedgerEntryType,
     PayoutCalculation,
 )
 from app.models.trip import TripSessionStatus
@@ -62,6 +63,7 @@ from app.schemas.campaign_assignments import CampaignAssignmentTransition
 from app.services.campaign_assignments import (
     accept_driver_assignment,
     premium_zone_geometry_hash,
+    resolved_eligibility_snapshot,
 )
 from app.services.campaign_zones import geometry_expression
 from app.services.payout_eligibility import (
@@ -69,7 +71,14 @@ from app.services.payout_eligibility import (
     EligibilityPing,
     classify_session,
 )
-from app.services.payouts import PAYOUT_V2, PAYOUT_V3, v3_inputs_fingerprint
+from app.services.payouts import (
+    PAYOUT_V2,
+    PAYOUT_V3,
+    allocate_tier_amount_components,
+    driver_trip_earnings_breakdown,
+    price_tiered_payable_seconds,
+    v3_inputs_fingerprint,
+)
 
 PAST_EFFECTIVE = datetime(2026, 1, 1, tzinfo=UTC)
 
@@ -169,6 +178,7 @@ def create_revision_row(
 
 def insert_binding(
     db_sessionmaker,
+    settings,
     *,
     assignment_id,
     revision: CampaignPayoutRuleRevision,
@@ -177,6 +187,27 @@ def insert_binding(
 ) -> AssignmentRuleBinding:
     async def create() -> AssignmentRuleBinding:
         async with db_sessionmaker() as session:
+            premium_rows = (
+                (
+                    await session.execute(
+                        select(CampaignZone.id, func.ST_AsText(CampaignZone.geom))
+                        .where(CampaignZone.id.in_(list(zone_ids)))
+                        .order_by(CampaignZone.id)
+                    )
+                ).all()
+                if zone_ids
+                else []
+            )
+            exclusion_rows = (
+                await session.execute(
+                    select(CampaignZone.id, func.ST_AsText(CampaignZone.geom))
+                    .where(
+                        CampaignZone.campaign_id == revision.campaign_id,
+                        CampaignZone.zone_type == CampaignZoneType.EXCLUSION.value,
+                    )
+                    .order_by(CampaignZone.id)
+                )
+            ).all()
             binding = AssignmentRuleBinding(
                 assignment_id=assignment_id,
                 revision_id=revision.id,
@@ -184,9 +215,16 @@ def insert_binding(
                 premium_hourly_rate_naira=revision.premium_hourly_rate_naira,
                 daily_payable_hours_cap=revision.daily_payable_hours_cap,
                 eligibility_params=revision.eligibility_params or {},
+                resolved_eligibility_params=resolved_eligibility_snapshot(
+                    settings, revision.eligibility_params
+                ),
                 formula_version=revision.formula_version,
                 premium_zone_ids=[str(zone_id) for zone_id in zone_ids],
                 premium_zone_geometry_hash=geometry_hash,
+                premium_zone_geometry_wkts=[str(row[1]) for row in premium_rows],
+                exclusion_zone_ids=[str(row[0]) for row in exclusion_rows],
+                exclusion_zone_geometry_hash=premium_zone_geometry_hash(exclusion_rows),
+                exclusion_zone_geometry_wkts=[str(row[1]) for row in exclusion_rows],
                 stationary_policy_marker="ext-rm2-fail-closed",
                 bound_at=datetime.now(UTC),
             )
@@ -208,6 +246,7 @@ def add_target_zone(
     lat_max: float,
     lon_min: float = 3.30,
     lon_max: float = 3.50,
+    zone_type: str = CampaignZoneType.TARGET.value,
 ) -> CampaignZone:
     async def create() -> CampaignZone:
         async with db_sessionmaker() as session:
@@ -215,7 +254,7 @@ def add_target_zone(
                 campaign_id=campaign_id,
                 created_by_user_id=created_by_user_id,
                 name=name,
-                zone_type=CampaignZoneType.TARGET.value,
+                zone_type=zone_type,
                 geom=geometry_expression(
                     json.dumps(
                         {
@@ -253,7 +292,7 @@ def fetch_bindings(db_sessionmaker) -> list[AssignmentRuleBinding]:
     return asyncio.run(fetch())
 
 
-def accept_assignment(db_sessionmaker, *, user_id, assignment_id):
+def accept_assignment(db_sessionmaker, settings, *, user_id, assignment_id):
     async def run():
         async with db_sessionmaker() as session:
             assignment = await accept_driver_assignment(
@@ -261,6 +300,7 @@ def accept_assignment(db_sessionmaker, *, user_id, assignment_id):
                 user_id=user_id,
                 assignment_id=assignment_id,
                 payload=CampaignAssignmentTransition(),
+                settings=settings,
             )
             await session.commit()
             return assignment
@@ -275,14 +315,10 @@ def delete_money_rows(db_sessionmaker, trip_id) -> None:
     async def run() -> None:
         async with db_sessionmaker() as session:
             await session.execute(
-                delete(EarningsLedgerEntry).where(
-                    EarningsLedgerEntry.trip_session_id == trip_id
-                )
+                delete(EarningsLedgerEntry).where(EarningsLedgerEntry.trip_session_id == trip_id)
             )
             await session.execute(
-                delete(PayoutCalculation).where(
-                    PayoutCalculation.trip_session_id == trip_id
-                )
+                delete(PayoutCalculation).where(PayoutCalculation.trip_session_id == trip_id)
             )
             await session.commit()
 
@@ -291,6 +327,7 @@ def delete_money_rows(db_sessionmaker, trip_id) -> None:
 
 def bind_v2_graph(
     db_sessionmaker,
+    settings,
     graph,
     *,
     base: str = "1000.00",
@@ -315,6 +352,7 @@ def bind_v2_graph(
     )
     binding = insert_binding(
         db_sessionmaker,
+        settings,
         assignment_id=graph.assignment.id,
         revision=revision,
         zone_ids=zone_ids,
@@ -329,6 +367,7 @@ def bind_v2_graph(
 
 def test_accept_freezes_effective_revision_with_zone_snapshot(
     postgis_db_sessionmaker,
+    settings,
 ) -> None:
     graph = build_offered_graph(postgis_db_sessionmaker, "v3-accept")
     rule = create_v2_rule(
@@ -356,7 +395,10 @@ def test_accept_freezes_effective_revision_with_zone_snapshot(
     )
 
     accepted = accept_assignment(
-        postgis_db_sessionmaker, user_id=graph.driver.id, assignment_id=graph.assignment.id
+        postgis_db_sessionmaker,
+        settings,
+        user_id=graph.driver.id,
+        assignment_id=graph.assignment.id,
     )
     assert accepted.status == CampaignAssignmentStatus.ACCEPTED.value
 
@@ -380,7 +422,7 @@ def test_accept_freezes_effective_revision_with_zone_snapshot(
         async with postgis_db_sessionmaker() as session:
             rows = (
                 await session.execute(
-                    select(CampaignZone.id, cast(CampaignZone.geom, SQLText))
+                    select(CampaignZone.id, func.ST_AsText(CampaignZone.geom))
                     .where(
                         CampaignZone.campaign_id == graph.campaign.id,
                         CampaignZone.zone_type == CampaignZoneType.TARGET.value,
@@ -406,7 +448,10 @@ def test_accept_without_revisions_creates_no_binding_and_trip_stays_v2(
         created_by_user_id=graph.admin.id,
     )
     accept_assignment(
-        postgis_db_sessionmaker, user_id=graph.driver.id, assignment_id=graph.assignment.id
+        postgis_db_sessionmaker,
+        settings,
+        user_id=graph.driver.id,
+        assignment_id=graph.assignment.id,
     )
     assert fetch_bindings(postgis_db_sessionmaker) == []
 
@@ -438,7 +483,7 @@ def test_accept_without_revisions_creates_no_binding_and_trip_stays_v2(
 # --- PR2 / PR10 races (PostGIS) ----------------------------------------------
 
 
-def test_concurrent_accepts_yield_exactly_one_binding(postgis_db_sessionmaker) -> None:
+def test_concurrent_accepts_yield_exactly_one_binding(postgis_db_sessionmaker, settings) -> None:
     graph = build_offered_graph(postgis_db_sessionmaker, "v3-race")
     rule = create_v2_rule(
         postgis_db_sessionmaker,
@@ -460,6 +505,7 @@ def test_concurrent_accepts_yield_exactly_one_binding(postgis_db_sessionmaker) -
                     user_id=graph.driver.id,
                     assignment_id=graph.assignment.id,
                     payload=CampaignAssignmentTransition(),
+                    settings=settings,
                 )
                 await session.commit()
                 return "accepted"
@@ -484,6 +530,7 @@ def test_concurrent_accepts_yield_exactly_one_binding(postgis_db_sessionmaker) -
 
 def test_accept_vs_supersede_race_matches_one_serialization(
     postgis_db_sessionmaker,
+    settings,
 ) -> None:
     graph = build_offered_graph(postgis_db_sessionmaker, "v3-sup-race")
     rule = create_v2_rule(
@@ -505,6 +552,7 @@ def test_accept_vs_supersede_race_matches_one_serialization(
                 user_id=graph.driver.id,
                 assignment_id=graph.assignment.id,
                 payload=CampaignAssignmentTransition(),
+                settings=settings,
             )
             await session.commit()
             return assignment
@@ -542,11 +590,9 @@ def tier_split(calculation: PayoutCalculation) -> dict:
     return calculation.payout_metadata["cap"]["payable_seconds_by_day_tier"]
 
 
-def test_v3_base_only_prices_from_binding_not_rule(
-    postgis_db_sessionmaker, settings
-) -> None:
+def test_v3_base_only_prices_from_binding_not_rule(postgis_db_sessionmaker, settings) -> None:
     graph = build_v2_graph(postgis_db_sessionmaker, "v3-base")  # rule: 1200/h
-    bind_v2_graph(postgis_db_sessionmaker, graph, base="1000.00", premium="2000.00")
+    bind_v2_graph(postgis_db_sessionmaker, settings, graph, base="1000.00", premium="2000.00")
     result = pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
 
     assert result.overall == "completed"
@@ -583,9 +629,7 @@ def test_v3_base_only_prices_from_binding_not_rule(
         assert exc.code in {"PAYOUT_RULE_NOT_FOUND", "INVALID_PAYOUT_RULE"}
 
 
-def test_v3_premium_only_prices_at_premium_rate(
-    postgis_db_sessionmaker, settings
-) -> None:
+def test_v3_premium_only_prices_at_premium_rate(postgis_db_sessionmaker, settings) -> None:
     graph = build_v2_graph(postgis_db_sessionmaker, "v3-prem")
     zone = add_target_zone(
         postgis_db_sessionmaker,
@@ -597,6 +641,7 @@ def test_v3_premium_only_prices_at_premium_rate(
     )
     bind_v2_graph(
         postgis_db_sessionmaker,
+        settings,
         graph,
         base="1000.00",
         premium="2400.00",
@@ -614,9 +659,7 @@ def test_v3_premium_only_prices_at_premium_rate(
     assert calculation.final_payout == Decimal("1200.00")
 
 
-def test_v3_mixed_tiers_cut_at_zone_transition(
-    postgis_db_sessionmaker, settings
-) -> None:
+def test_v3_mixed_tiers_cut_at_zone_transition(postgis_db_sessionmaker, settings) -> None:
     graph = build_v2_graph(postgis_db_sessionmaker, "v3-mixed")
     zone_a = add_target_zone(
         postgis_db_sessionmaker,
@@ -638,6 +681,7 @@ def test_v3_mixed_tiers_cut_at_zone_transition(
     )
     bind_v2_graph(
         postgis_db_sessionmaker,
+        settings,
         graph,
         base="1000.00",
         premium="2000.00",
@@ -659,15 +703,33 @@ def test_v3_mixed_tiers_cut_at_zone_transition(
     components = calculation.payout_metadata["components"]
     assert components["base_payable_seconds"] == 900
     assert components["premium_payable_seconds"] == 900
+    assert components["base_amount"] == "250.00"
+    assert components["premium_amount"] == "500.00"
+
+    async def read_driver_breakdown():
+        async with postgis_db_sessionmaker() as session:
+            return await driver_trip_earnings_breakdown(
+                session, user_id=graph.driver.id, trip_id=graph.trip.id
+            )
+
+    driver_breakdown = asyncio.run(read_driver_breakdown())
+    assert driver_breakdown.formula_version == PAYOUT_V3
+    assert driver_breakdown.base_payable_seconds == 900
+    assert driver_breakdown.premium_payable_seconds == 900
+    assert driver_breakdown.base_hourly_rate == Decimal("1000.00")
+    assert driver_breakdown.premium_hourly_rate == Decimal("2000.00")
+    assert driver_breakdown.base_amount == Decimal("250.00")
+    assert driver_breakdown.premium_amount == Decimal("500.00")
+    assert driver_breakdown.base_amount + driver_breakdown.premium_amount == (
+        driver_breakdown.amount
+    )
 
 
-def test_v3_supersede_after_accept_never_reprices(
-    postgis_db_sessionmaker, settings
-) -> None:
+def test_v3_supersede_after_accept_never_reprices(postgis_db_sessionmaker, settings) -> None:
     """The no-repricing core guarantee: recomputing after a later revision
     reproduces identical money and an identical fingerprint."""
     graph = build_v2_graph(postgis_db_sessionmaker, "v3-frozen")
-    bind_v2_graph(postgis_db_sessionmaker, graph, base="1000.00", premium="2000.00")
+    bind_v2_graph(postgis_db_sessionmaker, settings, graph, base="1000.00", premium="2000.00")
     pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
 
     first = fetch_payout_calculations(postgis_db_sessionmaker)[0]
@@ -705,9 +767,70 @@ def test_v3_supersede_after_accept_never_reprices(
     assert [entry.amount for entry in entries] == [Decimal("500.00")]
 
 
-def test_v3_cap_truncation_is_chronological_across_tiers(
+def test_v3_replay_uses_frozen_geometry_and_resolved_eligibility(
     postgis_db_sessionmaker, settings
 ) -> None:
+    graph = build_v2_graph(postgis_db_sessionmaker, "v3-immutable-inputs")
+    premium = add_target_zone(
+        postgis_db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        created_by_user_id=graph.admin.id,
+        name="Frozen premium",
+        lat_min=6.40,
+        lat_max=6.52,
+    )
+    bind_v2_graph(
+        postgis_db_sessionmaker,
+        settings,
+        graph,
+        base="1000.00",
+        premium="2000.00",
+        zone_ids=[premium.id],
+    )
+    pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
+    first = fetch_payout_calculations(postgis_db_sessionmaker)[0]
+    assert first.final_payout == Decimal("1000.00")
+    frozen_fingerprint = first.inputs_fingerprint
+
+    async def mutate_live_inputs() -> None:
+        async with postgis_db_sessionmaker() as session:
+            far_away = geometry_expression(
+                json.dumps(
+                    {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [[4.0, 7.0], [4.1, 7.0], [4.1, 7.1], [4.0, 7.1], [4.0, 7.0]]
+                        ],
+                    }
+                )
+            )
+            await session.execute(
+                update(CampaignZone).where(CampaignZone.id == premium.id).values(geom=far_away)
+            )
+            await session.commit()
+
+    asyncio.run(mutate_live_inputs())
+    add_target_zone(
+        postgis_db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        created_by_user_id=graph.admin.id,
+        name="Late exclusion must not reprice",
+        lat_min=6.40,
+        lat_max=6.52,
+        zone_type=CampaignZoneType.EXCLUSION.value,
+    )
+    changed_settings = settings.model_copy(update={"payout_eligibility_max_accuracy_m": 1.0})
+
+    delete_money_rows(postgis_db_sessionmaker, graph.trip.id)
+    run_pipeline(postgis_db_sessionmaker, graph.trip.id, changed_settings)
+    replayed = fetch_payout_calculations(postgis_db_sessionmaker)[0]
+    assert replayed.final_payout == Decimal("1000.00")
+    assert replayed.inputs_fingerprint == frozen_fingerprint
+    day = replayed.payout_metadata["lagos_day"]
+    assert tier_split(replayed) == {day: {"base": 0, "premium": 1800}}
+
+
+def test_v3_cap_truncation_is_chronological_across_tiers(postgis_db_sessionmaker, settings) -> None:
     """PR4: the day cap is consumed by the EARLIEST eligible seconds, each
     priced at its own tier — premium-first here because the premium half of
     the trip comes first, not because premium wins any priority."""
@@ -730,6 +853,7 @@ def test_v3_cap_truncation_is_chronological_across_tiers(
     )
     bind_v2_graph(
         postgis_db_sessionmaker,
+        settings,
         graph,
         base="1000.00",
         premium="2000.00",
@@ -750,7 +874,7 @@ def test_v3_cap_truncation_is_chronological_across_tiers(
     assert calculation.final_payout == Decimal("500.00")  # 900 s at 2000/h
 
 
-def build_mixed_engine_day(postgis_db_sessionmaker, tag: str, *, cap: str):
+def build_mixed_engine_day(postgis_db_sessionmaker, settings, tag: str, *, cap: str):
     """One driver/campaign/Lagos-day with a v2 trip (unbound assignment) and
     a v3 trip (bound assignment on a second vehicle)."""
     graph = build_v2_graph(postgis_db_sessionmaker, tag, daily_cap_hours=cap)
@@ -778,7 +902,10 @@ def build_mixed_engine_day(postgis_db_sessionmaker, tag: str, *, cap: str):
         cap=cap,
     )
     insert_binding(
-        postgis_db_sessionmaker, assignment_id=assignment2.id, revision=revision
+        postgis_db_sessionmaker,
+        settings,
+        assignment_id=assignment2.id,
+        revision=revision,
     )
     trip2_start = TRIP_START + timedelta(hours=1)
     trip2 = create_test_trip_session(
@@ -808,20 +935,17 @@ def build_mixed_engine_day(postgis_db_sessionmaker, tag: str, *, cap: str):
     return graph
 
 
-def test_mixed_v2_v3_trips_share_one_day_cap_pool(
-    postgis_db_sessionmaker, settings
-) -> None:
+def test_mixed_v2_v3_trips_share_one_day_cap_pool(postgis_db_sessionmaker, settings) -> None:
     """PR5: ONE shared D4 cap pool per driver/campaign/Lagos-day across
     engines — the v3 trip only gets what the v2 trip left."""
-    graph = build_mixed_engine_day(postgis_db_sessionmaker, "v3-pool", cap="0.75")
+    graph = build_mixed_engine_day(postgis_db_sessionmaker, settings, "v3-pool", cap="0.75")
     result1 = run_pipeline(postgis_db_sessionmaker, graph.trip.id, settings)
     result2 = run_pipeline(postgis_db_sessionmaker, graph.trip2.id, settings)
     assert result1.overall == "completed"
     assert result2.overall == "completed"
 
     calculations = {
-        calc.trip_session_id: calc
-        for calc in fetch_payout_calculations(postgis_db_sessionmaker)
+        calc.trip_session_id: calc for calc in fetch_payout_calculations(postgis_db_sessionmaker)
     }
     v2_calc = calculations[graph.trip.id]
     v3_calc = calculations[graph.trip2.id]
@@ -834,14 +958,12 @@ def test_mixed_v2_v3_trips_share_one_day_cap_pool(
     assert v3_calc.final_payout == Decimal("300.00")  # 900 s at 1200/h
 
 
-def test_mixed_v2_v3_cap_race_never_exceeds_day_cap(
-    postgis_db_sessionmaker, settings
-) -> None:
+def test_mixed_v2_v3_cap_race_never_exceeds_day_cap(postgis_db_sessionmaker, settings) -> None:
     """PR5 race: whichever engine wins the advisory lock, the shared pool
     never exceeds the D4 cap in any serialization."""
     from app.services.trip_processing import process_ended_trip
 
-    graph = build_mixed_engine_day(postgis_db_sessionmaker, "v3-pool-race", cap="0.75")
+    graph = build_mixed_engine_day(postgis_db_sessionmaker, settings, "v3-pool-race", cap="0.75")
 
     async def process(trip_id):
         async with postgis_db_sessionmaker() as session:
@@ -867,16 +989,14 @@ def test_mixed_v2_v3_cap_race_never_exceeds_day_cap(
     assert sum(allocations) == 2700
 
 
-def test_v3_midnight_spanning_trip_allocates_per_day(
-    postgis_db_sessionmaker, settings
-) -> None:
+def test_v3_midnight_spanning_trip_allocates_per_day(postgis_db_sessionmaker, settings) -> None:
     # 22:30 -> 23:30 UTC == 23:30 -> 00:30 Africa/Lagos: two payable days.
     started_at = datetime(2026, 7, 20, 22, 30, tzinfo=UTC)
     ended_at = started_at + timedelta(minutes=60)
     graph = build_v2_graph(
         postgis_db_sessionmaker, "v3-midnight", started_at=started_at, ended_at=ended_at
     )
-    bind_v2_graph(postgis_db_sessionmaker, graph, base="1200.00", premium=None)
+    bind_v2_graph(postgis_db_sessionmaker, settings, graph, base="1200.00", premium=None)
     result = pipeline_to_v2(
         postgis_db_sessionmaker,
         settings,
@@ -903,6 +1023,151 @@ def test_v3_midnight_spanning_trip_allocates_per_day(
 # --- Fingerprint completeness (B2/Q6) and pure tier slicing ------------------
 
 
+def test_tier_component_allocator_reconciles_once_quantized_total() -> None:
+    total = price_tiered_payable_seconds(1, 1, Decimal("18.00"), Decimal("18.00"))
+    # Each raw component is half a kobo. Rounding both independently would
+    # produce 0.02, but the once-quantized authoritative total is 0.01.
+    components = allocate_tier_amount_components(
+        base_seconds=1,
+        premium_seconds=1,
+        base_rate=Decimal("18.00"),
+        premium_rate=Decimal("18.00"),
+        authoritative_total=total,
+    )
+    assert components.base_amount == Decimal("0.01")
+    assert components.premium_amount == Decimal("0.00")
+    assert components.base_amount + components.premium_amount == total
+
+
+def test_tier_component_allocator_preserves_empty_tiers_and_base_rate_fallback() -> None:
+    base_only = allocate_tier_amount_components(
+        base_seconds=1800,
+        premium_seconds=0,
+        base_rate=Decimal("1000.00"),
+        premium_rate=Decimal("1000.00"),
+        authoritative_total=Decimal("500.00"),
+    )
+    assert base_only.base_amount == Decimal("500.00")
+    assert base_only.premium_amount == Decimal("0.00")
+
+    premium_only = allocate_tier_amount_components(
+        base_seconds=0,
+        premium_seconds=1800,
+        base_rate=Decimal("1000.00"),
+        # A NULL frozen premium rate is resolved to base before allocation.
+        premium_rate=Decimal("1000.00"),
+        authoritative_total=Decimal("500.00"),
+    )
+    assert premium_only.base_amount == Decimal("0.00")
+    assert premium_only.premium_amount == Decimal("500.00")
+
+
+def test_driver_breakdown_uses_latest_valid_nonvoided_v3_authority(
+    postgis_db_sessionmaker, settings
+) -> None:
+    graph = build_v2_graph(postgis_db_sessionmaker, "v3-driver-supersession")
+    bind_v2_graph(
+        postgis_db_sessionmaker,
+        settings,
+        graph,
+        base="1000.00",
+        premium="1800.00",
+    )
+    pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
+    calculation = fetch_payout_calculations(postgis_db_sessionmaker)[0]
+    day = calculation.payout_metadata["lagos_day"]
+
+    def metadata(*, base: int, premium: int, total: str) -> dict:
+        components = allocate_tier_amount_components(
+            base_seconds=base,
+            premium_seconds=premium,
+            base_rate=Decimal("1000.00"),
+            premium_rate=Decimal("1800.00"),
+            authoritative_total=Decimal(total),
+        )
+        return {
+            "recompute_day": True,
+            "payout_calculation_id": str(calculation.id),
+            "formula_version": PAYOUT_V3,
+            "breakdown": {
+                "eligible_seconds": base + premium,
+                "payable_seconds": base + premium,
+                "payable_seconds_by_day": {day: base + premium},
+                "payable_seconds_by_day_tier": {day: {"base": base, "premium": premium}},
+                "base_payable_seconds": base,
+                "premium_payable_seconds": premium,
+                "hourly_rate_naira": "1000.00",
+                "premium_hourly_rate_naira": "1800.00",
+                "base_amount": str(components.base_amount),
+                "premium_amount": str(components.premium_amount),
+                "target_amount": total,
+            },
+        }
+
+    async def insert_entries() -> tuple[EarningsLedgerEntry, EarningsLedgerEntry]:
+        async with postgis_db_sessionmaker() as session:
+            positive = EarningsLedgerEntry(
+                driver_profile_id=graph.profile.id,
+                driver_user_id=graph.driver.id,
+                campaign_id=graph.campaign.id,
+                trip_session_id=graph.trip.id,
+                vehicle_id=graph.vehicle.id,
+                entry_type=EarningsLedgerEntryType.ADJUSTMENT.value,
+                status=EarningsLedgerEntryStatus.PENDING.value,
+                amount=Decimal("500.00"),
+                currency="NGN",
+                occurred_at=graph.trip.ended_at + timedelta(minutes=1),
+                ledger_metadata=metadata(base=0, premium=1800, total="1000.00"),
+            )
+            reversal = EarningsLedgerEntry(
+                driver_profile_id=graph.profile.id,
+                driver_user_id=graph.driver.id,
+                campaign_id=graph.campaign.id,
+                trip_session_id=graph.trip.id,
+                vehicle_id=graph.vehicle.id,
+                entry_type=EarningsLedgerEntryType.REVERSAL.value,
+                status=EarningsLedgerEntryStatus.PENDING.value,
+                amount=Decimal("300.00"),
+                currency="NGN",
+                occurred_at=graph.trip.ended_at + timedelta(minutes=2),
+                ledger_metadata=metadata(base=900, premium=900, total="700.00"),
+            )
+            session.add_all([positive, reversal])
+            await session.commit()
+            return positive, reversal
+
+    positive, reversal = asyncio.run(insert_entries())
+
+    async def breakdown():
+        async with postgis_db_sessionmaker() as session:
+            return await driver_trip_earnings_breakdown(
+                session, user_id=graph.driver.id, trip_id=graph.trip.id
+            )
+
+    latest = asyncio.run(breakdown())
+    assert latest.superseded_by_recompute is True
+    assert latest.amount == Decimal("700.00")
+    assert latest.base_payable_seconds == 900
+    assert latest.premium_payable_seconds == 900
+    assert latest.base_amount == Decimal("250.00")
+    assert latest.premium_amount == Decimal("450.00")
+
+    async def void_latest() -> None:
+        async with postgis_db_sessionmaker() as session:
+            stored = await session.get(EarningsLedgerEntry, reversal.id)
+            stored.status = EarningsLedgerEntryStatus.VOIDED.value
+            await session.commit()
+
+    asyncio.run(void_latest())
+    fallback = asyncio.run(breakdown())
+    assert fallback.superseded_by_recompute is True
+    assert fallback.base_payable_seconds == 0
+    assert fallback.premium_payable_seconds == 1800
+    assert fallback.base_amount == Decimal("0.00")
+    assert fallback.premium_amount == Decimal("1000.00")
+    assert positive.status == EarningsLedgerEntryStatus.PENDING.value
+
+
 def test_v3_fingerprint_covers_every_frozen_binding_input() -> None:
     def binding(**overrides) -> SimpleNamespace:
         values = {
@@ -912,8 +1177,11 @@ def test_v3_fingerprint_covers_every_frozen_binding_input() -> None:
             "premium_hourly_rate_naira": Decimal("2000.00"),
             "daily_payable_hours_cap": Decimal("8.00"),
             "eligibility_params": {"stationary_grace_min": 5},
+            "resolved_eligibility_params": params.as_metadata(),
             "premium_zone_ids": ["33333333-3333-3333-3333-333333333333"],
             "premium_zone_geometry_hash": hashlib.sha256(b"zones").hexdigest(),
+            "exclusion_zone_ids": ["44444444-4444-4444-4444-444444444444"],
+            "exclusion_zone_geometry_hash": hashlib.sha256(b"exclusions").hexdigest(),
             "stationary_policy_marker": "ext-rm2-fail-closed",
         }
         values.update(overrides)
@@ -951,8 +1219,11 @@ def test_v3_fingerprint_covers_every_frozen_binding_input() -> None:
         binding(premium_hourly_rate_naira=None),
         binding(daily_payable_hours_cap=Decimal("7.00")),
         binding(eligibility_params={"stationary_grace_min": 6}),
+        binding(resolved_eligibility_params={**params.as_metadata(), "max_accuracy_m": 51.0}),
         binding(premium_zone_ids=[]),
         binding(premium_zone_geometry_hash=hashlib.sha256(b"other").hexdigest()),
+        binding(exclusion_zone_ids=[]),
+        binding(exclusion_zone_geometry_hash=hashlib.sha256(b"other-exclusion").hexdigest()),
         binding(stationary_policy_marker="something-else"),
     ]
     fingerprints = [fingerprint(variant) for variant in variants]

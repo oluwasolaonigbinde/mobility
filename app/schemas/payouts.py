@@ -45,6 +45,10 @@ class DecimalStringMixin(BaseModel):
         "daily_payable_hours_cap",
         "ledger_net_total",
         "hourly_rate",
+        "base_hourly_rate",
+        "premium_hourly_rate",
+        "base_amount",
+        "premium_amount",
         "base_rate_per_km",
         "base_rate_per_active_hour",
         "target_zone_bonus_rate_per_km",
@@ -516,6 +520,12 @@ class DriverTripEarningsBreakdown(DecimalStringMixin):
     excluded_seconds_by_reason: dict[str, int] | None
     hourly_rate: Decimal | None
     capped_seconds: int | None
+    base_payable_seconds: int | None
+    premium_payable_seconds: int | None
+    base_hourly_rate: Decimal | None
+    premium_hourly_rate: Decimal | None
+    base_amount: Decimal | None
+    premium_amount: Decimal | None
     superseded_by_recompute: bool
     entries: list[EarningsLedgerEntryRead]
     cap: DriverTripEarningsCapProgress | None

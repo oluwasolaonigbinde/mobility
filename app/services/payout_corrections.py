@@ -37,6 +37,7 @@ from app.models.payout import (
 from app.models.trip import TripSession, TripSessionStatus
 from app.services.audit import create_audit_event
 from app.services.payouts import (
+    PAYOUT_V2,
     DayComputation,
     RecomputeDayOutcome,
     compute_payout_day_targets,
@@ -228,8 +229,18 @@ async def _projection_fingerprint(
             "lagos_day": lagos_day.isoformat(),
             "trips": trip_inputs,
             "ledger_entries": ledger_rows,
+            # Live zones affect payout_v2 classification. payout_v3 consumes
+            # only the acceptance-time geometry snapshot, already carried in
+            # governing_values/current_ping_fingerprint, so unrelated live
+            # zone edits must not stale a v3-only order.
             "zone_state_fingerprint": (
-                first.zone_state_fingerprint if first is not None else None
+                first.zone_state_fingerprint
+                if any(
+                    target.formula_version == PAYOUT_V2
+                    for computation in computations
+                    for target in computation.trips
+                )
+                else None
             ),
             "window_start_at": first.window_start_at if first is not None else None,
             "window_end_at": first.window_end_at if first is not None else None,

@@ -85,9 +85,7 @@ export default async function AdminPayoutsPage({
                     <td className="px-4 py-3 text-right">
                       {formatMoney(c.gross_payout, c.currency)}
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      {formatDuration(c.payable_seconds)}
-                    </td>
+                    <td className="px-4 py-3 text-right">{formatDuration(c.payable_seconds)}</td>
                     <td className="px-4 py-3 text-right">{c.quality_multiplier ?? "—"}</td>
                     <td className="px-4 py-3 text-right">{c.fraud_multiplier ?? "—"}</td>
                     <td className="text-green px-4 py-3 text-right font-medium">
@@ -125,6 +123,10 @@ export default async function AdminPayoutsPage({
         Earning terms are set per campaign —{" "}
         <Link href="/admin/payouts/rules" className="text-amber hover:underline">
           edit payout rules →
+        </Link>{" "}
+        · Retroactive day fixes run through maker-checker{" "}
+        <Link href="/admin/payouts/corrections" className="text-amber hover:underline">
+          correction orders →
         </Link>
       </p>
     </div>

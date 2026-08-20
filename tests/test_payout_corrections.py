@@ -52,7 +52,7 @@ from app.services.payout_corrections import (
     reject_correction_order,
     submit_correction_order,
 )
-from app.services.payouts import PAYOUT_V3
+from app.services.payouts import PAYOUT_V3, driver_trip_earnings_breakdown
 
 RELEASE_AT = datetime(2026, 9, 1, 12, 0, tzinfo=UTC)
 
@@ -87,9 +87,7 @@ def create_order(db_sessionmaker, settings, graph, *, reason="test correction"):
 def submit(db_sessionmaker, order_id, actor_id):
     return service(
         db_sessionmaker,
-        lambda session: submit_correction_order(
-            session, order_id=order_id, actor_user_id=actor_id
-        ),
+        lambda session: submit_correction_order(session, order_id=order_id, actor_user_id=actor_id),
     )
 
 
@@ -158,8 +156,7 @@ def void_trip_payout(db_sessionmaker, trip_id) -> None:
             entry = await session.scalar(
                 select(EarningsLedgerEntry).where(
                     EarningsLedgerEntry.trip_session_id == trip_id,
-                    EarningsLedgerEntry.entry_type
-                    == EarningsLedgerEntryType.TRIP_PAYOUT.value,
+                    EarningsLedgerEntry.entry_type == EarningsLedgerEntryType.TRIP_PAYOUT.value,
                 )
             )
             entry.status = EarningsLedgerEntryStatus.VOIDED.value
@@ -174,8 +171,7 @@ def set_trip_payout_status(db_sessionmaker, trip_id, status_value: str) -> None:
             entry = await session.scalar(
                 select(EarningsLedgerEntry).where(
                     EarningsLedgerEntry.trip_session_id == trip_id,
-                    EarningsLedgerEntry.entry_type
-                    == EarningsLedgerEntryType.TRIP_PAYOUT.value,
+                    EarningsLedgerEntry.entry_type == EarningsLedgerEntryType.TRIP_PAYOUT.value,
                 )
             )
             entry.status = status_value
@@ -280,9 +276,7 @@ def test_correction_endpoints_require_admin(
         "reason": "perm probe",
     }
     assert (
-        postgis_db_client.post(
-            "/api/v1/admin/payouts/correction-orders", json=body
-        ).status_code
+        postgis_db_client.post("/api/v1/admin/payouts/correction-orders", json=body).status_code
         == http_status.HTTP_401_UNAUTHORIZED
     )
     driver_headers = auth_headers(postgis_db_client, graph.driver.email, PASSWORD)
@@ -360,9 +354,7 @@ def test_full_lifecycle_via_api_with_maker_checker_actors(
         headers=creator_headers,
     )
     assert missing_release.status_code == http_status.HTTP_400_BAD_REQUEST
-    assert (
-        missing_release.json()["error"]["code"] == "CORRECTION_RELEASE_AT_REQUIRED"
-    )
+    assert missing_release.json()["error"]["code"] == "CORRECTION_RELEASE_AT_REQUIRED"
     assert reload_order(postgis_db_sessionmaker, order_id).status == "approved"
 
     # The creator MAY execute: independent approval already happened — Q22
@@ -419,10 +411,7 @@ def test_full_lifecycle_via_api_with_maker_checker_actors(
     assert created_meta["status_before"] is None
     assert created_meta["status_after"] == "draft"
     assert created_meta["reason"] == "upward rate correction"
-    assert (
-        created_meta["projected_delta"]["trips"][0]["previous_posted_amount"]
-        == "600.00"
-    )
+    assert created_meta["projected_delta"]["trips"][0]["previous_posted_amount"] == "600.00"
     approved_meta = events["admin.payout_correction_order.approved"].event_metadata
     assert approved_meta["status_before"] == "pending_approval"
     assert approved_meta["status_after"] == "approved"
@@ -432,9 +421,7 @@ def test_full_lifecycle_via_api_with_maker_checker_actors(
     assert executed_meta["status_before"] == "approved"
     assert executed_meta["status_after"] == "executed"
     assert executed_meta["executed_by_user_id"] == str(graph.admin.id)
-    assert executed_meta["execution_result"]["drivers"][0]["trips"][0][
-        "delta_amount"
-    ] == "150.00"
+    assert executed_meta["execution_result"]["drivers"][0]["trips"][0]["delta_amount"] == "150.00"
     assert executed_meta["decided_at"] is not None
     assert executed_meta["executed_at"] is not None
 
@@ -482,9 +469,7 @@ def test_full_lifecycle_via_api_with_maker_checker_actors(
     assert reject_events[0].actor_user_id == approver.id
 
 
-def test_reject_path_and_illegal_transitions(
-    postgis_db_sessionmaker, settings
-) -> None:
+def test_reject_path_and_illegal_transitions(postgis_db_sessionmaker, settings) -> None:
     graph = build_v2_graph(postgis_db_sessionmaker, "co-illegal")
     pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
     approver = second_admin(postgis_db_sessionmaker, "co-illegal")
@@ -613,14 +598,10 @@ def test_creator_approval_is_blocked_by_the_database_check_too(
 # --- Stale projection (C2) ---------------------------------------------------
 
 
-def test_input_drift_marks_order_stale_at_approve(
-    postgis_db_sessionmaker, settings
-) -> None:
+def test_input_drift_marks_order_stale_at_approve(postgis_db_sessionmaker, settings) -> None:
     graph = build_v2_graph(postgis_db_sessionmaker, "co-stale-appr")
     pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
-    order, approver = submitted_order(
-        postgis_db_sessionmaker, settings, graph, "co-stale-appr"
-    )
+    order, approver = submitted_order(postgis_db_sessionmaker, settings, graph, "co-stale-appr")
 
     drift_inputs(postgis_db_sessionmaker, graph)
 
@@ -658,9 +639,7 @@ def test_input_drift_marks_order_stale_at_execute_with_no_money_effect(
     graph = build_v2_graph(postgis_db_sessionmaker, "co-stale-exec")
     pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
     raise_rule_rate(postgis_db_sessionmaker, graph.rule.id, "1500.00")
-    order, approver = approved_order(
-        postgis_db_sessionmaker, settings, graph, "co-stale-exec"
-    )
+    order, approver = approved_order(postgis_db_sessionmaker, settings, graph, "co-stale-exec")
 
     drift_inputs(postgis_db_sessionmaker, graph)
 
@@ -724,9 +703,7 @@ def test_execution_is_atomic_when_a_late_failure_rolls_back(
     graph = build_v2_graph(postgis_db_sessionmaker, "co-atomic")
     pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
     raise_rule_rate(postgis_db_sessionmaker, graph.rule.id, "1500.00")
-    order, approver = approved_order(
-        postgis_db_sessionmaker, settings, graph, "co-atomic"
-    )
+    order, approver = approved_order(postgis_db_sessionmaker, settings, graph, "co-atomic")
 
     def boom(*args, **kwargs):
         raise RuntimeError("simulated crash after ledger writes")
@@ -757,9 +734,7 @@ def test_execution_is_atomic_when_a_late_failure_rolls_back(
     assert reloaded.execution_result is None
 
     monkeypatch.undo()
-    _, executed_now = execute(
-        postgis_db_sessionmaker, settings, order.id, approver.id
-    )
+    _, executed_now = execute(postgis_db_sessionmaker, settings, order.id, approver.id)
     assert executed_now is True
     assert len(correction_entries(postgis_db_sessionmaker)) == 1
 
@@ -779,9 +754,7 @@ def test_positive_deltas_stay_pending_even_when_the_day_is_available(
     )
     raise_rule_rate(postgis_db_sessionmaker, graph.rule.id, "1500.00")
     totals_before = driver_totals(postgis_db_sessionmaker, settings, graph.driver.id)
-    order, approver = approved_order(
-        postgis_db_sessionmaker, settings, graph, "co-pending"
-    )
+    order, approver = approved_order(postgis_db_sessionmaker, settings, graph, "co-pending")
 
     execute(postgis_db_sessionmaker, settings, order.id, approver.id)
 
@@ -794,9 +767,7 @@ def test_positive_deltas_stay_pending_even_when_the_day_is_available(
     totals_after = driver_totals(postgis_db_sessionmaker, settings, graph.driver.id)
     # Pending grew by the delta; available is untouched until MNY-03A's
     # release sweep consumes release_at.
-    assert totals_after.pending_amount == totals_before.pending_amount + Decimal(
-        "150.00"
-    )
+    assert totals_after.pending_amount == totals_before.pending_amount + Decimal("150.00")
     assert totals_after.available_amount == totals_before.available_amount
 
 
@@ -810,9 +781,7 @@ def test_negative_delta_posts_reversal_without_debt_handling(
     pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
     raise_rule_rate(postgis_db_sessionmaker, graph.rule.id, "900.00")
     totals_before = driver_totals(postgis_db_sessionmaker, settings, graph.driver.id)
-    order, approver = approved_order(
-        postgis_db_sessionmaker, settings, graph, "co-negative"
-    )
+    order, approver = approved_order(postgis_db_sessionmaker, settings, graph, "co-negative")
 
     # Negative-only corrections need no release_at (Q22 covers positives).
     executed, executed_now = execute(
@@ -828,9 +797,7 @@ def test_negative_delta_posts_reversal_without_debt_handling(
     assert entries[0].amount == Decimal("150.00")
     assert entries[0].release_at is None
     totals_after = driver_totals(postgis_db_sessionmaker, settings, graph.driver.id)
-    assert totals_after.pending_amount == totals_before.pending_amount - Decimal(
-        "150.00"
-    )
+    assert totals_after.pending_amount == totals_before.pending_amount - Decimal("150.00")
 
 
 # --- v3 and mixed-day recompute correctness (PR6) ----------------------------
@@ -840,15 +807,19 @@ def test_v3_day_reprices_from_frozen_binding_through_an_order(
     postgis_db_sessionmaker, settings
 ) -> None:
     graph = build_v2_graph(postgis_db_sessionmaker, "co-v3")  # rule row: 1200/h
-    bind_v2_graph(postgis_db_sessionmaker, graph, base="1000.00", premium="2000.00")
+    bind_v2_graph(
+        postgis_db_sessionmaker,
+        settings,
+        graph,
+        base="1000.00",
+        premium="2000.00",
+    )
     pipeline_to_v2(postgis_db_sessionmaker, settings, graph)  # v3 calc: 500.00
 
     void_trip_payout(postgis_db_sessionmaker, graph.trip.id)
     order, approver = approved_order(postgis_db_sessionmaker, settings, graph, "co-v3")
 
-    executed, _ = execute(
-        postgis_db_sessionmaker, settings, order.id, approver.id, release_at=None
-    )
+    executed, _ = execute(postgis_db_sessionmaker, settings, order.id, approver.id, release_at=None)
     trip_result = executed.execution_result["drivers"][0]["trips"][0]
     # Void frees everything: posted(non-voided) was 0 after the void, so the
     # target is 0 and no differential is owed — the projection said so too.
@@ -891,19 +862,16 @@ def test_mixed_v2_v3_day_shares_one_cap_pool_through_an_order(
     """PR5/PR6: voiding the v2 trip frees shared cap; the order's execution
     re-fills it chronologically and pays the v3 trip at its FROZEN binding
     rate, with the positive delta pending on its own release_at (Q22)."""
-    graph = build_mixed_engine_day(postgis_db_sessionmaker, "co-mixed", cap="0.75")
+    graph = build_mixed_engine_day(postgis_db_sessionmaker, settings, "co-mixed", cap="0.75")
     run_pipeline(postgis_db_sessionmaker, graph.trip.id, settings)
     run_pipeline(postgis_db_sessionmaker, graph.trip2.id, settings)
     # v2 trip: 1800 s at 1200/h = 600.00; v3 trip: remaining 900 s at the
     # binding's 1200/h = 300.00 (shared 2700 s pool).
 
     void_trip_payout(postgis_db_sessionmaker, graph.trip.id)
-    order, approver = approved_order(
-        postgis_db_sessionmaker, settings, graph, "co-mixed"
-    )
+    order, approver = approved_order(postgis_db_sessionmaker, settings, graph, "co-mixed")
     delta_by_trip = {
-        trip["trip_session_id"]: trip["delta_amount"]
-        for trip in order.projected_delta["trips"]
+        trip["trip_session_id"]: trip["delta_amount"] for trip in order.projected_delta["trips"]
     }
     # Void zeroes the v2 trip (posted 0 after void); the v3 trip climbs from
     # 900 to its full 1800 eligible seconds inside the freed pool: +300.00 at
@@ -934,20 +902,27 @@ def test_mixed_v2_v3_day_shares_one_cap_pool_through_an_order(
     # v3 differentials store BOTH the day map (the shared pool reads this
     # exact key) and the tier split for later supersession.
     assert breakdown["payable_seconds_by_day"] == {day_key: 1800}
-    assert breakdown["payable_seconds_by_day_tier"] == {
-        day_key: {"base": 1800, "premium": 0}
-    }
+    assert breakdown["payable_seconds_by_day_tier"] == {day_key: {"base": 1800, "premium": 0}}
     assert entry.ledger_metadata["formula_version"] == PAYOUT_V3
     assert entry.ledger_metadata["binding_id"]
 
-    # The day never exceeds the shared cap: 1800 (v3) + 0 (voided v2) <= 2700.
-    total_day_seconds = sum(
-        (entry.ledger_metadata["breakdown"]["payable_seconds_by_day"]).get(day_key, 0)
-        for entry in entries
-    )
-    assert total_day_seconds <= 2700
+    async def driver_breakdown():
+        async with postgis_db_sessionmaker() as session:
+            return await driver_trip_earnings_breakdown(
+                session,
+                user_id=graph.driver.id,
+                trip_id=graph.trip2.id,
+            )
 
-    # Unchanged inputs afterwards: a fresh projection shows zero deltas.
+    corrected = asyncio.run(driver_breakdown())
+    assert corrected.superseded_by_recompute is True
+    assert corrected.base_payable_seconds == 1800
+    assert corrected.premium_payable_seconds == 0
+    assert corrected.base_amount == Decimal("600.00")
+    assert corrected.premium_amount == Decimal("0.00")
+
+    # While the correction remains authoritative, unchanged inputs project no
+    # further money movement.
     projection = service(
         postgis_db_sessionmaker,
         lambda session: project_campaign_day(
@@ -962,3 +937,26 @@ def test_mixed_v2_v3_day_shares_one_cap_pool_through_an_order(
         for computation in projection.computations
         for target in computation.trips
     )
+
+    # A voided newest explanation is not durable authority. The driver view
+    # falls back to the original calculation's stored v3 components.
+    async def void_correction() -> None:
+        async with postgis_db_sessionmaker() as session:
+            stored = await session.get(EarningsLedgerEntry, entry.id)
+            stored.status = EarningsLedgerEntryStatus.VOIDED.value
+            await session.commit()
+
+    asyncio.run(void_correction())
+    fallback = asyncio.run(driver_breakdown())
+    assert fallback.superseded_by_recompute is False
+    assert fallback.base_payable_seconds == 900
+    assert fallback.premium_payable_seconds == 0
+    assert fallback.base_amount == Decimal("300.00")
+    assert fallback.premium_amount == Decimal("0.00")
+
+    # The day never exceeds the shared cap: 1800 (v3) + 0 (voided v2) <= 2700.
+    total_day_seconds = sum(
+        (entry.ledger_metadata["breakdown"]["payable_seconds_by_day"]).get(day_key, 0)
+        for entry in entries
+    )
+    assert total_day_seconds <= 2700

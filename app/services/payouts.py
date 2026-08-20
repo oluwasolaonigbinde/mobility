@@ -161,9 +161,7 @@ async def acquire_paycap_lock(session: AsyncSession, lock_key: int) -> None:
     bind = session.get_bind()
     if bind.dialect.name != "postgresql":
         return
-    await session.execute(
-        text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": lock_key}
-    )
+    await session.execute(text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": lock_key})
 
 
 @dataclass(frozen=True)
@@ -286,8 +284,7 @@ def invalid_rule_revision(message: str) -> AppError:
 def rule_revision_conflict() -> AppError:
     return AppError(
         "PAYOUT_RULE_REVISION_CONFLICT",
-        "A concurrent revision was created for this campaign; re-read the"
-        " revision chain and retry",
+        "A concurrent revision was created for this campaign; re-read the revision chain and retry",
         status_code=status.HTTP_409_CONFLICT,
     )
 
@@ -396,9 +393,7 @@ def create_rule_v2_values(
     settings: Settings,
 ) -> dict:
     set_v1_fields = sorted(
-        field
-        for field in V1_RULE_FIELDS
-        if getattr(payload, field, None) is not None
+        field for field in V1_RULE_FIELDS if getattr(payload, field, None) is not None
     )
     if set_v1_fields:
         raise invalid_rule_values(
@@ -412,9 +407,7 @@ def create_rule_v2_values(
         else:
             raise invalid_rule_values("hourly_rate_naira is required for payout_v2 rules")
     if payload.daily_payable_hours_cap is None:
-        raise invalid_rule_values(
-            "daily_payable_hours_cap is required for payout_v2 rules (D4)"
-        )
+        raise invalid_rule_values("daily_payable_hours_cap is required for payout_v2 rules (D4)")
     validate_eligibility_params_overlay(payload.eligibility_params)
     return {
         "formula_version": PAYOUT_V2,
@@ -439,9 +432,7 @@ def create_rule_values(
     if formula_version == PAYOUT_V2:
         return create_rule_v2_values(payload, settings)
     set_v2_fields = sorted(
-        field
-        for field in V2_RULE_FIELDS
-        if getattr(payload, field, None) is not None
+        field for field in V2_RULE_FIELDS if getattr(payload, field, None) is not None
     )
     if set_v2_fields:
         raise invalid_rule_values(
@@ -556,10 +547,7 @@ async def create_campaign_payout_rule(
     await session.flush()
     await session.refresh(rule)
     genesis = None
-    if (
-        rule.formula_version == PAYOUT_V2
-        and rule.status == CampaignPayoutRuleStatus.ACTIVE.value
-    ):
+    if rule.formula_version == PAYOUT_V2 and rule.status == CampaignPayoutRuleStatus.ACTIVE.value:
         # PR3: a new campaign's governing rule and revision 1 are atomic —
         # the genesis snapshot of the campaign's payout_v3 value chain.
         genesis = CampaignPayoutRuleRevision(
@@ -634,13 +622,9 @@ async def update_campaign_payout_rule(
     update_values = payload.model_dump(exclude_unset=True)
     validate_rule_update_nulls(update_values)
     # A rule row's model is immutable (P6): reject the other model's fields.
-    other_model_fields = (
-        V1_RULE_FIELDS if rule.formula_version == PAYOUT_V2 else V2_RULE_FIELDS
-    )
+    other_model_fields = V1_RULE_FIELDS if rule.formula_version == PAYOUT_V2 else V2_RULE_FIELDS
     set_other_fields = sorted(
-        field
-        for field in other_model_fields
-        if update_values.get(field) is not None
+        field for field in other_model_fields if update_values.get(field) is not None
     )
     if set_other_fields:
         raise invalid_rule_values(
@@ -729,9 +713,7 @@ async def create_payout_rule_revision(
     else:
         db_now = utc_now()
     latest = await latest_payout_rule_revision(session, campaign_id)
-    if latest is not None and payload.effective_from <= _ensure_utc_aware(
-        latest.effective_from
-    ):
+    if latest is not None and payload.effective_from <= _ensure_utc_aware(latest.effective_from):
         raise invalid_rule_revision(
             "effective_from must be strictly after the latest revision's"
             " effective_from; retroactive changes require a correction order"
@@ -900,10 +882,9 @@ def ensure_current_payout_calculation_source(
     analytics_fingerprint = metadata.get("source_analytics_fingerprint")
     impression_fingerprint = metadata.get("source_impression_fingerprint")
     if analytics_fingerprint is not None or impression_fingerprint is not None:
-        if (
-            analytics_fingerprint != analytics_output_fingerprint(analytics)
-            or impression_fingerprint != impression_output_fingerprint(estimate)
-        ):
+        if analytics_fingerprint != analytics_output_fingerprint(
+            analytics
+        ) or impression_fingerprint != impression_output_fingerprint(estimate):
             raise payout_calculation_stale()
         return
     analytics_formula = metadata.get("source_analytics_formula_version")
@@ -974,6 +955,7 @@ def effective_eligibility_params_overlay(
     overlay: dict | None,
 ) -> EligibilityParams:
     overlay = overlay or {}
+
     def value(key: str, fallback: float) -> float:
         raw = overlay.get(key, fallback)
         return float(raw)
@@ -983,12 +965,10 @@ def effective_eligibility_params_overlay(
             "stationary_radius_m", settings.payout_eligibility_stationary_radius_m
         ),
         stationary_window_seconds=int(
-            value("stationary_window_min", settings.payout_eligibility_stationary_window_min)
-            * 60
+            value("stationary_window_min", settings.payout_eligibility_stationary_window_min) * 60
         ),
         stationary_grace_seconds=int(
-            value("stationary_grace_min", settings.payout_eligibility_stationary_grace_min)
-            * 60
+            value("stationary_grace_min", settings.payout_eligibility_stationary_grace_min) * 60
         ),
         max_accuracy_m=value("max_accuracy_m", settings.payout_eligibility_max_accuracy_m),
         teleport_kmh=value("teleport_kmh", settings.payout_eligibility_teleport_kmh),
@@ -998,14 +978,40 @@ def effective_eligibility_params_overlay(
     )
 
 
+RESOLVED_ELIGIBILITY_PARAM_KEYS = frozenset(EligibilityParams.__dataclass_fields__)
+
+
+def frozen_eligibility_params(binding: AssignmentRuleBinding) -> EligibilityParams:
+    """Read the complete acceptance-time classifier values, never Settings.
+
+    Bindings created before migration 0021 cannot prove a complete snapshot;
+    fail closed rather than silently filling their gaps from mutable runtime
+    configuration.
+    """
+    snapshot = binding.resolved_eligibility_params or {}
+    if set(snapshot) != RESOLVED_ELIGIBILITY_PARAM_KEYS:
+        raise AppError(
+            "PAYOUT_BINDING_INCOMPLETE",
+            "The payout_v3 assignment binding does not contain a complete"
+            " frozen eligibility snapshot; resolve manually",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    return EligibilityParams(
+        stationary_radius_m=float(snapshot["stationary_radius_m"]),
+        stationary_window_seconds=int(snapshot["stationary_window_seconds"]),
+        stationary_grace_seconds=int(snapshot["stationary_grace_seconds"]),
+        max_accuracy_m=float(snapshot["max_accuracy_m"]),
+        teleport_kmh=float(snapshot["teleport_kmh"]),
+        max_ping_gap_seconds=int(snapshot["max_ping_gap_seconds"]),
+    )
+
+
 def validate_eligibility_params_overlay(overlay: dict | None) -> None:
     if overlay is None:
         return
     unknown = sorted(set(overlay) - ELIGIBILITY_PARAM_KEYS)
     if unknown:
-        raise invalid_rule_values(
-            f"Unknown eligibility_params keys: {', '.join(unknown)}"
-        )
+        raise invalid_rule_values(f"Unknown eligibility_params keys: {', '.join(unknown)}")
     for key, raw in overlay.items():
         if isinstance(raw, bool) or not isinstance(raw, int | float):
             raise invalid_rule_values(f"eligibility_params.{key} must be a number")
@@ -1023,13 +1029,15 @@ async def load_eligibility_pings(
     trip_id: UUID,
     campaign_id: UUID,
     premium_zone_ids: list[UUID] | None = None,
+    frozen_premium_zone_wkts: list[str] | None = None,
+    frozen_exclusion_zone_wkts: list[str] | None = None,
 ) -> list[EligibilityPingRow]:
-    """One PostGIS round trip: pings in analytics order plus geofence
-    membership. In-area = inside a target zone (or the campaign has no target
-    zones at all) and never inside an exclusion zone; bonus zones play no role
-    in payout_v2 eligibility (Q5, decisions-log). payout_v3 additionally
-    resolves membership of the binding's FROZEN premium zone ids (MNY-06B) —
-    eligibility itself is unchanged by the premium flag."""
+    """One PostGIS round trip: pings plus geofence/tier membership.
+
+    payout_v2 keeps its target-minus-exclusion eligibility rule. payout_v3
+    supplies immutable geometry snapshots: exclusion stays unpaid, target
+    becomes premium, and valid time outside target earns base pay.
+    """
 
     def zone_hit(zone_type: str):
         return (
@@ -1051,11 +1059,28 @@ async def load_eligibility_pings(
         )
         .exists()
     )
-    in_area = and_(
-        or_(~has_target_zones, zone_hit(CampaignZoneType.TARGET.value)),
-        ~zone_hit(CampaignZoneType.EXCLUSION.value),
+    frozen_geography = (
+        frozen_premium_zone_wkts is not None and frozen_exclusion_zone_wkts is not None
     )
-    if premium_zone_ids:
+
+    def frozen_zone_hit(wkts: list[str]):
+        conditions = [
+            func.ST_Intersects(func.ST_GeomFromText(wkt, 4326), LocationPing.geom) for wkt in wkts
+        ]
+        return or_(*conditions) if conditions else false()
+
+    if frozen_geography:
+        # D18/Q5 payout_v3: target geometry is a premium tier, not an
+        # eligibility boundary. Valid time outside it earns base pay; only
+        # the frozen exclusion area remains geographically unpaid.
+        in_area = ~frozen_zone_hit(frozen_exclusion_zone_wkts or [])
+        in_premium = frozen_zone_hit(frozen_premium_zone_wkts or [])
+    else:
+        in_area = and_(
+            or_(~has_target_zones, zone_hit(CampaignZoneType.TARGET.value)),
+            ~zone_hit(CampaignZoneType.EXCLUSION.value),
+        )
+    if not frozen_geography and premium_zone_ids:
         in_premium = (
             select(CampaignZone.id)
             .where(
@@ -1065,7 +1090,7 @@ async def load_eligibility_pings(
             .correlate(LocationPing)
             .exists()
         )
-    else:
+    elif not frozen_geography:
         in_premium = false()
     result = await session.execute(
         select(
@@ -1118,8 +1143,7 @@ async def campaign_zone_state(
     fingerprint = stable_source_fingerprint(
         {
             "zones": [
-                {"id": row.id, "geom": row.geom_wkb, "updated_at": row.updated_at}
-                for row in rows
+                {"id": row.id, "geom": row.geom_wkb, "updated_at": row.updated_at} for row in rows
             ]
         }
     )
@@ -1186,8 +1210,11 @@ def v3_inputs_fingerprint(
             "daily_payable_hours_cap": Decimal(binding.daily_payable_hours_cap),
             "eligibility_params": params.as_metadata(),
             "frozen_eligibility_params": binding.eligibility_params or {},
+            "resolved_eligibility_params": binding.resolved_eligibility_params,
             "premium_zone_ids": list(binding.premium_zone_ids or []),
             "premium_zone_geometry_hash": binding.premium_zone_geometry_hash,
+            "exclusion_zone_ids": list(binding.exclusion_zone_ids or []),
+            "exclusion_zone_geometry_hash": binding.exclusion_zone_geometry_hash,
             "stationary_policy_marker": binding.stationary_policy_marker,
             "currency": currency,
             "ping_set_fingerprint": ping_fingerprint,
@@ -1203,9 +1230,7 @@ async def binding_for_assignment(
     assignment_id: UUID,
 ) -> AssignmentRuleBinding | None:
     return await session.scalar(
-        select(AssignmentRuleBinding).where(
-            AssignmentRuleBinding.assignment_id == assignment_id
-        )
+        select(AssignmentRuleBinding).where(AssignmentRuleBinding.assignment_id == assignment_id)
     )
 
 
@@ -1368,9 +1393,7 @@ def daily_cap_seconds(rule: CampaignPayoutRule) -> int:
 def price_payable_seconds(payable_seconds: int, hourly_rate: Decimal) -> Decimal:
     """Price once per ledger amount: rate x integer seconds / 3600, quantized
     exactly once to 2dp NGN with ROUND_HALF_UP (frozen into payout_v2)."""
-    return quantize_ngn_half_up(
-        Decimal(payable_seconds) * hourly_rate / SECONDS_PER_HOUR
-    )
+    return quantize_ngn_half_up(Decimal(payable_seconds) * hourly_rate / SECONDS_PER_HOUR)
 
 
 async def open_fraud_counts(session: AsyncSession, trip_id: UUID) -> dict[str, int]:
@@ -1413,9 +1436,7 @@ def zero_payout_values(
     )
     fraud_multiplier = quantize_4(payout_fraud_multiplier(counts, rule))
     reason = (
-        "blocked"
-        if status_value == PayoutCalculationStatus.BLOCKED.value
-        else "insufficient_data"
+        "blocked" if status_value == PayoutCalculationStatus.BLOCKED.value else "insufficient_data"
     )
     return {
         "status": status_value,
@@ -1471,8 +1492,7 @@ def payout_values(
         bonus_zone_distance_km * rule.bonus_zone_bonus_rate_per_km
     )
     impression_component = quantize_2(
-        (estimate.estimated_impressions / Decimal("1000"))
-        * rule.estimated_impression_rate_per_1000
+        (estimate.estimated_impressions / Decimal("1000")) * rule.estimated_impression_rate_per_1000
     )
     gross_payout = quantize_2(
         distance_component
@@ -1537,9 +1557,7 @@ def payout_values(
                 "base_rate_per_active_hour": str(rule.base_rate_per_active_hour),
                 "target_zone_bonus_rate_per_km": str(rule.target_zone_bonus_rate_per_km),
                 "bonus_zone_bonus_rate_per_km": str(rule.bonus_zone_bonus_rate_per_km),
-                "estimated_impression_rate_per_1000": str(
-                    rule.estimated_impression_rate_per_1000
-                ),
+                "estimated_impression_rate_per_1000": str(rule.estimated_impression_rate_per_1000),
             },
             "components": {
                 "distance_component": str(distance_component),
@@ -1743,9 +1761,7 @@ async def v2_calculation_is_stale(
         return True
     campaign = await get_campaign(session, trip.campaign_id)
     params = effective_eligibility_params(settings, rule)
-    ping_rows = await load_eligibility_pings(
-        session, trip_id=trip.id, campaign_id=trip.campaign_id
-    )
+    ping_rows = await load_eligibility_pings(session, trip_id=trip.id, campaign_id=trip.campaign_id)
     zone_state = await campaign_zone_state(session, trip.campaign_id)
     current = v2_inputs_fingerprint(
         rule=rule,
@@ -1774,9 +1790,7 @@ async def calculate_trip_payout_v2(
     calculated_at = now or utc_now()
     campaign = await get_campaign(session, trip.campaign_id)
     params = effective_eligibility_params(settings, rule)
-    ping_rows = await load_eligibility_pings(
-        session, trip_id=trip.id, campaign_id=trip.campaign_id
-    )
+    ping_rows = await load_eligibility_pings(session, trip_id=trip.id, campaign_id=trip.campaign_id)
     breakdown = classify_session(
         session_started_at=trip.started_at,
         session_ended_at=trip.ended_at,
@@ -1956,6 +1970,39 @@ def price_tiered_payable_seconds(
     )
 
 
+@dataclass(frozen=True)
+class TierAmountComponents:
+    base_amount: Decimal
+    premium_amount: Decimal
+
+
+def allocate_tier_amount_components(
+    *,
+    base_seconds: int,
+    premium_seconds: int,
+    base_rate: Decimal,
+    premium_rate: Decimal,
+    authoritative_total: Decimal,
+) -> TierAmountComponents:
+    """Split the once-quantized ledger total without creating a new total.
+
+    Base receives its HALF_UP raw share and premium receives the residual.
+    Empty tiers remain exactly zero. The two components therefore always sum
+    to the authoritative payout/correction target, including half-kobo cases.
+    """
+    total = quantize_ngn_half_up(authoritative_total)
+    if base_seconds <= 0:
+        return TierAmountComponents(Decimal("0.00"), total)
+    if premium_seconds <= 0:
+        return TierAmountComponents(total, Decimal("0.00"))
+    base_amount = quantize_ngn_half_up(Decimal(base_seconds) * base_rate / SECONDS_PER_HOUR)
+    rounded_premium = quantize_ngn_half_up(
+        Decimal(premium_seconds) * premium_rate / SECONDS_PER_HOUR
+    )
+    residual = total - base_amount - rounded_premium
+    return TierAmountComponents(base_amount, quantize_2(rounded_premium + residual))
+
+
 async def calculate_trip_payout_v3(
     session: AsyncSession,
     *,
@@ -1983,13 +2030,15 @@ async def calculate_trip_payout_v3(
     campaign = await get_campaign(session, trip.campaign_id)
     revision = await session.get(CampaignPayoutRuleRevision, binding.revision_id)
     rule = await session.get(CampaignPayoutRule, revision.payout_rule_id)
-    params = effective_eligibility_params_overlay(settings, binding.eligibility_params)
+    params = frozen_eligibility_params(binding)
     premium_zone_uuids = [UUID(str(zone_id)) for zone_id in binding.premium_zone_ids or []]
     ping_rows = await load_eligibility_pings(
         session,
         trip_id=trip.id,
         campaign_id=trip.campaign_id,
         premium_zone_ids=premium_zone_uuids,
+        frozen_premium_zone_wkts=list(binding.premium_zone_geometry_wkts or []),
+        frozen_exclusion_zone_wkts=list(binding.exclusion_zone_geometry_wkts or []),
     )
     breakdown = classify_session(
         session_started_at=trip.started_at,
@@ -1999,14 +2048,15 @@ async def calculate_trip_payout_v3(
         window_end_at=campaign.end_at,
         params=params,
     )
-    zone_state = await campaign_zone_state(session, trip.campaign_id)
     pings_fingerprint = ping_set_fingerprint(ping_rows)
     inputs_fingerprint = v3_inputs_fingerprint(
         binding=binding,
         currency=rule.currency,
         params=params,
         ping_fingerprint=pings_fingerprint,
-        zone_fingerprint=zone_state.fingerprint,
+        zone_fingerprint=(
+            f"{binding.premium_zone_geometry_hash}:{binding.exclusion_zone_geometry_hash}"
+        ),
         window_start_at=campaign.start_at,
         window_end_at=campaign.end_at,
     )
@@ -2050,17 +2100,13 @@ async def calculate_trip_payout_v3(
         # PR4: chronological fill within each Lagos day — slices arrive in
         # chronological order and each day's remaining cap is drawn down as
         # its earliest eligible seconds pass, whatever their tier.
-        remaining_by_day = {
-            key: max(0, cap_seconds - consumed_by_day[key]) for key in day_keys
-        }
+        remaining_by_day = {key: max(0, cap_seconds - consumed_by_day[key]) for key in day_keys}
         for eligible_slice in breakdown.eligible_slices:
             take = min(eligible_slice.length, remaining_by_day[eligible_slice.day])
             if take <= 0:
                 continue
             remaining_by_day[eligible_slice.day] -= take
-            tiers = payable_by_day_tier.setdefault(
-                eligible_slice.day, {"base": 0, "premium": 0}
-            )
+            tiers = payable_by_day_tier.setdefault(eligible_slice.day, {"base": 0, "premium": 0})
             tiers["premium" if eligible_slice.premium else "base"] += take
     payable_by_day = {
         key: tiers["base"] + tiers["premium"] for key, tiers in payable_by_day_tier.items()
@@ -2075,8 +2121,13 @@ async def calculate_trip_payout_v3(
         if binding.premium_hourly_rate_naira is not None
         else base_rate
     )
-    amount = price_tiered_payable_seconds(
-        base_seconds, premium_seconds, base_rate, premium_rate
+    amount = price_tiered_payable_seconds(base_seconds, premium_seconds, base_rate, premium_rate)
+    tier_amounts = allocate_tier_amount_components(
+        base_seconds=base_seconds,
+        premium_seconds=premium_seconds,
+        base_rate=base_rate,
+        premium_rate=premium_rate,
+        authoritative_total=amount,
     )
 
     payout_metadata = {
@@ -2088,8 +2139,11 @@ async def calculate_trip_payout_v3(
             "bound_at": binding.bound_at.isoformat(),
             "premium_zone_ids": list(binding.premium_zone_ids or []),
             "premium_zone_geometry_hash": binding.premium_zone_geometry_hash,
+            "exclusion_zone_ids": list(binding.exclusion_zone_ids or []),
+            "exclusion_zone_geometry_hash": binding.exclusion_zone_geometry_hash,
             "stationary_policy_marker": binding.stationary_policy_marker,
             "eligibility_params": binding.eligibility_params or {},
+            "resolved_eligibility_params": binding.resolved_eligibility_params,
         },
         "source_analytics_id": str(analytics.id),
         "source_impression_estimate_id": str(estimate.id),
@@ -2118,13 +2172,9 @@ async def calculate_trip_payout_v3(
         },
         "eligibility_params": params.as_metadata(),
         "zone_state": {
-            "fingerprint": zone_state.fingerprint,
-            "zone_count": zone_state.zone_count,
-            "max_updated_at": (
-                zone_state.max_updated_at.isoformat()
-                if zone_state.max_updated_at is not None
-                else None
-            ),
+            "source": "assignment_binding",
+            "premium_fingerprint": binding.premium_zone_geometry_hash,
+            "exclusion_fingerprint": binding.exclusion_zone_geometry_hash,
         },
         "ping_set_fingerprint": pings_fingerprint,
         "teleport_incident_count": breakdown.teleport_incident_count,
@@ -2137,6 +2187,8 @@ async def calculate_trip_payout_v3(
             "payable_seconds_by_day_tier": payable_by_day_tier,
             "base_payable_seconds": base_seconds,
             "premium_payable_seconds": premium_seconds,
+            "base_amount": str(tier_amounts.base_amount),
+            "premium_amount": str(tier_amounts.premium_amount),
             "amount": str(amount),
         },
         "source_analytics_formula_version": analytics.formula_version,
@@ -2203,7 +2255,7 @@ async def v3_calculation_is_stale(
 ) -> bool:
     """Detect input drift for a payout_v3 calculation without recomputing
     money: re-derive the inputs fingerprint from the frozen binding and the
-    current ping/zone state, and compare. Money is never auto-rewritten."""
+    current ping set, and compare. Money is never auto-rewritten."""
     binding = await binding_for_assignment(session, trip.assignment_id)
     if binding is None:
         return True
@@ -2212,17 +2264,22 @@ async def v3_calculation_is_stale(
     if rule is None:
         return True
     campaign = await get_campaign(session, trip.campaign_id)
-    params = effective_eligibility_params_overlay(settings, binding.eligibility_params)
+    params = frozen_eligibility_params(binding)
     ping_rows = await load_eligibility_pings(
-        session, trip_id=trip.id, campaign_id=trip.campaign_id
+        session,
+        trip_id=trip.id,
+        campaign_id=trip.campaign_id,
+        frozen_premium_zone_wkts=list(binding.premium_zone_geometry_wkts or []),
+        frozen_exclusion_zone_wkts=list(binding.exclusion_zone_geometry_wkts or []),
     )
-    zone_state = await campaign_zone_state(session, trip.campaign_id)
     current = v3_inputs_fingerprint(
         binding=binding,
         currency=rule.currency,
         params=params,
         ping_fingerprint=ping_set_fingerprint(ping_rows),
-        zone_fingerprint=zone_state.fingerprint,
+        zone_fingerprint=(
+            f"{binding.premium_zone_geometry_hash}:{binding.exclusion_zone_geometry_hash}"
+        ),
         window_start_at=campaign.start_at,
         window_end_at=campaign.end_at,
     )
@@ -2459,8 +2516,7 @@ async def calculate_trip_payout(
                 session, trip_id=trip.id
             )
             if existing_any is not None and not (
-                existing_any.formula_version == PAYOUT_V2
-                and existing_any.payout_rule_id == rule.id
+                existing_any.formula_version == PAYOUT_V2 and existing_any.payout_rule_id == rule.id
             ):
                 raise payout_calculation_stale()
         return await calculate_trip_payout_v2(
@@ -2553,8 +2609,7 @@ async def driver_earnings_summary(
                 func.sum(
                     case(
                         (
-                            EarningsLedgerEntry.status
-                            == EarningsLedgerEntryStatus.PENDING.value,
+                            EarningsLedgerEntry.status == EarningsLedgerEntryStatus.PENDING.value,
                             signed_amount,
                         ),
                         else_=0,
@@ -2566,8 +2621,7 @@ async def driver_earnings_summary(
                 func.sum(
                     case(
                         (
-                            EarningsLedgerEntry.status
-                            == EarningsLedgerEntryStatus.AVAILABLE.value,
+                            EarningsLedgerEntry.status == EarningsLedgerEntryStatus.AVAILABLE.value,
                             signed_amount,
                         ),
                         else_=0,
@@ -2690,8 +2744,7 @@ async def advertiser_campaign_cost_summary(
                 func.sum(
                     case(
                         (
-                            PayoutCalculation.status
-                            == PayoutCalculationStatus.CALCULATED.value,
+                            PayoutCalculation.status == PayoutCalculationStatus.CALCULATED.value,
                             1,
                         ),
                         else_=0,
@@ -2896,7 +2949,11 @@ class DayComputation:
 
 
 async def _latest_recompute_breakdown(
-    session: AsyncSession, trip_id: UUID
+    session: AsyncSession,
+    trip_id: UUID,
+    *,
+    payout_calculation_id: UUID,
+    formula_version: str,
 ) -> dict | None:
     """The trip's latest non-voided recompute-day breakdown, if any.
 
@@ -2927,7 +2984,12 @@ async def _latest_recompute_breakdown(
     breakdown: dict | None = None
     for entry in entries.scalars().all():
         metadata = entry.ledger_metadata or {}
-        if metadata.get("recompute_day") and metadata.get("breakdown"):
+        if (
+            metadata.get("recompute_day")
+            and metadata.get("payout_calculation_id") == str(payout_calculation_id)
+            and metadata.get("formula_version") == formula_version
+            and isinstance(metadata.get("breakdown"), dict)
+        ):
             breakdown = metadata["breakdown"]
     return breakdown
 
@@ -2949,8 +3011,7 @@ def payout_day_currency_mismatch() -> AppError:
     # day; refuse instead of true-ing up.
     return AppError(
         "PAYOUT_DAY_CURRENCY_MISMATCH",
-        "The day's calculations and the governing rule use "
-        "different currencies; resolve manually",
+        "The day's calculations and the governing rule use different currencies; resolve manually",
         status_code=status.HTTP_409_CONFLICT,
     )
 
@@ -2999,9 +3060,7 @@ async def compute_payout_day_targets(
     day_range = lagos_day_utc_range(lagos_date)
     day_key = lagos_date.isoformat()
 
-    await acquire_paycap_lock(
-        session, paycap_lock_key(driver_profile_id, campaign_id, lagos_date)
-    )
+    await acquire_paycap_lock(session, paycap_lock_key(driver_profile_id, campaign_id, lagos_date))
 
     trips_result = await session.execute(
         select(TripSession)
@@ -3011,9 +3070,7 @@ async def compute_payout_day_targets(
             # Sealed trips are the ones that hold money; `ended` (pre-seal)
             # trips are included defensively — they have no calculations yet,
             # but excluding them here must never be the thing that frees cap.
-            TripSession.status.in_(
-                [TripSessionStatus.ENDED.value, TripSessionStatus.SEALED.value]
-            ),
+            TripSession.status.in_([TripSessionStatus.ENDED.value, TripSessionStatus.SEALED.value]),
             TripSession.ended_at.is_not(None),
             # Overlap, not start-day containment (RM1): a trip that began the
             # previous evening can hold part of this day's cap.
@@ -3052,13 +3109,8 @@ async def compute_payout_day_targets(
 
     rule: CampaignPayoutRule | None = None
     v2_params = None
-    if any(
-        calculation.formula_version == PAYOUT_V2
-        for calculation in latest_calculations
-    ):
-        rule = await resolve_payout_rule(
-            session, campaign_id=campaign_id, payout_rule_id=None
-        )
+    if any(calculation.formula_version == PAYOUT_V2 for calculation in latest_calculations):
+        rule = await resolve_payout_rule(session, campaign_id=campaign_id, payout_rule_id=None)
         if rule.formula_version != PAYOUT_V2:
             raise invalid_rule_values(
                 "recompute-day requires the governing rule to be payout_v2 for"
@@ -3094,18 +3146,14 @@ async def compute_payout_day_targets(
                     " frozen rule binding; resolve manually",
                     status_code=status.HTTP_409_CONFLICT,
                 )
-            trip_cap_seconds = int(
-                Decimal(binding.daily_payable_hours_cap) * SECONDS_PER_HOUR
-            )
+            trip_cap_seconds = int(Decimal(binding.daily_payable_hours_cap) * SECONDS_PER_HOUR)
             hourly_rate = Decimal(binding.hourly_rate_naira)
             premium_hourly_rate = (
                 Decimal(binding.premium_hourly_rate_naira)
                 if binding.premium_hourly_rate_naira is not None
                 else None
             )
-            v3_params = effective_eligibility_params_overlay(
-                settings, binding.eligibility_params
-            )
+            v3_params = frozen_eligibility_params(binding)
             governing_values = {
                 "engine": PAYOUT_V3,
                 "binding_id": binding.id,
@@ -3113,13 +3161,15 @@ async def compute_payout_day_targets(
                 "hourly_rate_naira": hourly_rate,
                 "premium_hourly_rate_naira": premium_hourly_rate,
                 "daily_payable_hours_cap": Decimal(binding.daily_payable_hours_cap),
-                # Resolved effective params, not just the frozen overlay: a
-                # settings change that shifts classification must drift the
-                # PR12 projection fingerprint.
+                # Complete resolved values frozen at acceptance. Runtime
+                # Settings never participate in payout_v3 replay.
                 "eligibility_params": v3_params.as_metadata(),
                 "frozen_eligibility_params": binding.eligibility_params or {},
+                "resolved_eligibility_params": binding.resolved_eligibility_params,
                 "premium_zone_ids": list(binding.premium_zone_ids or []),
                 "premium_zone_geometry_hash": binding.premium_zone_geometry_hash,
+                "exclusion_zone_ids": list(binding.exclusion_zone_ids or []),
+                "exclusion_zone_geometry_hash": binding.exclusion_zone_geometry_hash,
                 "stationary_policy_marker": binding.stationary_policy_marker,
                 "currency": calculation.currency,
             }
@@ -3170,7 +3220,12 @@ async def compute_payout_day_targets(
             day_eligible = breakdown.eligible_seconds_by_day.get(day_key, 0)
             day_payable = max(0, min(day_eligible, trip_cap_seconds - consumed))
             consumed += day_payable
-            prior_breakdown = await _latest_recompute_breakdown(session, trip.id)
+            prior_breakdown = await _latest_recompute_breakdown(
+                session,
+                trip.id,
+                payout_calculation_id=calculation.id,
+                formula_version=formula_version,
+            )
             if (
                 prior_breakdown is not None
                 and prior_breakdown.get("payable_seconds_by_day") is not None
@@ -3179,9 +3234,7 @@ async def compute_payout_day_targets(
             else:
                 stored_by_day = calculation.payable_seconds_by_day
             other_days = {
-                key: int(value)
-                for key, value in (stored_by_day or {}).items()
-                if key != day_key
+                key: int(value) for key, value in (stored_by_day or {}).items() if key != day_key
             }
             payable_by_day = dict(other_days)
             if day_payable > 0:
@@ -3189,14 +3242,14 @@ async def compute_payout_day_targets(
             payable_seconds = sum(payable_by_day.values())
             target_amount = price_payable_seconds(payable_seconds, hourly_rate)
         else:
-            premium_zone_uuids = [
-                UUID(str(zone_id)) for zone_id in binding.premium_zone_ids or []
-            ]
+            premium_zone_uuids = [UUID(str(zone_id)) for zone_id in binding.premium_zone_ids or []]
             ping_rows = await load_eligibility_pings(
                 session,
                 trip_id=trip.id,
                 campaign_id=campaign_id,
                 premium_zone_ids=premium_zone_uuids,
+                frozen_premium_zone_wkts=list(binding.premium_zone_geometry_wkts or []),
+                frozen_exclusion_zone_wkts=list(binding.exclusion_zone_geometry_wkts or []),
             )
             ping_fingerprint = ping_set_fingerprint(ping_rows)
             breakdown = classify_session(
@@ -3226,16 +3279,21 @@ async def compute_payout_day_targets(
             # caps are not re-run under this day's lock (RM1). A prior
             # true-up's breakdown supersedes the calculation metadata (same
             # chain as day_consumed_payable_seconds).
-            prior_breakdown = await _latest_recompute_breakdown(session, trip.id)
+            prior_breakdown = await _latest_recompute_breakdown(
+                session,
+                trip.id,
+                payout_calculation_id=calculation.id,
+                formula_version=formula_version,
+            )
             if (
                 prior_breakdown is not None
                 and prior_breakdown.get("payable_seconds_by_day_tier") is not None
             ):
                 stored_tiers = prior_breakdown["payable_seconds_by_day_tier"]
             else:
-                stored_tiers = (
-                    (calculation.payout_metadata or {}).get("cap") or {}
-                ).get("payable_seconds_by_day_tier") or {}
+                stored_tiers = ((calculation.payout_metadata or {}).get("cap") or {}).get(
+                    "payable_seconds_by_day_tier"
+                ) or {}
             payable_by_day_tier = {
                 key: {
                     "base": int(value.get("base", 0) or 0),
@@ -3247,14 +3305,11 @@ async def compute_payout_day_targets(
             if day_tiers["base"] + day_tiers["premium"] > 0:
                 payable_by_day_tier[day_key] = day_tiers
             payable_by_day = {
-                key: tiers["base"] + tiers["premium"]
-                for key, tiers in payable_by_day_tier.items()
+                key: tiers["base"] + tiers["premium"] for key, tiers in payable_by_day_tier.items()
             }
             payable_seconds = sum(payable_by_day.values())
             base_seconds = sum(tiers["base"] for tiers in payable_by_day_tier.values())
-            premium_seconds = sum(
-                tiers["premium"] for tiers in payable_by_day_tier.values()
-            )
+            premium_seconds = sum(tiers["premium"] for tiers in payable_by_day_tier.values())
             target_amount = price_tiered_payable_seconds(
                 base_seconds,
                 premium_seconds,
@@ -3338,19 +3393,19 @@ async def write_day_differentials(
     adjustment_count = 0
     reversal_count = 0
     recompute_run_id = str(
-        UUID(bytes=hashlib.sha256(
-            f"recompute:{campaign_id}:{driver_profile_id}:{lagos_date}:"
-            f"{recompute_at.isoformat()}".encode()
-        ).digest()[:16])
+        UUID(
+            bytes=hashlib.sha256(
+                f"recompute:{campaign_id}:{driver_profile_id}:{lagos_date}:"
+                f"{recompute_at.isoformat()}".encode()
+            ).digest()[:16]
+        )
     )
 
     for target in computation.trips:
         entry: EarningsLedgerEntry | None = None
         delta = target.delta_amount
         if delta != 0:
-            trip_payout_entry = await trip_payout_entry_for_trip(
-                session, target.trip_session_id
-            )
+            trip_payout_entry = await trip_payout_entry_for_trip(session, target.trip_session_id)
             entry_type = (
                 EarningsLedgerEntryType.ADJUSTMENT.value
                 if delta > 0
@@ -3366,8 +3421,7 @@ async def write_day_differentials(
                 entry_status = (
                     trip_payout_entry.status
                     if trip_payout_entry is not None
-                    and trip_payout_entry.status
-                    != EarningsLedgerEntryStatus.VOIDED.value
+                    and trip_payout_entry.status != EarningsLedgerEntryStatus.VOIDED.value
                     else EarningsLedgerEntryStatus.PENDING.value
                 )
             breakdown_metadata = {
@@ -3381,9 +3435,25 @@ async def write_day_differentials(
                 "delta_amount": str(delta),
             }
             if target.payable_by_day_tier is not None:
-                breakdown_metadata["payable_seconds_by_day_tier"] = (
-                    target.payable_by_day_tier
+                base_seconds = sum(
+                    int(tiers.get("base", 0) or 0) for tiers in target.payable_by_day_tier.values()
                 )
+                premium_seconds = sum(
+                    int(tiers.get("premium", 0) or 0)
+                    for tiers in target.payable_by_day_tier.values()
+                )
+                tier_amounts = allocate_tier_amount_components(
+                    base_seconds=base_seconds,
+                    premium_seconds=premium_seconds,
+                    base_rate=target.hourly_rate,
+                    premium_rate=target.premium_hourly_rate or target.hourly_rate,
+                    authoritative_total=target.target_amount,
+                )
+                breakdown_metadata["payable_seconds_by_day_tier"] = target.payable_by_day_tier
+                breakdown_metadata["base_payable_seconds"] = base_seconds
+                breakdown_metadata["premium_payable_seconds"] = premium_seconds
+                breakdown_metadata["base_amount"] = str(tier_amounts.base_amount)
+                breakdown_metadata["premium_amount"] = str(tier_amounts.premium_amount)
                 breakdown_metadata["premium_hourly_rate_naira"] = (
                     str(target.premium_hourly_rate)
                     if target.premium_hourly_rate is not None
@@ -3399,12 +3469,8 @@ async def write_day_differentials(
                 "request_metadata": request_metadata,
             }
             if target.formula_version == PAYOUT_V3:
-                ledger_metadata["binding_id"] = str(
-                    target.governing_values["binding_id"]
-                )
-                ledger_metadata["revision_id"] = str(
-                    target.governing_values["revision_id"]
-                )
+                ledger_metadata["binding_id"] = str(target.governing_values["binding_id"])
+                ledger_metadata["revision_id"] = str(target.governing_values["revision_id"])
             if correction_order_id is not None:
                 ledger_metadata["correction_order_id"] = str(correction_order_id)
             entry = EarningsLedgerEntry(
@@ -3418,17 +3484,9 @@ async def write_day_differentials(
                 status=entry_status,
                 amount=abs(delta),
                 currency=target.currency,
-                description=(
-                    "Day true-up adjustment"
-                    if delta > 0
-                    else "Day true-up reversal"
-                ),
+                description=("Day true-up adjustment" if delta > 0 else "Day true-up reversal"),
                 occurred_at=recompute_at,
-                release_at=(
-                    release_at
-                    if delta > 0 and correction_order_id is not None
-                    else None
-                ),
+                release_at=(release_at if delta > 0 and correction_order_id is not None else None),
                 ledger_metadata=ledger_metadata,
             )
             session.add(entry)
@@ -3502,11 +3560,80 @@ class DriverTripBreakdown:
     excluded_seconds_by_reason: dict[str, int] | None
     hourly_rate: Decimal | None
     capped_seconds: int | None
+    base_payable_seconds: int | None
+    premium_payable_seconds: int | None
+    base_hourly_rate: Decimal | None
+    premium_hourly_rate: Decimal | None
+    base_amount: Decimal | None
+    premium_amount: Decimal | None
     superseded_by_recompute: bool
     entries: list[EarningsLedgerEntry]
     lagos_day: date | None
     cap_seconds: int | None
     day_payable_seconds: int | None
+
+
+def _tier_breakdown_from_stored_metadata(
+    source: dict,
+    *,
+    fallback_rates: dict | None = None,
+) -> tuple[int, int, Decimal, Decimal | None, Decimal, Decimal] | None:
+    """Parse one durable payout_v3 explanation without live recalculation.
+
+    Legacy B2 rows may lack component amounts. Their safe compatibility path
+    uses only the stored tier seconds, frozen rates and stored target amount,
+    through the same residual allocator now used at write time.
+    """
+    tiers_by_day = source.get("payable_seconds_by_day_tier")
+    rates = fallback_rates or {}
+    base_rate_raw = source.get("hourly_rate_naira", rates.get("hourly_rate_naira"))
+    premium_rate_raw = source.get(
+        "premium_hourly_rate_naira", rates.get("premium_hourly_rate_naira")
+    )
+    total_raw = source.get("target_amount", source.get("amount"))
+    if not isinstance(tiers_by_day, dict) or base_rate_raw is None or total_raw is None:
+        return None
+    try:
+        base_seconds = int(
+            source.get(
+                "base_payable_seconds",
+                sum(int((value or {}).get("base", 0) or 0) for value in tiers_by_day.values()),
+            )
+        )
+        premium_seconds = int(
+            source.get(
+                "premium_payable_seconds",
+                sum(int((value or {}).get("premium", 0) or 0) for value in tiers_by_day.values()),
+            )
+        )
+        base_rate = Decimal(str(base_rate_raw))
+        premium_rate = Decimal(str(premium_rate_raw)) if premium_rate_raw is not None else None
+        total = Decimal(str(total_raw))
+        if source.get("base_amount") is not None and source.get("premium_amount") is not None:
+            base_amount = Decimal(str(source["base_amount"]))
+            premium_amount = Decimal(str(source["premium_amount"]))
+        else:
+            allocated = allocate_tier_amount_components(
+                base_seconds=base_seconds,
+                premium_seconds=premium_seconds,
+                base_rate=base_rate,
+                premium_rate=premium_rate or base_rate,
+                authoritative_total=total,
+            )
+            base_amount = allocated.base_amount
+            premium_amount = allocated.premium_amount
+    except (ArithmeticError, TypeError, ValueError):
+        return None
+    if quantize_2(base_amount + premium_amount) != quantize_2(total):
+        return None
+    return (
+        base_seconds,
+        premium_seconds,
+        base_rate,
+        premium_rate,
+        base_amount,
+        premium_amount,
+    )
 
 
 async def driver_trip_earnings_breakdown(
@@ -3532,21 +3659,16 @@ async def driver_trip_earnings_breakdown(
             EarningsLedgerEntry.trip_session_id == trip.id,
             EarningsLedgerEntry.driver_profile_id == profile.id,
         )
-        .order_by(EarningsLedgerEntry.occurred_at, EarningsLedgerEntry.created_at,
-                  EarningsLedgerEntry.id)
+        .order_by(
+            EarningsLedgerEntry.occurred_at, EarningsLedgerEntry.created_at, EarningsLedgerEntry.id
+        )
     )
     entries = list(entries_result.scalars().all())
-    calculation = await existing_payout_calculation_for_trip_any_formula(
-        session, trip_id=trip.id
-    )
+    calculation = await existing_payout_calculation_for_trip_any_formula(session, trip_id=trip.id)
     if calculation is None and not entries:
         raise payout_calculation_not_found()
 
-    currency = (
-        calculation.currency
-        if calculation is not None
-        else entries[0].currency
-    )
+    currency = calculation.currency if calculation is not None else entries[0].currency
     amount = Decimal("0.00")
     for entry in entries:
         if entry.status == EarningsLedgerEntryStatus.VOIDED.value:
@@ -3562,12 +3684,18 @@ async def driver_trip_earnings_breakdown(
     excluded: dict[str, int] | None = None
     hourly_rate: Decimal | None = None
     capped_seconds: int | None = None
+    base_payable_seconds: int | None = None
+    premium_payable_seconds: int | None = None
+    base_hourly_rate: Decimal | None = None
+    premium_hourly_rate: Decimal | None = None
+    base_amount: Decimal | None = None
+    premium_amount: Decimal | None = None
     lagos_day_value: date | None = None
     cap_seconds: int | None = None
     day_payable_seconds: int | None = None
     superseded = False
 
-    if calculation is not None and calculation.formula_version == PAYOUT_V2:
+    if calculation is not None and calculation.formula_version in (PAYOUT_V2, PAYOUT_V3):
         eligible_seconds = calculation.eligible_seconds
         excluded = calculation.excluded_seconds_by_reason or {}
         capped_seconds = calculation.payable_seconds
@@ -3580,15 +3708,41 @@ async def driver_trip_earnings_breakdown(
         if metadata.get("lagos_day"):
             lagos_day_value = date.fromisoformat(metadata["lagos_day"])
 
-        recompute_entries = [
-            entry
-            for entry in entries
-            if (entry.ledger_metadata or {}).get("recompute_day")
-            and entry.status != EarningsLedgerEntryStatus.VOIDED.value
-        ]
-        if recompute_entries:
+        if calculation.formula_version == PAYOUT_V3:
+            components = metadata.get("components") or {}
+            tier = _tier_breakdown_from_stored_metadata(components, fallback_rates=rates)
+            if tier is not None:
+                (
+                    base_payable_seconds,
+                    premium_payable_seconds,
+                    base_hourly_rate,
+                    premium_hourly_rate,
+                    base_amount,
+                    premium_amount,
+                ) = tier
+                hourly_rate = base_hourly_rate
+
+        authoritative_recompute_entries = []
+        for entry in entries:
+            entry_metadata = entry.ledger_metadata or {}
+            stored = entry_metadata.get("breakdown")
+            if (
+                entry.status == EarningsLedgerEntryStatus.VOIDED.value
+                or not entry_metadata.get("recompute_day")
+                or entry_metadata.get("payout_calculation_id") != str(calculation.id)
+                or entry_metadata.get("formula_version") != calculation.formula_version
+                or not isinstance(stored, dict)
+            ):
+                continue
+            if calculation.formula_version == PAYOUT_V3 and (
+                _tier_breakdown_from_stored_metadata(stored) is None
+            ):
+                continue
+            authoritative_recompute_entries.append(entry)
+
+        if authoritative_recompute_entries:
             superseded = True
-            newest = recompute_entries[-1]
+            newest = authoritative_recompute_entries[-1]
             stored = (newest.ledger_metadata or {}).get("breakdown") or {}
             if stored.get("eligible_seconds") is not None:
                 eligible_seconds = int(stored["eligible_seconds"])
@@ -3598,6 +3752,18 @@ async def driver_trip_earnings_breakdown(
                 hourly_rate = Decimal(str(stored["hourly_rate_naira"]))
             if stored.get("cap_seconds") is not None:
                 cap_seconds = int(stored["cap_seconds"])
+            if calculation.formula_version == PAYOUT_V3:
+                tier = _tier_breakdown_from_stored_metadata(stored)
+                if tier is not None:
+                    (
+                        base_payable_seconds,
+                        premium_payable_seconds,
+                        base_hourly_rate,
+                        premium_hourly_rate,
+                        base_amount,
+                        premium_amount,
+                    ) = tier
+                    hourly_rate = base_hourly_rate
 
         if lagos_day_value is not None:
             day_payable_seconds = await day_consumed_payable_seconds(
@@ -3616,6 +3782,12 @@ async def driver_trip_earnings_breakdown(
         excluded_seconds_by_reason=excluded,
         hourly_rate=hourly_rate,
         capped_seconds=capped_seconds,
+        base_payable_seconds=base_payable_seconds,
+        premium_payable_seconds=premium_payable_seconds,
+        base_hourly_rate=base_hourly_rate,
+        premium_hourly_rate=premium_hourly_rate,
+        base_amount=base_amount,
+        premium_amount=premium_amount,
         superseded_by_recompute=superseded,
         entries=entries,
         lagos_day=lagos_day_value,

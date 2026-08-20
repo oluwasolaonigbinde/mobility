@@ -500,8 +500,7 @@ async def admin_list_payout_calculations(
         currency=currency,
     )
     items = [
-        await payout_calculation_response(session, calculation)
-        for calculation in calculations
+        await payout_calculation_response(session, calculation) for calculation in calculations
     ]
     return PayoutCalculationListResponse(items=items, total=total, limit=limit, offset=offset)
 
@@ -665,26 +664,18 @@ def correction_order_audit_values(order: PayoutCorrectionOrder) -> dict:
         "reason": order.reason,
         "created_by_user_id": str(order.created_by_user_id),
         "approved_by_user_id": (
-            str(order.approved_by_user_id)
-            if order.approved_by_user_id is not None
-            else None
+            str(order.approved_by_user_id) if order.approved_by_user_id is not None else None
         ),
         "executed_by_user_id": (
-            str(order.executed_by_user_id)
-            if order.executed_by_user_id is not None
-            else None
+            str(order.executed_by_user_id) if order.executed_by_user_id is not None else None
         ),
         "projection_fingerprint": order.projection_fingerprint,
         "projected_delta": order.projected_delta,
         "projected_at": (
             order.projected_at.isoformat() if order.projected_at is not None else None
         ),
-        "decided_at": (
-            order.decided_at.isoformat() if order.decided_at is not None else None
-        ),
-        "executed_at": (
-            order.executed_at.isoformat() if order.executed_at is not None else None
-        ),
+        "decided_at": (order.decided_at.isoformat() if order.decided_at is not None else None),
+        "executed_at": (order.executed_at.isoformat() if order.executed_at is not None else None),
         "execution_result": order.execution_result,
     }
 
@@ -805,9 +796,7 @@ async def admin_submit_correction_order(
     current_user: AdminUserDependency,
     session: SessionDependency,
 ) -> PayoutCorrectionOrderRead:
-    order = await submit_correction_order(
-        session, order_id=order_id, actor_user_id=current_user.id
-    )
+    order = await submit_correction_order(session, order_id=order_id, actor_user_id=current_user.id)
     await create_audit_event(
         session,
         actor_user_id=current_user.id,
@@ -864,9 +853,7 @@ async def admin_reject_correction_order(
     current_user: AdminUserDependency,
     session: SessionDependency,
 ) -> PayoutCorrectionOrderRead:
-    order = await reject_correction_order(
-        session, order_id=order_id, actor_user_id=current_user.id
-    )
+    order = await reject_correction_order(session, order_id=order_id, actor_user_id=current_user.id)
     await create_audit_event(
         session,
         actor_user_id=current_user.id,
@@ -916,9 +903,7 @@ async def admin_execute_correction_order(
                 "status_before": PayoutCorrectionOrderStatus.APPROVED.value,
                 "status_after": order.status,
                 "release_at": (
-                    request.release_at.isoformat()
-                    if request.release_at is not None
-                    else None
+                    request.release_at.isoformat() if request.release_at is not None else None
                 ),
                 **correction_order_audit_values(order),
             },
@@ -963,6 +948,12 @@ async def driver_get_trip_earnings_breakdown(
         excluded_seconds_by_reason=breakdown.excluded_seconds_by_reason,
         hourly_rate=breakdown.hourly_rate,
         capped_seconds=breakdown.capped_seconds,
+        base_payable_seconds=breakdown.base_payable_seconds,
+        premium_payable_seconds=breakdown.premium_payable_seconds,
+        base_hourly_rate=breakdown.base_hourly_rate,
+        premium_hourly_rate=breakdown.premium_hourly_rate,
+        base_amount=breakdown.base_amount,
+        premium_amount=breakdown.premium_amount,
         superseded_by_recompute=breakdown.superseded_by_recompute,
         entries=[ledger_entry_response(entry) for entry in breakdown.entries],
         cap=cap,

@@ -1,3 +1,4 @@
+import hashlib
 from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -332,6 +333,7 @@ class AssignmentRuleBinding(Base):
         server_default=text("'{}'"),
         nullable=False,
     )
+    resolved_eligibility_params: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     formula_version: Mapped[str] = mapped_column(Text, nullable=False)
     # Campaign target-zone ids (as strings) frozen at binding time (PR11).
     premium_zone_ids: Mapped[list[Any]] = mapped_column(
@@ -341,6 +343,30 @@ class AssignmentRuleBinding(Base):
         nullable=False,
     )
     premium_zone_geometry_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    premium_zone_geometry_wkts: Mapped[list[Any]] = mapped_column(
+        JSON,
+        default=list,
+        server_default=text("'[]'"),
+        nullable=False,
+    )
+    exclusion_zone_ids: Mapped[list[Any]] = mapped_column(
+        JSON,
+        default=list,
+        server_default=text("'[]'"),
+        nullable=False,
+    )
+    exclusion_zone_geometry_hash: Mapped[str] = mapped_column(
+        Text,
+        default=hashlib.sha256(b"").hexdigest(),
+        server_default=text("'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'"),
+        nullable=False,
+    )
+    exclusion_zone_geometry_wkts: Mapped[list[Any]] = mapped_column(
+        JSON,
+        default=list,
+        server_default=text("'[]'"),
+        nullable=False,
+    )
     stationary_policy_marker: Mapped[str] = mapped_column(
         Text,
         default="ext-rm2-fail-closed",
@@ -371,8 +397,7 @@ class PayoutCorrectionOrder(Base):
     __tablename__ = "payout_correction_orders"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('draft', 'pending_approval', 'approved', 'rejected',"
-            " 'executed', 'stale')",
+            "status IN ('draft', 'pending_approval', 'approved', 'rejected', 'executed', 'stale')",
             name="ck_payout_correction_orders_status",
         ),
         CheckConstraint(
@@ -398,9 +423,7 @@ class PayoutCorrectionOrder(Base):
     )
     lagos_day: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
-    created_by_user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id"), nullable=False
-    )
+    created_by_user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     approved_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
     executed_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
     reason: Mapped[str] = mapped_column(Text, nullable=False)
