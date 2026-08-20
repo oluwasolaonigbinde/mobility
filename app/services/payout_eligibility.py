@@ -57,7 +57,7 @@ class EligibilityParams:
     rolling_confirmation_windows: int = 2
     rolling_release_windows: int = 1
 
-    def as_metadata(self) -> dict[str, float | int]:
+    def as_legacy_metadata(self) -> dict[str, float | int]:
         return {
             "stationary_radius_m": self.stationary_radius_m,
             "stationary_window_seconds": self.stationary_window_seconds,
@@ -65,6 +65,11 @@ class EligibilityParams:
             "max_accuracy_m": self.max_accuracy_m,
             "teleport_kmh": self.teleport_kmh,
             "max_ping_gap_seconds": self.max_ping_gap_seconds,
+        }
+
+    def as_metadata(self) -> dict[str, float | int]:
+        return {
+            **self.as_legacy_metadata(),
             "rolling_window_seconds": self.rolling_window_seconds,
             "rolling_stride_seconds": self.rolling_stride_seconds,
             "rolling_max_displacement_m": self.rolling_max_displacement_m,

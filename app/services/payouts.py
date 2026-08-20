@@ -1221,7 +1221,7 @@ def v2_inputs_fingerprint(
             "formula_version": PAYOUT_V2,
             "hourly_rate_naira": Decimal(rule.hourly_rate_naira),
             "daily_payable_hours_cap": Decimal(rule.daily_payable_hours_cap),
-            "eligibility_params": params.as_metadata(),
+            "eligibility_params": params.as_legacy_metadata(),
             "ping_set_fingerprint": ping_fingerprint,
             "zone_state_fingerprint": zone_fingerprint,
             "window_start_at": window_start_at,
@@ -1947,7 +1947,7 @@ async def calculate_trip_payout_v2(
             "payable_seconds_by_day": payable_by_day,
         },
         "rates": {"hourly_rate_naira": str(hourly_rate)},
-        "eligibility_params": params.as_metadata(),
+        "eligibility_params": params.as_legacy_metadata(),
         "zone_state": {
             "fingerprint": zone_state.fingerprint,
             "zone_count": zone_state.zone_count,
@@ -3259,7 +3259,7 @@ async def compute_payout_day_targets(
                 "payout_rule_id": rule.id,
                 "hourly_rate_naira": hourly_rate,
                 "daily_payable_hours_cap": Decimal(rule.daily_payable_hours_cap),
-                "eligibility_params": v2_params.as_metadata(),
+                "eligibility_params": v2_params.as_legacy_metadata(),
                 "currency": rule.currency,
             }
 

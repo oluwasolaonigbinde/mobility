@@ -22,6 +22,7 @@ from app.models.payout import (
     EarningsLedgerEntryType,
 )
 from app.services.campaign_zones import geometry_expression
+from app.services.payout_eligibility import EligibilityParams
 from app.services.payouts import (
     PAYOUT_V2,
     calculate_trip_payout,
@@ -36,7 +37,9 @@ from app.services.payouts import (
     quantize_ngn_half_up,
     recompute_payout_day,
     v2_calculation_is_stale,
+    v2_inputs_fingerprint,
 )
+from app.services.provenance import stable_source_fingerprint
 from app.services.trip_processing import find_unprocessed_trips
 
 # Trips start at 09:00 Lagos (08:00 UTC) so the whole session sits inside one
@@ -187,6 +190,52 @@ def test_price_payable_seconds_is_half_up_at_2dp_exactly_once() -> None:
     assert price_payable_seconds(0, Decimal("5000.00")) == Decimal("0.00")
 
 
+def test_v2_fingerprint_keeps_exact_legacy_eligibility_shape() -> None:
+    params = EligibilityParams(
+        stationary_radius_m=200.0,
+        stationary_window_seconds=300,
+        stationary_grace_seconds=240,
+        max_accuracy_m=75.0,
+        teleport_kmh=180.0,
+        max_ping_gap_seconds=120,
+    )
+    rule = SimpleNamespace(
+        hourly_rate_naira=Decimal("1200.00"),
+        daily_payable_hours_cap=Decimal("8.00"),
+    )
+    expected = stable_source_fingerprint(
+        {
+            "formula_version": PAYOUT_V2,
+            "hourly_rate_naira": Decimal("1200.00"),
+            "daily_payable_hours_cap": Decimal("8.00"),
+            "eligibility_params": {
+                "stationary_radius_m": 200.0,
+                "stationary_window_seconds": 300,
+                "stationary_grace_seconds": 240,
+                "max_accuracy_m": 75.0,
+                "teleport_kmh": 180.0,
+                "max_ping_gap_seconds": 120,
+            },
+            "ping_set_fingerprint": "pings",
+            "zone_state_fingerprint": "zones",
+            "window_start_at": None,
+            "window_end_at": None,
+        }
+    )
+
+    assert (
+        v2_inputs_fingerprint(
+            rule=rule,
+            params=params,
+            ping_fingerprint="pings",
+            zone_fingerprint="zones",
+            window_start_at=None,
+            window_end_at=None,
+        )
+        == expected
+    )
+
+
 def test_daily_cap_is_integer_seconds() -> None:
     rule = SimpleNamespace(daily_payable_hours_cap=Decimal("7.50"))
     assert daily_cap_seconds(rule) == 27000
@@ -234,6 +283,14 @@ def test_worker_pipeline_produces_v2_calculation_and_ledger(
     assert calculation.payable_seconds == 1800
     assert calculation.excluded_seconds_by_reason == {}
     assert calculation.inputs_fingerprint
+    assert set(calculation.payout_metadata["eligibility_params"]) == {
+        "stationary_radius_m",
+        "stationary_window_seconds",
+        "stationary_grace_seconds",
+        "max_accuracy_m",
+        "teleport_kmh",
+        "max_ping_gap_seconds",
+    }
     # 1800 s at NGN 1200/h = NGN 600.00, priced once.
     assert calculation.final_payout == Decimal("600.00")
     assert calculation.gross_payout == Decimal("600.00")

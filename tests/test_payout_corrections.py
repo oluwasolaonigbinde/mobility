@@ -275,6 +275,24 @@ def test_create_projects_value_complete_draft_and_matches_dry_run_endpoint(
     pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
     raise_rule_rate(postgis_db_sessionmaker, graph.rule.id, "1500.00")
 
+    recompute = service(
+        postgis_db_sessionmaker,
+        lambda session: project_campaign_day(
+            session,
+            campaign_id=graph.campaign.id,
+            lagos_day=lagos_day_for(graph.trip.started_at),
+            settings=settings,
+        ),
+    )
+    assert set(recompute.computations[0].trips[0].governing_values["eligibility_params"]) == {
+        "stationary_radius_m",
+        "stationary_window_seconds",
+        "stationary_grace_seconds",
+        "max_accuracy_m",
+        "teleport_kmh",
+        "max_ping_gap_seconds",
+    }
+
     admin_headers = auth_headers(postgis_db_client, graph.admin.email, PASSWORD)
     day = lagos_day_for(graph.trip.started_at).isoformat()
 

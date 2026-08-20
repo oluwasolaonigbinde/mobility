@@ -1397,6 +1397,30 @@ def test_v3_fingerprint_covers_every_frozen_binding_input() -> None:
                 "rolling_max_displacement_m": 26.0,
             }
         ),
+        binding(
+            resolved_eligibility_params={
+                **params.as_metadata(),
+                "rolling_window_seconds": 121,
+            }
+        ),
+        binding(
+            resolved_eligibility_params={
+                **params.as_metadata(),
+                "rolling_stride_seconds": 121,
+            }
+        ),
+        binding(
+            resolved_eligibility_params={
+                **params.as_metadata(),
+                "rolling_confirmation_windows": 3,
+            }
+        ),
+        binding(
+            resolved_eligibility_params={
+                **params.as_metadata(),
+                "rolling_release_windows": 2,
+            }
+        ),
         binding(premium_zone_ids=[]),
         binding(premium_zone_geometry_hash=hashlib.sha256(b"other").hexdigest()),
         binding(exclusion_zone_ids=[]),
