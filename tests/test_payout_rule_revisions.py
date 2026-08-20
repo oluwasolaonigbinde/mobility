@@ -26,6 +26,7 @@ from sqlalchemy import select
 from starlette import status as http_status
 from test_payouts_v2 import build_v2_graph, create_v2_rule, pipeline_to_v2, run_recompute
 
+from app.api.v1.payouts import payout_rule_revision_response
 from app.core.errors import AppError
 from app.models.campaign import CampaignStatus
 from app.models.payout import CampaignPayoutRuleRevision
@@ -114,6 +115,28 @@ def fetch_revisions(sessionmaker, campaign_id) -> list[CampaignPayoutRuleRevisio
             return list(result.scalars().all())
 
     return asyncio.run(run())
+
+
+def test_revision_response_normalizes_historical_null_eligibility_params() -> None:
+    revision = SimpleNamespace(
+        id="0c0c0c0c-0000-4000-8000-000000000001",
+        campaign_id="0c0c0c0c-0000-4000-8000-000000000002",
+        payout_rule_id="0c0c0c0c-0000-4000-8000-000000000003",
+        revision_number=1,
+        effective_from=datetime.now(UTC),
+        hourly_rate_naira=Decimal("1200.00"),
+        premium_hourly_rate_naira=None,
+        daily_payable_hours_cap=Decimal("8.00"),
+        eligibility_params=None,
+        formula_version="payout_v3",
+        reason="historical genesis",
+        created_by_user_id="0c0c0c0c-0000-4000-8000-000000000004",
+        created_at=datetime.now(UTC),
+    )
+
+    response = payout_rule_revision_response(revision)
+
+    assert response.eligibility_params == {}
 
 
 # --- API: atomic genesis, create/supersede, list, audit ----------------------
