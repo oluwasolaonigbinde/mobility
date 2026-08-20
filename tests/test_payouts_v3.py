@@ -55,6 +55,7 @@ from app.models.payout import (
     EarningsLedgerEntryStatus,
     EarningsLedgerEntryType,
     PayoutCalculation,
+    PayoutCalculationStatus,
 )
 from app.models.trip import TripSessionStatus
 from app.models.user import UserRole
@@ -1193,6 +1194,22 @@ def test_driver_breakdown_uses_latest_valid_nonvoided_v3_authority(
     assert fallback.base_amount == Decimal("0.00")
     assert fallback.premium_amount == Decimal("1000.00")
     assert positive.status == EarningsLedgerEntryStatus.PENDING.value
+
+    async def mark_original_insufficient_and_get_consumed() -> int:
+        async with postgis_db_sessionmaker() as session:
+            stored = await session.get(PayoutCalculation, calculation.id)
+            stored.status = PayoutCalculationStatus.INSUFFICIENT_DATA.value
+            await session.commit()
+            return await day_consumed_payable_seconds(
+                session,
+                driver_profile_id=graph.profile.id,
+                campaign_id=graph.campaign.id,
+                lagos_day=datetime.fromisoformat(day).date(),
+            )
+
+    # A recompute can heal an insufficient-data calculation. Its latest
+    # authoritative target must still consume the shared day cap.
+    assert asyncio.run(mark_original_insufficient_and_get_consumed()) == 1800
 
     async def void_original() -> None:
         async with postgis_db_sessionmaker() as session:

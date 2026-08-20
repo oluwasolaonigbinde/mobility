@@ -1322,6 +1322,7 @@ async def day_consumed_payable_seconds(
             PayoutCalculation.id.label("calculation_id"),
             PayoutCalculation.trip_session_id.label("trip_id"),
             PayoutCalculation.formula_version.label("formula_version"),
+            PayoutCalculation.status.label("calculation_status"),
             PayoutCalculation.payable_seconds_by_day.label("by_day"),
             PayoutCalculation.payable_seconds.label("payable"),
             TripSession.started_at.label("started_at"),
@@ -1331,7 +1332,12 @@ async def day_consumed_payable_seconds(
             PayoutCalculation.driver_profile_id == driver_profile_id,
             PayoutCalculation.campaign_id == campaign_id,
             PayoutCalculation.formula_version.in_((PAYOUT_V2, PAYOUT_V3)),
-            PayoutCalculation.status == PayoutCalculationStatus.CALCULATED.value,
+            PayoutCalculation.status.in_(
+                (
+                    PayoutCalculationStatus.CALCULATED.value,
+                    PayoutCalculationStatus.INSUFFICIENT_DATA.value,
+                )
+            ),
             # Overlap, not start-day containment: a trip that began yesterday
             # can still consume today's cap (RM1).
             TripSession.started_at < day_end_utc,
@@ -1345,11 +1351,12 @@ async def day_consumed_payable_seconds(
     consumed_by_trip: dict[UUID, int] = {}
     calculation_authorities_by_trip: dict[UUID, set[tuple[str, str]]] = {}
     for row in rows.all():
-        seconds = day_allocation_seconds(row.by_day, row.payable, row.started_at, day_key)
-        consumed_by_trip[row.trip_id] = max(consumed_by_trip.get(row.trip_id, 0), seconds)
         calculation_authorities_by_trip.setdefault(row.trip_id, set()).add(
             (str(row.calculation_id), row.formula_version)
         )
+        if row.calculation_status == PayoutCalculationStatus.CALCULATED.value:
+            seconds = day_allocation_seconds(row.by_day, row.payable, row.started_at, day_key)
+            consumed_by_trip[row.trip_id] = max(consumed_by_trip.get(row.trip_id, 0), seconds)
 
     # A recompute-day true-up supersedes the calculation's figure: the latest
     # non-voided differential entry stores the day's authoritative
