@@ -92,6 +92,11 @@ class Settings(BaseSettings):
     payout_eligibility_max_accuracy_m: int = 75
     payout_eligibility_teleport_kmh: int = 180
     payout_eligibility_max_ping_gap_seconds: int = 120
+    payout_eligibility_rolling_window_seconds: int = 120
+    payout_eligibility_rolling_stride_seconds: int = 120
+    payout_eligibility_rolling_max_displacement_m: float = 25.0
+    payout_eligibility_rolling_confirmation_windows: int = 2
+    payout_eligibility_rolling_release_windows: int = 1
     payout_default_hourly_rate_ngn: float = 0.0
     payout_default_base_rate_per_km: float = 0.0
     payout_default_base_rate_per_active_hour: float = 0.0
@@ -260,11 +265,22 @@ class Settings(BaseSettings):
         "payout_eligibility_max_accuracy_m",
         "payout_eligibility_teleport_kmh",
         "payout_eligibility_max_ping_gap_seconds",
+        "payout_eligibility_rolling_window_seconds",
+        "payout_eligibility_rolling_stride_seconds",
+        "payout_eligibility_rolling_confirmation_windows",
+        "payout_eligibility_rolling_release_windows",
     )
     @classmethod
     def validate_positive_payout_eligibility_settings(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("Payout eligibility settings must be positive")
+        return value
+
+    @field_validator("payout_eligibility_rolling_max_displacement_m")
+    @classmethod
+    def validate_rolling_displacement(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("PAYOUT_ELIGIBILITY_ROLLING_MAX_DISPLACEMENT_M must be positive")
         return value
 
     @field_validator("payout_eligibility_stationary_grace_min")

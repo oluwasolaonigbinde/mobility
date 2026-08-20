@@ -68,6 +68,7 @@ from app.services.campaign_assignments import (
 )
 from app.services.campaign_zones import geometry_expression
 from app.services.payout_eligibility import (
+    STATIONARY_POLICY_V1,
     EligibilityParams,
     EligibilityPing,
     classify_session,
@@ -186,6 +187,7 @@ def insert_binding(
     revision: CampaignPayoutRuleRevision,
     zone_ids=(),
     geometry_hash: str = "hash-frozen-at-accept",
+    stationary_policy_marker: str = STATIONARY_POLICY_V1,
 ) -> AssignmentRuleBinding:
     async def create() -> AssignmentRuleBinding:
         async with db_sessionmaker() as session:
@@ -227,7 +229,7 @@ def insert_binding(
                 exclusion_zone_ids=[str(row[0]) for row in exclusion_rows],
                 exclusion_zone_geometry_hash=premium_zone_geometry_hash(exclusion_rows),
                 exclusion_zone_geometry_wkts=[str(row[1]) for row in exclusion_rows],
-                stationary_policy_marker="ext-rm2-fail-closed",
+                stationary_policy_marker=stationary_policy_marker,
                 bound_at=datetime.now(UTC),
             )
             session.add(binding)
@@ -415,8 +417,21 @@ def test_accept_freezes_effective_revision_with_zone_snapshot(
     assert binding.eligibility_params == {"stationary_grace_min": 5}
     assert binding.formula_version == PAYOUT_V3
     assert binding.premium_zone_ids == [str(zone.id)]
-    assert binding.stationary_policy_marker == "ext-rm2-fail-closed"
+    assert binding.stationary_policy_marker == STATIONARY_POLICY_V1
     assert binding.bound_at == accepted.accepted_at
+    assert binding.resolved_eligibility_params == {
+        "stationary_radius_m": 200.0,
+        "stationary_window_seconds": 300,
+        "stationary_grace_seconds": 300,
+        "max_accuracy_m": 75.0,
+        "teleport_kmh": 180.0,
+        "max_ping_gap_seconds": 120,
+        "rolling_window_seconds": 120,
+        "rolling_stride_seconds": 120,
+        "rolling_max_displacement_m": 25.0,
+        "rolling_confirmation_windows": 2,
+        "rolling_release_windows": 1,
+    }
 
     # The geometry hash is the deterministic sha256 of the frozen target
     # zones' (id, geometry) pairs sorted by id.
@@ -616,7 +631,7 @@ def test_v3_base_only_prices_from_binding_not_rule(postgis_db_sessionmaker, sett
     binding_meta = calculation.payout_metadata["binding"]
     assert binding_meta["binding_id"] == str(graph.binding.id)
     assert binding_meta["revision_id"] == str(graph.revision.id)
-    assert binding_meta["stationary_policy_marker"] == "ext-rm2-fail-closed"
+    assert binding_meta["stationary_policy_marker"] == STATIONARY_POLICY_V1
 
     entries = fetch_earnings_ledger_entries(postgis_db_sessionmaker)
     assert len(entries) == 1
@@ -629,6 +644,85 @@ def test_v3_base_only_prices_from_binding_not_rule(postgis_db_sessionmaker, sett
         raise AssertionError("expected AppError")
     except AppError as exc:
         assert exc.code in {"PAYOUT_RULE_NOT_FOUND", "INVALID_PAYOUT_RULE"}
+
+
+def test_ext_rm2_fail_closed_binding_rejects_initial_payout(
+    postgis_db_sessionmaker, settings
+) -> None:
+    """Binding marker created before FND-02B must not calculate payout_v3."""
+    graph = build_v2_graph(postgis_db_sessionmaker, "v3-rm2-fail-closed")
+    bind_v2_graph(postgis_db_sessionmaker, settings, graph)
+
+    async def mark_unresolved() -> None:
+        async with postgis_db_sessionmaker() as session:
+            binding = await session.get(AssignmentRuleBinding, graph.binding.id)
+            binding.stationary_policy_marker = "ext-rm2-fail-closed"
+            await session.commit()
+
+    asyncio.run(mark_unresolved())
+
+    try:
+        pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
+        raise AssertionError("expected unresolved stationary binding to fail closed")
+    except AppError as exc:
+        assert exc.code == "PAYOUT_STATIONARY_POLICY_UNRESOLVED"
+    assert fetch_payout_calculations(postgis_db_sessionmaker) == []
+    assert fetch_earnings_ledger_entries(postgis_db_sessionmaker) == []
+
+
+def test_v3_stop_hop_persists_detector_evidence_and_driver_reason(
+    postgis_db_sessionmaker, settings
+) -> None:
+    graph = build_v2_graph(postgis_db_sessionmaker, "v3-stop-hop")
+    bind_v2_graph(postgis_db_sessionmaker, settings, graph)
+    points = []
+    cycle = 0
+    while cycle * 309 < 1800:
+        stop_start = cycle * 309
+        stop_lat = 6.45 + cycle * 0.003
+        for second in range(stop_start, min(stop_start + 299, 1800), 30):
+            points.append((graph.trip.started_at + timedelta(seconds=second), stop_lat, 3.40, 10.0))
+        if stop_start + 299 <= 1800:
+            points.append(
+                (graph.trip.started_at + timedelta(seconds=stop_start + 299), stop_lat, 3.40, 10.0)
+            )
+        if stop_start + 309 <= 1800:
+            points.append(
+                (
+                    graph.trip.started_at + timedelta(seconds=stop_start + 309),
+                    stop_lat + 0.003,
+                    3.40,
+                    10.0,
+                )
+            )
+        cycle += 1
+    if points[-1][0] != graph.trip.ended_at:
+        points.append((graph.trip.ended_at, points[-1][1], 3.40, 10.0))
+
+    result = pipeline_to_v2(postgis_db_sessionmaker, settings, graph, points=points)
+
+    assert result.overall == "completed"
+    calculation = fetch_payout_calculations(postgis_db_sessionmaker)[0]
+    assert calculation.excluded_seconds_by_reason["stationary_rolling_displacement"] > 0
+    evidence = calculation.payout_metadata["stationary_detector"]
+    assert evidence["version"] == STATIONARY_POLICY_V1
+    assert evidence["params"] == graph.binding.resolved_eligibility_params
+    assert evidence["classified_stationary_ranges"]
+    assert any(item.get("transition") == "confirmed" for item in evidence["window_observations"])
+    assert all(
+        "latitude" not in item and "longitude" not in item
+        for item in evidence["window_observations"]
+    )
+    assert calculation.inputs_fingerprint
+
+    async def breakdown():
+        async with postgis_db_sessionmaker() as session:
+            return await driver_trip_earnings_breakdown(
+                session, user_id=graph.driver.id, trip_id=graph.trip.id
+            )
+
+    driver = asyncio.run(breakdown())
+    assert driver.excluded_seconds_by_reason["stationary_rolling_displacement"] > 0
 
 
 def test_v3_premium_only_prices_at_premium_rate(postgis_db_sessionmaker, settings) -> None:
@@ -821,7 +915,12 @@ def test_v3_replay_uses_frozen_geometry_and_resolved_eligibility(
         lat_max=6.52,
         zone_type=CampaignZoneType.EXCLUSION.value,
     )
-    changed_settings = settings.model_copy(update={"payout_eligibility_max_accuracy_m": 1.0})
+    changed_settings = settings.model_copy(
+        update={
+            "payout_eligibility_max_accuracy_m": 1.0,
+            "payout_eligibility_rolling_max_displacement_m": 1.0,
+        }
+    )
 
     delete_money_rows(postgis_db_sessionmaker, graph.trip.id)
     run_pipeline(postgis_db_sessionmaker, graph.trip.id, changed_settings)
@@ -1292,6 +1391,12 @@ def test_v3_fingerprint_covers_every_frozen_binding_input() -> None:
         binding(daily_payable_hours_cap=Decimal("7.00")),
         binding(eligibility_params={"stationary_grace_min": 6}),
         binding(resolved_eligibility_params={**params.as_metadata(), "max_accuracy_m": 51.0}),
+        binding(
+            resolved_eligibility_params={
+                **params.as_metadata(),
+                "rolling_max_displacement_m": 26.0,
+            }
+        ),
         binding(premium_zone_ids=[]),
         binding(premium_zone_geometry_hash=hashlib.sha256(b"other").hexdigest()),
         binding(exclusion_zone_ids=[]),

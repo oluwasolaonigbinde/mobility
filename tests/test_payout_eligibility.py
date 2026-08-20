@@ -1,7 +1,11 @@
+import math
 import random
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 from app.services.payout_eligibility import (
+    EARTH_RADIUS_M,
+    STATIONARY_POLICY_V1,
     EligibilityParams,
     EligibilityPing,
     classify_session,
@@ -60,7 +64,14 @@ def moving_pings(
     ]
 
 
-def classify(pings, *, duration=1800, window=(None, None), params=PARAMS):
+def classify(
+    pings,
+    *,
+    duration=1800,
+    window=(None, None),
+    params=PARAMS,
+    stationary_policy_marker=None,
+):
     return classify_session(
         session_started_at=START,
         session_ended_at=START + timedelta(seconds=duration),
@@ -68,6 +79,7 @@ def classify(pings, *, duration=1800, window=(None, None), params=PARAMS):
         window_start_at=window[0],
         window_end_at=window[1],
         params=params,
+        stationary_policy_marker=stationary_policy_marker,
     )
 
 
@@ -213,9 +225,7 @@ def test_short_stop_under_the_window_stays_eligible() -> None:
     pings = (
         moving_pings(0, 600)
         + [
-            EligibilityPing(
-                START + timedelta(seconds=second), parked_lat, BASE_LON, 10.0, True
-            )
+            EligibilityPing(START + timedelta(seconds=second), parked_lat, BASE_LON, 10.0, True)
             for second in range(630, 751, 30)
         ]
         + [
@@ -299,9 +309,7 @@ def test_property_every_random_session_partitions_exactly() -> None:
             params=PARAMS,
         )
         assert breakdown.eligible_seconds >= 0
-        assert all(
-            seconds > 0 for seconds in breakdown.excluded_seconds_by_reason.values()
-        )
+        assert all(seconds > 0 for seconds in breakdown.excluded_seconds_by_reason.values())
         assert breakdown.total_seconds == duration
 
 
@@ -359,9 +367,7 @@ def test_cross_midnight_split_is_exact_at_the_boundary() -> None:
     # Every second before Lagos midnight belongs to the 20th, none after.
     breakdown = classify_cross_midnight(3600)
     assert breakdown.eligible_seconds_by_day["2026-07-20"] == 1800
-    assert breakdown.eligible_seconds_by_day["2026-07-21"] == (
-        breakdown.eligible_seconds - 1800
-    )
+    assert breakdown.eligible_seconds_by_day["2026-07-21"] == (breakdown.eligible_seconds - 1800)
 
 
 def test_day_allocation_never_exceeds_eligible_for_random_sessions() -> None:
@@ -387,9 +393,7 @@ def test_day_allocation_never_exceeds_eligible_for_random_sessions() -> None:
 
 def parked_stretch(start_second: int, end_second: int, *, lat: float, step: int = 30):
     """Pings that never leave the stay radius (a parked vehicle)."""
-    return [
-        ping(second, lat=lat) for second in range(start_second, end_second + 1, step)
-    ]
+    return [ping(second, lat=lat) for second in range(start_second, end_second + 1, step)]
 
 
 def test_repeated_stays_cannot_renew_the_grace_allowance() -> None:
@@ -411,6 +415,223 @@ def test_repeated_stays_cannot_renew_the_grace_allowance() -> None:
     # extra 480 payable seconds per hour of parking, renewable indefinitely.
     assert stationary == parked_total - PARAMS.stationary_grace_seconds
     assert stationary == 3000
+
+
+def test_stop_4m59_then_hop_is_not_fully_payable() -> None:
+    """RM2 reproduction: sub-window parking currently farms payable time."""
+    pings: list[EligibilityPing] = []
+    for cycle in range(2):
+        stop_start = cycle * 309
+        stop_lat = BASE_LAT + cycle * 0.003
+        pings.extend(
+            ping(second, lat=stop_lat) for second in range(stop_start, stop_start + 299, 30)
+        )
+        pings.append(ping(stop_start + 299, lat=stop_lat))
+        pings.append(ping(stop_start + 309, lat=stop_lat + 0.003))
+
+    breakdown = classify(
+        pings,
+        duration=618,
+        stationary_policy_marker=STATIONARY_POLICY_V1,
+    )
+
+    assert breakdown.eligible_seconds < 618
+    assert breakdown.excluded_seconds_by_reason["stationary_rolling_displacement"] > 0
+    assert_invariant(breakdown, 618)
+
+
+def latitude_for_metres(metres: float) -> float:
+    return BASE_LAT + math.degrees(metres / EARTH_RADIUS_M)
+
+
+def rolling_classify(
+    pings: list[EligibilityPing],
+    *,
+    duration: int,
+    params: EligibilityParams | None = None,
+    window=(None, None),
+):
+    return classify(
+        pings,
+        duration=duration,
+        params=params
+        or replace(
+            PARAMS,
+            stationary_window_seconds=10_000,
+            stationary_grace_seconds=0,
+        ),
+        window=window,
+        stationary_policy_marker=STATIONARY_POLICY_V1,
+    )
+
+
+def test_rolling_exact_120s_25m_is_stationary_and_above_is_moving() -> None:
+    equal = [
+        ping(0, lat=latitude_for_metres(0)),
+        ping(120, lat=latitude_for_metres(25)),
+        ping(240, lat=latitude_for_metres(0)),
+    ]
+    equal_result = rolling_classify(equal, duration=240)
+    observations = equal_result.stationary_detector_evidence["window_observations"]
+    assert [item["verdict"] for item in observations] == ["stationary", "stationary"]
+    assert observations[-1]["transition"] == "confirmed"
+    assert equal_result.excluded_seconds_by_reason == {"stationary_rolling_displacement": 240}
+
+    above = [
+        ping(0, lat=latitude_for_metres(0)),
+        ping(120, lat=latitude_for_metres(25.01)),
+        ping(240, lat=latitude_for_metres(0)),
+    ]
+    above_result = rolling_classify(above, duration=240)
+    assert [
+        item["verdict"] for item in above_result.stationary_detector_evidence["window_observations"]
+    ] == ["moving", "moving"]
+    assert above_result.eligible_seconds == 240
+
+
+def test_rolling_endpoints_use_linear_interpolation_within_valid_intervals() -> None:
+    pings = [
+        ping(0, lat=latitude_for_metres(0)),
+        ping(60, lat=latitude_for_metres(10)),
+        ping(180, lat=latitude_for_metres(10)),
+        ping(240, lat=latitude_for_metres(0)),
+    ]
+    result = rolling_classify(pings, duration=240)
+    observations = result.stationary_detector_evidence["window_observations"]
+    assert [item["verdict"] for item in observations] == ["stationary", "stationary"]
+    assert observations[0]["net_displacement_m"] == observations[1]["net_displacement_m"]
+
+
+def test_two_windows_confirm_and_one_moving_window_releases_with_backdating() -> None:
+    pings = [
+        ping(0, lat=latitude_for_metres(0)),
+        ping(120, lat=latitude_for_metres(5)),
+        ping(240, lat=latitude_for_metres(0)),
+        ping(360, lat=latitude_for_metres(100)),
+    ]
+    result = rolling_classify(pings, duration=360)
+    observations = result.stationary_detector_evidence["window_observations"]
+    assert observations[1]["transition"] == "confirmed"
+    assert observations[2]["transition"] == "released"
+    assert result.stationary_detector_evidence["classified_stationary_ranges"] == [
+        {"start_offset": 0, "end_offset": 240}
+    ]
+    assert result.excluded_seconds_by_reason == {"stationary_rolling_displacement": 240}
+    assert result.eligible_seconds == 120
+
+
+def test_trailing_partial_is_payable_before_confirmation_and_stationary_after() -> None:
+    one_window = [ping(0), ping(120), ping(180)]
+    pending = rolling_classify(one_window, duration=180)
+    assert pending.eligible_seconds == 180
+
+    confirmed = [ping(0), ping(120), ping(240), ping(300)]
+    active = rolling_classify(confirmed, duration=300)
+    assert active.excluded_seconds_by_reason == {"stationary_rolling_displacement": 300}
+
+
+def test_contaminated_window_resets_unconfirmed_streak_but_holds_active_state() -> None:
+    preconfirmation = [ping(0), ping(120), ping(180, accuracy=100), ping(240), ping(360)]
+    pending = rolling_classify(preconfirmation, duration=360)
+    verdicts = [
+        item["verdict"] for item in pending.stationary_detector_evidence["window_observations"]
+    ]
+    assert verdicts == ["stationary", "contaminated", "stationary"]
+    assert "stationary_rolling_displacement" not in pending.excluded_seconds_by_reason
+
+    active = [
+        ping(0),
+        ping(120),
+        ping(240),
+        ping(300, accuracy=100),
+        ping(360),
+        ping(480, lat=latitude_for_metres(100)),
+    ]
+    held = rolling_classify(active, duration=480)
+    observations = held.stationary_detector_evidence["window_observations"]
+    assert observations[2]["verdict"] == "contaminated"
+    assert observations[3]["transition"] == "released"
+    assert held.stationary_detector_evidence["classified_stationary_ranges"] == [
+        {"start_offset": 0, "end_offset": 360}
+    ]
+    assert held.excluded_seconds_by_reason["stationary_rolling_displacement"] == 240
+    assert held.excluded_seconds_by_reason["low_accuracy"] > 0
+
+
+def test_mid_window_gps_gap_discards_partial_resets_and_reanchors() -> None:
+    pings = [ping(0), ping(60), ping(120), ping(300), ping(420), ping(540)]
+    result = rolling_classify(pings, duration=540)
+    evidence = result.stationary_detector_evidence
+    assert evidence["reset_events"] == [
+        {
+            "event": "gps_gap_reset",
+            "gap_start_offset": 120,
+            "gap_end_offset": 300,
+            "reanchor_offset": 300,
+        }
+    ]
+    assert evidence["classified_stationary_ranges"] == [{"start_offset": 300, "end_offset": 540}]
+    assert result.excluded_seconds_by_reason["gps_gap"] == 180
+
+
+def test_initial_windows_anchor_at_trip_start_not_first_ping() -> None:
+    pings = [ping(30), ping(120), ping(240), ping(360)]
+    result = rolling_classify(pings, duration=360)
+    observations = result.stationary_detector_evidence["window_observations"]
+    assert [item["start_offset"] for item in observations] == [0, 120, 240]
+    assert observations[0]["verdict"] == "contaminated"
+    assert observations[2]["transition"] == "confirmed"
+    assert result.stationary_detector_evidence["classified_stationary_ranges"] == [
+        {"start_offset": 120, "end_offset": 360}
+    ]
+
+
+def test_honest_slow_traffic_and_ping_cadence_are_not_stationary() -> None:
+    dense = [ping(second, lat=latitude_for_metres(second * 0.3)) for second in range(0, 601, 30)]
+    sparse = [ping(second, lat=latitude_for_metres(second * 0.3)) for second in range(0, 601, 120)]
+    dense_result = rolling_classify(dense, duration=600)
+    sparse_result = rolling_classify(sparse, duration=600)
+    assert dense_result.excluded_seconds_by_reason == {}
+    assert sparse_result.excluded_seconds_by_reason == {}
+    assert dense_result.eligible_seconds == sparse_result.eligible_seconds == 600
+
+
+def test_long_stay_and_rolling_ranges_share_grace_without_double_counting() -> None:
+    result = rolling_classify(
+        [ping(second) for second in range(0, 601, 30)],
+        duration=600,
+        params=PARAMS,
+    )
+    assert result.eligible_seconds == 240
+    assert sum(result.excluded_seconds_by_reason.values()) == 360
+    assert (
+        sum(
+            item["granted_seconds"]
+            for item in result.stationary_detector_evidence["grace_allocation"]
+        )
+        == 240
+    )
+
+
+def test_area_window_and_signal_reasons_keep_precedence_over_stationary() -> None:
+    pings = [
+        ping(0),
+        ping(120),
+        ping(240),
+        ping(300, accuracy=100),
+        ping(360, in_area=False),
+        ping(480, in_area=False),
+    ]
+    result = rolling_classify(
+        pings,
+        duration=480,
+        window=(START + timedelta(seconds=60), START + timedelta(seconds=420)),
+    )
+    assert result.excluded_seconds_by_reason["out_of_window"] == 120
+    assert result.excluded_seconds_by_reason["low_accuracy"] > 0
+    assert result.excluded_seconds_by_reason["out_of_area"] > 0
+    assert result.excluded_seconds_by_reason["stationary_rolling_displacement"] > 0
+    assert_invariant(result, 480)
 
 
 def test_single_stay_still_receives_its_grace() -> None:

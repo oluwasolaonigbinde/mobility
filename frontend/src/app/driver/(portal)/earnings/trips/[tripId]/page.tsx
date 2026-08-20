@@ -27,6 +27,8 @@ const EXCLUSION_LABELS: Record<string, string> = {
   out_of_window: "Outside campaign window",
   out_of_area: "Outside campaign area",
   stationary: "Parked beyond the grace period",
+  stationary_rolling_displacement:
+    "Stationary after two 2-minute movement checks (shared grace applied)",
 };
 
 export default async function DriverTripEarningsPage({
@@ -68,9 +70,7 @@ export default async function DriverTripEarningsPage({
         <Link href="/driver/earnings" className="micro text-faint hover:text-muted">
           ← Earnings
         </Link>
-        <h1 className="font-display mt-1 text-2xl font-semibold tracking-tight">
-          Trip earnings
-        </h1>
+        <h1 className="font-display mt-1 text-2xl font-semibold tracking-tight">Trip earnings</h1>
       </div>
 
       <Panel className="p-5">
@@ -88,9 +88,7 @@ export default async function DriverTripEarningsPage({
             {formatDuration(data.capped_seconds)} verified time
           </p>
         ) : (
-          <p className="text-muted mt-2 text-sm">
-            Computed under the previous per-km formula.
-          </p>
+          <p className="text-muted mt-2 text-sm">Computed under the previous per-km formula.</p>
         )}
         {data.superseded_by_recompute ? (
           <p className="micro text-amber mt-2">
@@ -140,15 +138,11 @@ export default async function DriverTripEarningsPage({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <p className="micro text-faint">Eligible</p>
-                <p className="font-mono mt-0.5 text-lg">
-                  {formatDuration(data.eligible_seconds)}
-                </p>
+                <p className="mt-0.5 font-mono text-lg">{formatDuration(data.eligible_seconds)}</p>
               </div>
               <div>
                 <p className="micro text-faint">Paid (after daily cap)</p>
-                <p className="font-mono mt-0.5 text-lg">
-                  {formatDuration(data.capped_seconds)}
-                </p>
+                <p className="mt-0.5 font-mono text-lg">{formatDuration(data.capped_seconds)}</p>
               </div>
             </div>
             {excluded.length > 0 ? (

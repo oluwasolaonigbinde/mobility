@@ -29,6 +29,7 @@ from app.schemas.campaign_assignments import (
 )
 from app.services.campaigns import comparable_campaign_datetime
 from app.services.drivers import get_driver_profile_by_user_id
+from app.services.payout_eligibility import STATIONARY_POLICY_V1
 
 # FND-07 (RM7): a lost race on either assignment-exclusivity index returns the
 # same stable 409 code as the pre-check that guards it, never a 500.
@@ -465,6 +466,34 @@ def resolved_eligibility_snapshot(settings: Settings, overlay: dict | None) -> d
                 settings.payout_eligibility_max_ping_gap_seconds,
             )
         ),
+        "rolling_window_seconds": int(
+            value(
+                "rolling_window_seconds",
+                settings.payout_eligibility_rolling_window_seconds,
+            )
+        ),
+        "rolling_stride_seconds": int(
+            value(
+                "rolling_stride_seconds",
+                settings.payout_eligibility_rolling_stride_seconds,
+            )
+        ),
+        "rolling_max_displacement_m": value(
+            "rolling_max_displacement_m",
+            settings.payout_eligibility_rolling_max_displacement_m,
+        ),
+        "rolling_confirmation_windows": int(
+            value(
+                "rolling_confirmation_windows",
+                settings.payout_eligibility_rolling_confirmation_windows,
+            )
+        ),
+        "rolling_release_windows": int(
+            value(
+                "rolling_release_windows",
+                settings.payout_eligibility_rolling_release_windows,
+            )
+        ),
     }
 
 
@@ -526,7 +555,7 @@ async def create_rule_binding_for_accept(
         exclusion_zone_ids=[str(row[0]) for row in exclusion_zone_rows],
         exclusion_zone_geometry_hash=frozen_zone_geometry_hash(exclusion_zone_rows),
         exclusion_zone_geometry_wkts=[str(row[1]) for row in exclusion_zone_rows],
-        stationary_policy_marker="ext-rm2-fail-closed",
+        stationary_policy_marker=STATIONARY_POLICY_V1,
         bound_at=now,
     )
     session.add(binding)

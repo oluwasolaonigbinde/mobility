@@ -36,6 +36,7 @@ from test_trip_processing import PASSWORD, add_pings, run_pipeline
 
 from app.core.errors import AppError
 from app.models.payout import (
+    AssignmentRuleBinding,
     CampaignPayoutRule,
     EarningsLedgerEntry,
     EarningsLedgerEntryStatus,
@@ -199,7 +200,72 @@ def correction_entries(db_sessionmaker) -> list[EarningsLedgerEntry]:
     ]
 
 
+def mark_binding_unresolved(db_sessionmaker, assignment_id) -> None:
+    async def run() -> None:
+        async with db_sessionmaker() as session:
+            binding = await session.scalar(
+                select(AssignmentRuleBinding).where(
+                    AssignmentRuleBinding.assignment_id == assignment_id
+                )
+            )
+            binding.stationary_policy_marker = "ext-rm2-fail-closed"
+            await session.commit()
+
+    asyncio.run(run())
+
+
 # --- Projection + create (C1) ------------------------------------------------
+
+
+def test_unresolved_v3_binding_rejects_correction_projection_without_writes(
+    postgis_db_sessionmaker, settings
+) -> None:
+    graph = build_v2_graph(postgis_db_sessionmaker, "co-rm2-old")
+    bind_v2_graph(postgis_db_sessionmaker, settings, graph)
+    pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
+    original_entries = fetch_earnings_ledger_entries(postgis_db_sessionmaker)
+    original_entry_ids = [entry.id for entry in original_entries]
+    mark_binding_unresolved(postgis_db_sessionmaker, graph.assignment.id)
+
+    try:
+        create_order(postgis_db_sessionmaker, settings, graph)
+        raise AssertionError("expected unresolved binding to reject projection")
+    except AppError as exc:
+        assert exc.code == "PAYOUT_STATIONARY_POLICY_UNRESOLVED"
+
+    assert [
+        entry.id for entry in fetch_earnings_ledger_entries(postgis_db_sessionmaker)
+    ] == original_entry_ids
+    assert correction_entries(postgis_db_sessionmaker) == []
+    breakdown = service(
+        postgis_db_sessionmaker,
+        lambda session: driver_trip_earnings_breakdown(
+            session, user_id=graph.driver.id, trip_id=graph.trip.id
+        ),
+    )
+    assert breakdown.amount == Decimal("500.00")
+
+
+def test_unresolved_v3_binding_rejects_approved_execution_atomically(
+    postgis_db_sessionmaker, settings
+) -> None:
+    graph = build_v2_graph(postgis_db_sessionmaker, "co-rm2-exec")
+    bind_v2_graph(postgis_db_sessionmaker, settings, graph)
+    pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
+    order, approver = approved_order(postgis_db_sessionmaker, settings, graph, "co-rm2-exec")
+    mark_binding_unresolved(postgis_db_sessionmaker, graph.assignment.id)
+
+    try:
+        execute(postgis_db_sessionmaker, settings, order.id, approver.id)
+        raise AssertionError("expected unresolved binding to reject execution")
+    except AppError as exc:
+        assert exc.code == "PAYOUT_STATIONARY_POLICY_UNRESOLVED"
+
+    reloaded = reload_order(postgis_db_sessionmaker, order.id)
+    assert reloaded.status == PayoutCorrectionOrderStatus.APPROVED.value
+    assert reloaded.executed_at is None
+    assert reloaded.execution_result is None
+    assert correction_entries(postgis_db_sessionmaker) == []
 
 
 def test_create_projects_value_complete_draft_and_matches_dry_run_endpoint(

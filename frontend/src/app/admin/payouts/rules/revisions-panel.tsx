@@ -27,6 +27,11 @@ export function RevisionsPanel({
 }) {
   const [state, formAction, pending] = useActionState(createRevisionAction, initialState);
   const latest = revisions[0];
+  const eligibility = (latest?.eligibility_params ?? {}) as Record<string, unknown>;
+  const policyValue = (key: string, fallback: number) => {
+    const value = eligibility[key];
+    return typeof value === "number" ? value : fallback;
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -100,6 +105,31 @@ export function RevisionsPanel({
           terms frozen at acceptance; retroactive changes go through a correction order.
         </p>
       </form>
+
+      <div className="border-edge bg-raised/40 rounded-xl border p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="micro text-muted">Frozen stationary detector</h3>
+          <span className="font-mono text-xs">stationary-rd-v1 · provisional/tunable</span>
+        </div>
+        <p className="text-muted mt-2 text-sm">
+          {policyValue("rolling_window_seconds", 120)}s windows ·{" "}
+          {policyValue("rolling_stride_seconds", 120)}s stride · stationary at ≤
+          {policyValue("rolling_max_displacement_m", 25)}m ·{" "}
+          {policyValue("rolling_confirmation_windows", 2)} checks to confirm ·{" "}
+          {policyValue("rolling_release_windows", 1)} to release
+        </p>
+        <p className="micro text-faint mt-2">
+          Legacy {policyValue("stationary_radius_m", 200)}m /{" "}
+          {policyValue("stationary_window_min", 5) * 60}s stay check; one shared{" "}
+          {policyValue("stationary_grace_min", 4) * 60}s trip grace. Signal limits:{" "}
+          {policyValue("max_accuracy_m", 75)}m accuracy, {policyValue("teleport_kmh", 180)}
+          km/h teleport, {policyValue("max_ping_gap_seconds", 120)}s GPS gap.
+        </p>
+        <p className="micro text-faint mt-2">
+          Every new acceptance snapshots these complete values; later settings or revisions do not
+          change that trip&apos;s replay.
+        </p>
+      </div>
 
       <div>
         <h3 className="micro text-muted mb-3">Revision history</h3>

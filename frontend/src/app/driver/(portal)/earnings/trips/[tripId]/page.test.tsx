@@ -72,7 +72,9 @@ describe("DriverTripEarningsPage", () => {
     render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-2" }) }));
 
     expect(screen.getByText(/1,000\.00\/hour × 45m verified time/)).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Frozen tier breakdown" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Frozen tier breakdown" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows premium seconds at the disclosed base-rate fallback", async () => {
@@ -83,5 +85,20 @@ describe("DriverTripEarningsPage", () => {
     const panel = screen.getByRole("heading", { name: "Frozen tier breakdown" }).parentElement;
     if (!panel) throw new Error("expected tier breakdown panel");
     expect(within(panel).getByText(/15m.*base rate.*1,000\.00\/hour/)).toBeInTheDocument();
+  });
+
+  it("explains rolling stationary exclusions in plain language", async () => {
+    get.mockResolvedValue({
+      data: breakdown({
+        excluded_seconds_by_reason: { stationary_rolling_displacement: 360 },
+      }),
+    });
+
+    render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-4" }) }));
+
+    expect(
+      screen.getByText("Stationary after two 2-minute movement checks (shared grace applied)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("6m")).toBeInTheDocument();
   });
 });

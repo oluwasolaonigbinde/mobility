@@ -52,6 +52,7 @@ from app.services.impressions import (
     quantize_4,
 )
 from app.services.payout_eligibility import (
+    STATIONARY_POLICY_V1,
     EligibilityParams,
     EligibilityPing,
     classify_session,
@@ -117,6 +118,11 @@ ELIGIBILITY_PARAM_KEYS = frozenset(
         "max_accuracy_m",
         "teleport_kmh",
         "max_ping_gap_seconds",
+        "rolling_window_seconds",
+        "rolling_stride_seconds",
+        "rolling_max_displacement_m",
+        "rolling_confirmation_windows",
+        "rolling_release_windows",
     }
 )
 PAYOUT_SOURCE_FIELDS = ("campaign_id", "assignment_id", "driver_profile_id", "vehicle_id")
@@ -977,6 +983,34 @@ def effective_eligibility_params_overlay(
         max_ping_gap_seconds=int(
             value("max_ping_gap_seconds", settings.payout_eligibility_max_ping_gap_seconds)
         ),
+        rolling_window_seconds=int(
+            value(
+                "rolling_window_seconds",
+                settings.payout_eligibility_rolling_window_seconds,
+            )
+        ),
+        rolling_stride_seconds=int(
+            value(
+                "rolling_stride_seconds",
+                settings.payout_eligibility_rolling_stride_seconds,
+            )
+        ),
+        rolling_max_displacement_m=value(
+            "rolling_max_displacement_m",
+            settings.payout_eligibility_rolling_max_displacement_m,
+        ),
+        rolling_confirmation_windows=int(
+            value(
+                "rolling_confirmation_windows",
+                settings.payout_eligibility_rolling_confirmation_windows,
+            )
+        ),
+        rolling_release_windows=int(
+            value(
+                "rolling_release_windows",
+                settings.payout_eligibility_rolling_release_windows,
+            )
+        ),
     )
 
 
@@ -990,6 +1024,13 @@ def frozen_eligibility_params(binding: AssignmentRuleBinding) -> EligibilityPara
     fail closed rather than silently filling their gaps from mutable runtime
     configuration.
     """
+    if binding.stationary_policy_marker != STATIONARY_POLICY_V1:
+        raise AppError(
+            "PAYOUT_STATIONARY_POLICY_UNRESOLVED",
+            "The payout_v3 assignment binding does not contain the approved"
+            " stationary detector policy; resolve manually",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     snapshot = binding.resolved_eligibility_params or {}
     if set(snapshot) != RESOLVED_ELIGIBILITY_PARAM_KEYS:
         raise AppError(
@@ -1005,6 +1046,11 @@ def frozen_eligibility_params(binding: AssignmentRuleBinding) -> EligibilityPara
         max_accuracy_m=float(snapshot["max_accuracy_m"]),
         teleport_kmh=float(snapshot["teleport_kmh"]),
         max_ping_gap_seconds=int(snapshot["max_ping_gap_seconds"]),
+        rolling_window_seconds=int(snapshot["rolling_window_seconds"]),
+        rolling_stride_seconds=int(snapshot["rolling_stride_seconds"]),
+        rolling_max_displacement_m=float(snapshot["rolling_max_displacement_m"]),
+        rolling_confirmation_windows=int(snapshot["rolling_confirmation_windows"]),
+        rolling_release_windows=int(snapshot["rolling_release_windows"]),
     )
 
 
@@ -2067,6 +2113,7 @@ async def calculate_trip_payout_v3(
         window_start_at=campaign.start_at,
         window_end_at=campaign.end_at,
         params=params,
+        stationary_policy_marker=binding.stationary_policy_marker,
     )
     pings_fingerprint = ping_set_fingerprint(ping_rows)
     inputs_fingerprint = v3_inputs_fingerprint(
@@ -2198,6 +2245,15 @@ async def calculate_trip_payout_v3(
         },
         "ping_set_fingerprint": pings_fingerprint,
         "teleport_incident_count": breakdown.teleport_incident_count,
+        "stationary_detector": {
+            **breakdown.stationary_detector_evidence,
+            "policy_fingerprint": stable_source_fingerprint(
+                {
+                    "version": binding.stationary_policy_marker,
+                    "params": params.as_metadata(),
+                }
+            ),
+        },
         "components": {
             "eligible_seconds": breakdown.eligible_seconds,
             "eligible_seconds_by_day": breakdown.eligible_seconds_by_day,
@@ -2952,6 +3008,7 @@ class DayTripTarget:
     current_ping_fingerprint: str | None
     stored_inputs_fingerprint: str | None
     governing_values: dict
+    stationary_detector_evidence: dict | None
 
 
 @dataclass(frozen=True)
@@ -3208,6 +3265,7 @@ async def compute_payout_day_targets(
 
         ping_fingerprint: str | None = None
         payable_by_day_tier: dict[str, dict[str, int]] | None = None
+        stationary_detector_evidence: dict | None = None
         # blocked stays 0 (fraud posture, S2); insufficient_data is priced
         # from a fresh classification — the admin escape hatch for trips whose
         # analytics healed after the write-once calculation (D9).
@@ -3279,7 +3337,17 @@ async def compute_payout_day_targets(
                 window_start_at=campaign.start_at,
                 window_end_at=campaign.end_at,
                 params=v3_params,
+                stationary_policy_marker=binding.stationary_policy_marker,
             )
+            stationary_detector_evidence = {
+                **breakdown.stationary_detector_evidence,
+                "policy_fingerprint": stable_source_fingerprint(
+                    {
+                        "version": binding.stationary_policy_marker,
+                        "params": v3_params.as_metadata(),
+                    }
+                ),
+            }
             eligible_seconds = breakdown.eligible_seconds
             # PR4 chronological fill of the recomputed day only: the trip's
             # earliest eligible seconds on this day draw the shared pool
@@ -3365,6 +3433,7 @@ async def compute_payout_day_targets(
                 current_ping_fingerprint=ping_fingerprint,
                 stored_inputs_fingerprint=calculation.inputs_fingerprint,
                 governing_values=governing_values,
+                stationary_detector_evidence=stationary_detector_evidence,
             )
         )
 
@@ -3479,6 +3548,8 @@ async def write_day_differentials(
                     if target.premium_hourly_rate is not None
                     else None
                 )
+            if target.stationary_detector_evidence is not None:
+                breakdown_metadata["stationary_detector"] = target.stationary_detector_evidence
             ledger_metadata = {
                 "recompute_day": True,
                 "recompute_run_id": recompute_run_id,

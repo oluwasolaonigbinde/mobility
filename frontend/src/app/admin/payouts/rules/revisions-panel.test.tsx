@@ -81,4 +81,15 @@ describe("RevisionsPanel", () => {
     expect(screen.getByLabelText("Premium hourly rate (optional)")).toHaveValue("1800.00");
     expect(screen.getByLabelText("Daily payable-hours cap")).toHaveValue("8");
   });
+
+  it("shows the complete versioned detector policy without live settings", () => {
+    render(<RevisionsPanel campaignId={CAMPAIGN_ID} ruleId={RULE_ID} revisions={revisions} />);
+
+    expect(screen.getByText("stationary-rd-v1 · provisional/tunable")).toBeInTheDocument();
+    expect(screen.getByText(/120s windows.*120s stride.*≤25m/)).toBeInTheDocument();
+    expect(screen.getByText(/Legacy 200m \/ 300s stay check.*240s trip grace/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Every new acceptance snapshots these complete values/),
+    ).toBeInTheDocument();
+  });
 });
