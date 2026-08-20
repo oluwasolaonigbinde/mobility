@@ -19,6 +19,13 @@ def test_frozen_terms_columns_upgrade_downgrade_and_reupgrade(monkeypatch) -> No
     migration_url = asyncio.run(create_database_from_url(source_url))
     try:
         upgrade_to(migration_url, "head", monkeypatch)
+        # 0019–0021 are deployed as one lane. 0021 itself asserts the interim
+        # binding table is empty because the missing accepted geometry and
+        # resolved settings cannot be reconstructed truthfully.
+        binding_count = asyncio.run(
+            fetch_all(migration_url, "SELECT count(*) FROM assignment_rule_bindings")
+        )
+        assert binding_count == [(0,)]
         rows = asyncio.run(
             fetch_all(
                 migration_url,
