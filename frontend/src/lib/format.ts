@@ -47,6 +47,21 @@ export function formatDate(iso: string | null | undefined): string {
   return Number.isNaN(d.getTime()) ? "—" : dateFmt.format(d);
 }
 
+const dateTimeFmt = new Intl.DateTimeFormat("en-NG", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/** Date + wall-clock time — for instants where the hour matters (rate flips). */
+export function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "—" : dateTimeFmt.format(d);
+}
+
 export function formatDateRange(
   start: string | null | undefined,
   end: string | null | undefined,

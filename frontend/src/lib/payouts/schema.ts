@@ -121,3 +121,43 @@ export const ruleFormSchema = z
   });
 
 export type RuleFormValues = z.infer<typeof ruleFormSchema>;
+
+/**
+ * Create-revision form (MNY-06A). payout_v2 rule values are immutable — the
+ * append-only revision chain is the only value-change path. The backend
+ * additionally enforces effective_from strictly after the latest revision
+ * and not before the database clock.
+ */
+
+const requiredValue = (label: string) =>
+  z
+    .string()
+    .nullable()
+    .transform((v, ctx) => {
+      if (v === null) {
+        ctx.addIssue({ code: "custom", message: `${label} is required` });
+        return z.NEVER;
+      }
+      return v;
+    });
+
+export const revisionFormSchema = z.object({
+  campaign_id: z.string().uuid("Missing campaign"),
+  rule_id: z.string().uuid("Missing rule"),
+  hourly_rate_naira: money.pipe(requiredValue("Base hourly rate")),
+  premium_hourly_rate_naira: money,
+  daily_payable_hours_cap: hoursCap.pipe(requiredValue("Daily payable-hours cap")),
+  effective_from: z
+    .string()
+    .trim()
+    .min(1, "Effective-from date and time are required")
+    .refine((v) => !Number.isNaN(new Date(v).getTime()), "Enter a valid date and time")
+    .refine(
+      (v) => new Date(v).getTime() > Date.now(),
+      "Effective-from must be in the future — retroactive changes go through a correction order",
+    )
+    .transform((v) => new Date(v).toISOString()),
+  reason: z.string().trim().min(1, "A reason is required — it is recorded in the audit trail"),
+});
+
+export type RevisionFormValues = z.infer<typeof revisionFormSchema>;

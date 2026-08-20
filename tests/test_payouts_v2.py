@@ -696,14 +696,17 @@ def test_recompute_day_refuses_v1_campaigns_and_mixed_days(
     )
     run_pipeline(postgis_db_sessionmaker, graph.trip.id, settings)
 
-    # v1-governed campaign -> 400.
+    # The v2-vs-v3 mixed-day refusal is retired (MNY-06C/PR6): both engines
+    # now recompute under one shared cap pool. A payout_v1 calculation still
+    # refuses — it has no seconds-based repricing model.
     try:
         run_recompute(postgis_db_sessionmaker, settings, graph)
-        raise AssertionError("expected INVALID_PAYOUT_RULE")
+        raise AssertionError("expected PAYOUT_DAY_UNSUPPORTED_FORMULA")
     except AppError as exc:
-        assert exc.code == "INVALID_PAYOUT_RULE"
+        assert exc.code == "PAYOUT_DAY_UNSUPPORTED_FORMULA"
 
-    # Switch to v2: the day now holds a v1 calculation -> mixed-day refusal.
+    # Switching the campaign to v2 does not legitimise the day: it still
+    # holds the v1 calculation.
     deactivate_rules(postgis_db_sessionmaker, graph.campaign.id)
     graph.rule = create_v2_rule(
         postgis_db_sessionmaker,
@@ -712,9 +715,9 @@ def test_recompute_day_refuses_v1_campaigns_and_mixed_days(
     )
     try:
         run_recompute(postgis_db_sessionmaker, settings, graph)
-        raise AssertionError("expected PAYOUT_DAY_MIXED_FORMULAS")
+        raise AssertionError("expected PAYOUT_DAY_UNSUPPORTED_FORMULA")
     except AppError as exc:
-        assert exc.code == "PAYOUT_DAY_MIXED_FORMULAS"
+        assert exc.code == "PAYOUT_DAY_UNSUPPORTED_FORMULA"
 
 
 # --- Driver breakdown + API surface ------------------------------------------
@@ -866,11 +869,14 @@ def test_breakdown_permissions_and_ownership(db_client, db_sessionmaker, setting
     )
 
 
-def test_recompute_day_endpoint_permissions_and_audit(
+def test_recompute_day_endpoint_is_retired_behind_correction_orders(
     postgis_db_client, postgis_db_sessionmaker, settings
 ) -> None:
+    """PR7: the direct execute path always answers 409 and mutates nothing —
+    retroactive recomputes run only through approved correction orders."""
     graph = build_v2_graph(postgis_db_sessionmaker, "rc-api")
     pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
+    entries_before = len(fetch_earnings_ledger_entries(postgis_db_sessionmaker))
 
     body = {
         "campaign_id": str(graph.campaign.id),
@@ -893,20 +899,18 @@ def test_recompute_day_endpoint_permissions_and_audit(
     response = postgis_db_client.post(
         "/api/v1/admin/payouts/recompute-day", json=body, headers=admin_headers
     )
-    assert response.status_code == http_status.HTTP_200_OK
-    payload = response.json()
-    assert payload["adjustment_count"] == 0
-    assert payload["reversal_count"] == 0
-    assert payload["trips"][0]["delta_amount"] == "0.00"
+    assert response.status_code == http_status.HTTP_409_CONFLICT
+    assert response.json()["error"]["code"] == "RECOMPUTE_REQUIRES_CORRECTION_ORDER"
 
-    events = [
+    # No money movement, no legacy audit event.
+    assert (
+        len(fetch_earnings_ledger_entries(postgis_db_sessionmaker)) == entries_before
+    )
+    assert not [
         event
         for event in fetch_audit_events(postgis_db_sessionmaker)
         if event.action == "admin.payout_day.recomputed"
     ]
-    assert len(events) == 1
-    assert events[0].event_metadata["campaign_id"] == str(graph.campaign.id)
-    assert events[0].event_metadata["trips"][0]["delta_amount"] == "0.00"
 
 
 # --- Rule CRUD API (model XOR) -----------------------------------------------
@@ -1002,14 +1006,31 @@ def test_rule_api_supports_both_models_with_xor_validation(
     assert rule["base_rate_per_km"] is None
     assert rule["eligibility_params"] == {"stationary_grace_min": 5}
 
-    # v2 update may tune v2 fields but never v1 fields.
+    # v2 value mutation is retired (MNY-06A): revisions are the only value
+    # path. Non-value updates (status, metadata) still work.
     updated = db_client.patch(
         f"{base}/{rule['id']}",
         headers=headers,
         json={"hourly_rate_naira": "1300.00"},
     )
-    assert updated.status_code == http_status.HTTP_200_OK
-    assert updated.json()["hourly_rate_naira"] == "1300.00"
+    assert updated.status_code == http_status.HTTP_409_CONFLICT
+    assert updated.json()["error"]["code"] == "PAYOUT_RULE_MUTATION_RETIRED"
+    assert updated.json()["error"]["details"]["retired_fields"] == ["hourly_rate_naira"]
+    currency_update = db_client.patch(
+        f"{base}/{rule['id']}",
+        headers=headers,
+        json={"currency": "USD"},
+    )
+    assert currency_update.status_code == http_status.HTTP_409_CONFLICT
+    assert currency_update.json()["error"]["code"] == "PAYOUT_RULE_MUTATION_RETIRED"
+    assert currency_update.json()["error"]["details"]["retired_fields"] == ["currency"]
+    metadata_update = db_client.patch(
+        f"{base}/{rule['id']}",
+        headers=headers,
+        json={"metadata": {"note": "still mutable"}},
+    )
+    assert metadata_update.status_code == http_status.HTTP_200_OK
+    assert metadata_update.json()["hourly_rate_naira"] == "1200.00"
     cross_model = db_client.patch(
         f"{base}/{rule['id']}",
         headers=headers,
@@ -1017,9 +1038,28 @@ def test_rule_api_supports_both_models_with_xor_validation(
     )
     assert cross_model.status_code == http_status.HTTP_400_BAD_REQUEST
 
-    # A v1 rule create still works and serializes every rate as a string.
-    v1_created = db_client.post(
+    # The v2 create above opened the campaign's revision chain (genesis):
+    # further rule creation for that campaign is retired (PR3a).
+    chained = db_client.post(
         base,
+        headers=headers,
+        json={"base_rate_per_km": "10.00", "status": "inactive"},
+    )
+    assert chained.status_code == http_status.HTTP_409_CONFLICT
+    assert chained.json()["error"]["code"] == "PAYOUT_RULE_REVISIONS_EXIST"
+
+    # A v1 rule create still works (on an unchained campaign) and serializes
+    # every rate as a string.
+    v1_campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=advertiser.id,
+        name="Rules Org v1 campaign",
+        campaign_status=CampaignStatus.ACTIVE,
+    )
+    v1_base = f"/api/v1/admin/campaigns/{v1_campaign.id}/payout-rules"
+    v1_created = db_client.post(
+        v1_base,
         headers=headers,
         json={"base_rate_per_km": "10.00", "status": "inactive"},
     )
@@ -1036,7 +1076,7 @@ def test_rule_api_supports_both_models_with_xor_validation(
     assert v1_rule["hourly_rate_naira"] is None
     # v1 rules must not set v2 fields.
     v1_mixed = db_client.patch(
-        f"{base}/{v1_rule['id']}",
+        f"{v1_base}/{v1_rule['id']}",
         headers=headers,
         json={"hourly_rate_naira": "900.00"},
     )

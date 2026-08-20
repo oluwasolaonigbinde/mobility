@@ -108,6 +108,24 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
   (no §9 movement), CI green (backend, contract-drift, e2e). Independent plan
   review PASS and independent API/concurrency checkpoint review PASS against
   the exact candidate. Architecture v1.25; §35.1 RM7 closed.
+- **MNY-06A/B/C evidence (DONE 20 Aug 2026):** Fable/Codex recovery lane
+  `feat/pkg-01-fable-money` integrated at reviewed tip `25fdd52`. Migrations
+  `0018`–`0021` add append-only effective-dated payout revisions, acceptance-time
+  bindings with frozen rates/cap/eligibility and premium/exclusion geometries,
+  and maker-checker correction orders. `payout_v3` pays valid outside-premium
+  time at base and inside-premium time at premium, preserves the shared
+  chronological Lagos-day cap, persists exact tier components, and never
+  reprices accepted work from later rule/zone/settings changes. Direct
+  recompute is retired behind projected orders; creator self-approval fails,
+  positive deltas require their own release time, and execution/replay is
+  idempotent. Admin revision/correction screens and driver tier explanations
+  shipped with all three §9 baselines. Verified: PostGIS backend 562 passed
+  (3 expected skips), migration up/down/re-upgrade + autogenerate-empty,
+  frontend 155 tests/typecheck/lint/build, live-stack Playwright 22 passed,
+  and a two-admin synthetic maker-checker journey. Exact-candidate
+  money/security, architecture/concurrency/frozen-terms, and minimal-change
+  reviews all PASS with no remaining P0–P2 findings. Architecture v1.28;
+  §35.1 RM6 closed.
 - **R14-A integration progress (16 Aug 2026 — item stays TODO):** Pro
   contribution `bc64707` (parent `e74412c`, six new files) verified
   (merge-base, manifest, 123-test/typecheck/lint/build preflight reproduced)
@@ -236,9 +254,9 @@ verification, gates or required specialist review.
 | 4 | **FND-02A — stationary-time policy decision** | PKG-01 | TODO | Owner records a versionable rule separating traffic exposure from parked-time farming. | none |
 | 5 | **FND-02B — stationary policy implementation** | PKG-01 | BLOCKED — EXT-RM2-POLICY | Classifier, fingerprints and earnings explanations implement the recorded rule. | leaf: FND-02A; external: EXT-RM2-POLICY |
 | 6 | **FND-07 — exclusivity conflict envelopes** | PKG-01 | DONE | Four known assignment/trip races return stable 409 errors, not 500s. | none |
-| 7 | **MNY-06A — immutable payout-rule revisions** | PKG-01 | TODO | Financial rule history becomes effective-dated, immutable and value-audited. | none |
-| 8 | **MNY-06B — assignment/trip rule binding and payout_v3** | PKG-01 | TODO | Accepted driver terms freeze base/premium rates, zone/eligibility revisions and the `payout_v3` rule used by each interval/trip. | leaf: MNY-06A |
-| 9 | **MNY-06C — maker-checker correction orders** | PKG-01 | TODO | Retroactive recompute requires a projected order and separate approver. | leaf: MNY-06B |
+| 7 | **MNY-06A — immutable payout-rule revisions** | PKG-01 | DONE | Financial rule history becomes effective-dated, immutable and value-audited. | none |
+| 8 | **MNY-06B — assignment/trip rule binding and payout_v3** | PKG-01 | DONE | Accepted driver terms freeze base/premium rates, zone/eligibility revisions and the `payout_v3` rule used by each interval/trip. | leaf: MNY-06A |
+| 9 | **MNY-06C — maker-checker correction orders** | PKG-01 | DONE | Retroactive recompute requires a projected order and separate approver. | leaf: MNY-06B |
 | 10 | **MNY-08A — current fraud assessments** | PKG-02 | TODO | Every sealed trip has one current pending/clean/flagged/error assessment. | none |
 | 11 | **MNY-09A — cross-trip/account replay detection** | PKG-02 | TODO | Identical and time-shifted route replay becomes reviewable evidence. | leaf: MNY-08A |
 | 12 | **MNY-08B — review states and hold invariant** | PKG-02 | TODO | One serialized transition table and hold predicate controls all money consumers. | leaf: MNY-08A, MNY-09A |

@@ -3,6 +3,7 @@ import {
   formatCount,
   formatDuration,
   formatMoney,
+  formatDateTime,
   formatMoneyExact,
   formatScore,
   formatKm,
@@ -70,5 +71,18 @@ describe("formatMoneyExact", () => {
     expect(formatMoneyExact("9600.50")).toContain("9,600.50");
     expect(formatMoneyExact("1250.50")).toContain("1,250.50");
     expect(formatMoneyExact(null)).toBe("—");
+  });
+});
+
+describe("formatDateTime", () => {
+  it("shows the wall-clock time for rate-flip instants", () => {
+    const out = formatDateTime("2026-08-15T09:30:00Z");
+    expect(out).toMatch(/2026/);
+    expect(out).toMatch(/:/);
+  });
+
+  it("dashes for missing or invalid input", () => {
+    expect(formatDateTime(null)).toBe("\u2014");
+    expect(formatDateTime("garbage")).toBe("\u2014");
   });
 });

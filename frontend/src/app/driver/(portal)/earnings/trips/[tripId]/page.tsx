@@ -47,7 +47,15 @@ export default async function DriverTripEarningsPage({
   const data = breakdown.data;
   if (!data) notFound();
 
-  const isHourly = data.formula_version === "payout_v2";
+  const isV3 = data.formula_version === "payout_v3";
+  const isHourly = data.formula_version === "payout_v2" || isV3;
+  const hasTierBreakdown =
+    isV3 &&
+    data.base_payable_seconds != null &&
+    data.premium_payable_seconds != null &&
+    data.base_hourly_rate != null &&
+    data.base_amount != null &&
+    data.premium_amount != null;
   const excluded = Object.entries(data.excluded_seconds_by_reason ?? {});
   const capPct =
     data.cap && data.cap.cap_seconds > 0
@@ -70,7 +78,11 @@ export default async function DriverTripEarningsPage({
         <p className="font-display text-green mt-1 text-3xl font-semibold">
           {formatMoneyExact(data.amount, data.currency)}
         </p>
-        {isHourly ? (
+        {isV3 ? (
+          <p className="text-muted mt-2 text-sm">
+            Payout v3 · frozen base/premium terms from assignment acceptance
+          </p>
+        ) : isHourly ? (
           <p className="text-muted mt-2 text-sm">
             {formatMoneyExact(data.hourly_rate, data.currency)}/hour ×{" "}
             {formatDuration(data.capped_seconds)} verified time
@@ -89,6 +101,40 @@ export default async function DriverTripEarningsPage({
 
       {isHourly ? (
         <>
+          {hasTierBreakdown ? (
+            <Panel className="p-5">
+              <h2 className="micro text-muted mb-3">Frozen tier breakdown</h2>
+              <div className="divide-edge/60 divide-y">
+                <div className="grid grid-cols-[1fr_auto] gap-4 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium">Base tier</p>
+                    <p className="micro text-faint mt-0.5">
+                      {formatDuration(data.base_payable_seconds)} at{" "}
+                      {formatMoneyExact(data.base_hourly_rate, data.currency)}/hour
+                    </p>
+                  </div>
+                  <p className="font-mono text-sm">
+                    {formatMoneyExact(data.base_amount, data.currency)}
+                  </p>
+                </div>
+                <div className="grid grid-cols-[1fr_auto] gap-4 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium">Premium tier</p>
+                    <p className="micro text-faint mt-0.5">
+                      {formatDuration(data.premium_payable_seconds)} at{" "}
+                      {data.premium_hourly_rate != null
+                        ? `${formatMoneyExact(data.premium_hourly_rate, data.currency)}/hour`
+                        : `the base rate (${formatMoneyExact(data.base_hourly_rate, data.currency)}/hour)`}
+                    </p>
+                  </div>
+                  <p className="font-mono text-sm">
+                    {formatMoneyExact(data.premium_amount, data.currency)}
+                  </p>
+                </div>
+              </div>
+            </Panel>
+          ) : null}
+
           <Panel className="p-5">
             <h2 className="micro text-muted mb-3">Verified time</h2>
             <div className="grid grid-cols-2 gap-3">

@@ -96,7 +96,7 @@ def test_rejects_checklist_mapping_or_card_drift() -> None:
 def test_rejects_forward_dependency_and_unready_checkpoint() -> None:
     text = re.sub(
         r"^(\| 4 \| \*\*FND-02A —.*\| )none \|$",
-        r"\1leaf: MNY-06A |",
+        r"\1leaf: MNY-08A |",
         _progress(),
         flags=re.MULTILINE,
     )

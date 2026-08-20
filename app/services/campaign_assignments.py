@@ -1,3 +1,4 @@
+import hashlib
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -6,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
+from app.core.config import Settings
 from app.core.errors import AppError
 from app.db.integrity import integrity_constraint_name
 from app.models.campaign import Campaign, CampaignStatus
@@ -15,7 +17,9 @@ from app.models.campaign_assignment import (
     CampaignAssignment,
     CampaignAssignmentStatus,
 )
+from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.driver import DriverOnboardingStatus, DriverProfile
+from app.models.payout import AssignmentRuleBinding, CampaignPayoutRuleRevision
 from app.models.user import User
 from app.models.vehicle import Vehicle, VehicleStatus
 from app.schemas.campaign_assignments import (
@@ -415,15 +419,145 @@ async def list_assignment_events(
     return list(result.scalars().all())
 
 
+def frozen_zone_geometry_hash(rows: list[tuple]) -> str:
+    """Deterministic hash of a frozen zone set's sorted (id, geometry) pairs."""
+    return hashlib.sha256("\n".join(f"{row[0]}:{row[1]}" for row in rows).encode()).hexdigest()
+
+
+# Backwards-compatible name retained for the B2 tests/imports.
+premium_zone_geometry_hash = frozen_zone_geometry_hash
+
+
+def resolved_eligibility_snapshot(settings: Settings, overlay: dict | None) -> dict:
+    """Freeze every classifier value effective at acceptance.
+
+    This records existing settings and revision overrides only; it does not
+    alter the classifier or decide the still-open FND-02B policy.
+    """
+    overlay = overlay or {}
+
+    def value(key: str, fallback: float) -> float:
+        return float(overlay.get(key, fallback))
+
+    return {
+        "stationary_radius_m": value(
+            "stationary_radius_m", settings.payout_eligibility_stationary_radius_m
+        ),
+        "stationary_window_seconds": int(
+            value(
+                "stationary_window_min",
+                settings.payout_eligibility_stationary_window_min,
+            )
+            * 60
+        ),
+        "stationary_grace_seconds": int(
+            value(
+                "stationary_grace_min",
+                settings.payout_eligibility_stationary_grace_min,
+            )
+            * 60
+        ),
+        "max_accuracy_m": value("max_accuracy_m", settings.payout_eligibility_max_accuracy_m),
+        "teleport_kmh": value("teleport_kmh", settings.payout_eligibility_teleport_kmh),
+        "max_ping_gap_seconds": int(
+            value(
+                "max_ping_gap_seconds",
+                settings.payout_eligibility_max_ping_gap_seconds,
+            )
+        ),
+    }
+
+
+async def create_rule_binding_for_accept(
+    session: AsyncSession,
+    *,
+    assignment: CampaignAssignment,
+    now: datetime,
+    settings: Settings,
+) -> AssignmentRuleBinding | None:
+    """Freeze the campaign's effective revision onto the accepted assignment
+    (MNY-06B). Resolved at the accept transaction's snapshot read (PR10): the
+    revision with the greatest effective_from <= now. A campaign without an
+    effective revision gets NO binding — the assignment stays payout_v2."""
+    revision = await session.scalar(
+        select(CampaignPayoutRuleRevision)
+        .where(
+            CampaignPayoutRuleRevision.campaign_id == assignment.campaign_id,
+            CampaignPayoutRuleRevision.effective_from <= now,
+        )
+        .order_by(CampaignPayoutRuleRevision.effective_from.desc())
+        .limit(1)
+    )
+    if revision is None:
+        return None
+    premium_zone_rows = (
+        await session.execute(
+            select(CampaignZone.id, func.ST_AsText(CampaignZone.geom))
+            .where(
+                CampaignZone.campaign_id == assignment.campaign_id,
+                CampaignZone.zone_type == CampaignZoneType.TARGET.value,
+            )
+            .order_by(CampaignZone.id)
+        )
+    ).all()
+    exclusion_zone_rows = (
+        await session.execute(
+            select(CampaignZone.id, func.ST_AsText(CampaignZone.geom))
+            .where(
+                CampaignZone.campaign_id == assignment.campaign_id,
+                CampaignZone.zone_type == CampaignZoneType.EXCLUSION.value,
+            )
+            .order_by(CampaignZone.id)
+        )
+    ).all()
+    resolved_params = resolved_eligibility_snapshot(settings, revision.eligibility_params)
+    binding = AssignmentRuleBinding(
+        assignment_id=assignment.id,
+        revision_id=revision.id,
+        hourly_rate_naira=revision.hourly_rate_naira,
+        premium_hourly_rate_naira=revision.premium_hourly_rate_naira,
+        daily_payable_hours_cap=revision.daily_payable_hours_cap,
+        eligibility_params=revision.eligibility_params or {},
+        resolved_eligibility_params=resolved_params,
+        formula_version=revision.formula_version,
+        premium_zone_ids=[str(row[0]) for row in premium_zone_rows],
+        premium_zone_geometry_hash=frozen_zone_geometry_hash(premium_zone_rows),
+        premium_zone_geometry_wkts=[str(row[1]) for row in premium_zone_rows],
+        exclusion_zone_ids=[str(row[0]) for row in exclusion_zone_rows],
+        exclusion_zone_geometry_hash=frozen_zone_geometry_hash(exclusion_zone_rows),
+        exclusion_zone_geometry_wkts=[str(row[1]) for row in exclusion_zone_rows],
+        stationary_policy_marker="ext-rm2-fail-closed",
+        bound_at=now,
+    )
+    session.add(binding)
+    await session.flush()
+    return binding
+
+
 async def accept_driver_assignment(
     session: AsyncSession,
     *,
     user_id: UUID,
     assignment_id: UUID,
     payload: CampaignAssignmentTransition,
+    settings: Settings,
 ) -> CampaignAssignment:
     now = utc_now()
-    assignment = await get_driver_assignment(session, user_id=user_id, assignment_id=assignment_id)
+    driver_profile = await get_driver_profile_for_user(session, user_id)
+    # PR2: lock the assignment row BEFORE the status check so a concurrent
+    # accept serializes here — the loser re-reads ACCEPTED and gets the
+    # existing deterministic 400, and the binding insert below can never hit
+    # uq(assignment_id) from a live race.
+    assignment = await session.scalar(
+        select(CampaignAssignment)
+        .where(
+            CampaignAssignment.id == assignment_id,
+            CampaignAssignment.driver_profile_id == driver_profile.id,
+        )
+        .with_for_update()
+    )
+    if assignment is None:
+        raise assignment_not_found()
     if assignment.status != CampaignAssignmentStatus.OFFERED.value:
         raise AppError(
             "INVALID_ASSIGNMENT_TRANSITION",
@@ -436,6 +570,7 @@ async def accept_driver_assignment(
     assignment.status = CampaignAssignmentStatus.ACCEPTED.value
     assignment.accepted_at = now
     await session.flush()
+    await create_rule_binding_for_accept(session, assignment=assignment, now=now, settings=settings)
     await create_activation_event(
         session,
         assignment=assignment,

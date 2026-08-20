@@ -17,7 +17,9 @@ from app.models.payout import (
     EarningsLedgerEntryStatus,
     EarningsLedgerEntryType,
     PayoutCalculationStatus,
+    PayoutCorrectionOrderStatus,
 )
+from app.schemas.campaigns import ensure_timezone_aware
 
 REQUIRED_PAYOUT_RULE_UPDATE_FIELDS = {
     "status",
@@ -39,9 +41,14 @@ REQUIRED_PAYOUT_RULE_UPDATE_FIELDS = {
 class DecimalStringMixin(BaseModel):
     @field_serializer(
         "hourly_rate_naira",
+        "premium_hourly_rate_naira",
         "daily_payable_hours_cap",
         "ledger_net_total",
         "hourly_rate",
+        "base_hourly_rate",
+        "premium_hourly_rate",
+        "base_amount",
+        "premium_amount",
         "base_rate_per_km",
         "base_rate_per_active_hour",
         "target_zone_bonus_rate_per_km",
@@ -233,6 +240,57 @@ class CampaignPayoutRuleListResponse(BaseModel):
     offset: int
 
 
+class CampaignPayoutRuleRevisionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    effective_from: datetime
+    hourly_rate_naira: Decimal = Field(ge=Decimal("0"))
+    premium_hourly_rate_naira: Decimal | None = Field(default=None, ge=Decimal("0"))
+    daily_payable_hours_cap: Decimal = Field(gt=Decimal("0"), le=Decimal("24"))
+    eligibility_params: dict[str, Any] = Field(default_factory=dict)
+    reason: str
+
+    @field_validator("effective_from")
+    @classmethod
+    def validate_effective_from(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+            raise ValueError("Datetime must include timezone information")
+        return value
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("reason must not be empty")
+        return trimmed
+
+
+class CampaignPayoutRuleRevisionRead(DecimalStringMixin):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    campaign_id: UUID
+    payout_rule_id: UUID
+    revision_number: int
+    effective_from: datetime
+    hourly_rate_naira: Decimal
+    premium_hourly_rate_naira: Decimal | None
+    daily_payable_hours_cap: Decimal | None
+    eligibility_params: dict[str, Any]
+    formula_version: str
+    reason: str
+    created_by_user_id: UUID
+    created_at: datetime
+
+
+class CampaignPayoutRuleRevisionListResponse(BaseModel):
+    items: list[CampaignPayoutRuleRevisionRead]
+    total: int
+    limit: int
+    offset: int
+
+
 class CalculatePayoutRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -382,6 +440,71 @@ class RecomputePayoutDayResult(BaseModel):
     reversal_count: int
 
 
+class PayoutCorrectionOrderCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: UUID
+    lagos_day: date
+    reason: str
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("reason must not be empty")
+        return trimmed
+
+
+class PayoutCorrectionOrderExecuteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Q22: positive deltas post as pending with their OWN release date — no
+    # default is invented, so executing an order with positive deltas without
+    # release_at fails with 400.
+    release_at: datetime | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("release_at")
+    @classmethod
+    def validate_release_at(cls, value: datetime | None) -> datetime | None:
+        return ensure_timezone_aware(value)
+
+
+class PayoutCorrectionOrderRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    campaign_id: UUID
+    lagos_day: date
+    status: PayoutCorrectionOrderStatus
+    created_by_user_id: UUID
+    approved_by_user_id: UUID | None
+    executed_by_user_id: UUID | None
+    reason: str
+    projected_delta: dict[str, Any] | None
+    projection_fingerprint: str | None
+    projected_at: datetime | None
+    decided_at: datetime | None
+    executed_at: datetime | None
+    execution_result: dict[str, Any] | None
+    created_at: datetime
+
+
+class PayoutCorrectionOrderListResponse(BaseModel):
+    items: list[PayoutCorrectionOrderRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class PayoutDayProjection(BaseModel):
+    campaign_id: UUID
+    lagos_day: date
+    projected_delta: dict[str, Any]
+    projection_fingerprint: str
+
+
 class DriverTripEarningsCapProgress(BaseModel):
     lagos_day: date
     cap_seconds: int
@@ -397,6 +520,12 @@ class DriverTripEarningsBreakdown(DecimalStringMixin):
     excluded_seconds_by_reason: dict[str, int] | None
     hourly_rate: Decimal | None
     capped_seconds: int | None
+    base_payable_seconds: int | None
+    premium_payable_seconds: int | None
+    base_hourly_rate: Decimal | None
+    premium_hourly_rate: Decimal | None
+    base_amount: Decimal | None
+    premium_amount: Decimal | None
     superseded_by_recompute: bool
     entries: list[EarningsLedgerEntryRead]
     cap: DriverTripEarningsCapProgress | None
