@@ -74,4 +74,14 @@ describe("DriverTripEarningsPage", () => {
     expect(screen.getByText(/1,000\.00\/hour × 45m verified time/)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Frozen tier breakdown" })).not.toBeInTheDocument();
   });
+
+  it("shows premium seconds at the disclosed base-rate fallback", async () => {
+    get.mockResolvedValue({ data: breakdown({ premium_hourly_rate: null }) });
+
+    render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-3" }) }));
+
+    const panel = screen.getByRole("heading", { name: "Frozen tier breakdown" }).parentElement;
+    if (!panel) throw new Error("expected tier breakdown panel");
+    expect(within(panel).getByText(/15m.*base rate.*1,000\.00\/hour/)).toBeInTheDocument();
+  });
 });

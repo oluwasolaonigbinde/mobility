@@ -1016,6 +1016,14 @@ def test_rule_api_supports_both_models_with_xor_validation(
     assert updated.status_code == http_status.HTTP_409_CONFLICT
     assert updated.json()["error"]["code"] == "PAYOUT_RULE_MUTATION_RETIRED"
     assert updated.json()["error"]["details"]["retired_fields"] == ["hourly_rate_naira"]
+    currency_update = db_client.patch(
+        f"{base}/{rule['id']}",
+        headers=headers,
+        json={"currency": "USD"},
+    )
+    assert currency_update.status_code == http_status.HTTP_409_CONFLICT
+    assert currency_update.json()["error"]["code"] == "PAYOUT_RULE_MUTATION_RETIRED"
+    assert currency_update.json()["error"]["details"]["retired_fields"] == ["currency"]
     metadata_update = db_client.patch(
         f"{base}/{rule['id']}",
         headers=headers,

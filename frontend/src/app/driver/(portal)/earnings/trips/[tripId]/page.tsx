@@ -54,7 +54,6 @@ export default async function DriverTripEarningsPage({
     data.base_payable_seconds != null &&
     data.premium_payable_seconds != null &&
     data.base_hourly_rate != null &&
-    data.premium_hourly_rate != null &&
     data.base_amount != null &&
     data.premium_amount != null;
   const excluded = Object.entries(data.excluded_seconds_by_reason ?? {});
@@ -123,7 +122,9 @@ export default async function DriverTripEarningsPage({
                     <p className="text-sm font-medium">Premium tier</p>
                     <p className="micro text-faint mt-0.5">
                       {formatDuration(data.premium_payable_seconds)} at{" "}
-                      {formatMoneyExact(data.premium_hourly_rate, data.currency)}/hour
+                      {data.premium_hourly_rate != null
+                        ? `${formatMoneyExact(data.premium_hourly_rate, data.currency)}/hour`
+                        : `the base rate (${formatMoneyExact(data.base_hourly_rate, data.currency)}/hour)`}
                     </p>
                   </div>
                   <p className="font-mono text-sm">

@@ -75,6 +75,7 @@ from app.services.payouts import (
     PAYOUT_V2,
     PAYOUT_V3,
     allocate_tier_amount_components,
+    day_consumed_payable_seconds,
     driver_trip_earnings_breakdown,
     price_tiered_payable_seconds,
     v3_inputs_fingerprint,
@@ -1152,6 +1153,32 @@ def test_driver_breakdown_uses_latest_valid_nonvoided_v3_authority(
     assert latest.base_amount == Decimal("250.00")
     assert latest.premium_amount == Decimal("450.00")
 
+    async def insert_malformed_latest() -> None:
+        async with postgis_db_sessionmaker() as session:
+            malformed = metadata(base=900, premium=900, total="700.00")
+            malformed["breakdown"]["base_payable_seconds"] = 1800
+            session.add(
+                EarningsLedgerEntry(
+                    driver_profile_id=graph.profile.id,
+                    driver_user_id=graph.driver.id,
+                    campaign_id=graph.campaign.id,
+                    trip_session_id=graph.trip.id,
+                    vehicle_id=graph.vehicle.id,
+                    entry_type=EarningsLedgerEntryType.ADJUSTMENT.value,
+                    status=EarningsLedgerEntryStatus.PENDING.value,
+                    amount=Decimal("0.00"),
+                    currency="NGN",
+                    occurred_at=graph.trip.ended_at + timedelta(minutes=3),
+                    ledger_metadata=malformed,
+                )
+            )
+            await session.commit()
+
+    asyncio.run(insert_malformed_latest())
+    malformed_ignored = asyncio.run(breakdown())
+    assert malformed_ignored.base_payable_seconds == 900
+    assert malformed_ignored.premium_payable_seconds == 900
+
     async def void_latest() -> None:
         async with postgis_db_sessionmaker() as session:
             stored = await session.get(EarningsLedgerEntry, reversal.id)
@@ -1166,6 +1193,34 @@ def test_driver_breakdown_uses_latest_valid_nonvoided_v3_authority(
     assert fallback.base_amount == Decimal("0.00")
     assert fallback.premium_amount == Decimal("1000.00")
     assert positive.status == EarningsLedgerEntryStatus.PENDING.value
+
+    async def void_original() -> None:
+        async with postgis_db_sessionmaker() as session:
+            original = await session.scalar(
+                select(EarningsLedgerEntry).where(
+                    EarningsLedgerEntry.trip_session_id == graph.trip.id,
+                    EarningsLedgerEntry.entry_type == EarningsLedgerEntryType.TRIP_PAYOUT.value,
+                )
+            )
+            original.status = EarningsLedgerEntryStatus.VOIDED.value
+            await session.commit()
+
+    asyncio.run(void_original())
+    inconsistent_target_hidden = asyncio.run(breakdown())
+    assert inconsistent_target_hidden.amount == Decimal("500.00")
+    assert inconsistent_target_hidden.base_amount is None
+    assert inconsistent_target_hidden.premium_amount is None
+
+    async def consumed_after_void() -> int:
+        async with postgis_db_sessionmaker() as session:
+            return await day_consumed_payable_seconds(
+                session,
+                driver_profile_id=graph.profile.id,
+                campaign_id=graph.campaign.id,
+                lagos_day=datetime.fromisoformat(day).date(),
+            )
+
+    assert asyncio.run(consumed_after_void()) == 0
 
 
 def test_v3_fingerprint_covers_every_frozen_binding_input() -> None:

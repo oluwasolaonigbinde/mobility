@@ -637,7 +637,9 @@ async def update_campaign_payout_rule(
     if rule.formula_version == PAYOUT_V2:
         # MNY-06A: v2 value mutation is retired — the append-only revision
         # chain is the only value-change path.
-        retired_fields = sorted(field for field in V2_RULE_FIELDS if field in update_values)
+        retired_fields = sorted(
+            field for field in V2_RULE_FIELDS | {"currency"} if field in update_values
+        )
         if retired_fields:
             raise rule_mutation_retired(retired_fields)
     else:
@@ -1317,7 +1319,9 @@ async def day_consumed_payable_seconds(
     )
     per_trip = (
         select(
+            PayoutCalculation.id.label("calculation_id"),
             PayoutCalculation.trip_session_id.label("trip_id"),
+            PayoutCalculation.formula_version.label("formula_version"),
             PayoutCalculation.payable_seconds_by_day.label("by_day"),
             PayoutCalculation.payable_seconds.label("payable"),
             TripSession.started_at.label("started_at"),
@@ -1339,9 +1343,13 @@ async def day_consumed_payable_seconds(
         per_trip = per_trip.where(PayoutCalculation.trip_session_id != exclude_trip_id)
     rows = await session.execute(per_trip)
     consumed_by_trip: dict[UUID, int] = {}
+    calculation_authorities_by_trip: dict[UUID, set[tuple[str, str]]] = {}
     for row in rows.all():
         seconds = day_allocation_seconds(row.by_day, row.payable, row.started_at, day_key)
         consumed_by_trip[row.trip_id] = max(consumed_by_trip.get(row.trip_id, 0), seconds)
+        calculation_authorities_by_trip.setdefault(row.trip_id, set()).add(
+            (str(row.calculation_id), row.formula_version)
+        )
 
     # A recompute-day true-up supersedes the calculation's figure: the latest
     # non-voided differential entry stores the day's authoritative
@@ -1373,6 +1381,11 @@ async def day_consumed_payable_seconds(
             continue
         metadata = entry.ledger_metadata or {}
         if not metadata.get("recompute_day"):
+            continue
+        if (
+            metadata.get("payout_calculation_id"),
+            metadata.get("formula_version"),
+        ) not in calculation_authorities_by_trip.get(entry.trip_session_id, set()):
             continue
         breakdown_meta = metadata.get("breakdown") or {}
         by_day = breakdown_meta.get("payable_seconds_by_day")
@@ -3594,24 +3607,44 @@ def _tier_breakdown_from_stored_metadata(
     if not isinstance(tiers_by_day, dict) or base_rate_raw is None or total_raw is None:
         return None
     try:
+        tier_sums = {"base": 0, "premium": 0}
+        for value in tiers_by_day.values():
+            if not isinstance(value, dict):
+                return None
+            for key in tier_sums:
+                seconds = int(value.get(key, 0) or 0)
+                if seconds < 0:
+                    return None
+                tier_sums[key] += seconds
         base_seconds = int(
             source.get(
                 "base_payable_seconds",
-                sum(int((value or {}).get("base", 0) or 0) for value in tiers_by_day.values()),
+                tier_sums["base"],
             )
         )
         premium_seconds = int(
             source.get(
                 "premium_payable_seconds",
-                sum(int((value or {}).get("premium", 0) or 0) for value in tiers_by_day.values()),
+                tier_sums["premium"],
             )
         )
+        if (
+            base_seconds < 0
+            or premium_seconds < 0
+            or base_seconds != tier_sums["base"]
+            or premium_seconds != tier_sums["premium"]
+        ):
+            return None
         base_rate = Decimal(str(base_rate_raw))
         premium_rate = Decimal(str(premium_rate_raw)) if premium_rate_raw is not None else None
         total = Decimal(str(total_raw))
+        if base_rate < 0 or (premium_rate is not None and premium_rate < 0) or total < 0:
+            return None
         if source.get("base_amount") is not None and source.get("premium_amount") is not None:
             base_amount = Decimal(str(source["base_amount"]))
             premium_amount = Decimal(str(source["premium_amount"]))
+            if base_amount < 0 or premium_amount < 0:
+                return None
         else:
             allocated = allocate_tier_amount_components(
                 base_seconds=base_seconds,
@@ -3678,6 +3711,11 @@ async def driver_trip_earnings_breakdown(
         else:
             amount += entry.amount
     amount = quantize_2(amount)
+    original_trip_payout_voided = any(
+        entry.entry_type == EarningsLedgerEntryType.TRIP_PAYOUT.value
+        and entry.status == EarningsLedgerEntryStatus.VOIDED.value
+        for entry in entries
+    )
 
     formula_version = calculation.formula_version if calculation else PAYOUT_V1
     eligible_seconds: int | None = None
@@ -3708,7 +3746,7 @@ async def driver_trip_earnings_breakdown(
         if metadata.get("lagos_day"):
             lagos_day_value = date.fromisoformat(metadata["lagos_day"])
 
-        if calculation.formula_version == PAYOUT_V3:
+        if calculation.formula_version == PAYOUT_V3 and not original_trip_payout_voided:
             components = metadata.get("components") or {}
             tier = _tier_breakdown_from_stored_metadata(components, fallback_rates=rates)
             if tier is not None:
@@ -3728,6 +3766,11 @@ async def driver_trip_earnings_breakdown(
             stored = entry_metadata.get("breakdown")
             if (
                 entry.status == EarningsLedgerEntryStatus.VOIDED.value
+                or entry.entry_type
+                not in (
+                    EarningsLedgerEntryType.ADJUSTMENT.value,
+                    EarningsLedgerEntryType.REVERSAL.value,
+                )
                 or not entry_metadata.get("recompute_day")
                 or entry_metadata.get("payout_calculation_id") != str(calculation.id)
                 or entry_metadata.get("formula_version") != calculation.formula_version
@@ -3772,6 +3815,21 @@ async def driver_trip_earnings_breakdown(
                 campaign_id=trip.campaign_id,
                 lagos_day=lagos_day_value,
             )
+
+    # Tier components explain the authoritative posted balance, not a stale
+    # calculation target. If later ledger voiding makes those disagree, hide
+    # the tier explanation and leave the entries as the visible authority.
+    if (
+        base_amount is not None
+        and premium_amount is not None
+        and quantize_2(base_amount + premium_amount) != amount
+    ):
+        base_payable_seconds = None
+        premium_payable_seconds = None
+        base_hourly_rate = None
+        premium_hourly_rate = None
+        base_amount = None
+        premium_amount = None
 
     return DriverTripBreakdown(
         trip_session_id=trip.id,
