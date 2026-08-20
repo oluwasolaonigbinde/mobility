@@ -30,7 +30,7 @@ export default async function AdminPayoutsPage({
   const total = data?.total ?? 0;
 
   return (
-    <div className="animate-rise mx-auto max-w-6xl">
+    <div className="animate-rise mx-auto max-w-6xl pb-16">
       <PageHeader
         title="Payouts"
         eyebrow={`${total} calculation${total === 1 ? "" : "s"} — every payout traces to an analyzed, fraud-screened trip`}
