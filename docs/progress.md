@@ -61,8 +61,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 **Controller state:** `ACTIVE`
 **Control package:** `PKG-02` — see package queue row 2 and package card.
 **Current checkpoint:** `PKG-02 / MNY-08C` — non-authorizing internal pointer;
-MNY-08A/MNY-09A/MNY-08B are complete and the driver reason/dispute/notice
-checkpoint is now runnable.
+MNY-08A/MNY-09A/MNY-08B are complete. MNY-08C runs together with internal
+checkpoint PKG02-C0 for corrected-explanation provenance, as recorded in the
+Package 2 card.
 
 ## Executable package queue
 
@@ -185,6 +186,24 @@ checkpoint is now runnable.
   critical issue; its material invariant, ownership, contract-boundary and risk
   corrections are reconciled in the uncommitted controller ledger at
   `.codex/delivery/cardvert-pkg02/plan-ledger.md`.
+- **Audit-reconciliation correction checkpoints (owner handoff, 21 Aug 2026):**
+  these are controller-owned prerequisites inside the existing program, not
+  new approvals or permission to reorder the queue. **PKG02-C0 (ACTIVE with
+  MNY-08C):** corrected driver explanations must use corrected excluded-reason
+  provenance, never original-calculation metadata. **PKG02-C1 (before MNY-10B
+  and PKG-02 closure):** unify the DB/application clock and shared
+  acceptance-versus-revision serialization; freeze the accepted campaign
+  payment window in payout-v3 bindings; make populated downgrades `0018`–`0021`
+  fail closed; and lock every overlapping trip row in stable order for
+  adjacent-day correction projection/execution. **PKG02-C2 (before any real
+  GPS/PWA authority):** enforce ADR 014 capability/session gates in the real
+  tracker, recover stale writer-lock state, and retain terminal ping rejections
+  as dead-letter evidence. It is registered here as a mandatory PKG-07 entry
+  correction, not MNY-08C scope. **PKG02-C3 (evidence/operations):** R17-A
+  proves local configuration, smoke and database restore contracts only;
+  frontend-image rollback remains unexecuted and must be parameterized and
+  exercised before W4-03A authority. Whole-entry payout reservation remains
+  the adopted design; no broader Pro schema is admitted.
 - **Closure:** every money invariant passes concurrency/property/e2e testing and
   independent money/security review.
 - **MNY-08A evidence (DONE 21 Aug 2026):** migration `0022` adds exactly one
@@ -274,6 +293,10 @@ checkpoint is now runnable.
 - **Owns:** checklist 61–64. Installability/session safety, screen-on tracking,
   durable sync, onboarding/campaign use, earnings/disputes and release evidence
   ship together.
+- **Entry correction:** PKG02-C2 is mandatory before W4-01A becomes
+  authoritative or any real GPS is collected: the tracker enforces ADR 014
+  capability/session gates, stale writer-lock state is recoverable, and
+  terminal ping failures remain as dead-letter evidence.
 - **Closure:** Android/iOS browser/device matrix, permission/visibility,
   battery/data-loss/security and full journey tests pass against the frozen
   backend contracts.
@@ -457,14 +480,17 @@ names never authorize work or replace the package queue.
 
 - **Scope / authority:** verify the existing edge/API/frontend/PostGIS/Redis/
   worker topology, typed secret contract, migrations, queue-loss recovery,
-  rollback, observability, release smoke and restore controls in a provider-
-  neutral production-like build (§25, §31, RM17, Q32). Do not deploy externally
-  or invent account/spend approval.
+  rollback design, observability, release smoke and database restore controls
+  in a provider-neutral production-like build (§25, §31, RM17, Q32). Do not
+  deploy externally or invent account/spend approval. The completed build proof
+  did not execute a frontend-image rollback.
 - **Acceptance:** production compose and edge configuration resolve, release and
   backup/restore safety contracts pass with synthetic data, and the sealed-trip
   worker path remains covered; no personal data or external environment claim.
 - **Verify / review:** deterministic pre-production configuration, smoke,
-  migration, worker-recovery and restore tests plus deployment/security review.
+  migration, worker-recovery and restore tests plus deployment/security review;
+  frontend-image rollback is `NOT RUN — PKG02-C3` until its image reference is
+  parameterized and the rollback is exercised before W4-03A.
   Approved-environment deployment, public-edge evidence and a live restore drill
   remain explicit D23 post-build validation before W4 release/pilot.
 
