@@ -18,6 +18,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
 from conftest import (
     create_test_campaign,
     create_test_campaign_assignment,
@@ -44,7 +45,7 @@ from test_payouts_v2 import (
 from test_trip_processing import FUTURE, PASSWORD, PAST, add_pings, run_pipeline
 
 from app.core.errors import AppError
-from app.models.campaign import CampaignStatus
+from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.driver import DriverOnboardingStatus
@@ -61,6 +62,8 @@ from app.models.trip import TripSessionStatus
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
 from app.schemas.campaign_assignments import CampaignAssignmentTransition
+from app.schemas.payouts import CampaignPayoutRuleRevisionCreate
+from app.services import payouts
 from app.services.campaign_assignments import (
     accept_driver_assignment,
     premium_zone_geometry_hash,
@@ -72,6 +75,10 @@ from app.services.payout_eligibility import (
     EligibilityParams,
     EligibilityPing,
     classify_session,
+)
+from app.services.payout_rule_serialization import (
+    acquire_campaign_terms_lock,
+    database_clock,
 )
 from app.services.payouts import (
     PAYOUT_V2,
@@ -191,6 +198,7 @@ def insert_binding(
 ) -> AssignmentRuleBinding:
     async def create() -> AssignmentRuleBinding:
         async with db_sessionmaker() as session:
+            campaign = await session.get(Campaign, revision.campaign_id)
             premium_rows = (
                 (
                     await session.execute(
@@ -230,6 +238,9 @@ def insert_binding(
                 exclusion_zone_geometry_hash=premium_zone_geometry_hash(exclusion_rows),
                 exclusion_zone_geometry_wkts=[str(row[1]) for row in exclusion_rows],
                 stationary_policy_marker=stationary_policy_marker,
+                campaign_window_start_at=campaign.start_at,
+                campaign_window_end_at=campaign.end_at,
+                campaign_window_frozen=True,
                 bound_at=datetime.now(UTC),
             )
             session.add(binding)
@@ -418,6 +429,9 @@ def test_accept_freezes_effective_revision_with_zone_snapshot(
     assert binding.formula_version == PAYOUT_V3
     assert binding.premium_zone_ids == [str(zone.id)]
     assert binding.stationary_policy_marker == STATIONARY_POLICY_V1
+    assert binding.campaign_window_start_at == graph.campaign.start_at
+    assert binding.campaign_window_end_at == graph.campaign.end_at
+    assert binding.campaign_window_frozen is True
     assert binding.bound_at == accepted.accepted_at
     assert binding.resolved_eligibility_params == {
         "stationary_radius_m": 200.0,
@@ -590,7 +604,7 @@ def test_concurrent_accepts_yield_exactly_one_binding(postgis_db_sessionmaker, s
     assert len(fetch_bindings(postgis_db_sessionmaker)) == 1
 
 
-def test_accept_vs_supersede_race_matches_one_serialization(
+def test_revision_publication_before_accept_binds_from_shared_lock_and_db_clock(
     postgis_db_sessionmaker,
     settings,
 ) -> None:
@@ -600,14 +614,17 @@ def test_accept_vs_supersede_race_matches_one_serialization(
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
     )
-    rev1 = create_revision_row(
+    create_revision_row(
         postgis_db_sessionmaker,
         campaign_id=graph.campaign.id,
         rule_id=rule.id,
         created_by_user_id=graph.admin.id,
     )
 
+    revision_has_lock = asyncio.Event()
+
     async def accept():
+        await revision_has_lock.wait()
         async with postgis_db_sessionmaker() as session:
             assignment = await accept_driver_assignment(
                 session,
@@ -619,30 +636,48 @@ def test_accept_vs_supersede_race_matches_one_serialization(
             await session.commit()
             return assignment
 
-    def supersede():
-        return service_create_revision(
-            postgis_db_sessionmaker,
-            campaign_id=graph.campaign.id,
-            rule_id=rule.id,
-            actor_user_id=graph.admin.id,
-            effective_from=datetime.now(UTC) + timedelta(hours=1),
-            hourly_rate_naira=Decimal("9999.00"),
-        )
+    async def supersede():
+        async with postgis_db_sessionmaker() as session:
+            # Establish publication-first ordering while acceptance is live
+            # and waiting on the exact same campaign transaction lock.
+            await acquire_campaign_terms_lock(session, graph.campaign.id)
+            effective_from = await database_clock(session) + timedelta(seconds=2)
+            revision_has_lock.set()
+            revision, previous = await payouts.create_payout_rule_revision(
+                session,
+                campaign_id=graph.campaign.id,
+                rule_id=rule.id,
+                payload=CampaignPayoutRuleRevisionCreate(
+                    effective_from=effective_from,
+                    hourly_rate_naira=Decimal("9999.00"),
+                    daily_payable_hours_cap=Decimal("8.00"),
+                    reason="publication wins shared serialization",
+                ),
+                actor_user_id=graph.admin.id,
+            )
+            # Keep the transaction lock through the effective boundary. The
+            # waiting acceptance must then take a fresh database wall clock,
+            # which is necessarily after this newly published revision.
+            await asyncio.sleep(2.1)
+            await session.commit()
+            return revision, previous, effective_from
 
     async def race():
-        return await asyncio.gather(accept(), asyncio.to_thread(supersede))
+        published, accepted = await asyncio.gather(supersede(), accept())
+        return accepted, published
 
-    accepted, (rev2, _) = asyncio.run(race())
+    accepted, (rev2, _, effective_from) = asyncio.run(race())
     assert accepted.status == CampaignAssignmentStatus.ACCEPTED.value
     assert rev2.revision_number == 2
 
     bindings = fetch_bindings(postgis_db_sessionmaker)
     assert len(bindings) == 1
-    # PR10 determinism: the binding resolves the revision effective at the
-    # accept snapshot. rev2 is future-effective (PR1 forbids retro-insertion)
-    # so BOTH serial orders resolve rev1 — never a torn/mixed snapshot.
-    assert bindings[0].revision_id == rev1.id
-    assert bindings[0].hourly_rate_naira == rev1.hourly_rate_naira
+    # Publication committed before acceptance acquired the shared lock. The
+    # acceptance DB clock is after rev2's boundary, so the binding is wholly
+    # rev2—not rev1 and never a torn mix of revision values.
+    assert bindings[0].revision_id == rev2.id
+    assert bindings[0].hourly_rate_naira == rev2.hourly_rate_naira
+    assert bindings[0].bound_at >= effective_from
 
 
 # --- payout_v3 engine --------------------------------------------------------
@@ -677,6 +712,8 @@ def test_v3_base_only_prices_from_binding_not_rule(postgis_db_sessionmaker, sett
     assert binding_meta["binding_id"] == str(graph.binding.id)
     assert binding_meta["revision_id"] == str(graph.revision.id)
     assert binding_meta["stationary_policy_marker"] == STATIONARY_POLICY_V1
+    assert binding_meta["campaign_window_start_at"] == graph.campaign.start_at.isoformat()
+    assert binding_meta["campaign_window_end_at"] == graph.campaign.end_at.isoformat()
 
     entries = fetch_earnings_ledger_entries(postgis_db_sessionmaker)
     assert len(entries) == 1
@@ -689,6 +726,30 @@ def test_v3_base_only_prices_from_binding_not_rule(postgis_db_sessionmaker, sett
         raise AssertionError("expected AppError")
     except AppError as exc:
         assert exc.code in {"PAYOUT_RULE_NOT_FOUND", "INVALID_PAYOUT_RULE"}
+
+
+def test_v3_payout_metadata_preserves_legitimate_null_accepted_window(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_v2_graph(postgis_db_sessionmaker, "v3-null-window")
+
+    async def clear_window() -> None:
+        async with postgis_db_sessionmaker() as session:
+            await session.execute(
+                update(Campaign)
+                .where(Campaign.id == graph.campaign.id)
+                .values(start_at=None, end_at=None)
+            )
+            await session.commit()
+
+    asyncio.run(clear_window())
+    bind_v2_graph(postgis_db_sessionmaker, settings, graph)
+    pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
+
+    binding_meta = fetch_payout_calculations(postgis_db_sessionmaker)[0].payout_metadata["binding"]
+    assert binding_meta["campaign_window_start_at"] is None
+    assert binding_meta["campaign_window_end_at"] is None
 
 
 def test_ext_rm2_fail_closed_binding_rejects_initial_payout(
@@ -906,6 +967,64 @@ def test_v3_supersede_after_accept_never_reprices(postgis_db_sessionmaker, setti
     assert second.payout_metadata["binding"]["revision_id"] == str(graph.revision.id)
     entries = fetch_earnings_ledger_entries(postgis_db_sessionmaker)
     assert [entry.amount for entry in entries] == [Decimal("500.00")]
+
+
+def test_v3_campaign_window_edits_never_reprice_accepted_work(
+    postgis_db_sessionmaker, settings
+) -> None:
+    graph = build_v2_graph(postgis_db_sessionmaker, "v3-frozen-window")
+    bind_v2_graph(postgis_db_sessionmaker, settings, graph, base="1000.00")
+    pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
+    first = fetch_payout_calculations(postgis_db_sessionmaker)[0]
+    frozen_fingerprint = first.inputs_fingerprint
+    frozen_amount = first.final_payout
+
+    async def move_live_window() -> None:
+        async with postgis_db_sessionmaker() as session:
+            await session.execute(
+                update(Campaign)
+                .where(Campaign.id == graph.campaign.id)
+                .values(
+                    start_at=graph.trip.ended_at + timedelta(days=10),
+                    end_at=graph.trip.ended_at + timedelta(days=20),
+                )
+            )
+            await session.commit()
+
+    asyncio.run(move_live_window())
+
+    # Strict reuse sees no drift because v3 fingerprints the accepted window.
+    assert run_pipeline(postgis_db_sessionmaker, graph.trip.id, settings).overall == "completed"
+    delete_money_rows(postgis_db_sessionmaker, graph.trip.id)
+    assert run_pipeline(postgis_db_sessionmaker, graph.trip.id, settings).overall == "completed"
+    replayed = fetch_payout_calculations(postgis_db_sessionmaker)[0]
+    assert replayed.final_payout == frozen_amount
+    assert replayed.inputs_fingerprint == frozen_fingerprint
+
+
+def test_legacy_v3_binding_without_window_freeze_fails_closed(
+    postgis_db_sessionmaker, settings
+) -> None:
+    graph = build_v2_graph(postgis_db_sessionmaker, "v3-legacy-window")
+    bind_v2_graph(postgis_db_sessionmaker, settings, graph)
+
+    async def mark_legacy() -> None:
+        async with postgis_db_sessionmaker() as session:
+            await session.execute(
+                update(AssignmentRuleBinding)
+                .where(AssignmentRuleBinding.id == graph.binding.id)
+                .values(
+                    campaign_window_start_at=None,
+                    campaign_window_end_at=None,
+                    campaign_window_frozen=False,
+                )
+            )
+            await session.commit()
+
+    asyncio.run(mark_legacy())
+    with pytest.raises(AppError) as error:
+        run_pipeline(postgis_db_sessionmaker, graph.trip.id, settings)
+    assert error.value.code == "PAYOUT_BINDING_WINDOW_NOT_FROZEN"
 
 
 def test_v3_replay_uses_frozen_geometry_and_resolved_eligibility(

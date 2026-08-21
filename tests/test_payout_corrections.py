@@ -35,6 +35,7 @@ from test_payouts_v3 import bind_v2_graph, build_mixed_engine_day
 from test_trip_processing import PASSWORD, add_pings, run_pipeline
 
 from app.core.errors import AppError
+from app.models.campaign import Campaign
 from app.models.payout import (
     AssignmentRuleBinding,
     CampaignPayoutRule,
@@ -939,6 +940,36 @@ def test_v3_day_reprices_from_frozen_binding_through_an_order(
     assert target.delta_amount == Decimal("0.00")
     assert target.governing_values["binding_id"] == graph.binding.id
     assert target.governing_values["hourly_rate_naira"] == Decimal("1000.00")
+    assert target.governing_values["campaign_window_start_at"] == graph.campaign.start_at
+    assert target.governing_values["campaign_window_end_at"] == graph.campaign.end_at
+
+    async def move_live_window() -> None:
+        async with postgis_db_sessionmaker() as session:
+            await session.execute(
+                update(Campaign)
+                .where(Campaign.id == graph.campaign.id)
+                .values(
+                    start_at=graph.trip.ended_at + timedelta(days=10),
+                    end_at=graph.trip.ended_at + timedelta(days=20),
+                )
+            )
+            await session.commit()
+
+    asyncio.run(move_live_window())
+    after_window_edit = service(
+        postgis_db_sessionmaker,
+        lambda session: project_campaign_day(
+            session,
+            campaign_id=graph.campaign.id,
+            lagos_day=lagos_day_for(graph.trip.started_at),
+            settings=settings,
+        ),
+    )
+    # A v3-only correction consumes the accepted window carried in the
+    # binding. An unrelated later live campaign edit neither reprices nor
+    # stales the order projection.
+    assert after_window_edit.fingerprint == projection.fingerprint
+    assert after_window_edit.computations[0].trips[0].target_amount == Decimal("500.00")
 
 
 def test_mixed_v2_v3_day_shares_one_cap_pool_through_an_order(
@@ -990,6 +1021,8 @@ def test_mixed_v2_v3_day_shares_one_cap_pool_through_an_order(
     assert breakdown["payable_seconds_by_day_tier"] == {day_key: {"base": 1800, "premium": 0}}
     assert entry.ledger_metadata["formula_version"] == PAYOUT_V3
     assert entry.ledger_metadata["binding_id"]
+    assert entry.ledger_metadata["campaign_window_start_at"] == graph.campaign.start_at.isoformat()
+    assert entry.ledger_metadata["campaign_window_end_at"] == graph.campaign.end_at.isoformat()
 
     async def driver_breakdown():
         async with postgis_db_sessionmaker() as session:

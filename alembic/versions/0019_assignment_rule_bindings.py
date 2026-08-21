@@ -96,6 +96,14 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute(
+        sa.text(
+            "DO $$ BEGIN "
+            "IF EXISTS (SELECT 1 FROM assignment_rule_bindings) THEN "
+            "RAISE EXCEPTION '0019 downgrade blocked: assignment payout bindings exist'; "
+            "END IF; END $$;"
+        )
+    )
     op.drop_index(
         "ix_assignment_rule_bindings_revision_id",
         table_name="assignment_rule_bindings",

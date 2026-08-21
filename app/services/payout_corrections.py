@@ -242,8 +242,26 @@ async def _projection_fingerprint(
                 )
                 else None
             ),
-            "window_start_at": first.window_start_at if first is not None else None,
-            "window_end_at": first.window_end_at if first is not None else None,
+            "window_start_at": (
+                first.window_start_at
+                if first is not None
+                and any(
+                    target.formula_version == PAYOUT_V2
+                    for computation in computations
+                    for target in computation.trips
+                )
+                else None
+            ),
+            "window_end_at": (
+                first.window_end_at
+                if first is not None
+                and any(
+                    target.formula_version == PAYOUT_V2
+                    for computation in computations
+                    for target in computation.trips
+                )
+                else None
+            ),
         }
     )
 

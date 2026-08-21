@@ -61,6 +61,10 @@ from app.services.payout_eligibility import (
     EligibilityPing,
     classify_session,
 )
+from app.services.payout_rule_serialization import (
+    acquire_campaign_terms_lock,
+    database_clock,
+)
 from app.services.provenance import stable_source_fingerprint
 from app.services.trip_analytics import (
     analytics_not_found,
@@ -705,11 +709,13 @@ async def create_payout_rule_revision(
 
     Guards: effective_from strictly after the latest revision's (no
     retro-insertion — retroactivity is MNY-06C's correction order) and not
-    before the DB clock. revision_number is latest + 1 read in-transaction;
-    the two unique constraints serialize concurrent supersedes fail-closed,
-    and the loser surfaces as a stable 409. Returns (revision, previous) so
-    the caller can audit full before/after values.
+    before the DB clock. A campaign-scoped authority lock serializes valid
+    concurrent publications into successive, gap-free revision numbers and
+    shares the same boundary as assignment acceptance. Returns (revision,
+    previous) so the caller can audit full before/after values.
     """
+    await acquire_campaign_terms_lock(session, campaign_id)
+    db_now = await database_clock(session)
     rule = await get_campaign_payout_rule(session, campaign_id=campaign_id, rule_id=rule_id)
     if rule.formula_version != PAYOUT_V2:
         raise invalid_rule_revision(
@@ -720,10 +726,6 @@ async def create_payout_rule_revision(
         raise rule_inactive()
     validate_eligibility_params_overlay(payload.eligibility_params)
 
-    if session.get_bind().dialect.name == "postgresql":
-        db_now = await session.scalar(select(func.now()))
-    else:
-        db_now = utc_now()
     latest = await latest_payout_rule_revision(session, campaign_id)
     if latest is not None and payload.effective_from <= _ensure_utc_aware(latest.effective_from):
         raise invalid_rule_revision(
@@ -1284,6 +1286,19 @@ async def binding_for_assignment(
     return await session.scalar(
         select(AssignmentRuleBinding).where(AssignmentRuleBinding.assignment_id == assignment_id)
     )
+
+
+def frozen_campaign_window(
+    binding: AssignmentRuleBinding,
+) -> tuple[datetime | None, datetime | None]:
+    """Return authoritative accepted windows or fail closed for legacy v3."""
+    if not binding.campaign_window_frozen:
+        raise AppError(
+            "PAYOUT_BINDING_WINDOW_NOT_FROZEN",
+            "The payout binding predates the accepted campaign-window freeze; resolve manually",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    return binding.campaign_window_start_at, binding.campaign_window_end_at
 
 
 def latest_payout_calculation_ids(
@@ -2082,7 +2097,8 @@ async def calculate_trip_payout_v3(
     slices at the base rate (no premium disclosed on the revision)."""
     ensure_postgis(session)
     calculated_at = now or utc_now()
-    campaign = await get_campaign(session, trip.campaign_id)
+    await get_campaign(session, trip.campaign_id)
+    window_start_at, window_end_at = frozen_campaign_window(binding)
     revision = await session.get(CampaignPayoutRuleRevision, binding.revision_id)
     rule = await session.get(CampaignPayoutRule, revision.payout_rule_id)
     params = frozen_eligibility_params(binding)
@@ -2099,8 +2115,8 @@ async def calculate_trip_payout_v3(
         session_started_at=trip.started_at,
         session_ended_at=trip.ended_at,
         pings=[row.ping for row in ping_rows],
-        window_start_at=campaign.start_at,
-        window_end_at=campaign.end_at,
+        window_start_at=window_start_at,
+        window_end_at=window_end_at,
         params=params,
         stationary_policy_marker=binding.stationary_policy_marker,
     )
@@ -2113,8 +2129,8 @@ async def calculate_trip_payout_v3(
         zone_fingerprint=(
             f"{binding.premium_zone_geometry_hash}:{binding.exclusion_zone_geometry_hash}"
         ),
-        window_start_at=campaign.start_at,
-        window_end_at=campaign.end_at,
+        window_start_at=window_start_at,
+        window_end_at=window_end_at,
     )
 
     lagos_day = lagos_day_for(trip.started_at)
@@ -2193,6 +2209,12 @@ async def calculate_trip_payout_v3(
             "binding_id": str(binding.id),
             "revision_id": str(binding.revision_id),
             "bound_at": binding.bound_at.isoformat(),
+            "campaign_window_start_at": (
+                window_start_at.isoformat() if window_start_at is not None else None
+            ),
+            "campaign_window_end_at": (
+                window_end_at.isoformat() if window_end_at is not None else None
+            ),
             "premium_zone_ids": list(binding.premium_zone_ids or []),
             "premium_zone_geometry_hash": binding.premium_zone_geometry_hash,
             "exclusion_zone_ids": list(binding.exclusion_zone_ids or []),
@@ -2322,13 +2344,14 @@ async def v3_calculation_is_stale(
     money: re-derive the inputs fingerprint from the frozen binding and the
     current ping set, and compare. Money is never auto-rewritten."""
     binding = await binding_for_assignment(session, trip.assignment_id)
-    if binding is None:
+    if binding is None or not binding.campaign_window_frozen:
         return True
     revision = await session.get(CampaignPayoutRuleRevision, binding.revision_id)
     rule = await session.get(CampaignPayoutRule, revision.payout_rule_id)
     if rule is None:
         return True
-    campaign = await get_campaign(session, trip.campaign_id)
+    await get_campaign(session, trip.campaign_id)
+    window_start_at, window_end_at = frozen_campaign_window(binding)
     params = frozen_eligibility_params(binding)
     ping_rows = await load_eligibility_pings(
         session,
@@ -2345,8 +2368,8 @@ async def v3_calculation_is_stale(
         zone_fingerprint=(
             f"{binding.premium_zone_geometry_hash}:{binding.exclusion_zone_geometry_hash}"
         ),
-        window_start_at=campaign.start_at,
-        window_end_at=campaign.end_at,
+        window_start_at=window_start_at,
+        window_end_at=window_end_at,
     )
     return calculation.inputs_fingerprint != current
 
@@ -3127,8 +3150,11 @@ async def compute_payout_day_targets(
     day_range = lagos_day_utc_range(lagos_date)
     day_key = lagos_date.isoformat()
 
-    await acquire_paycap_lock(session, paycap_lock_key(driver_profile_id, campaign_id, lagos_date))
-
+    # Adjacent Lagos-day orders can share a cross-midnight trip while taking
+    # different paycap advisory locks. Lock every overlapping trip first, in
+    # stable UUID order, so only one projection/execution can price that shared
+    # ledger position at a time. This also matches the pipeline's trip-before-
+    # paycap order and prevents reverse-order deadlocks across multi-trip days.
     trips_result = await session.execute(
         select(TripSession)
         .where(
@@ -3144,9 +3170,15 @@ async def compute_payout_day_targets(
             TripSession.started_at < day_range[1],
             TripSession.ended_at >= day_range[0],
         )
-        .order_by(TripSession.started_at, TripSession.id)
+        .order_by(TripSession.id)
+        .with_for_update()
     )
-    trips = list(trips_result.scalars().all())
+    locked_trips = list(trips_result.scalars().all())
+    await acquire_paycap_lock(session, paycap_lock_key(driver_profile_id, campaign_id, lagos_date))
+
+    # Cap consumption remains chronological after the distinct lock-ordering
+    # phase above.
+    trips = sorted(locked_trips, key=lambda trip: (trip.started_at, trip.id))
     trip_ids = [trip.id for trip in trips]
 
     calculations_by_trip: dict[UUID, PayoutCalculation] = {}
@@ -3213,6 +3245,7 @@ async def compute_payout_day_targets(
                     " frozen rule binding; resolve manually",
                     status_code=status.HTTP_409_CONFLICT,
                 )
+            window_start_at, window_end_at = frozen_campaign_window(binding)
             trip_cap_seconds = int(Decimal(binding.daily_payable_hours_cap) * SECONDS_PER_HOUR)
             hourly_rate = Decimal(binding.hourly_rate_naira)
             premium_hourly_rate = (
@@ -3238,6 +3271,8 @@ async def compute_payout_day_targets(
                 "exclusion_zone_ids": list(binding.exclusion_zone_ids or []),
                 "exclusion_zone_geometry_hash": binding.exclusion_zone_geometry_hash,
                 "stationary_policy_marker": binding.stationary_policy_marker,
+                "campaign_window_start_at": window_start_at,
+                "campaign_window_end_at": window_end_at,
                 "currency": calculation.currency,
             }
         else:
@@ -3326,8 +3361,8 @@ async def compute_payout_day_targets(
                 session_started_at=trip.started_at,
                 session_ended_at=trip.ended_at,
                 pings=[row.ping for row in ping_rows],
-                window_start_at=campaign.start_at,
-                window_end_at=campaign.end_at,
+                window_start_at=window_start_at,
+                window_end_at=window_end_at,
                 params=v3_params,
                 stationary_policy_marker=binding.stationary_policy_marker,
             )
@@ -3557,6 +3592,14 @@ async def write_day_differentials(
             if target.formula_version == PAYOUT_V3:
                 ledger_metadata["binding_id"] = str(target.governing_values["binding_id"])
                 ledger_metadata["revision_id"] = str(target.governing_values["revision_id"])
+                frozen_start = target.governing_values["campaign_window_start_at"]
+                frozen_end = target.governing_values["campaign_window_end_at"]
+                ledger_metadata["campaign_window_start_at"] = (
+                    frozen_start.isoformat() if frozen_start is not None else None
+                )
+                ledger_metadata["campaign_window_end_at"] = (
+                    frozen_end.isoformat() if frozen_end is not None else None
+                )
             if correction_order_id is not None:
                 ledger_metadata["correction_order_id"] = str(correction_order_id)
             entry = EarningsLedgerEntry(

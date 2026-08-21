@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
@@ -371,6 +372,14 @@ class AssignmentRuleBinding(Base):
         Text,
         default="ext-rm2-fail-closed",
         server_default=text("'ext-rm2-fail-closed'"),
+        nullable=False,
+    )
+    campaign_window_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    campaign_window_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    campaign_window_frozen: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default=text("false"),
         nullable=False,
     )
     bound_at: Mapped[datetime] = mapped_column(
