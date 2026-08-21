@@ -417,6 +417,164 @@
         "title": "AdminFraudDisputeRead",
         "type": "object"
       },
+      "AdminFraudFlagRead": {
+        "properties": {
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "detected_at": {
+            "format": "date-time",
+            "title": "Detected At",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "escalated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escalated At"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "title": "Evidence",
+            "type": "object"
+          },
+          "flag_type": {
+            "$ref": "#/components/schemas/FraudFlagType"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "money_effect": {
+            "$ref": "#/components/schemas/FraudFlagMoneyEffectRead"
+          },
+          "resolution_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Note"
+          },
+          "review_due_at": {
+            "format": "date-time",
+            "title": "Review Due At",
+            "type": "string"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By User Id"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/FraudFlagSeverity"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FraudFlagStatus"
+          },
+          "trip_analytics_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Analytics Id"
+          },
+          "trip_session_id": {
+            "format": "uuid",
+            "title": "Trip Session Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "vehicle_id": {
+            "format": "uuid",
+            "title": "Vehicle Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "trip_session_id",
+          "trip_analytics_id",
+          "assignment_id",
+          "campaign_id",
+          "driver_profile_id",
+          "vehicle_id",
+          "flag_type",
+          "severity",
+          "status",
+          "description",
+          "detected_at",
+          "reviewed_by_user_id",
+          "reviewed_at",
+          "resolution_note",
+          "created_at",
+          "updated_at",
+          "review_due_at",
+          "escalated_at",
+          "money_effect"
+        ],
+        "title": "AdminFraudFlagRead",
+        "type": "object"
+      },
       "AdminOrganizationCreateResponse": {
         "properties": {
           "organization": {
@@ -5372,7 +5530,7 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/FraudFlagRead"
+              "$ref": "#/components/schemas/AdminFraudFlagRead"
             },
             "title": "Items",
             "type": "array"
@@ -5397,6 +5555,49 @@
           "offset"
         ],
         "title": "FraudFlagListResponse",
+        "type": "object"
+      },
+      "FraudFlagMoneyEffectRead": {
+        "properties": {
+          "available_net": {
+            "title": "Available Net",
+            "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "reversal_entry_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reversal Entry Id"
+          },
+          "reversal_recommended": {
+            "title": "Reversal Recommended",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "available_net",
+          "currency",
+          "reversal_entry_id",
+          "reversal_recommended"
+        ],
+        "title": "FraudFlagMoneyEffectRead",
         "type": "object"
       },
       "FraudFlagRead": {
@@ -11487,7 +11688,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FraudFlagRead"
+                  "$ref": "#/components/schemas/AdminFraudFlagRead"
                 }
               }
             },
@@ -11545,7 +11746,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FraudFlagRead"
+                  "$ref": "#/components/schemas/AdminFraudFlagRead"
                 }
               }
             },

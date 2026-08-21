@@ -226,6 +226,15 @@ async def _review_fraud_flag(
             "resolution_note": normalized_note,
         },
     )
+    if target_status == FraudFlagStatus.CONFIRMED.value:
+        from app.services.earnings_release import post_confirmed_fraud_reversal
+
+        await post_confirmed_fraud_reversal(
+            session,
+            flag=flag,
+            actor_user_id=actor_user_id,
+            occurred_at=reviewed_at,
+        )
     if target_status in {
         FraudFlagStatus.CONFIRMED.value,
         FraudFlagStatus.DISMISSED.value,

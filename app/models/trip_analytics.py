@@ -259,6 +259,17 @@ class FraudFlag(Base):
         Index("ix_fraud_flags_status", "status"),
         Index("ix_fraud_flags_campaign_status", "campaign_id", "status"),
         Index(
+            "ix_fraud_flags_unresolved_sla",
+            "detected_at",
+            "id",
+            sqlite_where=text(
+                "status IN ('open', 'acknowledged') AND escalated_at IS NULL"
+            ),
+            postgresql_where=text(
+                "status IN ('open', 'acknowledged') AND escalated_at IS NULL"
+            ),
+        ),
+        Index(
             "uq_fraud_flags_trip_nonterminal_flag_type",
             "trip_session_id",
             "flag_type",
@@ -317,6 +328,7 @@ class FraudFlag(Base):
     )
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     resolution_note: Mapped[str | None] = mapped_column(Text)
+    escalated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

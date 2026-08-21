@@ -58,6 +58,23 @@ class FraudFlagRead(BaseModel):
     updated_at: datetime
 
 
+class FraudFlagMoneyEffectRead(BaseModel):
+    available_net: Decimal
+    currency: str | None
+    reversal_entry_id: UUID | None
+    reversal_recommended: bool
+
+    @field_serializer("available_net")
+    def serialize_available_net(self, value: Decimal) -> str:
+        return str(value)
+
+
+class AdminFraudFlagRead(FraudFlagRead):
+    review_due_at: datetime
+    escalated_at: datetime | None
+    money_effect: FraudFlagMoneyEffectRead
+
+
 class FraudFlagResolveRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -115,7 +132,7 @@ class TripAnalyticsRead(DecimalStringMixin):
 
 
 class FraudFlagListResponse(BaseModel):
-    items: list[FraudFlagRead]
+    items: list[AdminFraudFlagRead]
     total: int
     limit: int
     offset: int

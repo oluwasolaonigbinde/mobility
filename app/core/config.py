@@ -125,6 +125,7 @@ class Settings(BaseSettings):
     location_ping_end_skew_seconds: int = 300
     worker_sweep_interval_minutes: int = 5
     worker_sweep_batch_size: int = 25
+    fraud_review_sla_days: int = 7
     ping_retention_months: int = 12
     partition_premake_months: int = 4
 
@@ -366,6 +367,13 @@ class Settings(BaseSettings):
     def validate_worker_sweep_batch_size(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("WORKER_SWEEP_BATCH_SIZE must be positive")
+        return value
+
+    @field_validator("fraud_review_sla_days")
+    @classmethod
+    def validate_fraud_review_sla_days(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("FRAUD_REVIEW_SLA_DAYS must be positive")
         return value
 
     @field_validator("ping_retention_months")

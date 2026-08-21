@@ -9,15 +9,27 @@ type FraudFlagStatus = components["schemas"]["FraudFlagStatus"];
 
 const initialState: FraudReviewActionState = {};
 
-export function ReviewActions({ flagId, status }: { flagId: string; status: FraudFlagStatus }) {
+export function ReviewActions({
+  flagId,
+  status,
+  reversalRecommended = false,
+  reversalRecorded = false,
+}: {
+  flagId: string;
+  status: FraudFlagStatus;
+  reversalRecommended?: boolean;
+  reversalRecorded?: boolean;
+}) {
   const [state, formAction, pending] = useActionState(reviewFraudFlagAction, initialState);
 
   if (status === "confirmed" || status === "dismissed") {
     return (
       <p className="micro text-faint text-right">
         {status === "confirmed"
-          ? "Confirmed fraud — review is final."
-          : "Dismissed — review is final."}
+          ? reversalRecorded
+            ? "Confirmed fraud — released earnings were reversed."
+            : "Confirmed fraud — earnings remain held; review is final."
+          : "Dismissed — review is final; hold removed until a current reassessment releases eligible money."}
       </p>
     );
   }
@@ -58,7 +70,7 @@ export function ReviewActions({ flagId, status }: { flagId: string; status: Frau
               variant="danger"
               className="h-9 px-3 text-xs"
             >
-              Confirm fraud
+              {reversalRecommended ? "Confirm fraud & reverse released earnings" : "Confirm fraud"}
             </Button>
             <Button
               type="submit"

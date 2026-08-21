@@ -23,6 +23,7 @@ def test_worker_settings_defaults() -> None:
 
     assert settings.worker_sweep_interval_minutes == 5
     assert settings.worker_sweep_batch_size == 25
+    assert settings.fraud_review_sla_days == 7
 
 
 @pytest.mark.parametrize("invalid_value", [0, 7, 13, 61, -5])
@@ -42,6 +43,12 @@ def test_worker_sweep_interval_accepts_divisors_of_60(valid_value: int) -> None:
 def test_worker_sweep_batch_size_must_be_positive(invalid_value: int) -> None:
     with pytest.raises(ValidationError):
         Settings(worker_sweep_batch_size=invalid_value)
+
+
+@pytest.mark.parametrize("invalid_value", [0, -1])
+def test_fraud_review_sla_days_must_be_positive(invalid_value: int) -> None:
+    with pytest.raises(ValidationError, match="FRAUD_REVIEW_SLA_DAYS must be positive"):
+        Settings(fraud_review_sla_days=invalid_value)
 
 
 def test_sweep_cron_minutes_tiles_the_hour() -> None:
@@ -110,7 +117,7 @@ def test_on_shutdown_tolerates_missing_engine() -> None:
 
 def test_worker_settings_importable_without_broker_or_database() -> None:
     assert len(WorkerSettings.functions) == 1
-    assert len(WorkerSettings.cron_jobs) == 5
+    assert len(WorkerSettings.cron_jobs) == 6
     assert WorkerSettings.keep_result == 0
     assert WorkerSettings.on_startup is worker.on_startup
     assert WorkerSettings.on_shutdown is worker.on_shutdown
@@ -188,6 +195,7 @@ def test_compose_worker_uses_strict_entry_and_passes_sweep_settings() -> None:
         "${WORKER_SWEEP_INTERVAL_MINUTES:-5}"
     )
     assert backend_env["WORKER_SWEEP_BATCH_SIZE"] == "${WORKER_SWEEP_BATCH_SIZE:-25}"
+    assert backend_env["FRAUD_REVIEW_SLA_DAYS"] == "${FRAUD_REVIEW_SLA_DAYS:-7}"
     assert compose["services"]["worker"]["command"] == (
         "arq app.jobs.worker_entry.WorkerSettings"
     )

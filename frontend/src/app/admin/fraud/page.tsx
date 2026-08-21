@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDateTime, formatMoneyExact } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -133,6 +133,7 @@ export default async function AdminFraudPage({
         <div className="flex flex-col gap-3">
           {items.map((f) => {
             const dispute = disputeByFlagId.get(f.id);
+            const reviewActive = f.status === "open" || f.status === "acknowledged";
             return (
               <Panel key={f.id} className="p-5" data-testid={`fraud-flag-${f.id}`}>
                 <div className="flex flex-wrap items-start justify-between gap-5">
@@ -145,6 +146,24 @@ export default async function AdminFraudPage({
                     <p className="micro text-faint mt-2 font-mono">
                       trip {f.trip_session_id.slice(0, 8)} · detected {formatDate(f.detected_at)}
                     </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <p className="micro text-faint">
+                        Review due {formatDateTime(f.review_due_at)}
+                      </p>
+                      {f.escalated_at ? (
+                        <StatusChip tone={reviewActive ? "coral" : "default"}>
+                          {reviewActive
+                            ? "Review deadline passed"
+                            : "SLA exceeded before resolution"}
+                        </StatusChip>
+                      ) : null}
+                    </div>
+                    {f.escalated_at && reviewActive ? (
+                      <p className="text-coral mt-2 text-sm">
+                        This review is unresolved. Earnings remain held; escalation never releases
+                        them automatically.
+                      </p>
+                    ) : null}
                     {Object.keys(f.evidence ?? {}).length > 0 ? (
                       <dl
                         className="border-edge mt-3 grid max-w-2xl grid-cols-[auto_1fr] gap-x-3 gap-y-1 border-l pl-3 text-xs"
@@ -174,6 +193,34 @@ export default async function AdminFraudPage({
                     {f.resolution_note ? (
                       <p className="text-muted mt-1 text-sm">Resolution: {f.resolution_note}</p>
                     ) : null}
+                    <div
+                      className="border-edge bg-raised mt-4 rounded-lg border p-3 text-sm"
+                      aria-label="Earnings review effect"
+                    >
+                      {f.money_effect.reversal_recommended ? (
+                        <p className="text-amber">
+                          {formatMoneyExact(
+                            f.money_effect.available_net,
+                            f.money_effect.currency ?? "NGN",
+                          )}{" "}
+                          is already available. Confirming fraud posts one auditable reversal;
+                          dismissing leaves it available.
+                        </p>
+                      ) : f.money_effect.reversal_entry_id ? (
+                        <p className="text-green">
+                          Released earnings were reversed when fraud was confirmed.
+                        </p>
+                      ) : f.status === "dismissed" ? (
+                        <p className="text-muted">
+                          The hold is removed. Eligible pending earnings release only after the
+                          fraud assessment is current again.
+                        </p>
+                      ) : (
+                        <p className="text-muted">
+                          Earnings remain pending while this authoritative hold is active.
+                        </p>
+                      )}
+                    </div>
                     {dispute ? (
                       <section
                         className="border-edge mt-4 border-t pt-4"
@@ -212,7 +259,12 @@ export default async function AdminFraudPage({
                     >
                       {f.status}
                     </StatusChip>
-                    <ReviewActions flagId={f.id} status={f.status} />
+                    <ReviewActions
+                      flagId={f.id}
+                      status={f.status}
+                      reversalRecommended={f.money_effect.reversal_recommended}
+                      reversalRecorded={Boolean(f.money_effect.reversal_entry_id)}
+                    />
                   </div>
                 </div>
               </Panel>

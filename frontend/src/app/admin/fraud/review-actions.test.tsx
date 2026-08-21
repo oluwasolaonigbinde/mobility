@@ -41,11 +41,25 @@ describe("ReviewActions", () => {
     expect(reviewActionMock).toHaveBeenCalledTimes(1);
   });
 
+  it("makes the post-release reversal consequence explicit", () => {
+    render(<ReviewActions flagId={FLAG_ID} status="acknowledged" reversalRecommended={true} />);
+
+    expect(
+      screen.getByRole("button", { name: "Confirm fraud & reverse released earnings" }),
+    ).toBeEnabled();
+  });
+
   it.each(["confirmed", "dismissed"] as const)("renders %s as terminal", (status) => {
     render(<ReviewActions flagId={FLAG_ID} status={status} />);
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    expect(screen.getByText(/review is final/i)).toBeInTheDocument();
+    expect(screen.getByText(/review is final|hold removed/i)).toBeInTheDocument();
+  });
+
+  it("shows when confirmed fraud already reversed released earnings", () => {
+    render(<ReviewActions flagId={FLAG_ID} status="confirmed" reversalRecorded={true} />);
+
+    expect(screen.getByText(/released earnings were reversed/i)).toBeInTheDocument();
   });
 
   it("disables the control and gives pending feedback while acknowledging", async () => {

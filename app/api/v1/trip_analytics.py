@@ -1,7 +1,9 @@
+from datetime import timedelta
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.dependencies import (
     AdminUserDependency,
@@ -17,14 +19,17 @@ from app.models.trip_analytics import (
     TripAnalytics,
 )
 from app.schemas.trip_analytics import (
+    AdminFraudFlagRead,
     AnalyticsRecomputeRequest,
     DriverTripAnalyticsSummary,
     FraudFlagListResponse,
+    FraudFlagMoneyEffectRead,
     FraudFlagRead,
     FraudFlagResolveRequest,
     TripAnalyticsRead,
 )
 from app.services.audit import create_audit_event
+from app.services.earnings_release import fraud_flag_money_effect
 from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
 from app.services.trip_analytics import (
     AnalyticsComputation,
@@ -57,6 +62,27 @@ def fraud_flag_response(flag: FraudFlag) -> FraudFlagRead:
         resolution_note=flag.resolution_note,
         created_at=flag.created_at,
         updated_at=flag.updated_at,
+    )
+
+
+async def admin_fraud_flag_response(
+    session: AsyncSession,
+    *,
+    flag: FraudFlag,
+    review_sla_days: int,
+) -> AdminFraudFlagRead:
+    base = fraud_flag_response(flag)
+    effect = await fraud_flag_money_effect(session, flag=flag)
+    return AdminFraudFlagRead(
+        **base.model_dump(),
+        review_due_at=flag.detected_at + timedelta(days=review_sla_days),
+        escalated_at=flag.escalated_at,
+        money_effect=FraudFlagMoneyEffectRead(
+            available_net=effect.available_net,
+            currency=effect.currency,
+            reversal_entry_id=effect.reversal_entry_id,
+            reversal_recommended=effect.reversal_recommended,
+        ),
     )
 
 
@@ -171,6 +197,7 @@ async def admin_get_trip_analytics(
 async def admin_list_fraud_flags(
     current_user: AdminUserDependency,
     session: SessionDependency,
+    settings: SettingsDependency,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     status: FraudFlagStatus | None = None,
@@ -193,7 +220,14 @@ async def admin_list_fraud_flags(
         trip_session_id=trip_session_id,
     )
     return FraudFlagListResponse(
-        items=[fraud_flag_response(flag) for flag in flags],
+        items=[
+            await admin_fraud_flag_response(
+                session,
+                flag=flag,
+                review_sla_days=settings.fraud_review_sla_days,
+            )
+            for flag in flags
+        ],
         total=total,
         limit=limit,
         offset=offset,
@@ -202,26 +236,32 @@ async def admin_list_fraud_flags(
 
 @router.post(
     "/admin/fraud-flags/{flag_id}/review/acknowledge",
-    response_model=FraudFlagRead,
+    response_model=AdminFraudFlagRead,
     summary="Acknowledge a fraud flag for staff review",
 )
 async def admin_acknowledge_fraud_flag(
     flag_id: UUID,
     current_user: AdminUserDependency,
     session: SessionDependency,
-) -> FraudFlagRead:
+    settings: SettingsDependency,
+) -> AdminFraudFlagRead:
     result = await acknowledge_fraud_flag(
         session,
         flag_id=flag_id,
         actor_user_id=current_user.id,
     )
+    response = await admin_fraud_flag_response(
+        session,
+        flag=result.flag,
+        review_sla_days=settings.fraud_review_sla_days,
+    )
     await session.commit()
-    return fraud_flag_response(result.flag)
+    return response
 
 
 @router.post(
     "/admin/fraud-flags/{flag_id}/review/resolve",
-    response_model=FraudFlagRead,
+    response_model=AdminFraudFlagRead,
     summary="Resolve a fraud flag review",
 )
 async def admin_resolve_fraud_flag(
@@ -229,7 +269,8 @@ async def admin_resolve_fraud_flag(
     payload: FraudFlagResolveRequest,
     current_user: AdminUserDependency,
     session: SessionDependency,
-) -> FraudFlagRead:
+    settings: SettingsDependency,
+) -> AdminFraudFlagRead:
     result = await resolve_fraud_flag(
         session,
         flag_id=flag_id,
@@ -237,8 +278,13 @@ async def admin_resolve_fraud_flag(
         outcome=payload.outcome,
         resolution_note=payload.note,
     )
+    response = await admin_fraud_flag_response(
+        session,
+        flag=result.flag,
+        review_sla_days=settings.fraud_review_sla_days,
+    )
     await session.commit()
-    return fraud_flag_response(result.flag)
+    return response
 
 
 @router.get(

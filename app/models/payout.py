@@ -652,6 +652,13 @@ class EarningsLedgerEntry(Base):
             sqlite_where=text("entry_type = 'trip_payout'"),
             postgresql_where=text("entry_type = 'trip_payout'"),
         ),
+        Index(
+            "uq_earnings_ledger_entries_source_fraud_flag_id",
+            "source_fraud_flag_id",
+            unique=True,
+            sqlite_where=text("source_fraud_flag_id IS NOT NULL"),
+            postgresql_where=text("source_fraud_flag_id IS NOT NULL"),
+        ),
         Index("ix_earnings_ledger_entries_driver_profile_id", "driver_profile_id"),
         Index("ix_earnings_ledger_entries_driver_user_id", "driver_user_id"),
         Index("ix_earnings_ledger_entries_campaign_id", "campaign_id"),
@@ -689,11 +696,12 @@ class EarningsLedgerEntry(Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    # Q22 (MNY-06C): positive correction-order deltas post as PENDING with
-    # their own release date stored here. NOTHING consumes release_at yet —
-    # the release sweep that moves pending entries to available on this date
-    # is MNY-03A (PKG-02) scope; until then the column is evidence only.
+    # Q22: positive correction-order deltas remain pending until this release
+    # time; the MNY-03A sweep rechecks it under the authoritative trip scope.
     release_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_fraud_flag_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("fraud_flags.id", ondelete="RESTRICT")
+    )
     ledger_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
         JSON,

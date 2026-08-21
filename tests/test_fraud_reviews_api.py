@@ -1,5 +1,5 @@
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from conftest import auth_headers, create_test_trip_analytics
@@ -81,6 +81,16 @@ def test_admin_can_acknowledge_then_confirm_and_list_enriched_flag(
     assert acknowledged_body["reviewed_by_user_id"] == str(admin.id)
     assert acknowledged_body["reviewed_at"] is not None
     assert acknowledged_body["resolution_note"] is None
+    assert datetime.fromisoformat(
+        acknowledged_body["review_due_at"].replace("Z", "+00:00")
+    ).replace(tzinfo=None) == flag.detected_at.replace(tzinfo=None) + timedelta(days=7)
+    assert acknowledged_body["escalated_at"] is None
+    assert acknowledged_body["money_effect"] == {
+        "available_net": "0",
+        "currency": None,
+        "reversal_entry_id": None,
+        "reversal_recommended": False,
+    }
 
     confirmed = db_client.post(
         f"/api/v1/admin/fraud-flags/{flag.id}/review/resolve",

@@ -1695,6 +1695,79 @@ export interface components {
              */
             updated_at: string;
         };
+        /** AdminFraudFlagRead */
+        AdminFraudFlagRead: {
+            /**
+             * Assignment Id
+             * Format: uuid
+             */
+            assignment_id: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string;
+            /**
+             * Detected At
+             * Format: date-time
+             */
+            detected_at: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /** Escalated At */
+            escalated_at: string | null;
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            };
+            flag_type: components["schemas"]["FraudFlagType"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            money_effect: components["schemas"]["FraudFlagMoneyEffectRead"];
+            /** Resolution Note */
+            resolution_note: string | null;
+            /**
+             * Review Due At
+             * Format: date-time
+             */
+            review_due_at: string;
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /** Reviewed By User Id */
+            reviewed_by_user_id: string | null;
+            severity: components["schemas"]["FraudFlagSeverity"];
+            status: components["schemas"]["FraudFlagStatus"];
+            /** Trip Analytics Id */
+            trip_analytics_id: string | null;
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Vehicle Id
+             * Format: uuid
+             */
+            vehicle_id: string;
+        };
         /** AdminOrganizationCreateResponse */
         AdminOrganizationCreateResponse: {
             organization: components["schemas"]["AdvertiserOrganizationRead"];
@@ -3337,13 +3410,24 @@ export interface components {
         /** FraudFlagListResponse */
         FraudFlagListResponse: {
             /** Items */
-            items: components["schemas"]["FraudFlagRead"][];
+            items: components["schemas"]["AdminFraudFlagRead"][];
             /** Limit */
             limit: number;
             /** Offset */
             offset: number;
             /** Total */
             total: number;
+        };
+        /** FraudFlagMoneyEffectRead */
+        FraudFlagMoneyEffectRead: {
+            /** Available Net */
+            available_net: string;
+            /** Currency */
+            currency: string | null;
+            /** Reversal Entry Id */
+            reversal_entry_id: string | null;
+            /** Reversal Recommended */
+            reversal_recommended: boolean;
         };
         /** FraudFlagRead */
         FraudFlagRead: {
@@ -5711,7 +5795,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FraudFlagRead"];
+                    "application/json": components["schemas"]["AdminFraudFlagRead"];
                 };
             };
             /** @description Validation Error */
@@ -5746,7 +5830,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FraudFlagRead"];
+                    "application/json": components["schemas"]["AdminFraudFlagRead"];
                 };
             };
             /** @description Validation Error */
