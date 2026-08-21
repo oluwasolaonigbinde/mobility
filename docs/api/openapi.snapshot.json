@@ -295,6 +295,128 @@
         "title": "AdminDriverProfileRead",
         "type": "object"
       },
+      "AdminFraudDisputeList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminFraudDisputeRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "AdminFraudDisputeList",
+        "type": "object"
+      },
+      "AdminFraudDisputeRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "fraud_flag_id": {
+            "format": "uuid",
+            "title": "Fraud Flag Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "replied_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replied At"
+          },
+          "replied_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replied By User Id"
+          },
+          "reply": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FraudDisputeStatus"
+          },
+          "submitted_by_user_id": {
+            "format": "uuid",
+            "title": "Submitted By User Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "fraud_flag_id",
+          "driver_profile_id",
+          "submitted_by_user_id",
+          "message",
+          "status",
+          "replied_by_user_id",
+          "replied_at",
+          "reply",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AdminFraudDisputeRead",
+        "type": "object"
+      },
       "AdminOrganizationCreateResponse": {
         "properties": {
           "organization": {
@@ -4162,6 +4284,241 @@
         "title": "DriverEarningsSummary",
         "type": "object"
       },
+      "DriverFraudDisputeRead": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "replied_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replied At"
+          },
+          "reply": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FraudDisputeStatus"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "message",
+          "status",
+          "reply",
+          "submitted_at",
+          "replied_at"
+        ],
+        "title": "DriverFraudDisputeRead",
+        "type": "object"
+      },
+      "DriverFraudHoldList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DriverFraudHoldRead"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "DriverFraudHoldList",
+        "type": "object"
+      },
+      "DriverFraudHoldRead": {
+        "properties": {
+          "detected_at": {
+            "format": "date-time",
+            "title": "Detected At",
+            "type": "string"
+          },
+          "dispute": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DriverFraudDisputeRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "notices": {
+            "items": {
+              "$ref": "#/components/schemas/DriverNotificationRead"
+            },
+            "title": "Notices",
+            "type": "array"
+          },
+          "public_status": {
+            "enum": [
+              "assessment_pending",
+              "under_review",
+              "issue_confirmed",
+              "review_cleared"
+            ],
+            "title": "Public Status",
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/DriverFraudHoldReason"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "trip_session_id": {
+            "format": "uuid",
+            "title": "Trip Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "trip_session_id",
+          "public_status",
+          "reason",
+          "detected_at",
+          "reviewed_at",
+          "dispute"
+        ],
+        "title": "DriverFraudHoldRead",
+        "type": "object"
+      },
+      "DriverFraudHoldReason": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "version": {
+            "const": "v1",
+            "default": "v1",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "title",
+          "body"
+        ],
+        "title": "DriverFraudHoldReason",
+        "type": "object"
+      },
+      "DriverNotificationRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "fraud_dispute_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fraud Dispute Id"
+          },
+          "fraud_flag_id": {
+            "format": "uuid",
+            "title": "Fraud Flag Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "template_version": {
+            "title": "Template Version",
+            "type": "string"
+          },
+          "trip_session_id": {
+            "format": "uuid",
+            "title": "Trip Session Id",
+            "type": "string"
+          },
+          "type_key": {
+            "$ref": "#/components/schemas/NotificationType"
+          }
+        },
+        "required": [
+          "id",
+          "type_key",
+          "template_version",
+          "fraud_flag_id",
+          "trip_session_id",
+          "created_at"
+        ],
+        "title": "DriverNotificationRead",
+        "type": "object"
+      },
       "DriverOnboardingStatus": {
         "enum": [
           "pending",
@@ -4929,6 +5286,46 @@
         },
         "title": "EstimateImpressionsRequest",
         "type": "object"
+      },
+      "FraudDisputeCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "FraudDisputeCreate",
+        "type": "object"
+      },
+      "FraudDisputeReply": {
+        "additionalProperties": false,
+        "properties": {
+          "reply": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reply",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reply"
+        ],
+        "title": "FraudDisputeReply",
+        "type": "object"
+      },
+      "FraudDisputeStatus": {
+        "enum": [
+          "open",
+          "replied"
+        ],
+        "title": "FraudDisputeStatus",
+        "type": "string"
       },
       "FraudFlagCounts": {
         "properties": {
@@ -6062,6 +6459,15 @@
           "disabled"
         ],
         "title": "MembershipStatus",
+        "type": "string"
+      },
+      "NotificationType": {
+        "enum": [
+          "fraud_hold_raised",
+          "fraud_review_resolved",
+          "fraud_dispute_replied"
+        ],
+        "title": "NotificationType",
         "type": "string"
       },
       "OrganizationMembershipRead": {
@@ -10743,6 +11149,161 @@
         "summary": "Create a vehicle for a driver",
         "tags": [
           "Vehicles"
+        ]
+      }
+    },
+    "/api/v1/admin/fraud-disputes": {
+      "get": {
+        "operationId": "admin_get_fraud_disputes_api_v1_admin_fraud_disputes_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "flag_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Flag Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/FraudDisputeStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminFraudDisputeList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Get Fraud Disputes",
+        "tags": [
+          "Fraud disputes"
+        ]
+      }
+    },
+    "/api/v1/admin/fraud-disputes/{dispute_id}/reply": {
+      "post": {
+        "operationId": "admin_reply_to_fraud_dispute_api_v1_admin_fraud_disputes__dispute_id__reply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dispute_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Dispute Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FraudDisputeReply"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminFraudDisputeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Reply To Fraud Dispute",
+        "tags": [
+          "Fraud disputes"
         ]
       }
     },
@@ -15491,6 +16052,119 @@
         "summary": "Read current driver earnings summary",
         "tags": [
           "Payouts"
+        ]
+      }
+    },
+    "/api/v1/driver/fraud-holds": {
+      "get": {
+        "operationId": "driver_get_fraud_holds_api_v1_driver_fraud_holds_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "trip_session_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Trip Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverFraudHoldList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Driver Get Fraud Holds",
+        "tags": [
+          "Fraud disputes"
+        ]
+      }
+    },
+    "/api/v1/driver/fraud-holds/{flag_id}/disputes": {
+      "post": {
+        "operationId": "driver_create_fraud_dispute_api_v1_driver_fraud_holds__flag_id__disputes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "flag_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Flag Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FraudDisputeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverFraudDisputeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Driver Create Fraud Dispute",
+        "tags": [
+          "Fraud disputes"
         ]
       }
     },

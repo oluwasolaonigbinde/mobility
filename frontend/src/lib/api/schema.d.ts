@@ -247,6 +247,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/fraud-disputes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Get Fraud Disputes */
+        get: operations["admin_get_fraud_disputes_api_v1_admin_fraud_disputes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/fraud-disputes/{dispute_id}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Reply To Fraud Dispute */
+        post: operations["admin_reply_to_fraud_dispute_api_v1_admin_fraud_disputes__dispute_id__reply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/fraud-flags": {
         parameters: {
             query?: never;
@@ -1194,6 +1228,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/driver/fraud-holds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Driver Get Fraud Holds */
+        get: operations["driver_get_fraud_holds_api_v1_driver_fraud_holds_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/fraud-holds/{flag_id}/disputes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Driver Create Fraud Dispute */
+        post: operations["driver_create_fraud_dispute_api_v1_driver_fraud_holds__flag_id__disputes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/driver/profile": {
         parameters: {
             query?: never;
@@ -1573,6 +1641,59 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
+        };
+        /** AdminFraudDisputeList */
+        AdminFraudDisputeList: {
+            /** Items */
+            items: components["schemas"]["AdminFraudDisputeRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** AdminFraudDisputeRead */
+        AdminFraudDisputeRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /**
+             * Fraud Flag Id
+             * Format: uuid
+             */
+            fraud_flag_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Message */
+            message: string;
+            /** Replied At */
+            replied_at: string | null;
+            /** Replied By User Id */
+            replied_by_user_id: string | null;
+            /** Reply */
+            reply: string | null;
+            status: components["schemas"]["FraudDisputeStatus"];
+            /**
+             * Submitted By User Id
+             * Format: uuid
+             */
+            submitted_by_user_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** AdminOrganizationCreateResponse */
         AdminOrganizationCreateResponse: {
@@ -2817,6 +2938,105 @@ export interface components {
             /** Totals By Currency */
             totals_by_currency: components["schemas"]["DriverEarningsCurrencySummary"][];
         };
+        /** DriverFraudDisputeRead */
+        DriverFraudDisputeRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Message */
+            message: string;
+            /** Replied At */
+            replied_at: string | null;
+            /** Reply */
+            reply: string | null;
+            status: components["schemas"]["FraudDisputeStatus"];
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+        };
+        /** DriverFraudHoldList */
+        DriverFraudHoldList: {
+            /** Items */
+            items: components["schemas"]["DriverFraudHoldRead"][];
+        };
+        /** DriverFraudHoldRead */
+        DriverFraudHoldRead: {
+            /**
+             * Detected At
+             * Format: date-time
+             */
+            detected_at: string;
+            dispute: components["schemas"]["DriverFraudDisputeRead"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Notices */
+            notices?: components["schemas"]["DriverNotificationRead"][];
+            /**
+             * Public Status
+             * @enum {string}
+             */
+            public_status: "assessment_pending" | "under_review" | "issue_confirmed" | "review_cleared";
+            reason: components["schemas"]["DriverFraudHoldReason"];
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
+        };
+        /** DriverFraudHoldReason */
+        DriverFraudHoldReason: {
+            /** Body */
+            body: string;
+            /** Code */
+            code: string;
+            /** Title */
+            title: string;
+            /**
+             * Version
+             * @default v1
+             * @constant
+             */
+            version: "v1";
+        };
+        /** DriverNotificationRead */
+        DriverNotificationRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Fraud Dispute Id */
+            fraud_dispute_id?: string | null;
+            /**
+             * Fraud Flag Id
+             * Format: uuid
+             */
+            fraud_flag_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Outcome */
+            outcome?: string | null;
+            /** Template Version */
+            template_version: string;
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
+            type_key: components["schemas"]["NotificationType"];
+        };
         /**
          * DriverOnboardingStatus
          * @enum {string}
@@ -3061,6 +3281,21 @@ export interface components {
             /** Traffic Density Profile Id */
             traffic_density_profile_id?: string | null;
         };
+        /** FraudDisputeCreate */
+        FraudDisputeCreate: {
+            /** Message */
+            message: string;
+        };
+        /** FraudDisputeReply */
+        FraudDisputeReply: {
+            /** Reply */
+            reply: string;
+        };
+        /**
+         * FraudDisputeStatus
+         * @enum {string}
+         */
+        FraudDisputeStatus: "open" | "replied";
         /** FraudFlagCounts */
         FraudFlagCounts: {
             /**
@@ -3545,6 +3780,11 @@ export interface components {
          * @enum {string}
          */
         MembershipStatus: "active" | "invited" | "disabled";
+        /**
+         * NotificationType
+         * @enum {string}
+         */
+        NotificationType: "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied";
         /** OrganizationMembershipRead */
         OrganizationMembershipRead: {
             role: components["schemas"]["MembershipRole"];
@@ -5334,6 +5574,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminVehicleRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_get_fraud_disputes_api_v1_admin_fraud_disputes_get: {
+        parameters: {
+            query?: {
+                flag_id?: string[] | null;
+                status?: components["schemas"]["FraudDisputeStatus"] | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFraudDisputeList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_reply_to_fraud_dispute_api_v1_admin_fraud_disputes__dispute_id__reply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dispute_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FraudDisputeReply"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFraudDisputeRead"];
                 };
             };
             /** @description Validation Error */
@@ -7514,6 +7823,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriverEarningsSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    driver_get_fraud_holds_api_v1_driver_fraud_holds_get: {
+        parameters: {
+            query?: {
+                trip_session_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverFraudHoldList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    driver_create_fraud_dispute_api_v1_driver_fraud_holds__flag_id__disputes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                flag_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FraudDisputeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverFraudDisputeRead"];
                 };
             };
             /** @description Validation Error */

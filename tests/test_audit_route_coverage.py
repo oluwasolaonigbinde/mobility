@@ -109,6 +109,12 @@ AUDITED = {
     ("POST", "/api/v1/admin/fraud-flags/{flag_id}/review/resolve"): (
         "admin.fraud_flag.resolved"
     ),
+    ("POST", "/api/v1/driver/fraud-holds/{flag_id}/disputes"): (
+        "driver.fraud_dispute.created"
+    ),
+    ("POST", "/api/v1/admin/fraud-disputes/{dispute_id}/reply"): (
+        "admin.fraud_dispute.replied"
+    ),
     ("POST", "/api/v1/admin/traffic-density-profiles"): (
         "admin.traffic_density_profile.created"
     ),

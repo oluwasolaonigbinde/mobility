@@ -15,6 +15,7 @@ from app.models.trip_analytics import (
     FraudFlagStatus,
 )
 from app.services.audit import create_audit_event
+from app.services.notifications import create_fraud_review_resolved_notice
 
 HOLD_ACTIVE_STATUSES = frozenset(
     {
@@ -225,6 +226,11 @@ async def _review_fraud_flag(
             "resolution_note": normalized_note,
         },
     )
+    if target_status in {
+        FraudFlagStatus.CONFIRMED.value,
+        FraudFlagStatus.DISMISSED.value,
+    }:
+        await create_fraud_review_resolved_notice(session, flag)
     return FraudReviewResult(flag=flag, previous_status=previous_status, changed=True)
 
 

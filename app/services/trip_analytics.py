@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
@@ -14,6 +14,7 @@ from app.core.errors import AppError
 from app.db.integrity import is_expected_uniqueness_conflict
 from app.models.campaign_zone import CampaignZoneType
 from app.models.driver import DriverProfile
+from app.models.fraud_dispute import FraudDispute
 from app.models.trip import LocationPing, TripSession, TripSessionStatus
 from app.models.trip_analytics import (
     FraudFlag,
@@ -30,15 +31,13 @@ from app.services.fraud_holds import (
     fraud_hold_counts,
     lock_fraud_hold_scope,
 )
+from app.services.notifications import create_fraud_hold_raised_notice
 from app.services.provenance import stable_source_fingerprint
 from app.services.trips import trip_not_found
 
 DECIMAL_2 = Decimal("0.01")
 DECIMAL_4 = Decimal("0.0001")
 ANALYTICS_ROW_CONSTRAINTS = frozenset({"uq_trip_analytics_trip_session_id"})
-NONTERMINAL_FLAG_CONSTRAINTS = frozenset(
-    {"uq_fraud_flags_trip_nonterminal_flag_type"}
-)
 BASE_ANALYTICS_FLAG_TYPES = frozenset(
     {
         FraudFlagType.INSUFFICIENT_PINGS.value,
@@ -554,51 +553,79 @@ async def replace_open_fraud_flags(
     detected_at: datetime,
 ) -> list[FraudFlag]:
     await lock_fraud_hold_scope(session, trip.id)
-    for attempt in range(2):
-        flags = build_fraud_flags(
+    detected = {
+        flag.flag_type: flag
+        for flag in build_fraud_flags(
             trip=trip,
             analytics=analytics,
             metrics=metrics,
             settings=settings,
             detected_at=detected_at,
         )
-        reviewed_types = set(
+    }
+    existing = list(
+        (
+            await session.scalars(
+                select(FraudFlag)
+                .where(
+                    FraudFlag.trip_session_id == trip.id,
+                    FraudFlag.flag_type.in_(BASE_ANALYTICS_FLAG_TYPES),
+                    fraud_hold_active_clause(),
+                )
+                .with_for_update()
+            )
+        ).all()
+    )
+    disputed_ids = (
+        set(
             (
                 await session.scalars(
-                    select(FraudFlag.flag_type).where(
-                        FraudFlag.trip_session_id == trip.id,
-                        FraudFlag.flag_type.in_(BASE_ANALYTICS_FLAG_TYPES),
-                        fraud_hold_active_clause(),
-                        FraudFlag.status != FraudFlagStatus.OPEN.value,
+                    select(FraudDispute.fraud_flag_id).where(
+                        FraudDispute.fraud_flag_id.in_([flag.id for flag in existing])
                     )
                 )
             ).all()
         )
-        flags = [flag for flag in flags if flag.flag_type not in reviewed_types]
-        try:
-            async with session.begin_nested():
-                await session.execute(
-                    delete(FraudFlag).where(
-                        FraudFlag.trip_session_id == trip.id,
-                        FraudFlag.status == FraudFlagStatus.OPEN.value,
-                        FraudFlag.flag_type.in_(BASE_ANALYTICS_FLAG_TYPES),
-                    )
-                )
-                session.add_all(flags)
+        if existing
+        else set()
+    )
+    by_type = {flag.flag_type: flag for flag in existing}
+    result: list[FraudFlag] = []
+    for flag_type, candidate in detected.items():
+        flag = by_type.get(flag_type)
+        if flag is not None:
+            if flag.status == FraudFlagStatus.OPEN.value and flag.id not in disputed_ids:
+                for field in (
+                    "trip_analytics_id",
+                    "assignment_id",
+                    "campaign_id",
+                    "driver_profile_id",
+                    "vehicle_id",
+                    "severity",
+                    "description",
+                    "evidence",
+                    "detected_at",
+                ):
+                    setattr(flag, field, getattr(candidate, field))
                 await session.flush()
-        except IntegrityError as exc:
-            if not is_expected_uniqueness_conflict(
-                exc,
-                constraints=NONTERMINAL_FLAG_CONSTRAINTS,
-            ):
-                raise
-            if attempt == 1:
-                raise
+                await session.refresh(flag)
+            result.append(flag)
             continue
-        for flag in flags:
-            await session.refresh(flag)
-        return flags
-    raise AssertionError("open fraud flag replacement exhausted retries")
+        session.add(candidate)
+        await session.flush()
+        await session.refresh(candidate)
+        await create_fraud_hold_raised_notice(session, candidate)
+        result.append(candidate)
+
+    for flag in existing:
+        if (
+            flag.flag_type not in detected
+            and flag.status == FraudFlagStatus.OPEN.value
+            and flag.id not in disputed_ids
+        ):
+            await session.delete(flag)
+    await session.flush()
+    return result
 
 
 async def recompute_trip_analytics(

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.db.integrity import is_expected_uniqueness_conflict
+from app.models.fraud_dispute import FraudDispute
 from app.models.route_replay import RouteReplaySignature, RouteReplayStatus
 from app.models.trip import LocationPing, TripSession
 from app.models.trip_analytics import (
@@ -26,6 +27,7 @@ from app.services.fraud_holds import (
     lock_fraud_hold_scope,
     lock_fraud_reconciliation_gate,
 )
+from app.services.notifications import create_fraud_hold_raised_notice
 from app.services.provenance import stable_source_fingerprint
 from app.services.trip_analytics import analytics_output_fingerprint
 
@@ -345,6 +347,7 @@ async def _cleanup_group_open_flags(
         FraudFlag.trip_session_id.in_(select(members.c.trip_id)),
         FraudFlag.flag_type == FraudFlagType.ROUTE_REPLAY.value,
         FraudFlag.status == FraudFlagStatus.OPEN.value,
+        ~select(FraudDispute.id).where(FraudDispute.fraud_flag_id == FraudFlag.id).exists(),
     ]
     if keep_trip_id is not None:
         conditions.append(FraudFlag.trip_session_id != keep_trip_id)
@@ -363,6 +366,7 @@ async def _remove_open_replay_flag(session: AsyncSession, trip_id: UUID) -> bool
             FraudFlag.trip_session_id == trip_id,
             FraudFlag.flag_type == FraudFlagType.ROUTE_REPLAY.value,
             FraudFlag.status == FraudFlagStatus.OPEN.value,
+            ~select(FraudDispute.id).where(FraudDispute.fraud_flag_id == FraudFlag.id).exists(),
         )
         .execution_options(synchronize_session=False)
     )
@@ -404,6 +408,10 @@ async def _write_replay_flag(
     flag = await _nonterminal_replay_flag(session, trip.id)
     if flag is not None and flag.status != FraudFlagStatus.OPEN.value:
         return flag, False
+    if flag is not None and await session.scalar(
+        select(FraudDispute.id).where(FraudDispute.fraud_flag_id == flag.id)
+    ):
+        return flag, False
     if flag is None:
         candidate = FraudFlag(
             trip_session_id=trip.id,
@@ -428,8 +436,11 @@ async def _write_replay_flag(
                 return flag, False
         else:
             await session.refresh(candidate)
+            await create_fraud_hold_raised_notice(session, candidate)
             return candidate, True
 
+    if await session.scalar(select(FraudDispute.id).where(FraudDispute.fraud_flag_id == flag.id)):
+        return flag, False
     changed = any(getattr(flag, field) != value for field, value in values.items())
     for field, value in values.items():
         setattr(flag, field, value)

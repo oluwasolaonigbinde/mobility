@@ -12,7 +12,9 @@ import app.models.campaign_zone  # noqa: E402,F401
 import app.models.data_purge  # noqa: E402,F401
 import app.models.driver  # noqa: E402,F401
 import app.models.fraud_assessment  # noqa: E402,F401
+import app.models.fraud_dispute  # noqa: E402,F401
 import app.models.impression  # noqa: E402,F401
+import app.models.notification  # noqa: E402,F401
 import app.models.organization  # noqa: E402,F401
 import app.models.payout  # noqa: E402,F401
 import app.models.route_replay  # noqa: E402,F401
