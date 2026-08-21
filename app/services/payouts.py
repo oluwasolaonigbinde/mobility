@@ -2987,6 +2987,7 @@ class DayTripTarget:
     target_amount: Decimal
     delta_amount: Decimal
     eligible_seconds: int
+    excluded_seconds_by_reason: dict[str, int]
     payable_seconds: int
     payable_by_day: dict[str, int]
     payable_by_day_tier: dict[str, dict[str, int]] | None
@@ -3260,6 +3261,7 @@ async def compute_payout_day_targets(
         # analytics healed after the write-once calculation (D9).
         if voided or calculation.status == PayoutCalculationStatus.BLOCKED.value:
             eligible_seconds = 0
+            excluded_seconds_by_reason: dict[str, int] = {}
             payable_seconds = 0
             payable_by_day: dict[str, int] = {}
             if formula_version == PAYOUT_V3:
@@ -3279,6 +3281,7 @@ async def compute_payout_day_targets(
                 params=v2_params,
             )
             eligible_seconds = breakdown.eligible_seconds
+            excluded_seconds_by_reason = breakdown.excluded_seconds_by_reason
             # Re-allocate only the day being recomputed; the trip's seconds on
             # any other Lagos day keep their stored allocation, because those
             # days' caps are not being re-run under this lock (RM1). A prior
@@ -3338,6 +3341,7 @@ async def compute_payout_day_targets(
                 ),
             }
             eligible_seconds = breakdown.eligible_seconds
+            excluded_seconds_by_reason = breakdown.excluded_seconds_by_reason
             # PR4 chronological fill of the recomputed day only: the trip's
             # earliest eligible seconds on this day draw the shared pool
             # first, whatever their tier.
@@ -3412,6 +3416,7 @@ async def compute_payout_day_targets(
                 target_amount=target_amount,
                 delta_amount=delta,
                 eligible_seconds=eligible_seconds,
+                excluded_seconds_by_reason=excluded_seconds_by_reason,
                 payable_seconds=payable_seconds,
                 payable_by_day=payable_by_day,
                 payable_by_day_tier=payable_by_day_tier,
@@ -3504,6 +3509,7 @@ async def write_day_differentials(
                 )
             breakdown_metadata = {
                 "eligible_seconds": target.eligible_seconds,
+                "excluded_seconds_by_reason": target.excluded_seconds_by_reason,
                 "payable_seconds": target.payable_seconds,
                 "payable_seconds_by_day": target.payable_by_day,
                 "hourly_rate_naira": str(target.hourly_rate),
@@ -3736,6 +3742,36 @@ def _tier_breakdown_from_stored_metadata(
     )
 
 
+def _recompute_explanation_from_stored_metadata(
+    source: dict,
+) -> tuple[int | None, dict[str, int] | None] | None:
+    """Validate the paired driver-explanation values on a recompute entry.
+
+    Legacy entries did not store exclusion reasons. They remain authoritative
+    for their stored eligible seconds, but the missing reason map is unknown —
+    it must never fall back to the superseded calculation's stale reasons.
+    """
+    eligible_raw = source.get("eligible_seconds")
+    if eligible_raw is None:
+        eligible_seconds = None
+    elif type(eligible_raw) is int and eligible_raw >= 0:
+        eligible_seconds = eligible_raw
+    else:
+        return None
+
+    if "excluded_seconds_by_reason" not in source:
+        return eligible_seconds, None
+    excluded_raw = source["excluded_seconds_by_reason"]
+    if not isinstance(excluded_raw, dict):
+        return None
+    excluded: dict[str, int] = {}
+    for reason, seconds in excluded_raw.items():
+        if not isinstance(reason, str) or not reason or type(seconds) is not int or seconds < 0:
+            return None
+        excluded[reason] = seconds
+    return eligible_seconds, excluded
+
+
 async def driver_trip_earnings_breakdown(
     session: AsyncSession,
     *,
@@ -3827,7 +3863,9 @@ async def driver_trip_earnings_breakdown(
                 ) = tier
                 hourly_rate = base_hourly_rate
 
-        authoritative_recompute_entries = []
+        authoritative_recompute_entries: list[
+            tuple[EarningsLedgerEntry, tuple[int | None, dict[str, int] | None]]
+        ] = []
         for entry in entries:
             entry_metadata = entry.ledger_metadata or {}
             stored = entry_metadata.get("breakdown")
@@ -3848,14 +3886,15 @@ async def driver_trip_earnings_breakdown(
                 _tier_breakdown_from_stored_metadata(stored) is None
             ):
                 continue
-            authoritative_recompute_entries.append(entry)
+            explanation = _recompute_explanation_from_stored_metadata(stored)
+            if explanation is None:
+                continue
+            authoritative_recompute_entries.append((entry, explanation))
 
         if authoritative_recompute_entries:
             superseded = True
-            newest = authoritative_recompute_entries[-1]
+            newest, (eligible_seconds, excluded) = authoritative_recompute_entries[-1]
             stored = (newest.ledger_metadata or {}).get("breakdown") or {}
-            if stored.get("eligible_seconds") is not None:
-                eligible_seconds = int(stored["eligible_seconds"])
             if stored.get("payable_seconds") is not None:
                 capped_seconds = int(stored["payable_seconds"])
             if stored.get("hourly_rate_naira") is not None:

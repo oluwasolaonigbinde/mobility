@@ -41,6 +41,7 @@ from app.models.payout import (
     EarningsLedgerEntry,
     EarningsLedgerEntryStatus,
     EarningsLedgerEntryType,
+    PayoutCalculation,
     PayoutCorrectionOrder,
     PayoutCorrectionOrderStatus,
 )
@@ -1000,10 +1001,48 @@ def test_mixed_v2_v3_day_shares_one_cap_pool_through_an_order(
 
     corrected = asyncio.run(driver_breakdown())
     assert corrected.superseded_by_recompute is True
+    assert corrected.excluded_seconds_by_reason == breakdown["excluded_seconds_by_reason"]
     assert corrected.base_payable_seconds == 1800
     assert corrected.premium_payable_seconds == 0
     assert corrected.base_amount == Decimal("600.00")
     assert corrected.premium_amount == Decimal("0.00")
+
+    async def replace_explanation(*, eligible: int, excluded: dict[str, int] | None) -> None:
+        async with postgis_db_sessionmaker() as session:
+            stored_entry = await session.get(EarningsLedgerEntry, entry.id)
+            metadata = dict(stored_entry.ledger_metadata or {})
+            stored_breakdown = dict(metadata["breakdown"])
+            stored_breakdown["eligible_seconds"] = eligible
+            if excluded is None:
+                stored_breakdown.pop("excluded_seconds_by_reason", None)
+            else:
+                stored_breakdown["excluded_seconds_by_reason"] = excluded
+            metadata["breakdown"] = stored_breakdown
+            stored_entry.ledger_metadata = metadata
+
+            calculation = await session.scalar(
+                select(PayoutCalculation).where(PayoutCalculation.trip_session_id == graph.trip2.id)
+            )
+            calculation.excluded_seconds_by_reason = {"stale_original_reason": 77}
+            await session.commit()
+
+    # Both explanation fields come from the same newest recompute breakdown.
+    asyncio.run(replace_explanation(eligible=123, excluded={"changed_reason": 45}))
+    changed = asyncio.run(driver_breakdown())
+    assert changed.eligible_seconds == 123
+    assert changed.excluded_seconds_by_reason == {"changed_reason": 45}
+
+    # A deliberately empty fresh map clears the superseded calculation's
+    # reasons; a legacy recompute without the field reports unknown instead.
+    asyncio.run(replace_explanation(eligible=124, excluded={}))
+    cleared = asyncio.run(driver_breakdown())
+    assert cleared.eligible_seconds == 124
+    assert cleared.excluded_seconds_by_reason == {}
+    asyncio.run(replace_explanation(eligible=125, excluded=None))
+    legacy = asyncio.run(driver_breakdown())
+    assert legacy.superseded_by_recompute is True
+    assert legacy.eligible_seconds == 125
+    assert legacy.excluded_seconds_by_reason is None
 
     # While the correction remains authoritative, unchanged inputs project no
     # further money movement.
@@ -1033,6 +1072,7 @@ def test_mixed_v2_v3_day_shares_one_cap_pool_through_an_order(
     asyncio.run(void_correction())
     fallback = asyncio.run(driver_breakdown())
     assert fallback.superseded_by_recompute is False
+    assert fallback.excluded_seconds_by_reason == {"stale_original_reason": 77}
     assert fallback.base_payable_seconds == 900
     assert fallback.premium_payable_seconds == 0
     assert fallback.base_amount == Decimal("300.00")
