@@ -82,6 +82,14 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    connection = op.get_bind()
+    if connection.execute(
+        sa.text("SELECT 1 FROM assignment_rule_bindings LIMIT 1")
+    ).first() is not None:
+        raise RuntimeError(
+            "Refusing to downgrade 0021: assignment_rule_bindings contains "
+            "authoritative frozen payout_v3 terms"
+        )
     op.drop_column("assignment_rule_bindings", "exclusion_zone_geometry_wkts")
     op.drop_column("assignment_rule_bindings", "exclusion_zone_geometry_hash")
     op.drop_column("assignment_rule_bindings", "exclusion_zone_ids")

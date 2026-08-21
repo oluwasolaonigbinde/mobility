@@ -108,6 +108,21 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    connection = op.get_bind()
+    populated_order = connection.execute(
+        sa.text("SELECT 1 FROM payout_correction_orders LIMIT 1")
+    ).first()
+    populated_release = connection.execute(
+        sa.text(
+            "SELECT 1 FROM earnings_ledger_entries "
+            "WHERE release_at IS NOT NULL LIMIT 1"
+        )
+    ).first()
+    if populated_order is not None or populated_release is not None:
+        raise RuntimeError(
+            "Refusing to downgrade 0020: payout correction orders or release "
+            "timestamps contain authoritative financial state"
+        )
     op.drop_column("earnings_ledger_entries", "release_at")
     op.drop_index(
         "ix_payout_correction_orders_campaign_day",
