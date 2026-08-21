@@ -96,6 +96,14 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    connection = op.get_bind()
+    if connection.execute(
+        sa.text("SELECT 1 FROM assignment_rule_bindings LIMIT 1")
+    ).first() is not None:
+        raise RuntimeError(
+            "Refusing to downgrade 0019: assignment_rule_bindings contains "
+            "authoritative accepted payout terms"
+        )
     op.drop_index(
         "ix_assignment_rule_bindings_revision_id",
         table_name="assignment_rule_bindings",

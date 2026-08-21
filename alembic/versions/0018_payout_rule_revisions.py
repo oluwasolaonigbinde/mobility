@@ -129,6 +129,14 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    connection = op.get_bind()
+    if connection.execute(
+        sa.text("SELECT 1 FROM campaign_payout_rule_revisions LIMIT 1")
+    ).first() is not None:
+        raise RuntimeError(
+            "Refusing to downgrade 0018: campaign_payout_rule_revisions contains "
+            "authoritative payout history"
+        )
     op.drop_index(
         "ix_campaign_payout_rule_revisions_payout_rule_id",
         table_name="campaign_payout_rule_revisions",

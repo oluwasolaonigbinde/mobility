@@ -5,7 +5,8 @@ backfill writes exactly one payout_v3 genesis revision per campaign from its
 ACTIVE payout_v2 rule — values copied verbatim (money-neutral: v2 pricing
 keeps reading the frozen rule row), effective_from = the rule's created_at,
 the PR9 honesty reason recorded — while v1 rules and inactive v2 rules are
-not backfilled. Downgrade drops the table and the chain re-upgrades green.
+not backfilled. Populated downgrades fail closed; after explicit data removal
+the empty-schema downgrade/re-upgrade cycle remains valid.
 """
 
 import asyncio
@@ -13,7 +14,9 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 
+import pytest
 from conftest import create_test_campaign, create_test_organization, create_test_user
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 from test_migration_0014_partitioning import (
@@ -34,6 +37,15 @@ BACKFILL_REASON = (
     "backfill: values as observed at migration 0018; pre-migration mutation"
     " history not reconstructed (names-only audit)"
 )
+
+
+async def execute_sql(migration_url: str, statement: str) -> None:
+    engine = create_async_engine(migration_url, poolclass=NullPool)
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(text(statement))
+    finally:
+        await engine.dispose()
 
 
 def seed_rules_at_0017(migration_url: str) -> SimpleNamespace:
@@ -164,7 +176,16 @@ def test_backfill_writes_one_genesis_revision_per_active_v2_rule(monkeypatch) ->
         )
         assert rule_rows == [(Decimal("1200.00"), Decimal("8.00"), "active")]
 
-        # Downgrade drops the table; the chain re-upgrades and re-backfills.
+        # Populated authoritative history is never silently destroyed.
+        with pytest.raises(RuntimeError, match="Refusing to downgrade 0018"):
+            downgrade_to(migration_url, REVISION_PRE_REVISIONS, monkeypatch)
+        assert asyncio.run(
+            fetch_all(migration_url, "SELECT count(*) FROM campaign_payout_rule_revisions")
+        ) == [(1,)]
+
+        # Empty-schema down/up behaviour remains available after an explicit,
+        # operator-owned removal of the authoritative rows.
+        asyncio.run(execute_sql(migration_url, "DELETE FROM campaign_payout_rule_revisions"))
         downgrade_to(migration_url, REVISION_PRE_REVISIONS, monkeypatch)
         tables = asyncio.run(
             fetch_all(
