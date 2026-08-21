@@ -61,14 +61,14 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 **Controller state:** `ACTIVE`
 **Control package:** `PKG-02` — see package queue row 2 and package card.
 **Current checkpoint:** `PKG-02 / MNY-08A` — non-authorizing internal pointer;
-PKG-02 is promoted but no implementation has started.
+the reviewed Package 2 contract is active and this is the first runnable item.
 
 ## Executable package queue
 
 | # | Package | Status | Outcome | Package prerequisites |
 | ---: | --- | --- | --- | --- |
 | 1 | **PKG-01 — foundations and empirical risk proof** | DONE | Resolve remaining foundations, production-PWA/staging risk and correction authority. | none |
-| 2 | **PKG-02 — money integrity and payout operations** | **NEXT** | Fraud holds, release, protected payees, payout batches and debt work end to end. | none — checklist DAG gates entry |
+| 2 | **PKG-02 — money integrity and payout operations** | **IN PROGRESS** | Fraud holds, release, protected payees, payout batches and debt work end to end. | none — checklist DAG gates entry |
 | 3 | **PKG-03 — commercial contracts and billing** | QUEUED | Accepted terms, receipts, invoices, funding, refunds and budgets form one money-safe flow. | none — checklist DAG gates entry |
 | 4 | **PKG-04 — secure evidence, activation and communications** | QUEUED | Secure files/KYC, campaign evidence/activation/cancellation and notifications integrate. | none — checklist DAG gates entry |
 | 5 | **PKG-05 — privacy, measurement and retargeting** | QUEUED | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
@@ -171,6 +171,19 @@ PKG-02 is promoted but no implementation has started.
 
 - **Owns:** checklist 10–18. One plan integrates assessment/hold, release,
   protected payee, reservation/reconciliation and post-payment debt semantics.
+- **Package plan (activated 21 Aug 2026, canonical branch `feat/pkg-02`):**
+  controller Lane A owns MNY-08A → MNY-09A → MNY-08B, then MNY-08C and
+  MNY-03A. The separately commissioned GPT-5.6 Pro Lane B owns MNY-10A →
+  MNY-10B → MNY-10C → MNY-11A after consuming Lane A's exact authoritative
+  hold-contract SHA; this owner-directed edge deliberately prevents a second
+  hold predicate even though MNY-10A has no checklist prerequisite. Migration,
+  payout-model/service, worker registry, API baseline, balance and authority-doc
+  edits are controller-serialized with exact leases and disjoint manifests.
+  Public endpoint/schema changes and all three §9 baselines land together once
+  during controlled integration. Independent package-plan review found no
+  critical issue; its material invariant, ownership, contract-boundary and risk
+  corrections are reconciled in the uncommitted controller ledger at
+  `.codex/delivery/cardvert-pkg02/plan-ledger.md`.
 - **Closure:** every money invariant passes concurrency/property/e2e testing and
   independent money/security review.
 
