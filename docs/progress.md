@@ -61,9 +61,8 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 **Controller state:** `ACTIVE`
 **Control package:** `PKG-02` — see package queue row 2 and package card.
 **Current checkpoint:** `PKG-02 / MNY-03A` — non-authorizing internal pointer;
-MNY-08A/MNY-09A/MNY-08B/MNY-08C and PKG02-C0 are complete. The controller is
-executing prerequisite correction PKG02-C1 before MNY-03A, as recorded in the
-Package 2 card.
+MNY-08A/MNY-09A/MNY-08B/MNY-08C and PKG02-C0/C1 are complete. MNY-03A is the
+active controller-owned checklist item.
 
 ## Executable package queue
 
@@ -190,7 +189,7 @@ Package 2 card.
   these are controller-owned prerequisites inside the existing program, not
   new approvals or permission to reorder the queue. **PKG02-C0 (DONE with
   MNY-08C):** corrected driver explanations use corrected excluded-reason
-  provenance, never original-calculation metadata. **PKG02-C1 (ACTIVE before
+  provenance, never original-calculation metadata. **PKG02-C1 (DONE before
   MNY-03A, MNY-10B and PKG-02 closure):** unify the DB/application clock and shared
   acceptance-versus-revision serialization; freeze the accepted campaign
   payment window in payout-v3 bindings; make populated downgrades `0018`–`0021`
@@ -272,6 +271,22 @@ Package 2 card.
   dispute→reply→reload journey. The privacy/security recheck resolved one
   combined correction round. No real-device, route, staging, pilot or
   user-feedback validation is claimed.
+- **PKG02-C1 evidence (DONE 21 Aug 2026):** migration `0026` freezes nullable
+  accepted campaign windows on new payout-v3 bindings; legacy provenance fails
+  closed. Assignment acceptance and revision publication share one
+  campaign-scoped transaction lock and PostgreSQL wall clock. Payout-v3
+  calculation, staleness, correction fingerprints and persisted money metadata
+  consume the frozen window, while mixed v2 corrections retain live-window
+  sensitivity. Populated downgrades `0018`–`0021` and authoritative `0026`
+  data fail before destructive DDL. Correction projection locks every
+  overlapping trip in stable UUID order before the selected-day cap lock, then
+  allocates cap chronologically. Verified: 13 focused historical migration
+  cases, 11 focused terms/window cases, 8 controller-rerun migration cases,
+  5 combined clock/window/race cases, nullable metadata and v3-correction
+  regressions, and adjacent-day opposing-order half-cent/deadlock/stale/retry
+  coverage. One specialist review's two medium evidence gaps were corrected in
+  one round and rechecked RESOLVED. No API baseline or external/live claim
+  changed.
 
 ### PKG-03 — commercial contracts and billing
 
@@ -1419,7 +1434,7 @@ and Git history win.
 | S4 — data lifecycle (ping partitions, retention purge, audit backfill, D10) | Complete, merged | Git `a879a3d`…`4f487e7`; architecture v1.9, §24.2 [BUILT] |
 | W0-F — trip finality protocol + durable client queue (RM3/RM4/RM5, D15) | Complete — sealed-only money chain, post-seal quarantine, IndexedDB queue with stable retry keys; independently reviewed and hardened (D16: apply-after-initial-payout, pre-seal analytics recompute, fail-closed client) | Migrations `0016`+`0017`; architecture v1.16/v1.17; `tests/test_trip_seal.py`; live compose e2e |
 | Pre-production ops (production Compose overlay, release smoke, backup/restore rehearsal) | Complete locally, **not deployed** | Git from `006d94e`; `docker-compose.production.yml`, `docs/runbook.md` |
-| Current API contract | 25 migrations; controlled PKG-02 baseline integration completed at MNY-08C | Migration `0025`, driver fraud-hold/dispute projections, admin dispute read/reply operations and typed notice schemas are synchronized across `docs/api/openapi.snapshot.json`, `openapi.json` and `schema.d.ts`. Later package endpoints must preserve this reviewed contract and move all three artifacts together. |
+| Current API contract | 26 migrations; controlled public baseline integration completed at MNY-08C | Migration `0026` is internal payout authority only and does not change the public contract. Driver fraud-hold/dispute projections, admin dispute read/reply operations and typed notice schemas remain synchronized across `docs/api/openapi.snapshot.json`, `openapi.json` and `schema.d.ts`. Later public endpoint/schema work must move all three artifacts together. |
 
 **Nothing is deployed.** Staging/production remain research-only
 (`docs/staging-options.md`) pending provider, budget, and operator approval

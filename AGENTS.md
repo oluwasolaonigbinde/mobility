@@ -11,6 +11,11 @@ or editing anything, read these sources in order:
 5. The nearest nested `AGENTS.md`, when editing inside a directory that has
    one (for example `frontend/AGENTS.md`).
 
+After those authorities, consult only the active-package and inherited-seam
+sections of `docs/pro-review-register.md`. It is advisory revalidation context,
+never a second queue, architecture source, decision log, or implementation
+authorization.
+
 ## The execution lock
 
 - Implement only the package marked `NEXT`, `IN PROGRESS`, or `REVIEW` in the
