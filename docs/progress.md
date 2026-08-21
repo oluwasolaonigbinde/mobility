@@ -60,8 +60,8 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 
 **Controller state:** `ACTIVE`
 **Control package:** `PKG-02` — see package queue row 2 and package card.
-**Current checkpoint:** `PKG-02 / MNY-08A` — non-authorizing internal pointer;
-the reviewed Package 2 contract is active and this is the first runnable item.
+**Current checkpoint:** `PKG-02 / MNY-09A` — non-authorizing internal pointer;
+MNY-08A is complete and the replay-detection checkpoint is now runnable.
 
 ## Executable package queue
 
@@ -186,6 +186,17 @@ the reviewed Package 2 contract is active and this is the first runnable item.
   `.codex/delivery/cardvert-pkg02/plan-ledger.md`.
 - **Closure:** every money invariant passes concurrency/property/e2e testing and
   independent money/security review.
+- **MNY-08A evidence (DONE 21 Aug 2026):** migration `0022` adds exactly one
+  current assessment row per sealed trip with `pending | clean | flagged |
+  error`, formula/source/input fingerprints and a current-flag provenance
+  watermark. The DB-derived sweep rejects stale formulas, analytics, flag sets,
+  pending and error states; retry and two-worker creation converge, while
+  evaluation failures persist only `assessment_evaluation_failed`. Verified:
+  empty upgrade plus downgrade/re-upgrade at the single `0022` head; 60 focused
+  Postgres tests including pre-existing-analytics concurrency and flag-change
+  reselection; 118 focused SQLite tests (11 expected Postgres skips); ruff and
+  diff checks clean. The independent money/concurrency specialist's two high
+  and one medium findings were corrected in one round and rechecked RESOLVED.
 
 ### PKG-03 — commercial contracts and billing
 
@@ -291,7 +302,7 @@ verification, gates or required specialist review.
 | 7 | **MNY-06A — immutable payout-rule revisions** | PKG-01 | DONE | Financial rule history becomes effective-dated, immutable and value-audited. | none |
 | 8 | **MNY-06B — assignment/trip rule binding and payout_v3** | PKG-01 | DONE | Accepted driver terms freeze base/premium rates, zone/eligibility revisions and the `payout_v3` rule used by each interval/trip. | leaf: MNY-06A |
 | 9 | **MNY-06C — maker-checker correction orders** | PKG-01 | DONE | Retroactive recompute requires a projected order and separate approver. | leaf: MNY-06B |
-| 10 | **MNY-08A — current fraud assessments** | PKG-02 | TODO | Every sealed trip has one current pending/clean/flagged/error assessment. | none |
+| 10 | **MNY-08A — current fraud assessments** | PKG-02 | DONE | Every sealed trip has one current pending/clean/flagged/error assessment. | none |
 | 11 | **MNY-09A — cross-trip/account replay detection** | PKG-02 | TODO | Identical and time-shifted route replay becomes reviewable evidence. | leaf: MNY-08A |
 | 12 | **MNY-08B — review states and hold invariant** | PKG-02 | TODO | One serialized transition table and hold predicate controls all money consumers. | leaf: MNY-08A, MNY-09A |
 | 13 | **MNY-08C — driver reasons, disputes and in-app notice** | PKG-02 | TODO | Drivers can see holds, dispute them and receive sanitized outcomes. | leaf: MNY-08B |
@@ -1326,7 +1337,7 @@ and Git history win.
 | S4 — data lifecycle (ping partitions, retention purge, audit backfill, D10) | Complete, merged | Git `a879a3d`…`4f487e7`; architecture v1.9, §24.2 [BUILT] |
 | W0-F — trip finality protocol + durable client queue (RM3/RM4/RM5, D15) | Complete — sealed-only money chain, post-seal quarantine, IndexedDB queue with stable retry keys; independently reviewed and hardened (D16: apply-after-initial-payout, pre-seal analytics recompute, fail-closed client) | Migrations `0016`+`0017`; architecture v1.16/v1.17; `tests/test_trip_seal.py`; live compose e2e |
 | Pre-production ops (production Compose overlay, release smoke, backup/restore rehearsal) | Complete locally, **not deployed** | Git from `006d94e`; `docker-compose.production.yml`, `docs/runbook.md` |
-| Current API contract | 21 migrations, contract baselines current | `docs/api/openapi.snapshot.json` + `openapi.json` + `schema.d.ts` drift checks; PKG-01 baseline comparison byte-identical |
+| Current API contract | 22 migrations, contract baselines current | `docs/api/openapi.snapshot.json` + `openapi.json` + `schema.d.ts` drift checks; MNY-08A adds no public API surface, so baselines remain byte-identical pending the one controlled PKG-02 regeneration |
 
 **Nothing is deployed.** Staging/production remain research-only
 (`docs/staging-options.md`) pending provider, budget, and operator approval

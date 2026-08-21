@@ -449,9 +449,9 @@ queues/realtime ad hoc — §14 remains the one sanctioned design.
 
 ## 7. Data model
 
-### 7.1 Entities **[BUILT]** — 22 tables
+### 7.1 Entities **[BUILT]** — 27 tables
 
-<!-- verified 2026-08-03: grep -h "__tablename__" app/models/*.py | wc -l → 22 -->
+<!-- verified 2026-08-21: rg -o "__tablename__" app/models/*.py | wc -l → 27 -->
 
 Identity & orgs:
 
@@ -487,6 +487,7 @@ Matching & execution:
 | `campaign_activation_events` | Assignment lifecycle event log |
 | `trip_sessions` | A tracked drive under an assignment; denormalized FKs to campaign/driver/vehicle; timestamps only — **no geometry columns** (stale pre-S4 claim corrected; only `location_pings.geom` carries coordinates) |
 | `location_ping_batches` | Idempotent ingestion envelope (unique trip+key, payload hash, accepted count); purged by retention only when zero pings remain (§24.2.1) |
+| `quarantined_ping_batches` | Post-seal ping batches held for serialized admin apply/discard without automatic money recomputation (RM3/D15) |
 | `location_pings` | Individual GPS points per trip/batch; **monthly range-partitioned by `recorded_at`** with composite PK `(id, recorded_at)` (S4, migration `0014`, §24.2.2) |
 
 Derived (analytics → money):
@@ -495,8 +496,12 @@ Derived (analytics → money):
 |-------|------------------------------|
 | `trip_analytics` | Per-trip route metrics (distance, active time, zone overlap), `formula_version` |
 | `fraud_flags` | Typed/severity-classed flags against trips; links to trip_analytics. Status lifecycle `open \| acknowledged \| dismissed` (`ck_fraud_flags_status`); partial unique index `uq_fraud_flags_trip_open_flag_type` dedupes per flag type **only while `status='open'`** |
+| `fraud_assessments` | One current attempt per sealed trip (`pending \| clean \| flagged \| error`) with formula, analytics/input fingerprints and current-flag provenance; pending/error never count as successful-current |
 | `traffic_density_profiles` | Admin-managed density inputs for impression math |
 | `impression_estimates` | Per-trip estimated impressions + confidence, links density profile |
+| `campaign_payout_rule_revisions` | Append-only effective-dated payout-v3 rule revisions (MNY-06A) |
+| `assignment_rule_bindings` | Acceptance-time frozen payout terms and eligibility/geography fingerprints (MNY-06B) |
+| `payout_correction_orders` | Maker-checker projected correction lifecycle with value-complete evidence (MNY-06C) |
 | `payout_calculations` | Per-trip payout math snapshot (rule inputs + fraud multipliers) |
 | `earnings_ledger_entries` | Driver earnings ledger (typed, statused entries) |
 
@@ -510,21 +515,22 @@ Notes:
   PostgreSQL requires the partition key in unique constraints — S4);
   timestamps are timezone-aware with `func.now()` defaults; enums are Python
   `StrEnum` + DB check constraints (not native PG enums).
-- The derived chain is **trip_sessions → trip_analytics → (fraud_flags,
-  impression_estimates) → payout_calculations → earnings_ledger_entries**; each
-  step stores enough FK context (campaign, driver, vehicle) to be queried
+- The derived chain is **trip_sessions → trip_analytics → (fraud_flags →
+  fraud_assessments, impression_estimates) → payout_calculations →
+  earnings_ledger_entries**; each step stores enough context to be queried
   independently.
 - Target-state table additions (billing, notifications, files, audience, jobs)
   are specified in their Part III sections and indexed in §30.
 
 ### 7.2 Migration policy **[BUILT]**
 
-- Alembic, 17 linear migrations `0001`–`0017` (extensions → identity/orgs →
+- Alembic, 22 linear migrations `0001`–`0022` (extensions → identity/orgs →
   drivers/vehicles → campaigns/creatives → zones → assignments → trip tracking →
   analytics/fraud → impressions → payouts → F7 password management → F7 audit
   indexes → S1 payout v2 → S4 ping partitioning + purge evidence → RM1 payout-day
-  allocation → RM3 trip seal protocol + quarantine → seal review hardening).
-  <!-- verified 2026-08-09: ls alembic/versions → 17; alembic heads → single head 0017_seal_review_hardening -->
+  allocation → RM3 trip seal protocol + quarantine → seal review hardening →
+  immutable payout revisions/bindings/corrections → current fraud assessments).
+  <!-- verified 2026-08-21: ls alembic/versions → 22; alembic heads → single head 0022_current_fraud_assessments -->
   (Pre-existing doc drift note: this row still said "12" after S1 shipped
   0013 — corrected here in the S4 commit.)
 - `0001` enables `pgcrypto` + `postgis`.
@@ -1268,6 +1274,15 @@ The release sweep itself remains [TARGET] (MNY-03A).
 Q21 and Q22 are confirmed by D18. Shape fixed by D5 and RM8:
 **hold-and-review**. Automatic strike/suspension policy remains outside the
 adopted MVP rule unless separately recorded.
+
+**[BUILT — MNY-08A]:** every sealed trip now converges on one persisted current
+assessment attempt (`pending | clean | flagged | error`). Formula, analytics and
+canonical current-flag inputs are fingerprinted; the sweep also compares a
+flag-count/update watermark so later detection or review-state changes make an
+assessment due again. Only matching `clean`/`flagged` results are
+successful-current; `pending`, `error`, stale inputs and evaluation failures
+remain fail-closed. MNY-08B/MNY-03A still own the authoritative hold and release
+consumers below.
 
 - `fraud_flags` review lifecycle built on the **existing** statuses
   (`open | acknowledged | dismissed`, §7.1): `acknowledged` becomes the
@@ -2055,7 +2070,7 @@ the reviewer described.
 
 | ID | Origin | Status | Requirement | Owning section / slice |
 |----|--------|--------|-------------|------------------------|
-| **RM8** | F02/G4 | CODE-CONFIRMED (predicates) | Every fraud predicate today is **open-only** (`services/payouts.py:1037-1049`; min-floor gate `:1153-1163`; duplicate in `services/impressions.py:427-439`), statuses are `open/acknowledged/dismissed` with **no `confirmed`**, and the dedup index covers only `open` (`0008:338-342`). So `acknowledged` ("under review") currently reads identically to `dismissed`. Not yet exploitable — no acknowledge/dismiss endpoint exists — and the code comments the deferral. Also **no per-trip fraud-assessment record** exists: absence of a flag is indistinguishable from a clean assessment for any consumer. | Define one authoritative transition table with `hold_active` true for `open`, `acknowledged`, and unresolved `confirmed`; only `dismissed` releases. Add a per-trip assessment record (`pending/clean/flagged/error` + version + fingerprint) and require it current-and-successful before release. Extend the dedup index across non-terminal states. Serialize flag changes against release in one transaction. | §17, **S2 — before S3** |
+| **RM8** | F02/G4 | PARTIAL — MNY-08A assessment delivered; transition/hold/release remain | One versioned/fingerprinted `fraud_assessments` row now distinguishes successful-current clean/flagged results from pending/error/stale attempts and the DB sweep reselects changed analytics/flag inputs. Remaining defect: money predicates are still **open-only**, statuses have no `confirmed`, dedup covers only `open`, and no serialized review/release authority exists yet. | MNY-08B defines one authoritative transition table with `hold_active` true for `open`, `acknowledged`, and unresolved `confirmed`; only `dismissed` releases, extends non-terminal dedup and serializes review. MNY-03A consumes the same successful-current assessment + hold predicate for release. | §17, **MNY-08B/MNY-03A — before money release** |
 | **RM9** | G2 + F17 | DESIGN-GAP (irreducible) | GPS proves a *driver-controlled phone* moved, never that the *approved branded vehicle* moved. All eight fraud rules are per-trip (`services/trip_analytics.py:347-487`) and **no cross-trip/cross-account route or payload comparison exists** — an identical route replayed under a different trip or account is undetected. | Compensating controls, not a GPS redesign: bind assignment → one device + one vehicle; server-nonce start-of-shift proof-of-display; periodic evidence renewal for high earners; randomized physical spot checks; cross-trip/account identical-and-time-shifted route detection; hold the day on a missed challenge or concurrent session. Native attestation improves signal quality only — never treat it as proof the advertised vehicle moved. | §17/§19/§21, before pilot |
 | **RM10** | F05/G3 | DESIGN-GAP | Payout batches have no finality contract: no reserved state, no one-active-line-per-entry constraint, no frozen payee/amount snapshot/instruction fingerprint, no provider idempotency/reference, no per-line bank outcome, no reconciliation-before-`paid`. | `draft → reserved → submitted → reconciled/completed | failed | void`; atomic reservation with a DB constraint of one non-void line per ledger entry; snapshot verified bank-account version + beneficiary + amount; freeze/hash the provider instruction; unique idempotency key and external transfer reference per line; submit behind the approved adapter; mark paid **only** from signed-webhook or verified-poll line-level evidence; maker ≠ approver/reconciler. | §16.3, **S3** |
 | **RM11** | F04 | DESIGN-GAP (**downgraded** from BLOCKER) | The reviewers' "paid reversal is never recovered" scenario is **not current code**: statuses are `pending/available/voided/reversed` with **no `paid`**, no payout run exists, and `AVAILABLE` is set only by the demo seed. The status-inheritance mechanism is real (`services/payouts.py:2326-2331`) and correctly nets reversals within their bucket. It becomes a genuine defect only when S3 introduces cash payment. | When S3 lands: define `earned_net`, `released_available`, `cash_paid`, `carry_forward_debt`, `batch_payable`; post post-payment corrections to a carry-forward debit bucket and allocate future available credits against it; property-test "posting a reversal never increases any balance" across the payment boundary. Never model a new cash obligation as already paid. | §16.2/§16.3, **S3** |
@@ -2091,6 +2106,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.31 | 2026-08-21 | **MNY-08A current fraud assessments delivered; RM8 partially closed.** Migration `0022` adds one versioned/fingerprinted current assessment attempt per sealed trip with explicit pending/clean/flagged/error states and current-flag count/update provenance. The DB-derived worker sweep reselects stale formula, analytics and flag inputs; only successful-current clean/flagged states qualify for the later release contract, while sanitized evaluation errors remain due. Named uniqueness convergence handles simultaneous workers. Evidence: empty migration upgrade and downgrade/re-upgrade at one head; 60 focused Postgres and 118 focused SQLite tests; ruff/diff clean; independent money/concurrency review findings corrected once and rechecked RESOLVED. No public API or §9 baseline change. MNY-08B/MNY-03A still own the serialized hold/release contract. |
 | v1.30 | 2026-08-20 | **PKG-01 closed: parked-time payout and build-risk foundations delivered (D22/D23).** `stationary-rd-v1` freezes the reviewed 120-second/25-metre/2-confirm/1-release rule and complete common values for new payout-v3 acceptances, persists classifier/payout/correction evidence and driver/admin explanations, fails closed on unknown markers, and preserves payout-v1/v2 fingerprints. RM2 is closed. Deterministic PostGIS/frontend/build checks and the production-like desktop/mobile browser flow pass; API baselines did not move. R14-A/B and R17-A automated/synthetic build proofs are complete. Representative Android/iPhone physical/route/battery and approved external-staging validation remain explicitly NOT RUN and continue to gate later W4 real use. |
 | v1.29 | 2026-08-20 | **Build-first versus real-world validation contract recorded (D23).** R14-A/R14-B close on deterministic capability, denial/revocation, queue/tracker, interrupted synthetic-flow and desktop/mobile browser-profile evidence; R17-A closes on provider-neutral production-compose, edge, smoke, migration and recovery-contract evidence. Representative Android/iPhone route/battery runs and external staging deployment/public-edge/restore evidence remain explicitly NOT RUN in `docs/progress.md` and still gate W4 real GPS, release and pilot acceptance. `EXT-STAGING-APPROVAL` remains missing; no device or deployment evidence is invented. The progress validator pins R17-A's build prerequisite as `none` while preserving the stable external ID and later live gate. |
 | v1.28 | 2026-08-20 | **MNY-06A/B/C delivered; RM6 closed.** Effective-dated immutable payout revisions, acceptance-time `payout_v3` bindings with fully frozen rates/cap/eligibility and premium/exclusion geometries, shared chronological Lagos-day cap allocation, exact persisted tier components, and maker-checker correction orders replace mutable rule/recompute authority. Admin revision/correction UI and driver tier explanations shipped with migrations `0018`–`0021` and all three §9 baselines. Evidence on reviewed candidate `25fdd52`: PostGIS 562 passed (3 expected skips), migration up/down/re-upgrade + autogenerate-empty, frontend 155 tests/typecheck/lint/build, live-stack Playwright 22 passed, two-admin correction journey, and independent money/security, architecture/concurrency/frozen-terms and minimal-change reviews PASS. |

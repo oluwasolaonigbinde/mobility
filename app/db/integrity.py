@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 EXPECTED_UNIQUE_CONSTRAINTS = frozenset(
     {
         "uq_trip_analytics_trip_session_id",
+        "uq_fraud_assessments_trip_session_id",
         "uq_fraud_flags_trip_open_flag_type",
         "uq_impression_estimates_trip_formula_profile",
         "uq_payout_calculations_trip_formula_rule",
@@ -20,6 +21,7 @@ EXPECTED_UNIQUE_CONSTRAINTS = frozenset(
 
 _SQLITE_UNIQUE_COLUMNS = {
     ("trip_analytics.trip_session_id",): "uq_trip_analytics_trip_session_id",
+    ("fraud_assessments.trip_session_id",): "uq_fraud_assessments_trip_session_id",
     (
         "fraud_flags.trip_session_id",
         "fraud_flags.flag_type",

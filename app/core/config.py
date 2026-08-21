@@ -76,6 +76,7 @@ class Settings(BaseSettings):
     route_analytics_stationary_ratio_threshold: float = 0.8
     route_analytics_looping_radius_m: float = 50.0
     route_analytics_looping_min_distance_m: float = 1000.0
+    fraud_assessment_formula_version: str = "fraud_assessment_v1"
     impression_formula_version: str = "impressions_v1"
     impression_default_traffic_density_per_km: float = 120.0
     impression_default_dwell_impressions_per_minute: float = 3.0

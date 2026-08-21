@@ -31,13 +31,14 @@ from app.core.errors import AppError
 from app.models.campaign import CampaignStatus
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
+from app.models.fraud_assessment import FraudAssessment
 from app.models.impression import ImpressionEstimate, TrafficDensityProfile
 from app.models.payout import CampaignPayoutRule, EarningsLedgerEntry, PayoutCalculation
 from app.models.trip import LocationPing, LocationPingBatch, TripSessionStatus
 from app.models.trip_analytics import FraudFlag, FraudFlagStatus, TripAnalytics
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
-from app.services import trip_processing
+from app.services import fraud_assessments, trip_processing
 from app.services.payouts import calculate_trip_payout
 from app.services.trip_processing import (
     AUDIT_ACTION_TRIP_PROCESSING,
@@ -204,6 +205,7 @@ def table_counts(db_sessionmaker: async_sessionmaker[AsyncSession]) -> dict[str,
 
             return {
                 "analytics": await count(TripAnalytics),
+                "assessments": await count(FraudAssessment),
                 "flags": await count(FraudFlag),
                 "estimates": await count(ImpressionEstimate),
                 "calculations": await count(PayoutCalculation),
@@ -263,6 +265,7 @@ def test_happy_path_creates_full_chain_and_audits(postgis_db_sessionmaker, setti
     assert result.overall == "completed"
     assert stage_outcomes(result) == {
         "analytics": "created",
+        "fraud_assessment": "created",
         "impressions": "created",
         "payout": "created",
     }
@@ -294,6 +297,7 @@ def test_happy_path_creates_full_chain_and_audits(postgis_db_sessionmaker, setti
     assert events[0].entity_id == str(graph.trip.id)
     assert events[0].event_metadata["stages"] == {
         "analytics": "created",
+        "fraud_assessment": "created",
         "impressions": "created",
         "payout": "created",
     }
@@ -372,6 +376,7 @@ def test_idempotent_repeat_creates_no_new_rows(postgis_db_sessionmaker, settings
     assert second.overall == "completed"
     assert stage_outcomes(second) == {
         "analytics": "reused",
+        "fraud_assessment": "reused",
         "impressions": "reused",
         "payout": "reused",
     }
@@ -394,6 +399,7 @@ def test_preexisting_analytics_is_reused(db_sessionmaker, settings) -> None:
     assert result.overall == "completed"
     assert stage_outcomes(result) == {
         "analytics": "reused",
+        "fraud_assessment": "created",
         "impressions": "created",
         "payout": "created",
     }
@@ -404,6 +410,45 @@ def test_preexisting_analytics_is_reused(db_sessionmaker, settings) -> None:
     assert counts["calculations"] == 1
     assert counts["ledger"] == 1
     assert len(worker_audit_events(db_sessionmaker)) == 1
+
+
+def test_assessment_error_stays_due_and_retry_converges(
+    db_sessionmaker,
+    settings,
+    monkeypatch,
+) -> None:
+    graph = build_graph(db_sessionmaker, "assessment-retry")
+    create_test_payout_rule(
+        db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        created_by_user_id=graph.admin.id,
+        base_rate_per_km=10,
+    )
+    seed_analytics(db_sessionmaker, graph)
+    original = fraud_assessments.assessment_inputs_fingerprint
+
+    def fail_fingerprint(**_kwargs):
+        raise RuntimeError("synthetic assessment failure")
+
+    monkeypatch.setattr(
+        fraud_assessments,
+        "assessment_inputs_fingerprint",
+        fail_fingerprint,
+    )
+    first = run_pipeline(db_sessionmaker, graph.trip.id, settings)
+    assert first.overall == "partial"
+    assert stage_outcomes(first)["fraud_assessment"] == "blocked"
+    assert find_due(db_sessionmaker, settings) == [graph.trip.id]
+
+    monkeypatch.setattr(
+        fraud_assessments,
+        "assessment_inputs_fingerprint",
+        original,
+    )
+    second = run_pipeline(db_sessionmaker, graph.trip.id, settings)
+    assert second.overall == "completed"
+    assert stage_outcomes(second)["fraud_assessment"] == "created"
+    assert find_due(db_sessionmaker, settings) == []
 
 
 def test_preexisting_explicit_profile_estimate_is_reused(db_sessionmaker, settings) -> None:
@@ -436,6 +481,7 @@ def test_preexisting_explicit_profile_estimate_is_reused(db_sessionmaker, settin
 
     assert stage_outcomes(result) == {
         "analytics": "reused",
+        "fraud_assessment": "created",
         "impressions": "reused",
         "payout": "created",
     }
@@ -497,6 +543,7 @@ def test_preexisting_payout_calculation_is_reused_and_ledger_ensured(
     assert stage_outcomes(result) == {
         "ledger_repair": "created",
         "analytics": "reused",
+        "fraud_assessment": "created",
         "impressions": "reused",
         "payout": "reused",
     }
@@ -580,6 +627,7 @@ def test_repairs_every_missing_ledger_before_stale_analytics_gate(
     assert stage_outcomes(result) == {
         "ledger_repair": "created",
         "analytics": "blocked",
+        "fraud_assessment": "skipped",
         "impressions": "skipped",
         "payout": "skipped",
     }
@@ -635,6 +683,7 @@ def test_stale_analytics_is_blocked_in_worker_and_shared_services(
     assert result.overall == "blocked"
     assert stage_outcomes(result) == {
         "analytics": "blocked",
+        "fraud_assessment": "skipped",
         "impressions": "skipped",
         "payout": "skipped",
     }
@@ -951,16 +1000,17 @@ def test_missing_active_rule_blocks_payout_then_completes(
     assert first.overall == "partial"
     assert stage_outcomes(first) == {
         "analytics": "created",
+        "fraud_assessment": "created",
         "impressions": "created",
         "payout": "blocked",
     }
-    assert first.stages[2].reason == "no_active_payout_rule"
+    assert first.stages[3].reason == "no_active_payout_rule"
     counts = table_counts(postgis_db_sessionmaker)
     assert counts["analytics"] == 1
     assert counts["estimates"] == 1
     assert counts["calculations"] == 0
     assert counts["ledger"] == 0
-    assert worker_audit_events(postgis_db_sessionmaker) == []
+    assert len(worker_audit_events(postgis_db_sessionmaker)) == 1
 
     create_test_payout_rule(
         postgis_db_sessionmaker,
@@ -973,13 +1023,14 @@ def test_missing_active_rule_blocks_payout_then_completes(
     assert second.overall == "completed"
     assert stage_outcomes(second) == {
         "analytics": "reused",
+        "fraud_assessment": "reused",
         "impressions": "reused",
         "payout": "created",
     }
     counts = table_counts(postgis_db_sessionmaker)
     assert counts["calculations"] == 1
     assert counts["ledger"] == 1
-    assert len(worker_audit_events(postgis_db_sessionmaker)) == 1
+    assert len(worker_audit_events(postgis_db_sessionmaker)) == 2
 
 
 def test_insufficient_data_terminates_with_zero_payout(postgis_db_sessionmaker, settings) -> None:
@@ -1001,6 +1052,7 @@ def test_insufficient_data_terminates_with_zero_payout(postgis_db_sessionmaker, 
     assert result.overall == "completed"
     assert stage_outcomes(result) == {
         "analytics": "created",
+        "fraud_assessment": "created",
         "impressions": "created",
         "payout": "created",
     }
@@ -1039,6 +1091,7 @@ def test_blocked_analytics_produces_excluded_estimate_and_blocked_payout(
     assert result.overall == "completed"
     assert stage_outcomes(result) == {
         "analytics": "reused",
+        "fraud_assessment": "created",
         "impressions": "created",
         "payout": "created",
     }
@@ -1072,6 +1125,7 @@ def test_trip_not_found_and_trip_not_sealed(db_sessionmaker, settings) -> None:
     counts = table_counts(db_sessionmaker)
     assert counts == {
         "analytics": 0,
+        "assessments": 0,
         "flags": 0,
         "estimates": 0,
         "calculations": 0,
@@ -1230,9 +1284,32 @@ def test_concurrent_runs_on_same_trip_never_duplicate(postgis_db_sessionmaker, s
     assert outcomes == ["ok", "ok"]
     counts = table_counts(postgis_db_sessionmaker)
     assert counts["analytics"] == 1
+    assert counts["assessments"] == 1
     assert counts["estimates"] == 1
     assert counts["calculations"] == 1
     assert counts["ledger"] == 1
+
+
+def test_concurrent_assessment_creation_with_existing_analytics_converges(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_graph(postgis_db_sessionmaker, "assessment-race")
+    seed_analytics(postgis_db_sessionmaker, graph)
+
+    async def run_one() -> str:
+        async with postgis_db_sessionmaker() as session:
+            await process_ended_trip(session, trip_id=graph.trip.id, settings=settings)
+            await session.commit()
+            return "ok"
+
+    async def race() -> list[str]:
+        return list(await asyncio.gather(run_one(), run_one()))
+
+    assert asyncio.run(race()) == ["ok", "ok"]
+    counts = table_counts(postgis_db_sessionmaker)
+    assert counts["analytics"] == 1
+    assert counts["assessments"] == 1
 
 
 def test_concurrent_runs_on_different_trips_both_complete(
@@ -1381,6 +1458,43 @@ def test_due_work_excludes_fully_processed_trip(db_sessionmaker, settings) -> No
     assert find_due(db_sessionmaker, settings) == []
 
 
+def test_due_work_selects_assessment_after_current_flag_change(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_graph(postgis_db_sessionmaker, "due-assessment-flags")
+    analytics = seed_analytics(postgis_db_sessionmaker, graph)
+    run_pipeline(postgis_db_sessionmaker, graph.trip.id, settings)
+    assert find_due(postgis_db_sessionmaker, settings) == []
+
+    async def add_current_flag() -> None:
+        async with postgis_db_sessionmaker() as session:
+            session.add(
+                FraudFlag(
+                    trip_session_id=graph.trip.id,
+                    trip_analytics_id=analytics.id,
+                    assignment_id=graph.assignment.id,
+                    campaign_id=graph.campaign.id,
+                    driver_profile_id=graph.profile.id,
+                    vehicle_id=graph.vehicle.id,
+                    flag_type="impossible_speed",
+                    severity="high",
+                    status=FraudFlagStatus.OPEN.value,
+                    description="current replay evidence",
+                    evidence={"source": "test"},
+                    detected_at=analytics.computed_at,
+                )
+            )
+            await session.commit()
+
+    asyncio.run(add_current_flag())
+    assert find_due(postgis_db_sessionmaker, settings) == [graph.trip.id]
+
+    result = run_pipeline(postgis_db_sessionmaker, graph.trip.id, settings)
+    assert stage_outcomes(result)["fraud_assessment"] == "created"
+    assert find_due(postgis_db_sessionmaker, settings) == []
+
+
 def test_due_work_selects_trip_missing_only_estimate(db_sessionmaker, settings) -> None:
     graph = build_graph(db_sessionmaker, "due3")
     seed_analytics(db_sessionmaker, graph)
@@ -1403,7 +1517,12 @@ def test_due_work_ruleless_trip_becomes_due_when_rule_appears(db_sessionmaker, s
         traffic_density_profile_id=profile.id,
     )
 
-    # Analytics + estimate complete, no active rule: not payout-due, not rescanned.
+    # The missing assessment is due even without a payout rule. Once assessed,
+    # the ruleless trip stops rescanning until a rule becomes available.
+    assert find_due(db_sessionmaker, settings) == [graph.trip.id]
+    first = run_pipeline(db_sessionmaker, graph.trip.id, settings)
+    assert first.overall == "partial"
+    assert stage_outcomes(first)["fraud_assessment"] == "created"
     assert find_due(db_sessionmaker, settings) == []
 
     create_test_payout_rule(
