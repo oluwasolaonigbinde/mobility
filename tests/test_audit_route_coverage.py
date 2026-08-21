@@ -103,6 +103,12 @@ AUDITED = {
     ("POST", "/api/v1/admin/trips/{trip_id}/recompute-analytics"): (
         "admin.trip_analytics.recomputed"
     ),
+    ("POST", "/api/v1/admin/fraud-flags/{flag_id}/review/acknowledge"): (
+        "admin.fraud_flag.acknowledged"
+    ),
+    ("POST", "/api/v1/admin/fraud-flags/{flag_id}/review/resolve"): (
+        "admin.fraud_flag.resolved"
+    ),
     ("POST", "/api/v1/admin/traffic-density-profiles"): (
         "admin.traffic_density_profile.created"
     ),

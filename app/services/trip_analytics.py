@@ -25,13 +25,32 @@ from app.models.trip_analytics import (
 )
 from app.services.campaign_assignments import get_driver_profile_for_user
 from app.services.campaigns import comparable_campaign_datetime
+from app.services.fraud_holds import (
+    fraud_hold_active_clause,
+    fraud_hold_counts,
+    lock_fraud_hold_scope,
+)
 from app.services.provenance import stable_source_fingerprint
 from app.services.trips import trip_not_found
 
 DECIMAL_2 = Decimal("0.01")
 DECIMAL_4 = Decimal("0.0001")
 ANALYTICS_ROW_CONSTRAINTS = frozenset({"uq_trip_analytics_trip_session_id"})
-OPEN_FLAG_CONSTRAINTS = frozenset({"uq_fraud_flags_trip_open_flag_type"})
+NONTERMINAL_FLAG_CONSTRAINTS = frozenset(
+    {"uq_fraud_flags_trip_nonterminal_flag_type"}
+)
+BASE_ANALYTICS_FLAG_TYPES = frozenset(
+    {
+        FraudFlagType.INSUFFICIENT_PINGS.value,
+        FraudFlagType.IMPOSSIBLE_SPEED.value,
+        FraudFlagType.POOR_ACCURACY.value,
+        FraudFlagType.STATIONARY_TRIP.value,
+        FraudFlagType.EXCESSIVE_PING_GAP.value,
+        FraudFlagType.FUTURE_TIMESTAMP.value,
+        FraudFlagType.ROUTE_LOOPING.value,
+        FraudFlagType.EXCLUSION_ZONE_PRESENCE.value,
+    }
+)
 ANALYTICS_FINGERPRINT_FIELDS = (
     "assignment_id",
     "campaign_id",
@@ -534,6 +553,7 @@ async def replace_open_fraud_flags(
     settings: Settings,
     detected_at: datetime,
 ) -> list[FraudFlag]:
+    await lock_fraud_hold_scope(session, trip.id)
     for attempt in range(2):
         flags = build_fraud_flags(
             trip=trip,
@@ -542,12 +562,26 @@ async def replace_open_fraud_flags(
             settings=settings,
             detected_at=detected_at,
         )
+        reviewed_types = set(
+            (
+                await session.scalars(
+                    select(FraudFlag.flag_type).where(
+                        FraudFlag.trip_session_id == trip.id,
+                        FraudFlag.flag_type.in_(BASE_ANALYTICS_FLAG_TYPES),
+                        fraud_hold_active_clause(),
+                        FraudFlag.status != FraudFlagStatus.OPEN.value,
+                    )
+                )
+            ).all()
+        )
+        flags = [flag for flag in flags if flag.flag_type not in reviewed_types]
         try:
             async with session.begin_nested():
                 await session.execute(
                     delete(FraudFlag).where(
                         FraudFlag.trip_session_id == trip.id,
                         FraudFlag.status == FraudFlagStatus.OPEN.value,
+                        FraudFlag.flag_type.in_(BASE_ANALYTICS_FLAG_TYPES),
                     )
                 )
                 session.add_all(flags)
@@ -555,7 +589,7 @@ async def replace_open_fraud_flags(
         except IntegrityError as exc:
             if not is_expected_uniqueness_conflict(
                 exc,
-                constraints=OPEN_FLAG_CONSTRAINTS,
+                constraints=NONTERMINAL_FLAG_CONSTRAINTS,
             ):
                 raise
             if attempt == 1:
@@ -577,6 +611,13 @@ async def recompute_trip_analytics(
 ) -> AnalyticsComputation:
     ensure_postgis(session)
     now = now or utc_now()
+    # Enter the authoritative fraud scope before analytics can insert/update
+    # rows that a trip worker may also be waiting on. Taking this lock only in
+    # replace_open_fraud_flags was too late: an admin recompute could hold the
+    # analytics uniqueness transaction while waiting for the worker's
+    # reconciliation gate, and the worker could simultaneously wait for that
+    # analytics write.
+    await lock_fraud_hold_scope(session, trip_id)
     trip = await get_admin_trip(session, trip_id)
     ensure_trip_ended(trip)
 
@@ -859,15 +900,4 @@ async def get_driver_trip_analytics(
     if analytics is None:
         raise analytics_not_found()
 
-    result = await session.execute(
-        select(FraudFlag.severity, func.count(FraudFlag.id))
-        .where(
-            FraudFlag.trip_session_id == trip.id,
-            FraudFlag.status == FraudFlagStatus.OPEN.value,
-        )
-        .group_by(FraudFlag.severity)
-    )
-    counts = {severity.value: 0 for severity in FraudFlagSeverity}
-    for severity, count in result.all():
-        counts[str(severity)] = int(count)
-    return analytics, counts
+    return analytics, await fraud_hold_counts(session, trip.id)

@@ -441,6 +441,71 @@ def test_anomaly_flags_zone_exclusion_and_recompute_open_flag_idempotency(
     )
 
 
+@pytest.mark.parametrize("review_status", ["acknowledged", "confirmed", "dismissed"])
+def test_recompute_preserves_reviewed_flags_and_redetects_only_after_dismissal(
+    postgis_db_client,
+    postgis_db_sessionmaker,
+    review_status: str,
+) -> None:
+    _, _, _, _, _, _, _, trip = create_analytics_graph(postgis_db_sessionmaker)
+    add_pings(
+        postgis_db_sessionmaker,
+        trip_id=trip.id,
+        points=[
+            (BASE_TIME, 6.0, 3.0, 10),
+            (BASE_TIME + timedelta(seconds=10), 6.0, 4.0, 10),
+        ],
+        idempotency_key=f"review-{review_status}",
+    )
+    first = postgis_db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/recompute-analytics",
+        headers=admin_headers(postgis_db_client),
+        json={},
+    )
+    assert first.status_code == http_status.HTTP_200_OK
+    original = next(
+        item for item in first.json()["fraud_flags"] if item["flag_type"] == "impossible_speed"
+    )
+
+    acknowledged = postgis_db_client.post(
+        f"/api/v1/admin/fraud-flags/{original['id']}/review/acknowledge",
+        headers=admin_headers(postgis_db_client),
+    )
+    assert acknowledged.status_code == http_status.HTTP_200_OK
+    if review_status != "acknowledged":
+        resolved = postgis_db_client.post(
+            f"/api/v1/admin/fraud-flags/{original['id']}/review/resolve",
+            headers=admin_headers(postgis_db_client),
+            json={"outcome": review_status, "note": f"Review outcome: {review_status}."},
+        )
+        assert resolved.status_code == http_status.HTTP_200_OK
+
+    second = postgis_db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/recompute-analytics",
+        headers=admin_headers(postgis_db_client),
+        json={},
+    )
+    assert second.status_code == http_status.HTTP_200_OK
+
+    stored = [
+        flag
+        for flag in fetch_flags(postgis_db_sessionmaker)
+        if flag.flag_type == "impossible_speed"
+    ]
+    if review_status == "dismissed":
+        assert len(stored) == 2
+        assert {flag.status for flag in stored} == {"dismissed", "open"}
+        assert [
+            item
+            for item in second.json()["fraud_flags"]
+            if item["flag_type"] == "impossible_speed"
+        ][0]["status"] == "open"
+    else:
+        assert len(stored) == 1
+        assert str(stored[0].id) == original["id"]
+        assert stored[0].status == review_status
+
+
 def test_future_timestamp_flag_uses_direct_corrupt_ping_insertion(
     postgis_db_client,
     postgis_db_sessionmaker,
@@ -697,7 +762,7 @@ def test_trip_outside_campaign_zones_has_zero_zone_metrics(
     assert data["exclusion_zone_seconds"] == 0
 
 
-def test_unique_open_flag_index_is_present_in_postgres(
+def test_unique_nonterminal_flag_index_is_present_in_postgres(
     postgis_db_sessionmaker,
 ) -> None:
     async def fetch_index_count() -> int:
@@ -709,11 +774,11 @@ def test_unique_open_flag_index_is_present_in_postgres(
                         SELECT count(*)
                         FROM pg_indexes
                         WHERE schemaname = current_schema()
-                          AND indexname = 'uq_fraud_flags_trip_open_flag_type'
+                          AND indexname = 'uq_fraud_flags_trip_nonterminal_flag_type'
                           AND indexdef ILIKE :predicate
                         """
                     ),
-                    {"predicate": "%WHERE%open%"},
+                    {"predicate": "%WHERE%open%acknowledged%confirmed%"},
                 )
                 or 0
             )

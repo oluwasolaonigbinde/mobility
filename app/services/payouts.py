@@ -32,9 +32,7 @@ from app.models.payout import (
 )
 from app.models.trip import LocationPing, TripSession, TripSessionStatus
 from app.models.trip_analytics import (
-    FraudFlag,
     FraudFlagSeverity,
-    FraudFlagStatus,
     TripAnalytics,
     TripAnalyticsStatus,
 )
@@ -45,6 +43,7 @@ from app.schemas.payouts import (
 )
 from app.services.campaigns import get_advertiser_campaign
 from app.services.drivers import get_required_driver_profile_with_user_by_user_id
+from app.services.fraud_holds import fraud_hold_counts
 from app.services.impressions import (
     ensure_current_estimate_source,
     impression_output_fingerprint,
@@ -1467,21 +1466,6 @@ def price_payable_seconds(payable_seconds: int, hourly_rate: Decimal) -> Decimal
     return quantize_ngn_half_up(Decimal(payable_seconds) * hourly_rate / SECONDS_PER_HOUR)
 
 
-async def open_fraud_counts(session: AsyncSession, trip_id: UUID) -> dict[str, int]:
-    result = await session.execute(
-        select(FraudFlag.severity, func.count(FraudFlag.id))
-        .where(
-            FraudFlag.trip_session_id == trip_id,
-            FraudFlag.status == FraudFlagStatus.OPEN.value,
-        )
-        .group_by(FraudFlag.severity)
-    )
-    counts = {severity.value: 0 for severity in FraudFlagSeverity}
-    for severity, count in result.all():
-        counts[str(severity)] = int(count)
-    return counts
-
-
 def payout_fraud_multiplier(counts: dict[str, int], rule: CampaignPayoutRule) -> Decimal:
     if counts[FraudFlagSeverity.HIGH.value] > 0:
         return Decimal(rule.high_fraud_multiplier)
@@ -1581,12 +1565,12 @@ def payout_values(
         cap_adjustment += Decimal(rule.max_payout_per_trip) - final_payout
         final_payout = Decimal(rule.max_payout_per_trip)
     # Min-floor loophole closed with v2 (architecture 17, decisions-log): the
-    # floor lifts only trips with no open fraud flags (extend to `confirmed`
-    # when S2 adds that status).
-    no_open_flags = all(count == 0 for count in counts.values())
+    # The shared hold snapshot covers open, acknowledged and confirmed. A
+    # local/open-only predicate here would let the floor restore held pay.
+    no_active_holds = all(count == 0 for count in counts.values())
     if (
         gross_payout > 0
-        and no_open_flags
+        and no_active_holds
         and Decimal("0") < final_payout < rule.min_payout_per_trip
     ):
         cap_adjustment += Decimal(rule.min_payout_per_trip) - final_payout
@@ -2513,7 +2497,7 @@ async def calculate_trip_payout(
     analytics = await get_analytics_for_trip(session, trip.id)
     ensure_current_analytics_formula(analytics, settings)
     estimate = await get_impression_estimate_for_trip(session, trip_id=trip.id, settings=settings)
-    counts = await open_fraud_counts(session, trip.id)
+    counts = await fraud_hold_counts(session, trip.id)
     ensure_current_estimate_source(
         estimate,
         analytics,

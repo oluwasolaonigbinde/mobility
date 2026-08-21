@@ -7,7 +7,8 @@ EXPECTED_UNIQUE_CONSTRAINTS = frozenset(
     {
         "uq_trip_analytics_trip_session_id",
         "uq_fraud_assessments_trip_session_id",
-        "uq_fraud_flags_trip_open_flag_type",
+        "uq_route_replay_signatures_trip_session_id",
+        "uq_fraud_flags_trip_nonterminal_flag_type",
         "uq_impression_estimates_trip_formula_profile",
         "uq_payout_calculations_trip_formula_rule",
         "uq_earnings_ledger_entries_payout_calculation_id",
@@ -22,10 +23,13 @@ EXPECTED_UNIQUE_CONSTRAINTS = frozenset(
 _SQLITE_UNIQUE_COLUMNS = {
     ("trip_analytics.trip_session_id",): "uq_trip_analytics_trip_session_id",
     ("fraud_assessments.trip_session_id",): "uq_fraud_assessments_trip_session_id",
+    ("route_replay_signatures.trip_session_id",): (
+        "uq_route_replay_signatures_trip_session_id"
+    ),
     (
         "fraud_flags.trip_session_id",
         "fraud_flags.flag_type",
-    ): "uq_fraud_flags_trip_open_flag_type",
+    ): "uq_fraud_flags_trip_nonterminal_flag_type",
     (
         "impression_estimates.trip_session_id",
         "impression_estimates.formula_version",

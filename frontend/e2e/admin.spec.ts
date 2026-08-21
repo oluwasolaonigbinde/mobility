@@ -66,6 +66,36 @@ test("fraud console renders with status filters", async ({ page }) => {
   await expect(
     page.getByRole("group", { name: "Filter by status" }).getByRole("link", { name: "open" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Filter by status" }).getByRole("link", { name: "confirmed" }),
+  ).toBeVisible();
+});
+
+test("fraud review moves an isolated open flag through acknowledgement to dismissal", async ({
+  page,
+}, testInfo) => {
+  await loginAsAdmin(page);
+  await page.goto("/admin/fraud");
+
+  // Fresh rich-seed stacks contain several flags. Each browser project owns a
+  // different row so their state transitions cannot race with one another.
+  const projectRow = testInfo.project.name === "mobile-chrome" ? 1 : 0;
+  const acknowledge = page.getByRole("button", { name: "Acknowledge" }).nth(projectRow);
+  test.skip(!(await acknowledge.isVisible().catch(() => false)), "No isolated seeded open flag");
+
+  const card = acknowledge.locator(
+    'xpath=ancestor::*[starts-with(@data-testid, "fraud-flag-")][1]',
+  );
+  const testId = await card.getAttribute("data-testid");
+  expect(testId).toBeTruthy();
+
+  await acknowledge.click();
+  const reviewedCard = page.getByTestId(testId!);
+  await expect(reviewedCard.getByText("acknowledged", { exact: true })).toBeVisible();
+  await reviewedCard.getByLabel("Review note").fill("Reviewed in the isolated E2E workflow.");
+  await reviewedCard.getByRole("button", { name: "Dismiss flag" }).click();
+  await expect(reviewedCard.getByText("dismissed", { exact: true })).toBeVisible();
+  await expect(reviewedCard.getByText(/review is final/i)).toBeVisible();
 });
 
 test("payouts section lists calculations and the trip pipeline", async ({ page }) => {
@@ -126,7 +156,10 @@ test("hourly payout rules are versioned: create rule once, then append revisions
 
   // Append a future-dated revision and see it top the newest-first chain.
   const reason = `e2e rate change ${Date.now()}`;
-  const newestRevision = await page.getByText(/^r\d+$/).first().textContent();
+  const newestRevision = await page
+    .getByText(/^r\d+$/)
+    .first()
+    .textContent();
   const revisionNumber = Number(newestRevision?.slice(1) ?? "1");
   // Advance farther for every existing revision so immediate re-runs remain
   // strictly after the previously scheduled effective time.

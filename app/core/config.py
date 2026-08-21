@@ -76,6 +76,12 @@ class Settings(BaseSettings):
     route_analytics_stationary_ratio_threshold: float = 0.8
     route_analytics_looping_radius_m: float = 50.0
     route_analytics_looping_min_distance_m: float = 1000.0
+    route_replay_detector_version: str = "route_replay_v1"
+    route_replay_coordinate_precision: int = 5
+    route_replay_time_tolerance_seconds: int = 5
+    route_replay_min_valid_pings: int = 10
+    route_replay_min_distance_m: float = 250.0
+    route_replay_max_evidence_matches: int = 10
     fraud_assessment_formula_version: str = "fraud_assessment_v1"
     impression_formula_version: str = "impressions_v1"
     impression_default_traffic_density_per_km: float = 120.0
@@ -200,6 +206,9 @@ class Settings(BaseSettings):
     @field_validator(
         "route_analytics_min_valid_pings",
         "route_analytics_max_ping_gap_seconds",
+        "route_replay_time_tolerance_seconds",
+        "route_replay_min_valid_pings",
+        "route_replay_max_evidence_matches",
     )
     @classmethod
     def validate_positive_route_analytics_ints(cls, value: int) -> int:
@@ -214,11 +223,19 @@ class Settings(BaseSettings):
         "route_analytics_poor_accuracy_threshold_m",
         "route_analytics_looping_radius_m",
         "route_analytics_looping_min_distance_m",
+        "route_replay_min_distance_m",
     )
     @classmethod
     def validate_positive_route_analytics_floats(cls, value: float) -> float:
         if value <= 0:
             raise ValueError("Route analytics numeric settings must be positive")
+        return value
+
+    @field_validator("route_replay_coordinate_precision")
+    @classmethod
+    def validate_route_replay_coordinate_precision(cls, value: int) -> int:
+        if value < 3 or value > 7:
+            raise ValueError("ROUTE_REPLAY_COORDINATE_PRECISION must be between 3 and 7")
         return value
 
     @field_validator(

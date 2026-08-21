@@ -31,14 +31,16 @@ from app.core.errors import AppError
 from app.models.campaign import CampaignStatus
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
-from app.models.fraud_assessment import FraudAssessment
+from app.models.fraud_assessment import FraudAssessment, FraudAssessmentStatus
 from app.models.impression import ImpressionEstimate, TrafficDensityProfile
 from app.models.payout import CampaignPayoutRule, EarningsLedgerEntry, PayoutCalculation
+from app.models.route_replay import RouteReplaySignature
 from app.models.trip import LocationPing, LocationPingBatch, TripSessionStatus
-from app.models.trip_analytics import FraudFlag, FraudFlagStatus, TripAnalytics
+from app.models.trip_analytics import FraudFlag, FraudFlagStatus, FraudFlagType, TripAnalytics
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
-from app.services import fraud_assessments, trip_processing
+from app.services import fraud_assessments, route_replay, trip_processing
+from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
 from app.services.payouts import calculate_trip_payout
 from app.services.trip_processing import (
     AUDIT_ACTION_TRIP_PROCESSING,
@@ -206,6 +208,7 @@ def table_counts(db_sessionmaker: async_sessionmaker[AsyncSession]) -> dict[str,
             return {
                 "analytics": await count(TripAnalytics),
                 "assessments": await count(FraudAssessment),
+                "replay_signatures": await count(RouteReplaySignature),
                 "flags": await count(FraudFlag),
                 "estimates": await count(ImpressionEstimate),
                 "calculations": await count(PayoutCalculation),
@@ -449,6 +452,113 @@ def test_assessment_error_stays_due_and_retry_converges(
     assert second.overall == "completed"
     assert stage_outcomes(second)["fraud_assessment"] == "created"
     assert find_due(db_sessionmaker, settings) == []
+
+
+def test_replay_detector_error_marks_assessment_error_until_retry(
+    db_sessionmaker,
+    settings,
+    monkeypatch,
+) -> None:
+    graph = build_graph(db_sessionmaker, "replay-error")
+    seed_analytics(db_sessionmaker, graph, distance_m=Decimal("5000"))
+    points = [
+        (
+            BASE_TIME + timedelta(minutes=index),
+            6.45 + index * 0.0005,
+            3.39 + index * 0.0005,
+            10,
+        )
+        for index in range(settings.route_replay_min_valid_pings)
+    ]
+    add_pings(db_sessionmaker, trip_id=graph.trip.id, points=points)
+    original = route_replay.canonical_route_fingerprints
+
+    def fail_route_fingerprint(*_args, **_kwargs):
+        raise RuntimeError("private replay evaluation failure")
+
+    monkeypatch.setattr(
+        route_replay,
+        "canonical_route_fingerprints",
+        fail_route_fingerprint,
+    )
+    first = run_pipeline(db_sessionmaker, graph.trip.id, settings)
+    assert first.overall == "partial"
+    assert stage_outcomes(first)["fraud_assessment"] == "blocked"
+    assert first.stages[1].reason == "route_replay_evaluation_failed"
+    assert find_due(db_sessionmaker, settings) == [graph.trip.id]
+
+    monkeypatch.setattr(route_replay, "canonical_route_fingerprints", original)
+    second = run_pipeline(db_sessionmaker, graph.trip.id, settings)
+    assert stage_outcomes(second)["fraud_assessment"] == "created"
+    assert find_due(db_sessionmaker, settings) == []
+
+
+def test_time_shifted_cross_account_route_flags_latest_assessment(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    earlier = build_graph(
+        postgis_db_sessionmaker,
+        "replay-earlier",
+        started_at=BASE_TIME,
+        ended_at=BASE_TIME + timedelta(minutes=30),
+    )
+    later = build_graph(
+        postgis_db_sessionmaker,
+        "replay-later",
+        started_at=BASE_TIME + timedelta(hours=2),
+        ended_at=BASE_TIME + timedelta(hours=2, minutes=30),
+    )
+
+    def route(shift: timedelta) -> list[tuple[datetime, float, float, float]]:
+        return [
+            (
+                BASE_TIME + shift + timedelta(minutes=index),
+                6.45 + index * 0.0005,
+                3.39 + index * 0.0005,
+                10,
+            )
+            for index in range(settings.route_replay_min_valid_pings)
+        ]
+
+    add_pings(
+        postgis_db_sessionmaker,
+        trip_id=earlier.trip.id,
+        points=route(timedelta(0)),
+        idempotency_key="replay-earlier",
+    )
+    add_pings(
+        postgis_db_sessionmaker,
+        trip_id=later.trip.id,
+        points=route(timedelta(hours=2)),
+        idempotency_key="replay-later",
+    )
+
+    first = run_pipeline(postgis_db_sessionmaker, earlier.trip.id, settings)
+    second = run_pipeline(postgis_db_sessionmaker, later.trip.id, settings)
+
+    async def inspect():
+        async with postgis_db_sessionmaker() as session:
+            assessment = await session.scalar(
+                select(FraudAssessment).where(
+                    FraudAssessment.trip_session_id == later.trip.id
+                )
+            )
+            flag = await session.scalar(
+                select(FraudFlag).where(
+                    FraudFlag.trip_session_id == later.trip.id,
+                    FraudFlag.flag_type == FraudFlagType.ROUTE_REPLAY.value,
+                )
+            )
+            return assessment, flag
+
+    assessment, flag = asyncio.run(inspect())
+    assert stage_outcomes(first)["fraud_assessment"] == "created"
+    assert stage_outcomes(second)["fraud_assessment"] == "created"
+    assert assessment.status == FraudAssessmentStatus.FLAGGED.value
+    assert flag.evidence["match_kind"] == "time_shifted"
+    assert flag.evidence["cross_account_match_count"] == 1
+    assert find_due(postgis_db_sessionmaker, settings) == []
 
 
 def test_preexisting_explicit_profile_estimate_is_reused(db_sessionmaker, settings) -> None:
@@ -903,7 +1013,7 @@ def test_formula_only_payout_provenance_still_requires_timestamp_order(
     assert find_due(db_sessionmaker, settings) == [graph.trip.id]
 
 
-def test_open_fraud_change_refreshes_estimate_before_payout(
+def test_review_status_changes_refresh_assessment_and_dismissal_refreshes_money_inputs(
     db_sessionmaker,
     settings,
 ) -> None:
@@ -925,7 +1035,7 @@ def test_open_fraud_change_refreshes_estimate_before_payout(
                     status=FraudFlagStatus.OPEN.value,
                     description="test high flag",
                     evidence={},
-                    detected_at=BASE_TIME,
+                    detected_at=analytics.computed_at,
                 )
             )
             await session.commit()
@@ -937,10 +1047,37 @@ def test_open_fraud_change_refreshes_estimate_before_payout(
     first_fingerprint = first_estimate.estimate_metadata["output_fingerprint"]
     assert first_estimate.fraud_adjustment_multiplier == Decimal("0.2500")
 
+    async def acknowledge_flag() -> None:
+        async with db_sessionmaker() as session:
+            flag = await session.scalar(select(FraudFlag))
+            await acknowledge_fraud_flag(
+                session,
+                flag_id=flag.id,
+                actor_user_id=graph.admin.id,
+                now=BASE_TIME + timedelta(hours=1),
+            )
+            await session.commit()
+
+    asyncio.run(acknowledge_flag())
+    assert find_due(db_sessionmaker, settings) == [graph.trip.id]
+
+    acknowledged = run_pipeline(db_sessionmaker, graph.trip.id, settings)
+    still_held = fetch_impression_estimates(db_sessionmaker)[0]
+    assert stage_outcomes(acknowledged)["fraud_assessment"] == "created"
+    assert still_held.fraud_adjustment_multiplier == Decimal("0.2500")
+    assert find_due(db_sessionmaker, settings) == []
+
     async def dismiss_flag() -> None:
         async with db_sessionmaker() as session:
             flag = await session.scalar(select(FraudFlag))
-            flag.status = FraudFlagStatus.DISMISSED.value
+            await resolve_fraud_flag(
+                session,
+                flag_id=flag.id,
+                actor_user_id=graph.admin.id,
+                outcome=FraudFlagStatus.DISMISSED.value,
+                resolution_note="Detector evidence was not fraudulent.",
+                now=BASE_TIME + timedelta(hours=2),
+            )
             await session.commit()
 
     asyncio.run(dismiss_flag())
@@ -957,6 +1094,74 @@ def test_open_fraud_change_refreshes_estimate_before_payout(
         "high": 0,
     }
     assert refreshed.estimate_metadata["output_fingerprint"] != first_fingerprint
+
+
+def test_confirmed_review_transition_is_due_but_remains_held(
+    db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_graph(db_sessionmaker, "fraud-confirmed-due")
+    analytics = seed_analytics(db_sessionmaker, graph)
+
+    async def add_flag() -> None:
+        async with db_sessionmaker() as session:
+            session.add(
+                FraudFlag(
+                    trip_session_id=graph.trip.id,
+                    trip_analytics_id=analytics.id,
+                    assignment_id=graph.assignment.id,
+                    campaign_id=graph.campaign.id,
+                    driver_profile_id=graph.profile.id,
+                    vehicle_id=graph.vehicle.id,
+                    flag_type="impossible_speed",
+                    severity="high",
+                    status=FraudFlagStatus.OPEN.value,
+                    description="test high flag",
+                    evidence={},
+                    detected_at=analytics.computed_at,
+                )
+            )
+            await session.commit()
+
+    asyncio.run(add_flag())
+    run_pipeline(db_sessionmaker, graph.trip.id, settings)
+
+    async def transition(*, confirm: bool) -> None:
+        async with db_sessionmaker() as session:
+            flag = await session.scalar(select(FraudFlag))
+            if confirm:
+                await resolve_fraud_flag(
+                    session,
+                    flag_id=flag.id,
+                    actor_user_id=graph.admin.id,
+                    outcome=FraudFlagStatus.CONFIRMED.value,
+                    resolution_note="Fraud evidence confirmed.",
+                    now=BASE_TIME + timedelta(hours=2),
+                )
+            else:
+                await acknowledge_fraud_flag(
+                    session,
+                    flag_id=flag.id,
+                    actor_user_id=graph.admin.id,
+                    now=BASE_TIME + timedelta(hours=1),
+                )
+            await session.commit()
+
+    asyncio.run(transition(confirm=False))
+    run_pipeline(db_sessionmaker, graph.trip.id, settings)
+    asyncio.run(transition(confirm=True))
+    assert find_due(db_sessionmaker, settings) == [graph.trip.id]
+
+    confirmed = run_pipeline(db_sessionmaker, graph.trip.id, settings)
+    estimate = fetch_impression_estimates(db_sessionmaker)[0]
+    assert stage_outcomes(confirmed)["fraud_assessment"] == "created"
+    assert estimate.fraud_adjustment_multiplier == Decimal("0.2500")
+    assert estimate.estimate_metadata["fraud_flag_counts"] == {
+        "low": 0,
+        "medium": 0,
+        "high": 1,
+    }
+    assert find_due(db_sessionmaker, settings) == []
 
 
 def test_injected_processing_time_stamps_downstream_rows(db_sessionmaker, settings) -> None:
@@ -1126,6 +1331,7 @@ def test_trip_not_found_and_trip_not_sealed(db_sessionmaker, settings) -> None:
     assert counts == {
         "analytics": 0,
         "assessments": 0,
+        "replay_signatures": 0,
         "flags": 0,
         "estimates": 0,
         "calculations": 0,
@@ -1456,6 +1662,55 @@ def test_due_work_excludes_fully_processed_trip(db_sessionmaker, settings) -> No
     run_pipeline(db_sessionmaker, graph.trip.id, settings)
 
     assert find_due(db_sessionmaker, settings) == []
+
+
+def test_due_work_reselects_changed_replay_detector_version(
+    db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_graph(db_sessionmaker, "due-replay-version")
+    seed_analytics(db_sessionmaker, graph)
+    run_pipeline(db_sessionmaker, graph.trip.id, settings)
+    assert find_due(db_sessionmaker, settings) == []
+
+    next_settings = settings.model_copy(
+        update={"route_replay_detector_version": "route_replay_v2"}
+    )
+    assert find_due(db_sessionmaker, next_settings) == [graph.trip.id]
+
+    run_pipeline(db_sessionmaker, graph.trip.id, next_settings)
+    assert find_due(db_sessionmaker, next_settings) == []
+
+    async def inspect() -> tuple[int, str]:
+        async with db_sessionmaker() as session:
+            count = await session.scalar(
+                select(func.count()).select_from(RouteReplaySignature)
+            )
+            signature = await session.scalar(select(RouteReplaySignature))
+            return int(count or 0), signature.detector_version
+
+    assert asyncio.run(inspect()) == (1, "route_replay_v2")
+
+
+def test_due_work_reselects_changed_replay_tolerance(
+    db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_graph(db_sessionmaker, "due-replay-tolerance")
+    seed_analytics(db_sessionmaker, graph)
+    run_pipeline(db_sessionmaker, graph.trip.id, settings)
+    assert find_due(db_sessionmaker, settings) == []
+
+    next_settings = settings.model_copy(
+        update={
+            "route_replay_time_tolerance_seconds": (
+                settings.route_replay_time_tolerance_seconds + 1
+            )
+        }
+    )
+    assert find_due(db_sessionmaker, next_settings) == [graph.trip.id]
+    run_pipeline(db_sessionmaker, graph.trip.id, next_settings)
+    assert find_due(db_sessionmaker, next_settings) == []
 
 
 def test_due_work_selects_assessment_after_current_flag_change(

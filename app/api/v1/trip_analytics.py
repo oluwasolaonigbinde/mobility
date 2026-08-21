@@ -21,9 +21,11 @@ from app.schemas.trip_analytics import (
     DriverTripAnalyticsSummary,
     FraudFlagListResponse,
     FraudFlagRead,
+    FraudFlagResolveRequest,
     TripAnalyticsRead,
 )
 from app.services.audit import create_audit_event
+from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
 from app.services.trip_analytics import (
     AnalyticsComputation,
     get_driver_trip_analytics,
@@ -50,6 +52,9 @@ def fraud_flag_response(flag: FraudFlag) -> FraudFlagRead:
         description=flag.description,
         evidence=flag.evidence,
         detected_at=flag.detected_at,
+        reviewed_by_user_id=flag.reviewed_by_user_id,
+        reviewed_at=flag.reviewed_at,
+        resolution_note=flag.resolution_note,
         created_at=flag.created_at,
         updated_at=flag.updated_at,
     )
@@ -193,6 +198,47 @@ async def admin_list_fraud_flags(
         limit=limit,
         offset=offset,
     )
+
+
+@router.post(
+    "/admin/fraud-flags/{flag_id}/review/acknowledge",
+    response_model=FraudFlagRead,
+    summary="Acknowledge a fraud flag for staff review",
+)
+async def admin_acknowledge_fraud_flag(
+    flag_id: UUID,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+) -> FraudFlagRead:
+    result = await acknowledge_fraud_flag(
+        session,
+        flag_id=flag_id,
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
+    return fraud_flag_response(result.flag)
+
+
+@router.post(
+    "/admin/fraud-flags/{flag_id}/review/resolve",
+    response_model=FraudFlagRead,
+    summary="Resolve a fraud flag review",
+)
+async def admin_resolve_fraud_flag(
+    flag_id: UUID,
+    payload: FraudFlagResolveRequest,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+) -> FraudFlagRead:
+    result = await resolve_fraud_flag(
+        session,
+        flag_id=flag_id,
+        actor_user_id=current_user.id,
+        outcome=payload.outcome,
+        resolution_note=payload.note,
+    )
+    await session.commit()
+    return fraud_flag_response(result.flag)
 
 
 @router.get(

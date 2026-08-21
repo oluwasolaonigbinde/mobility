@@ -4937,6 +4937,11 @@
             "title": "Acknowledged",
             "type": "integer"
           },
+          "confirmed": {
+            "default": 0,
+            "title": "Confirmed",
+            "type": "integer"
+          },
           "dismissed": {
             "default": 0,
             "title": "Dismissed",
@@ -5041,6 +5046,41 @@
             "title": "Id",
             "type": "string"
           },
+          "resolution_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Note"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By User Id"
+          },
           "severity": {
             "$ref": "#/components/schemas/FraudFlagSeverity"
           },
@@ -5088,10 +5128,38 @@
           "status",
           "description",
           "detected_at",
+          "reviewed_by_user_id",
+          "reviewed_at",
+          "resolution_note",
           "created_at",
           "updated_at"
         ],
         "title": "FraudFlagRead",
+        "type": "object"
+      },
+      "FraudFlagResolveRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Note",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "confirmed",
+              "dismissed"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome",
+          "note"
+        ],
+        "title": "FraudFlagResolveRequest",
         "type": "object"
       },
       "FraudFlagSeverity": {
@@ -5107,6 +5175,7 @@
         "enum": [
           "open",
           "acknowledged",
+          "confirmed",
           "dismissed"
         ],
         "title": "FraudFlagStatus",
@@ -5121,6 +5190,7 @@
           "excessive_ping_gap",
           "future_timestamp",
           "route_looping",
+          "route_replay",
           "exclusion_zone_presence"
         ],
         "title": "FraudFlagType",
@@ -10831,6 +10901,112 @@
           }
         ],
         "summary": "List fraud and anomaly flags",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/admin/fraud-flags/{flag_id}/review/acknowledge": {
+      "post": {
+        "operationId": "admin_acknowledge_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_acknowledge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "flag_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Flag Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudFlagRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Acknowledge a fraud flag for staff review",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/admin/fraud-flags/{flag_id}/review/resolve": {
+      "post": {
+        "operationId": "admin_resolve_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "flag_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Flag Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FraudFlagResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FraudFlagRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Resolve a fraud flag review",
         "tags": [
           "Analytics"
         ]

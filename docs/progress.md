@@ -60,8 +60,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 
 **Controller state:** `ACTIVE`
 **Control package:** `PKG-02` — see package queue row 2 and package card.
-**Current checkpoint:** `PKG-02 / MNY-09A` — non-authorizing internal pointer;
-MNY-08A is complete and the replay-detection checkpoint is now runnable.
+**Current checkpoint:** `PKG-02 / MNY-08C` — non-authorizing internal pointer;
+MNY-08A/MNY-09A/MNY-08B are complete and the driver reason/dispute/notice
+checkpoint is now runnable.
 
 ## Executable package queue
 
@@ -197,6 +198,48 @@ MNY-08A is complete and the replay-detection checkpoint is now runnable.
   reselection; 118 focused SQLite tests (11 expected Postgres skips); ruff and
   diff checks clean. The independent money/concurrency specialist's two high
   and one medium findings were corrected in one round and rechecked RESOLVED.
+- **MNY-09A evidence (DONE 21 Aug 2026):** migration `0023` adds one current,
+  versioned route-replay signature per trip. Canonical absolute-payload and
+  time-shift-normalized hashes detect copied routes without storing raw
+  coordinates/timestamps in review evidence; same-trip retries converge and
+  same-driver repetition alone does not flag. Normalized groups retain one
+  latest cross-account candidate, reconcile departures and old/new transitions
+  under sorted advisory locks, and use DB-side counts/latest selection,
+  bounded samples and set-based cleanup. The worker sweep reselects detector,
+  configuration and analytics drift; failures stay due. Verified: 165 focused
+  SQLite tests (23 expected Postgres skips), 189 focused Postgres tests,
+  property/scale and real pipeline coverage, concurrent reverse-order and
+  old-to-new group tests, seeded-data downgrade, empty
+  `0022 → 0023 → 0022 → 0023`, filtered autogenerate-empty, and ruff/diff
+  clean. The independent fraud/privacy specialist's three high and three
+  medium findings were corrected once and rechecked RESOLVED. Derived hashes
+  are pseudonymous trip-linked location data covered by the later RM15
+  retention/DSR operating model; no real-device, real-route, staging, pilot or
+  user-feedback evidence is claimed.
+- **MNY-08B evidence (DONE 21 Aug 2026):** migration `0024` adds the exact
+  `open → acknowledged → confirmed | dismissed` staff-review lifecycle with
+  coherent reviewer/time/note evidence and non-terminal per-trip/type dedup.
+  One shared predicate holds `open`, `acknowledged` and `confirmed`; only
+  `dismissed` releases. Review, detection, impression and payout consumers
+  serialize on the same trip scope; cross-trip replay reconciliation takes an
+  exclusive reader/writer gate, locks all affected trips in deterministic
+  order, then takes route-fingerprint and flag-row locks. This closes the
+  reviewed cross-trip stale-money race without duplicating a hold rule. Direct
+  resolve and mismatched retries fail 409, exact retries converge, reviews and
+  audits commit atomically, and the payout-v1 minimum floor cannot restore held
+  pay. The admin console now acknowledges and resolves bounded evidence with
+  terminal reviewer context. Verified: 133 focused SQLite tests (28 expected
+  Postgres skips), 164 focused Postgres tests plus the corrected
+  detection-versus-money and detector concurrency races, empty
+  `0023 → 0024 → 0023 → 0024`, legacy fail-closed migration and conservative
+  downgrade fixtures, filtered autogenerate-empty, the cross-trip
+  detection-versus-money and admin-recompute-versus-worker races, 166 frontend
+  tests, typecheck/lint/production build, two-project live seeded admin-review
+  Playwright, API/TypeScript contract synchronization, ruff and diff checks.
+  The money/concurrency specialist's sole high finding and the broader lock-order
+  regression were corrected in one combined round and rechecked RESOLVED.
+  Evidence is synthetic/automated;
+  no real-device, real-route, staging, pilot or user-feedback claim is made.
 
 ### PKG-03 — commercial contracts and billing
 
@@ -303,8 +346,8 @@ verification, gates or required specialist review.
 | 8 | **MNY-06B — assignment/trip rule binding and payout_v3** | PKG-01 | DONE | Accepted driver terms freeze base/premium rates, zone/eligibility revisions and the `payout_v3` rule used by each interval/trip. | leaf: MNY-06A |
 | 9 | **MNY-06C — maker-checker correction orders** | PKG-01 | DONE | Retroactive recompute requires a projected order and separate approver. | leaf: MNY-06B |
 | 10 | **MNY-08A — current fraud assessments** | PKG-02 | DONE | Every sealed trip has one current pending/clean/flagged/error assessment. | none |
-| 11 | **MNY-09A — cross-trip/account replay detection** | PKG-02 | TODO | Identical and time-shifted route replay becomes reviewable evidence. | leaf: MNY-08A |
-| 12 | **MNY-08B — review states and hold invariant** | PKG-02 | TODO | One serialized transition table and hold predicate controls all money consumers. | leaf: MNY-08A, MNY-09A |
+| 11 | **MNY-09A — cross-trip/account replay detection** | PKG-02 | DONE | Identical and time-shifted route replay becomes reviewable evidence. | leaf: MNY-08A |
+| 12 | **MNY-08B — review states and hold invariant** | PKG-02 | DONE | One serialized transition table and hold predicate controls all money consumers. | leaf: MNY-08A, MNY-09A |
 | 13 | **MNY-08C — driver reasons, disputes and in-app notice** | PKG-02 | TODO | Drivers can see holds, dispute them and receive sanitized outcomes. | leaf: MNY-08B |
 | 14 | **MNY-03A — clean release and flagged review SLA** | PKG-02 | TODO | Clean entries release idempotently; flagged entries remain held for approve/decline with seven-day escalation and no auto-release. | leaf: MNY-08B |
 | 15 | **MNY-10A — protected payee/account foundation** | PKG-02 | TODO | Payouts target an immutable payee and verified bank-account version safely. | none |
@@ -1337,7 +1380,7 @@ and Git history win.
 | S4 — data lifecycle (ping partitions, retention purge, audit backfill, D10) | Complete, merged | Git `a879a3d`…`4f487e7`; architecture v1.9, §24.2 [BUILT] |
 | W0-F — trip finality protocol + durable client queue (RM3/RM4/RM5, D15) | Complete — sealed-only money chain, post-seal quarantine, IndexedDB queue with stable retry keys; independently reviewed and hardened (D16: apply-after-initial-payout, pre-seal analytics recompute, fail-closed client) | Migrations `0016`+`0017`; architecture v1.16/v1.17; `tests/test_trip_seal.py`; live compose e2e |
 | Pre-production ops (production Compose overlay, release smoke, backup/restore rehearsal) | Complete locally, **not deployed** | Git from `006d94e`; `docker-compose.production.yml`, `docs/runbook.md` |
-| Current API contract | 22 migrations, contract baselines current | `docs/api/openapi.snapshot.json` + `openapi.json` + `schema.d.ts` drift checks; MNY-08A adds no public API surface, so baselines remain byte-identical pending the one controlled PKG-02 regeneration |
+| Current API contract | 24 migrations; controlled PKG-02 baseline integration completed at MNY-08B | Migration `0024`, `route_replay`, `confirmed`, reviewer evidence and the two admin review endpoints are synchronized across `docs/api/openapi.snapshot.json`, `openapi.json` and `schema.d.ts`. Later package endpoints must preserve this reviewed contract and move all three artifacts together. |
 
 **Nothing is deployed.** Staging/production remain research-only
 (`docs/staging-options.md`) pending provider, budget, and operator approval

@@ -449,9 +449,9 @@ queues/realtime ad hoc — §14 remains the one sanctioned design.
 
 ## 7. Data model
 
-### 7.1 Entities **[BUILT]** — 27 tables
+### 7.1 Entities **[BUILT]** — 28 tables
 
-<!-- verified 2026-08-21: rg -o "__tablename__" app/models/*.py | wc -l → 27 -->
+<!-- verified 2026-08-21: rg -o "__tablename__" app/models/*.py | wc -l → 28 -->
 
 Identity & orgs:
 
@@ -495,8 +495,9 @@ Derived (analytics → money):
 | Table | Purpose / key relationships |
 |-------|------------------------------|
 | `trip_analytics` | Per-trip route metrics (distance, active time, zone overlap), `formula_version` |
-| `fraud_flags` | Typed/severity-classed flags against trips; links to trip_analytics. Status lifecycle `open \| acknowledged \| dismissed` (`ck_fraud_flags_status`); partial unique index `uq_fraud_flags_trip_open_flag_type` dedupes per flag type **only while `status='open'`** |
+| `fraud_flags` | Typed/severity-classed flags against trips; links to trip_analytics. Serialized lifecycle `open → acknowledged → confirmed \| dismissed` carries coherent reviewer/time/note evidence; partial unique index `uq_fraud_flags_trip_nonterminal_flag_type` dedupes each trip/type while the hold remains active (`open \| acknowledged \| confirmed`) |
 | `fraud_assessments` | One current attempt per sealed trip (`pending \| clean \| flagged \| error`) with formula, analytics/input fingerprints and current-flag provenance; pending/error never count as successful-current |
+| `route_replay_signatures` | One current detector/config/analytics-bound signature per trip; indexed absolute-payload and time-shift-normalized hashes support bounded cross-trip/account replay reconciliation without persisting raw route facts in review evidence |
 | `traffic_density_profiles` | Admin-managed density inputs for impression math |
 | `impression_estimates` | Per-trip estimated impressions + confidence, links density profile |
 | `campaign_payout_rule_revisions` | Append-only effective-dated payout-v3 rule revisions (MNY-06A) |
@@ -515,8 +516,8 @@ Notes:
   PostgreSQL requires the partition key in unique constraints — S4);
   timestamps are timezone-aware with `func.now()` defaults; enums are Python
   `StrEnum` + DB check constraints (not native PG enums).
-- The derived chain is **trip_sessions → trip_analytics → (fraud_flags →
-  fraud_assessments, impression_estimates) → payout_calculations →
+- The derived chain is **trip_sessions → trip_analytics → (route_replay_signatures
+  → fraud_flags → fraud_assessments, impression_estimates) → payout_calculations →
   earnings_ledger_entries**; each step stores enough context to be queried
   independently.
 - Target-state table additions (billing, notifications, files, audience, jobs)
@@ -524,13 +525,14 @@ Notes:
 
 ### 7.2 Migration policy **[BUILT]**
 
-- Alembic, 22 linear migrations `0001`–`0022` (extensions → identity/orgs →
+- Alembic, 24 linear migrations `0001`–`0024` (extensions → identity/orgs →
   drivers/vehicles → campaigns/creatives → zones → assignments → trip tracking →
   analytics/fraud → impressions → payouts → F7 password management → F7 audit
   indexes → S1 payout v2 → S4 ping partitioning + purge evidence → RM1 payout-day
   allocation → RM3 trip seal protocol + quarantine → seal review hardening →
-  immutable payout revisions/bindings/corrections → current fraud assessments).
-  <!-- verified 2026-08-21: ls alembic/versions → 22; alembic heads → single head 0022_current_fraud_assessments -->
+  immutable payout revisions/bindings/corrections → current fraud assessments →
+  indexed route-replay signatures).
+  <!-- verified 2026-08-21: ls alembic/versions → 24; alembic heads → single head 0024_fraud_review_holds -->
   (Pre-existing doc drift note: this row still said "12" after S1 shipped
   0013 — corrected here in the S4 commit.)
 - `0001` enables `pgcrypto` + `postgis`.
@@ -1281,39 +1283,46 @@ canonical current-flag inputs are fingerprinted; the sweep also compares a
 flag-count/update watermark so later detection or review-state changes make an
 assessment due again. Only matching `clean`/`flagged` results are
 successful-current; `pending`, `error`, stale inputs and evaluation failures
-remain fail-closed. MNY-08B/MNY-03A still own the authoritative hold and release
-consumers below.
+  remain fail-closed. MNY-08B supplies the authoritative hold below; MNY-03A
+  still owns release.
 
-- `fraud_flags` review lifecycle built on the **existing** statuses
-  (`open | acknowledged | dismissed`, §7.1): `acknowledged` becomes the
-  "under review" state, and a migration extends `ck_fraud_flags_status` with a
-  terminal `confirmed`; add `reviewed_by_user_id`, `reviewed_at`,
-  `resolution_note`. Extend the existing status/severity fields — no parallel
-  flag tables. **Dedup trap:** the unique index only guards `status='open'`
-  rows — moving a flag out of `open` lets re-detection insert a duplicate of
-  the same type; the review migration must extend the index predicate (or the
-  detection service must check non-open flags) in the same change.
-- **Holds:** one authoritative predicate holds `open`, `acknowledged`, and
-  unresolved `confirmed`; only `dismissed` releases. Release also requires a
-  current successful per-trip assessment (RM8). The predicate serializes with
-  review/release and is not duplicated by consumer. Flagged/suspected earnings
-  carry a seven-day review SLA; expiry escalates the case but leaves the money
-  held until a named admin approves or declines it. There is no timed
-  auto-release path.
-- New `/api/v1/admin/fraud-flags/{id}/review` endpoints (acknowledge, resolve);
-  the read-only admin fraud console ([BUILT], F5) becomes a working queue.
+**[BUILT — MNY-09A]:** canonical absolute-payload and time-shift-normalized
+route hashes now produce explainable cross-trip/account replay evidence without
+putting raw coordinates or timestamps in flags. Same-trip retries converge;
+same-driver repeats alone do not flag. Each normalized group keeps one latest
+cross-account review candidate, including mixed exact/time-shift matches and
+member departures. Old/new group transitions use sorted transaction advisory
+locks, while counts/latest selection, bounded evidence samples and cleanup stay
+database-side. Detector/config/analytics drift makes the assessment due again,
+  and evaluation failure remains fail-closed. This detector does not create an
+  independent money rule.
+
+**[BUILT — MNY-08B]:** migration `0024` implements the exact serialized
+`open → acknowledged → confirmed | dismissed` lifecycle on `fraud_flags` with
+reviewer, review-time and bounded mandatory terminal-note evidence. The
+non-terminal unique index covers `open`, `acknowledged` and `confirmed`, so
+re-detection cannot fork a reviewed hold. One shared `hold_active` predicate
+holds those same three states; only `dismissed` releases, and every impression,
+payout and later release consumer imports that contract. Ordinary review/money
+operations take a shared reconciliation gate and the trip scope; cross-trip
+replay reconciliation takes the exclusive gate, locks every affected trip in
+sorted order, then locks fingerprints and flag rows. Thus review, detection and
+money snapshots cannot race across group members. Exact transition retries are
+idempotent, conflicting retries and direct open-to-terminal resolution fail,
+and the state change plus audit event is atomic. The acknowledge/resolve admin
+endpoints and typed console expose bounded evidence and terminal reviewer
+context. The payout-v1 minimum floor is gated off whenever any active hold
+exists. Release still additionally requires a current successful assessment
+and remains MNY-03A work: seven-day expiry will escalate but never auto-release.
 - Driver-facing: flagged trips show sanitized reason + status; the in-product
   dispute and response attach to the assessment/flag. Q34 keeps driver WhatsApp
   as a manual operations channel, not the authoritative dispute record.
 - Strikes/escalation (auto-suspension after N high-severity flags) is **not**
   part of the adopted Q21 MVP rule. If later approved, start with reviewable
   recommendations; never infer automatic suspension from hold-and-review.
-- Severity multipliers (0.9/0.7/0.25) remain configurable but secondary (D5);
-  the minimum-payout-floor loophole (floor paid even on fully-discounted trips
-  — real at the pin: `payouts.py` lifts `final_payout` to the floor whenever
-  gross > 0) is closed as part of v2: floor applies only to trips with no
-  confirmed/open flags ([OPEN] — maps to no numbered v2 question; confirm with
-  Somto and record in `decisions-log.md`).
+- Severity multipliers (0.9/0.7/0.25) remain configurable but secondary (D5).
+  The prior minimum-payout-floor loophole is closed: a floor applies only when
+  the authoritative active-hold count is zero.
 
 **Preserve:** detection engine (`trip_analytics` → `fraud_flags`) as built.
 **Extend:** flag model + admin endpoints + release predicate. **Replace:**
@@ -1647,8 +1656,11 @@ still Postgres territory with partitions + retention, not a new datastore.
    has **no coordinate/geometry columns** (only `location_pings.geom` exists;
    §7.1's and §22.2.1's contrary claims were stale). `started_at`/`ended_at`
    are timestamps, not location data, and stay. Aggregates (`trip_analytics`,
-   `impression_estimates`, heatmap-feeding data) are retained indefinitely —
-   they carry the business value and no raw traces.
+   `impression_estimates`, heatmap-feeding data) and MNY-09A's deterministic
+   route-replay hashes are retained with their owning trip today. The hashes
+   contain no raw coordinates/timestamps but remain pseudonymous derived
+   location-linkage data, may outlive raw pings, and must be included explicitly
+   in RM15's retention schedule and tested DSR runbook before real-driver GPS.
 2. **Monthly range partitioning** **[BUILT]** of `location_pings` by
    **`recorded_at`** (*amendment: the previously-named `captured_at` column
    never existed*) so purge = `DROP PARTITION` (instant, no bloat).
@@ -2070,8 +2082,8 @@ the reviewer described.
 
 | ID | Origin | Status | Requirement | Owning section / slice |
 |----|--------|--------|-------------|------------------------|
-| **RM8** | F02/G4 | PARTIAL — MNY-08A assessment delivered; transition/hold/release remain | One versioned/fingerprinted `fraud_assessments` row now distinguishes successful-current clean/flagged results from pending/error/stale attempts and the DB sweep reselects changed analytics/flag inputs. Remaining defect: money predicates are still **open-only**, statuses have no `confirmed`, dedup covers only `open`, and no serialized review/release authority exists yet. | MNY-08B defines one authoritative transition table with `hold_active` true for `open`, `acknowledged`, and unresolved `confirmed`; only `dismissed` releases, extends non-terminal dedup and serializes review. MNY-03A consumes the same successful-current assessment + hold predicate for release. | §17, **MNY-08B/MNY-03A — before money release** |
-| **RM9** | G2 + F17 | DESIGN-GAP (irreducible) | GPS proves a *driver-controlled phone* moved, never that the *approved branded vehicle* moved. All eight fraud rules are per-trip (`services/trip_analytics.py:347-487`) and **no cross-trip/cross-account route or payload comparison exists** — an identical route replayed under a different trip or account is undetected. | Compensating controls, not a GPS redesign: bind assignment → one device + one vehicle; server-nonce start-of-shift proof-of-display; periodic evidence renewal for high earners; randomized physical spot checks; cross-trip/account identical-and-time-shifted route detection; hold the day on a missed challenge or concurrent session. Native attestation improves signal quality only — never treat it as proof the advertised vehicle moved. | §17/§19/§21, before pilot |
+| **RM8** | F02/G4 | PARTIAL — MNY-08A/B assessment, review and hold delivered; release remains | One versioned/fingerprinted `fraud_assessments` row distinguishes successful-current clean/flagged results from pending/error/stale attempts. MNY-08B adds serialized `open → acknowledged → confirmed \| dismissed`, coherent reviewer evidence, non-terminal dedup and one shared `hold_active` predicate for every money consumer. Shared/exclusive reconciliation gating closes cross-trip detection-versus-money races; only dismissal removes the hold. | MNY-03A must consume the same successful-current assessment plus `hold_active` contract for idempotent clean release, seven-day escalation without auto-release and post-release recommendations. | §17, **MNY-03A — before money release** |
+| **RM9** ⚠ **[PARTIALLY RESOLVED — MNY-09A 21 Aug 2026]** | G2 + F17 | DESIGN-GAP (irreducible); copied-route software control delivered | GPS proves a *driver-controlled phone* moved, never that the *approved branded vehicle* moved. MNY-09A now detects identical-payload and time-shifted cross-trip/account route replay as bounded, reviewable evidence, with same-trip retry and same-driver-repeat guards. This does not prove vehicle/display identity. | **Done in MNY-09A:** indexed/versioned copied-route detection feeding the existing assessment contract, never a second hold predicate. **Remaining:** bind assignment → one device + one vehicle; server-nonce start-of-shift proof-of-display; periodic evidence renewal for high earners; randomized physical spot checks; hold the day on a missed challenge or concurrent session. Native attestation improves signal quality only — never treat it as proof the advertised vehicle moved. | §17/§19/§21, before pilot |
 | **RM10** | F05/G3 | DESIGN-GAP | Payout batches have no finality contract: no reserved state, no one-active-line-per-entry constraint, no frozen payee/amount snapshot/instruction fingerprint, no provider idempotency/reference, no per-line bank outcome, no reconciliation-before-`paid`. | `draft → reserved → submitted → reconciled/completed | failed | void`; atomic reservation with a DB constraint of one non-void line per ledger entry; snapshot verified bank-account version + beneficiary + amount; freeze/hash the provider instruction; unique idempotency key and external transfer reference per line; submit behind the approved adapter; mark paid **only** from signed-webhook or verified-poll line-level evidence; maker ≠ approver/reconciler. | §16.3, **S3** |
 | **RM11** | F04 | DESIGN-GAP (**downgraded** from BLOCKER) | The reviewers' "paid reversal is never recovered" scenario is **not current code**: statuses are `pending/available/voided/reversed` with **no `paid`**, no payout run exists, and `AVAILABLE` is set only by the demo seed. The status-inheritance mechanism is real (`services/payouts.py:2326-2331`) and correctly nets reversals within their bucket. It becomes a genuine defect only when S3 introduces cash payment. | When S3 lands: define `earned_net`, `released_available`, `cash_paid`, `carry_forward_debt`, `batch_payable`; post post-payment corrections to a carry-forward debit bucket and allocate future available credits against it; property-test "posting a reversal never increases any balance" across the payment boundary. Never model a new cash obligation as already paid. | §16.2/§16.3, **S3** |
 | **RM12** | G5/F08 | DESIGN-GAP | Nothing bounds driver liability by confirmed funding: invoice status proves an advertiser price was paid, §15.5 separates spend from driver cost, D4 caps per driver-day but not per campaign, and Q9 expansions apply immediately. Commercial terms are also not effective-dated, so recompute can price past work under never-accepted terms (compounding RM6). | Immutable campaign financial authorization (funded amount, approved subsidy, max driver liability); reserve `rate × cap × covered vehicle-days` at offer/assignment activation; Q9 expansions apply immediately only inside pre-funded headroom, else `pending_funding`; block new sessions past the reserve while honouring hours already validly performed. Add effective-dated snapshots for offers, payout rules, zones, eligibility params, and tax/billing config; each eligible interval resolves the revision then in force. Keep the liability reserve distinct from advertiser budget/spend. | §15/§16.1/§21, **W2 entry** |
@@ -2106,6 +2118,8 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.33 | 2026-08-21 | **MNY-08B serialized review and authoritative holds delivered; RM8 narrowed to release.** Migration `0024` adds coherent reviewer/time/note evidence, terminal `confirmed`, and non-terminal trip/type dedup for the exact `open → acknowledged → confirmed \| dismissed` graph. One shared predicate holds open, acknowledged and confirmed flags across impression, payout and later release consumers; only dismissal releases, and the payout-v1 floor cannot restore held pay. A shared/exclusive PostgreSQL reconciliation gate plus sorted affected-trip/fingerprint/row locks closes cross-trip detection-versus-money races; analytics recomputation enters the same scope before any write, closing the broader admin-versus-worker lock cycle. Exact retries converge, illegal/conflicting transitions fail, and review plus audit is atomic. The typed admin queue now acknowledges/resolves bounded evidence. Evidence: focused SQLite/Postgres suites including detector, money-holder and admin/worker races, migration fail-closed/downgrade and empty-cycle checks, 166 frontend tests, type/lint/build, two-project live seeded Playwright, synchronized §9 artifacts, and independent money/concurrency recheck RESOLVED after one combined correction round. No real-device, route, staging, pilot or user-feedback validation is claimed. |
+| v1.32 | 2026-08-21 | **MNY-09A copied-route detection delivered; RM9 partially resolved.** Migration `0023` adds one current detector/config/analytics-bound replay signature per trip with indexed absolute-payload and time-shift-normalized fingerprints. One latest cross-account candidate per normalized group becomes privacy-bounded review evidence; same-trip retries and same-driver repeats alone do not flag. Sorted old/new group locks and DB-bounded reconciliation cover reverse processing, membership departure, scale and concurrent transitions. Failures remain due and no new hold predicate is introduced. Evidence: 165 focused SQLite and 189 focused Postgres tests, property/scale and pipeline coverage, seeded-data downgrade, empty migration cycle, filtered autogenerate-empty, ruff/diff clean, and independent fraud/privacy review RESOLVED after one correction round. The staged public enum movement was integrated with MNY-08B at v1.33. Derived replay hashes are classified as pseudonymous trip-linked location data for RM15 retention/DSR handling. |
 | v1.31 | 2026-08-21 | **MNY-08A current fraud assessments delivered; RM8 partially closed.** Migration `0022` adds one versioned/fingerprinted current assessment attempt per sealed trip with explicit pending/clean/flagged/error states and current-flag count/update provenance. The DB-derived worker sweep reselects stale formula, analytics and flag inputs; only successful-current clean/flagged states qualify for the later release contract, while sanitized evaluation errors remain due. Named uniqueness convergence handles simultaneous workers. Evidence: empty migration upgrade and downgrade/re-upgrade at one head; 60 focused Postgres and 118 focused SQLite tests; ruff/diff clean; independent money/concurrency review findings corrected once and rechecked RESOLVED. No public API or §9 baseline change. MNY-08B/MNY-03A still own the serialized hold/release contract. |
 | v1.30 | 2026-08-20 | **PKG-01 closed: parked-time payout and build-risk foundations delivered (D22/D23).** `stationary-rd-v1` freezes the reviewed 120-second/25-metre/2-confirm/1-release rule and complete common values for new payout-v3 acceptances, persists classifier/payout/correction evidence and driver/admin explanations, fails closed on unknown markers, and preserves payout-v1/v2 fingerprints. RM2 is closed. Deterministic PostGIS/frontend/build checks and the production-like desktop/mobile browser flow pass; API baselines did not move. R14-A/B and R17-A automated/synthetic build proofs are complete. Representative Android/iPhone physical/route/battery and approved external-staging validation remain explicitly NOT RUN and continue to gate later W4 real use. |
 | v1.29 | 2026-08-20 | **Build-first versus real-world validation contract recorded (D23).** R14-A/R14-B close on deterministic capability, denial/revocation, queue/tracker, interrupted synthetic-flow and desktop/mobile browser-profile evidence; R17-A closes on provider-neutral production-compose, edge, smoke, migration and recovery-contract evidence. Representative Android/iPhone route/battery runs and external staging deployment/public-edge/restore evidence remain explicitly NOT RUN in `docs/progress.md` and still gate W4 real GPS, release and pilot acceptance. `EXT-STAGING-APPROVAL` remains missing; no device or deployment evidence is invented. The progress validator pins R17-A's build prerequisite as `none` while preserving the stable external ID and later live gate. |

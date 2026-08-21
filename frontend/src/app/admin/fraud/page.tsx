@@ -9,6 +9,7 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { Pagination } from "@/components/ui/pagination";
 import { cx } from "@/lib/cx";
 import type { components } from "@/lib/api/schema";
+import { ReviewActions } from "./review-actions";
 
 export const metadata: Metadata = { title: "Fraud console" };
 
@@ -16,7 +17,7 @@ const PAGE_SIZE = 25;
 type FStatus = components["schemas"]["FraudFlagStatus"];
 type FSeverity = components["schemas"]["FraudFlagSeverity"];
 
-const STATUSES: FStatus[] = ["open", "acknowledged", "dismissed"];
+const STATUSES: FStatus[] = ["open", "acknowledged", "confirmed", "dismissed"];
 const sevTone: Record<FSeverity, "coral" | "amber" | "default"> = {
   high: "coral",
   medium: "amber",
@@ -31,8 +32,27 @@ const typeLabel: Record<string, string> = {
   excessive_ping_gap: "Ping gap",
   future_timestamp: "Future timestamp",
   route_looping: "Route looping",
+  route_replay: "Route replay",
   exclusion_zone_presence: "Exclusion zone",
 };
+
+function evidenceLabel(key: string): string {
+  return key.replaceAll("_", " ");
+}
+
+function evidenceValue(value: unknown): string {
+  let rendered: string;
+  if (typeof value === "string") rendered = value;
+  else if (typeof value === "number" || typeof value === "boolean") rendered = String(value);
+  else {
+    try {
+      rendered = JSON.stringify(value) ?? "Unavailable";
+    } catch {
+      rendered = "Unavailable";
+    }
+  }
+  return rendered.length > 120 ? `${rendered.slice(0, 117)}…` : rendered;
+}
 
 function href(params: { status?: string; offset?: number }): string {
   const qs = new URLSearchParams();
@@ -65,7 +85,7 @@ export default async function AdminFraudPage({
     <div className="animate-rise mx-auto max-w-6xl">
       <PageHeader
         title="Fraud console"
-        eyebrow={`${total} flag${total === 1 ? "" : "s"} — flagged trips are auto-discounted from billing and payouts`}
+        eyebrow={`${total} flag${total === 1 ? "" : "s"} — open, acknowledged and confirmed flags hold affected money; only dismissal releases the hold`}
       />
 
       <div className="mb-4 flex gap-1" role="group" aria-label="Filter by status">
@@ -100,9 +120,9 @@ export default async function AdminFraudPage({
       ) : (
         <div className="flex flex-col gap-3">
           {items.map((f) => (
-            <Panel key={f.id} className="p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
+            <Panel key={f.id} className="p-5" data-testid={`fraud-flag-${f.id}`}>
+              <div className="flex flex-wrap items-start justify-between gap-5">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <StatusChip tone={sevTone[f.severity]}>{f.severity}</StatusChip>
                     <p className="font-medium">{typeLabel[f.flag_type] ?? f.flag_type}</p>
@@ -111,8 +131,49 @@ export default async function AdminFraudPage({
                   <p className="micro text-faint mt-2 font-mono">
                     trip {f.trip_session_id.slice(0, 8)} · detected {formatDate(f.detected_at)}
                   </p>
+                  {Object.keys(f.evidence ?? {}).length > 0 ? (
+                    <dl
+                      className="border-edge mt-3 grid max-w-2xl grid-cols-[auto_1fr] gap-x-3 gap-y-1 border-l pl-3 text-xs"
+                      aria-label="Detection evidence"
+                    >
+                      {Object.entries(f.evidence ?? {})
+                        .slice(0, 6)
+                        .map(([key, value]) => (
+                          <div key={key} className="contents">
+                            <dt className="text-faint capitalize">{evidenceLabel(key)}</dt>
+                            <dd
+                              className="text-muted min-w-0 truncate font-mono"
+                              title={evidenceValue(value)}
+                            >
+                              {evidenceValue(value)}
+                            </dd>
+                          </div>
+                        ))}
+                    </dl>
+                  ) : null}
+                  {f.reviewed_by_user_id && f.reviewed_at ? (
+                    <p className="micro text-faint mt-3">
+                      Reviewed by {f.reviewed_by_user_id.slice(0, 8)} · {formatDate(f.reviewed_at)}
+                    </p>
+                  ) : null}
+                  {f.resolution_note ? (
+                    <p className="text-muted mt-1 text-sm">Resolution: {f.resolution_note}</p>
+                  ) : null}
                 </div>
-                <StatusChip tone={f.status === "open" ? "coral" : "default"}>{f.status}</StatusChip>
+                <div className="flex min-w-60 flex-col items-end gap-3">
+                  <StatusChip
+                    tone={
+                      f.status === "open" || f.status === "confirmed"
+                        ? "coral"
+                        : f.status === "acknowledged"
+                          ? "amber"
+                          : "default"
+                    }
+                  >
+                    {f.status}
+                  </StatusChip>
+                  <ReviewActions flagId={f.id} status={f.status} />
+                </div>
               </div>
             </Panel>
           ))}
@@ -126,8 +187,9 @@ export default async function AdminFraudPage({
       />
 
       <p className="micro text-faint mt-6">
-        Flag statuses are set by the detection engine in this MVP — the hold-and-review workflow
-        is planned work (architecture §17, slice S2).
+        Staff acknowledge each active hold, review its bounded evidence, then record one final
+        confirmed or dismissed decision. The backend serializes every transition and remains the
+        authority.
       </p>
     </div>
   );

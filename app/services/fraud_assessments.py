@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
@@ -50,6 +50,7 @@ def assessment_inputs_fingerprint(
     analytics: TripAnalytics,
     flags: Sequence[FraudFlag],
     formula_version: str,
+    upstream_facts: Mapping[str, object] | None = None,
 ) -> tuple[str, str]:
     source_fingerprint = analytics_output_fingerprint(analytics)
     return source_fingerprint, stable_source_fingerprint(
@@ -57,6 +58,7 @@ def assessment_inputs_fingerprint(
             "formula_version": formula_version,
             "source_analytics_fingerprint": source_fingerprint,
             "flags": current_flag_facts(flags),
+            "upstream": dict(upstream_facts or {}),
         }
     )
 
@@ -67,6 +69,7 @@ def is_current_successful_assessment(
     analytics: TripAnalytics,
     flags: Sequence[FraudFlag],
     settings: Settings,
+    upstream_facts: Mapping[str, object] | None = None,
 ) -> bool:
     if assessment is None or assessment.status not in SUCCESSFUL_FRAUD_ASSESSMENT_STATUSES:
         return False
@@ -74,6 +77,7 @@ def is_current_successful_assessment(
         analytics=analytics,
         flags=flags,
         formula_version=settings.fraud_assessment_formula_version,
+        upstream_facts=upstream_facts,
     )
     return (
         assessment.formula_version == settings.fraud_assessment_formula_version
@@ -117,6 +121,8 @@ async def assess_trip_fraud(
     flags: Sequence[FraudFlag],
     settings: Settings,
     now: datetime,
+    upstream_facts: Mapping[str, object] | None = None,
+    upstream_error_code: str | None = None,
 ) -> FraudAssessmentResult:
     assessment = await _locked_assessment(session, trip_id=analytics.trip_session_id)
     flags_updated_through = max(
@@ -128,15 +134,17 @@ async def assess_trip_fraud(
             analytics=analytics,
             flags=flags,
             formula_version=settings.fraud_assessment_formula_version,
+            upstream_facts=upstream_facts,
         )
     except Exception:
         source_fingerprint = UNAVAILABLE_FINGERPRINT
         inputs_fingerprint = UNAVAILABLE_FINGERPRINT
         evaluation_failed = True
     else:
-        evaluation_failed = False
+        evaluation_failed = upstream_error_code is not None
         if (
-            assessment is not None
+            not evaluation_failed
+            and assessment is not None
             and assessment.status in SUCCESSFUL_FRAUD_ASSESSMENT_STATUSES
             and assessment.formula_version == settings.fraud_assessment_formula_version
             and assessment.source_analytics_fingerprint == source_fingerprint
@@ -186,7 +194,7 @@ async def assess_trip_fraud(
 
     if evaluation_failed:
         assessment.status = FraudAssessmentStatus.ERROR.value
-        assessment.error_code = ASSESSMENT_ERROR_CODE
+        assessment.error_code = upstream_error_code or ASSESSMENT_ERROR_CODE
         assessment.assessed_at = now
     else:
         assessment.status = (

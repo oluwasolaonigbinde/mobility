@@ -264,6 +264,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/fraud-flags/{flag_id}/review/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acknowledge a fraud flag for staff review */
+        post: operations["admin_acknowledge_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_acknowledge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/fraud-flags/{flag_id}/review/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve a fraud flag review */
+        post: operations["admin_resolve_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/heatmap": {
         parameters: {
             query?: never;
@@ -3035,6 +3069,11 @@ export interface components {
              */
             acknowledged: number;
             /**
+             * Confirmed
+             * @default 0
+             */
+            confirmed: number;
+            /**
              * Dismissed
              * @default 0
              */
@@ -3110,6 +3149,12 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Resolution Note */
+            resolution_note: string | null;
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /** Reviewed By User Id */
+            reviewed_by_user_id: string | null;
             severity: components["schemas"]["FraudFlagSeverity"];
             status: components["schemas"]["FraudFlagStatus"];
             /** Trip Analytics Id */
@@ -3130,6 +3175,16 @@ export interface components {
              */
             vehicle_id: string;
         };
+        /** FraudFlagResolveRequest */
+        FraudFlagResolveRequest: {
+            /** Note */
+            note: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "confirmed" | "dismissed";
+        };
         /**
          * FraudFlagSeverity
          * @enum {string}
@@ -3139,12 +3194,12 @@ export interface components {
          * FraudFlagStatus
          * @enum {string}
          */
-        FraudFlagStatus: "open" | "acknowledged" | "dismissed";
+        FraudFlagStatus: "open" | "acknowledged" | "confirmed" | "dismissed";
         /**
          * FraudFlagType
          * @enum {string}
          */
-        FraudFlagType: "insufficient_pings" | "impossible_speed" | "poor_accuracy" | "stationary_trip" | "excessive_ping_gap" | "future_timestamp" | "route_looping" | "exclusion_zone_presence";
+        FraudFlagType: "insufficient_pings" | "impossible_speed" | "poor_accuracy" | "stationary_trip" | "excessive_ping_gap" | "future_timestamp" | "route_looping" | "route_replay" | "exclusion_zone_presence";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -5317,6 +5372,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FraudFlagListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_acknowledge_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_acknowledge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                flag_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FraudFlagRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_resolve_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_resolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                flag_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FraudFlagResolveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FraudFlagRead"];
                 };
             };
             /** @description Validation Error */
