@@ -60,9 +60,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 
 **Controller state:** `ACTIVE`
 **Control package:** `PKG-02` — see package queue row 2 and package card.
-**Current checkpoint:** `PKG-02 / MNY-03A` — non-authorizing internal pointer;
-MNY-08A/MNY-09A/MNY-08B/MNY-08C and PKG02-C0/C1 are complete. MNY-03A is the
-active controller-owned checklist item.
+**Current checkpoint:** `PKG-02 / MNY-10A` — non-authorizing internal pointer;
+Lane A (MNY-08A/MNY-09A/MNY-08B/MNY-08C/MNY-03A) and PKG02-C0/C1 are
+complete. The owner-assigned external Lane B is next at MNY-10A.
 
 ## Executable package queue
 
@@ -287,6 +287,26 @@ active controller-owned checklist item.
   coverage. One specialist review's two medium evidence gaps were corrected in
   one round and rechecked RESOLVED. No API baseline or external/live claim
   changed.
+- **MNY-03A evidence (DONE 21 Aug 2026, code `1f0b1f4`):** migration `0027`
+  persists one review-escalation timestamp and one unique fraud-flag source for
+  an available reversal. A DB-derived, starvation-safe worker sweep takes the
+  existing fraud trip scope, then the post-wait database clock, and releases
+  due `pending` rows only when the exact assessment inputs are
+  successful-current and the imported authoritative hold predicate is false.
+  Dismissal invalidates the old assessment; reassessment is required before
+  release. Open/acknowledged cases escalate once at the configurable deadline
+  without changing money or auto-releasing. A named confirmation after release
+  posts one positive subtract-by-type reversal; retry and multiple flags cannot
+  over-reverse. Verified: 21 focused PostgreSQL core cases including
+  two-worker and dismissal/release races, 3 migration cycle/populated-guard
+  cases, autogenerate-empty, a controller rerun of 30 integrated backend
+  cases, 11 focused admin UI cases, type/lint, synchronized §9 artifacts, and
+  live synthetic desktop/mobile deadline/recommendation plus named
+  confirm-to-one-reversal evidence (`available_net = 0.00`, one linked ledger
+  row and one audit per action). The money/concurrency specialist found one
+  medium configurable-SLA UI wording defect; the single correction round was
+  rechecked RESOLVED. No real-device, real-route, external-staging, pilot or
+  user-feedback validation is claimed.
 
 ### PKG-03 — commercial contracts and billing
 
@@ -400,7 +420,7 @@ verification, gates or required specialist review.
 | 11 | **MNY-09A — cross-trip/account replay detection** | PKG-02 | DONE | Identical and time-shifted route replay becomes reviewable evidence. | leaf: MNY-08A |
 | 12 | **MNY-08B — review states and hold invariant** | PKG-02 | DONE | One serialized transition table and hold predicate controls all money consumers. | leaf: MNY-08A, MNY-09A |
 | 13 | **MNY-08C — driver reasons, disputes and in-app notice** | PKG-02 | DONE | Drivers can see holds, dispute them and receive sanitized outcomes. | leaf: MNY-08B |
-| 14 | **MNY-03A — clean release and flagged review SLA** | PKG-02 | TODO | Clean entries release idempotently; flagged entries remain held for approve/decline with seven-day escalation and no auto-release. | leaf: MNY-08B |
+| 14 | **MNY-03A — clean release and flagged review SLA** | PKG-02 | DONE | Clean entries release idempotently; flagged entries remain held for approve/decline with seven-day escalation and no auto-release. | leaf: MNY-08B |
 | 15 | **MNY-10A — protected payee/account foundation** | PKG-02 | TODO | Payouts target an immutable payee and verified bank-account version safely. | none |
 | 16 | **MNY-10B — batch reservation and provider submission** | PKG-02 | TODO | Available entries are atomically reserved into frozen, idempotent provider instructions and submitted only after maker-checker approval. | leaf: MNY-10A |
 | 17 | **MNY-10C — provider line reconciliation and paid finality** | PKG-02 | TODO | Each automated transfer line reconciles from signed webhook/verified poll evidence before cash-paid finality. | leaf: MNY-10B |

@@ -1,6 +1,6 @@
 # Advisory Pro review register
 
-Last reconciled against `feat/pkg-02` at `309a5a2` on 21 August 2026.
+Last reconciled against `feat/pkg-02` at `1f0b1f4` on 21 August 2026.
 
 ## Status and precedence
 
@@ -45,15 +45,16 @@ The useful audit findings and their current dispositions are:
 
 ## Package 2 money and payout operations
 
-MNY-08A/MNY-09A/MNY-08B/MNY-08C and C0/C1 are delivered. MNY-03A is the next
-Lane A checklist item. External Lane B owns MNY-10A → MNY-10B → MNY-10C →
-MNY-11A and must consume the authoritative hold contract at
+MNY-08A/MNY-09A/MNY-08B/MNY-08C/MNY-03A and C0/C1 are delivered. External
+Lane B is next and owns MNY-10A → MNY-10B → MNY-10C → MNY-11A. It must consume
+the authoritative hold contract at
 `3aeb2a55b959e3d5c6b1a489004042075fb9d9ea`.
 
 Preserve these invariants:
 
-- Every money path imports one current assessment and authoritative
-  `hold_active` rule; never introduce another hold predicate.
+- Release now requires the exact successful-current assessment plus the
+  imported authoritative `hold_active` rule under the existing trip scope.
+  Lane B must consume that contract and never introduce another hold predicate.
 - Bank/payee details are encrypted behind the adopted provider-neutral port and
   versioned so edits cannot rewrite frozen instructions.
 - Batch creation atomically reserves source entries and prevents duplicate
