@@ -2,6 +2,8 @@ name: ci
 
 on:
   push:
+    branches:
+      - master
     paths:
       - "frontend/**"
       - "app/**"
@@ -35,6 +37,10 @@ on:
       - "AGENTS.md"
       - ".pre-commit-config.yaml"
       - ".github/workflows/ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 defaults:
   run:
