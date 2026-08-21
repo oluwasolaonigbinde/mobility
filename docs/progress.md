@@ -60,9 +60,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 
 **Controller state:** `ACTIVE`
 **Control package:** `PKG-02` — see package queue row 2 and package card.
-**Current checkpoint:** `PKG-02 / MNY-08C` — non-authorizing internal pointer;
-MNY-08A/MNY-09A/MNY-08B are complete. MNY-08C runs together with internal
-checkpoint PKG02-C0 for corrected-explanation provenance, as recorded in the
+**Current checkpoint:** `PKG-02 / MNY-03A` — non-authorizing internal pointer;
+MNY-08A/MNY-09A/MNY-08B/MNY-08C and PKG02-C0 are complete. The controller is
+executing prerequisite correction PKG02-C1 before MNY-03A, as recorded in the
 Package 2 card.
 
 ## Executable package queue
@@ -188,10 +188,10 @@ Package 2 card.
   `.codex/delivery/cardvert-pkg02/plan-ledger.md`.
 - **Audit-reconciliation correction checkpoints (owner handoff, 21 Aug 2026):**
   these are controller-owned prerequisites inside the existing program, not
-  new approvals or permission to reorder the queue. **PKG02-C0 (ACTIVE with
-  MNY-08C):** corrected driver explanations must use corrected excluded-reason
-  provenance, never original-calculation metadata. **PKG02-C1 (before MNY-10B
-  and PKG-02 closure):** unify the DB/application clock and shared
+  new approvals or permission to reorder the queue. **PKG02-C0 (DONE with
+  MNY-08C):** corrected driver explanations use corrected excluded-reason
+  provenance, never original-calculation metadata. **PKG02-C1 (ACTIVE before
+  MNY-03A, MNY-10B and PKG-02 closure):** unify the DB/application clock and shared
   acceptance-versus-revision serialization; freeze the accepted campaign
   payment window in payout-v3 bindings; make populated downgrades `0018`–`0021`
   fail closed; and lock every overlapping trip row in stable order for
@@ -259,6 +259,19 @@ Package 2 card.
   regression were corrected in one combined round and rechecked RESOLVED.
   Evidence is synthetic/automated;
   no real-device, real-route, staging, pilot or user-feedback claim is made.
+- **MNY-08C evidence (DONE 21 Aug 2026):** migration `0025` adds one owner-only,
+  idempotent dispute per fraud flag plus typed, deduplicated in-app notices.
+  Driver projections expose only allowlisted reason/status/outcome fields;
+  internal evidence, matched identities and review notes remain private.
+  Admin replies stay separate from internal review notes, and confirmed or
+  dismissed outcomes remain visible. Corrected earnings explanations take the
+  eligible/excluded pair from the same newest authoritative recompute and fail
+  closed on malformed provenance. Verified with focused PostgreSQL role,
+  privacy, retry, atomicity and concurrent-terminal tests; 25 focused frontend
+  tests; type/lint; contract drift checks; and a two-profile desktop/mobile live
+  dispute→reply→reload journey. The privacy/security recheck resolved one
+  combined correction round. No real-device, route, staging, pilot or
+  user-feedback validation is claimed.
 
 ### PKG-03 — commercial contracts and billing
 
@@ -371,7 +384,7 @@ verification, gates or required specialist review.
 | 10 | **MNY-08A — current fraud assessments** | PKG-02 | DONE | Every sealed trip has one current pending/clean/flagged/error assessment. | none |
 | 11 | **MNY-09A — cross-trip/account replay detection** | PKG-02 | DONE | Identical and time-shifted route replay becomes reviewable evidence. | leaf: MNY-08A |
 | 12 | **MNY-08B — review states and hold invariant** | PKG-02 | DONE | One serialized transition table and hold predicate controls all money consumers. | leaf: MNY-08A, MNY-09A |
-| 13 | **MNY-08C — driver reasons, disputes and in-app notice** | PKG-02 | TODO | Drivers can see holds, dispute them and receive sanitized outcomes. | leaf: MNY-08B |
+| 13 | **MNY-08C — driver reasons, disputes and in-app notice** | PKG-02 | DONE | Drivers can see holds, dispute them and receive sanitized outcomes. | leaf: MNY-08B |
 | 14 | **MNY-03A — clean release and flagged review SLA** | PKG-02 | TODO | Clean entries release idempotently; flagged entries remain held for approve/decline with seven-day escalation and no auto-release. | leaf: MNY-08B |
 | 15 | **MNY-10A — protected payee/account foundation** | PKG-02 | TODO | Payouts target an immutable payee and verified bank-account version safely. | none |
 | 16 | **MNY-10B — batch reservation and provider submission** | PKG-02 | TODO | Available entries are atomically reserved into frozen, idempotent provider instructions and submitted only after maker-checker approval. | leaf: MNY-10A |
@@ -1406,7 +1419,7 @@ and Git history win.
 | S4 — data lifecycle (ping partitions, retention purge, audit backfill, D10) | Complete, merged | Git `a879a3d`…`4f487e7`; architecture v1.9, §24.2 [BUILT] |
 | W0-F — trip finality protocol + durable client queue (RM3/RM4/RM5, D15) | Complete — sealed-only money chain, post-seal quarantine, IndexedDB queue with stable retry keys; independently reviewed and hardened (D16: apply-after-initial-payout, pre-seal analytics recompute, fail-closed client) | Migrations `0016`+`0017`; architecture v1.16/v1.17; `tests/test_trip_seal.py`; live compose e2e |
 | Pre-production ops (production Compose overlay, release smoke, backup/restore rehearsal) | Complete locally, **not deployed** | Git from `006d94e`; `docker-compose.production.yml`, `docs/runbook.md` |
-| Current API contract | 24 migrations; controlled PKG-02 baseline integration completed at MNY-08B | Migration `0024`, `route_replay`, `confirmed`, reviewer evidence and the two admin review endpoints are synchronized across `docs/api/openapi.snapshot.json`, `openapi.json` and `schema.d.ts`. Later package endpoints must preserve this reviewed contract and move all three artifacts together. |
+| Current API contract | 25 migrations; controlled PKG-02 baseline integration completed at MNY-08C | Migration `0025`, driver fraud-hold/dispute projections, admin dispute read/reply operations and typed notice schemas are synchronized across `docs/api/openapi.snapshot.json`, `openapi.json` and `schema.d.ts`. Later package endpoints must preserve this reviewed contract and move all three artifacts together. |
 
 **Nothing is deployed.** Staging/production remain research-only
 (`docs/staging-options.md`) pending provider, budget, and operator approval
