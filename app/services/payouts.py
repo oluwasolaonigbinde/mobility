@@ -3886,9 +3886,11 @@ async def driver_trip_earnings_breakdown(
                 _tier_breakdown_from_stored_metadata(stored) is None
             ):
                 continue
-            explanation = _recompute_explanation_from_stored_metadata(stored)
-            if explanation is None:
-                continue
+            # The newest otherwise-authoritative recompute remains the
+            # provenance boundary even when its explanation pair is malformed.
+            # Falling through to an older correction (or the original
+            # calculation) would re-expose stale driver reasons.
+            explanation = _recompute_explanation_from_stored_metadata(stored) or (None, None)
             authoritative_recompute_entries.append((entry, explanation))
 
         if authoritative_recompute_entries:

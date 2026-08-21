@@ -10,6 +10,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { cx } from "@/lib/cx";
 import type { components } from "@/lib/api/schema";
 import { ReviewActions } from "./review-actions";
+import { DisputeReplyActions } from "./dispute-actions";
 
 export const metadata: Metadata = { title: "Fraud console" };
 
@@ -80,6 +81,17 @@ export default async function AdminFraudPage({
   });
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
+  const disputeResponse =
+    items.length > 0
+      ? await api.GET("/api/v1/admin/fraud-disputes", {
+          params: {
+            query: { flag_id: items.map((flag) => flag.id), limit: PAGE_SIZE, offset: 0 },
+          },
+        })
+      : undefined;
+  const disputeByFlagId = new Map(
+    (disputeResponse?.data?.items ?? []).map((dispute) => [dispute.fraud_flag_id, dispute]),
+  );
 
   return (
     <div className="animate-rise mx-auto max-w-6xl">
@@ -119,64 +131,93 @@ export default async function AdminFraudPage({
         </Panel>
       ) : (
         <div className="flex flex-col gap-3">
-          {items.map((f) => (
-            <Panel key={f.id} className="p-5" data-testid={`fraud-flag-${f.id}`}>
-              <div className="flex flex-wrap items-start justify-between gap-5">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <StatusChip tone={sevTone[f.severity]}>{f.severity}</StatusChip>
-                    <p className="font-medium">{typeLabel[f.flag_type] ?? f.flag_type}</p>
-                  </div>
-                  <p className="text-muted mt-2 text-sm">{f.description}</p>
-                  <p className="micro text-faint mt-2 font-mono">
-                    trip {f.trip_session_id.slice(0, 8)} · detected {formatDate(f.detected_at)}
-                  </p>
-                  {Object.keys(f.evidence ?? {}).length > 0 ? (
-                    <dl
-                      className="border-edge mt-3 grid max-w-2xl grid-cols-[auto_1fr] gap-x-3 gap-y-1 border-l pl-3 text-xs"
-                      aria-label="Detection evidence"
-                    >
-                      {Object.entries(f.evidence ?? {})
-                        .slice(0, 6)
-                        .map(([key, value]) => (
-                          <div key={key} className="contents">
-                            <dt className="text-faint capitalize">{evidenceLabel(key)}</dt>
-                            <dd
-                              className="text-muted min-w-0 truncate font-mono"
-                              title={evidenceValue(value)}
-                            >
-                              {evidenceValue(value)}
-                            </dd>
-                          </div>
-                        ))}
-                    </dl>
-                  ) : null}
-                  {f.reviewed_by_user_id && f.reviewed_at ? (
-                    <p className="micro text-faint mt-3">
-                      Reviewed by {f.reviewed_by_user_id.slice(0, 8)} · {formatDate(f.reviewed_at)}
+          {items.map((f) => {
+            const dispute = disputeByFlagId.get(f.id);
+            return (
+              <Panel key={f.id} className="p-5" data-testid={`fraud-flag-${f.id}`}>
+                <div className="flex flex-wrap items-start justify-between gap-5">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <StatusChip tone={sevTone[f.severity]}>{f.severity}</StatusChip>
+                      <p className="font-medium">{typeLabel[f.flag_type] ?? f.flag_type}</p>
+                    </div>
+                    <p className="text-muted mt-2 text-sm">{f.description}</p>
+                    <p className="micro text-faint mt-2 font-mono">
+                      trip {f.trip_session_id.slice(0, 8)} · detected {formatDate(f.detected_at)}
                     </p>
-                  ) : null}
-                  {f.resolution_note ? (
-                    <p className="text-muted mt-1 text-sm">Resolution: {f.resolution_note}</p>
-                  ) : null}
+                    {Object.keys(f.evidence ?? {}).length > 0 ? (
+                      <dl
+                        className="border-edge mt-3 grid max-w-2xl grid-cols-[auto_1fr] gap-x-3 gap-y-1 border-l pl-3 text-xs"
+                        aria-label="Detection evidence"
+                      >
+                        {Object.entries(f.evidence ?? {})
+                          .slice(0, 6)
+                          .map(([key, value]) => (
+                            <div key={key} className="contents">
+                              <dt className="text-faint capitalize">{evidenceLabel(key)}</dt>
+                              <dd
+                                className="text-muted min-w-0 truncate font-mono"
+                                title={evidenceValue(value)}
+                              >
+                                {evidenceValue(value)}
+                              </dd>
+                            </div>
+                          ))}
+                      </dl>
+                    ) : null}
+                    {f.reviewed_by_user_id && f.reviewed_at ? (
+                      <p className="micro text-faint mt-3">
+                        Reviewed by {f.reviewed_by_user_id.slice(0, 8)} ·{" "}
+                        {formatDate(f.reviewed_at)}
+                      </p>
+                    ) : null}
+                    {f.resolution_note ? (
+                      <p className="text-muted mt-1 text-sm">Resolution: {f.resolution_note}</p>
+                    ) : null}
+                    {dispute ? (
+                      <section
+                        className="border-edge mt-4 border-t pt-4"
+                        aria-label="Driver dispute"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="micro text-muted">Driver dispute</h3>
+                          <StatusChip tone={dispute.status === "replied" ? "green" : "amber"}>
+                            {dispute.status}
+                          </StatusChip>
+                        </div>
+                        <p className="mt-2 text-sm whitespace-pre-wrap">{dispute.message}</p>
+                        <p className="micro text-faint mt-1">
+                          Submitted {formatDate(dispute.created_at)}
+                        </p>
+                        {dispute.reply ? (
+                          <div className="bg-raised mt-3 rounded-lg p-3">
+                            <p className="micro text-faint">Reply to driver</p>
+                            <p className="mt-1 text-sm whitespace-pre-wrap">{dispute.reply}</p>
+                          </div>
+                        ) : (
+                          <DisputeReplyActions disputeId={dispute.id} />
+                        )}
+                      </section>
+                    ) : null}
+                  </div>
+                  <div className="flex min-w-60 flex-col items-end gap-3">
+                    <StatusChip
+                      tone={
+                        f.status === "open" || f.status === "confirmed"
+                          ? "coral"
+                          : f.status === "acknowledged"
+                            ? "amber"
+                            : "default"
+                      }
+                    >
+                      {f.status}
+                    </StatusChip>
+                    <ReviewActions flagId={f.id} status={f.status} />
+                  </div>
                 </div>
-                <div className="flex min-w-60 flex-col items-end gap-3">
-                  <StatusChip
-                    tone={
-                      f.status === "open" || f.status === "confirmed"
-                        ? "coral"
-                        : f.status === "acknowledged"
-                          ? "amber"
-                          : "default"
-                    }
-                  >
-                    {f.status}
-                  </StatusChip>
-                  <ReviewActions flagId={f.id} status={f.status} />
-                </div>
-              </div>
-            </Panel>
-          ))}
+              </Panel>
+            );
+          })}
         </div>
       )}
       <Pagination

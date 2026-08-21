@@ -11,6 +11,11 @@ export interface FraudReviewActionState {
   done?: string;
 }
 
+export interface FraudDisputeReplyActionState {
+  error?: string;
+  done?: string;
+}
+
 const reviewSchema = z.discriminatedUnion("intent", [
   z.object({
     flag_id: z.string().uuid(),
@@ -22,6 +27,11 @@ const reviewSchema = z.discriminatedUnion("intent", [
     note: z.string().trim().min(1, "A review note is required").max(2000),
   }),
 ]);
+
+const disputeReplySchema = z.object({
+  dispute_id: z.string().uuid(),
+  reply: z.string().trim().min(1, "A driver reply is required").max(2000),
+});
 
 export async function reviewFraudFlagAction(
   _prev: FraudReviewActionState,
@@ -66,4 +76,32 @@ export async function reviewFraudFlagAction(
           ? "Fraud confirmed"
           : "Flag dismissed",
   };
+}
+
+export async function replyFraudDisputeAction(
+  _prev: FraudDisputeReplyActionState,
+  formData: FormData,
+): Promise<FraudDisputeReplyActionState> {
+  const parsed = disputeReplySchema.safeParse({
+    dispute_id: String(formData.get("dispute_id") ?? ""),
+    reply: String(formData.get("reply") ?? ""),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid dispute reply" };
+  }
+
+  const { dispute_id, reply } = parsed.data;
+  const api = createApiClient(await getSessionToken());
+  try {
+    await api.POST("/api/v1/admin/fraud-disputes/{dispute_id}/reply", {
+      params: { path: { dispute_id } },
+      body: { reply },
+    });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    return { error: "Could not reach the server." };
+  }
+
+  revalidatePath("/admin/fraud");
+  return { done: "Reply sent to driver" };
 }

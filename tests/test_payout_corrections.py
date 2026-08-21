@@ -1044,6 +1044,67 @@ def test_mixed_v2_v3_day_shares_one_cap_pool_through_an_order(
     assert legacy.eligible_seconds == 125
     assert legacy.excluded_seconds_by_reason is None
 
+    async def append_malformed_newest_explanation() -> object:
+        async with postgis_db_sessionmaker() as session:
+            older = await session.get(EarningsLedgerEntry, entry.id)
+            older_metadata = dict(older.ledger_metadata or {})
+            older_breakdown = dict(older_metadata["breakdown"])
+            older_breakdown["eligible_seconds"] = 126
+            older_breakdown["excluded_seconds_by_reason"] = {"older_reason": 46}
+            older_metadata["breakdown"] = older_breakdown
+            older.ledger_metadata = older_metadata
+
+            newest_metadata = dict(older_metadata)
+            newest_breakdown = dict(older_breakdown)
+            newest_breakdown["eligible_seconds"] = -1
+            newest_breakdown["excluded_seconds_by_reason"] = ["malformed"]
+            newest_metadata["breakdown"] = newest_breakdown
+            newest = EarningsLedgerEntry(
+                payout_calculation_id=None,
+                driver_profile_id=older.driver_profile_id,
+                driver_user_id=older.driver_user_id,
+                campaign_id=older.campaign_id,
+                trip_session_id=older.trip_session_id,
+                vehicle_id=older.vehicle_id,
+                entry_type=EarningsLedgerEntryType.ADJUSTMENT.value,
+                status=EarningsLedgerEntryStatus.PENDING.value,
+                amount=Decimal("0.00"),
+                currency=older.currency,
+                description="Malformed explanation provenance regression",
+                occurred_at=older.occurred_at + timedelta(seconds=1),
+                release_at=older.release_at,
+                ledger_metadata=newest_metadata,
+            )
+            session.add(newest)
+            await session.commit()
+            return newest.id
+
+    malformed_entry_id = asyncio.run(append_malformed_newest_explanation())
+    malformed_over_older = asyncio.run(driver_breakdown())
+    assert malformed_over_older.superseded_by_recompute is True
+    assert malformed_over_older.eligible_seconds is None
+    assert malformed_over_older.excluded_seconds_by_reason is None
+
+    async def void_older_correction() -> None:
+        async with postgis_db_sessionmaker() as session:
+            older = await session.get(EarningsLedgerEntry, entry.id)
+            older.status = EarningsLedgerEntryStatus.VOIDED.value
+            await session.commit()
+
+    asyncio.run(void_older_correction())
+    malformed_over_original = asyncio.run(driver_breakdown())
+    assert malformed_over_original.superseded_by_recompute is True
+    assert malformed_over_original.eligible_seconds is None
+    assert malformed_over_original.excluded_seconds_by_reason is None
+
+    async def restore_older_correction() -> None:
+        async with postgis_db_sessionmaker() as session:
+            older = await session.get(EarningsLedgerEntry, entry.id)
+            older.status = EarningsLedgerEntryStatus.PENDING.value
+            await session.commit()
+
+    asyncio.run(restore_older_correction())
+
     # While the correction remains authoritative, unchanged inputs project no
     # further money movement.
     projection = service(
@@ -1067,6 +1128,8 @@ def test_mixed_v2_v3_day_shares_one_cap_pool_through_an_order(
         async with postgis_db_sessionmaker() as session:
             stored = await session.get(EarningsLedgerEntry, entry.id)
             stored.status = EarningsLedgerEntryStatus.VOIDED.value
+            malformed = await session.get(EarningsLedgerEntry, malformed_entry_id)
+            malformed.status = EarningsLedgerEntryStatus.VOIDED.value
             await session.commit()
 
     asyncio.run(void_correction())

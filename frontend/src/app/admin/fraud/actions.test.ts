@@ -11,9 +11,10 @@ vi.mock("@/lib/api/client", () => ({
   createApiClient: () => ({ POST: mocks.post }),
 }));
 
-import { reviewFraudFlagAction } from "./actions";
+import { replyFraudDisputeAction, reviewFraudFlagAction } from "./actions";
 
 const FLAG_ID = "00000000-0000-4000-8000-00000000000a";
+const DISPUTE_ID = "00000000-0000-4000-8000-00000000000b";
 
 function reviewForm(intent: string, note?: string): FormData {
   const form = new FormData();
@@ -55,5 +56,38 @@ describe("reviewFraudFlagAction", () => {
     });
     expect(mocks.post).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("replyFraudDisputeAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.post.mockResolvedValue({ data: {} });
+  });
+
+  it("trims the driver-facing reply and uses the dedicated endpoint", async () => {
+    const form = new FormData();
+    form.set("dispute_id", DISPUTE_ID);
+    form.set("reply", "  We reviewed the route and cleared the hold.  ");
+
+    await expect(replyFraudDisputeAction({}, form)).resolves.toEqual({
+      done: "Reply sent to driver",
+    });
+    expect(mocks.post).toHaveBeenCalledWith("/api/v1/admin/fraud-disputes/{dispute_id}/reply", {
+      params: { path: { dispute_id: DISPUTE_ID } },
+      body: { reply: "We reviewed the route and cleared the hold." },
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/fraud");
+  });
+
+  it("rejects a blank reply without touching the backend", async () => {
+    const form = new FormData();
+    form.set("dispute_id", DISPUTE_ID);
+    form.set("reply", "   ");
+
+    await expect(replyFraudDisputeAction({}, form)).resolves.toEqual({
+      error: "A driver reply is required",
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
   });
 });

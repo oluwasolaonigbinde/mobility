@@ -11,6 +11,7 @@ from app.models.fraud_dispute import FraudDispute
 from app.models.notification import Notification
 from app.models.trip_analytics import FraudFlag
 from app.services.fraud_disputes import create_driver_dispute, reply_to_dispute
+from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
 from app.services.notifications import create_fraud_hold_raised_notice
 from app.services.route_replay import _remove_open_replay_flag, _write_replay_flag
 from app.services.trip_analytics import AnalyticsMetrics, replace_open_fraud_flags
@@ -40,7 +41,9 @@ def counts(db_sessionmaker) -> tuple[int, int, int]:
                 int(await session.scalar(select(func.count()).select_from(Notification)) or 0),
                 int(
                     await session.scalar(
-                        select(func.count()).select_from(AuditEvent).where(
+                        select(func.count())
+                        .select_from(AuditEvent)
+                        .where(
                             AuditEvent.action.in_(
                                 {
                                     "driver.fraud_dispute.created",
@@ -84,8 +87,14 @@ def test_driver_projection_is_sanitized_and_dispute_reply_is_exactly_idempotent(
     }
     serialized = str(item)
     for secret in (
-        "description", "evidence", "observed_mps", "severity", "campaign_id",
-        "driver_profile_id", "reviewed_by_user_id", "resolution_note",
+        "description",
+        "evidence",
+        "observed_mps",
+        "severity",
+        "campaign_id",
+        "driver_profile_id",
+        "reviewed_by_user_id",
+        "resolution_note",
     ):
         assert secret not in serialized
     assert item["notices"][0]["fraud_flag_id"] == str(flag.id)
@@ -104,9 +113,7 @@ def test_driver_projection_is_sanitized_and_dispute_reply_is_exactly_idempotent(
     reply_url = f"/api/v1/admin/fraud-disputes/{first.json()['id']}/reply"
     replied = db_client.post(reply_url, headers=admin_headers, json={"reply": "  Reviewed.  "})
     reply_retry = db_client.post(reply_url, headers=admin_headers, json={"reply": "Reviewed."})
-    reply_conflict = db_client.post(
-        reply_url, headers=admin_headers, json={"reply": "Different."}
-    )
+    reply_conflict = db_client.post(reply_url, headers=admin_headers, json={"reply": "Different."})
     assert replied.status_code == reply_retry.status_code == 200
     assert replied.json() == reply_retry.json()
     assert reply_conflict.status_code == 409
@@ -115,8 +122,7 @@ def test_driver_projection_is_sanitized_and_dispute_reply_is_exactly_idempotent(
     after = db_client.get("/api/v1/driver/fraud-holds", headers=driver_headers).json()
     assert after["items"][0]["dispute"]["reply"] == "Reviewed."
     assert any(
-        notice["type_key"] == "fraud_dispute_replied"
-        for notice in after["items"][0]["notices"]
+        notice["type_key"] == "fraud_dispute_replied" for notice in after["items"][0]["notices"]
     )
 
 
@@ -141,10 +147,13 @@ def test_owner_mismatch_is_404_and_dismissed_resolution_remains_visible(
     )
     assert trip_mismatch.status_code == 404
 
-    assert db_client.post(
-        f"/api/v1/admin/fraud-flags/{flag.id}/review/acknowledge",
-        headers=admin_headers,
-    ).status_code == 200
+    assert (
+        db_client.post(
+            f"/api/v1/admin/fraud-flags/{flag.id}/review/acknowledge",
+            headers=admin_headers,
+        ).status_code
+        == 200
+    )
     resolved = db_client.post(
         f"/api/v1/admin/fraud-flags/{flag.id}/review/resolve",
         headers=admin_headers,
@@ -156,9 +165,7 @@ def test_owner_mismatch_is_404_and_dismissed_resolution_remains_visible(
     item = listed["items"][0]
     assert item["public_status"] == "review_cleared"
     resolved_notice = next(
-        notice
-        for notice in item["notices"]
-        if notice["type_key"] == "fraud_review_resolved"
+        notice for notice in item["notices"] if notice["type_key"] == "fraud_review_resolved"
     )
     assert resolved_notice["outcome"] == "dismissed"
     assert "Internal explanation" not in str(item)
@@ -170,22 +177,16 @@ def test_confirmed_resolution_is_visible_but_flag_stays_hold_active(
     graph, flag = seed_hold(db_sessionmaker, "confirmed-visible")
     driver_headers = auth_headers(db_client, graph.driver.email, PASSWORD)
     admin_headers = auth_headers(db_client, "admin-confirmed-visible@example.com", PASSWORD)
-    db_client.post(
-        f"/api/v1/admin/fraud-flags/{flag.id}/review/acknowledge", headers=admin_headers
-    )
+    db_client.post(f"/api/v1/admin/fraud-flags/{flag.id}/review/acknowledge", headers=admin_headers)
     db_client.post(
         f"/api/v1/admin/fraud-flags/{flag.id}/review/resolve",
         headers=admin_headers,
         json={"outcome": "confirmed", "note": "Internal."},
     )
-    item = db_client.get("/api/v1/driver/fraud-holds", headers=driver_headers).json()[
-        "items"
-    ][0]
+    item = db_client.get("/api/v1/driver/fraud-holds", headers=driver_headers).json()["items"][0]
     assert item["public_status"] == "issue_confirmed"
     resolved_notice = next(
-        notice
-        for notice in item["notices"]
-        if notice["type_key"] == "fraud_review_resolved"
+        notice for notice in item["notices"] if notice["type_key"] == "fraud_review_resolved"
     )
     assert resolved_notice["outcome"] == "confirmed"
 
@@ -264,9 +265,9 @@ def test_postgres_concurrent_exact_dispute_retry_creates_one_authority_row(
             )
             audit_count = int(
                 await session.scalar(
-                    select(func.count()).select_from(AuditEvent).where(
-                        AuditEvent.action == "driver.fraud_dispute.created"
-                    )
+                    select(func.count())
+                    .select_from(AuditEvent)
+                    .where(AuditEvent.action == "driver.fraud_dispute.created")
                 )
                 or 0
             )
@@ -277,9 +278,62 @@ def test_postgres_concurrent_exact_dispute_retry_creates_one_authority_row(
     assert dispute_count == audit_count == 1
 
 
-def test_reply_failure_rolls_back_reply_audit_and_notice(
-    db_sessionmaker, monkeypatch
+def test_postgres_concurrent_exact_resolution_retry_creates_one_notice_and_audit(
+    postgis_db_sessionmaker,
 ) -> None:
+    graph = build_graph(postgis_db_sessionmaker, "concurrent-resolution-notice")
+    flag = create_flag(postgis_db_sessionmaker, graph)
+    actor_id = graph.campaign.created_by_user_id
+
+    async def run() -> tuple[list[bool], int, int, str]:
+        async with postgis_db_sessionmaker() as session:
+            await acknowledge_fraud_flag(
+                session,
+                flag_id=flag.id,
+                actor_user_id=actor_id,
+            )
+            await session.commit()
+
+        async def resolve() -> bool:
+            async with postgis_db_sessionmaker() as session:
+                result = await resolve_fraud_flag(
+                    session,
+                    flag_id=flag.id,
+                    actor_user_id=actor_id,
+                    outcome="dismissed",
+                    resolution_note="Exact concurrent review outcome.",
+                )
+                await session.commit()
+                return result.changed
+
+        changed = await asyncio.gather(resolve(), resolve())
+        async with postgis_db_sessionmaker() as session:
+            notice_count = int(
+                await session.scalar(
+                    select(func.count())
+                    .select_from(Notification)
+                    .where(Notification.type_key == "fraud_review_resolved")
+                )
+                or 0
+            )
+            audit_count = int(
+                await session.scalar(
+                    select(func.count())
+                    .select_from(AuditEvent)
+                    .where(AuditEvent.action == "admin.fraud_flag.resolved")
+                )
+                or 0
+            )
+            stored = await session.get(FraudFlag, flag.id)
+            return changed, notice_count, audit_count, stored.status
+
+    changed, notice_count, audit_count, stored_status = asyncio.run(run())
+    assert sorted(changed) == [False, True]
+    assert notice_count == audit_count == 1
+    assert stored_status == "dismissed"
+
+
+def test_reply_failure_rolls_back_reply_audit_and_notice(db_sessionmaker, monkeypatch) -> None:
     graph = build_graph(db_sessionmaker, "reply-rollback")
     flag = create_flag(db_sessionmaker, graph)
 
@@ -316,17 +370,17 @@ def test_reply_failure_rolls_back_reply_audit_and_notice(
             dispute = await session.get(FraudDispute, dispute_id)
             reply_audits = int(
                 await session.scalar(
-                    select(func.count()).select_from(AuditEvent).where(
-                        AuditEvent.action == "admin.fraud_dispute.replied"
-                    )
+                    select(func.count())
+                    .select_from(AuditEvent)
+                    .where(AuditEvent.action == "admin.fraud_dispute.replied")
                 )
                 or 0
             )
             reply_notices = int(
                 await session.scalar(
-                    select(func.count()).select_from(Notification).where(
-                        Notification.type_key == "fraud_dispute_replied"
-                    )
+                    select(func.count())
+                    .select_from(Notification)
+                    .where(Notification.type_key == "fraud_dispute_replied")
                 )
                 or 0
             )
