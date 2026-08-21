@@ -1,3 +1,4 @@
+import re
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -14,6 +15,17 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+# Runtime-created location_pings partitions (premake job / migration 0014)
+# are not declarative metadata; without this filter autogenerate would
+# propose dropping every partition.
+RUNTIME_PARTITION_NAME = re.compile(r"^location_pings_p\d{4}_\d{2}$|^location_pings_legacy$")
+
+
+def include_object(obj, name, type_, reflected, compare_to):  # noqa: ARG001
+    if type_ == "table" and name is not None and RUNTIME_PARTITION_NAME.match(name):
+        return False
+    return True
+
 
 def get_database_url() -> str:
     settings = get_settings()
@@ -28,6 +40,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -35,7 +48,11 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        include_object=include_object,
+    )
 
     with context.begin_transaction():
         context.run_migrations()

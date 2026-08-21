@@ -16,3 +16,7 @@ build/
 docker-compose.override.yml
 backups/
 .DS_Store
+
+# local agent config + generated review artifacts
+.claude/
+docs/architecture-review-packet.zip

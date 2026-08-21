@@ -12,7 +12,7 @@ from app.models.campaign_assignment import CampaignAssignment
 from app.models.campaign_zone import CampaignZone
 from app.models.impression import ImpressionEstimate, ImpressionEstimateStatus
 from app.models.payout import EarningsLedgerEntry, PayoutCalculation, PayoutCalculationStatus
-from app.models.trip import TripSession
+from app.models.trip import TripSession, TripSessionStatus
 from app.models.trip_analytics import FraudFlag, FraudFlagSeverity, FraudFlagStatus, TripAnalytics
 from app.models.vehicle import Vehicle
 from app.schemas.reports import (
@@ -50,6 +50,7 @@ from app.schemas.reports import (
     ZoneTypeCounts,
 )
 from app.services.campaigns import get_advertiser_campaign, get_required_advertiser_context
+from app.services.payouts import latest_payout_calculation_ids
 
 ZERO_2 = Decimal("0.00")
 ZERO_4 = Decimal("0.0000")
@@ -157,6 +158,23 @@ async def assignment_counts_for_campaign(
     return AssignmentStatusCounts(**status_counts(result.all(), ASSIGNMENT_STATUSES))
 
 
+def fold_sealed_into_ended(rows: list[tuple[str, int]]) -> list[tuple[str, int]]:
+    """Advertiser/admin reporting counts `sealed` trips as `ended`.
+
+    The seal lifecycle (RM3) is an internal money-integrity state; to report
+    consumers a finished trip is a finished trip.
+    """
+    folded: dict[str, int] = {}
+    for status_value, count in rows:
+        key = (
+            TripSessionStatus.ENDED.value
+            if str(status_value) == TripSessionStatus.SEALED.value
+            else str(status_value)
+        )
+        folded[key] = folded.get(key, 0) + int(count or 0)
+    return list(folded.items())
+
+
 async def trip_counts_for_org(
     session: AsyncSession,
     organization_id: UUID,
@@ -172,7 +190,9 @@ async def trip_counts_for_org(
         .where(*filters)
         .group_by(TripSession.status)
     )
-    return TripStatusCounts(**status_counts(result.all(), TRIP_STATUSES))
+    return TripStatusCounts(
+        **status_counts(fold_sealed_into_ended(result.all()), TRIP_STATUSES)
+    )
 
 
 async def trip_counts_for_campaign(
@@ -189,7 +209,9 @@ async def trip_counts_for_campaign(
         .where(*filters)
         .group_by(TripSession.status)
     )
-    return TripStatusCounts(**status_counts(result.all(), TRIP_STATUSES))
+    return TripStatusCounts(
+        **status_counts(fold_sealed_into_ended(result.all()), TRIP_STATUSES)
+    )
 
 
 async def impression_summary_for_org(
@@ -277,6 +299,7 @@ async def impression_summary_query(
     )
 
 
+
 async def dashboard_cost_summary(
     session: AsyncSession,
     organization_id: UUID,
@@ -288,7 +311,9 @@ async def dashboard_cost_summary(
 ) -> DashboardCostSummary:
     filters = [
         Campaign.organization_id == organization_id,
-        PayoutCalculation.formula_version == settings.payout_formula_version,
+        PayoutCalculation.id.in_(
+            latest_payout_calculation_ids(organization_id=organization_id)
+        ),
     ]
     apply_range(filters, PayoutCalculation.calculated_at, start_at, end_at)
     result = await session.execute(
@@ -339,7 +364,9 @@ async def campaign_cost_summary(
 ) -> CampaignCostSummary:
     filters = [
         PayoutCalculation.campaign_id == campaign_id,
-        PayoutCalculation.formula_version == settings.payout_formula_version,
+        PayoutCalculation.id.in_(
+            latest_payout_calculation_ids(campaign_id=campaign_id)
+        ),
     ]
     apply_range(filters, PayoutCalculation.calculated_at, start_at, end_at)
     result = await session.execute(
@@ -724,7 +751,9 @@ async def daily_metrics_for_campaign(
                     PayoutCalculation.gross_payout,
                 ).where(
                     PayoutCalculation.trip_session_id.in_(trip_ids),
-                    PayoutCalculation.formula_version == settings.payout_formula_version,
+                    PayoutCalculation.id.in_(
+                        latest_payout_calculation_ids(trip_ids=trip_ids)
+                    ),
                 )
             )
         ).all()
@@ -811,7 +840,16 @@ async def advertiser_campaign_trips(
     filters = [TripSession.campaign_id == campaign.id]
     apply_range(filters, TripSession.started_at, start_at, end_at)
     if trip_status is not None:
-        filters.append(TripSession.status == trip_status)
+        if trip_status == TripSessionStatus.ENDED.value:
+            # Report consumers see one "ended" state; sealed (RM3) is an
+            # internal refinement of it.
+            filters.append(
+                TripSession.status.in_(
+                    [TripSessionStatus.ENDED.value, TripSessionStatus.SEALED.value]
+                )
+            )
+        else:
+            filters.append(TripSession.status == trip_status)
     if analytics_status is not None:
         filters.append(
             TripSession.id.in_(
@@ -834,7 +872,9 @@ async def advertiser_campaign_trips(
             TripSession.id.in_(
                 select(PayoutCalculation.trip_session_id).where(
                     PayoutCalculation.status == payout_status,
-                    PayoutCalculation.formula_version == settings.payout_formula_version,
+                    PayoutCalculation.id.in_(
+                        latest_payout_calculation_ids(campaign_id=campaign.id)
+                    ),
                 )
             )
         )
@@ -891,7 +931,9 @@ async def advertiser_campaign_trips(
                 select(PayoutCalculation)
                 .where(
                     PayoutCalculation.trip_session_id.in_(trip_ids),
-                    PayoutCalculation.formula_version == settings.payout_formula_version,
+                    PayoutCalculation.id.in_(
+                        latest_payout_calculation_ids(trip_ids=trip_ids)
+                    ),
                 )
                 .order_by(PayoutCalculation.calculated_at.desc(), PayoutCalculation.id)
             )

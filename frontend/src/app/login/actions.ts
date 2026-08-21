@@ -9,6 +9,7 @@ import { setSessionCookie } from "@/lib/auth/session";
 import { changePasswordPath, roleHome } from "@/lib/auth/current-user";
 import { loginClientIpHeader } from "@/lib/auth/client-ip";
 import { env } from "@/lib/env";
+import { demoLoginRoleSchema, type DemoLoginRole } from "./demo-role";
 
 const credentialsSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email address"),
@@ -18,6 +19,42 @@ const credentialsSchema = z.object({
 export interface LoginState {
   error?: string;
   fieldErrors?: Partial<Record<"email" | "password", string>>;
+}
+
+export async function demoLoginAction(
+  role: DemoLoginRole,
+  _prev: LoginState,
+  _formData: FormData,
+): Promise<LoginState> {
+  void _prev;
+  void _formData;
+  const parsedRole = demoLoginRoleSchema.safeParse(role);
+  if (!parsedRole.success) return { error: "Sign-in is unavailable." };
+
+  const config = env();
+  const credentialsByRole = {
+    advertiser: {
+      email: config.DEMO_LOGIN_ADVERTISER_EMAIL,
+      password: config.DEMO_LOGIN_ADVERTISER_PASSWORD,
+    },
+    driver: {
+      email: config.DEMO_LOGIN_DRIVER_EMAIL,
+      password: config.DEMO_LOGIN_DRIVER_PASSWORD,
+    },
+    admin: {
+      email: config.DEMO_LOGIN_ADMIN_EMAIL,
+      password: config.DEMO_LOGIN_ADMIN_PASSWORD,
+    },
+  } satisfies Record<DemoLoginRole, { email?: string; password?: string }>;
+  const selected = credentialsByRole[parsedRole.data];
+  if (!config.DEMO_LOGIN_ENABLED || !selected.email || !selected.password) {
+    return { error: "Sign-in is unavailable." };
+  }
+
+  const credentials = new FormData();
+  credentials.set("email", selected.email);
+  credentials.set("password", selected.password);
+  return loginAction({}, credentials);
 }
 
 export async function loginAction(_prev: LoginState, formData: FormData): Promise<LoginState> {

@@ -9,7 +9,11 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.observability import capture_exception
 from app.db.integrity import integrity_constraint_name
-from app.services.trip_processing import find_unprocessed_trip_page, process_ended_trip
+from app.services.trip_processing import (
+    find_unprocessed_trip_page,
+    process_ended_trip,
+    seal_due_trips,
+)
 
 logger = logging.getLogger(__name__)
 SWEEP_CURSOR_KEY = "worker:trip-processing:sweep-cursor:v1"
@@ -188,5 +192,53 @@ async def process_unprocessed_trips(ctx: dict[str, Any]) -> dict[str, Any]:
         "partial": partial,
         "failed": failed,
         "skipped": skipped,
+        "duration_ms": duration_ms,
+    }
+
+
+async def seal_ended_trips_job(ctx: dict[str, Any]) -> dict[str, Any]:
+    settings = ctx["settings"]
+    sessionmaker = ctx["sessionmaker"]
+    started = time.monotonic()
+    async with sessionmaker() as session:
+        try:
+            sealed_ids = await seal_due_trips(session, settings=settings)
+            await session.commit()
+        except Exception as exc:
+            await session.rollback()
+            logger.exception(
+                "job=seal_ended_trips outcome=error error_class=%s",
+                type(exc).__name__,
+            )
+            capture_exception(exc)
+            raise
+    # Latency optimization only: the processing sweep would pick these up anyway.
+    enqueued = 0
+    redis = ctx.get("redis")
+    if redis is not None:
+        for trip_id in sealed_ids:
+            try:
+                await redis.enqueue_job(
+                    "process_trip", str(trip_id), _job_id=f"trip-process:{trip_id}"
+                )
+                enqueued += 1
+            except Exception as exc:  # fail-open (§14.3.2)
+                logger.warning(
+                    "job=seal_ended_trips trip_id=%s event=enqueue_failed error_class=%s",
+                    trip_id,
+                    type(exc).__name__,
+                )
+                capture_exception(exc)
+                break
+    duration_ms = int((time.monotonic() - started) * 1000)
+    logger.info(
+        "job=seal_ended_trips sealed=%d enqueued=%d duration_ms=%d",
+        len(sealed_ids),
+        enqueued,
+        duration_ms,
+    )
+    return {
+        "sealed": len(sealed_ids),
+        "enqueued": enqueued,
         "duration_ms": duration_ms,
     }

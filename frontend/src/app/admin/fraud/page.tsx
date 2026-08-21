@@ -126,8 +126,8 @@ export default async function AdminFraudPage({
       />
 
       <p className="micro text-faint mt-6">
-        Flag statuses are set by the detection engine in this MVP — an acknowledge/dismiss workflow
-        is a flagged backend addition (see fablev1-work.md).
+        Flag statuses are set by the detection engine in this MVP — the hold-and-review workflow
+        is planned work (architecture §17, slice S2).
       </p>
     </div>
   );

@@ -78,7 +78,7 @@ def create_payout_graph(
     campaign=None,
     organization_id=None,
     advertiser=None,
-    trip_status: TripSessionStatus = TripSessionStatus.ENDED,
+    trip_status: TripSessionStatus = TripSessionStatus.SEALED,
     analytics_status: str = "computed",
     estimate_status: str = "estimated",
     quality_score=Decimal("0.8000"),
@@ -133,7 +133,11 @@ def create_payout_graph(
         assignment_status=CampaignAssignmentStatus.ACTIVE,
         activated_at=BASE_TIME,
     )
-    ended_at = BASE_TIME + timedelta(minutes=30) if trip_status == TripSessionStatus.ENDED else None
+    ended_at = (
+        BASE_TIME + timedelta(minutes=30)
+        if trip_status != TripSessionStatus.ACTIVE
+        else None
+    )
     trip = create_test_trip_session(
         db_sessionmaker,
         assignment_id=assignment.id,
@@ -1007,7 +1011,7 @@ def test_payout_calculation_statuses_and_expected_errors(db_client, db_sessionma
     assert inactive.status_code == http_status.HTTP_400_BAD_REQUEST
     assert inactive.json()["error"]["code"] == "PAYOUT_RULE_INACTIVE"
     assert active.status_code == http_status.HTTP_400_BAD_REQUEST
-    assert active.json()["error"]["code"] == "TRIP_NOT_ENDED"
+    assert active.json()["error"]["code"] == "TRIP_NOT_SEALED"
     assert insufficient.json()["status"] == "insufficient_data"
     assert insufficient.json()["final_payout"] == "0.00"
     assert insufficient.json()["ledger_entry"] is None
@@ -1397,11 +1401,13 @@ def test_advertiser_cost_summary_is_scoped_and_aggregates_stored_calculations(
     assert own.status_code == http_status.HTTP_200_OK
     own_data = own.json()
     assert own_data["formula_version"] == "payout_v1"
+    assert own_data["formula_versions"] == ["payout_v1"]
     assert own_data["totals_by_currency"] == [
         {
             "currency": "NGN",
             "final_payout_total": "1044.00",
             "gross_payout_total": "1305.00",
+            "ledger_net_total": "1044.00",
             "calculated_trip_count": 1,
             "blocked_trip_count": 1,
             "insufficient_data_trip_count": 0,
@@ -1416,6 +1422,7 @@ def test_advertiser_cost_summary_is_scoped_and_aggregates_stored_calculations(
             "currency": "NGN",
             "final_payout_total": "0.00",
             "gross_payout_total": "0.00",
+            "ledger_net_total": "0.00",
             "calculated_trip_count": 0,
             "blocked_trip_count": 0,
             "insufficient_data_trip_count": 0,

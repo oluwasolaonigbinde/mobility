@@ -183,7 +183,10 @@ async def get_admin_trip(session: AsyncSession, trip_id: UUID) -> TripSession:
 
 
 def ensure_trip_ended(trip: TripSession) -> None:
-    if trip.status != TripSessionStatus.ENDED.value or trip.ended_at is None:
+    # Analytics are diagnostics, not money: both `ended` (in the RM3 recovery
+    # window) and `sealed` trips qualify. Only the payout stage is sealed-only.
+    finalized = (TripSessionStatus.ENDED.value, TripSessionStatus.SEALED.value)
+    if trip.status not in finalized or trip.ended_at is None:
         raise AppError(
             "TRIP_NOT_ENDED",
             "Trip analytics can only be computed for ended trips",
@@ -210,6 +213,8 @@ async def measure_segment(
     *,
     start_ping_id: UUID,
     end_ping_id: UUID,
+    start_recorded_at: datetime,
+    end_recorded_at: datetime,
     campaign_id: UUID,
 ) -> SegmentMeasurement:
     result = await session.execute(
@@ -239,13 +244,18 @@ async def measure_segment(
                       AND ST_Intersects(ST_MakeLine(start_ping.geom, end_ping.geom), geom)
                 ) AS exclusion_intersects
             FROM location_pings AS start_ping
-            JOIN location_pings AS end_ping ON end_ping.id = :end_ping_id
+            JOIN location_pings AS end_ping
+              ON end_ping.id = :end_ping_id
+             AND end_ping.recorded_at = :end_recorded_at
             WHERE start_ping.id = :start_ping_id
+              AND start_ping.recorded_at = :start_recorded_at
             """
         ),
         {
             "start_ping_id": start_ping_id,
             "end_ping_id": end_ping_id,
+            "start_recorded_at": start_recorded_at,
+            "end_recorded_at": end_recorded_at,
             "campaign_id": campaign_id,
             "target_zone_type": CampaignZoneType.TARGET.value,
             "bonus_zone_type": CampaignZoneType.BONUS.value,
@@ -266,17 +276,27 @@ async def measure_ping_distance(
     *,
     start_ping_id: UUID,
     end_ping_id: UUID,
+    start_recorded_at: datetime,
+    end_recorded_at: datetime,
 ) -> Decimal:
     result = await session.execute(
         text(
             """
             SELECT ST_Distance(start_ping.geom::geography, end_ping.geom::geography) AS distance_m
             FROM location_pings AS start_ping
-            JOIN location_pings AS end_ping ON end_ping.id = :end_ping_id
+            JOIN location_pings AS end_ping
+              ON end_ping.id = :end_ping_id
+             AND end_ping.recorded_at = :end_recorded_at
             WHERE start_ping.id = :start_ping_id
+              AND start_ping.recorded_at = :start_recorded_at
             """
         ),
-        {"start_ping_id": start_ping_id, "end_ping_id": end_ping_id},
+        {
+            "start_ping_id": start_ping_id,
+            "end_ping_id": end_ping_id,
+            "start_recorded_at": start_recorded_at,
+            "end_recorded_at": end_recorded_at,
+        },
     )
     return decimal_from_number(result.mappings().one()["distance_m"], DECIMAL_4)
 
@@ -615,6 +635,8 @@ async def recompute_trip_analytics(
                 session,
                 start_ping_id=start_ping.id,
                 end_ping_id=end_ping.id,
+                start_recorded_at=start_ping.recorded_at,
+                end_recorded_at=end_ping.recorded_at,
                 campaign_id=trip.campaign_id,
             )
             speed_mps = (measurement.distance_m / Decimal(delta_seconds)).quantize(DECIMAL_4)
@@ -655,6 +677,8 @@ async def recompute_trip_analytics(
             session,
             start_ping_id=valid_pings[0].id,
             end_ping_id=valid_pings[-1].id,
+            start_recorded_at=valid_pings[0].recorded_at,
+            end_recorded_at=valid_pings[-1].recorded_at,
         )
         if valid_ping_count >= settings.route_analytics_min_valid_pings
         else None

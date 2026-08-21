@@ -160,6 +160,24 @@ export interface paths {
         patch: operations["admin_update_campaign_payout_rule_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__patch"];
         trace?: never;
     };
+    "/api/v1/admin/campaigns/{campaign_id}/payout-rules/{rule_id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a campaign's payout-rule revisions */
+        get: operations["admin_list_payout_rule_revisions_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__revisions_get"];
+        put?: never;
+        /** Create an effective-dated payout-rule revision (supersede) */
+        post: operations["admin_create_payout_rule_revision_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__revisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/drivers": {
         parameters: {
             query?: never;
@@ -300,6 +318,153 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payouts/correction-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List payout correction orders */
+        get: operations["admin_list_correction_orders_api_v1_admin_payouts_correction_orders_get"];
+        put?: never;
+        /** Project a campaign/Lagos-day correction into a draft order */
+        post: operations["admin_create_correction_order_api_v1_admin_payouts_correction_orders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payouts/correction-orders/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read one payout correction order */
+        get: operations["admin_get_correction_order_api_v1_admin_payouts_correction_orders__order_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payouts/correction-orders/{order_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a correction order (approver must differ from creator) */
+        post: operations["admin_approve_correction_order_api_v1_admin_payouts_correction_orders__order_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payouts/correction-orders/{order_id}/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Execute an approved correction order (idempotent) */
+        post: operations["admin_execute_correction_order_api_v1_admin_payouts_correction_orders__order_id__execute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payouts/correction-orders/{order_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a pending correction order */
+        post: operations["admin_reject_correction_order_api_v1_admin_payouts_correction_orders__order_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payouts/correction-orders/{order_id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit a draft correction order for approval */
+        post: operations["admin_submit_correction_order_api_v1_admin_payouts_correction_orders__order_id__submit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payouts/day-projection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dry-run projection of one campaign/Lagos-day recompute
+         * @description Side-effect-free replacement for the retired direct recompute: the PR6
+         *     core in dry-run mode. Writes nothing and changes no order state.
+         */
+        get: operations["admin_project_payout_day_api_v1_admin_payouts_day_projection_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payouts/recompute-day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retired: direct day recompute now requires a correction order
+         * @description PR7: the direct execute path is retired. Every retroactive recompute —
+         *     regardless of delta sign — runs through an approved maker-checker
+         *     correction order. The route stays registered so the contract and the
+         *     audit-coverage table remain consistent; it always answers 409.
+         */
+        post: operations["admin_recompute_payout_day_api_v1_admin_payouts_recompute_day_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/traffic-density-profiles": {
         parameters: {
             query?: never;
@@ -334,6 +499,23 @@ export interface paths {
         head?: never;
         /** Update a traffic density profile */
         patch: operations["admin_update_traffic_density_profile_api_v1_admin_traffic_density_profiles__profile_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/trips/quarantined-batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List quarantined ping batches */
+        get: operations["admin_list_quarantined_batches_api_v1_admin_trips_quarantined_batches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/admin/trips/{trip_id}/analytics": {
@@ -381,6 +563,40 @@ export interface paths {
         put?: never;
         /** Estimate impressions for one analyzed trip */
         post: operations["admin_estimate_trip_impressions_api_v1_admin_trips__trip_id__estimate_impressions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply a quarantined ping batch as live trip evidence */
+        post: operations["admin_apply_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discard a quarantined ping batch */
+        post: operations["admin_discard_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__discard_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1030,6 +1246,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/driver/trips/{trip_id}/earnings-breakdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read the current driver's trip earnings breakdown */
+        get: operations["driver_get_trip_earnings_breakdown_api_v1_driver_trips__trip_id__earnings_breakdown_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/driver/trips/{trip_id}/end": {
         parameters: {
             query?: never;
@@ -1107,6 +1340,29 @@ export interface paths {
         };
         /** API liveness check */
         get: operations["health_api_v1_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health/partitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Location-ping partition coverage check
+         * @description 503 when no partition covers now() + 1 month — the API-side detector
+         *     for the write-outage failure mode (catches a dead worker, which no
+         *     worker-side check can). Deliberately separate from /ready: a partition
+         *     gap a month out must not drop live API traffic.
+         */
+        get: operations["partitions_api_v1_health_partitions_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1761,12 +2017,20 @@ export interface components {
             bonus_zone_bonus_rate_per_km?: number | string | null;
             /** Currency */
             currency?: string | null;
+            /** Daily Payable Hours Cap */
+            daily_payable_hours_cap?: number | string | null;
+            /** Eligibility Params */
+            eligibility_params?: {
+                [key: string]: unknown;
+            } | null;
             /** Estimated Impression Rate Per 1000 */
             estimated_impression_rate_per_1000?: number | string | null;
             /** Formula Version */
             formula_version?: string | null;
             /** High Fraud Multiplier */
             high_fraud_multiplier?: number | string | null;
+            /** Hourly Rate Naira */
+            hourly_rate_naira?: number | string | null;
             /** Low Fraud Multiplier */
             low_fraud_multiplier?: number | string | null;
             /** Max Payout Per Trip */
@@ -1820,12 +2084,20 @@ export interface components {
             created_by_user_id: string;
             /** Currency */
             currency: string;
+            /** Daily Payable Hours Cap */
+            daily_payable_hours_cap: string | null;
+            /** Eligibility Params */
+            eligibility_params: {
+                [key: string]: unknown;
+            } | null;
             /** Estimated Impression Rate Per 1000 */
             estimated_impression_rate_per_1000: string | null;
             /** Formula Version */
             formula_version: string;
             /** High Fraud Multiplier */
             high_fraud_multiplier: string | null;
+            /** Hourly Rate Naira */
+            hourly_rate_naira: string | null;
             /**
              * Id
              * Format: uuid
@@ -1854,6 +2126,86 @@ export interface components {
             /** Updated By User Id */
             updated_by_user_id: string | null;
         };
+        /** CampaignPayoutRuleRevisionCreate */
+        CampaignPayoutRuleRevisionCreate: {
+            /** Daily Payable Hours Cap */
+            daily_payable_hours_cap: number | string;
+            /**
+             * Effective From
+             * Format: date-time
+             */
+            effective_from: string;
+            /** Eligibility Params */
+            eligibility_params?: {
+                [key: string]: unknown;
+            };
+            /** Hourly Rate Naira */
+            hourly_rate_naira: number | string;
+            /** Premium Hourly Rate Naira */
+            premium_hourly_rate_naira?: number | string | null;
+            /** Reason */
+            reason: string;
+        };
+        /** CampaignPayoutRuleRevisionListResponse */
+        CampaignPayoutRuleRevisionListResponse: {
+            /** Items */
+            items: components["schemas"]["CampaignPayoutRuleRevisionRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** CampaignPayoutRuleRevisionRead */
+        CampaignPayoutRuleRevisionRead: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Created By User Id
+             * Format: uuid
+             */
+            created_by_user_id: string;
+            /** Daily Payable Hours Cap */
+            daily_payable_hours_cap: string | null;
+            /**
+             * Effective From
+             * Format: date-time
+             */
+            effective_from: string;
+            /** Eligibility Params */
+            eligibility_params: {
+                [key: string]: unknown;
+            };
+            /** Formula Version */
+            formula_version: string;
+            /** Hourly Rate Naira */
+            hourly_rate_naira: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Payout Rule Id
+             * Format: uuid
+             */
+            payout_rule_id: string;
+            /** Premium Hourly Rate Naira */
+            premium_hourly_rate_naira: string | null;
+            /** Reason */
+            reason: string;
+            /** Revision Number */
+            revision_number: number;
+        };
         /**
          * CampaignPayoutRuleStatus
          * @enum {string}
@@ -1869,10 +2221,18 @@ export interface components {
             bonus_zone_bonus_rate_per_km?: number | string | null;
             /** Currency */
             currency?: string | null;
+            /** Daily Payable Hours Cap */
+            daily_payable_hours_cap?: number | string | null;
+            /** Eligibility Params */
+            eligibility_params?: {
+                [key: string]: unknown;
+            } | null;
             /** Estimated Impression Rate Per 1000 */
             estimated_impression_rate_per_1000?: number | string | null;
             /** High Fraud Multiplier */
             high_fraud_multiplier?: number | string | null;
+            /** Hourly Rate Naira */
+            hourly_rate_naira?: number | string | null;
             /** Low Fraud Multiplier */
             low_fraud_multiplier?: number | string | null;
             /** Max Payout Per Trip */
@@ -2538,6 +2898,59 @@ export interface components {
              */
             trip_id: string;
         };
+        /** DriverTripEarningsBreakdown */
+        DriverTripEarningsBreakdown: {
+            /** Amount */
+            amount: string | null;
+            /** Base Amount */
+            base_amount: string | null;
+            /** Base Hourly Rate */
+            base_hourly_rate: string | null;
+            /** Base Payable Seconds */
+            base_payable_seconds: number | null;
+            cap: components["schemas"]["DriverTripEarningsCapProgress"] | null;
+            /** Capped Seconds */
+            capped_seconds: number | null;
+            /** Currency */
+            currency: string;
+            /** Eligible Seconds */
+            eligible_seconds: number | null;
+            /** Entries */
+            entries: components["schemas"]["EarningsLedgerEntryRead"][];
+            /** Excluded Seconds By Reason */
+            excluded_seconds_by_reason: {
+                [key: string]: number;
+            } | null;
+            /** Formula Version */
+            formula_version: string;
+            /** Hourly Rate */
+            hourly_rate: string | null;
+            /** Premium Amount */
+            premium_amount: string | null;
+            /** Premium Hourly Rate */
+            premium_hourly_rate: string | null;
+            /** Premium Payable Seconds */
+            premium_payable_seconds: number | null;
+            /** Superseded By Recompute */
+            superseded_by_recompute: boolean;
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
+        };
+        /** DriverTripEarningsCapProgress */
+        DriverTripEarningsCapProgress: {
+            /** Cap Seconds */
+            cap_seconds: number;
+            /** Day Payable Seconds */
+            day_payable_seconds: number;
+            /**
+             * Lagos Day
+             * Format: date
+             */
+            lagos_day: string;
+        };
         /** EarningsLedgerEntryListResponse */
         EarningsLedgerEntryListResponse: {
             /** Items */
@@ -2966,6 +3379,11 @@ export interface components {
             /** Duplicate */
             duplicate: boolean;
             /**
+             * Quarantined
+             * @default false
+             */
+            quarantined: boolean;
+            /**
              * Trip Id
              * Format: uuid
              */
@@ -3130,6 +3548,12 @@ export interface components {
              * Format: uuid
              */
             driver_profile_id: string;
+            /** Eligible Seconds */
+            eligible_seconds: number | null;
+            /** Excluded Seconds By Reason */
+            excluded_seconds_by_reason: {
+                [key: string]: number;
+            } | null;
             /** Final Payout */
             final_payout: string | null;
             /** Formula Version */
@@ -3150,11 +3574,15 @@ export interface components {
              * Format: uuid
              */
             impression_estimate_id: string;
+            /** Inputs Fingerprint */
+            inputs_fingerprint: string | null;
             ledger_entry?: components["schemas"]["PayoutLedgerEntrySummary"] | null;
             /** Metadata */
             metadata?: {
                 [key: string]: unknown;
             };
+            /** Payable Seconds */
+            payable_seconds: number | null;
             /**
              * Payout Rule Id
              * Format: uuid
@@ -3191,6 +3619,116 @@ export interface components {
          * @enum {string}
          */
         PayoutCalculationStatus: "calculated" | "insufficient_data" | "blocked";
+        /** PayoutCorrectionOrderCreate */
+        PayoutCorrectionOrderCreate: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Lagos Day
+             * Format: date
+             */
+            lagos_day: string;
+            /** Reason */
+            reason: string;
+        };
+        /** PayoutCorrectionOrderExecuteRequest */
+        PayoutCorrectionOrderExecuteRequest: {
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Release At */
+            release_at?: string | null;
+        };
+        /** PayoutCorrectionOrderListResponse */
+        PayoutCorrectionOrderListResponse: {
+            /** Items */
+            items: components["schemas"]["PayoutCorrectionOrderRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** PayoutCorrectionOrderRead */
+        PayoutCorrectionOrderRead: {
+            /** Approved By User Id */
+            approved_by_user_id: string | null;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Created By User Id
+             * Format: uuid
+             */
+            created_by_user_id: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** Executed At */
+            executed_at: string | null;
+            /** Executed By User Id */
+            executed_by_user_id: string | null;
+            /** Execution Result */
+            execution_result: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Lagos Day
+             * Format: date
+             */
+            lagos_day: string;
+            /** Projected At */
+            projected_at: string | null;
+            /** Projected Delta */
+            projected_delta: {
+                [key: string]: unknown;
+            } | null;
+            /** Projection Fingerprint */
+            projection_fingerprint: string | null;
+            /** Reason */
+            reason: string;
+            status: components["schemas"]["PayoutCorrectionOrderStatus"];
+        };
+        /**
+         * PayoutCorrectionOrderStatus
+         * @enum {string}
+         */
+        PayoutCorrectionOrderStatus: "draft" | "pending_approval" | "approved" | "rejected" | "executed" | "stale";
+        /** PayoutDayProjection */
+        PayoutDayProjection: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Lagos Day
+             * Format: date
+             */
+            lagos_day: string;
+            /** Projected Delta */
+            projected_delta: {
+                [key: string]: unknown;
+            };
+            /** Projection Fingerprint */
+            projection_fingerprint: string;
+        };
         /** PayoutLedgerEntrySummary */
         PayoutLedgerEntrySummary: {
             /** Amount */
@@ -3209,6 +3747,154 @@ export interface components {
             /** Average Quality Score */
             average_quality_score: string | null;
             fraud_flags: components["schemas"]["FraudFlagCounts"];
+        };
+        /** QuarantineApplyResponse */
+        QuarantineApplyResponse: {
+            /** Accepted Count */
+            accepted_count: number;
+            /** Affected Lagos Days */
+            affected_lagos_days: string[];
+            /**
+             * Applied Batch Id
+             * Format: uuid
+             */
+            applied_batch_id: string;
+            /**
+             * Quarantine Id
+             * Format: uuid
+             */
+            quarantine_id: string;
+            /**
+             * Trip Id
+             * Format: uuid
+             */
+            trip_id: string;
+        };
+        /** QuarantineResolveRequest */
+        QuarantineResolveRequest: {
+            /** Note */
+            note: string;
+        };
+        /** QuarantinedPingBatchListResponse */
+        QuarantinedPingBatchListResponse: {
+            /** Items */
+            items: components["schemas"]["QuarantinedPingBatchRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** QuarantinedPingBatchRead */
+        QuarantinedPingBatchRead: {
+            /** Applied Batch Id */
+            applied_batch_id?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Idempotency Key */
+            idempotency_key: string;
+            /** Ping Count */
+            ping_count: number;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Resolution Note */
+            resolution_note?: string | null;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /** Resolved By User Id */
+            resolved_by_user_id?: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
+        };
+        /** RecomputeDayTripResult */
+        RecomputeDayTripResult: {
+            /** Delta Amount */
+            delta_amount: string;
+            /** Eligible Seconds */
+            eligible_seconds: number;
+            /** Entry Id */
+            entry_id: string | null;
+            entry_type: components["schemas"]["EarningsLedgerEntryType"] | null;
+            /** Payable Seconds */
+            payable_seconds: number;
+            /** Payout Calculation Id */
+            payout_calculation_id: string | null;
+            /** Previous Posted Amount */
+            previous_posted_amount: string;
+            /** Target Amount */
+            target_amount: string;
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
+            /** Voided */
+            voided: boolean;
+        };
+        /** RecomputePayoutDayRequest */
+        RecomputePayoutDayRequest: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /**
+             * Lagos Date
+             * Format: date
+             */
+            lagos_date: string;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        /** RecomputePayoutDayResult */
+        RecomputePayoutDayResult: {
+            /** Adjustment Count */
+            adjustment_count: number;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Cap Seconds */
+            cap_seconds: number;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /**
+             * Lagos Date
+             * Format: date
+             */
+            lagos_date: string;
+            /** Reversal Count */
+            reversal_count: number;
+            /** Trips */
+            trips: components["schemas"]["RecomputeDayTripResult"][];
         };
         /** RouteAnalyticsSummary */
         RouteAnalyticsSummary: {
@@ -3527,6 +4213,12 @@ export interface components {
         };
         /** TripEndRequest */
         TripEndRequest: {
+            /** Client Batch Count */
+            client_batch_count?: number | null;
+            /** Client Complete */
+            client_complete?: boolean | null;
+            /** Client Ping Count */
+            client_ping_count?: number | null;
             /** End Reason */
             end_reason?: string | null;
             /** Metadata */
@@ -3606,6 +4298,10 @@ export interface components {
             };
             /** Ping Count */
             ping_count: number;
+            /** Seal Reason */
+            seal_reason?: string | null;
+            /** Sealed At */
+            sealed_at?: string | null;
             /**
              * Started At
              * Format: date-time
@@ -3627,7 +4323,7 @@ export interface components {
          * TripSessionStatus
          * @enum {string}
          */
-        TripSessionStatus: "active" | "ended";
+        TripSessionStatus: "active" | "ended" | "sealed";
         /** TripStartRequest */
         TripStartRequest: {
             /**
@@ -3893,6 +4589,8 @@ export interface components {
             insufficient_data_trip_count: number;
             /** Ledger Entry Count */
             ledger_entry_count: number;
+            /** Ledger Net Total */
+            ledger_net_total: string | null;
         };
         /** CampaignCostSummary */
         app__schemas__payouts__CampaignCostSummary: {
@@ -3905,6 +4603,8 @@ export interface components {
             end_at: string | null;
             /** Formula Version */
             formula_version: string;
+            /** Formula Versions */
+            formula_versions: string[];
             /** Start At */
             start_at: string | null;
             /** Totals By Currency */
@@ -4350,6 +5050,77 @@ export interface operations {
             };
         };
     };
+    admin_list_payout_rule_revisions_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__revisions_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                campaign_id: string;
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignPayoutRuleRevisionListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_create_payout_rule_revision_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__revisions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignPayoutRuleRevisionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignPayoutRuleRevisionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_list_driver_profiles_api_v1_admin_drivers_get: {
         parameters: {
             query?: {
@@ -4676,6 +5447,297 @@ export interface operations {
             };
         };
     };
+    admin_list_correction_orders_api_v1_admin_payouts_correction_orders_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                campaign_id?: string | null;
+                status?: components["schemas"]["PayoutCorrectionOrderStatus"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutCorrectionOrderListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_create_correction_order_api_v1_admin_payouts_correction_orders_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutCorrectionOrderCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutCorrectionOrderRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_get_correction_order_api_v1_admin_payouts_correction_orders__order_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutCorrectionOrderRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_approve_correction_order_api_v1_admin_payouts_correction_orders__order_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutCorrectionOrderRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_execute_correction_order_api_v1_admin_payouts_correction_orders__order_id__execute_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PayoutCorrectionOrderExecuteRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutCorrectionOrderRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_reject_correction_order_api_v1_admin_payouts_correction_orders__order_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutCorrectionOrderRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_submit_correction_order_api_v1_admin_payouts_correction_orders__order_id__submit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutCorrectionOrderRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_project_payout_day_api_v1_admin_payouts_day_projection_get: {
+        parameters: {
+            query: {
+                campaign_id: string;
+                lagos_day: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutDayProjection"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_recompute_payout_day_api_v1_admin_payouts_recompute_day_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecomputePayoutDayRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecomputePayoutDayResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_list_traffic_density_profiles_api_v1_admin_traffic_density_profiles_get: {
         parameters: {
             query?: {
@@ -4810,6 +5872,40 @@ export interface operations {
             };
         };
     };
+    admin_list_quarantined_batches_api_v1_admin_trips_quarantined_batches_get: {
+        parameters: {
+            query?: {
+                trip_id?: string | null;
+                status?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuarantinedPingBatchListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_get_trip_analytics_api_v1_admin_trips__trip_id__analytics_get: {
         parameters: {
             query?: never;
@@ -4898,6 +5994,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImpressionEstimateRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_apply_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: string;
+                quarantine_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuarantineResolveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuarantineApplyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_discard_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__discard_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: string;
+                quarantine_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuarantineResolveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuarantinedPingBatchRead"];
                 };
             };
             /** @description Validation Error */
@@ -6406,6 +7574,37 @@ export interface operations {
             };
         };
     };
+    driver_get_trip_earnings_breakdown_api_v1_driver_trips__trip_id__earnings_breakdown_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverTripEarningsBreakdown"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     driver_end_trip_api_v1_driver_trips__trip_id__end_post: {
         parameters: {
             query?: never;
@@ -6558,6 +7757,26 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    partitions_api_v1_health_partitions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -17,7 +17,9 @@ from app.models.payout import (
     EarningsLedgerEntryStatus,
     EarningsLedgerEntryType,
     PayoutCalculationStatus,
+    PayoutCorrectionOrderStatus,
 )
+from app.schemas.campaigns import ensure_timezone_aware
 
 REQUIRED_PAYOUT_RULE_UPDATE_FIELDS = {
     "status",
@@ -31,11 +33,22 @@ REQUIRED_PAYOUT_RULE_UPDATE_FIELDS = {
     "low_fraud_multiplier",
     "medium_fraud_multiplier",
     "high_fraud_multiplier",
+    "hourly_rate_naira",
+    "daily_payable_hours_cap",
 }
 
 
 class DecimalStringMixin(BaseModel):
     @field_serializer(
+        "hourly_rate_naira",
+        "premium_hourly_rate_naira",
+        "daily_payable_hours_cap",
+        "ledger_net_total",
+        "hourly_rate",
+        "base_hourly_rate",
+        "premium_hourly_rate",
+        "base_amount",
+        "premium_amount",
         "base_rate_per_km",
         "base_rate_per_active_hour",
         "target_zone_bonus_rate_per_km",
@@ -108,6 +121,13 @@ class CampaignPayoutRuleCreate(BaseModel):
         ge=Decimal("0"),
         le=Decimal("1"),
     )
+    hourly_rate_naira: Decimal | None = Field(default=None, ge=Decimal("0"))
+    daily_payable_hours_cap: Decimal | None = Field(
+        default=None,
+        gt=Decimal("0"),
+        le=Decimal("24"),
+    )
+    eligibility_params: dict[str, Any] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("currency")
@@ -153,6 +173,13 @@ class CampaignPayoutRuleUpdate(BaseModel):
         ge=Decimal("0"),
         le=Decimal("1"),
     )
+    hourly_rate_naira: Decimal | None = Field(default=None, ge=Decimal("0"))
+    daily_payable_hours_cap: Decimal | None = Field(
+        default=None,
+        gt=Decimal("0"),
+        le=Decimal("24"),
+    )
+    eligibility_params: dict[str, Any] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("currency")
@@ -188,16 +215,19 @@ class CampaignPayoutRuleRead(DecimalStringMixin):
     formula_version: str
     status: CampaignPayoutRuleStatus
     currency: str
-    base_rate_per_km: Decimal
-    base_rate_per_active_hour: Decimal
-    target_zone_bonus_rate_per_km: Decimal
-    bonus_zone_bonus_rate_per_km: Decimal
-    estimated_impression_rate_per_1000: Decimal
-    min_payout_per_trip: Decimal
+    base_rate_per_km: Decimal | None
+    base_rate_per_active_hour: Decimal | None
+    target_zone_bonus_rate_per_km: Decimal | None
+    bonus_zone_bonus_rate_per_km: Decimal | None
+    estimated_impression_rate_per_1000: Decimal | None
+    min_payout_per_trip: Decimal | None
     max_payout_per_trip: Decimal | None
-    low_fraud_multiplier: Decimal
-    medium_fraud_multiplier: Decimal
-    high_fraud_multiplier: Decimal
+    low_fraud_multiplier: Decimal | None
+    medium_fraud_multiplier: Decimal | None
+    high_fraud_multiplier: Decimal | None
+    hourly_rate_naira: Decimal | None
+    daily_payable_hours_cap: Decimal | None
+    eligibility_params: dict[str, Any] | None
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
@@ -205,6 +235,57 @@ class CampaignPayoutRuleRead(DecimalStringMixin):
 
 class CampaignPayoutRuleListResponse(BaseModel):
     items: list[CampaignPayoutRuleRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class CampaignPayoutRuleRevisionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    effective_from: datetime
+    hourly_rate_naira: Decimal = Field(ge=Decimal("0"))
+    premium_hourly_rate_naira: Decimal | None = Field(default=None, ge=Decimal("0"))
+    daily_payable_hours_cap: Decimal = Field(gt=Decimal("0"), le=Decimal("24"))
+    eligibility_params: dict[str, Any] = Field(default_factory=dict)
+    reason: str
+
+    @field_validator("effective_from")
+    @classmethod
+    def validate_effective_from(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+            raise ValueError("Datetime must include timezone information")
+        return value
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("reason must not be empty")
+        return trimmed
+
+
+class CampaignPayoutRuleRevisionRead(DecimalStringMixin):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    campaign_id: UUID
+    payout_rule_id: UUID
+    revision_number: int
+    effective_from: datetime
+    hourly_rate_naira: Decimal
+    premium_hourly_rate_naira: Decimal | None
+    daily_payable_hours_cap: Decimal | None
+    eligibility_params: dict[str, Any]
+    formula_version: str
+    reason: str
+    created_by_user_id: UUID
+    created_at: datetime
+
+
+class CampaignPayoutRuleRevisionListResponse(BaseModel):
+    items: list[CampaignPayoutRuleRevisionRead]
     total: int
     limit: int
     offset: int
@@ -250,16 +331,20 @@ class PayoutCalculationRead(DecimalStringMixin):
     formula_version: str
     status: PayoutCalculationStatus
     currency: str
-    distance_component: Decimal
-    active_time_component: Decimal
-    target_zone_bonus_component: Decimal
-    bonus_zone_bonus_component: Decimal
-    impression_component: Decimal
+    distance_component: Decimal | None
+    active_time_component: Decimal | None
+    target_zone_bonus_component: Decimal | None
+    bonus_zone_bonus_component: Decimal | None
+    impression_component: Decimal | None
     gross_payout: Decimal
-    quality_multiplier: Decimal
-    fraud_multiplier: Decimal
-    cap_adjustment: Decimal
+    quality_multiplier: Decimal | None
+    fraud_multiplier: Decimal | None
+    cap_adjustment: Decimal | None
     final_payout: Decimal
+    eligible_seconds: int | None
+    payable_seconds: int | None
+    excluded_seconds_by_reason: dict[str, int] | None
+    inputs_fingerprint: str | None
     calculated_at: datetime
     metadata: dict[str, Any] = Field(default_factory=dict)
     ledger_entry: PayoutLedgerEntrySummary | None = None
@@ -299,6 +384,7 @@ class CampaignCostCurrencySummary(DecimalStringMixin):
     currency: str
     final_payout_total: Decimal
     gross_payout_total: Decimal
+    ledger_net_total: Decimal
     calculated_trip_count: int
     blocked_trip_count: int
     insufficient_data_trip_count: int
@@ -308,6 +394,138 @@ class CampaignCostCurrencySummary(DecimalStringMixin):
 class CampaignCostSummary(BaseModel):
     campaign_id: UUID
     formula_version: str
+    formula_versions: list[str]
     totals_by_currency: list[CampaignCostCurrencySummary]
     start_at: datetime | None
     end_at: datetime | None
+
+
+class RecomputePayoutDayRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: UUID
+    driver_profile_id: UUID
+    lagos_date: date
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class RecomputeDayTripResult(DecimalStringMixin):
+    trip_session_id: UUID
+    payout_calculation_id: UUID | None
+    previous_posted_amount: Decimal
+    target_amount: Decimal
+    delta_amount: Decimal
+    eligible_seconds: int
+    payable_seconds: int
+    entry_id: UUID | None
+    entry_type: EarningsLedgerEntryType | None
+    voided: bool
+
+    @field_serializer(
+        "previous_posted_amount",
+        "target_amount",
+        "delta_amount",
+    )
+    def serialize_signed_decimal(self, value: Decimal) -> str:
+        return str(value)
+
+
+class RecomputePayoutDayResult(BaseModel):
+    campaign_id: UUID
+    driver_profile_id: UUID
+    lagos_date: date
+    cap_seconds: int
+    trips: list[RecomputeDayTripResult]
+    adjustment_count: int
+    reversal_count: int
+
+
+class PayoutCorrectionOrderCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: UUID
+    lagos_day: date
+    reason: str
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("reason must not be empty")
+        return trimmed
+
+
+class PayoutCorrectionOrderExecuteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Q22: positive deltas post as pending with their OWN release date — no
+    # default is invented, so executing an order with positive deltas without
+    # release_at fails with 400.
+    release_at: datetime | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("release_at")
+    @classmethod
+    def validate_release_at(cls, value: datetime | None) -> datetime | None:
+        return ensure_timezone_aware(value)
+
+
+class PayoutCorrectionOrderRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    campaign_id: UUID
+    lagos_day: date
+    status: PayoutCorrectionOrderStatus
+    created_by_user_id: UUID
+    approved_by_user_id: UUID | None
+    executed_by_user_id: UUID | None
+    reason: str
+    projected_delta: dict[str, Any] | None
+    projection_fingerprint: str | None
+    projected_at: datetime | None
+    decided_at: datetime | None
+    executed_at: datetime | None
+    execution_result: dict[str, Any] | None
+    created_at: datetime
+
+
+class PayoutCorrectionOrderListResponse(BaseModel):
+    items: list[PayoutCorrectionOrderRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class PayoutDayProjection(BaseModel):
+    campaign_id: UUID
+    lagos_day: date
+    projected_delta: dict[str, Any]
+    projection_fingerprint: str
+
+
+class DriverTripEarningsCapProgress(BaseModel):
+    lagos_day: date
+    cap_seconds: int
+    day_payable_seconds: int
+
+
+class DriverTripEarningsBreakdown(DecimalStringMixin):
+    trip_session_id: UUID
+    formula_version: str
+    currency: str
+    amount: Decimal
+    eligible_seconds: int | None
+    excluded_seconds_by_reason: dict[str, int] | None
+    hourly_rate: Decimal | None
+    capped_seconds: int | None
+    base_payable_seconds: int | None
+    premium_payable_seconds: int | None
+    base_hourly_rate: Decimal | None
+    premium_hourly_rate: Decimal | None
+    base_amount: Decimal | None
+    premium_amount: Decimal | None
+    superseded_by_recompute: bool
+    entries: list[EarningsLedgerEntryRead]
+    cap: DriverTripEarningsCapProgress | None

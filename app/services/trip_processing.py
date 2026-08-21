@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
@@ -9,13 +9,15 @@ from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.impression import ImpressionEstimate
 from app.models.payout import (
+    AssignmentRuleBinding,
     CampaignPayoutRule,
     CampaignPayoutRuleStatus,
     EarningsLedgerEntry,
+    EarningsLedgerEntryType,
     PayoutCalculation,
     PayoutCalculationStatus,
 )
-from app.models.trip import TripSession, TripSessionStatus
+from app.models.trip import TripSealReason, TripSession, TripSessionStatus
 from app.models.trip_analytics import (
     FraudFlag,
     FraudFlagSeverity,
@@ -23,6 +25,7 @@ from app.models.trip_analytics import (
     TripAnalytics,
 )
 from app.services.audit import create_audit_event
+from app.services.campaign_assignments import as_aware_utc
 from app.services.impressions import (
     estimate_trip_impressions,
     is_current_estimate_for_analytics,
@@ -30,9 +33,13 @@ from app.services.impressions import (
 from app.services.impressions import (
     open_fraud_counts as impression_open_fraud_counts,
 )
-from app.services.payouts import calculate_trip_payout, repair_missing_ledger_entries
+from app.services.payouts import (
+    PAYOUT_V2,
+    calculate_trip_payout,
+    repair_missing_ledger_entries,
+)
 from app.services.trip_analytics import recompute_trip_analytics
-from app.services.trips import trip_not_found
+from app.services.trips import trip_not_found, try_seal_trip
 
 WORKER_METADATA = {"source": "worker"}
 AUDIT_ACTION_TRIP_PROCESSING = "worker.trip_processing.completed"
@@ -112,11 +119,14 @@ async def process_ended_trip(
     trip = await session.get(TripSession, trip_id)
     if trip is None:
         raise trip_not_found()
-    if trip.status != TripSessionStatus.ENDED.value or trip.ended_at is None:
+    # Sealed is the SOLE money-chain trigger (RM3): an `ended` trip may still
+    # be receiving late batches inside the grace window and must not have its
+    # write-once money computed from an incomplete ping set.
+    if trip.status != TripSessionStatus.SEALED.value or trip.ended_at is None:
         return TripProcessingResult(
             trip_id=trip_id,
             overall="blocked",
-            stages=[StageResult(stage="trip", outcome="blocked", reason="trip_not_ended")],
+            stages=[StageResult(stage="trip", outcome="blocked", reason="trip_not_sealed")],
         )
 
     processing_now = now or await database_now(session)
@@ -124,7 +134,6 @@ async def process_ended_trip(
     repaired_ledgers = await repair_missing_ledger_entries(
         session,
         trip_id=trip.id,
-        formula_version=settings.payout_formula_version,
     )
     repaired_ledger_ids = [ledger.id for ledger in repaired_ledgers]
     if repaired_ledgers:
@@ -142,7 +151,37 @@ async def process_ended_trip(
     analytics = await session.scalar(
         select(TripAnalytics).where(TripAnalytics.trip_session_id == trip.id)
     )
-    if analytics is not None:
+    # A same-version analytics row computed BEFORE the seal may not cover the
+    # late batches that arrived in the recovery window — reusing it would let
+    # a stale (possibly insufficient_data) result flow into the write-once
+    # money chain. Recompute over the sealed ping set instead of reusing.
+    analytics_predates_seal = (
+        analytics is not None
+        and analytics.formula_version == settings.route_analytics_formula_version
+        and trip.sealed_at is not None
+        and as_aware_utc(analytics.computed_at) < as_aware_utc(trip.sealed_at)
+    )
+    if analytics_predates_seal:
+        computation = await recompute_trip_analytics(
+            session,
+            trip_id=trip.id,
+            metadata=dict(WORKER_METADATA),
+            settings=settings,
+            now=processing_now,
+        )
+        analytics = computation.analytics
+        stages.append(
+            StageResult(
+                stage="analytics",
+                outcome="created",
+                reason="preseal_analytics_recomputed",
+                row_ids={
+                    "trip_analytics_id": str(computation.analytics.id),
+                    "open_fraud_flag_count": str(len(computation.fraud_flags)),
+                },
+            )
+        )
+    elif analytics is not None:
         if analytics.formula_version != settings.route_analytics_formula_version:
             stages.extend(
                 [
@@ -265,6 +304,9 @@ async def process_ended_trip(
             metadata=dict(WORKER_METADATA),
             settings=settings,
             now=processing_now,
+            # payout_v2 rows are write-once: input drift never auto-recomputes
+            # money in the pipeline; the admin recompute-day tool corrects.
+            strict_staleness=False,
         )
     except AppError as exc:
         # Expected non-progression only; raised before any payout write, so the
@@ -421,6 +463,24 @@ async def find_unprocessed_trip_page(
     payout_high_count = PayoutCalculation.payout_metadata["fraud_flag_counts"][
         FraudFlagSeverity.HIGH.value
     ].as_integer()
+    # Expected payout formula comes from the governing (active) rule row, not
+    # the global setting: v1 and v2 campaigns coexist after S1 (D2/D8).
+    active_rule_formula = (
+        select(CampaignPayoutRule.formula_version)
+        .where(
+            CampaignPayoutRule.campaign_id == TripSession.campaign_id,
+            CampaignPayoutRule.status == CampaignPayoutRuleStatus.ACTIVE.value,
+        )
+        .order_by(CampaignPayoutRule.created_at.desc(), CampaignPayoutRule.id)
+        .limit(1)
+        .correlate(TripSession)
+        .scalar_subquery()
+    )
+    any_payout_calculation_exists = (
+        select(PayoutCalculation.id)
+        .where(PayoutCalculation.trip_session_id == TripSession.id)
+        .exists()
+    )
     current_payout_exists = (
         select(PayoutCalculation.id)
         .join(TripAnalytics, TripAnalytics.id == PayoutCalculation.trip_analytics_id)
@@ -430,7 +490,7 @@ async def find_unprocessed_trip_page(
         )
         .where(
             PayoutCalculation.trip_session_id == TripSession.id,
-            PayoutCalculation.formula_version == settings.payout_formula_version,
+            PayoutCalculation.formula_version == active_rule_formula,
             TripAnalytics.formula_version == settings.route_analytics_formula_version,
             ImpressionEstimate.formula_version == settings.impression_formula_version,
             payout_low_count == open_low_count,
@@ -475,16 +535,28 @@ async def find_unprocessed_trip_page(
         .where(EarningsLedgerEntry.payout_calculation_id == PayoutCalculation.id)
         .exists()
     )
-    repairable_ledger_gap_exists = (
+    trip_payout_entry_exists = (
+        select(EarningsLedgerEntry.id)
+        .where(
+            EarningsLedgerEntry.trip_session_id == TripSession.id,
+            EarningsLedgerEntry.entry_type == EarningsLedgerEntryType.TRIP_PAYOUT.value,
+        )
+        .correlate(TripSession)
+        .exists()
+    )
+    # Rule-agnostic repair gap, mirroring exactly what repair will fix: a
+    # calculated, payable calculation missing its entry AND no trip_payout
+    # entry for the trip at all (the cross-model guard skips otherwise).
+    repairable_ledger_gap_exists = and_(
         select(PayoutCalculation.id)
         .where(
             PayoutCalculation.trip_session_id == TripSession.id,
-            PayoutCalculation.formula_version == settings.payout_formula_version,
             PayoutCalculation.status == PayoutCalculationStatus.CALCULATED.value,
             PayoutCalculation.final_payout > 0,
             ~ledger_exists,
         )
-        .exists()
+        .exists(),
+        ~trip_payout_entry_exists,
     )
     active_rule_exists = (
         select(CampaignPayoutRule.id)
@@ -494,8 +566,25 @@ async def find_unprocessed_trip_page(
         )
         .exists()
     )
+    # MNY-06B: a bound assignment's trips price from the frozen binding, so
+    # they stay payable (and must stay selected) even if the rule row is
+    # later deactivated.
+    rule_binding_exists = (
+        select(AssignmentRuleBinding.id)
+        .where(AssignmentRuleBinding.assignment_id == TripSession.assignment_id)
+        .correlate(TripSession)
+        .exists()
+    )
+    governing_formula_calculation_exists = (
+        select(PayoutCalculation.id)
+        .where(
+            PayoutCalculation.trip_session_id == TripSession.id,
+            PayoutCalculation.formula_version == active_rule_formula,
+        )
+        .exists()
+    )
     statement = select(TripSession.id, TripSession.ended_at).where(
-        TripSession.status == TripSessionStatus.ENDED.value,
+        TripSession.status == TripSessionStatus.SEALED.value,
         TripSession.ended_at.is_not(None),
         or_(
             ~analytics_exists,
@@ -503,8 +592,22 @@ async def find_unprocessed_trip_page(
             and_(
                 current_analytics_exists,
                 current_estimate_exists,
-                ~current_payout_exists,
-                active_rule_exists,
+                or_(active_rule_exists, rule_binding_exists),
+                or_(
+                    # The dispatcher computes fresh only when NO calculation
+                    # exists at all (formula-agnostic reuse; payout_v2 is
+                    # write-once) - the sweep mirrors that exactly so a
+                    # cross-model switch in either direction never re-queues
+                    # an already-calculated trip.
+                    ~any_payout_calculation_exists,
+                    # payout_v1 staleness recompute path: only when the trip's
+                    # chain is itself under the governing v1 formula.
+                    and_(
+                        active_rule_formula != PAYOUT_V2,
+                        governing_formula_calculation_exists,
+                        ~current_payout_exists,
+                    ),
+                ),
             ),
             repairable_ledger_gap_exists,
         ),
@@ -537,3 +640,42 @@ async def find_unprocessed_trips(
             settings=settings,
         )
     ]
+
+
+async def seal_due_trips(
+    session: AsyncSession,
+    *,
+    settings: Settings,
+    now: datetime | None = None,
+    limit: int | None = None,
+) -> list[UUID]:
+    """Force-seal ended trips whose recovery grace has expired (RM3).
+
+    The guaranteed path for incomplete/legacy ends: after
+    ``trip_seal_grace_seconds`` the trip seals with reason ``grace_expired``
+    even if the client watermark was never satisfied — late data past this
+    point goes to quarantine. Each seal is a guarded transition (winner-only),
+    so a concurrent late-batch seal or duplicate cron fire cannot double-seal.
+    """
+    processing_now = now or await database_now(session)
+    cutoff = processing_now - timedelta(seconds=settings.trip_seal_grace_seconds)
+    result = await session.execute(
+        select(TripSession)
+        .where(
+            TripSession.status == TripSessionStatus.ENDED.value,
+            TripSession.ended_at.is_not(None),
+            TripSession.ended_at <= cutoff,
+        )
+        .order_by(TripSession.ended_at.asc(), TripSession.id.asc())
+        .limit(limit or settings.worker_sweep_batch_size)
+    )
+    sealed_ids: list[UUID] = []
+    for trip in result.scalars().all():
+        if await try_seal_trip(
+            session,
+            trip,
+            reason=TripSealReason.GRACE_EXPIRED,
+            now=processing_now,
+        ):
+            sealed_ids.append(trip.id)
+    return sealed_ids

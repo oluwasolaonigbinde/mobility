@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { RuleForm } from "./rule-form";
+import { RevisionsPanel } from "./revisions-panel";
 import { cx } from "@/lib/cx";
 
 export const metadata: Metadata = { title: "Payout rules" };
@@ -33,8 +34,23 @@ export default async function PayoutRulesPage({
       ).data
     : undefined;
 
-  // One active rule governs a campaign; edit it if present, else create.
+  // One active rule governs a campaign. Hourly (payout_v2) rule values are
+  // immutable (MNY-06A) — they change only by appending a revision, so the
+  // edit-in-place form is replaced by the revision chain for those rules.
   const activeRule = rules?.items.find((r) => r.status === "active");
+  const isVersioned = activeRule?.formula_version === "payout_v2";
+  const revisions =
+    selectedId && activeRule && isVersioned
+      ? (
+          await api.GET("/api/v1/admin/campaigns/{campaign_id}/payout-rules/{rule_id}/revisions", {
+            params: {
+              path: { campaign_id: selectedId, rule_id: activeRule.id },
+              // Newest-first; long chains truncate at 50 by design.
+              query: { limit: 50 },
+            },
+          })
+        ).data
+      : undefined;
 
   return (
     <div className="animate-rise mx-auto max-w-4xl">
@@ -73,11 +89,23 @@ export default async function PayoutRulesPage({
         <Panel className="p-6 md:p-8">
           <div className="mb-5 flex items-center justify-between">
             <h2 className="micro text-muted">
-              {activeRule ? "Active rule" : "No rule yet — platform defaults apply"}
+              {activeRule
+                ? isVersioned
+                  ? "Active hourly rule — effective-dated revisions"
+                  : "Active rule"
+                : "No rule yet — platform defaults apply"}
             </h2>
             {activeRule ? <StatusChip tone="green">active</StatusChip> : null}
           </div>
-          <RuleForm campaignId={selectedId} rule={activeRule ?? null} />
+          {activeRule && isVersioned ? (
+            <RevisionsPanel
+              campaignId={selectedId}
+              ruleId={activeRule.id}
+              revisions={revisions?.items ?? []}
+            />
+          ) : (
+            <RuleForm campaignId={selectedId} rule={activeRule ?? null} />
+          )}
         </Panel>
       )}
     </div>

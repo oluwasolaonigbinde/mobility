@@ -57,7 +57,7 @@ def build_graph(
     db_sessionmaker: async_sessionmaker[AsyncSession],
     tag: str,
     *,
-    trip_status: TripSessionStatus = TripSessionStatus.ENDED,
+    trip_status: TripSessionStatus = TripSessionStatus.SEALED,
     started_at: datetime = BASE_TIME,
     ended_at: datetime | None = BASE_TIME + timedelta(minutes=30),
 ) -> SimpleNamespace:
@@ -583,10 +583,14 @@ def test_repairs_every_missing_ledger_before_stale_analytics_gate(
         "impressions": "skipped",
         "payout": "skipped",
     }
-    assert len(fetch_earnings_ledger_entries(db_sessionmaker)) == 2
+    # One trip_payout entry per trip across calculations (0013 guard): the
+    # older calculation's entry is repaired, the second is skipped instead of
+    # double-paying the same trip under a superseded rule.
+    entries = fetch_earnings_ledger_entries(db_sessionmaker)
+    assert len(entries) == 1
     events = worker_audit_events(db_sessionmaker)
     assert len(events) == 1
-    assert len(events[0].event_metadata["repaired_ledger_entry_ids"]) == 2
+    assert len(events[0].event_metadata["repaired_ledger_entry_ids"]) == 1
     assert find_due(db_sessionmaker, settings) == []
 
 
@@ -1046,7 +1050,7 @@ def test_blocked_analytics_produces_excluded_estimate_and_blocked_payout(
     assert fetch_earnings_ledger_entries(db_sessionmaker) == []
 
 
-def test_trip_not_found_and_trip_not_ended(db_sessionmaker, settings) -> None:
+def test_trip_not_found_and_trip_not_sealed(db_sessionmaker, settings) -> None:
     async def missing_trip() -> None:
         async with db_sessionmaker() as session:
             with pytest.raises(AppError) as exc_info:
@@ -1064,7 +1068,7 @@ def test_trip_not_found_and_trip_not_ended(db_sessionmaker, settings) -> None:
     result = run_pipeline(db_sessionmaker, graph.trip.id, settings)
 
     assert result.overall == "blocked"
-    assert result.stages[0].reason == "trip_not_ended"
+    assert result.stages[0].reason == "trip_not_sealed"
     counts = table_counts(db_sessionmaker)
     assert counts == {
         "analytics": 0,
@@ -1423,7 +1427,7 @@ def test_due_work_orders_by_ended_at_and_respects_limit(db_sessionmaker, setting
             driver_profile_id=graph.profile.id,
             vehicle_id=graph.vehicle.id,
             started_by_user_id=graph.driver.id,
-            trip_status=TripSessionStatus.ENDED,
+            trip_status=TripSessionStatus.SEALED,
             started_at=BASE_TIME,
             ended_at=ended_at,
         )

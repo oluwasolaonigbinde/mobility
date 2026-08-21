@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Profile" };
 export default async function DriverProfilePage() {
   const api = createApiClient(await getSessionToken());
 
-  const [profile, vehicles] = await Promise.all([
+  const [profile, vehicles, assignments, ledger] = await Promise.all([
     api.GET("/api/v1/driver/profile").catch((e) => {
       if (e instanceof ApiError && e.status === 404) return { data: undefined };
       throw e;
@@ -20,10 +20,22 @@ export default async function DriverProfilePage() {
       if (e instanceof ApiError && e.status === 404) return { data: undefined };
       throw e;
     }),
+    api
+      .GET("/api/v1/driver/campaign-assignments", { params: { query: { limit: 50 } } })
+      .catch((e) => {
+        if (e instanceof ApiError && e.status === 404) return { data: undefined };
+        throw e;
+      }),
+    api.GET("/api/v1/driver/earnings/ledger", { params: { query: { limit: 50 } } }).catch((e) => {
+      if (e instanceof ApiError && e.status === 404) return { data: undefined };
+      throw e;
+    }),
   ]);
 
   const p = profile.data;
   const vs = vehicles.data?.items ?? [];
+  const assignmentItems = assignments.data?.items ?? [];
+  const ledgerItems = ledger.data?.items ?? [];
 
   return (
     <div className="animate-rise flex flex-col gap-4">
@@ -56,6 +68,52 @@ export default async function DriverProfilePage() {
                 {p.onboarding_status}
               </StatusChip>
             </div>
+          </Panel>
+
+          <div className="grid grid-cols-3 gap-3">
+            <Panel className="p-3.5 text-center">
+              <p className="micro text-faint">Campaigns</p>
+              <p className="font-display mt-1 text-2xl font-semibold">{assignmentItems.length}</p>
+            </Panel>
+            <Panel className="p-3.5 text-center">
+              <p className="micro text-faint">Trip payouts</p>
+              <p className="font-display mt-1 text-2xl font-semibold">
+                {ledgerItems.filter((entry) => entry.trip_session_id).length}
+              </p>
+            </Panel>
+            <Panel className="p-3.5 text-center">
+              <p className="micro text-faint">Vehicles</p>
+              <p className="font-display mt-1 text-2xl font-semibold">{vs.length}</p>
+            </Panel>
+          </div>
+
+          <Panel className="p-5">
+            <h2 className="micro text-muted">Driver readiness</h2>
+            <ul className="mt-4 space-y-3">
+              {[
+                ["Profile", p.onboarding_status === "active", "Onboarding approved by ops"],
+                ["Vehicle", vs.some((vehicle) => vehicle.status === "active"), "Active vehicle"],
+                [
+                  "Campaign",
+                  assignmentItems.some((item) => item.status === "active"),
+                  "Ready to track and earn",
+                ],
+              ].map(([label, ready, detail]) => (
+                <li key={String(label)} className="flex items-center gap-3">
+                  <span
+                    className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs ${
+                      ready ? "bg-green/10 text-green" : "bg-amber/10 text-amber"
+                    }`}
+                  >
+                    {ready ? "✓" : "!"}
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium">{label}</p>
+                    <p className="text-faint text-xs">{detail}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </Panel>
 
           <Panel className="p-5">

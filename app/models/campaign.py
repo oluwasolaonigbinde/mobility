@@ -63,6 +63,12 @@ class Campaign(Base):
             "budget_amount IS NULL OR budget_amount >= 0",
             name="ck_campaigns_budget_amount_non_negative",
         ),
+        # Mirrors migration 0004's char_length CHECK; length() spells the same
+        # predicate on both PostgreSQL and SQLite (SQLite has no char_length).
+        CheckConstraint(
+            "length(currency) = 3",
+            name="ck_campaigns_currency_length",
+        ),
         CheckConstraint(
             "daily_budget_amount IS NULL OR daily_budget_amount >= 0",
             name="ck_campaigns_daily_budget_amount_non_negative",

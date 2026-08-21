@@ -23,6 +23,7 @@ from app.schemas.trip_analytics import (
     FraudFlagRead,
     TripAnalyticsRead,
 )
+from app.services.audit import create_audit_event
 from app.services.trip_analytics import (
     AnalyticsComputation,
     get_driver_trip_analytics,
@@ -122,12 +123,22 @@ async def admin_recompute_trip_analytics(
     settings: SettingsDependency,
     payload: Annotated[AnalyticsRecomputeRequest | None, Body()] = None,
 ) -> TripAnalyticsRead:
-    del current_user
     computation = await recompute_trip_analytics(
         session,
         trip_id=trip_id,
         metadata=payload.metadata if payload is not None else {},
         settings=settings,
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=current_user.id,
+        action="admin.trip_analytics.recomputed",
+        entity_type="trip_analytics",
+        entity_id=str(computation.analytics.id),
+        metadata={
+            "trip_session_id": str(trip_id),
+            "formula_version": computation.analytics.formula_version,
+        },
     )
     await session.commit()
     return analytics_response(computation)

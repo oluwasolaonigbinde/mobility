@@ -11,6 +11,10 @@ EXPECTED_UNIQUE_CONSTRAINTS = frozenset(
         "uq_payout_calculations_trip_formula_rule",
         "uq_earnings_ledger_entries_payout_calculation_id",
         "uq_traffic_density_profiles_active_default",
+        "uq_campaign_assignments_vehicle_active",
+        "uq_campaign_assignments_campaign_vehicle_non_terminal",
+        "uq_trip_sessions_driver_profile_active",
+        "uq_trip_sessions_vehicle_active",
     }
 )
 
@@ -36,6 +40,19 @@ _SQLITE_UNIQUE_COLUMNS = {
     (
         "traffic_density_profiles.is_default",
     ): "uq_traffic_density_profiles_active_default",
+    (
+        "campaign_assignments.vehicle_id",
+    ): "uq_campaign_assignments_vehicle_active",
+    (
+        "campaign_assignments.campaign_id",
+        "campaign_assignments.vehicle_id",
+    ): "uq_campaign_assignments_campaign_vehicle_non_terminal",
+    (
+        "trip_sessions.driver_profile_id",
+    ): "uq_trip_sessions_driver_profile_active",
+    (
+        "trip_sessions.vehicle_id",
+    ): "uq_trip_sessions_vehicle_active",
 }
 
 _QUOTED_CONSTRAINT_RE = re.compile(r'(?:constraint|index) ["\']([^"\']+)["\']', re.I)

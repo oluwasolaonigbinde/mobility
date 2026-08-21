@@ -40,7 +40,13 @@ from app.models.organization import (
     OrganizationStatus,
 )
 from app.models.payout import CampaignPayoutRule, EarningsLedgerEntry, PayoutCalculation
-from app.models.trip import LocationPing, LocationPingBatch, TripSession, TripSessionStatus
+from app.models.trip import (
+    LocationPing,
+    LocationPingBatch,
+    TripSealReason,
+    TripSession,
+    TripSessionStatus,
+)
 from app.models.trip_analytics import TripAnalytics
 from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle, VehicleStatus, VehicleType
@@ -382,9 +388,17 @@ def create_test_trip_session(
     started_at=None,
     ended_at=None,
     end_reason: str | None = None,
+    sealed_at=None,
+    seal_reason: str | None = None,
     metadata: dict | None = None,
 ) -> TripSession:
     started_at = started_at or datetime.now(UTC)
+    # Sealed trips must satisfy ck_trip_sessions_sealed_fields; default the
+    # evidence columns so factory callers only pick the status.
+    if trip_status == TripSessionStatus.SEALED:
+        ended_at = ended_at or started_at
+        sealed_at = sealed_at or ended_at
+        seal_reason = seal_reason or TripSealReason.CLIENT_COMPLETE.value
 
     async def create() -> TripSession:
         async with db_sessionmaker() as session:
@@ -398,6 +412,8 @@ def create_test_trip_session(
                 started_at=started_at,
                 ended_at=ended_at,
                 end_reason=end_reason,
+                sealed_at=sealed_at,
+                seal_reason=seal_reason,
                 trip_metadata=metadata or {},
             )
             session.add(trip)

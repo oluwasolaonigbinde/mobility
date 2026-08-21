@@ -1,3 +1,9 @@
+> **SUPERSEDED (D8, 27 Jul 2026; scope baseline D11, 4 Aug 2026).** Kept as a
+> historical client artefact. Current per-question statuses live in
+> `docs/decisions-log.md` Part 2; decision history in its Part 1;
+> binding MVP scope in `docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx`.
+> Do not plan work from this file.
+
 **MOBILITY ADTECH PLATFORM**
 
 **Product Direction Questionnaire**

@@ -1,0 +1,14 @@
+{
+  "version": "stationary-rd-v1",
+  "stationary_radius_m": 200,
+  "stationary_window_seconds": 300,
+  "stationary_grace_seconds": 240,
+  "max_accuracy_m": 75,
+  "teleport_kmh": 180,
+  "max_ping_gap_seconds": 120,
+  "rolling_window_seconds": 120,
+  "rolling_stride_seconds": 120,
+  "rolling_max_displacement_m": 25,
+  "rolling_confirmation_windows": 2,
+  "rolling_release_windows": 1
+}

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { ApiError } from "@/lib/api/errors";
-import { formatDateRange } from "@/lib/format";
+import { formatDate, formatDateRange } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { AssignmentActions } from "./assignment-actions";
@@ -34,10 +34,29 @@ export default async function DriverAssignmentsPage() {
     });
 
   const items = data?.items ?? [];
+  const activeCount = items.filter((item) => item.status === "active").length;
+  const offeredCount = items.filter((item) => item.status === "offered").length;
+  const completedCount = items.filter((item) => item.status === "completed").length;
 
   return (
     <div className="animate-rise flex flex-col gap-4">
       <h1 className="font-display text-2xl font-semibold tracking-tight">Campaign jobs</h1>
+      <p className="text-muted -mt-2 text-sm">
+        Offers, active work, and your completed campaign history in one place.
+      </p>
+
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          ["Active", activeCount, "text-green"],
+          ["Offers", offeredCount, "text-cyan"],
+          ["Completed", completedCount, ""],
+        ].map(([label, count, tone]) => (
+          <Panel key={String(label)} className="p-3.5 text-center">
+            <p className="micro text-faint">{label}</p>
+            <p className={`font-display mt-1 text-2xl font-semibold ${String(tone)}`}>{count}</p>
+          </Panel>
+        ))}
+      </div>
 
       {items.length === 0 ? (
         <Panel className="p-6 text-center">
@@ -61,6 +80,26 @@ export default async function DriverAssignmentsPage() {
               </div>
               <StatusChip tone={statusMeta[a.status].tone}>{statusMeta[a.status].label}</StatusChip>
             </div>
+            <div className="border-edge/70 mt-4 grid grid-cols-2 gap-3 border-y py-3">
+              <div>
+                <p className="micro text-faint">Offered</p>
+                <p className="mt-1 text-xs">{formatDate(a.offered_at)}</p>
+              </div>
+              <div>
+                <p className="micro text-faint">
+                  {a.status === "completed" ? "Completed" : "Campaign window"}
+                </p>
+                <p className="mt-1 text-xs">
+                  {a.status === "completed"
+                    ? formatDate(a.completed_at)
+                    : formatDate(a.campaign?.end_at)}
+                </p>
+              </div>
+            </div>
+            {a.notes ? <p className="text-muted mt-3 text-xs leading-5">{a.notes}</p> : null}
+            <p className="text-faint mt-3 text-[11px]">
+              Earnings terms are controlled by the campaign payout rule and verified trip time.
+            </p>
             <AssignmentActions assignmentId={a.id} status={a.status} />
           </Panel>
         ))
