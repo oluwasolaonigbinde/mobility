@@ -1,6 +1,7 @@
 # Advisory Pro review register
 
-Last reconciled against `feat/pkg-02` at `1f0b1f4` on 21 August 2026.
+Last reconciled against `feat/pkg-02` at
+`b9c67463d8cebfe2b1f2a44a115d9a7180e554f1` on 23 August 2026.
 
 ## Status and precedence
 
@@ -45,9 +46,11 @@ The useful audit findings and their current dispositions are:
 
 ## Package 2 money and payout operations
 
-MNY-08A/MNY-09A/MNY-08B/MNY-08C/MNY-03A and C0/C1 are delivered. External
-Lane B is next and owns MNY-10A → MNY-10B → MNY-10C → MNY-11A. It must consume
-the authoritative hold contract at
+MNY-08A/MNY-09A/MNY-08B/MNY-08C/MNY-03A and C0/C1 are delivered. The external
+Lane B attempt ended without a durable diff because its execution environment
+was read-only. The controller recovered the unchanged reviewed sequence
+MNY-10A → MNY-10B → MNY-10C → MNY-11A into the writable local workflow. It
+must consume the authoritative hold contract at
 `3aeb2a55b959e3d5c6b1a489004042075fb9d9ea`.
 
 Preserve these invariants:
@@ -92,11 +95,19 @@ states unless the active implementation proves one is necessary.
 
 - Use one stored-file lifecycle for upload, validation, scan, quarantine or
   rejection, approval, replacement, expiry, and deletion.
-- Reuse the existing encryption/key-version port. Activation atomically locks
-  and rechecks all required approved evidence.
-- Extend the Package 2 notification seam rather than creating another outbox.
-- Test tenant isolation, misleading types, parser abuse, malware, oversized or
-  decompression payloads, timeouts, retry, and idempotency synthetically.
+- Approval binds the exact immutable file/evidence version and checksum.
+  Activation locks and re-reads current prerequisites so replaced evidence
+  cannot inherit stale approval.
+- Reuse Package 2's final D17 encryption/key-version port with no plaintext
+  fallback or second crypto subsystem.
+- Extend the Package 2 notification seam rather than creating another outbox;
+  business mutation and logical notification commit atomically with stable
+  dedupe and authenticated receipt handling.
+- Enforce subject and organisation ownership in services, not router roles
+  alone.
+- Test tenant isolation, server-observed type mismatch, polyglots and format
+  ambiguity, parser/decompression resource bounds, quarantine and safe serving,
+  malware, timeouts, retry, and idempotency synthetically.
 - Reuse final fraud freshness/replay/hold boundaries for proof challenges.
 
 **Candidate only:** ClamAV is the preferred Package 4 malware-scanner proof of
@@ -106,13 +117,21 @@ dependency or resolved external provider decision.
 
 ## Package 5 measurement and privacy
 
-- Centralize disclosure/calculation logic; keep immutable reproducible runs and
-  explicit correction lineage.
+- The current advertiser heatmap/raw-ping path is not an adequate privacy
+  boundary. Every later heatmap, report, segment, export and activation passes
+  one disclosure-control service with multi-dimensional suppression,
+  contributor caps and differencing defence.
+- Centralize disclosure/calculation logic; issued results use immutable,
+  formula-versioned runs, eligible-universe/proof manifests and append-only
+  correction lineage.
 - Proof manifests consistently disclose methods, assumptions, limitations, and
-  exclusions. Reject person-level retargeting.
+  exclusions. Positive allowlists reject person-level identifiers hidden in
+  metadata, free text and nested activation payloads.
 - Test tenant/export leakage, cohort protection, location minimization,
   tampering, replay, and selective evidence omission.
-- Retention must not erase the explanation of an already issued aggregate.
+- Enforce subject and organisation ownership in measurement services, not
+  router roles alone. Legal retention controls raw data; reproducibility cannot
+  justify indefinite retention or resurrection of purged personal data.
 
 ## Package 6 eligibility and offers
 

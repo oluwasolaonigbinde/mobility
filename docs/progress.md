@@ -62,7 +62,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 **Control package:** `PKG-02` — see package queue row 2 and package card.
 **Current checkpoint:** `PKG-02 / MNY-10A` — non-authorizing internal pointer;
 Lane A (MNY-08A/MNY-09A/MNY-08B/MNY-08C/MNY-03A) and PKG02-C0/C1 are
-complete. The owner-assigned external Lane B is next at MNY-10A.
+complete. The external Lane B attempt returned no durable diff because its
+execution environment was read-only; the controller has recovered the same
+reviewed Lane B contract into the writable local workflow at MNY-10A.
 
 ## Executable package queue
 
@@ -174,10 +176,13 @@ complete. The owner-assigned external Lane B is next at MNY-10A.
   protected payee, reservation/reconciliation and post-payment debt semantics.
 - **Package plan (activated 21 Aug 2026, canonical branch `feat/pkg-02`):**
   controller Lane A owns MNY-08A → MNY-09A → MNY-08B, then MNY-08C and
-  MNY-03A. The separately commissioned GPT-5.6 Pro Lane B owns MNY-10A →
-  MNY-10B → MNY-10C → MNY-11A after consuming Lane A's exact authoritative
-  hold-contract SHA; this owner-directed edge deliberately prevents a second
-  hold predicate even though MNY-10A has no checklist prerequisite. Migration,
+  MNY-03A. The separately commissioned GPT-5.6 Pro Lane B attempt produced no
+  durable files, migrations, tests or commits because its execution surface was
+  read-only. On 23 Aug 2026 the owner directed the controller to continue here;
+  the controller therefore owns MNY-10A → MNY-10B → MNY-10C → MNY-11A under
+  the same already-reviewed contract, consuming Lane A's exact authoritative
+  hold-contract SHA. This edge deliberately prevents a second hold predicate
+  even though MNY-10A has no checklist prerequisite. Migration,
   payout-model/service, worker registry, API baseline, balance and authority-doc
   edits are controller-serialized with exact leases and disjoint manifests.
   Public endpoint/schema changes and all three §9 baselines land together once
