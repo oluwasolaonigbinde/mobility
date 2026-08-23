@@ -70,7 +70,7 @@ dependency-safe package and W2-00A is its first runnable checklist item.
 | ---: | --- | --- | --- | --- |
 | 1 | **PKG-01 — foundations and empirical risk proof** | DONE | Resolve remaining foundations, production-PWA/staging risk and correction authority. | none |
 | 2 | **PKG-02 — money integrity and payout operations** | DONE | Fraud holds, release, protected payees, payout batches and debt work end to end. | none — checklist DAG gates entry |
-| 3 | **PKG-03 — commercial contracts and billing** | **NEXT** | Accepted terms, receipts, invoices, funding, refunds and budgets form one money-safe flow. | none — checklist DAG gates entry |
+| 3 | **PKG-03 — commercial contracts and billing** | **IN PROGRESS** | Accepted terms, receipts, invoices, funding, refunds and budgets form one money-safe flow. | none — checklist DAG gates entry |
 | 4 | **PKG-04 — secure evidence, activation and communications** | QUEUED | Secure files/KYC, campaign evidence/activation/cancellation and notifications integrate. | none — checklist DAG gates entry |
 | 5 | **PKG-05 — privacy, measurement and retargeting** | QUEUED | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
 | 6 | **PKG-06 — matching and driver onboarding** | QUEUED | Recommendations, offers, activity and approved driver/vehicle onboarding work together. | none — checklist DAG gates entry |
@@ -353,6 +353,20 @@ dependency-safe package and W2-00A is its first runnable checklist item.
 
 - **Owns:** checklist 19–27. Commercial terms, receipts, invoices, funding,
   payment adapters, corrections and budgets share one canonical money model.
+- **Package plan (activated 24 Aug 2026, canonical branch `feat/pkg-03`):**
+  the controller serializes W2-00A → W2-00D → W2-00B → W2-01A → W2-01B →
+  W2-00C → W2-01C → W2-01D → W2-01E under one campaign/commercial lock
+  order and a migration chain beginning after `0031`. Domain work stays behind
+  one controlled public-contract integration that moves all three §9 baselines
+  in the same commit and reruns the required R14-B fixtures. The controller is
+  the only implementation, migration, contract and authority-document writer;
+  read-only specialists review the money/tax/concurrency/provider checkpoints.
+  Provider-neutral W2-01C and policy-neutral W2-01E seams may build, but the
+  checklist rows remain externally blocked from `DONE` while
+  `EXT-PAYMENT-PROVIDER` and `EXT-BUDGET-POLICY` are missing. The complete plan
+  received one clean-context review; all critical/high corrections are
+  reconciled in the uncommitted controller ledger at
+  `.codex/delivery/cardvert-pkg03/plan-ledger.md`.
 - **Closure:** synthetic full-flow verification passes; real issuance/provider
   paths remain fail-closed behind their external inputs.
 
