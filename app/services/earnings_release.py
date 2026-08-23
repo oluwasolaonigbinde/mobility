@@ -155,13 +155,10 @@ async def escalate_fraud_flag_if_due(
         return False
     await lock_fraud_hold_scope(session, stub.trip_session_id)
     now = await database_clock(session)
-    flag = await session.scalar(
-        select(FraudFlag).where(FraudFlag.id == flag_id).with_for_update()
-    )
+    flag = await session.scalar(select(FraudFlag).where(FraudFlag.id == flag_id).with_for_update())
     if (
         flag is None
-        or flag.status
-        not in {FraudFlagStatus.OPEN.value, FraudFlagStatus.ACKNOWLEDGED.value}
+        or flag.status not in {FraudFlagStatus.OPEN.value, FraudFlagStatus.ACKNOWLEDGED.value}
         or flag.escalated_at is not None
         or _utc(now) < _utc(flag.detected_at) + timedelta(days=review_sla_days)
     ):
@@ -224,7 +221,12 @@ async def fraud_flag_money_effect(
         select(EarningsLedgerEntry)
         .where(
             EarningsLedgerEntry.trip_session_id == flag.trip_session_id,
-            EarningsLedgerEntry.status == EarningsLedgerEntryStatus.AVAILABLE.value,
+            EarningsLedgerEntry.status.in_(
+                (
+                    EarningsLedgerEntryStatus.AVAILABLE.value,
+                    EarningsLedgerEntryStatus.PAID.value,
+                )
+            ),
         )
         .order_by(EarningsLedgerEntry.id)
     )
@@ -252,9 +254,7 @@ async def fraud_flag_money_effect(
         currency=next(iter(currencies), None),
         reversal_entry_id=reversal.id if reversal is not None else None,
         reversal_recommended=(
-            flag.status != FraudFlagStatus.DISMISSED.value
-            and reversal is None
-            and net > 0
+            flag.status != FraudFlagStatus.DISMISSED.value and reversal is None and net > 0
         ),
     )
 
@@ -276,7 +276,12 @@ async def post_confirmed_fraud_reversal(
         select(EarningsLedgerEntry)
         .where(
             EarningsLedgerEntry.trip_session_id == flag.trip_session_id,
-            EarningsLedgerEntry.status == EarningsLedgerEntryStatus.AVAILABLE.value,
+            EarningsLedgerEntry.status.in_(
+                (
+                    EarningsLedgerEntryStatus.AVAILABLE.value,
+                    EarningsLedgerEntryStatus.PAID.value,
+                )
+            ),
             EarningsLedgerEntry.entry_type != EarningsLedgerEntryType.REVERSAL.value,
         )
         .order_by(EarningsLedgerEntry.occurred_at, EarningsLedgerEntry.id)
@@ -302,6 +307,9 @@ async def post_confirmed_fraud_reversal(
     )
     session.add(reversal)
     await session.flush()
+    from app.services.payout_debt import record_reversal_obligation
+
+    await record_reversal_obligation(session, reversal_entry=reversal)
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,

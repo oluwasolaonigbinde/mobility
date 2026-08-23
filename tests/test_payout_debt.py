@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from conftest import auth_headers
 from sqlalchemy import func, select
-from test_mny03a_earnings_release import build_graph
+from test_mny03a_earnings_release import NOW, build_graph, create_flag
 from test_payout_batches import _seed_authority
 from test_payout_corrections import (
     approved_order,
@@ -28,6 +28,7 @@ from app.models.disbursement import (
 )
 from app.models.payout import EarningsLedgerEntry
 from app.services.disbursements import create_payout_batch_draft, reserve_payout_batch
+from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
 from app.services.payout_debt import (
     allocate_available_credit_to_debt,
     driver_money_balance,
@@ -253,6 +254,59 @@ def test_paid_reversal_debt_future_credit_and_whole_entry_batch_e2e(db_sessionma
     assert [source.paid_ledger_entry_id for source in paid_sources] == [paid.id]
     assert sum(item.amount for item in allocations) == Decimal("60.00")
     assert len(settlements) == 1
+
+
+def test_paid_line_confirmed_fraud_creates_debt_then_nets_future_credit(
+    db_sessionmaker,
+) -> None:
+    graph = build_graph(db_sessionmaker, f"debt-fraud-{uuid4().hex[:8]}")
+    flag = create_flag(db_sessionmaker, graph)
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            paid = _ledger(graph, amount="125.50", status="paid")
+            session.add(paid)
+            await session.flush()
+            await acknowledge_fraud_flag(
+                session,
+                flag_id=flag.id,
+                actor_user_id=graph.admin.id,
+                now=NOW,
+            )
+            await resolve_fraud_flag(
+                session,
+                flag_id=flag.id,
+                actor_user_id=graph.admin.id,
+                outcome="confirmed",
+                resolution_note="Provider-paid fraud confirmed.",
+                now=NOW + timedelta(seconds=1),
+            )
+            obligation = await session.scalar(
+                select(PayoutDebtObligation).where(
+                    PayoutDebtObligation.source_reversal_entry_id
+                    == select(EarningsLedgerEntry.id)
+                    .where(EarningsLedgerEntry.source_fraud_flag_id == flag.id)
+                    .scalar_subquery()
+                )
+            )
+            future_credit = await _seed_authority(session, graph, amount="200.00")
+            allocation = await allocate_available_credit_to_debt(
+                session,
+                driver_profile_id=graph.profile.id,
+                currency="NGN",
+                actor_user_id=graph.admin.id,
+            )
+            remainder = await session.get(EarningsLedgerEntry, allocation.remainder_entry_ids[0])
+            return paid, obligation, future_credit, allocation, remainder
+
+    paid, obligation, future_credit, allocation, remainder = asyncio.run(exercise())
+    assert paid.status == "paid"
+    assert obligation is not None
+    assert obligation.original_amount == Decimal("125.50")
+    assert future_credit.status == "reversed"
+    assert allocation.balance.carry_forward_debt == Decimal("0.00")
+    assert allocation.balance.batch_payable == Decimal("74.50")
+    assert remainder.amount == Decimal("74.50")
 
 
 def test_multi_period_allocation_is_monotone_idempotent_and_currency_isolated(

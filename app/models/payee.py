@@ -21,7 +21,6 @@ from app.db.base import Base
 
 class PayeeType(StrEnum):
     DRIVER = "driver"
-    FLEET_OWNER = "fleet_owner"
 
 
 class Payee(Base):
@@ -29,7 +28,7 @@ class Payee(Base):
 
     __tablename__ = "payees"
     __table_args__ = (
-        CheckConstraint("payee_type IN ('driver', 'fleet_owner')", name="ck_payees_type"),
+        CheckConstraint("payee_type = 'driver'", name="ck_payees_type"),
         UniqueConstraint(
             "tenant_id",
             "payee_type",
@@ -62,7 +61,7 @@ class PayeeVersion(Base):
     __tablename__ = "payee_versions"
     __table_args__ = (
         CheckConstraint("version > 0", name="ck_payee_versions_positive_version"),
-        CheckConstraint("payee_type IN ('driver', 'fleet_owner')", name="ck_payee_versions_type"),
+        CheckConstraint("payee_type = 'driver'", name="ck_payee_versions_type"),
         UniqueConstraint("payee_id", "version", name="uq_payee_versions_payee_version"),
     )
 

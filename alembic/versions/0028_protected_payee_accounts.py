@@ -33,7 +33,7 @@ def upgrade() -> None:
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),
-        sa.CheckConstraint("payee_type IN ('driver', 'fleet_owner')", name="ck_payees_type"),
+        sa.CheckConstraint("payee_type = 'driver'", name="ck_payees_type"),
         sa.ForeignKeyConstraint(["tenant_id"], ["users.id"], ondelete="RESTRICT"),
         sa.ForeignKeyConstraint(["created_by_user_id"], ["users.id"], ondelete="RESTRICT"),
         sa.PrimaryKeyConstraint("id"),
@@ -59,9 +59,7 @@ def upgrade() -> None:
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),
         sa.CheckConstraint("version > 0", name="ck_payee_versions_positive_version"),
-        sa.CheckConstraint(
-            "payee_type IN ('driver', 'fleet_owner')", name="ck_payee_versions_type"
-        ),
+        sa.CheckConstraint("payee_type = 'driver'", name="ck_payee_versions_type"),
         sa.ForeignKeyConstraint(["payee_id"], ["payees.id"], ondelete="RESTRICT"),
         sa.ForeignKeyConstraint(["created_by_user_id"], ["users.id"], ondelete="RESTRICT"),
         sa.PrimaryKeyConstraint("id"),

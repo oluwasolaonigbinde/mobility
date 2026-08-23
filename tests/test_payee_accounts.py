@@ -149,7 +149,7 @@ def test_service_enforces_admin_and_rejects_fleet_behavior(db_sessionmaker) -> N
                     session,
                     driver_profile_id=profile.id,
                     actor_user_id=admin.id,
-                    payee_type=PayeeType.FLEET_OWNER,
+                    payee_type="fleet_owner",  # type: ignore[arg-type]
                 )
             with pytest.raises(AppError) as role_error:
                 await create_pilot_payee(
