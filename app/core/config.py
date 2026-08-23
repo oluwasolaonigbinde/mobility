@@ -1,8 +1,10 @@
+import base64
+import binascii
 import json
 from functools import lru_cache
 from typing import Annotated
 
-from pydantic import BeforeValidator, Field, field_validator, model_validator
+from pydantic import BeforeValidator, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -59,6 +61,8 @@ class Settings(BaseSettings):
     session_absolute_lifetime_minutes: int = 720
     password_min_length: int = 12
     default_currency: str = "NGN"
+    payout_crypto_keyring_b64: SecretStr
+    payout_crypto_key_version: int = 1
     max_campaign_zone_area_sq_km: int = 5000
     max_location_pings_per_batch: int = 500
     location_ping_future_skew_seconds: int = 300
@@ -398,8 +402,47 @@ class Settings(BaseSettings):
             raise ValueError("DEFAULT_CURRENCY must be a 3-letter code")
         return normalized
 
+    @field_validator("payout_crypto_keyring_b64")
+    @classmethod
+    def validate_payout_crypto_keyring(cls, value: SecretStr) -> SecretStr:
+        try:
+            raw = json.loads(value.get_secret_value())
+            if not isinstance(raw, dict) or not raw:
+                raise ValueError
+            for version, encoded in raw.items():
+                if not isinstance(version, str) or not version.isdigit() or int(version) < 1:
+                    raise ValueError
+                if not isinstance(encoded, str):
+                    raise ValueError
+                decoded = base64.b64decode(encoded, validate=True)
+                if len(decoded) != 32:
+                    raise ValueError
+        except (binascii.Error, json.JSONDecodeError, ValueError) as exc:
+            raise ValueError(
+                "PAYOUT_CRYPTO_KEYRING_B64 must be a JSON object of positive versions "
+                "to base64-encoded 32-byte keys"
+            ) from exc
+        return value
+
+    @field_validator("payout_crypto_key_version")
+    @classmethod
+    def validate_payout_crypto_key_version(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("PAYOUT_CRYPTO_KEY_VERSION must be positive")
+        return value
+
+    @property
+    def payout_crypto_keys(self) -> dict[int, bytes]:
+        raw = json.loads(self.payout_crypto_keyring_b64.get_secret_value())
+        return {
+            int(version): base64.b64decode(encoded, validate=True)
+            for version, encoded in raw.items()
+        }
+
     @model_validator(mode="after")
     def validate_impression_confidence_bounds(self) -> "Settings":
+        if self.payout_crypto_key_version not in self.payout_crypto_keys:
+            raise ValueError("PAYOUT_CRYPTO_KEY_VERSION must exist in PAYOUT_CRYPTO_KEYRING_B64")
         if self.impression_min_confidence > self.impression_max_confidence:
             raise ValueError("IMPRESSION_MIN_CONFIDENCE must not exceed IMPRESSION_MAX_CONFIDENCE")
         if (

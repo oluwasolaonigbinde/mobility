@@ -53,6 +53,39 @@ def test_settings_defaults_load() -> None:
     assert settings.payout_default_high_fraud_multiplier == 0.25
     assert settings.payout_default_min_payout_per_trip == 0.0
     assert settings.payout_default_max_payout_per_trip is None
+    assert settings.payout_crypto_key_version == 1
+    assert len(settings.payout_crypto_keys[1]) == 32
+    assert "AAECAw" not in repr(settings)
+
+
+def test_payout_crypto_kek_is_required(monkeypatch) -> None:
+    monkeypatch.delenv("PAYOUT_CRYPTO_KEYRING_B64")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "not-json",
+        "{}",
+        '{"1":"c2hvcnQ="}',
+        '{"zero":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}',
+    ],
+)
+def test_payout_crypto_keyring_must_contain_versioned_aes256_keys(value: str) -> None:
+    with pytest.raises(ValidationError):
+        Settings(payout_crypto_keyring_b64=value)
+
+
+def test_payout_crypto_key_version_must_be_positive() -> None:
+    with pytest.raises(ValidationError):
+        Settings(payout_crypto_key_version=0)
+
+
+def test_payout_crypto_active_key_version_must_exist() -> None:
+    with pytest.raises(ValidationError):
+        Settings(payout_crypto_key_version=2)
 
 
 def test_cors_origin_string_parses_as_list() -> None:
@@ -65,9 +98,7 @@ def test_cors_origin_string_parses_as_list() -> None:
 
 
 def test_cors_origin_json_string_parses_as_list() -> None:
-    settings = Settings(
-        backend_cors_origins='["http://localhost:3000","http://localhost:5173"]'
-    )
+    settings = Settings(backend_cors_origins='["http://localhost:3000","http://localhost:5173"]')
 
     assert settings.backend_cors_origins == [
         "http://localhost:3000",

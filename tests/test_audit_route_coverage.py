@@ -115,6 +115,16 @@ AUDITED = {
     ("POST", "/api/v1/admin/fraud-disputes/{dispute_id}/reply"): (
         "admin.fraud_dispute.replied"
     ),
+    ("POST", "/api/v1/admin/payees/drivers/{driver_profile_id}"): "admin.payee.created",
+    ("POST", "/api/v1/admin/payees/{payee_id}/bank-account-versions"): (
+        "admin.bank_account.verified"
+    ),
+    ("POST", "/api/v1/admin/payees/bank-account-versions/{version_id}/reveal"): (
+        "admin.bank_account.read"
+    ),
+    ("POST", "/api/v1/admin/payees/bank-accounts/{bank_account_id}/rewrap"): (
+        "admin.bank_account.rewrapped"
+    ),
     ("POST", "/api/v1/admin/traffic-density-profiles"): (
         "admin.traffic_density_profile.created"
     ),

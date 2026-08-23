@@ -14,6 +14,7 @@ from app.api.v1.health import router as health_router
 from app.api.v1.heatmaps import router as heatmaps_router
 from app.api.v1.impressions import router as impressions_router
 from app.api.v1.me import router as me_router
+from app.api.v1.payees import router as payees_router
 from app.api.v1.payouts import router as payouts_router
 from app.api.v1.trip_analytics import router as trip_analytics_router
 from app.api.v1.trips import admin_router as trips_admin_router
@@ -23,6 +24,7 @@ from app.api.v1.vehicles import router as vehicles_router
 api_router = APIRouter()
 api_router.include_router(auth_router)
 api_router.include_router(me_router)
+api_router.include_router(payees_router)
 api_router.include_router(admin_router)
 api_router.include_router(audit_router)
 api_router.include_router(advertiser_organizations_router)

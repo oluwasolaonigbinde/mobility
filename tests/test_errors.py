@@ -81,5 +81,7 @@ def test_error_tracking_uses_privacy_safe_defaults(monkeypatch) -> None:
             "dsn": "https://public@example.invalid/1",
             "traces_sample_rate": 0.0,
             "send_default_pii": False,
+            "include_local_variables": False,
+            "max_request_body_size": "never",
         }
     ]
