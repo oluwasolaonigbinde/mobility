@@ -62,6 +62,13 @@ def _pkg01_active() -> str:
         count=1,
         flags=re.MULTILINE,
     )
+    text = re.sub(
+        r"^(\| 3 \| \*\*PKG-03 —.*?\| )(?:\*\*[^|]+\*\*|DONE|QUEUED|BLOCKED)( \|)",
+        r"\1QUEUED\2",
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
     text = _with_control_pointer(
         text,
         state="ACTIVE",
@@ -442,8 +449,8 @@ def test_rejects_hidden_controller_pointer_decoy() -> None:
         _pkg01_active()
         .replace("### Current control pointer", "### Current control pointer\n\n" + decoy)
         .replace(
-            "**Control package:** `PKG-01` — see package queue row 2",
-            "**Control package:** `PKG-09` — see package queue row 2",
+            "**Control package:** `PKG-01` — see package queue row 3",
+            "**Control package:** `PKG-09` — see package queue row 3",
         )
     )
     errors = _errors(text)
@@ -549,8 +556,8 @@ def test_rejects_done_item_in_queued_package() -> None:
 
 def test_rejects_nonqueued_package_after_active_frontier() -> None:
     text = _progress().replace(
-        "| 3 | **PKG-03 — commercial contracts and billing** | QUEUED |",
-        "| 3 | **PKG-03 — commercial contracts and billing** | DONE |",
+        "| 4 | **PKG-04 — secure evidence, activation and communications** | QUEUED |",
+        "| 4 | **PKG-04 — secure evidence, activation and communications** | DONE |",
     )
     errors = _errors(text)
     assert any(
@@ -627,7 +634,7 @@ def test_blocked_item_names_all_direct_missing_inputs() -> None:
 
 def test_rejects_stale_control_package_pointer() -> None:
     text = _progress().replace(
-        "**Control package:** `PKG-02`", "**Control package:** `PKG-09`"
+        "**Control package:** `PKG-03`", "**Control package:** `PKG-09`"
     )
     errors = _errors(text)
     assert any("control package pointer does not match" in error for error in errors)

@@ -59,20 +59,18 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 ### Current control pointer
 
 **Controller state:** `ACTIVE`
-**Control package:** `PKG-02` — see package queue row 2 and package card.
-**Current checkpoint:** `PKG-02 / MNY-10A` — non-authorizing internal pointer;
-Lane A (MNY-08A/MNY-09A/MNY-08B/MNY-08C/MNY-03A) and PKG02-C0/C1 are
-complete. The external Lane B attempt returned no durable diff because its
-execution environment was read-only; the controller has recovered the same
-reviewed Lane B contract into the writable local workflow at MNY-10A.
+**Control package:** `PKG-03` — see package queue row 3 and package card.
+**Current checkpoint:** `PKG-03 / W2-00A` — non-authorizing internal pointer;
+PKG-02 is closed with all nine owned checklist items done. PKG-03 is the first
+dependency-safe package and W2-00A is its first runnable checklist item.
 
 ## Executable package queue
 
 | # | Package | Status | Outcome | Package prerequisites |
 | ---: | --- | --- | --- | --- |
 | 1 | **PKG-01 — foundations and empirical risk proof** | DONE | Resolve remaining foundations, production-PWA/staging risk and correction authority. | none |
-| 2 | **PKG-02 — money integrity and payout operations** | **IN PROGRESS** | Fraud holds, release, protected payees, payout batches and debt work end to end. | none — checklist DAG gates entry |
-| 3 | **PKG-03 — commercial contracts and billing** | QUEUED | Accepted terms, receipts, invoices, funding, refunds and budgets form one money-safe flow. | none — checklist DAG gates entry |
+| 2 | **PKG-02 — money integrity and payout operations** | DONE | Fraud holds, release, protected payees, payout batches and debt work end to end. | none — checklist DAG gates entry |
+| 3 | **PKG-03 — commercial contracts and billing** | **NEXT** | Accepted terms, receipts, invoices, funding, refunds and budgets form one money-safe flow. | none — checklist DAG gates entry |
 | 4 | **PKG-04 — secure evidence, activation and communications** | QUEUED | Secure files/KYC, campaign evidence/activation/cancellation and notifications integrate. | none — checklist DAG gates entry |
 | 5 | **PKG-05 — privacy, measurement and retargeting** | QUEUED | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
 | 6 | **PKG-06 — matching and driver onboarding** | QUEUED | Recommendations, offers, activity and approved driver/vehicle onboarding work together. | none — checklist DAG gates entry |
@@ -312,6 +310,37 @@ reviewed Lane B contract into the writable local workflow at MNY-10A.
   medium configurable-SLA UI wording defect; the single correction round was
   rechecked RESOLVED. No real-device, real-route, external-staging, pilot or
   user-feedback validation is claimed.
+- **MNY-10A/B/C + MNY-11A evidence (DONE 23 Aug 2026):** migrations
+  `0028`–`0031` form one linear, downgrade-guarded chain for protected payees,
+  batch reservation, provider reconciliation and carry-forward debt.
+  AES-256-GCM account ciphertext binds tenant/record/field AAD to a required
+  versioned KEK keyring; list/error/audit/log surfaces remain redacted, while
+  privileged reveal and append-only rewrap are audited. Whole-entry batch
+  reservation freezes verified payee/account/amount/instruction hashes under
+  maker-checker approval and one active-line constraint, consuming the imported
+  fraud-hold contract. Fake-provider submission is idempotent; signed webhook
+  or verified poll evidence resolves each line before `paid`, including partial
+  failure and retry. Post-payment corrections and confirmed fraud append
+  currency-scoped debt linked to immutable paid sources; future credit clears
+  debt first and emits one exact residual. Live submission remains disabled
+  until `EXT-DISBURSEMENT-PROVIDER` exists. Controlled integration regenerated
+  all three §9 baselines once. Non-repeated aggregate verification recorded
+  541 backend passes and one intentional skip, 187 frontend tests, typecheck,
+  lint, production build, migration/autogenerate, crypto/property/concurrency
+  and synthetic payee→batch→reconciliation→debt journeys. The consolidated
+  review found one provider-finality/confirmed-fraud lock inversion and two
+  paid-state UI color gaps; the single correction round added one shared lock
+  order plus a forced-overlap PostgreSQL regression and focused UI assertions,
+  then rechecked both findings RESOLVED. No live provider, physical-device,
+  real-route, external-staging, pilot or user-feedback validation is claimed.
+- **PKG-02 closure (DONE 23 Aug 2026, candidate `e3a505e`):** all checklist
+  items 10–18 are done; RM8/RM10/RM11 are resolved and RM9's copied-route
+  software control is delivered with its physical-proof residual preserved.
+  The advisory Pro register remains revalidation input at
+  `docs/pro-review-register.md`, not a queue or adopted architecture. PKG-03 is
+  promoted to `NEXT`; its controller must consume the final D17 crypto seam and
+  this money authority without adding plaintext fallback, a second crypto
+  subsystem or a second fraud-hold predicate.
 
 ### PKG-03 — commercial contracts and billing
 
@@ -426,10 +455,10 @@ verification, gates or required specialist review.
 | 12 | **MNY-08B — review states and hold invariant** | PKG-02 | DONE | One serialized transition table and hold predicate controls all money consumers. | leaf: MNY-08A, MNY-09A |
 | 13 | **MNY-08C — driver reasons, disputes and in-app notice** | PKG-02 | DONE | Drivers can see holds, dispute them and receive sanitized outcomes. | leaf: MNY-08B |
 | 14 | **MNY-03A — clean release and flagged review SLA** | PKG-02 | DONE | Clean entries release idempotently; flagged entries remain held for approve/decline with seven-day escalation and no auto-release. | leaf: MNY-08B |
-| 15 | **MNY-10A — protected payee/account foundation** | PKG-02 | TODO | Payouts target an immutable payee and verified bank-account version safely. | none |
-| 16 | **MNY-10B — batch reservation and provider submission** | PKG-02 | TODO | Available entries are atomically reserved into frozen, idempotent provider instructions and submitted only after maker-checker approval. | leaf: MNY-10A |
-| 17 | **MNY-10C — provider line reconciliation and paid finality** | PKG-02 | TODO | Each automated transfer line reconciles from signed webhook/verified poll evidence before cash-paid finality. | leaf: MNY-10B |
-| 18 | **MNY-11A — carry-forward post-payment debt** | PKG-02 | TODO | Later corrections reduce future pay without rewriting paid history. | leaf: MNY-10C, MNY-06C |
+| 15 | **MNY-10A — protected payee/account foundation** | PKG-02 | DONE | Payouts target an immutable payee and verified bank-account version safely. | none |
+| 16 | **MNY-10B — batch reservation and provider submission** | PKG-02 | DONE | Available entries are atomically reserved into frozen, idempotent provider instructions and submitted only after maker-checker approval. | leaf: MNY-10A |
+| 17 | **MNY-10C — provider line reconciliation and paid finality** | PKG-02 | DONE | Each automated transfer line reconciles from signed webhook/verified poll evidence before cash-paid finality. | leaf: MNY-10B |
+| 18 | **MNY-11A — carry-forward post-payment debt** | PKG-02 | DONE | Later corrections reduce future pay without rewriting paid history. | leaf: MNY-10C, MNY-06C |
 | 19 | **W2-00A — packages, custom quotes and accepted terms** | PKG-03 | TODO | A versioned custom quotation for every campaign—including an externally prepared quote recorded afterward—creates one immutable accepted snapshot; the legacy title does not authorize a launch package catalogue. | leaf: MNY-11A |
 | 20 | **W2-00D — advertiser company profile management** | PKG-03 | TODO | Advertiser and admin manage tenant-safe company/contact details used by commercial surfaces. | none |
 | 21 | **W2-00B — canonical receipts and allocations** | PKG-03 | TODO | One immutable external receipt can fund obligations once, within its amount. | leaf: W2-00A |
@@ -1456,10 +1485,11 @@ and Git history win.
 | Automated post-trip pipeline (arq worker) | Complete, merged | Git `159b0b1`, `4f69ef6`; architecture v1.5–v1.6 |
 | S1 — payout engine v2 (hourly pay + daily caps, D2/D4/D9) | Complete, merged — RM1 fixed and the original whole-trip stationary grace retained for immutable payout-v2 history | Git `f9cd8ca`; architecture v1.8/v1.15, §16.1 [BUILT] |
 | PKG-01 — foundations and empirical risk proof | Complete — RM2/RM6/RM7 closed; payout-v3 frozen parked-time behavior, PWA protocol/interrupted-flow build proof and provider-neutral release/recovery proof delivered; physical/live validation remains explicitly deferred | Git `d2cd424`…`be726a2` plus the package closure commit; architecture v1.30; D22/D23; automated/PostGIS/frontend/browser/recovery evidence |
+| PKG-02 — money integrity and payout operations | Complete — RM8/RM10/RM11 closed; copied-route control, authoritative holds, clean release, encrypted payees, frozen provider instructions, line finality and carry-forward debt delivered provider-neutrally | Git through `e3a505e`; migrations `0022`–`0031`; architecture v1.37; Postgres/frontend/contract/synthetic end-to-end evidence and consolidated review resolved |
 | S4 — data lifecycle (ping partitions, retention purge, audit backfill, D10) | Complete, merged | Git `a879a3d`…`4f487e7`; architecture v1.9, §24.2 [BUILT] |
 | W0-F — trip finality protocol + durable client queue (RM3/RM4/RM5, D15) | Complete — sealed-only money chain, post-seal quarantine, IndexedDB queue with stable retry keys; independently reviewed and hardened (D16: apply-after-initial-payout, pre-seal analytics recompute, fail-closed client) | Migrations `0016`+`0017`; architecture v1.16/v1.17; `tests/test_trip_seal.py`; live compose e2e |
 | Pre-production ops (production Compose overlay, release smoke, backup/restore rehearsal) | Complete locally, **not deployed** | Git from `006d94e`; `docker-compose.production.yml`, `docs/runbook.md` |
-| Current API contract | 26 migrations; controlled public baseline integration completed at MNY-08C | Migration `0026` is internal payout authority only and does not change the public contract. Driver fraud-hold/dispute projections, admin dispute read/reply operations and typed notice schemas remain synchronized across `docs/api/openapi.snapshot.json`, `openapi.json` and `schema.d.ts`. Later public endpoint/schema work must move all three artifacts together. |
+| Current API contract | 31 migrations; controlled public baseline integration completed at PKG-02 closure | Payee/account, payout-batch, line-reconciliation, paid-balance and debt APIs are synchronized with the existing fraud/dispute/release contract across `docs/api/openapi.snapshot.json`, `openapi.json` and `schema.d.ts`. Later public endpoint/schema work must move all three artifacts together. |
 
 **Nothing is deployed.** Staging/production remain research-only
 (`docs/staging-options.md`) pending provider, budget, and operator approval
@@ -1477,8 +1507,10 @@ only with demo/synthetic data until their owning checklist items land:
 - PWA trip tracking and its durable queue are a tested protocol baseline, but
   **real-driver tracking is blocked** by G-GPS until RM2/RM9/RM15/RM18 close;
   W4-01 turns this surface into the D18 production screen-on pilot client.
-- Current payout rules/recompute/ledger screens are demo-capable foundations,
-  but **no real release/export/transfer is authorized** until G-money closes.
+- Payout rules, fraud review, release, encrypted payees, batch and reconciliation
+  screens are provider-neutral synthetic foundations. The software G-money
+  defects are closed, but **no real transfer is authorized** until
+  `EXT-DISBURSEMENT-PROVIDER` supplies the approved provider and credentials.
 - Current advertiser scheduling and driver activation flows are foundations,
   not the target commercial authority: G-commercial and W2-03A/D replace
   direct self-scheduling/activation before any live campaign.
@@ -1497,12 +1529,11 @@ only with demo/synthetic data until their owning checklist items land:
   payout-v3 revision/binding/correction authority, and RM2 closed under D22's
   acceptance-frozen rolling-displacement rule (architecture v1.30). Later
   tuning from real-route data creates a new revision and never rewrites history.
-- **W1 — money correctness:** worker ✅, payout v2 ✅ (S1), data lifecycle ✅
-  (S4). **Remaining: the legacy S2 group (MNY-08A/B/C + MNY-09A) for fraud
-  review/holds, then the legacy S3 group (MNY-03A + MNY-10A/B/C + MNY-11A)
-  for release, reconciled payout batches and debt.** Execution order and
-  authority are in the package queue and checklist register above;
-  `docs/next-steps.md` is historical research only.
+- **W1 — money correctness:** complete provider-neutrally. Worker, immutable
+  payout history/corrections, data lifecycle, current fraud assessment and
+  copied-route control, one hold predicate, clean/SLA release, encrypted payee
+  versions, reconciled payout batches and carry-forward debt are built. Live
+  transfer remains gated only by `EXT-DISBURSEMENT-PROVIDER`.
 - **W2 — commercial layer:** not started. Billing/invoices (§15; W2-01A),
   file storage (§19), campaign/creative approval + installation evidence
   (§18), notification channels (§20).
@@ -1517,11 +1548,11 @@ only with demo/synthetic data until their owning checklist items land:
 
 | Proposal module | Built/demo-capable today (not necessarily live-authorized) | Outstanding / live-enablement owner |
 | --- | --- | --- |
-| A. Admin platform | Login/RBAC, user+org onboarding, drivers/vehicles, assignments, fraud-flag console, payout rules UI, traffic profiles, audit UI | Campaign/creative approval queues (W2), installation evidence (W2), payout release ops (W1-S3), retargeting monitoring (W3), exports (W4) |
+| A. Admin platform | Login/RBAC, user+org onboarding, drivers/vehicles, assignments, fraud review/disputes, payout rules/corrections, release SLA, payees, payout batches/reconciliation, traffic profiles and audit UI | Campaign/creative approval queues (W2), installation evidence (W2), retargeting monitoring (W3), exports (W4); live transfer provider input remains external |
 | B. Advertiser dashboard | Campaigns CRUD, zones editor, analytics, demo heatmaps/reports/charts and payout-derived cost summaries | Company profile (W2-00D), creative *upload* (W2 — metadata-only today), billing/invoices (W2), governed approval/activation (W2), retargeting setup + insights, exposure score + high-exposure zone views (W3), disclosure-safe reports + CSV/PDF export (W4) |
 | C. Driver app | Installable PWA: jobs, synthetic/demo trip tracking (idempotent ping batches), earnings + S1 trip breakdown, basic profile, durable offline ping queue + trip seal protocol (D15) | Offer accept/decline, self-registration, KYC and driver-owned vehicle lifecycle (W3); verified contact/notifications (W2); **production screen-on PWA/device proof** (W4). Native background app is Phase 2 |
 | D. Analytics & impression engine | Route analytics, fraud flags, impression estimates, exposure/heatmap aggregation, payout eligibility classifier | Exposure score metric (`exposure_v1`) + high-exposure zone identification + retargeting insight capture (W3) |
-| E. Dynamic driver payouts | Demo-capable payout v2 history plus payout-v3 acceptance-frozen base/premium and parked-time terms, immutable revisions, maker-checker corrections, caps, write-once calculations and driver/admin explanations | Fraud hold/review, clean/flagged release and automated provider submission/reconciliation; G-money controls live use |
+| E. Dynamic driver payouts | Payout-v2/v3 immutable history, acceptance-frozen terms, maker-checker corrections, authoritative fraud holds, clean/SLA release, encrypted payees, frozen batches, line-level paid finality and carry-forward debt | Financially effective automated transfer remains disabled until `EXT-DISBURSEMENT-PROVIDER`; later KYC/provider approval lives in its owning packages |
 | F. Heatmaps & reporting | Demo heatmap/route/report screens and daily metrics | Central disclosure/methodology/runs (W3), high-exposure zone + follow-up-targeting sections (W3), governed UI + CSV/PDF (W4); G-advertiser controls live use |
 | G. Online-to-offline retargeting | — (privacy boundary designed, §22) | Entire module (W3): sources, segments, linkage, insights, controlled export and gated aggregate geography/time/context activation; identifiers/person-level payloads reject and live actions require legal/`EXT-AD-PLATFORM` inputs |
 
