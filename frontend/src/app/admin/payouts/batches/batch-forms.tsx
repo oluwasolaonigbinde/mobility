@@ -4,12 +4,38 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   batchTransitionAction,
+  allocateDebtAction,
   createAndReserveBatchAction,
   pollLineAction,
   type BatchActionState,
 } from "./actions";
 
 const initialState: BatchActionState = {};
+
+export function AllocateDebtForm() {
+  const [state, action, pending] = useActionState(allocateDebtAction, initialState);
+  return (
+    <form action={action} className="grid gap-3 sm:grid-cols-[1fr_8rem_auto]">
+      <input
+        name="driver_profile_id"
+        aria-label="Driver profile ID"
+        placeholder="Driver profile UUID"
+        className="border-edge bg-raised rounded-lg border px-3 text-sm"
+      />
+      <input
+        name="currency"
+        defaultValue="NGN"
+        aria-label="Debt currency"
+        className="border-edge bg-raised rounded-lg border px-3 text-sm uppercase"
+      />
+      <Button type="submit" disabled={pending}>
+        {pending ? "Allocating…" : "Allocate debt"}
+      </Button>
+      {state.error ? <p className="text-coral text-sm sm:col-span-3">{state.error}</p> : null}
+      {state.done ? <p className="text-green text-sm sm:col-span-3">{state.done}</p> : null}
+    </form>
+  );
+}
 
 export function CreateBatchForm() {
   const [state, action, pending] = useActionState(createAndReserveBatchAction, initialState);

@@ -50,6 +50,7 @@ from app.services.impressions import (
     quantize_2,
     quantize_4,
 )
+from app.services.payout_debt import record_reversal_obligation
 from app.services.payout_eligibility import (
     D22_ROLLING_CONFIRMATION_WINDOWS,
     D22_ROLLING_MAX_DISPLACEMENT_M,
@@ -3640,6 +3641,7 @@ async def write_day_differentials(
                 adjustment_count += 1
             else:
                 reversal_count += 1
+                await record_reversal_obligation(session, reversal_entry=entry)
         outcomes.append(
             RecomputeDayTripOutcome(
                 trip_session_id=target.trip_session_id,

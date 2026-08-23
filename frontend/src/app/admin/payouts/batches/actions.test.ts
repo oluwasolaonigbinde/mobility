@@ -4,7 +4,12 @@ const mocks = vi.hoisted(() => ({ batchApi: vi.fn(), revalidatePath: vi.fn() }))
 vi.mock("./batch-api", () => ({ batchApi: mocks.batchApi }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 
-import { batchTransitionAction, createAndReserveBatchAction, pollLineAction } from "./actions";
+import {
+  allocateDebtAction,
+  batchTransitionAction,
+  createAndReserveBatchAction,
+  pollLineAction,
+} from "./actions";
 
 describe("payout batch actions", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -81,6 +86,19 @@ describe("payout batch actions", () => {
     expect(mocks.batchApi).toHaveBeenCalledWith(
       "/lines/22222222-2222-4222-8222-222222222222/poll",
       { method: "POST" },
+    );
+  });
+
+  it("allocates debt for one driver and currency before batching", async () => {
+    mocks.batchApi.mockResolvedValueOnce({ settlement_ids: [] });
+    const form = new FormData();
+    form.set("driver_profile_id", "22222222-2222-4222-8222-222222222222");
+    form.set("currency", "ngn");
+    const result = await allocateDebtAction({}, form);
+    expect(result.done).toMatch(/carry-forward debt/i);
+    expect(mocks.batchApi).toHaveBeenCalledWith(
+      "/debt-balances/22222222-2222-4222-8222-222222222222/allocate",
+      { method: "POST", body: JSON.stringify({ currency: "NGN" }) },
     );
   });
 });

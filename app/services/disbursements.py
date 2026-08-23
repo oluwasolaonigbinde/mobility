@@ -33,6 +33,7 @@ from app.models.trip_analytics import FraudFlag
 from app.models.user import User, UserRole, UserStatus
 from app.services.audit import create_audit_event
 from app.services.fraud_holds import fraud_hold_active_clause, lock_fraud_hold_scope
+from app.services.payout_debt import lock_driver_currency_debt_scope
 
 
 def _error(code: str, message: str, *, http_status: int = status.HTTP_409_CONFLICT) -> AppError:
@@ -144,7 +145,10 @@ async def reserve_payout_batch(
             http_status=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     batch = await session.scalar(
-        select(PayoutBatch).where(PayoutBatch.id == batch_id).with_for_update()
+        select(PayoutBatch)
+        .where(PayoutBatch.id == batch_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if batch is None:
         raise _error(
@@ -163,15 +167,32 @@ async def reserve_payout_batch(
 
     stubs = (
         await session.execute(
-            select(EarningsLedgerEntry.id, EarningsLedgerEntry.trip_session_id).where(
-                EarningsLedgerEntry.id.in_(ledger_entry_ids)
-            )
+            select(
+                EarningsLedgerEntry.id,
+                EarningsLedgerEntry.trip_session_id,
+                EarningsLedgerEntry.driver_profile_id,
+                EarningsLedgerEntry.currency,
+            ).where(EarningsLedgerEntry.id.in_(ledger_entry_ids))
         )
     ).all()
     if len(stubs) != len(ledger_entry_ids) or any(row.trip_session_id is None for row in stubs):
         raise _error("PAYOUT_ENTRY_INELIGIBLE", "Every selected entry must belong to a trip")
     for trip_id in sorted({row.trip_session_id for row in stubs}, key=str):
         await lock_fraud_hold_scope(session, trip_id)
+    for driver_profile_id, currency in sorted(
+        {(row.driver_profile_id, row.currency) for row in stubs},
+        key=lambda item: (str(item[0]), item[1]),
+    ):
+        _, debt_account = await lock_driver_currency_debt_scope(
+            session,
+            driver_profile_id=driver_profile_id,
+            currency=currency,
+        )
+        if debt_account is not None and debt_account.outstanding_amount > 0:
+            raise _error(
+                "PAYOUT_DEBT_ALLOCATION_REQUIRED",
+                "Carry-forward debt must be allocated before earnings become batchable",
+            )
 
     entries = list(
         (
@@ -301,6 +322,7 @@ async def _locked_batch_with_lines(
                 .where(PayoutBatchLine.batch_id == batch.id)
                 .order_by(PayoutBatchLine.id)
                 .with_for_update()
+                .execution_options(populate_existing=True)
             )
         ).all()
     )
@@ -554,6 +576,24 @@ async def _apply_verified_line_evidence(
         last_evidence_at is None or occurred_at >= last_evidence_at
     ):
         if evidence.outcome == PayoutBatchLineStatus.SUCCEEDED:
+            ledger_authority = (
+                await session.execute(
+                    select(
+                        EarningsLedgerEntry.driver_profile_id,
+                        EarningsLedgerEntry.currency,
+                    ).where(EarningsLedgerEntry.id == line.ledger_entry_id)
+                )
+            ).one_or_none()
+            if ledger_authority is None:
+                raise _error(
+                    "PAYOUT_LEDGER_FINALITY_CONFLICT",
+                    "The payout ledger entry no longer exists",
+                )
+            await lock_driver_currency_debt_scope(
+                session,
+                driver_profile_id=ledger_authority.driver_profile_id,
+                currency=ledger_authority.currency,
+            )
             ledger = await session.scalar(
                 select(EarningsLedgerEntry)
                 .where(EarningsLedgerEntry.id == line.ledger_entry_id)

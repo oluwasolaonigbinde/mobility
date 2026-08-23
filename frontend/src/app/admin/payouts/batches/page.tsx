@@ -5,7 +5,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { formatDate, formatMoneyExact } from "@/lib/format";
 import { batchApi, type PayoutBatch } from "./batch-api";
-import { BatchActions, CreateBatchForm, PollLineAction } from "./batch-forms";
+import { AllocateDebtForm, BatchActions, CreateBatchForm, PollLineAction } from "./batch-forms";
 
 export const metadata: Metadata = { title: "Payout batches" };
 
@@ -23,6 +23,13 @@ export default async function PayoutBatchesPage() {
       <Panel className="mb-6 p-6">
         <h2 className="micro text-muted mb-3">Reserve available earnings</h2>
         <CreateBatchForm />
+      </Panel>
+      <Panel className="mb-6 p-6">
+        <h2 className="micro text-muted mb-3">Settle carry-forward debt</h2>
+        <p className="text-muted mb-3 text-sm">
+          Allocate available whole credits before selecting the resulting batchable ledger entry.
+        </p>
+        <AllocateDebtForm />
       </Panel>
       <Panel className="overflow-hidden">
         <table className="w-full min-w-[760px] text-sm">

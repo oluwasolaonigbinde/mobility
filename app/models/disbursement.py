@@ -14,6 +14,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -194,6 +195,166 @@ class PayoutLineReconciliationEvent(Base):
     reconciled_by_user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT")
     )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class DriverCurrencyDebtAccount(Base):
+    __tablename__ = "driver_currency_debt_accounts"
+    __table_args__ = (
+        CheckConstraint("length(currency) = 3", name="ck_driver_debt_accounts_currency"),
+        CheckConstraint(
+            "outstanding_amount >= 0 AND lifetime_incurred_amount >= 0 "
+            "AND lifetime_allocated_amount >= 0",
+            name="ck_driver_debt_accounts_amounts_non_negative",
+        ),
+        CheckConstraint(
+            "lifetime_incurred_amount = outstanding_amount + lifetime_allocated_amount",
+            name="ck_driver_debt_accounts_conservation",
+        ),
+        UniqueConstraint(
+            "driver_profile_id", "currency", name="uq_driver_debt_accounts_driver_currency"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    driver_profile_id: Mapped[UUID] = mapped_column(
+        ForeignKey("driver_profiles.id", ondelete="RESTRICT"), nullable=False
+    )
+    driver_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    outstanding_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    lifetime_incurred_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    lifetime_allocated_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class PayoutDebtObligation(Base):
+    __tablename__ = "payout_debt_obligations"
+    __table_args__ = (
+        CheckConstraint("length(currency) = 3", name="ck_payout_debt_obligations_currency"),
+        CheckConstraint(
+            "original_amount > 0 AND outstanding_amount >= 0 "
+            "AND outstanding_amount <= original_amount",
+            name="ck_payout_debt_obligations_amounts",
+        ),
+        Index("ix_payout_debt_obligations_account", "debt_account_id", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    debt_account_id: Mapped[UUID] = mapped_column(
+        ForeignKey("driver_currency_debt_accounts.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_reversal_entry_id: Mapped[UUID] = mapped_column(
+        ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    )
+    correction_order_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("payout_correction_orders.id", ondelete="RESTRICT")
+    )
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    original_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    outstanding_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class PayoutDebtPaidSource(Base):
+    __tablename__ = "payout_debt_paid_sources"
+    __table_args__ = (
+        UniqueConstraint(
+            "debt_obligation_id",
+            "paid_ledger_entry_id",
+            name="uq_payout_debt_paid_sources_obligation_entry",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    debt_obligation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("payout_debt_obligations.id", ondelete="RESTRICT"), nullable=False
+    )
+    paid_ledger_entry_id: Mapped[UUID] = mapped_column(
+        ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class PayoutDebtSettlement(Base):
+    __tablename__ = "payout_debt_settlements"
+    __table_args__ = (
+        CheckConstraint(
+            "original_credit_amount > 0 AND allocated_amount > 0 "
+            "AND allocated_amount <= original_credit_amount",
+            name="ck_payout_debt_settlements_amounts",
+        ),
+        CheckConstraint(
+            "(allocated_amount = original_credit_amount AND remainder_entry_id IS NULL) OR "
+            "(allocated_amount < original_credit_amount AND remainder_entry_id IS NOT NULL)",
+            name="ck_payout_debt_settlements_remainder",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    source_credit_entry_id: Mapped[UUID] = mapped_column(
+        ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    )
+    remainder_entry_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT"), unique=True
+    )
+    original_credit_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    allocated_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class PayoutDebtAllocation(Base):
+    __tablename__ = "payout_debt_allocations"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_payout_debt_allocations_amount_positive"),
+        UniqueConstraint(
+            "settlement_id",
+            "debt_obligation_id",
+            name="uq_payout_debt_allocations_settlement_obligation",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    settlement_id: Mapped[UUID] = mapped_column(
+        ForeignKey("payout_debt_settlements.id", ondelete="RESTRICT"), nullable=False
+    )
+    debt_obligation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("payout_debt_obligations.id", ondelete="RESTRICT"), nullable=False
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

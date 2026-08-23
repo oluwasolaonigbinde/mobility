@@ -24,6 +24,43 @@ class PayoutBatchReserve(BaseModel):
     ledger_entry_ids: list[UUID] = Field(min_length=1, max_length=500)
 
 
+class PayoutDebtAllocate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    currency: str = Field(min_length=3, max_length=3)
+
+    @field_validator("currency")
+    @classmethod
+    def normalize_debt_currency(cls, value: str) -> str:
+        return value.strip().upper()
+
+
+class DriverMoneyBalanceRead(BaseModel):
+    driver_profile_id: UUID
+    currency: str
+    earned_net: Decimal
+    released_available: Decimal
+    cash_paid: Decimal
+    carry_forward_debt: Decimal
+    batch_payable: Decimal
+
+    @field_serializer(
+        "earned_net",
+        "released_available",
+        "cash_paid",
+        "carry_forward_debt",
+        "batch_payable",
+    )
+    def serialize_balance(self, value: Decimal) -> str:
+        return str(value)
+
+
+class PayoutDebtAllocationRead(BaseModel):
+    balance: DriverMoneyBalanceRead
+    settlement_ids: list[UUID]
+    remainder_entry_ids: list[UUID]
+
+
 class PayoutBatchLineRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

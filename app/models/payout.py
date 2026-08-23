@@ -41,6 +41,7 @@ class EarningsLedgerEntryType(StrEnum):
     TRIP_PAYOUT = "trip_payout"
     ADJUSTMENT = "adjustment"
     REVERSAL = "reversal"
+    DEBT_REMAINDER = "debt_remainder"
 
 
 class EarningsLedgerEntryStatus(StrEnum):
@@ -630,7 +631,7 @@ class EarningsLedgerEntry(Base):
     __tablename__ = "earnings_ledger_entries"
     __table_args__ = (
         CheckConstraint(
-            "entry_type IN ('trip_payout', 'adjustment', 'reversal')",
+            "entry_type IN ('trip_payout', 'adjustment', 'reversal', 'debt_remainder')",
             name="ck_earnings_ledger_entries_entry_type",
         ),
         CheckConstraint(

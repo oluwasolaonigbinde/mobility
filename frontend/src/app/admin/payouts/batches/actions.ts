@@ -94,3 +94,33 @@ export async function pollLineAction(
     return { error: error instanceof Error ? error.message : "Could not poll the payout line" };
   }
 }
+
+const debtSchema = z.object({
+  driver_profile_id: z.string().uuid(),
+  currency: z
+    .string()
+    .trim()
+    .length(3)
+    .transform((value) => value.toUpperCase()),
+});
+
+export async function allocateDebtAction(
+  _previous: BatchActionState,
+  formData: FormData,
+): Promise<BatchActionState> {
+  const parsed = debtSchema.safeParse({
+    driver_profile_id: String(formData.get("driver_profile_id") ?? ""),
+    currency: String(formData.get("currency") ?? ""),
+  });
+  if (!parsed.success) return { error: "Enter a valid driver profile ID and currency" };
+  try {
+    await batchApi(`/debt-balances/${parsed.data.driver_profile_id}/allocate`, {
+      method: "POST",
+      body: JSON.stringify({ currency: parsed.data.currency }),
+    });
+    revalidatePath("/admin/payouts/batches");
+    return { done: "Available credits allocated to carry-forward debt" };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not allocate payout debt" };
+  }
+}

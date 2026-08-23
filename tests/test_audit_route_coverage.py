@@ -126,6 +126,10 @@ AUDITED = {
         "admin.bank_account.rewrapped"
     ),
     ("POST", "/api/v1/admin/payout-batches"): "admin.payout_batch.created",
+    (
+        "POST",
+        "/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}/allocate",
+    ): "admin.payout_debt.allocated",
     ("POST", "/api/v1/admin/payout-batches/{batch_id}/reserve"): (
         "admin.payout_batch.reserved"
     ),
