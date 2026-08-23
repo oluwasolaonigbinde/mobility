@@ -341,6 +341,12 @@ dependency-safe package and W2-00A is its first runnable checklist item.
   promoted to `NEXT`; its controller must consume the final D17 crypto seam and
   this money authority without adding plaintext fallback, a second crypto
   subsystem or a second fraud-hold predicate.
+- **Closure-CI fixture correction (24 Aug 2026):** the first closure run passed
+  797 backend tests before six production-Compose missing-secret assertions all
+  stopped at the newly required payout keyring. `staging.env.example` now
+  supplies an explicit synthetic render-only keyring and the missing-value
+  matrix covers it; all 26 pre-production operations tests pass. This adds no
+  runtime fallback and changes no Package 2 behavior.
 
 ### PKG-03 — commercial contracts and billing
 
