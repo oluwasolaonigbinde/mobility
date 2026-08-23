@@ -14,6 +14,7 @@ type LedgerStatus = components["schemas"]["EarningsLedgerEntryStatus"];
 
 const statusTone: Record<LedgerStatus, "green" | "amber" | "coral" | "default"> = {
   available: "green",
+  paid: "green",
   pending: "amber",
   voided: "coral",
   reversed: "default",

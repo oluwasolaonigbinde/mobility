@@ -716,7 +716,6 @@ def test_distinct_route_removes_only_current_open_replay_flag(
 def test_postgres_concurrent_reverse_processing_flags_only_latest_trip(
     postgis_db_sessionmaker,
     settings,
-    monkeypatch,
 ) -> None:
     earlier_trip, earlier_analytics = create_graph(
         postgis_db_sessionmaker,
@@ -731,33 +730,19 @@ def test_postgres_concurrent_reverse_processing_flags_only_latest_trip(
     point_count = settings.route_replay_min_valid_pings
     earlier_points = [ping(index) for index in range(point_count)]
     later_points = [ping(index, shifted_seconds=3600) for index in range(point_count)]
-    earlier_payload = route_replay.canonical_route_fingerprints(
-        earlier_points,
-        detector_version=settings.route_replay_detector_version,
-        coordinate_precision=settings.route_replay_coordinate_precision,
-        time_tolerance_seconds=settings.route_replay_time_tolerance_seconds,
-        min_valid_pings=settings.route_replay_min_valid_pings,
-        min_distance_m=settings.route_replay_min_distance_m,
-    ).payload_fingerprint
     later_committed = asyncio.Event()
-    original_lock = route_replay._lock_transition_fingerprints
-
-    async def ordered_lock(session, *, old_signature, new_fingerprints):
-        if (
-            new_fingerprints is not None
-            and new_fingerprints.payload_fingerprint == earlier_payload
-        ):
-            await later_committed.wait()
-        await original_lock(
-            session,
-            old_signature=old_signature,
-            new_fingerprints=new_fingerprints,
-        )
-
-    monkeypatch.setattr(route_replay, "_lock_transition_fingerprints", ordered_lock)
 
     async def exercise_reverse_order() -> None:
-        async def process(trip, analytics, points, *, signal=False):
+        async def process(
+            trip,
+            analytics,
+            points,
+            *,
+            signal=False,
+            wait_for_later=False,
+        ):
+            if wait_for_later:
+                await later_committed.wait()
             async with postgis_db_sessionmaker() as session:
                 await route_replay.detect_route_replay(
                     session,
@@ -773,7 +758,12 @@ def test_postgres_concurrent_reverse_processing_flags_only_latest_trip(
 
         await asyncio.gather(
             process(later_trip, later_analytics, later_points, signal=True),
-            process(earlier_trip, earlier_analytics, earlier_points),
+            process(
+                earlier_trip,
+                earlier_analytics,
+                earlier_points,
+                wait_for_later=True,
+            ),
         )
 
     asyncio.run(exercise_reverse_order())
