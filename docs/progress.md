@@ -345,8 +345,9 @@ dependency-safe package and W2-00A is its first runnable checklist item.
   797 backend tests before six production-Compose missing-secret assertions all
   stopped at the newly required payout keyring. `staging.env.example` now
   supplies an explicit synthetic render-only keyring and the missing-value
-  matrix covers it; all 26 pre-production operations tests pass. This adds no
-  runtime fallback and changes no Package 2 behavior.
+  matrix covers it; the static verifier also supplies that explicit env file to
+  both Compose renders. All 26 pre-production operations tests pass. This adds
+  no runtime fallback and changes no Package 2 behavior.
 
 ### PKG-03 — commercial contracts and billing
 
