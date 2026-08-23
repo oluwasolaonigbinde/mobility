@@ -120,7 +120,11 @@ export default async function AdminPayoutsPage({
       />
 
       <p className="micro text-faint mt-6">
-        Earning terms are set per campaign —{" "}
+        Available earnings move through frozen maker-checker batches{" "}
+        <Link href="/admin/payouts/batches" className="text-amber hover:underline">
+          manage payout batches →
+        </Link>{" "}
+        · Earning terms are set per campaign —{" "}
         <Link href="/admin/payouts/rules" className="text-amber hover:underline">
           edit payout rules →
         </Link>{" "}

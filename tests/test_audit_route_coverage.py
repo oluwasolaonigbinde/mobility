@@ -125,6 +125,16 @@ AUDITED = {
     ("POST", "/api/v1/admin/payees/bank-accounts/{bank_account_id}/rewrap"): (
         "admin.bank_account.rewrapped"
     ),
+    ("POST", "/api/v1/admin/payout-batches"): "admin.payout_batch.created",
+    ("POST", "/api/v1/admin/payout-batches/{batch_id}/reserve"): (
+        "admin.payout_batch.reserved"
+    ),
+    ("POST", "/api/v1/admin/payout-batches/{batch_id}/approve"): (
+        "admin.payout_batch.approved"
+    ),
+    ("POST", "/api/v1/admin/payout-batches/{batch_id}/submit"): (
+        "admin.payout_batch.submitted"
+    ),
     ("POST", "/api/v1/admin/traffic-density-profiles"): (
         "admin.traffic_density_profile.created"
     ),

@@ -8,6 +8,7 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.campaign_assignments import router as campaign_assignments_router
 from app.api.v1.campaign_zones import router as campaign_zones_router
 from app.api.v1.campaigns import router as campaigns_router
+from app.api.v1.disbursements import router as disbursements_router
 from app.api.v1.driver_profiles import router as driver_profiles_router
 from app.api.v1.fraud_disputes import router as fraud_disputes_router
 from app.api.v1.health import router as health_router
@@ -25,6 +26,7 @@ api_router = APIRouter()
 api_router.include_router(auth_router)
 api_router.include_router(me_router)
 api_router.include_router(payees_router)
+api_router.include_router(disbursements_router)
 api_router.include_router(admin_router)
 api_router.include_router(audit_router)
 api_router.include_router(advertiser_organizations_router)
