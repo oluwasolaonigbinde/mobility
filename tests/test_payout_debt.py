@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
@@ -15,8 +16,10 @@ from test_payout_corrections import (
     raise_rule_rate,
     set_trip_payout_status,
 )
+from test_payout_reconciliation import _admins, _submitted_batch
 from test_payouts_v2 import build_v2_graph, pipeline_to_v2
 
+from app.adapters.disbursement import FakeDisbursementAdapter
 from app.core.errors import AppError
 from app.models.disbursement import (
     DriverCurrencyDebtAccount,
@@ -27,7 +30,12 @@ from app.models.disbursement import (
     PayoutDebtSettlement,
 )
 from app.models.payout import EarningsLedgerEntry
-from app.services.disbursements import create_payout_batch_draft, reserve_payout_batch
+from app.services import disbursements
+from app.services.disbursements import (
+    create_payout_batch_draft,
+    reconcile_payout_webhook,
+    reserve_payout_batch,
+)
 from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
 from app.services.payout_debt import (
     allocate_available_credit_to_debt,
@@ -307,6 +315,122 @@ def test_paid_line_confirmed_fraud_creates_debt_then_nets_future_credit(
     assert allocation.balance.carry_forward_debt == Decimal("0.00")
     assert allocation.balance.batch_payable == Decimal("74.50")
     assert remainder.amount == Decimal("74.50")
+
+
+def test_postgres_paid_finality_and_fraud_confirmation_share_lock_order(
+    postgis_db_sessionmaker,
+    monkeypatch,
+) -> None:
+    graph = build_graph(postgis_db_sessionmaker, f"debt-fraud-race-{uuid4().hex[:8]}")
+    checker, _reconciler = _admins(postgis_db_sessionmaker, "debt-fraud-race")
+    fake = FakeDisbursementAdapter()
+
+    async def setup():
+        async with postgis_db_sessionmaker() as session:
+            _batch, lines, entries = await _submitted_batch(
+                session,
+                graph,
+                checker,
+                fake,
+            )
+            await session.commit()
+            return (
+                lines[0].provider_transfer_reference,
+                entries[0].id,
+                entries[0].amount,
+            )
+
+    provider_reference, paid_entry_id, paid_amount = asyncio.run(setup())
+    flag = create_flag(postgis_db_sessionmaker, graph)
+
+    async def acknowledge():
+        async with postgis_db_sessionmaker() as session:
+            await acknowledge_fraud_flag(
+                session,
+                flag_id=flag.id,
+                actor_user_id=graph.admin.id,
+                now=NOW,
+            )
+            await session.commit()
+
+    asyncio.run(acknowledge())
+
+    async def exercise_race():
+        provider_has_scope = asyncio.Event()
+        release_provider = asyncio.Event()
+        original_lock = disbursements.lock_driver_currency_debt_scope
+
+        async def held_provider_lock(session, *, driver_profile_id, currency):
+            result = await original_lock(
+                session,
+                driver_profile_id=driver_profile_id,
+                currency=currency,
+            )
+            provider_has_scope.set()
+            await release_provider.wait()
+            return result
+
+        monkeypatch.setattr(
+            disbursements,
+            "lock_driver_currency_debt_scope",
+            held_provider_lock,
+        )
+        payload = json.dumps(
+            {
+                "provider_transfer_reference": provider_reference,
+                "provider_event_id": "paid-fraud-race-success",
+                "outcome": "succeeded",
+                "occurred_at": (NOW + timedelta(seconds=1)).isoformat(),
+            },
+            sort_keys=True,
+        ).encode()
+
+        async def reconcile():
+            async with postgis_db_sessionmaker() as session:
+                await reconcile_payout_webhook(
+                    session,
+                    payload=payload,
+                    signature=fake.sign_webhook(payload),
+                    adapter=fake,
+                )
+                await session.commit()
+
+        async def confirm():
+            await provider_has_scope.wait()
+            async with postgis_db_sessionmaker() as session:
+                await resolve_fraud_flag(
+                    session,
+                    flag_id=flag.id,
+                    actor_user_id=graph.admin.id,
+                    outcome="confirmed",
+                    resolution_note="Provider-paid fraud confirmed concurrently.",
+                    now=NOW + timedelta(seconds=2),
+                )
+                await session.commit()
+
+        provider_task = asyncio.create_task(reconcile())
+        confirmation_task = asyncio.create_task(confirm())
+        await provider_has_scope.wait()
+        await asyncio.sleep(0.05)
+        release_provider.set()
+        await asyncio.wait_for(
+            asyncio.gather(provider_task, confirmation_task),
+            timeout=5,
+        )
+
+        async with postgis_db_sessionmaker() as session:
+            paid = await session.get(EarningsLedgerEntry, paid_entry_id)
+            obligations = tuple((await session.scalars(select(PayoutDebtObligation))).all())
+            sources = tuple((await session.scalars(select(PayoutDebtPaidSource))).all())
+            return paid, obligations, sources
+
+    paid, obligations, sources = asyncio.run(exercise_race())
+    assert paid is not None
+    assert paid.status == "paid"
+    assert paid.amount == paid_amount
+    assert len(obligations) == 1
+    assert obligations[0].original_amount == paid_amount
+    assert [source.paid_ledger_entry_id for source in sources] == [paid_entry_id]
 
 
 def test_multi_period_allocation_is_monotone_idempotent_and_currency_isolated(

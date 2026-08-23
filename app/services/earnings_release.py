@@ -269,6 +269,37 @@ async def post_confirmed_fraud_reversal(
     """Post one positive, subtract-by-type reversal while the trip scope is held."""
     if flag.status != FraudFlagStatus.CONFIRMED.value:
         return None
+    authority = (
+        await session.execute(
+            select(
+                EarningsLedgerEntry.driver_profile_id,
+                EarningsLedgerEntry.currency,
+            )
+            .where(
+                EarningsLedgerEntry.trip_session_id == flag.trip_session_id,
+                EarningsLedgerEntry.status.in_(
+                    (
+                        EarningsLedgerEntryStatus.AVAILABLE.value,
+                        EarningsLedgerEntryStatus.PAID.value,
+                    )
+                ),
+                EarningsLedgerEntry.entry_type != EarningsLedgerEntryType.REVERSAL.value,
+            )
+            .order_by(EarningsLedgerEntry.occurred_at, EarningsLedgerEntry.id)
+            .limit(1)
+        )
+    ).one_or_none()
+    if authority is None:
+        return None
+    from app.services.payout_debt import lock_driver_currency_debt_scope
+
+    # Provider finality takes this scope before the ledger row. Keep the same
+    # global order so paid-fraud confirmation cannot deadlock reconciliation.
+    await lock_driver_currency_debt_scope(
+        session,
+        driver_profile_id=authority.driver_profile_id,
+        currency=authority.currency,
+    )
     effect = await fraud_flag_money_effect(session, flag=flag, lock_entries=True)
     if not effect.reversal_recommended:
         return None
