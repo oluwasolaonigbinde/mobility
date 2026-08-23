@@ -4,6 +4,7 @@ from app.adapters.disbursement.provider import (
     DisbursementInstruction,
     FakeDisbursementAdapter,
     ProviderSubmission,
+    VerifiedLineEvidence,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "DisabledDisbursementAdapter",
     "FakeDisbursementAdapter",
     "ProviderSubmission",
+    "VerifiedLineEvidence",
 ]

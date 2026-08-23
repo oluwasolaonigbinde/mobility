@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   batchTransitionAction,
   createAndReserveBatchAction,
+  pollLineAction,
   type BatchActionState,
 } from "./actions";
 
@@ -35,19 +36,50 @@ export function CreateBatchForm() {
   );
 }
 
-export function BatchActions({ batchId }: { batchId: string }) {
+export function BatchActions({
+  batchId,
+  status,
+}: {
+  batchId: string;
+  status: "reserved" | "reconciled" | "failed";
+}) {
   const [state, action, pending] = useActionState(batchTransitionAction, initialState);
   return (
     <form action={action} className="flex flex-wrap justify-end gap-2">
       <input type="hidden" name="batch_id" value={batchId} />
-      <Button type="submit" name="intent" value="approve" disabled={pending} variant="ghost">
-        Approve
-      </Button>
-      <Button type="submit" name="intent" value="submit" disabled={pending}>
-        Submit
-      </Button>
+      {status === "reserved" ? (
+        <>
+          <Button type="submit" name="intent" value="approve" disabled={pending} variant="ghost">
+            Approve
+          </Button>
+          <Button type="submit" name="intent" value="void" disabled={pending} variant="ghost">
+            Void
+          </Button>
+          <Button type="submit" name="intent" value="submit" disabled={pending}>
+            Submit
+          </Button>
+        </>
+      ) : (
+        <Button type="submit" name="intent" value="retry_failed" disabled={pending}>
+          Retry failed lines
+        </Button>
+      )}
       {state.error ? <p className="text-coral w-full text-xs">{state.error}</p> : null}
       {state.done ? <p className="text-green w-full text-xs">{state.done}</p> : null}
+    </form>
+  );
+}
+
+export function PollLineAction({ lineId }: { lineId: string }) {
+  const [state, action, pending] = useActionState(pollLineAction, initialState);
+  return (
+    <form action={action} className="mt-1">
+      <input type="hidden" name="line_id" value={lineId} />
+      <Button type="submit" disabled={pending} variant="ghost">
+        {pending ? "Polling…" : "Verify line"}
+      </Button>
+      {state.error ? <p className="text-coral text-xs">{state.error}</p> : null}
+      {state.done ? <p className="text-green text-xs">{state.done}</p> : null}
     </form>
   );
 }

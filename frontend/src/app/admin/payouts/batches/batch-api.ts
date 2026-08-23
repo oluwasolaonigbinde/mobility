@@ -10,11 +10,15 @@ export interface PayoutBatchLine {
   currency: string;
   instruction_fingerprint: string;
   idempotency_key: string;
+  status: "reserved" | "submitted" | "succeeded" | "failed" | "void";
+  provider_transfer_reference?: string | null;
+  reconciled_by_user_id?: string | null;
+  reconciled_at?: string | null;
 }
 
 export interface PayoutBatch {
   id: string;
-  status: "draft" | "reserved" | "submitted";
+  status: "draft" | "reserved" | "submitted" | "reconciled" | "completed" | "failed" | "void";
   currency: string;
   total_amount: string;
   instruction_set_fingerprint?: string | null;

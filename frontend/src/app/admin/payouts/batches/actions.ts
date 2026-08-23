@@ -47,7 +47,7 @@ export async function createAndReserveBatchAction(
 
 const transitionSchema = z.object({
   batch_id: z.string().uuid(),
-  intent: z.enum(["approve", "submit"]),
+  intent: z.enum(["approve", "submit", "retry_failed", "void"]),
 });
 
 export async function batchTransitionAction(
@@ -60,17 +60,37 @@ export async function batchTransitionAction(
   });
   if (!parsed.success) return { error: "Invalid batch action" };
   try {
-    await batchApi<PayoutBatch>(`/${parsed.data.batch_id}/${parsed.data.intent}`, {
+    const endpoint = parsed.data.intent === "retry_failed" ? "retry-failed" : parsed.data.intent;
+    await batchApi<PayoutBatch>(`/${parsed.data.batch_id}/${endpoint}`, {
       method: "POST",
     });
     revalidatePath("/admin/payouts/batches");
     return {
-      done:
-        parsed.data.intent === "approve"
-          ? "Batch approved by checker"
-          : "Batch submitted to the configured provider",
+      done: {
+        approve: "Batch approved by checker",
+        submit: "Batch submitted to the configured provider",
+        retry_failed: "Failed lines resubmitted with their frozen idempotency keys",
+        void: "Pre-provider reservations released",
+      }[parsed.data.intent],
     };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not update the batch" };
+  }
+}
+
+const pollSchema = z.object({ line_id: z.string().uuid() });
+
+export async function pollLineAction(
+  _previous: BatchActionState,
+  formData: FormData,
+): Promise<BatchActionState> {
+  const parsed = pollSchema.safeParse({ line_id: String(formData.get("line_id") ?? "") });
+  if (!parsed.success) return { error: "Invalid payout line" };
+  try {
+    await batchApi<PayoutBatch>(`/lines/${parsed.data.line_id}/poll`, { method: "POST" });
+    revalidatePath("/admin/payouts/batches");
+    return { done: "Verified provider result applied to this line" };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not poll the payout line" };
   }
 }

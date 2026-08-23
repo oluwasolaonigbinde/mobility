@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({ batchApi: vi.fn(), revalidatePath: vi.fn() }))
 vi.mock("./batch-api", () => ({ batchApi: mocks.batchApi }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 
-import { batchTransitionAction, createAndReserveBatchAction } from "./actions";
+import { batchTransitionAction, createAndReserveBatchAction, pollLineAction } from "./actions";
 
 describe("payout batch actions", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -57,5 +57,30 @@ describe("payout batch actions", () => {
     const result = await createAndReserveBatchAction({}, form);
     expect(result.error).toMatch(/valid ledger entry/i);
     expect(mocks.batchApi).not.toHaveBeenCalled();
+  });
+
+  it("retries failed lines through the bounded batch endpoint", async () => {
+    mocks.batchApi.mockResolvedValueOnce({ status: "submitted" });
+    const form = new FormData();
+    form.set("batch_id", "11111111-1111-4111-8111-111111111111");
+    form.set("intent", "retry_failed");
+    const result = await batchTransitionAction({}, form);
+    expect(result.done).toMatch(/idempotency/i);
+    expect(mocks.batchApi).toHaveBeenCalledWith(
+      "/11111111-1111-4111-8111-111111111111/retry-failed",
+      { method: "POST" },
+    );
+  });
+
+  it("polls only the selected provider line", async () => {
+    mocks.batchApi.mockResolvedValueOnce({ status: "completed" });
+    const form = new FormData();
+    form.set("line_id", "22222222-2222-4222-8222-222222222222");
+    const result = await pollLineAction({}, form);
+    expect(result.done).toMatch(/provider result/i);
+    expect(mocks.batchApi).toHaveBeenCalledWith(
+      "/lines/22222222-2222-4222-8222-222222222222/poll",
+      { method: "POST" },
+    );
   });
 });

@@ -5,7 +5,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { formatDate, formatMoneyExact } from "@/lib/format";
 import { batchApi, type PayoutBatch } from "./batch-api";
-import { BatchActions, CreateBatchForm } from "./batch-forms";
+import { BatchActions, CreateBatchForm, PollLineAction } from "./batch-forms";
 
 export const metadata: Metadata = { title: "Payout batches" };
 
@@ -33,6 +33,7 @@ export default async function PayoutBatchesPage() {
               <th className="px-4 py-3 font-normal">Maker</th>
               <th className="px-4 py-3 font-normal">Checker</th>
               <th className="px-4 py-3 font-normal">Created</th>
+              <th className="px-4 py-3 font-normal">Lines</th>
               <th className="px-6 py-3 text-right font-normal">Actions</th>
             </tr>
           </thead>
@@ -53,14 +54,29 @@ export default async function PayoutBatchesPage() {
                     {batch.approved_by_user_id ? `${batch.approved_by_user_id.slice(0, 8)}…` : "—"}
                   </td>
                   <td className="text-muted px-4 py-3">{formatDate(batch.created_at)}</td>
+                  <td className="px-4 py-3 text-xs">
+                    {batch.lines.map((line) => (
+                      <div key={line.id} className="mb-2 last:mb-0">
+                        <span className="font-mono">{line.id.slice(0, 8)}…</span>{" "}
+                        <StatusChip>{line.status}</StatusChip>
+                        {line.status === "submitted" || line.status === "failed" ? (
+                          <PollLineAction lineId={line.id} />
+                        ) : null}
+                      </div>
+                    ))}
+                  </td>
                   <td className="px-6 py-3">
-                    {batch.status === "reserved" ? <BatchActions batchId={batch.id} /> : null}
+                    {batch.status === "reserved" ||
+                    batch.status === "reconciled" ||
+                    batch.status === "failed" ? (
+                      <BatchActions batchId={batch.id} status={batch.status} />
+                    ) : null}
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="text-muted px-6 py-10 text-center">
+                <td colSpan={7} className="text-muted px-6 py-10 text-center">
                   No payout batches yet.
                 </td>
               </tr>

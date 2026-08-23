@@ -72,6 +72,7 @@ class DecimalStringMixin(BaseModel):
         "amount",
         "pending_amount",
         "available_amount",
+        "paid_amount",
         "voided_amount",
         "lifetime_earned_amount",
         "final_payout_total",
@@ -370,6 +371,7 @@ class DriverEarningsCurrencySummary(DecimalStringMixin):
     currency: str
     pending_amount: Decimal
     available_amount: Decimal
+    paid_amount: Decimal
     voided_amount: Decimal
     lifetime_earned_amount: Decimal
     ledger_entry_count: int

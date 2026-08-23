@@ -12,10 +12,17 @@ from starlette import status
 from app.adapters.disbursement import (
     DisbursementAdapter,
     DisbursementInstruction,
+    VerifiedLineEvidence,
 )
 from app.adapters.disbursement.provider import DisbursementUnavailableError
 from app.core.errors import AppError
-from app.models.disbursement import PayoutBatch, PayoutBatchLine, PayoutBatchStatus
+from app.models.disbursement import (
+    PayoutBatch,
+    PayoutBatchLine,
+    PayoutBatchLineStatus,
+    PayoutBatchStatus,
+    PayoutLineReconciliationEvent,
+)
 from app.models.payee import Payee, PayeeBankAccount, PayeeBankAccountVersion, PayeeVersion
 from app.models.payout import (
     EarningsLedgerEntry,
@@ -239,6 +246,7 @@ async def reserve_payout_batch(
             instruction=instruction,
             instruction_fingerprint=instruction_fingerprint,
             idempotency_key=idempotency_key,
+            status=PayoutBatchLineStatus.RESERVED,
             reservation_active=True,
         )
         session.add(line)
@@ -407,11 +415,43 @@ async def submit_payout_batch(
             "DISBURSEMENT_PROVIDER_REPLAY_CONFLICT",
             "The provider returned a conflicting submission reference",
         )
+    expected_line_ids = {str(line.id) for line in lines}
+    if set(receipt.line_references) != expected_line_ids or len(
+        set(receipt.line_references.values())
+    ) != len(lines):
+        raise _error(
+            "DISBURSEMENT_PROVIDER_RESPONSE_INVALID",
+            "The provider did not return one unique reference per payout line",
+            http_status=status.HTTP_502_BAD_GATEWAY,
+        )
+    for line in lines:
+        provider_reference = receipt.line_references[str(line.id)]
+        if not provider_reference or line.provider_transfer_reference not in {
+            None,
+            provider_reference,
+        }:
+            raise _error(
+                "DISBURSEMENT_PROVIDER_REPLAY_CONFLICT",
+                "The provider returned a conflicting line reference",
+            )
+        line.provider_transfer_reference = provider_reference
+        if line.status == PayoutBatchLineStatus.RESERVED:
+            line.status = PayoutBatchLineStatus.SUBMITTED
     replay = batch.status == PayoutBatchStatus.SUBMITTED
     batch.status = PayoutBatchStatus.SUBMITTED
     batch.provider_submission_reference = receipt.provider_reference
     batch.submitted_at = batch.submitted_at or datetime.now(UTC)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        constraint = _violated_constraint(exc)
+        await session.rollback()
+        if constraint != "uq_payout_batch_lines_provider_transfer_reference":
+            raise
+        raise _error(
+            "DISBURSEMENT_PROVIDER_REFERENCE_DUPLICATE",
+            "The provider transfer reference is already bound to another payout line",
+        ) from exc
     if not replay:
         await create_audit_event(
             session,
@@ -424,6 +464,338 @@ async def submit_payout_batch(
     return batch, lines
 
 
+def _aware_utc(value: datetime) -> datetime:
+    return (value.replace(tzinfo=UTC) if value.tzinfo is None else value).astimezone(UTC)
+
+
+def _derive_batch_status(lines: tuple[PayoutBatchLine, ...]) -> PayoutBatchStatus:
+    statuses = {line.status for line in lines}
+    if statuses == {PayoutBatchLineStatus.SUCCEEDED}:
+        return PayoutBatchStatus.COMPLETED
+    if statuses == {PayoutBatchLineStatus.FAILED}:
+        return PayoutBatchStatus.FAILED
+    if PayoutBatchLineStatus.SUBMITTED in statuses:
+        return PayoutBatchStatus.SUBMITTED
+    if statuses == {PayoutBatchLineStatus.VOID}:
+        return PayoutBatchStatus.VOID
+    return PayoutBatchStatus.RECONCILED
+
+
+async def _apply_verified_line_evidence(
+    session: AsyncSession,
+    *,
+    evidence: VerifiedLineEvidence,
+    source: str,
+    actor_user_id: UUID | None,
+) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...], PayoutLineReconciliationEvent]:
+    if source not in {"webhook", "poll"}:
+        raise ValueError("Unknown provider evidence source")
+    if source == "webhook" and actor_user_id is not None:
+        raise ValueError("Webhook evidence must use the system actor")
+    if source == "poll" and actor_user_id is None:
+        raise ValueError("Poll evidence must use an authenticated admin actor")
+    if source == "poll":
+        await _active_admin(session, actor_user_id)
+    stub = (
+        await session.execute(
+            select(PayoutBatchLine.id, PayoutBatchLine.batch_id).where(
+                PayoutBatchLine.provider_transfer_reference == evidence.provider_transfer_reference
+            )
+        )
+    ).one_or_none()
+    if stub is None:
+        raise _error(
+            "PAYOUT_PROVIDER_LINE_NOT_FOUND",
+            "The verified provider reference is not bound to a payout line",
+            http_status=status.HTTP_404_NOT_FOUND,
+        )
+    batch, lines = await _locked_batch_with_lines(session, stub.batch_id)
+    line = next(item for item in lines if item.id == stub.id)
+    if actor_user_id is not None and actor_user_id in {
+        batch.created_by_user_id,
+        batch.approved_by_user_id,
+    }:
+        raise _error(
+            "PAYOUT_RECONCILER_SEPARATION_REQUIRED",
+            "The reconciler must differ from the batch maker and approver",
+            http_status=status.HTTP_403_FORBIDDEN,
+        )
+    if line.status not in {
+        PayoutBatchLineStatus.SUBMITTED,
+        PayoutBatchLineStatus.FAILED,
+        PayoutBatchLineStatus.SUCCEEDED,
+    }:
+        raise _error("PAYOUT_LINE_NOT_SUBMITTED", "The payout line is not reconcilable")
+    existing_event = await session.scalar(
+        select(PayoutLineReconciliationEvent).where(
+            PayoutLineReconciliationEvent.provider_event_id == evidence.provider_event_id
+        )
+    )
+    if existing_event is not None:
+        if (
+            existing_event.line_id != line.id
+            or existing_event.outcome != evidence.outcome
+            or existing_event.evidence_fingerprint != evidence.evidence_fingerprint
+        ):
+            raise _error(
+                "PAYOUT_PROVIDER_EVENT_REPLAY_CONFLICT",
+                "The provider event ID was replayed with conflicting evidence",
+            )
+        return batch, lines, existing_event
+
+    occurred_at = _aware_utc(evidence.occurred_at)
+    last_evidence_at = (
+        _aware_utc(line.last_provider_evidence_at)
+        if line.last_provider_evidence_at is not None
+        else None
+    )
+    applied = False
+    if line.status != PayoutBatchLineStatus.SUCCEEDED and (
+        last_evidence_at is None or occurred_at >= last_evidence_at
+    ):
+        if evidence.outcome == PayoutBatchLineStatus.SUCCEEDED:
+            ledger = await session.scalar(
+                select(EarningsLedgerEntry)
+                .where(EarningsLedgerEntry.id == line.ledger_entry_id)
+                .with_for_update()
+            )
+            if ledger is None or ledger.status not in {
+                EarningsLedgerEntryStatus.AVAILABLE,
+                EarningsLedgerEntryStatus.PAID,
+            }:
+                raise _error(
+                    "PAYOUT_LEDGER_FINALITY_CONFLICT",
+                    "The payout ledger entry is not available for cash-paid finality",
+                )
+            if ledger.status != EarningsLedgerEntryStatus.PAID:
+                ledger.status = EarningsLedgerEntryStatus.PAID
+                line.status = PayoutBatchLineStatus.SUCCEEDED
+                line.reconciled_by_user_id = actor_user_id
+                line.reconciled_at = datetime.now(UTC)
+                applied = True
+        elif evidence.outcome == PayoutBatchLineStatus.FAILED:
+            ledger_status = await session.scalar(
+                select(EarningsLedgerEntry.status)
+                .where(EarningsLedgerEntry.id == line.ledger_entry_id)
+                .with_for_update()
+            )
+            if ledger_status == EarningsLedgerEntryStatus.PAID:
+                raise _error(
+                    "PAYOUT_PAID_HISTORY_IMMUTABLE",
+                    "Verified cash-paid history cannot be changed by failure evidence",
+                )
+            if line.status != PayoutBatchLineStatus.FAILED:
+                line.status = PayoutBatchLineStatus.FAILED
+                line.reconciled_by_user_id = actor_user_id
+                line.reconciled_at = datetime.now(UTC)
+                applied = True
+        else:
+            raise _error(
+                "PAYOUT_PROVIDER_OUTCOME_INVALID",
+                "Verified provider evidence has an unsupported outcome",
+                http_status=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            )
+    if last_evidence_at is None or occurred_at > last_evidence_at:
+        line.last_provider_evidence_at = occurred_at
+    event = PayoutLineReconciliationEvent(
+        line_id=line.id,
+        provider_event_id=evidence.provider_event_id,
+        source=source,
+        outcome=evidence.outcome,
+        evidence_fingerprint=evidence.evidence_fingerprint,
+        provider_occurred_at=occurred_at,
+        applied=applied,
+        reconciled_by_user_id=actor_user_id,
+    )
+    session.add(event)
+    batch.status = _derive_batch_status(lines)
+    await session.flush()
+    if applied:
+        await create_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action="provider.payout_line.reconciled",
+            entity_type="payout_batch_line",
+            entity_id=str(line.id),
+            metadata={"source": source, "outcome": evidence.outcome},
+        )
+    return batch, lines, event
+
+
+async def reconcile_payout_webhook(
+    session: AsyncSession,
+    *,
+    payload: bytes,
+    signature: str,
+    adapter: DisbursementAdapter,
+) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...], PayoutLineReconciliationEvent]:
+    try:
+        evidence = await adapter.verify_webhook(payload=payload, signature=signature)
+    except DisbursementUnavailableError as exc:
+        raise _error(
+            "DISBURSEMENT_PROVIDER_UNAVAILABLE",
+            "Provider webhook verification is not configured",
+            http_status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        ) from exc
+    except ValueError as exc:
+        raise _error(
+            "DISBURSEMENT_WEBHOOK_INVALID",
+            "Provider webhook verification failed",
+            http_status=status.HTTP_401_UNAUTHORIZED,
+        ) from exc
+    return await _apply_verified_line_evidence(
+        session, evidence=evidence, source="webhook", actor_user_id=None
+    )
+
+
+async def poll_payout_line(
+    session: AsyncSession,
+    *,
+    line_id: UUID,
+    actor_user_id: UUID,
+    adapter: DisbursementAdapter,
+) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...], PayoutLineReconciliationEvent]:
+    await _active_admin(session, actor_user_id)
+    stub = await session.get(PayoutBatchLine, line_id)
+    if stub is None or stub.provider_transfer_reference is None:
+        raise _error(
+            "PAYOUT_PROVIDER_LINE_NOT_FOUND",
+            "The payout line has no provider reference",
+            http_status=status.HTTP_404_NOT_FOUND,
+        )
+    batch, lines = await _locked_batch_with_lines(session, stub.batch_id)
+    line = next(item for item in lines if item.id == line_id)
+    if actor_user_id in {batch.created_by_user_id, batch.approved_by_user_id}:
+        raise _error(
+            "PAYOUT_RECONCILER_SEPARATION_REQUIRED",
+            "The reconciler must differ from the batch maker and approver",
+            http_status=status.HTTP_403_FORBIDDEN,
+        )
+    try:
+        evidence = await adapter.poll_line(
+            provider_transfer_reference=line.provider_transfer_reference
+        )
+    except DisbursementUnavailableError as exc:
+        raise _error(
+            "DISBURSEMENT_PROVIDER_UNAVAILABLE",
+            "Authenticated provider polling is not configured",
+            http_status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        ) from exc
+    except ValueError as exc:
+        raise _error(
+            "DISBURSEMENT_POLL_FAILED",
+            "Authenticated provider polling failed",
+            http_status=status.HTTP_502_BAD_GATEWAY,
+        ) from exc
+    return await _apply_verified_line_evidence(
+        session, evidence=evidence, source="poll", actor_user_id=actor_user_id
+    )
+
+
+async def retry_failed_payout_lines(
+    session: AsyncSession,
+    *,
+    batch_id: UUID,
+    actor_user_id: UUID,
+    adapter: DisbursementAdapter,
+) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...]]:
+    await _active_admin(session, actor_user_id)
+    batch, lines = await _locked_batch_with_lines(session, batch_id)
+    failed_lines = tuple(line for line in lines if line.status == PayoutBatchLineStatus.FAILED)
+    if not failed_lines:
+        raise _error("PAYOUT_FAILED_LINES_MISSING", "The batch has no failed lines to retry")
+    _assert_frozen(batch, lines)
+    instructions = tuple(
+        DisbursementInstruction(
+            line_id=str(line.id),
+            idempotency_key=line.idempotency_key,
+            instruction={str(key): str(value) for key, value in line.instruction.items()},
+        )
+        for line in failed_lines
+    )
+    try:
+        receipt = await adapter.submit_batch(batch_id=str(batch.id), instructions=instructions)
+    except DisbursementUnavailableError as exc:
+        raise _error(
+            "DISBURSEMENT_PROVIDER_UNAVAILABLE",
+            "Automated disbursement submission is not configured",
+            http_status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        ) from exc
+    if set(receipt.line_references) != {str(line.id) for line in failed_lines}:
+        raise _error(
+            "DISBURSEMENT_PROVIDER_RESPONSE_INVALID",
+            "The provider did not return every retried payout line",
+            http_status=status.HTTP_502_BAD_GATEWAY,
+        )
+    for line in failed_lines:
+        if receipt.line_references[str(line.id)] != line.provider_transfer_reference:
+            raise _error(
+                "DISBURSEMENT_PROVIDER_REPLAY_CONFLICT",
+                "A retry changed the frozen provider line reference",
+            )
+        line.status = PayoutBatchLineStatus.SUBMITTED
+        line.reconciled_by_user_id = None
+        line.reconciled_at = None
+    batch.status = PayoutBatchStatus.SUBMITTED
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="admin.payout_batch.failed_lines_retried",
+        entity_type="payout_batch",
+        entity_id=str(batch.id),
+        metadata={"line_count": len(failed_lines)},
+    )
+    return batch, lines
+
+
+async def void_payout_batch(
+    session: AsyncSession, *, batch_id: UUID, actor_user_id: UUID
+) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...]]:
+    await _active_admin(session, actor_user_id)
+    batch, lines = await _locked_batch_with_lines(session, batch_id)
+    if batch.status != PayoutBatchStatus.RESERVED or any(
+        line.status != PayoutBatchLineStatus.RESERVED
+        or line.provider_transfer_reference is not None
+        for line in lines
+    ):
+        raise _error(
+            "PAYOUT_BATCH_VOID_UNSAFE",
+            "Only a pre-provider reserved batch can be voided",
+        )
+    ledger_entries = list(
+        (
+            await session.scalars(
+                select(EarningsLedgerEntry)
+                .where(EarningsLedgerEntry.id.in_([line.ledger_entry_id for line in lines]))
+                .order_by(EarningsLedgerEntry.id)
+                .with_for_update()
+            )
+        ).all()
+    )
+    if len(ledger_entries) != len(lines) or any(
+        entry.status != EarningsLedgerEntryStatus.AVAILABLE for entry in ledger_entries
+    ):
+        raise _error(
+            "PAYOUT_BATCH_VOID_UNSAFE",
+            "The batch contains a provider-final or cash-final ledger entry",
+        )
+    for line in lines:
+        line.status = PayoutBatchLineStatus.VOID
+        line.reservation_active = False
+    batch.status = PayoutBatchStatus.VOID
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="admin.payout_batch.voided",
+        entity_type="payout_batch",
+        entity_id=str(batch.id),
+        metadata={"released_line_count": len(lines)},
+    )
+    return batch, lines
+
+
 async def get_payout_batch(
     session: AsyncSession, batch_id: UUID
 ) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...]]:
@@ -432,7 +804,7 @@ async def get_payout_batch(
 
 async def list_payout_batches(
     session: AsyncSession, *, limit: int, offset: int
-) -> tuple[list[PayoutBatch], int]:
+) -> tuple[list[tuple[PayoutBatch, tuple[PayoutBatchLine, ...]]], int]:
     total = int(await session.scalar(select(func.count()).select_from(PayoutBatch)) or 0)
     batches = list(
         (
@@ -444,4 +816,21 @@ async def list_payout_batches(
             )
         ).all()
     )
-    return batches, total
+    batch_ids = [batch.id for batch in batches]
+    lines = (
+        list(
+            (
+                await session.scalars(
+                    select(PayoutBatchLine)
+                    .where(PayoutBatchLine.batch_id.in_(batch_ids))
+                    .order_by(PayoutBatchLine.id)
+                )
+            ).all()
+        )
+        if batch_ids
+        else []
+    )
+    lines_by_batch: dict[UUID, list[PayoutBatchLine]] = {}
+    for line in lines:
+        lines_by_batch.setdefault(line.batch_id, []).append(line)
+    return [(batch, tuple(lines_by_batch.get(batch.id, []))) for batch in batches], total

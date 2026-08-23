@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
-from app.models.disbursement import PayoutBatchStatus
+from app.models.disbursement import PayoutBatchLineStatus, PayoutBatchStatus
 
 
 class PayoutBatchCreate(BaseModel):
@@ -36,6 +36,11 @@ class PayoutBatchLineRead(BaseModel):
     instruction: dict[str, str]
     instruction_fingerprint: str
     idempotency_key: str
+    status: PayoutBatchLineStatus
+    provider_transfer_reference: str | None
+    reconciled_by_user_id: UUID | None
+    reconciled_at: datetime | None
+    last_provider_evidence_at: datetime | None
     reservation_active: bool
 
     @field_serializer("amount")

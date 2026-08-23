@@ -183,6 +183,7 @@ class DriverCurrencyEarnings:
     currency: str
     pending_amount: Decimal
     available_amount: Decimal
+    paid_amount: Decimal
     voided_amount: Decimal
     lifetime_earned_amount: Decimal
     ledger_entry_count: int
@@ -2729,6 +2730,18 @@ async def driver_earnings_summary(
                 ),
                 0,
             ),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            EarningsLedgerEntry.status == EarningsLedgerEntryStatus.PAID.value,
+                            signed_amount,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
             func.count(EarningsLedgerEntry.id),
         )
         .where(*filters)
@@ -2739,14 +2752,16 @@ async def driver_earnings_summary(
         pending = quantize_2(Decimal(str(row[1] or 0)))
         available = quantize_2(Decimal(str(row[2] or 0)))
         voided = quantize_2(Decimal(str(row[3] or 0)))
+        paid = quantize_2(Decimal(str(row[4] or 0)))
         totals.append(
             DriverCurrencyEarnings(
                 currency=row[0],
                 pending_amount=pending,
                 available_amount=available,
+                paid_amount=paid,
                 voided_amount=voided,
-                lifetime_earned_amount=quantize_2(pending + available),
-                ledger_entry_count=int(row[4] or 0),
+                lifetime_earned_amount=quantize_2(pending + available + paid),
+                ledger_entry_count=int(row[5] or 0),
             )
         )
     if not totals:
@@ -2755,6 +2770,7 @@ async def driver_earnings_summary(
                 currency=validate_currency_code(currency, fallback=settings.default_currency),
                 pending_amount=Decimal("0.00"),
                 available_amount=Decimal("0.00"),
+                paid_amount=Decimal("0.00"),
                 voided_amount=Decimal("0.00"),
                 lifetime_earned_amount=Decimal("0.00"),
                 ledger_entry_count=0,

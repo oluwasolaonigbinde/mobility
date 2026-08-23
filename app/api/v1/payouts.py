@@ -531,6 +531,7 @@ async def driver_get_earnings_summary(
                 currency=total.currency,
                 pending_amount=total.pending_amount,
                 available_amount=total.available_amount,
+                paid_amount=total.paid_amount,
                 voided_amount=total.voided_amount,
                 lifetime_earned_amount=total.lifetime_earned_amount,
                 ledger_entry_count=total.ledger_entry_count,

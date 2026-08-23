@@ -1343,6 +1343,7 @@ def test_driver_earnings_are_scoped_and_append_only(db_client, db_sessionmaker) 
             "currency": "NGN",
             "pending_amount": "1044.00",
             "available_amount": "0.00",
+            "paid_amount": "0.00",
             "voided_amount": "0.00",
             "lifetime_earned_amount": "1044.00",
             "ledger_entry_count": 1,

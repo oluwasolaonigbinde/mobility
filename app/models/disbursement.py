@@ -26,13 +26,27 @@ class PayoutBatchStatus(StrEnum):
     DRAFT = "draft"
     RESERVED = "reserved"
     SUBMITTED = "submitted"
+    RECONCILED = "reconciled"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    VOID = "void"
+
+
+class PayoutBatchLineStatus(StrEnum):
+    RESERVED = "reserved"
+    SUBMITTED = "submitted"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    VOID = "void"
 
 
 class PayoutBatch(Base):
     __tablename__ = "payout_batches"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('draft', 'reserved', 'submitted')", name="ck_payout_batches_status"
+            "status IN ('draft', 'reserved', 'submitted', 'reconciled', "
+            "'completed', 'failed', 'void')",
+            name="ck_payout_batches_status",
         ),
         CheckConstraint("length(currency) = 3", name="ck_payout_batches_currency"),
         CheckConstraint("total_amount >= 0", name="ck_payout_batches_total_non_negative"),
@@ -80,6 +94,21 @@ class PayoutBatchLine(Base):
             "length(instruction_fingerprint) = 64",
             name="ck_payout_batch_lines_instruction_fingerprint",
         ),
+        CheckConstraint(
+            "status IN ('reserved', 'submitted', 'succeeded', 'failed', 'void')",
+            name="ck_payout_batch_lines_status",
+        ),
+        CheckConstraint(
+            "(status IN ('reserved', 'void') AND provider_transfer_reference IS NULL) OR "
+            "(status IN ('submitted', 'succeeded', 'failed') "
+            "AND provider_transfer_reference IS NOT NULL)",
+            name="ck_payout_batch_lines_provider_state",
+        ),
+        CheckConstraint(
+            "(status = 'void' AND reservation_active = false) OR "
+            "(status <> 'void' AND reservation_active = true)",
+            name="ck_payout_batch_lines_active_state",
+        ),
         Index("ix_payout_batch_lines_batch_id", "batch_id"),
         Index("ix_payout_batch_lines_ledger_entry_id", "ledger_entry_id"),
         Index(
@@ -88,6 +117,13 @@ class PayoutBatchLine(Base):
             unique=True,
             sqlite_where=text("reservation_active = true"),
             postgresql_where=text("reservation_active = true"),
+        ),
+        Index(
+            "uq_payout_batch_lines_provider_transfer_reference",
+            "provider_transfer_reference",
+            unique=True,
+            sqlite_where=text("provider_transfer_reference IS NOT NULL"),
+            postgresql_where=text("provider_transfer_reference IS NOT NULL"),
         ),
     )
 
@@ -111,8 +147,52 @@ class PayoutBatchLine(Base):
     instruction: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     instruction_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    status: Mapped[str] = mapped_column(
+        String(16),
+        default=PayoutBatchLineStatus.RESERVED,
+        server_default=text("'reserved'"),
+        nullable=False,
+    )
+    provider_transfer_reference: Mapped[str | None] = mapped_column(Text)
+    reconciled_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    reconciled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_provider_evidence_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reservation_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=text("true"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class PayoutLineReconciliationEvent(Base):
+    __tablename__ = "payout_line_reconciliation_events"
+    __table_args__ = (
+        CheckConstraint("source IN ('webhook', 'poll')", name="ck_payout_line_events_source"),
+        CheckConstraint("outcome IN ('succeeded', 'failed')", name="ck_payout_line_events_outcome"),
+        CheckConstraint(
+            "length(evidence_fingerprint) = 64",
+            name="ck_payout_line_events_evidence_fingerprint",
+        ),
+        Index("ix_payout_line_events_line_id", "line_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    line_id: Mapped[UUID] = mapped_column(
+        ForeignKey("payout_batch_lines.id", ondelete="RESTRICT"), nullable=False
+    )
+    provider_event_id: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False)
+    evidence_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider_occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    applied: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    reconciled_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

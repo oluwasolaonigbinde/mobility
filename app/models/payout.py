@@ -48,6 +48,7 @@ class EarningsLedgerEntryStatus(StrEnum):
     AVAILABLE = "available"
     VOIDED = "voided"
     REVERSED = "reversed"
+    PAID = "paid"
 
 
 class PayoutCorrectionOrderStatus(StrEnum):
@@ -633,7 +634,7 @@ class EarningsLedgerEntry(Base):
             name="ck_earnings_ledger_entries_entry_type",
         ),
         CheckConstraint(
-            "status IN ('pending', 'available', 'voided', 'reversed')",
+            "status IN ('pending', 'available', 'voided', 'reversed', 'paid')",
             name="ck_earnings_ledger_entries_status",
         ),
         CheckConstraint("length(currency) = 3", name="ck_earnings_ledger_entries_currency"),

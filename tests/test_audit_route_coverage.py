@@ -135,6 +135,18 @@ AUDITED = {
     ("POST", "/api/v1/admin/payout-batches/{batch_id}/submit"): (
         "admin.payout_batch.submitted"
     ),
+    ("POST", "/api/v1/admin/payout-batches/provider-webhook"): (
+        "provider.payout_line.reconciled"
+    ),
+    ("POST", "/api/v1/admin/payout-batches/lines/{line_id}/poll"): (
+        "provider.payout_line.reconciled"
+    ),
+    ("POST", "/api/v1/admin/payout-batches/{batch_id}/retry-failed"): (
+        "admin.payout_batch.failed_lines_retried"
+    ),
+    ("POST", "/api/v1/admin/payout-batches/{batch_id}/void"): (
+        "admin.payout_batch.voided"
+    ),
     ("POST", "/api/v1/admin/traffic-density-profiles"): (
         "admin.traffic_density_profile.created"
     ),
