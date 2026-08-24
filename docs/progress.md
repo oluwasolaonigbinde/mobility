@@ -61,9 +61,10 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 **Controller state:** `ACTIVE`
 **Control package:** `PKG-04` — Package 4 is IN PROGRESS under its reviewed
 delivery contract; Package 3 remains commercially closed at its external gates.
-**Current checkpoint:** `PKG-04 / W2-03A` — campaign submission and admin
-approval is the focused-verified candidate at the owner checkpoint. W2-02A remains blocked
-by EXT-STORAGE-PROVIDER and no later Package 4 slice is admitted yet.
+**Current checkpoint:** `PKG-04 / W2-04A` — the shared notification core and
+role surfaces are the next dependency-safe slice after corrected Package 3
+authority was integrated and W2-03A was seam-verified. W2-02A remains blocked
+by EXT-STORAGE-PROVIDER.
 
 ## Executable package queue
 
@@ -421,8 +422,9 @@ by EXT-STORAGE-PROVIDER and no later Package 4 slice is admitted yet.
   One no-history Terra worker owns bounded domain/API/UI/test implementation;
   the controller owns migrations, all three §9 baselines and authority docs,
   with one independent plan review PASS before implementation. Focused tests
-  only at this checkpoint; W2-04A and later work require a new controller
-  admission after the W2-03A checkpoint.
+  only at that checkpoint. Corrected Package 3 tip `878be3a` was integrated by
+  merge commit `5866dca`, preserving both histories; governance commit
+  `e4533a9` was then adopted. W2-04A is now the sole admitted next slice.
 - **W2-03A checkpoint evidence (24 Aug 2026):** migration `0043` extends the campaign
   lifecycle and adds append-only, exact-submission-bound review evidence.
   Dedicated row-locked advertiser/admin actions enforce submit, approve,
@@ -437,6 +439,16 @@ by EXT-STORAGE-PROVIDER and no later Package 4 slice is admitted yet.
   Chromium (2 passes). All three §9 baselines moved together. No provider,
   scheduling, activation, physical-device, real-route, staging, pilot or
   user-feedback validation is claimed.
+- **Corrected-authority seam evidence (24 Aug 2026):** Package 4 migration
+  `0043` now descends from Package 3 head `0042`. The adopted Package 3
+  campaign/terms currency lock initially exposed one stale-update ordering
+  against review submission; the tenant campaign row is now locked before the
+  review-state check while retaining advisory-lock-first currency ordering.
+  The barrier proves the stale loser returns
+  `CAMPAIGN_REVIEW_STATE_CONFLICT` and live/snapshotted currency remain equal.
+  Six focused PostgreSQL authority/review cases, six migration/OpenAPI checks,
+  filtered autogenerate, 40 delivery-control cases, Ruff and 55 R14-B fixtures
+  pass. W2-03A remains complete; no Package 3 full-suite rerun was performed.
 - **Closure:** migrations/contracts integrate once; security and communications
   receive separate specialist verification before consolidated package review.
 
@@ -557,7 +569,7 @@ verification, gates or required specialist review.
 | 30 | **W2-02C — advertiser creative upload** | PKG-04 | TODO | Campaign flows use managed scanned assets instead of arbitrary URLs. | leaf: W2-02B |
 | 31 | **W2-02D — encrypted KYC and financial identifiers** | PKG-04 | TODO | Required documents/NIN/bank data reuse the crypto port and are protected and version-reviewed. | leaf: W2-02B, MNY-10A; external: EXT-KMS-CUSTODY |
 | 32 | **W2-02E — file/KYC lifecycle and incident operations** | PKG-04 | TODO | File/KYC purge plus scanner/key/vendor failures are tested and audited. | leaf: W2-02B, W2-02D |
-| 33 | **W2-03A — campaign submission and approval** | PKG-04 | TODO | Advertiser submits; admin approves/rejects; unapproved campaigns cannot schedule. | none |
+| 33 | **W2-03A — campaign submission and approval** | PKG-04 | DONE | Advertiser submits; admin approves/rejects; unapproved campaigns cannot schedule. | none |
 | 34 | **W2-03B — creative review gate** | PKG-04 | TODO | Only admin-approved, scan-cleared creative can satisfy campaign launch. | leaf: W2-02C |
 | 35 | **W2-03C — installation evidence and proof-of-display** | PKG-04 | TODO | Assignment-bound evidence and nonce proof gate earning eligibility. | leaf: W2-02B |
 | 36 | **W2-03D — atomic activation** | PKG-04 | TODO | One admin command locks/rechecks every commercial and operational prerequisite, including valid standard-wait or expedited-waiver production authority. | leaf: W2-00C, W2-01A, W2-01B, W2-03A, W2-03B, W2-03C |

@@ -181,10 +181,32 @@ async def update_advertiser_campaign(
     campaign_id: UUID,
     payload: CampaignUpdate,
 ) -> tuple[Campaign, list[str]]:
-    await get_required_advertiser_context(session, user_id, require_write=True)
-    campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
+    organization, _ = await get_required_advertiser_context(session, user_id, require_write=True)
+    await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
     update_values = payload.model_dump(exclude_unset=True)
     changed_fields = list(update_values)
+
+    requested_currency = update_values.get("currency")
+    if requested_currency is not None:
+        from app.services.payout_rule_serialization import acquire_campaign_terms_lock
+
+        await acquire_campaign_terms_lock(session, campaign_id)
+
+    campaign = await session.scalar(
+        select(Campaign)
+        .where(
+            Campaign.id == campaign_id,
+            Campaign.organization_id == organization.id,
+        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if campaign is None:
+        raise AppError(
+            "CAMPAIGN_NOT_FOUND",
+            "Campaign was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
 
     if campaign.status not in {CampaignStatus.DRAFT.value, CampaignStatus.REJECTED.value}:
         raise review_state_conflict(campaign.status, None)
@@ -197,27 +219,9 @@ async def update_advertiser_campaign(
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
-    requested_currency = update_values.get("currency")
     if requested_currency is not None:
         from app.models.billing import CommercialTerms
-        from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 
-        await acquire_campaign_terms_lock(session, campaign.id)
-        campaign = await session.scalar(
-            select(Campaign)
-            .where(
-                Campaign.id == campaign_id,
-                Campaign.organization_id == campaign.organization_id,
-            )
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        )
-        if campaign is None:
-            raise AppError(
-                "CAMPAIGN_NOT_FOUND",
-                "Campaign was not found",
-                status_code=status.HTTP_404_NOT_FOUND,
-            )
         if requested_currency != campaign.currency:
             accepted_terms_id = await session.scalar(
                 select(CommercialTerms.id).where(CommercialTerms.campaign_id == campaign.id)
