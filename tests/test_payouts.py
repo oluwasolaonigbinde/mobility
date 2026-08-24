@@ -1346,6 +1346,10 @@ def test_driver_earnings_are_scoped_and_append_only(db_client, db_sessionmaker) 
             "paid_amount": "0.00",
             "voided_amount": "0.00",
             "lifetime_earned_amount": "1044.00",
+            "released_available_amount": "0.00",
+            "cash_paid_amount": "0.00",
+            "carry_forward_debt_amount": "0.00",
+            "batch_payable_amount": "0.00",
             "ledger_entry_count": 1,
         }
     ]

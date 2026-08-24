@@ -5,7 +5,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from conftest import auth_headers
+from conftest import auth_headers, create_test_trip_session
 from sqlalchemy import func, select
 from test_mny03a_earnings_release import NOW, build_graph, create_flag
 from test_payout_batches import _seed_authority
@@ -30,6 +30,7 @@ from app.models.disbursement import (
     PayoutDebtSettlement,
 )
 from app.models.payout import EarningsLedgerEntry
+from app.models.trip import TripSessionStatus
 from app.services import disbursements
 from app.services.disbursements import (
     create_payout_batch_draft,
@@ -41,6 +42,12 @@ from app.services.payout_debt import (
     allocate_available_credit_to_debt,
     driver_money_balance,
     record_reversal_obligation,
+)
+from app.services.payouts import (
+    _posted_amount_for_trip,
+    advertiser_campaign_cost_summary,
+    driver_earnings_summary,
+    driver_trip_earnings_breakdown,
 )
 
 
@@ -247,7 +254,9 @@ def test_paid_reversal_debt_future_credit_and_whole_entry_batch_e2e(db_sessionma
     assert before.released_available == Decimal("150.00")
     assert before.cash_paid == Decimal("500.00")
     assert before.carry_forward_debt == Decimal("60.00")
-    assert before.batch_payable == Decimal("0.00")
+    # The available source stays whole-entry blocked until allocation, but the
+    # driver-facing settlement projection is its debt-aware net amount.
+    assert before.batch_payable == Decimal("90.00")
     assert result.balance.earned_net == before.earned_net
     assert result.balance.carry_forward_debt == Decimal("0.00")
     assert result.balance.batch_payable == Decimal("90.00")
@@ -262,6 +271,146 @@ def test_paid_reversal_debt_future_credit_and_whole_entry_batch_e2e(db_sessionma
     assert [source.paid_ledger_entry_id for source in paid_sources] == [paid.id]
     assert sum(item.amount for item in allocations) == Decimal("60.00")
     assert len(settlements) == 1
+
+
+def test_debt_projection_keeps_economic_provenance_separate_from_settlement(
+    db_sessionmaker, settings
+) -> None:
+    """Two trips agree through debt allocation, cash payment and a no-op correction basis."""
+    graph = build_graph(db_sessionmaker, f"debt-projection-{uuid4().hex[:8]}")
+    trip_two = create_test_trip_session(
+        db_sessionmaker,
+        assignment_id=graph.assignment.id,
+        campaign_id=graph.campaign.id,
+        driver_profile_id=graph.profile.id,
+        vehicle_id=graph.vehicle.id,
+        started_by_user_id=graph.driver.id,
+        trip_status=TripSessionStatus.SEALED,
+        started_at=NOW + timedelta(days=1),
+        ended_at=NOW + timedelta(days=1, hours=1),
+    )
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            paid = _ledger(graph, amount="100.00", status="paid")
+            reversal = _ledger(
+                graph, amount="60.00", status="available", entry_type="reversal"
+            )
+            credit = _ledger(graph, amount="150.00", status="available")
+            credit.trip_session_id = trip_two.id
+            credit.occurred_at = trip_two.ended_at
+            session.add_all([paid, reversal, credit])
+            await session.flush()
+            await record_reversal_obligation(session, reversal_entry=reversal)
+
+            before_balance = await driver_money_balance(
+                session, driver_profile_id=graph.profile.id, currency="NGN"
+            )
+            before_summary = await driver_earnings_summary(
+                session, user_id=graph.driver.id, currency="NGN", settings=settings
+            )
+            before_first_trip = await driver_trip_earnings_breakdown(
+                session, user_id=graph.driver.id, trip_id=graph.trip.id
+            )
+            before_second_trip = await driver_trip_earnings_breakdown(
+                session, user_id=graph.driver.id, trip_id=trip_two.id
+            )
+            before_cost = await advertiser_campaign_cost_summary(
+                session,
+                user_id=graph.advertiser.id,
+                campaign_id=graph.campaign.id,
+                start_at=None,
+                end_at=None,
+                currency="NGN",
+                settings=settings,
+            )
+            allocation = await allocate_available_credit_to_debt(
+                session,
+                driver_profile_id=graph.profile.id,
+                currency="NGN",
+                actor_user_id=graph.admin.id,
+            )
+            remainder = await session.get(EarningsLedgerEntry, allocation.remainder_entry_ids[0])
+            after_summary = await driver_earnings_summary(
+                session, user_id=graph.driver.id, currency="NGN", settings=settings
+            )
+            after_second_trip = await driver_trip_earnings_breakdown(
+                session, user_id=graph.driver.id, trip_id=trip_two.id
+            )
+            after_cost = await advertiser_campaign_cost_summary(
+                session,
+                user_id=graph.advertiser.id,
+                campaign_id=graph.campaign.id,
+                start_at=None,
+                end_at=None,
+                currency="NGN",
+                settings=settings,
+            )
+            posted = await _posted_amount_for_trip(
+                session,
+                trip_session_id=trip_two.id,
+                driver_profile_id=graph.profile.id,
+                currency="NGN",
+            )
+            remainder.status = "paid"
+            paid_summary = await driver_earnings_summary(
+                session, user_id=graph.driver.id, currency="NGN", settings=settings
+            )
+            await session.commit()
+            return (
+                before_balance,
+                before_summary.totals_by_currency[0],
+                before_first_trip,
+                before_second_trip,
+                before_cost.totals_by_currency[0],
+                allocation.balance,
+                remainder,
+                after_summary.totals_by_currency[0],
+                after_second_trip,
+                after_cost.totals_by_currency[0],
+                posted,
+                paid_summary.totals_by_currency[0],
+            )
+
+    (
+        before_balance,
+        before_summary,
+        before_first_trip,
+        before_second_trip,
+        before_cost,
+        after_balance,
+        remainder,
+        after_summary,
+        after_second_trip,
+        after_cost,
+        posted,
+        paid_summary,
+    ) = asyncio.run(exercise())
+    assert before_balance.earned_net == Decimal("190.00")
+    assert before_balance.released_available == Decimal("150.00")
+    assert before_balance.cash_paid == Decimal("100.00")
+    assert before_balance.carry_forward_debt == Decimal("60.00")
+    assert before_balance.batch_payable == Decimal("90.00")
+    assert before_summary.lifetime_earned_amount == Decimal("190.00")
+    assert before_summary.released_available_amount == Decimal("150.00")
+    assert before_summary.cash_paid_amount == Decimal("100.00")
+    assert before_summary.carry_forward_debt_amount == Decimal("60.00")
+    assert before_summary.batch_payable_amount == Decimal("90.00")
+    assert before_first_trip.amount == Decimal("40.00")
+    assert before_second_trip.amount == Decimal("150.00")
+    assert before_cost.ledger_net_total == Decimal("190.00")
+    assert after_balance.batch_payable == Decimal("90.00")
+    assert remainder.amount == Decimal("90.00")
+    assert after_summary.lifetime_earned_amount == Decimal("190.00")
+    assert after_summary.released_available_amount == Decimal("90.00")
+    assert after_summary.carry_forward_debt_amount == Decimal("0.00")
+    assert after_summary.batch_payable_amount == Decimal("90.00")
+    assert after_second_trip.amount == Decimal("150.00")
+    assert after_cost.ledger_net_total == Decimal("190.00")
+    assert posted == Decimal("150.00")
+    assert paid_summary.lifetime_earned_amount == Decimal("190.00")
+    assert paid_summary.cash_paid_amount == Decimal("190.00")
+    assert paid_summary.batch_payable_amount == Decimal("0.00")
 
 
 def test_paid_line_confirmed_fraud_creates_debt_then_nets_future_credit(
@@ -512,6 +661,10 @@ def test_admin_debt_balance_and_allocation_api(db_client, db_sessionmaker) -> No
         f"/api/v1/admin/payout-batches/debt-balances/{graph.profile.id}?currency=ngn",
         headers=headers,
     )
+    driver_summary = db_client.get(
+        "/api/v1/driver/earnings/summary?currency=ngn",
+        headers=auth_headers(db_client, graph.driver.email),
+    )
     allocated = db_client.post(
         f"/api/v1/admin/payout-batches/debt-balances/{graph.profile.id}/allocate",
         headers=headers,
@@ -519,7 +672,11 @@ def test_admin_debt_balance_and_allocation_api(db_client, db_sessionmaker) -> No
     )
     assert before.status_code == 200
     assert before.json()["carry_forward_debt"] == "25.00"
-    assert before.json()["batch_payable"] == "0.00"
+    assert before.json()["batch_payable"] == "15.00"
+    assert driver_summary.status_code == 200
+    driver_total = driver_summary.json()["totals_by_currency"][0]
+    assert driver_total["carry_forward_debt_amount"] == "25.00"
+    assert driver_total["batch_payable_amount"] == "15.00"
     assert allocated.status_code == 200
     assert allocated.json()["balance"]["carry_forward_debt"] == "0.00"
     assert allocated.json()["balance"]["batch_payable"] == "15.00"

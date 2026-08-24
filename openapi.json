@@ -5276,6 +5276,39 @@
             ],
             "title": "Available Amount"
           },
+          "batch_payable_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Payable Amount"
+          },
+          "carry_forward_debt_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carry Forward Debt Amount"
+          },
+          "cash_paid_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cash Paid Amount"
+          },
           "currency": {
             "title": "Currency",
             "type": "string"
@@ -5317,6 +5350,17 @@
             ],
             "title": "Pending Amount"
           },
+          "released_available_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Released Available Amount"
+          },
           "voided_amount": {
             "anyOf": [
               {
@@ -5336,6 +5380,10 @@
           "paid_amount",
           "voided_amount",
           "lifetime_earned_amount",
+          "released_available_amount",
+          "cash_paid_amount",
+          "carry_forward_debt_amount",
+          "batch_payable_amount",
           "ledger_entry_count"
         ],
         "title": "DriverEarningsCurrencySummary",

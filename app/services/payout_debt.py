@@ -278,6 +278,11 @@ async def driver_money_balance(
     released = _money(row[1])
     paid = _money(row[2])
     outstanding = _money(debt or 0)
+    # This is a settlement projection, not an entry-selection rule. Whole-entry
+    # reservation still refuses a gross source while debt is outstanding, but
+    # the public balance must expose the economic amount that will remain after
+    # deterministic allocation.
+    batch_payable = _money(max(released - outstanding, Decimal("0.00")))
     return DriverMoneyBalance(
         driver_profile_id=driver_profile_id,
         currency=normalized,
@@ -285,7 +290,7 @@ async def driver_money_balance(
         released_available=released,
         cash_paid=paid,
         carry_forward_debt=outstanding,
-        batch_payable=Decimal("0.00") if outstanding else released,
+        batch_payable=batch_payable,
     )
 
 

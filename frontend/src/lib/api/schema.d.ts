@@ -3930,6 +3930,12 @@ export interface components {
         DriverEarningsCurrencySummary: {
             /** Available Amount */
             available_amount: string | null;
+            /** Batch Payable Amount */
+            batch_payable_amount: string | null;
+            /** Carry Forward Debt Amount */
+            carry_forward_debt_amount: string | null;
+            /** Cash Paid Amount */
+            cash_paid_amount: string | null;
             /** Currency */
             currency: string;
             /** Ledger Entry Count */
@@ -3940,6 +3946,8 @@ export interface components {
             paid_amount: string | null;
             /** Pending Amount */
             pending_amount: string | null;
+            /** Released Available Amount */
+            released_available_amount: string | null;
             /** Voided Amount */
             voided_amount: string | null;
         };

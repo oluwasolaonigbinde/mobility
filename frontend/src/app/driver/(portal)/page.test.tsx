@@ -51,4 +51,34 @@ describe("DriverHomePage ledger statuses", () => {
     expect(screen.getByText("paid")).toHaveClass("text-green");
     expect(screen.getByText("pending")).toHaveClass("text-amber");
   });
+
+  it("shows debt-aware batch-payable earnings without hiding carried debt", async () => {
+    get.mockImplementation(async (path?: string) => {
+      if (path?.endsWith("/summary")) {
+        return {
+          data: {
+            totals_by_currency: [
+              {
+                currency: "NGN",
+                batch_payable_amount: "90.00",
+                carry_forward_debt_amount: "60.00",
+                lifetime_earned_amount: "190.00",
+                pending_amount: "0.00",
+              },
+            ],
+          },
+        };
+      }
+      if (path?.endsWith("/active")) return { data: { assignment: null } };
+      if (path?.endsWith("/current")) return { data: { trip: null } };
+      if (path?.endsWith("/campaign-assignments")) return { data: { items: [] } };
+      return { data: { items: [] } };
+    });
+
+    render(await DriverHomePage());
+
+    expect(screen.getByText("Batch-payable earnings")).toBeInTheDocument();
+    expect(screen.getByText(/₦90\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/₦60\.00 carried debt/)).toBeInTheDocument();
+  });
 });
