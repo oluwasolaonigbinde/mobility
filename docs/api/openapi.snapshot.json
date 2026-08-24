@@ -7729,6 +7729,12 @@
       },
       "InvoiceCorrectionCreate": {
         "properties": {
+          "correction_reference": {
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Correction Reference",
+            "type": "string"
+          },
           "correction_type": {
             "$ref": "#/components/schemas/InvoiceCorrectionType"
           },
@@ -7762,6 +7768,7 @@
           }
         },
         "required": [
+          "correction_reference",
           "correction_type",
           "net_amount",
           "tax_amount",
@@ -7774,6 +7781,10 @@
         "properties": {
           "correction_number": {
             "title": "Correction Number",
+            "type": "string"
+          },
+          "correction_reference": {
+            "title": "Correction Reference",
             "type": "string"
           },
           "correction_type": {
@@ -7828,6 +7839,7 @@
           "invoice_id",
           "sequence_number",
           "correction_number",
+          "correction_reference",
           "correction_type",
           "currency",
           "net_amount",

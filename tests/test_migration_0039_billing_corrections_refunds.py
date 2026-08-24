@@ -63,7 +63,7 @@ def test_correction_is_append_only_and_blocks_populated_downgrade(monkeypatch) -
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0040_budget_policy_blocked_state", monkeypatch)
         asyncio.run(seed_and_mutate())
         with pytest.raises(RuntimeError, match="0039 downgrade blocked"):
             downgrade_to(migration_url, PRE_CORRECTION_REVISION, monkeypatch)

@@ -145,6 +145,7 @@ export async function recordInvoiceCorrectionAction(
     await api.POST("/api/v1/admin/invoices/{invoice_id}/corrections", {
       params: { path: { invoice_id: invoiceId } },
       body: {
+        correction_reference: String(formData.get("correction_reference") ?? "").trim(),
         correction_type: String(formData.get("correction_type")) as "credit_note" | "debit_note",
         net_amount: String(formData.get("net_amount") ?? "").trim(),
         tax_amount: String(formData.get("tax_amount") ?? "").trim(),

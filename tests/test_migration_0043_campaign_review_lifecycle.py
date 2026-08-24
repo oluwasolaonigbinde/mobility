@@ -1,4 +1,4 @@
-"""Migration 0041: governed campaign review lifecycle and immutable evidence."""
+"""Migration 0043: governed campaign review lifecycle and immutable evidence."""
 
 import asyncio
 
@@ -15,7 +15,7 @@ from test_migration_0014_partitioning import (
     upgrade_to,
 )
 
-PRE_REVIEW_REVISION = "0040_budget_policy_blocked_state"
+PRE_REVIEW_REVISION = "0042_invoice_number_prefix_sequence"
 
 
 def test_campaign_review_empty_down_up_preserves_existing_campaigns(monkeypatch) -> None:
@@ -113,7 +113,7 @@ def test_campaign_review_evidence_is_append_only_and_blocks_downgrade(monkeypatc
     try:
         upgrade_to(migration_url, "head", monkeypatch)
         asyncio.run(seed_and_mutate())
-        with pytest.raises(RuntimeError, match="0041 downgrade blocked"):
+        with pytest.raises(RuntimeError, match="0043 downgrade blocked"):
             downgrade_to(migration_url, PRE_REVIEW_REVISION, monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))

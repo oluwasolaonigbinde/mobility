@@ -284,6 +284,7 @@ def test_campaign_commercial_api_exposes_derived_invoice_status(
                 session,
                 invoice_id=invoice.id,
                 actor_user_id=admin.id,
+                correction_reference="billing-api-correction",
                 correction_type=InvoiceCorrectionType.CREDIT_NOTE,
                 net_amount="20.00",
                 tax_amount="0.00",
@@ -305,3 +306,64 @@ def test_campaign_commercial_api_exposes_derived_invoice_status(
     assert len(invoice["corrections"]) == 1
     assert invoice["corrections"][0]["correction_type"] == "credit_note"
     assert invoice["corrections"][0]["gross_amount"] == "20.00"
+
+
+def test_invoice_correction_http_retry_is_stable_and_conflicts_on_changed_payload(
+    db_client, db_sessionmaker, settings
+) -> None:
+    admin, owner, _, campaign = _fixture(db_sessionmaker, "correction-retry")
+
+    async def setup():
+        async with db_sessionmaker() as session:
+            terms = await _accepted_terms(
+                session,
+                campaign=campaign,
+                admin=admin,
+                owner=owner,
+                reference="API-CORRECTION-RETRY",
+                amount="100.00",
+            )
+            draft = await create_invoice_draft(
+                session, commercial_terms_id=terms.id, actor_user_id=admin.id
+            )
+            issuer = await _issuer(
+                session,
+                admin,
+                IssuerVerificationStatus.SYNTHETIC,
+                "SYNTHETIC-API-CORRECTION-RETRY",
+                settings,
+            )
+            invoice = await issue_invoice(
+                session,
+                invoice_id=draft.id,
+                issuer_profile_id=issuer.id,
+                actor_user_id=admin.id,
+                settings=settings,
+            )
+            await session.commit()
+            return invoice.id
+
+    invoice_id = asyncio.run(setup())
+    headers = auth_headers(db_client, admin.email)
+    payload = {
+        "correction_reference": "http-retry-reference-001",
+        "correction_type": "credit_note",
+        "net_amount": "10.00",
+        "tax_amount": "0.00",
+        "reason": "approved correction",
+    }
+    first = db_client.post(
+        f"/api/v1/admin/invoices/{invoice_id}/corrections", json=payload, headers=headers
+    )
+    replay = db_client.post(
+        f"/api/v1/admin/invoices/{invoice_id}/corrections", json=payload, headers=headers
+    )
+    assert first.status_code == replay.status_code == 200
+    assert first.json()["id"] == replay.json()["id"]
+    conflict = db_client.post(
+        f"/api/v1/admin/invoices/{invoice_id}/corrections",
+        json=payload | {"reason": "changed correction"},
+        headers=headers,
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "INVOICE_CORRECTION_REFERENCE_CONFLICT"

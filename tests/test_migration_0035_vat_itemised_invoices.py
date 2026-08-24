@@ -99,7 +99,7 @@ def test_issued_invoice_is_database_immutable_and_blocks_downgrade(monkeypatch) 
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0036_invoice_authority_hardening", monkeypatch)
         asyncio.run(seed_and_mutate())
         with pytest.raises(RuntimeError, match="0036 downgrade blocked"):
             downgrade_to(migration_url, PRE_INVOICE_REVISION, monkeypatch)

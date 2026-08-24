@@ -389,13 +389,25 @@ by EXT-STORAGE-PROVIDER and no later Package 4 slice is admitted yet.
   `EXT-PAYMENT-PROVIDER` and `EXT-BUDGET-POLICY` are missing. The complete plan
   received one clean-context plan review; all material post-build corrections
   are committed in `f347b37` and `8272b32`, with deterministic browser evidence
-  finalized in `86d9934` and a final no-history consolidated review PASS.
+  finalized in `86d9934` and a final no-history consolidated review PASS. The
+  later Extended-Pro correction range from `a8fa4e0` was implemented in
+  `d146140`: receipt/start chronology, allocation-scoped refund conservation,
+  correction retry identity, rendered-prefix invoice numbering and
+  campaign/terms currency serialization received one consolidated no-history
+  review, one focused race correction and final PASS.
 - **Closure (24 Aug 2026):** migration head
-  `0040_budget_policy_blocked_state`; 874 backend tests, 193 frontend tests,
-  26 pre-production checks, contract drift/build and 8 isolated desktop/mobile
-  billing journeys pass. W2-01C remains `BLOCKED — EXT-PAYMENT-PROVIDER` and
-  W2-01E remains `BLOCKED — EXT-BUDGET-POLICY`; issuer and real commercial
-  values remain fail-closed live-use gates. Package 4 is NEXT, not started.
+  `0042_invoice_number_prefix_sequence`; the original 874-backend/193-frontend
+  package baseline plus focused PostgreSQL reversal/start, refund, retry,
+  numbering, migration and currency-race evidence pass. The single correction
+  aggregate exposed only three historical migration/seed harness expectations;
+  those were isolated at their owning revisions, corrected and rerun green.
+  Ruff, contract drift, lint/typecheck, 193 frontend tests, production build and
+  8 fresh-head isolated desktop/mobile billing journeys pass; the final
+  independent review verdict is PASS. W2-01C remains
+  `BLOCKED — EXT-PAYMENT-PROVIDER` and W2-01E remains
+  `BLOCKED — EXT-BUDGET-POLICY`; issuer and real commercial values remain
+  fail-closed live-use gates. Package 4 is IN PROGRESS with its W2-03A
+  checkpoint preserved on top of this corrected authority.
 
 ### PKG-04 — secure evidence, activation and communications
 
@@ -411,7 +423,7 @@ by EXT-STORAGE-PROVIDER and no later Package 4 slice is admitted yet.
   with one independent plan review PASS before implementation. Focused tests
   only at this checkpoint; W2-04A and later work require a new controller
   admission after the W2-03A checkpoint.
-- **W2-03A checkpoint evidence (24 Aug 2026):** migration `0041` extends the campaign
+- **W2-03A checkpoint evidence (24 Aug 2026):** migration `0043` extends the campaign
   lifecycle and adds append-only, exact-submission-bound review evidence.
   Dedicated row-locked advertiser/admin actions enforce submit, approve,
   reasoned reject and resubmit; generic creation/update cannot bypass review,

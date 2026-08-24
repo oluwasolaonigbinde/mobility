@@ -1,7 +1,7 @@
 """Add governed campaign submission and review evidence.
 
-Revision ID: 0041_campaign_review_lifecycle
-Revises: 0040_budget_policy_blocked_state
+Revision ID: 0043_campaign_review_lifecycle
+Revises: 0042_invoice_number_prefix_sequence
 """
 
 from collections.abc import Sequence
@@ -11,8 +11,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0041_campaign_review_lifecycle"
-down_revision: str | Sequence[str] | None = "0040_budget_policy_blocked_state"
+revision: str = "0043_campaign_review_lifecycle"
+down_revision: str | Sequence[str] | None = "0042_invoice_number_prefix_sequence"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -106,7 +106,7 @@ def downgrade() -> None:
         .scalar_one()
     )
     if populated:
-        raise RuntimeError("0041 downgrade blocked: campaign review authority exists")
+        raise RuntimeError("0043 downgrade blocked: campaign review authority exists")
 
     op.execute("DROP TRIGGER campaign_review_events_append_only ON campaign_review_events")
     op.drop_index(

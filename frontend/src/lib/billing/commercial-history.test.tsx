@@ -32,6 +32,7 @@ const invoice: Invoice = {
       id: "00000000-0000-0000-0000-000000000006",
       invoice_id: "00000000-0000-0000-0000-000000000001",
       correction_number: "CN-2026-0001",
+      correction_reference: "test-correction-reference",
       sequence_number: 1,
       correction_type: "credit_note",
       currency: "NGN",
