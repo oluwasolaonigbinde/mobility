@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.37 — 2026-08-23. Canonical source of truth: current state AND target state.**
+**Version 1.39 — 2026-08-24. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -975,6 +975,8 @@ must not grow invoicing logic.
 |-------|---------|
 | `commercial_terms` | Immutable accepted custom-quotation snapshot: quote reference, versioned line items, production scope, payment class (`standard_prepaid` \| `approved_corporate_credit`), due dates/credit approval, accepted-by and accepted-at. External quotes/deals are entered after acceptance rather than silently inferred; a launch package catalogue is not assumed |
 | `invoices` | What an org owes for a campaign/period: line items (JSONB), currency, explicit net, VAT rate/amount and gross totals, status `draft → issued → partially_paid → paid → void`, issued/paid timestamps, human-readable invoice number, and the accepted commercial-terms revision. Customer surfaces default to the VAT-inclusive gross while itemising the included net and VAT; totals become immutable when issued |
+| `invoice_number_sequences` | Mutable allocation control only, scoped by the full rendered issuer prefix plus calendar year. Migration `0042` seeds each scope above the maximum immutable issued suffix; profiles sharing a rendered prefix share one sequence and issued invoices are never rewritten |
+| `invoice_corrections` | Append-only credit/debit notes. Migration `0041` adds a caller-supplied immutable reference unique per invoice and a canonical request fingerprint: same key and payload returns the existing row, while the same key with changed money/type/reason conflicts before any obligation delta |
 | `payments` | Money received against an invoice — **N payments per invoice**: amount, method (`manual_transfer` \| `gateway`), provider + provider reference, status, `recorded_by_user_id` for manual entries. Standard production authority requires confirmed allocations covering the full required amount; an approved corporate-credit snapshot may instead authorise production under its recorded terms |
 | `payment_events` | Raw webhook/event log from gateways: provider event id (**unique** — replay protection), payload, processing status |
 
@@ -988,6 +990,17 @@ immutable and auditable; authorisation and production start are distinct facts.
 Rules: amounts are `Decimal` (strings on the wire, P6); invoices are immutable
 once issued (corrections = credit-note-style new rows); every state change
 audited (§6.4.9).
+
+Campaign commercial authority uses one advisory lock through both authorization
+and the caller's production/activation/trip-start mutation. Receipt reversal and
+refund settlement take the receipt row first, then every affected campaign lock
+in stable order, before choosing their database timestamp. This makes a start
+either commit before the reversal cutoff or reject after reversal; it cannot be
+authorized from cash that was already reversed in the recorded chronology.
+Refund conservation is enforced both per receipt allocation/accepted-terms pair
+and across the receipt total. Campaign currency may change before acceptance,
+but acceptance and any real currency update serialize on the same campaign lock;
+accepted terms and campaign currency must thereafter match exactly.
 
 ### 15.3 Provider adapter (P5)
 
@@ -2157,6 +2170,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.39 | 2026-08-24 | **PKG-03 money-authority correction.** Receipt reversal/refund and production/activation/trip start now share a deadlock-safe receipt-then-campaign lock order and database chronology; refund conservation is allocation-scoped plus receipt-wide; accepted terms and campaign currency serialize and remain equal. Additive migration `0041` gives invoice corrections immutable caller retry identity and a canonical payload fingerprint with populated legacy backfill, restored append-only trigger and fail-closed downgrade. Additive migration `0042` scopes invoice numbering by full rendered prefix/year and backfills above immutable issued suffixes without rewriting invoices. The synchronized §9 artifacts expose correction references. Focused PostgreSQL barriers, retry/refund/currency/sequence and populated-migration tests, frontend lint/type/unit/build, aggregate compatibility correction, and isolated desktop/mobile billing evidence pass. Live provider and budget-policy gates remain unchanged. |
 | v1.38 | 2026-08-24 | **PKG-02 correction reconciliation.** A due reversal now enters debt authority in the same release transaction after status flush and before audit/commit, in stable driver/currency/entry order; an active reservation rolls back the entire release. Because migration `0031` has not reached a non-disposable environment, its upgrade now idempotently backfills all eligible available reversals into driver/currency debt accounts and obligations, links any same-trip paid non-reversal provenance, conserves account totals, and refuses unsafe active reservations or populated downgrades. Economic/provenance projections retain non-voided sources, subtract reversals and give `debt_remainder` zero economic value; settlement projections separately expose released credit, paid cash, debt and `max(released − debt, 0)` batch-payable value. Driver API/dashboard/earnings surfaces and all three §9 baselines moved together. Evidence: focused PostgreSQL release/reservation race, debt/residual and populated migration tests; frontend 191 tests/type/lint/build; backend aggregate 793 pass/3 skip followed by 41-pass recheck of the only 13 documentation-contract fixture failures; independent clean-context minimal-change review PASS. No live provider or real-world validation is claimed. |
 | v1.37 | 2026-08-23 | **PKG-02 money integrity and payout operations closed; RM10/RM11 resolved.** Migrations `0028`–`0031` add encrypted append-only driver payee/account versions, atomic whole-entry payout reservation with frozen instructions and maker-checker approval, verified line-level provider reconciliation before immutable paid finality, and currency-scoped carry-forward debt with paid-source provenance. Live adapters remain fail-closed behind `EXT-DISBURSEMENT-PROVIDER`. The controlled §9 baselines moved once. Aggregate Package 2 evidence covers 541 backend passes plus one intentional skip across the non-repeated integration partitions, 187 frontend tests, type/lint/build, migration/autogenerate, crypto, property, concurrency and synthetic end-to-end flows. The consolidated review's lock-order and paid-state findings were corrected once and rechecked RESOLVED; the forced-overlap provider-finality/confirmed-fraud race preserves paid history and creates exactly one obligation. No live provider, physical-device, real-route, external-staging, pilot or user-feedback validation is claimed. |
 | v1.36 | 2026-08-21 | **MNY-03A clean release and flagged-review SLA delivered; RM8 closed.** Migration `0027` adds persisted one-time escalation evidence and unique fraud-flag-linked reversal provenance. A starvation-safe DB-derived sweep uses the existing trip scope, post-wait DB clock, exact successful-current assessment and imported hold predicate before stable `pending → available` transitions; dismissal requires reassessment. Open/acknowledged reviews escalate at the configurable deadline without auto-release. Named confirmation after release posts one positive subtract-by-type available reversal, while retry/multiple flags cannot over-reverse. The typed admin queue shows deadlines, escalation history and reversal consequences; all three §9 artifacts moved together. Evidence: focused PostgreSQL currentness/time/concurrency/migration tests, worker/API/UI and contract checks, live synthetic desktop/mobile recommendation plus named one-reversal confirmation, and one money/concurrency correction round rechecked RESOLVED. No physical-device, real-route, external-staging, pilot or user-feedback validation is claimed. |

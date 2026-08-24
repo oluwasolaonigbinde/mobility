@@ -1,4 +1,5 @@
 import hashlib
+import json
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
@@ -372,6 +373,13 @@ async def accept_quotation_revision(
             .with_for_update()
         )
     ).scalar_one()
+    campaign = await _campaign(session, revision.campaign_id, lock=True)
+    if campaign.currency != revision.currency:
+        raise AppError(
+            "QUOTATION_CURRENCY_MISMATCH",
+            "Quotation currency must match the campaign currency at acceptance",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     quote_request = await session.get(CommercialQuoteRequest, revision.quote_request_id)
     expected_source = (
         QuoteRequestSource.IN_PLATFORM
@@ -949,6 +957,21 @@ async def reverse_payment_receipt(
             "A reversal reason is required",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+    campaign_ids = sorted(
+        set(
+            await session.scalars(
+                select(CommercialTerms.campaign_id)
+                .join(
+                    ReceiptAllocation,
+                    ReceiptAllocation.commercial_terms_id == CommercialTerms.id,
+                )
+                .where(ReceiptAllocation.receipt_id == receipt.id)
+            )
+        ),
+        key=str,
+    )
+    for campaign_id in campaign_ids:
+        await acquire_campaign_terms_lock(session, campaign_id)
     now = await database_clock(session)
     await _append_receipt_event(
         session,
@@ -1144,11 +1167,11 @@ async def create_invoice_draft(
 
 
 async def _acquire_invoice_number_lock(
-    session: AsyncSession, issuer_profile_id: UUID, calendar_year: int
+    session: AsyncSession, number_prefix: str, calendar_year: int
 ) -> None:
     if session.get_bind().dialect.name != "postgresql":
         return
-    digest = hashlib.sha256(f"invoice:{issuer_profile_id}:{calendar_year}".encode()).digest()
+    digest = hashlib.sha256(f"invoice:{number_prefix}:{calendar_year}".encode()).digest()
     lock_key = int.from_bytes(digest[:8], byteorder="big", signed=True)
     await session.execute(select(func.pg_advisory_xact_lock(lock_key)))
 
@@ -1198,27 +1221,27 @@ async def issue_invoice(
     if organization is None:
         raise AppError("ORGANIZATION_NOT_FOUND", "Organization was not found", status_code=404)
     year = now.year
-    await _acquire_invoice_number_lock(session, issuer.id, year)
+    number_prefix = (
+        f"TEST-{issuer.numbering_prefix}" if synthetic_test_authority else issuer.numbering_prefix
+    )
+    await _acquire_invoice_number_lock(session, number_prefix, year)
     sequence = await session.scalar(
         select(InvoiceNumberSequence)
         .where(
-            InvoiceNumberSequence.issuer_profile_id == issuer.id,
+            InvoiceNumberSequence.number_prefix == number_prefix,
             InvoiceNumberSequence.calendar_year == year,
         )
         .with_for_update()
     )
     if sequence is None:
         sequence = InvoiceNumberSequence(
-            issuer_profile_id=issuer.id, calendar_year=year, next_number=1
+            number_prefix=number_prefix, calendar_year=year, next_number=1
         )
         session.add(sequence)
         await session.flush()
     number = sequence.next_number
     sequence.next_number += 1
     invoice.issuer_profile_id = issuer.id
-    number_prefix = (
-        f"TEST-{issuer.numbering_prefix}" if synthetic_test_authority else issuer.numbering_prefix
-    )
     invoice.invoice_number = f"{number_prefix}-{year}-{number:06d}"
     invoice.status = InvoiceStatus.ISSUED
     invoice.customer_snapshot = _customer_snapshot(organization)
@@ -1498,13 +1521,6 @@ async def _append_financial_authorization(
             "Campaign and accepted commercial terms currency must match",
             status_code=status.HTTP_409_CONFLICT,
         )
-    if authority_type == FinancialAuthorityType.PREPAID_CASH:
-        await session.scalars(
-            select(PaymentReceipt)
-            .where(PaymentReceipt.organization_id == terms.organization_id)
-            .order_by(PaymentReceipt.id)
-            .with_for_update()
-        )
     terms = await _commercial_terms_for_campaign(session, campaign_id, lock=True)
     if terms is None:
         raise AppError(
@@ -1741,21 +1757,6 @@ async def _authorization_usable_liability(
             return Decimal("0.00")
     if authorization.authority_type != FinancialAuthorityType.PREPAID_CASH:
         return Decimal(authorization.max_driver_liability)
-    source_receipts = list(
-        await session.scalars(
-            select(PaymentReceipt)
-            .join(ReceiptAllocation, ReceiptAllocation.receipt_id == PaymentReceipt.id)
-            .join(
-                FinancialAuthorizationAllocation,
-                FinancialAuthorizationAllocation.receipt_allocation_id == ReceiptAllocation.id,
-            )
-            .where(FinancialAuthorizationAllocation.authorization_id == authorization.id)
-            .order_by(PaymentReceipt.id)
-            .with_for_update()
-        )
-    )
-    if not source_receipts:
-        return Decimal("0.00")
     receipt = PaymentReceipt.__table__.alias("active_authority_receipt")
     confirmed, not_reversed = _active_receipt_predicate(receipt)
     active_sources = await session.scalar(
@@ -2127,6 +2128,7 @@ async def assert_new_work_authorized(
 async def assert_campaign_production_authorized(
     session: AsyncSession, *, campaign_id: UUID
 ) -> CampaignFinancialAuthorization:
+    await acquire_campaign_terms_lock(session, campaign_id)
     terms = await _commercial_terms_for_campaign(session, campaign_id)
     production_start = await session.scalar(
         select(ProductionStart).where(ProductionStart.campaign_id == campaign_id)
@@ -2507,6 +2509,7 @@ async def record_invoice_correction(
     *,
     invoice_id: UUID,
     actor_user_id: UUID,
+    correction_reference: str,
     correction_type: InvoiceCorrectionType,
     net_amount: Decimal | str,
     tax_amount: Decimal | str,
@@ -2518,11 +2521,12 @@ async def record_invoice_correction(
     )
     if invoice is None:
         raise AppError("INVOICE_NOT_FOUND", "Invoice was not found", status_code=404)
-    if invoice.status not in {InvoiceStatus.ISSUED, InvoiceStatus.VOID}:
+    reference = correction_reference.strip()
+    if not reference or reference.lower().startswith("legacy:"):
         raise AppError(
-            "ISSUED_INVOICE_REQUIRED",
-            "Only an issued invoice can receive an immutable correction",
-            status_code=status.HTTP_409_CONFLICT,
+            "INVALID_CORRECTION_REFERENCE",
+            "A caller-supplied correction reference is required",
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
     normalized_reason = reason.strip()
     net = _money(net_amount, "correction.net_amount")
@@ -2533,6 +2537,38 @@ async def record_invoice_correction(
             "INVALID_INVOICE_CORRECTION",
             "A positive itemised correction and reason are required",
             status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            {
+                "correction_type": correction_type.value,
+                "net_amount": f"{net:.2f}",
+                "tax_amount": f"{tax:.2f}",
+                "reason": normalized_reason,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+    existing = await session.scalar(
+        select(InvoiceCorrection).where(
+            InvoiceCorrection.invoice_id == invoice.id,
+            InvoiceCorrection.correction_reference == reference,
+        )
+    )
+    if existing is not None:
+        if existing.request_fingerprint == fingerprint:
+            return existing
+        raise AppError(
+            "INVOICE_CORRECTION_REFERENCE_CONFLICT",
+            "Correction reference belongs to different immutable correction evidence",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if invoice.status not in {InvoiceStatus.ISSUED, InvoiceStatus.VOID}:
+        raise AppError(
+            "ISSUED_INVOICE_REQUIRED",
+            "Only an issued invoice can receive an immutable correction",
+            status_code=status.HTTP_409_CONFLICT,
         )
     rows = list(
         await session.scalars(
@@ -2572,6 +2608,8 @@ async def record_invoice_correction(
         invoice_id=invoice.id,
         sequence_number=sequence,
         correction_number=f"COR-{invoice.invoice_number}-{sequence:03d}",
+        correction_reference=reference,
+        request_fingerprint=fingerprint,
         correction_type=correction_type,
         currency=invoice.currency,
         net_amount=net,
@@ -2664,6 +2702,7 @@ async def _refund_window(
     funded_at = await _historical_fully_funded_at(session, terms)
     if funded_at is None:
         return None, None, None
+    funded_at = _stored_aware_utc(funded_at)
     standard_end = funded_at + timedelta(hours=terms.standard_production_wait_hours)
     production = await session.scalar(
         select(ProductionStart).where(ProductionStart.campaign_id == terms.campaign_id)
@@ -2671,9 +2710,9 @@ async def _refund_window(
     if (
         production is not None
         and production.authority_basis == ProductionAuthorityBasis.ADVERTISER_EXPEDITED_WAIVER
-        and production.started_at < standard_end
+        and _stored_aware_utc(production.started_at) < standard_end
     ):
-        return funded_at, production.started_at, production
+        return funded_at, _stored_aware_utc(production.started_at), production
     return funded_at, standard_end, production
 
 
@@ -2689,14 +2728,14 @@ async def record_refund_settlement(
     reason: str,
 ) -> RefundSettlement:
     await _active_admin(session, actor_user_id)
+    receipt = await session.scalar(
+        select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
+    )
     terms = await session.get(CommercialTerms, commercial_terms_id)
     if terms is None:
         raise AppError("COMMERCIAL_TERMS_NOT_FOUND", "Commercial terms were not found", 404)
     await acquire_campaign_terms_lock(session, terms.campaign_id)
     await _campaign(session, terms.campaign_id, lock=True)
-    receipt = await session.scalar(
-        select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
-    )
     terms = await session.scalar(
         select(CommercialTerms).where(CommercialTerms.id == commercial_terms_id).with_for_update()
     )
@@ -2758,6 +2797,7 @@ async def record_refund_settlement(
         await session.scalar(
             select(func.coalesce(func.sum(RefundSettlement.amount), 0)).where(
                 RefundSettlement.receipt_id == receipt.id,
+                RefundSettlement.commercial_terms_id == terms.id,
                 RefundSettlement.disposition == SettlementDisposition.REFUND_RECORDED,
             )
         )
@@ -2767,6 +2807,21 @@ async def record_refund_settlement(
         raise AppError(
             "REFUND_EXCEEDS_CASH_AUTHORITY",
             "Refund cannot exceed the receipt's allocated cash authority",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    receipt_refunded = Decimal(
+        await session.scalar(
+            select(func.coalesce(func.sum(RefundSettlement.amount), 0)).where(
+                RefundSettlement.receipt_id == receipt.id,
+                RefundSettlement.disposition == SettlementDisposition.REFUND_RECORDED,
+            )
+        )
+        or 0
+    )
+    if receipt_refunded + refund_amount > Decimal(receipt.amount):
+        raise AppError(
+            "REFUND_EXCEEDS_RECEIPT_TOTAL",
+            "Refund cannot exceed the receipt total",
             status_code=status.HTTP_409_CONFLICT,
         )
     funded_at, eligibility_ends_at, production = await _refund_window(session, terms)

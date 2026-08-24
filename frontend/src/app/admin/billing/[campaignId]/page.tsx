@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -272,6 +273,11 @@ export default async function AdminCampaignBillingPage({
                     action={recordInvoiceCorrectionAction.bind(null, campaignId, invoice.id)}
                     className="border-edge mt-5 grid gap-3 border-t pt-5"
                   >
+                    <input
+                      type="hidden"
+                      name="correction_reference"
+                      value={randomUUID()}
+                    />
                     <label className="micro text-muted">
                       Correction type
                       <select

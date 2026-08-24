@@ -14,7 +14,7 @@ from app.main import create_app
 from app.models.user import UserRole
 
 SNAPSHOT_PATH = Path("docs/api/openapi.snapshot.json")
-EXPECTED_ALEMBIC_HEAD = "0040_budget_policy_blocked_state"
+EXPECTED_ALEMBIC_HEAD = "0042_invoice_number_prefix_sequence"
 EXPECTED_MIGRATIONS = {
     "0001_enable_extensions.py",
     "0002_identity_and_organizations.py",
@@ -56,6 +56,8 @@ EXPECTED_MIGRATIONS = {
     "0038_payment_gateway_events.py",
     "0039_billing_corrections_refunds.py",
     "0040_budget_policy_blocked_state.py",
+    "0041_invoice_correction_retry_identity.py",
+    "0042_invoice_number_prefix_sequence.py",
 }
 MAJOR_CONTRACT_PATHS = {
     "health": "/api/v1/health",
@@ -178,7 +180,7 @@ def test_no_public_delete_routes_for_payout_ledger_critical_parents(settings) ->
     assert delete_paths == {"/api/v1/advertiser/campaigns/{campaign_id}/zones/{zone_id}"}
 
 
-def test_no_slice_13_migration_or_product_tables_added() -> None:
+def test_migration_chain_matches_authorized_head() -> None:
     migration_names = {
         path.name for path in Path("alembic/versions").glob("*.py") if path.name != "__init__.py"
     }

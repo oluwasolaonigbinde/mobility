@@ -4772,6 +4772,8 @@ export interface components {
         };
         /** InvoiceCorrectionCreate */
         InvoiceCorrectionCreate: {
+            /** Correction Reference */
+            correction_reference: string;
             correction_type: components["schemas"]["InvoiceCorrectionType"];
             /** Net Amount */
             net_amount: number | string;
@@ -4784,6 +4786,8 @@ export interface components {
         InvoiceCorrectionRead: {
             /** Correction Number */
             correction_number: string;
+            /** Correction Reference */
+            correction_reference: string;
             /** Correction Type */
             correction_type: string;
             /**

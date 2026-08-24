@@ -454,7 +454,7 @@ class InvoiceNumberSequence(Base):
         CheckConstraint("calendar_year >= 2020", name="ck_invoice_number_sequences_year"),
         CheckConstraint("next_number > 0", name="ck_invoice_number_sequences_next"),
         UniqueConstraint(
-            "issuer_profile_id",
+            "number_prefix",
             "calendar_year",
             name="uq_invoice_number_sequences_scope",
         ),
@@ -463,9 +463,7 @@ class InvoiceNumberSequence(Base):
     id: Mapped[UUID] = mapped_column(
         primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
     )
-    issuer_profile_id: Mapped[UUID] = mapped_column(
-        ForeignKey("invoice_issuer_profiles.id", ondelete="RESTRICT"), nullable=False
-    )
+    number_prefix: Mapped[str] = mapped_column(String(64), nullable=False)
     calendar_year: Mapped[int] = mapped_column(Integer, nullable=False)
     next_number: Mapped[int] = mapped_column(Integer, nullable=False)
 
@@ -842,6 +840,11 @@ class InvoiceCorrection(Base):
         ),
         UniqueConstraint("invoice_id", "sequence_number", name="uq_invoice_corrections_sequence"),
         UniqueConstraint("correction_number", name="uq_invoice_corrections_number"),
+        UniqueConstraint(
+            "invoice_id",
+            "correction_reference",
+            name="uq_invoice_corrections_reference",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -852,6 +855,8 @@ class InvoiceCorrection(Base):
     )
     sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
     correction_number: Mapped[str] = mapped_column(String(96), nullable=False)
+    correction_reference: Mapped[str] = mapped_column(String(128), nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     correction_type: Mapped[str] = mapped_column(String(32), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     net_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)

@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.billing import (
     AcceptanceMethod,
@@ -226,6 +226,7 @@ class InvoiceCorrectionRead(ORMRead):
     invoice_id: UUID
     sequence_number: int
     correction_number: str
+    correction_reference: str
     correction_type: str
     currency: str
     net_amount: Decimal
@@ -330,10 +331,19 @@ class ReceiptReverse(BaseModel):
 
 
 class InvoiceCorrectionCreate(BaseModel):
+    correction_reference: str = Field(min_length=8, max_length=128)
     correction_type: InvoiceCorrectionType
     net_amount: Decimal
     tax_amount: Decimal
     reason: str
+
+    @field_validator("correction_reference")
+    @classmethod
+    def validate_correction_reference(cls, value: str) -> str:
+        normalized = value.strip()
+        if normalized.lower().startswith("legacy:"):
+            raise ValueError("correction_reference uses a reserved namespace")
+        return normalized
 
 
 class RefundCreate(BaseModel):
