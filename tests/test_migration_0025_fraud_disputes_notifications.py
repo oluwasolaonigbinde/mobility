@@ -55,9 +55,11 @@ def test_dispute_notification_populated_downgrade_fails_closed(monkeypatch) -> N
                 await connection.execute(
                     text(
                         "INSERT INTO notifications "
-                        "(recipient_user_id, type_key, template_version, payload, dedupe_key) "
+                        "(recipient_user_id, type_key, template_version, payload, dedupe_key, "
+                        "dedupe_fingerprint, created_at, sent_at) "
                         "VALUES ('20000000-0000-0000-0000-000000000001', "
-                        "'fraud_hold_raised', 'v1', '{}'::jsonb, 'migration-fixture')"
+                        "'fraud_hold_raised', 'v1', '{}'::jsonb, 'migration-fixture', "
+                        "repeat('c', 64), statement_timestamp(), statement_timestamp())"
                     )
                 )
         finally:

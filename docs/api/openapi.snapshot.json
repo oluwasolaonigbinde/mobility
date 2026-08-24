@@ -818,6 +818,38 @@
         "title": "AdvertiserDashboardSummary",
         "type": "object"
       },
+      "AdvertiserNotificationPreferenceRead": {
+        "properties": {
+          "in_app_enabled": {
+            "default": true,
+            "title": "In App Enabled",
+            "type": "boolean"
+          },
+          "transactional_email_enabled": {
+            "title": "Transactional Email Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "transactional_email_enabled"
+        ],
+        "title": "AdvertiserNotificationPreferenceRead",
+        "type": "object"
+      },
+      "AdvertiserNotificationPreferenceUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "transactional_email_enabled": {
+            "title": "Transactional Email Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "transactional_email_enabled"
+        ],
+        "title": "AdvertiserNotificationPreferenceUpdate",
+        "type": "object"
+      },
       "AdvertiserOrganizationContextResponse": {
         "properties": {
           "membership": {
@@ -8610,6 +8642,96 @@
         "title": "MembershipStatus",
         "type": "string"
       },
+      "NotificationChannel": {
+        "enum": [
+          "in_app",
+          "transactional_email"
+        ],
+        "title": "NotificationChannel",
+        "type": "string"
+      },
+      "NotificationFeedItemRead": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/NotificationChannel"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "type_key": {
+            "$ref": "#/components/schemas/NotificationType"
+          }
+        },
+        "required": [
+          "id",
+          "type_key",
+          "channel",
+          "title",
+          "body",
+          "created_at",
+          "read_at"
+        ],
+        "title": "NotificationFeedItemRead",
+        "type": "object"
+      },
+      "NotificationFeedListRead": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationFeedItemRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "NotificationFeedListRead",
+        "type": "object"
+      },
       "NotificationType": {
         "enum": [
           "fraud_hold_raised",
@@ -8618,6 +8740,19 @@
         ],
         "title": "NotificationType",
         "type": "string"
+      },
+      "NotificationUnreadCountRead": {
+        "properties": {
+          "unread_count": {
+            "title": "Unread Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "unread_count"
+        ],
+        "title": "NotificationUnreadCountRead",
+        "type": "object"
       },
       "OrganizationMembershipRead": {
         "properties": {
@@ -21171,6 +21306,76 @@
         ]
       }
     },
+    "/api/v1/advertiser/notification-preferences": {
+      "get": {
+        "operationId": "advertiser_notification_preferences_api_v1_advertiser_notification_preferences_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvertiserNotificationPreferenceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Notification Preferences",
+        "tags": [
+          "Notifications"
+        ]
+      },
+      "patch": {
+        "operationId": "advertiser_update_notification_preferences_api_v1_advertiser_notification_preferences_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdvertiserNotificationPreferenceUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvertiserNotificationPreferenceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Update Notification Preferences",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
     "/api/v1/advertiser/organization": {
       "get": {
         "operationId": "advertiser_organization_api_v1_advertiser_organization_get",
@@ -22585,6 +22790,167 @@
         "summary": "Get current user context",
         "tags": [
           "Auth"
+        ]
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "operationId": "current_user_notifications_api_v1_notifications_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationFeedListRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Current User Notifications",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/read-all": {
+      "post": {
+        "operationId": "read_all_notifications_api_v1_notifications_read_all_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationUnreadCountRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Read All Notifications",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/unread-count": {
+      "get": {
+        "operationId": "current_user_unread_notification_count_api_v1_notifications_unread_count_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationUnreadCountRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Current User Unread Notification Count",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/{notification_id}/read": {
+      "post": {
+        "operationId": "read_notification_api_v1_notifications__notification_id__read_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notification_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Notification Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationFeedItemRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Read Notification",
+        "tags": [
+          "Notifications"
         ]
       }
     },

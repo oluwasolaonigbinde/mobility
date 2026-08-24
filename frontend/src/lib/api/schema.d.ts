@@ -1755,6 +1755,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/advertiser/notification-preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Advertiser Notification Preferences */
+        get: operations["advertiser_notification_preferences_api_v1_advertiser_notification_preferences_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Advertiser Update Notification Preferences */
+        patch: operations["advertiser_update_notification_preferences_api_v1_advertiser_notification_preferences_patch"];
+        trace?: never;
+    };
     "/api/v1/advertiser/organization": {
         parameters: {
             query?: never;
@@ -2261,6 +2279,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current User Notifications */
+        get: operations["current_user_notifications_api_v1_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read All Notifications */
+        post: operations["read_all_notifications_api_v1_notifications_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current User Unread Notification Count */
+        get: operations["current_user_unread_notification_count_api_v1_notifications_unread_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read Notification */
+        post: operations["read_notification_api_v1_notifications__notification_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/webhooks/payments": {
         parameters: {
             query?: never;
@@ -2620,6 +2706,21 @@ export interface components {
             /** Start At */
             start_at: string | null;
             trips: components["schemas"]["TripStatusCounts"];
+        };
+        /** AdvertiserNotificationPreferenceRead */
+        AdvertiserNotificationPreferenceRead: {
+            /**
+             * In App Enabled
+             * @default true
+             */
+            in_app_enabled: boolean;
+            /** Transactional Email Enabled */
+            transactional_email_enabled: boolean;
+        };
+        /** AdvertiserNotificationPreferenceUpdate */
+        AdvertiserNotificationPreferenceUpdate: {
+            /** Transactional Email Enabled */
+            transactional_email_enabled: boolean;
         };
         /** AdvertiserOrganizationContextResponse */
         AdvertiserOrganizationContextResponse: {
@@ -5308,10 +5409,52 @@ export interface components {
          */
         MembershipStatus: "active" | "invited" | "disabled";
         /**
+         * NotificationChannel
+         * @enum {string}
+         */
+        NotificationChannel: "in_app" | "transactional_email";
+        /** NotificationFeedItemRead */
+        NotificationFeedItemRead: {
+            /** Body */
+            body: string;
+            channel: components["schemas"]["NotificationChannel"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Read At */
+            read_at: string | null;
+            /** Title */
+            title: string;
+            type_key: components["schemas"]["NotificationType"];
+        };
+        /** NotificationFeedListRead */
+        NotificationFeedListRead: {
+            /** Items */
+            items: components["schemas"]["NotificationFeedItemRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /**
          * NotificationType
          * @enum {string}
          */
         NotificationType: "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied";
+        /** NotificationUnreadCountRead */
+        NotificationUnreadCountRead: {
+            /** Unread Count */
+            unread_count: number;
+        };
         /** OrganizationMembershipRead */
         OrganizationMembershipRead: {
             role: components["schemas"]["MembershipRole"];
@@ -11043,6 +11186,59 @@ export interface operations {
             };
         };
     };
+    advertiser_notification_preferences_api_v1_advertiser_notification_preferences_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdvertiserNotificationPreferenceRead"];
+                };
+            };
+        };
+    };
+    advertiser_update_notification_preferences_api_v1_advertiser_notification_preferences_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdvertiserNotificationPreferenceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdvertiserNotificationPreferenceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     advertiser_organization_api_v1_advertiser_organization_get: {
         parameters: {
             query?: never;
@@ -11916,6 +12112,109 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    current_user_notifications_api_v1_notifications_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationFeedListRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_all_notifications_api_v1_notifications_read_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationUnreadCountRead"];
+                };
+            };
+        };
+    };
+    current_user_unread_notification_count_api_v1_notifications_unread_count_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationUnreadCountRead"];
+                };
+            };
+        };
+    };
+    read_notification_api_v1_notifications__notification_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notification_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationFeedItemRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

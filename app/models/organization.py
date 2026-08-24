@@ -3,6 +3,7 @@ from enum import StrEnum
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -114,5 +115,40 @@ class OrganizationMembership(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
+        nullable=False,
+    )
+
+
+class AdvertiserOrganizationNotificationPreference(Base):
+    __tablename__ = "advertiser_organization_notification_preferences"
+    __table_args__ = (
+        UniqueConstraint(
+            "advertiser_organization_id",
+            name="uq_advertiser_org_notification_preferences_organization",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        default=uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    advertiser_organization_id: Mapped[UUID] = mapped_column(
+        ForeignKey("advertiser_organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    transactional_email_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        server_default=text("true"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
         nullable=False,
     )

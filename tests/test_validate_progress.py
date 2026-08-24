@@ -98,7 +98,8 @@ def _paused_at_final_gate() -> str:
             number = int(match.group(1))
             replacement = "DONE" if number < 8 else "BLOCKED" if number == 8 else "QUEUED"
             line = re.sub(
-                r"\| (?:\*\*NEXT\*\*|\*\*IN PROGRESS\*\*|\*\*REVIEW\*\*|QUEUED|DONE|BLOCKED) \|",
+                r"\| (?:\*\*NEXT\*\*|\*\*IN PROGRESS\*\*|\*\*REVIEW\*\*|"
+                r"\*\*BLOCKED\*\*|QUEUED|DONE|BLOCKED) \|",
                 f"| {replacement} |",
                 line,
                 count=1,
@@ -315,7 +316,7 @@ def test_all_done_terminal_complete_state_is_valid() -> None:
     text = _progress()
     text = re.sub(
         r"^(\| \d+ \| \*\*PKG-\d{2} —.*?\| )"
-        r"(?:\*\*NEXT\*\*|\*\*IN PROGRESS\*\*|\*\*REVIEW\*\*|QUEUED|BLOCKED)( \|)",
+        r"(?:\*\*NEXT\*\*|\*\*IN PROGRESS\*\*|\*\*REVIEW\*\*|\*\*BLOCKED\*\*|QUEUED|BLOCKED)( \|)",
         r"\1DONE\2",
         text,
         flags=re.MULTILINE,
@@ -552,8 +553,8 @@ def test_rejects_done_item_in_queued_package() -> None:
 
 def test_rejects_nonqueued_package_after_active_frontier() -> None:
     text = _progress().replace(
-        "| 5 | **PKG-05 — privacy, measurement and retargeting** | QUEUED |",
-        "| 5 | **PKG-05 — privacy, measurement and retargeting** | DONE |",
+        "| 6 | **PKG-06 — matching and driver onboarding** | QUEUED |",
+        "| 6 | **PKG-06 — matching and driver onboarding** | DONE |",
     )
     errors = _errors(text)
     assert any(

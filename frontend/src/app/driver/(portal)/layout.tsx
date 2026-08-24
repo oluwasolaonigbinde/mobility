@@ -3,6 +3,7 @@ import { TabBar } from "@/components/driver/tab-bar";
 import { ServiceWorkerRegister } from "@/components/driver/sw-register";
 import { signOutAction } from "@/lib/auth/actions";
 import { requireRole } from "@/lib/auth/current-user";
+import { NotificationCenter } from "@/components/notifications/notification-center";
 
 export default async function DriverPortalLayout({ children }: { children: ReactNode }) {
   const me = await requireRole("driver");
@@ -19,6 +20,7 @@ export default async function DriverPortalLayout({ children }: { children: React
           <span className="micro text-faint align-middle">DRIVER</span>
         </p>
         <div className="flex items-center gap-3">
+          <NotificationCenter />
           <span className="micro text-muted flex items-center gap-1.5">
             <span
               className="animate-pulse-dot bg-green inline-block size-1.5 rounded-full"
