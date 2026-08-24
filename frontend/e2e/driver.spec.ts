@@ -17,7 +17,7 @@ async function loginAsDriver(page: Page) {
 test("driver home shows earnings and the active campaign with app chrome", async ({ page }) => {
   await loginAsDriver(page);
   await expect(page.getByText("Vantage. DRIVER")).toBeVisible();
-  await expect(page.getByText("Available earnings")).toBeVisible();
+  await expect(page.getByText("Batch-payable earnings", { exact: true })).toBeVisible();
   // Active-campaign card names the campaign; recent activity lists whichever
   // campaigns the enriched seed wrote most recently — so assert presence, not
   // an exact count tied to seed ordering.
@@ -57,7 +57,7 @@ test("earnings tab shows totals and a trip-traceable ledger", async ({ page }) =
     .click();
   await page.waitForURL("**/driver/earnings");
   await expect(page.getByText("Pending", { exact: true })).toBeVisible();
-  await expect(page.getByText("Lifetime", { exact: true })).toBeVisible();
+  await expect(page.getByText("Lifetime earned", { exact: true })).toBeVisible();
   await expect(page.getByText("Payout journey")).toBeVisible();
   // Ledger rows are links into the per-trip earnings breakdown.
   await expect(page.locator('a[href*="/driver/earnings/trips/"]').first()).toBeVisible();
