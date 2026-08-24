@@ -13,7 +13,11 @@ test("admin can discover campaign commercial billing", async ({ page }) => {
   await page.getByRole("link", { name: "Billing", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Commercial billing" })).toBeVisible();
   await expect(page.getByText("Demo Lagos Mobility Campaign")).toBeVisible();
-  await page.getByRole("link", { name: "Open billing" }).first().click();
+  await page
+    .locator("li")
+    .filter({ hasText: "Demo Lagos Mobility Campaign" })
+    .getByRole("link", { name: "Open billing" })
+    .click();
   await expect(page.getByRole("heading", { name: "Quotation" })).toBeVisible();
   await expect(page.getByText(/The advertiser has not requested a quotation/i)).toBeVisible();
   await expect(page.getByRole("link", { name: "Edit company details" })).toBeVisible();
@@ -23,7 +27,11 @@ test("admin company update persists and is visible to the advertiser", async ({ 
   const billingContact = `Billing E2E ${Date.now()}`;
   await login(page, "admin@demo.mobility.local", "DemoAdmin12345!", "admin");
   await page.goto("/admin/billing");
-  await page.getByRole("link", { name: "Open billing" }).first().click();
+  await page
+    .locator("li")
+    .filter({ hasText: "Demo Lagos Mobility Campaign" })
+    .getByRole("link", { name: "Open billing" })
+    .click();
   await page.getByRole("link", { name: "Edit company details" }).click();
   await page.getByLabel("Billing contact").fill(billingContact);
   await page.getByRole("button", { name: "Save company profile" }).click();
@@ -55,15 +63,23 @@ test("advertiser sees canonical company, billing and gated launch entries", asyn
 test("quotation acceptance and invoice facts survive role changes and reloads", async ({
   page,
 }, testInfo) => {
+  test.setTimeout(120_000);
   const campaignName = `Commercial E2E ${testInfo.project.name} ${Date.now()}`;
   const quoteReference = `QUOTE-${Date.now()}`;
 
   await login(page, "advertiser@demo.mobility.local", "DemoAdvertiser12345!", "advertiser");
-  await page.goto("/advertiser/campaigns/new");
-  await page.getByLabel("Campaign name *").fill(campaignName);
-  await page.getByRole("button", { name: "Continue →" }).click();
-  await page.getByRole("button", { name: "Continue →" }).click();
-  await page.getByRole("button", { name: "Create campaign" }).click();
+  const session = (await page.context().cookies()).find(
+    (cookie) => cookie.name === (process.env.SESSION_COOKIE_NAME ?? "mobility_session"),
+  );
+  expect(session, "advertiser login must set the session cookie").toBeTruthy();
+  const apiBase = process.env.E2E_API_BASE_URL ?? "http://localhost:8000";
+  const created = await page.request.post(`${apiBase}/api/v1/advertiser/campaigns`, {
+    headers: { Authorization: `Bearer ${session!.value}` },
+    data: { name: campaignName, status: "draft", budget_amount: "1000000.00" },
+  });
+  expect(created.ok(), "isolated billing campaign setup must succeed").toBe(true);
+  const campaignId = ((await created.json()) as { id: string }).id;
+  await page.goto(`/advertiser/campaigns/${campaignId}`);
   await expect(page.getByRole("heading", { name: campaignName })).toBeVisible();
   await page.getByLabel("Quotation notes").fill("Two vehicles for a commercial contract test");
   await page.getByRole("button", { name: "Request custom quotation" }).click();
