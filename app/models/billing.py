@@ -87,6 +87,10 @@ class SettlementDisposition(StrEnum):
     CREDIT_SETTLEMENT_RECORDED = "credit_settlement_recorded"
 
 
+class BudgetPolicyEvaluationState(StrEnum):
+    BLOCKED_EXTERNAL_POLICY = "blocked_external_policy"
+
+
 class CommercialQuoteRequest(Base):
     __tablename__ = "commercial_quote_requests"
     __table_args__ = (
@@ -916,3 +920,50 @@ class RefundSettlement(Base):
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class BudgetPolicyEvaluation(Base):
+    __tablename__ = "budget_policy_evaluations"
+    __table_args__ = (
+        CheckConstraint(
+            "state = 'blocked_external_policy'",
+            name="ck_budget_policy_evaluations_state",
+        ),
+        CheckConstraint(
+            "external_gate = 'EXT-BUDGET-POLICY'",
+            name="ck_budget_policy_evaluations_external_gate",
+        ),
+        CheckConstraint(
+            "(campaign_budget_amount IS NOT NULL OR campaign_daily_budget_amount IS NOT NULL) "
+            "AND (campaign_budget_amount IS NULL OR campaign_budget_amount >= 0) "
+            "AND (campaign_daily_budget_amount IS NULL OR campaign_daily_budget_amount >= 0)",
+            name="ck_budget_policy_evaluations_campaign_budget",
+        ),
+        CheckConstraint("length(currency) = 3", name="ck_budget_policy_evaluations_currency"),
+        CheckConstraint(
+            "policy_version IS NULL AND billing_spend_amount IS NULL "
+            "AND alert_threshold_amount IS NULL AND pause_threshold_amount IS NULL "
+            "AND pause_applied = false",
+            name="ck_budget_policy_evaluations_blocked_fields",
+        ),
+        UniqueConstraint("campaign_id", "evaluation_key", name="uq_budget_policy_evaluation_key"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    campaign_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    evaluation_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    state: Mapped[str] = mapped_column(String(40), nullable=False)
+    external_gate: Mapped[str] = mapped_column(String(64), nullable=False)
+    campaign_budget_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    campaign_daily_budget_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    policy_version: Mapped[str | None] = mapped_column(String(128))
+    billing_spend_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    alert_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    pause_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    pause_applied: Mapped[bool] = mapped_column(nullable=False, default=False)
+    evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

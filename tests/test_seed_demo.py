@@ -89,7 +89,7 @@ def test_no_seed_or_demo_migrations() -> None:
 
 
 def test_demo_seed_requires_the_code_migration_head() -> None:
-    assert required_migration_head() == "0039_billing_corrections_refunds"
+    assert required_migration_head() == "0040_budget_policy_blocked_state"
 
 
 def test_readme_documents_demo_seed_workflow() -> None:

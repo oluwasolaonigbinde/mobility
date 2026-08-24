@@ -9,6 +9,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
+from app.adapters.budget import (
+    BudgetPolicyAdapter,
+    BudgetPolicyContext,
+    DisabledBudgetPolicyAdapter,
+)
+from app.adapters.budget.provider import (
+    BLOCKED_BUDGET_POLICY_STATE,
+    MISSING_BUDGET_POLICY_GATE,
+)
 from app.adapters.payments import (
     PaymentGatewayAdapter,
     PaymentGatewayUnavailableError,
@@ -19,6 +28,8 @@ from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.billing import (
     AcceptanceMethod,
+    BudgetPolicyEvaluation,
+    BudgetPolicyEvaluationState,
     CampaignFinancialAuthorization,
     CampaignLiabilityReservation,
     CommercialQuotationRevision,
@@ -2722,3 +2733,127 @@ async def record_credit_contract_settlement(
     session.add(settlement)
     await session.flush()
     return settlement
+
+
+def _blocked_budget_evaluation_key(campaign: Campaign) -> str:
+    source = "|".join(
+        (
+            str(campaign.id),
+            str(campaign.budget_amount),
+            str(campaign.daily_budget_amount),
+            campaign.currency,
+            MISSING_BUDGET_POLICY_GATE,
+        )
+    )
+    return hashlib.sha256(source.encode()).hexdigest()
+
+
+async def evaluate_campaign_budget_policy(
+    session: AsyncSession,
+    *,
+    campaign_id: UUID,
+    adapter: BudgetPolicyAdapter | None = None,
+) -> BudgetPolicyEvaluation:
+    """Persist fail-closed visibility without inventing the missing spend policy."""
+    await acquire_campaign_terms_lock(session, campaign_id)
+    campaign = await _campaign(session, campaign_id, lock=True)
+    if campaign.budget_amount is None and campaign.daily_budget_amount is None:
+        raise AppError(
+            "CAMPAIGN_BUDGET_REQUIRED",
+            "Budget policy evaluation requires a configured total or daily campaign budget",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    evaluation_key = _blocked_budget_evaluation_key(campaign)
+    existing = await session.scalar(
+        select(BudgetPolicyEvaluation).where(
+            BudgetPolicyEvaluation.campaign_id == campaign.id,
+            BudgetPolicyEvaluation.evaluation_key == evaluation_key,
+        )
+    )
+    if existing is not None:
+        return existing
+
+    selected_adapter = adapter or DisabledBudgetPolicyAdapter()
+    decision = await selected_adapter.evaluate(
+        BudgetPolicyContext(
+            campaign_id=campaign.id,
+            currency=campaign.currency,
+            configured_budget_amount=(
+                Decimal(campaign.budget_amount) if campaign.budget_amount is not None else None
+            ),
+            configured_daily_budget_amount=(
+                Decimal(campaign.daily_budget_amount)
+                if campaign.daily_budget_amount is not None
+                else None
+            ),
+            billing_spend_amount=None,
+        )
+    )
+    if (
+        decision.state != BLOCKED_BUDGET_POLICY_STATE
+        or decision.external_gate != MISSING_BUDGET_POLICY_GATE
+        or decision.policy_version is not None
+        or decision.alert_threshold_amount is not None
+        or decision.pause_threshold_amount is not None
+        or decision.should_pause
+    ):
+        raise AppError(
+            "BUDGET_POLICY_NOT_AUTHORIZED",
+            "EXT-BUDGET-POLICY is missing; threshold and pause decisions are disabled",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    now = await database_clock(session)
+    evaluation = BudgetPolicyEvaluation(
+        campaign_id=campaign.id,
+        evaluation_key=evaluation_key,
+        state=BudgetPolicyEvaluationState.BLOCKED_EXTERNAL_POLICY,
+        external_gate=MISSING_BUDGET_POLICY_GATE,
+        campaign_budget_amount=campaign.budget_amount,
+        campaign_daily_budget_amount=campaign.daily_budget_amount,
+        currency=campaign.currency,
+        policy_version=None,
+        billing_spend_amount=None,
+        alert_threshold_amount=None,
+        pause_threshold_amount=None,
+        pause_applied=False,
+        evaluated_at=now,
+    )
+    session.add(evaluation)
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=None,
+        action="billing.budget_policy.blocked",
+        entity_type="budget_policy_evaluation",
+        entity_id=str(evaluation.id),
+        metadata={
+            "campaign_id": str(campaign.id),
+            "external_gate": MISSING_BUDGET_POLICY_GATE,
+            "campaign_status_unchanged": campaign.status,
+        },
+    )
+    return evaluation
+
+
+async def sweep_blocked_budget_policy_evaluations(
+    session: AsyncSession,
+    *,
+    adapter: BudgetPolicyAdapter | None = None,
+) -> list[BudgetPolicyEvaluation]:
+    campaign_ids = list(
+        await session.scalars(
+            select(Campaign.id)
+            .where(
+                (Campaign.budget_amount.is_not(None)) | (Campaign.daily_budget_amount.is_not(None))
+            )
+            .order_by(Campaign.id)
+        )
+    )
+    return [
+        await evaluate_campaign_budget_policy(
+            session,
+            campaign_id=campaign_id,
+            adapter=adapter,
+        )
+        for campaign_id in campaign_ids
+    ]
