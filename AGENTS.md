@@ -103,7 +103,19 @@ from repository state, not rely on remembering a previous conversation.
    relevant review factors. Expand its checklist into internal checkpoints.
 2. Inspect the current implementation and write a bounded package plan. Obtain
    one independent plan review before implementation, plus specialist review at
-   money/privacy/security/native/deployment checkpoints.
+   money/privacy/security/native/deployment checkpoints. From PKG-04 onward, as
+   part of that one plan review, build and challenge the applicable
+   adversarial-boundary matrix described in `docs/pro-review-register.md`.
+   Select only boundaries touched by the planned change; cite the controlling
+   architecture/decision/package
+   contract for every invariant, and record concrete ordering, retry,
+   conservation, identity, migration or producer/consumer failure cases plus
+   their focused regression evidence. A considered category may be marked
+   `not applicable` with a short reason. The matrix lives in the bounded
+   package plan or its review record; it is not another queue, checklist status,
+   approval cycle or source of product decisions. Resolve material gaps before
+   coding, or record the authoritative blocker/deferral without expanding the
+   active package.
 3. Implement only that plan, using staged commits/checkpoints where useful.
    Amend architecture or decisions in the same
    change when implementation requires a genuine design or product decision.
@@ -112,6 +124,12 @@ from repository state, not rely on remembering a previous conversation.
    and any change to those baselines reruns R14-B's native contract fixtures.
 5. Obtain one consolidated independent package post-build review. Specialist
    checkpoint reviews supplement it; they do not create owner-facing cycles.
+   Treat this review as confirmation of the pre-implementation boundary work.
+   If it discovers a genuinely new high-confidence composition pattern, the
+   controller must first reproduce and reconcile it against the active base and
+   authoritative contract, then add only the reusable pattern to
+   `docs/pro-review-register.md` for later packages. Do not reopen unrelated
+   completed packages merely to apply a newly recorded pattern.
 6. In the same change set, update `docs/progress.md`, architecture tags and
    changelog where applicable, decision rows where applicable, and operational
    docs. Record concrete evidence, not a completion claim.
