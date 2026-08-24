@@ -62,9 +62,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 **Control package:** `PKG-05` — Package 4 is blocked only on its recorded
 storage/scanner/KMS/email/phone inputs and transitive checklist dependencies;
 Package 5 is the next dependency-safe package frontier.
-**Current checkpoint:** `PKG-05 / W3-00D` — W3-00A is focused-verified and
-complete. The measurement methodology contract is the next dependency-safe
-checkpoint under the reviewed Package 5 plan.
+**Current checkpoint:** `PKG-05 / W3-00C` — W3-00A and W3-00D are focused-
+verified and complete. The central disclosure-control service is the next
+dependency-safe checkpoint under the reviewed Package 5 plan.
 
 ## Executable package queue
 
@@ -503,6 +503,24 @@ checkpoint under the reviewed Package 5 plan.
   analytics/fraud/payout plus grandfathered-heatmap boundary is test-pinned and
   rechecked PASS. No real person, GPS, KYC, provider, notification, legal
   approval, DSR execution, advertiser output or live-use evidence is claimed.
+- **W3-00D checkpoint evidence (24 Aug 2026):** the machine-checkable
+  measurement contract now maps every current advertiser-visible measure to
+  its class, unit, provenance, vintage, missing-data rule and uncertainty
+  treatment. The internal `estimated_impressions` field is presented as
+  **Modelled potential contacts**; the default title is **Campaign Performance
+  Analysis**; attribution/view/reach/exposure overclaims were removed from the
+  current advertiser copy. Target-area coverage has a visibly synthetic-only
+  candidate numerator/denominator and keeps its live qualifying rule MISSING.
+  Production ROI defaults omitted and requires all advertiser conversion/
+  revenue, approved method, attribution, cost, currency, time, exclusion,
+  correction, provenance and immutable-manifest prerequisites. Its sole
+  enabled golden is `test_only` synthetic evidence, not approval;
+  `EXT-REPORT-METHOD` remains MISSING. Focused evidence: four methodology/
+  copy tests, frontend typecheck, 210 frontend tests, formatting and diff
+  checks pass. Independent measurement/legal/commercial review found one
+  unlabeled confidence diagnostic; all visible instances now disclaim
+  statistical-interval meaning and the reviewer rechecked PASS. No report was
+  issued and no live or client methodology fact is claimed.
 - **Closure:** privacy/measurement review proves suppression, reproducibility,
   provenance and safe claims before any advertiser live-use gate opens.
 
@@ -630,7 +648,7 @@ verification, gates or required specialist review.
 | 44 | **W3-00A — privacy operating model** | PKG-05 | DONE | DPIA/ROPA/roles/lawful bases/consent/vendor/breach responsibilities are explicit. | none |
 | 45 | **W3-00B — end-to-end retention and DSR** | PKG-05 | TODO | Synthetic DSR spans DB, objects, devices, logs, backups and processors. | leaf: W3-00A, W2-02E |
 | 46 | **W3-00C — central disclosure-control service** | PKG-05 | TODO | Every advertiser heatmap/report/audience query enforces one privacy floor. | leaf: W3-00A |
-| 47 | **W3-00D — measurement methodology contract** | PKG-05 | TODO | Product defines modelled potential contacts, provenance, uncertainty and claims; Campaign Performance Analysis is standard and true ROI requires approved inputs and method. | none |
+| 47 | **W3-00D — measurement methodology contract** | PKG-05 | DONE | Product defines modelled potential contacts, provenance, uncertainty and claims; Campaign Performance Analysis is standard and true ROI requires approved inputs and method. | none |
 | 48 | **W3-00E — immutable measurement runs and proof manifests** | PKG-05 | TODO | Issued results bind frozen inputs to creative/evidence/assignment/period and reproduce whether the ROI gate passed or failed closed. | leaf: W3-00D, W2-03C, W2-03D |
 | 49 | **W3-01A — typed retargeting source registry** | PKG-05 | TODO | Advertiser/admin manage allowlisted aggregate planning sources without identifiers. | leaf: W3-00A, W3-00D |
 | 50 | **W3-01B — source/campaign/zone linkage** | PKG-05 | TODO | Owned sources link safely to campaigns, zones and time windows. | leaf: W3-01A |
@@ -1649,9 +1667,9 @@ Several useful interfaces predate the independent-review gates and may be used
 only with demo/synthetic data until their owning checklist items land:
 
 - Existing advertiser heatmaps/reports are **not live-authorized** under
-  G-advertiser; W3-00C/D/E and W4-02A/B must add disclosure control,
-  reproducible measurement runs and safe claims. Current “attribution” or
-  “GPS-verified exposure” copy is not an approved live claim.
+  G-advertiser. W3-00D has supplied the safe build-time labels and methodology
+  contract; W3-00C/E and W4-02A/B must still add disclosure control,
+  reproducible measurement runs and governed issuance.
 - PWA trip tracking and its durable queue are a tested protocol baseline, but
   **real-driver tracking is blocked** by G-GPS until RM2/RM9/RM15/RM18 close;
   W4-01 turns this surface into the D18 production screen-on pilot client.

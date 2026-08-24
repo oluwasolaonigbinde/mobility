@@ -25,13 +25,14 @@ export default async function AdvertiserOverviewPage() {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
         <Stat
-          label="Est. impressions"
+          label="Modelled potential contacts"
           value={formatCount(summary?.impressions.estimated_impressions)}
           hint={`${formatCount(summary?.impressions.estimated_trip_count)} estimated trips`}
         />
         <Stat
-          label="Avg confidence"
+          label="Model confidence diagnostic"
           value={formatScore(summary?.impressions.average_confidence_score)}
+          hint="Formula diagnostic, not a statistical confidence interval"
           tone="cyan"
         />
         <Stat

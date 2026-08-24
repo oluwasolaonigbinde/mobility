@@ -117,7 +117,7 @@ export default async function CampaignDetailPage({
               href={`/advertiser/campaigns/${campaign.id}/map`}
               className="micro border-edge bg-raised hover:border-edge-strong rounded-lg border px-3.5 py-2.5 transition-colors"
             >
-              🔥 Exposure map
+              🔥 Coverage map
             </Link>
             <Link
               href={`/advertiser/campaigns/${campaign.id}/zones`}
@@ -132,13 +132,14 @@ export default async function CampaignDetailPage({
       {/* Performance */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
         <Stat
-          label="Est. impressions"
+          label="Modelled potential contacts"
           value={formatCount(summary?.impressions.estimated_impressions)}
           hint={`${formatCount(summary?.impressions.estimated_trip_count)} estimated trips`}
         />
         <Stat
-          label="Avg confidence"
+          label="Model confidence diagnostic"
           value={formatScore(summary?.impressions.average_confidence_score)}
+          hint="Formula diagnostic, not a statistical confidence interval"
           tone="cyan"
         />
         <Stat

@@ -1,0 +1,32 @@
+{
+  "fixture": "roi_enabled_synthetic",
+  "test_only": true,
+  "title": "Campaign Performance Analysis",
+  "mode": "roi_enabled_synthetic",
+  "method": {
+    "approval": "SYNTHETIC_TEST_ONLY",
+    "revision": "synthetic-roi-v1",
+    "formula": "(attributed_revenue - approved_cost_basis) / approved_cost_basis",
+    "attribution_rule": "synthetic conversions bearing the fixture campaign token",
+    "attribution_window": "2026-01-01/2026-01-31",
+    "cost_basis": "synthetic settled campaign cost in NGN",
+    "exclusions": "refunded and duplicate synthetic conversions",
+    "corrections": "append a replacement fixture run; never mutate an issued fixture",
+    "late_data": "exclude after cutoff and reissue if the synthetic policy permits"
+  },
+  "inputs": {
+    "conversion_count": 20,
+    "attributed_revenue": "150000.00",
+    "approved_cost_basis": "100000.00",
+    "currency": "NGN",
+    "provenance": "deterministic repository fixture",
+    "cutoff": "2026-01-31T23:59:59Z"
+  },
+  "roi": {
+    "ratio": "0.5000",
+    "percent": "50.00"
+  },
+  "roi_gate": {
+    "decision": "INCLUDE_FOR_SYNTHETIC_TEST_ONLY"
+  }
+}

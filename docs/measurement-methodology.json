@@ -1,0 +1,108 @@
+{
+  "schema_version": "measurement-methodology-v1",
+  "status": "DRAFT_BUILD_ONLY",
+  "external_gate": "EXT-REPORT-METHOD",
+  "live_report_issuance_authorized": false,
+  "standard_deliverable": "Campaign Performance Analysis",
+  "method_revision": "measurement-contract-v1",
+  "metric_hierarchy": [
+    {
+      "id": "verified_vehicle_movement",
+      "display_label": "Verified vehicle movement",
+      "class": "measured_operational_fact",
+      "unit": "metres, seconds, trips, or GPS updates",
+      "source": "sealed trip sessions and accepted location evidence",
+      "vintage": "event time plus analytics formula version",
+      "uncertainty": "Completeness and quality scores describe collection quality; movement does not prove that a person saw an advert.",
+      "missing_data": "Mark the period incomplete and omit affected totals; never zero-fill missing route evidence."
+    },
+    {
+      "id": "modelled_potential_contacts",
+      "display_label": "Modelled potential contacts",
+      "storage_field": "estimated_impressions",
+      "class": "modelled_measure",
+      "unit": "modelled potential contacts",
+      "source": "impressions_v1 output over verified vehicle movement and the applicable traffic profile",
+      "vintage": "traffic-profile effective interval, source fingerprint, formula version, and calculation time",
+      "uncertainty": "Show the model label, formula version, source vintage, and confidence diagnostic. Confidence is not a statistical confidence interval.",
+      "missing_data": "Omit the measure when movement, traffic profile, formula version, or provenance is absent; never infer unique people.",
+      "never_equivalent_to": [
+        "verified views",
+        "unique reach",
+        "audience",
+        "attribution",
+        "people exposed"
+      ]
+    },
+    {
+      "id": "target_area_coverage",
+      "display_label": "Target-area coverage",
+      "class": "modelled_derived_measure",
+      "unit": "percent of approved target-zone area",
+      "source": "approved target-zone geometry and disclosure-cleared fixed coverage cells with qualifying movement evidence",
+      "vintage": "zone revision, fixed-cell scheme, measurement period, disclosure decision revision, and calculation time",
+      "uncertainty": "Coverage describes geographic evidence, not people, views, reach, or causal effect. The approved live label and qualifying-evidence threshold are MISSING.",
+      "missing_data": "Omit the percentage if zone geometry, qualifying evidence, disclosure clearance, or a complete measurement period is absent.",
+      "candidate_formula": {
+        "status": "SYNTHETIC_VALIDATION_ONLY",
+        "numerator": "union area of disclosure-cleared fixed cells intersecting the approved target zone and containing qualifying movement evidence",
+        "denominator": "area of the immutable approved target-zone geometry for the measurement period",
+        "calculation": "100 * numerator_area / denominator_area",
+        "target": "at least 60 percent",
+        "live_method_approval": "MISSING"
+      }
+    },
+    {
+      "id": "driver_campaign_cost",
+      "display_label": "Driver campaign cost",
+      "class": "measured_financial_fact",
+      "unit": "currency amount",
+      "source": "immutable payout calculation and ledger facts",
+      "vintage": "payout rule/formula revision, currency, calculation revision, and report cutoff",
+      "uncertainty": "A campaign cost is not revenue, conversion value, incremental value, or ROI.",
+      "missing_data": "Omit unavailable currency totals; never combine currencies or substitute zero."
+    },
+    {
+      "id": "true_roi",
+      "display_label": "Return on investment",
+      "class": "conditional_financial_measure",
+      "unit": "ratio or percent defined by the approved method",
+      "source": "advertiser conversion and revenue inputs plus approved cost and attribution inputs",
+      "vintage": "approved method revision and immutable input-manifest cutoff",
+      "uncertainty": "Display the method's limitations, exclusions, corrections, attribution window, and provenance beside the result.",
+      "missing_data": "Omit the entire ROI section and claim when any gate prerequisite is absent."
+    }
+  ],
+  "roi_gate": {
+    "default": "OMIT",
+    "production_enabled": false,
+    "all_required": [
+      "advertiser conversion input with schema, provenance, currency where applicable, and reporting cutoff",
+      "advertiser revenue input with schema, provenance, currency, and reporting cutoff",
+      "approved non-placeholder methodology reference",
+      "reproducible attribution rule and attribution window",
+      "defined positive cost basis and currency-consistency rule",
+      "defined exclusions, corrections, late-data handling, and reissue rule",
+      "immutable input manifest and method revision"
+    ],
+    "on_missing_or_invalid": "Omit the ROI section, metric, comparison, and claim; do not estimate, imply, rename, or substitute performance measures.",
+    "synthetic_fixture_exception": "A fixture may exercise the gate only when test_only=true and every input and method is labelled synthetic; it grants no live approval."
+  },
+  "correction_and_reissue": {
+    "issued_history": "immutable",
+    "rule": "A changed input, source vintage, formula, approval, or correction creates a new run and reissue lineage; never mutate an issued result in place.",
+    "implementation_owner": "W3-00E",
+    "current_slice_limit": "This contract defines the rule but does not issue or persist measurement runs."
+  },
+  "prohibited_claims": [
+    "attribution report",
+    "verified exposure",
+    "verified views",
+    "unique reach",
+    "audience reached",
+    "people exposed",
+    "guaranteed exposure",
+    "causal lift",
+    "ROI when the ROI gate does not pass"
+  ]
+}

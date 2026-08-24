@@ -44,19 +44,19 @@ export default async function CampaignMapPage({
         <Link href={`/advertiser/campaigns/${campaign.id}`} className="hover:text-muted">
           {campaign.name}
         </Link>{" "}
-        / <span className="text-muted">Exposure map</span>
+        / <span className="text-muted">Campaign coverage map</span>
       </nav>
 
-      <p className="micro text-amber mb-2">Exposure heatmap</p>
+      <p className="micro text-amber mb-2">Campaign coverage map</p>
       <div className="mb-2 flex flex-wrap items-center gap-3">
         <h1 className="font-display text-3xl font-semibold tracking-tight">
-          Where your campaign was seen
+          Where campaign vehicles moved
         </h1>
         <StatusChip tone={statusTone[campaign.status]}>{statusLabel[campaign.status]}</StatusChip>
       </div>
       <p className="text-muted mb-6 max-w-2xl text-sm">
-        Compare estimated impressions and verified vehicle movement across the areas your campaign
-        reached.
+        Compare modelled potential contacts and verified vehicle movement across the areas your
+        campaign operated in.
       </p>
 
       <HeatmapView campaignId={campaign.id} zones={zones?.items ?? []} />
