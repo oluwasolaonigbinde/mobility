@@ -7,6 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.core.errors import AppError
+from app.models.fraud_assessment import (
+    SUCCESSFUL_FRAUD_ASSESSMENT_STATUSES,
+    FraudAssessment,
+    FraudAssessmentStatus,
+)
 from app.models.impression import ImpressionEstimate
 from app.models.payout import (
     AssignmentRuleBinding,
@@ -17,28 +22,41 @@ from app.models.payout import (
     PayoutCalculation,
     PayoutCalculationStatus,
 )
+from app.models.route_replay import (
+    SUCCESSFUL_ROUTE_REPLAY_STATUSES,
+    RouteReplaySignature,
+    RouteReplayStatus,
+)
 from app.models.trip import TripSealReason, TripSession, TripSessionStatus
 from app.models.trip_analytics import (
     FraudFlag,
     FraudFlagSeverity,
-    FraudFlagStatus,
     TripAnalytics,
 )
 from app.services.audit import create_audit_event
 from app.services.campaign_assignments import as_aware_utc
+from app.services.fraud_assessments import assess_trip_fraud, load_current_detection_flags
+from app.services.fraud_holds import (
+    fraud_hold_active_clause,
+    fraud_hold_counts,
+    lock_fraud_hold_scope,
+    lock_fraud_reconciliation_gate,
+)
 from app.services.impressions import (
     estimate_trip_impressions,
     is_current_estimate_for_analytics,
-)
-from app.services.impressions import (
-    open_fraud_counts as impression_open_fraud_counts,
 )
 from app.services.payouts import (
     PAYOUT_V2,
     calculate_trip_payout,
     repair_missing_ledger_entries,
 )
-from app.services.trip_analytics import recompute_trip_analytics
+from app.services.route_replay import detect_route_replay, route_replay_config_fingerprint
+from app.services.trip_analytics import (
+    is_valid_ping,
+    load_ordered_pings,
+    recompute_trip_analytics,
+)
 from app.services.trips import trip_not_found, try_seal_trip
 
 WORKER_METADATA = {"source": "worker"}
@@ -129,6 +147,15 @@ async def process_ended_trip(
             stages=[StageResult(stage="trip", outcome="blocked", reason="trip_not_sealed")],
         )
 
+    # Detection may reconcile flags on other trips. Acquire its exclusive gate
+    # before this trip's scope so no worker attempts a shared-to-exclusive
+    # advisory-lock upgrade while another trip processor does the same.
+    await lock_fraud_reconciliation_gate(session, exclusive=True)
+    await lock_fraud_hold_scope(
+        session,
+        trip.id,
+        reconciliation_gate_held=True,
+    )
     processing_now = now or await database_now(session)
     stages: list[StageResult] = []
     repaired_ledgers = await repair_missing_ledger_entries(
@@ -192,6 +219,11 @@ async def process_ended_trip(
                         row_ids={"trip_analytics_id": str(analytics.id)},
                     ),
                     StageResult(
+                        stage="fraud_assessment",
+                        outcome="skipped",
+                        reason="analytics_formula_version_mismatch",
+                    ),
+                    StageResult(
                         stage="impressions",
                         outcome="skipped",
                         reason="analytics_formula_version_mismatch",
@@ -239,8 +271,59 @@ async def process_ended_trip(
             )
         )
 
-    # Reuse only an estimate derived from the current analytics and open-fraud state.
-    current_fraud_counts = await impression_open_fraud_counts(session, trip.id)
+    ordered_pings = await load_ordered_pings(session, trip.id)
+    replay_result = await detect_route_replay(
+        session,
+        trip=trip,
+        analytics=analytics,
+        ordered_pings=[ping for ping in ordered_pings if is_valid_ping(ping)],
+        settings=settings,
+        now=processing_now,
+    )
+    replay_signature = replay_result.signature
+    assessment_flags = await load_current_detection_flags(session, analytics=analytics)
+    replay_facts = {
+        "detector_version": replay_signature.detector_version,
+        "detector_config_fingerprint": replay_signature.detector_config_fingerprint,
+        "status": replay_signature.status,
+        "source_analytics_fingerprint": replay_signature.source_analytics_fingerprint,
+        "payload_fingerprint": replay_signature.payload_fingerprint,
+        "normalized_fingerprint": replay_signature.normalized_fingerprint,
+        "point_count": replay_signature.point_count,
+    }
+    assessment_result = await assess_trip_fraud(
+        session,
+        analytics=analytics,
+        flags=assessment_flags,
+        settings=settings,
+        now=processing_now,
+        upstream_facts={"route_replay": replay_facts},
+        upstream_error_code=(
+            replay_signature.error_code
+            if replay_signature.status == RouteReplayStatus.ERROR.value
+            else None
+        ),
+    )
+    assessment = assessment_result.assessment
+    assessment_failed = assessment.status == FraudAssessmentStatus.ERROR.value
+    stages.append(
+        StageResult(
+            stage="fraud_assessment",
+            outcome=(
+                "blocked"
+                if assessment_failed
+                else "created"
+                if assessment_result.changed
+                else "reused"
+            ),
+            reason=assessment.error_code if assessment_failed else None,
+            row_ids={"fraud_assessment_id": str(assessment.id)},
+        )
+    )
+
+    # Reuse only an estimate derived from the current analytics and the one
+    # authoritative hold-active fraud state.
+    current_fraud_counts = await fraud_hold_counts(session, trip.id)
     estimate_result = await session.execute(
         select(ImpressionEstimate)
         .where(
@@ -316,7 +399,7 @@ async def process_ended_trip(
         stages.append(
             StageResult(stage="payout", outcome="blocked", reason="no_active_payout_rule")
         )
-        if repaired_ledger_ids:
+        if repaired_ledger_ids or assessment_result.changed:
             await _audit_processing_writes(
                 session,
                 trip=trip,
@@ -338,7 +421,7 @@ async def process_ended_trip(
         )
     )
 
-    if calculation_created or ledger_created or repaired_ledger_ids:
+    if calculation_created or ledger_created or repaired_ledger_ids or assessment_result.changed:
         created_ledger_ids = list(repaired_ledger_ids)
         if ledger_created and ledger is not None and ledger.id not in created_ledger_ids:
             created_ledger_ids.append(ledger.id)
@@ -350,7 +433,11 @@ async def process_ended_trip(
             repaired_ledger_ids=repaired_ledger_ids,
         )
 
-    return TripProcessingResult(trip_id=trip.id, overall="completed", stages=stages)
+    return TripProcessingResult(
+        trip_id=trip.id,
+        overall="partial" if assessment_failed else "completed",
+        stages=stages,
+    )
 
 
 async def find_unprocessed_trip_page(
@@ -365,7 +452,7 @@ async def find_unprocessed_trip_page(
             select(func.count(FraudFlag.id))
             .where(
                 FraudFlag.trip_session_id == TripSession.id,
-                FraudFlag.status == FraudFlagStatus.OPEN.value,
+                fraud_hold_active_clause(FraudFlag.status),
                 FraudFlag.severity == severity.value,
             )
             .correlate(TripSession)
@@ -386,14 +473,83 @@ async def find_unprocessed_trip_page(
         )
         .exists()
     )
+    analytics_output_fingerprint = TripAnalytics.analytics_metadata[
+        "output_fingerprint"
+    ].as_string()
+    replay_source_fingerprint = RouteReplaySignature.source_analytics_fingerprint
+    replay_config_fingerprint = route_replay_config_fingerprint(settings)
+    current_replay_signature_exists = (
+        select(RouteReplaySignature.id)
+        .join(TripAnalytics, TripAnalytics.id == RouteReplaySignature.trip_analytics_id)
+        .where(
+            RouteReplaySignature.trip_session_id == TripSession.id,
+            RouteReplaySignature.detector_version == settings.route_replay_detector_version,
+            RouteReplaySignature.detector_config_fingerprint == replay_config_fingerprint,
+            RouteReplaySignature.status.in_(SUCCESSFUL_ROUTE_REPLAY_STATUSES),
+            TripAnalytics.formula_version == settings.route_analytics_formula_version,
+            or_(
+                and_(
+                    analytics_output_fingerprint.is_not(None),
+                    replay_source_fingerprint == analytics_output_fingerprint,
+                ),
+                and_(
+                    analytics_output_fingerprint.is_(None),
+                    RouteReplaySignature.computed_at >= TripAnalytics.computed_at,
+                ),
+            ),
+        )
+        .exists()
+    )
+    assessment_source_fingerprint = FraudAssessment.source_analytics_fingerprint
+    current_flag_count = (
+        select(func.count(FraudFlag.id))
+        .where(
+            FraudFlag.trip_analytics_id == TripAnalytics.id,
+            FraudFlag.detected_at == TripAnalytics.computed_at,
+        )
+        .correlate(FraudAssessment, TripAnalytics)
+        .scalar_subquery()
+    )
+    current_flags_updated_through = (
+        select(func.max(FraudFlag.updated_at))
+        .where(
+            FraudFlag.trip_analytics_id == TripAnalytics.id,
+            FraudFlag.detected_at == TripAnalytics.computed_at,
+        )
+        .correlate(FraudAssessment, TripAnalytics)
+        .scalar_subquery()
+    )
+    current_assessment_exists = (
+        select(FraudAssessment.id)
+        .join(TripAnalytics, TripAnalytics.id == FraudAssessment.trip_analytics_id)
+        .where(
+            FraudAssessment.trip_session_id == TripSession.id,
+            current_replay_signature_exists,
+            FraudAssessment.formula_version == settings.fraud_assessment_formula_version,
+            FraudAssessment.status.in_(SUCCESSFUL_FRAUD_ASSESSMENT_STATUSES),
+            TripAnalytics.formula_version == settings.route_analytics_formula_version,
+            FraudAssessment.flags_count == current_flag_count,
+            FraudAssessment.flags_updated_through.is_not_distinct_from(
+                current_flags_updated_through
+            ),
+            or_(
+                and_(
+                    analytics_output_fingerprint.is_not(None),
+                    assessment_source_fingerprint == analytics_output_fingerprint,
+                ),
+                and_(
+                    analytics_output_fingerprint.is_(None),
+                    FraudAssessment.assessed_at >= TripAnalytics.computed_at,
+                ),
+            ),
+        )
+        .exists()
+    )
     source_formula = ImpressionEstimate.estimate_metadata[
         "source_analytics_formula_version"
     ].as_string()
     source_analytics_fingerprint = ImpressionEstimate.estimate_metadata[
         "source_analytics_fingerprint"
-    ].as_string()
-    analytics_output_fingerprint = TripAnalytics.analytics_metadata[
-        "output_fingerprint"
     ].as_string()
     estimate_low_count = ImpressionEstimate.estimate_metadata["fraud_flag_counts"][
         FraudFlagSeverity.LOW.value
@@ -588,6 +744,7 @@ async def find_unprocessed_trip_page(
         TripSession.ended_at.is_not(None),
         or_(
             ~analytics_exists,
+            and_(current_analytics_exists, ~current_assessment_exists),
             and_(current_analytics_exists, ~current_estimate_exists),
             and_(
                 current_analytics_exists,

@@ -103,7 +103,7 @@ export default async function DriverHomePage() {
 
       {/* Earnings snapshot */}
       <Panel className="p-5">
-        <p className="micro text-muted">Available earnings</p>
+        <p className="micro text-muted">Batch-payable earnings</p>
         {totals.length === 0 ? (
           <>
             <p className="font-display mt-1 text-3xl font-semibold">₦0</p>
@@ -115,10 +115,11 @@ export default async function DriverHomePage() {
           totals.map((t) => (
             <div key={t.currency}>
               <p className="font-display text-green mt-1 text-3xl font-semibold">
-                {formatMoney(t.available_amount, t.currency)}
+                {formatMoney(t.batch_payable_amount, t.currency)}
               </p>
               <p className="text-muted mt-1 text-xs">
                 {formatMoney(t.pending_amount, t.currency)} pending ·{" "}
+                {formatMoney(t.carry_forward_debt_amount, t.currency)} carried debt ·{" "}
                 {formatMoney(t.lifetime_earned_amount, t.currency)} lifetime
               </p>
             </div>
@@ -184,7 +185,9 @@ export default async function DriverHomePage() {
                   <p className="font-mono text-sm">{formatMoney(entry.amount, entry.currency)}</p>
                   <p
                     className={`micro mt-0.5 ${
-                      entry.status === "available" ? "text-green" : "text-amber"
+                      entry.status === "available" || entry.status === "paid"
+                        ? "text-green"
+                        : "text-amber"
                     }`}
                   >
                     {entry.status}

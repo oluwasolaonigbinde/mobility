@@ -32,6 +32,7 @@ from app.models.campaign import CampaignStatus
 from app.models.payout import CampaignPayoutRuleRevision
 from app.models.user import UserRole
 from app.schemas.payouts import CampaignPayoutRuleRevisionCreate
+from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 from app.services.payouts import create_payout_rule_revision
 
 PASSWORD = "long-secure-password"
@@ -409,7 +410,7 @@ def test_service_rejects_retro_insertion_and_wrong_rule_models(
     assert [r.revision_number for r in fetch_revisions(postgis_db_sessionmaker, campaign.id)] == [1]
 
 
-def test_concurrent_supersede_has_exactly_one_winner(postgis_db_sessionmaker) -> None:
+def test_concurrent_supersedes_serialize_in_revision_order(postgis_db_sessionmaker) -> None:
     admin = create_test_user(postgis_db_sessionmaker, email="rev-race-admin@example.com")
     advertiser = create_test_user(
         postgis_db_sessionmaker, email="rev-race-adv@example.com", role=UserRole.ADVERTISER
@@ -434,9 +435,19 @@ def test_concurrent_supersede_has_exactly_one_winner(postgis_db_sessionmaker) ->
         effective_from=datetime.now(UTC) + timedelta(hours=1),
     )
 
-    async def attempt(offset_hours: int, rate: str):
+    first_has_lock = asyncio.Event()
+
+    async def attempt(offset_hours: int, rate: str, *, first: bool = False):
         async with postgis_db_sessionmaker() as session:
             try:
+                if first:
+                    # Hold the shared lock explicitly so the second task is
+                    # known to queue behind this publication. The service's
+                    # own acquisition is transaction-reentrant on Postgres.
+                    await acquire_campaign_terms_lock(session, campaign.id)
+                    first_has_lock.set()
+                else:
+                    await first_has_lock.wait()
                 revision, _ = await create_payout_rule_revision(
                     session,
                     campaign_id=campaign.id,
@@ -455,20 +466,19 @@ def test_concurrent_supersede_has_exactly_one_winner(postgis_db_sessionmaker) ->
                 return exc
 
     async def race():
-        return await asyncio.gather(attempt(2, "1300.00"), attempt(3, "1400.00"))
+        return await asyncio.gather(
+            attempt(2, "1300.00", first=True),
+            attempt(3, "1400.00"),
+        )
 
     outcomes = asyncio.run(race())
-    winners = [o for o in outcomes if isinstance(o, int)]
-    losers = [o for o in outcomes if isinstance(o, AppError)]
-    assert len(winners) == 1, outcomes
-    assert winners == [2]
-    assert len(losers) == 1
-    # The loser gets the stable FND-07-style 409 envelope, never a 500.
-    assert losers[0].code == "PAYOUT_RULE_REVISION_CONFLICT"
-    assert losers[0].status_code == http_status.HTTP_409_CONFLICT
+    # The campaign authority lock turns the former unique-index race into two
+    # complete serial publications. Neither writer observes a torn/latest
+    # value; revision numbers remain gap-free in actual lock-acquisition order.
+    assert sorted(outcomes) == [2, 3]
     assert [
         r.revision_number for r in fetch_revisions(postgis_db_sessionmaker, campaign.id)
-    ] == [1, 2]
+    ] == [1, 2, 3]
 
 
 # --- Money-neutrality (A4) ---------------------------------------------------

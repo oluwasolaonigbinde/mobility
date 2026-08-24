@@ -24,6 +24,7 @@ from test_trip_processing import (
 from app.core.config import get_settings
 from app.core.trip_enqueue import RedisTripProcessingEnqueuer
 from app.jobs import data_lifecycle as data_lifecycle_jobs
+from app.jobs import earnings_release as earnings_release_jobs
 from app.jobs import trip_processing as jobs
 from app.jobs.worker import WorkerSettings, sweep_cron_minutes
 from app.services.trip_processing import DueTrip, process_ended_trip
@@ -50,7 +51,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert registered.keep_result_s == 0
     assert registered.coroutine is jobs.process_trip
 
-    assert len(WorkerSettings.cron_jobs) == 5
+    assert len(WorkerSettings.cron_jobs) == 6
     cron_job = WorkerSettings.cron_jobs[0]
     assert isinstance(cron_job, CronJob)
     assert cron_job.coroutine is jobs.process_unprocessed_trips
@@ -65,8 +66,16 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert seal_cron.unique is True
     assert seal_cron.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
+    release_cron = WorkerSettings.cron_jobs[2]
+    assert isinstance(release_cron, CronJob)
+    assert release_cron.coroutine is earnings_release_jobs.sweep_earnings_release_reviews
+    assert release_cron.unique is True
+    assert release_cron.minute == sweep_cron_minutes(
+        get_settings().worker_sweep_interval_minutes
+    )
+
     lifecycle_crons = {
-        cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[2:]
+        cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[3:]
     }
     assert set(lifecycle_crons) == {
         data_lifecycle_jobs.premake_ping_partitions,

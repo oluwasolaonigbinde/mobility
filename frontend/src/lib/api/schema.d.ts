@@ -247,6 +247,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/fraud-disputes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Get Fraud Disputes */
+        get: operations["admin_get_fraud_disputes_api_v1_admin_fraud_disputes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/fraud-disputes/{dispute_id}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Reply To Fraud Dispute */
+        post: operations["admin_reply_to_fraud_dispute_api_v1_admin_fraud_disputes__dispute_id__reply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/fraud-flags": {
         parameters: {
             query?: never;
@@ -258,6 +292,40 @@ export interface paths {
         get: operations["admin_list_fraud_flags_api_v1_admin_fraud_flags_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/fraud-flags/{flag_id}/review/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acknowledge a fraud flag for staff review */
+        post: operations["admin_acknowledge_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_acknowledge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/fraud-flags/{flag_id}/review/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve a fraud flag review */
+        post: operations["admin_resolve_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_resolve_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -295,6 +363,262 @@ export interface paths {
         get: operations["admin_list_impression_estimates_api_v1_admin_impression_estimates_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payees/bank-account-versions/{version_id}/reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Reveal Bank Account */
+        post: operations["admin_reveal_bank_account_api_v1_admin_payees_bank_account_versions__version_id__reveal_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payees/bank-accounts/{bank_account_id}/rewrap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Rewrap Bank Account */
+        post: operations["admin_rewrap_bank_account_api_v1_admin_payees_bank_accounts__bank_account_id__rewrap_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payees/drivers/{driver_profile_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Create Driver Payee */
+        post: operations["admin_create_driver_payee_api_v1_admin_payees_drivers__driver_profile_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payees/{payee_id}/bank-account-versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Add Verified Bank Account */
+        post: operations["admin_add_verified_bank_account_api_v1_admin_payees__payee_id__bank_account_versions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin List Payout Batches */
+        get: operations["admin_list_payout_batches_api_v1_admin_payout_batches_get"];
+        put?: never;
+        /** Admin Create Payout Batch */
+        post: operations["admin_create_payout_batch_api_v1_admin_payout_batches_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Get Driver Money Balance */
+        get: operations["admin_get_driver_money_balance_api_v1_admin_payout_batches_debt_balances__driver_profile_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}/allocate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Allocate Driver Debt */
+        post: operations["admin_allocate_driver_debt_api_v1_admin_payout_batches_debt_balances__driver_profile_id__allocate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-batches/lines/{line_id}/poll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Poll Payout Line */
+        post: operations["admin_poll_payout_line_api_v1_admin_payout_batches_lines__line_id__poll_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-batches/provider-webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Provider Payout Webhook */
+        post: operations["provider_payout_webhook_api_v1_admin_payout_batches_provider_webhook_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-batches/{batch_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Get Payout Batch */
+        get: operations["admin_get_payout_batch_api_v1_admin_payout_batches__batch_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-batches/{batch_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Approve Payout Batch */
+        post: operations["admin_approve_payout_batch_api_v1_admin_payout_batches__batch_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-batches/{batch_id}/reserve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Reserve Payout Batch */
+        post: operations["admin_reserve_payout_batch_api_v1_admin_payout_batches__batch_id__reserve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-batches/{batch_id}/retry-failed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Retry Failed Payout Lines */
+        post: operations["admin_retry_failed_payout_lines_api_v1_admin_payout_batches__batch_id__retry_failed_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-batches/{batch_id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Submit Payout Batch */
+        post: operations["admin_submit_payout_batch_api_v1_admin_payout_batches__batch_id__submit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-batches/{batch_id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Void Payout Batch */
+        post: operations["admin_void_payout_batch_api_v1_admin_payout_batches__batch_id__void_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1160,6 +1484,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/driver/fraud-holds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Driver Get Fraud Holds */
+        get: operations["driver_get_fraud_holds_api_v1_driver_fraud_holds_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/fraud-holds/{flag_id}/disputes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Driver Create Fraud Dispute */
+        post: operations["driver_create_fraud_dispute_api_v1_driver_fraud_holds__flag_id__disputes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/driver/profile": {
         parameters: {
             query?: never;
@@ -1540,6 +1898,132 @@ export interface components {
              */
             user_id: string;
         };
+        /** AdminFraudDisputeList */
+        AdminFraudDisputeList: {
+            /** Items */
+            items: components["schemas"]["AdminFraudDisputeRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** AdminFraudDisputeRead */
+        AdminFraudDisputeRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /**
+             * Fraud Flag Id
+             * Format: uuid
+             */
+            fraud_flag_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Message */
+            message: string;
+            /** Replied At */
+            replied_at: string | null;
+            /** Replied By User Id */
+            replied_by_user_id: string | null;
+            /** Reply */
+            reply: string | null;
+            status: components["schemas"]["FraudDisputeStatus"];
+            /**
+             * Submitted By User Id
+             * Format: uuid
+             */
+            submitted_by_user_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** AdminFraudFlagRead */
+        AdminFraudFlagRead: {
+            /**
+             * Assignment Id
+             * Format: uuid
+             */
+            assignment_id: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string;
+            /**
+             * Detected At
+             * Format: date-time
+             */
+            detected_at: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /** Escalated At */
+            escalated_at: string | null;
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            };
+            flag_type: components["schemas"]["FraudFlagType"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            money_effect: components["schemas"]["FraudFlagMoneyEffectRead"];
+            /** Resolution Note */
+            resolution_note: string | null;
+            /**
+             * Review Due At
+             * Format: date-time
+             */
+            review_due_at: string;
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /** Reviewed By User Id */
+            reviewed_by_user_id: string | null;
+            severity: components["schemas"]["FraudFlagSeverity"];
+            status: components["schemas"]["FraudFlagStatus"];
+            /** Trip Analytics Id */
+            trip_analytics_id: string | null;
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Vehicle Id
+             * Format: uuid
+             */
+            vehicle_id: string;
+        };
         /** AdminOrganizationCreateResponse */
         AdminOrganizationCreateResponse: {
             organization: components["schemas"]["AdvertiserOrganizationRead"];
@@ -1782,6 +2266,54 @@ export interface components {
             metadata: {
                 [key: string]: unknown;
             };
+        };
+        /** BankAccountRevealRead */
+        BankAccountRevealRead: {
+            /** Account Name */
+            account_name: string;
+            /** Account Number */
+            account_number: string;
+            /** Bank Code */
+            bank_code: string;
+        };
+        /** BankAccountRevealRequest */
+        BankAccountRevealRequest: {
+            /** Purpose */
+            purpose: string;
+        };
+        /** BankAccountVersionRead */
+        BankAccountVersionRead: {
+            /**
+             * Bank Account Id
+             * Format: uuid
+             */
+            bank_account_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Encryption Algorithm */
+            encryption_algorithm: string;
+            /** Encryption Key Version */
+            encryption_key_version: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Payee Version Id
+             * Format: uuid
+             */
+            payee_version_id: string;
+            /**
+             * Verified At
+             * Format: date-time
+             */
+            verified_at: string;
+            /** Version */
+            version: number;
         };
         /** CalculatePayoutRequest */
         CalculatePayoutRequest: {
@@ -2762,14 +3294,24 @@ export interface components {
         DriverEarningsCurrencySummary: {
             /** Available Amount */
             available_amount: string | null;
+            /** Batch Payable Amount */
+            batch_payable_amount: string | null;
+            /** Carry Forward Debt Amount */
+            carry_forward_debt_amount: string | null;
+            /** Cash Paid Amount */
+            cash_paid_amount: string | null;
             /** Currency */
             currency: string;
             /** Ledger Entry Count */
             ledger_entry_count: number;
             /** Lifetime Earned Amount */
             lifetime_earned_amount: string | null;
+            /** Paid Amount */
+            paid_amount: string | null;
             /** Pending Amount */
             pending_amount: string | null;
+            /** Released Available Amount */
+            released_available_amount: string | null;
             /** Voided Amount */
             voided_amount: string | null;
         };
@@ -2782,6 +3324,125 @@ export interface components {
             driver_profile_id: string;
             /** Totals By Currency */
             totals_by_currency: components["schemas"]["DriverEarningsCurrencySummary"][];
+        };
+        /** DriverFraudDisputeRead */
+        DriverFraudDisputeRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Message */
+            message: string;
+            /** Replied At */
+            replied_at: string | null;
+            /** Reply */
+            reply: string | null;
+            status: components["schemas"]["FraudDisputeStatus"];
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+        };
+        /** DriverFraudHoldList */
+        DriverFraudHoldList: {
+            /** Items */
+            items: components["schemas"]["DriverFraudHoldRead"][];
+        };
+        /** DriverFraudHoldRead */
+        DriverFraudHoldRead: {
+            /**
+             * Detected At
+             * Format: date-time
+             */
+            detected_at: string;
+            dispute: components["schemas"]["DriverFraudDisputeRead"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Notices */
+            notices?: components["schemas"]["DriverNotificationRead"][];
+            /**
+             * Public Status
+             * @enum {string}
+             */
+            public_status: "assessment_pending" | "under_review" | "issue_confirmed" | "review_cleared";
+            reason: components["schemas"]["DriverFraudHoldReason"];
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
+        };
+        /** DriverFraudHoldReason */
+        DriverFraudHoldReason: {
+            /** Body */
+            body: string;
+            /** Code */
+            code: string;
+            /** Title */
+            title: string;
+            /**
+             * Version
+             * @default v1
+             * @constant
+             */
+            version: "v1";
+        };
+        /** DriverMoneyBalanceRead */
+        DriverMoneyBalanceRead: {
+            /** Batch Payable */
+            batch_payable: string;
+            /** Carry Forward Debt */
+            carry_forward_debt: string;
+            /** Cash Paid */
+            cash_paid: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /** Earned Net */
+            earned_net: string;
+            /** Released Available */
+            released_available: string;
+        };
+        /** DriverNotificationRead */
+        DriverNotificationRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Fraud Dispute Id */
+            fraud_dispute_id?: string | null;
+            /**
+             * Fraud Flag Id
+             * Format: uuid
+             */
+            fraud_flag_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Outcome */
+            outcome?: string | null;
+            /** Template Version */
+            template_version: string;
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
+            type_key: components["schemas"]["NotificationType"];
         };
         /**
          * DriverOnboardingStatus
@@ -3012,12 +3673,12 @@ export interface components {
          * EarningsLedgerEntryStatus
          * @enum {string}
          */
-        EarningsLedgerEntryStatus: "pending" | "available" | "voided" | "reversed";
+        EarningsLedgerEntryStatus: "pending" | "available" | "voided" | "reversed" | "paid";
         /**
          * EarningsLedgerEntryType
          * @enum {string}
          */
-        EarningsLedgerEntryType: "trip_payout" | "adjustment" | "reversal";
+        EarningsLedgerEntryType: "trip_payout" | "adjustment" | "reversal" | "debt_remainder";
         /** EstimateImpressionsRequest */
         EstimateImpressionsRequest: {
             /** Metadata */
@@ -3027,6 +3688,21 @@ export interface components {
             /** Traffic Density Profile Id */
             traffic_density_profile_id?: string | null;
         };
+        /** FraudDisputeCreate */
+        FraudDisputeCreate: {
+            /** Message */
+            message: string;
+        };
+        /** FraudDisputeReply */
+        FraudDisputeReply: {
+            /** Reply */
+            reply: string;
+        };
+        /**
+         * FraudDisputeStatus
+         * @enum {string}
+         */
+        FraudDisputeStatus: "open" | "replied";
         /** FraudFlagCounts */
         FraudFlagCounts: {
             /**
@@ -3034,6 +3710,11 @@ export interface components {
              * @default 0
              */
             acknowledged: number;
+            /**
+             * Confirmed
+             * @default 0
+             */
+            confirmed: number;
             /**
              * Dismissed
              * @default 0
@@ -3063,13 +3744,24 @@ export interface components {
         /** FraudFlagListResponse */
         FraudFlagListResponse: {
             /** Items */
-            items: components["schemas"]["FraudFlagRead"][];
+            items: components["schemas"]["AdminFraudFlagRead"][];
             /** Limit */
             limit: number;
             /** Offset */
             offset: number;
             /** Total */
             total: number;
+        };
+        /** FraudFlagMoneyEffectRead */
+        FraudFlagMoneyEffectRead: {
+            /** Available Net */
+            available_net: string;
+            /** Currency */
+            currency: string | null;
+            /** Reversal Entry Id */
+            reversal_entry_id: string | null;
+            /** Reversal Recommended */
+            reversal_recommended: boolean;
         };
         /** FraudFlagRead */
         FraudFlagRead: {
@@ -3110,6 +3802,12 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Resolution Note */
+            resolution_note: string | null;
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /** Reviewed By User Id */
+            reviewed_by_user_id: string | null;
             severity: components["schemas"]["FraudFlagSeverity"];
             status: components["schemas"]["FraudFlagStatus"];
             /** Trip Analytics Id */
@@ -3130,6 +3828,16 @@ export interface components {
              */
             vehicle_id: string;
         };
+        /** FraudFlagResolveRequest */
+        FraudFlagResolveRequest: {
+            /** Note */
+            note: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "confirmed" | "dismissed";
+        };
         /**
          * FraudFlagSeverity
          * @enum {string}
@@ -3139,12 +3847,12 @@ export interface components {
          * FraudFlagStatus
          * @enum {string}
          */
-        FraudFlagStatus: "open" | "acknowledged" | "dismissed";
+        FraudFlagStatus: "open" | "acknowledged" | "confirmed" | "dismissed";
         /**
          * FraudFlagType
          * @enum {string}
          */
-        FraudFlagType: "insufficient_pings" | "impossible_speed" | "poor_accuracy" | "stationary_trip" | "excessive_ping_gap" | "future_timestamp" | "route_looping" | "exclusion_zone_presence";
+        FraudFlagType: "insufficient_pings" | "impossible_speed" | "poor_accuracy" | "stationary_trip" | "excessive_ping_gap" | "future_timestamp" | "route_looping" | "route_replay" | "exclusion_zone_presence";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -3490,6 +4198,11 @@ export interface components {
          * @enum {string}
          */
         MembershipStatus: "active" | "invited" | "disabled";
+        /**
+         * NotificationType
+         * @enum {string}
+         */
+        NotificationType: "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied";
         /** OrganizationMembershipRead */
         OrganizationMembershipRead: {
             role: components["schemas"]["MembershipRole"];
@@ -3500,6 +4213,154 @@ export interface components {
          * @enum {string}
          */
         OrganizationStatus: "active" | "suspended" | "disabled";
+        /** PayeeRead */
+        PayeeRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            payee_type: components["schemas"]["PayeeType"];
+            /**
+             * Subject Id
+             * Format: uuid
+             */
+            subject_id: string;
+            /**
+             * Tenant Id
+             * Format: uuid
+             */
+            tenant_id: string;
+            /** Version */
+            version: number;
+            /**
+             * Version Id
+             * Format: uuid
+             */
+            version_id: string;
+        };
+        /**
+         * PayeeType
+         * @enum {string}
+         */
+        PayeeType: "driver";
+        /** PayoutBatchCreate */
+        PayoutBatchCreate: {
+            /** Currency */
+            currency: string;
+        };
+        /** PayoutBatchLineRead */
+        PayoutBatchLineRead: {
+            /** Amount */
+            amount: string;
+            /**
+             * Bank Account Version Id
+             * Format: uuid
+             */
+            bank_account_version_id: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Idempotency Key */
+            idempotency_key: string;
+            /** Instruction */
+            instruction: {
+                [key: string]: string;
+            };
+            /** Instruction Fingerprint */
+            instruction_fingerprint: string;
+            /** Last Provider Evidence At */
+            last_provider_evidence_at: string | null;
+            /**
+             * Ledger Entry Id
+             * Format: uuid
+             */
+            ledger_entry_id: string;
+            /**
+             * Payee Version Id
+             * Format: uuid
+             */
+            payee_version_id: string;
+            /** Provider Transfer Reference */
+            provider_transfer_reference: string | null;
+            /** Reconciled At */
+            reconciled_at: string | null;
+            /** Reconciled By User Id */
+            reconciled_by_user_id: string | null;
+            /** Reservation Active */
+            reservation_active: boolean;
+            status: components["schemas"]["PayoutBatchLineStatus"];
+        };
+        /**
+         * PayoutBatchLineStatus
+         * @enum {string}
+         */
+        PayoutBatchLineStatus: "reserved" | "submitted" | "succeeded" | "failed" | "void";
+        /** PayoutBatchListRead */
+        PayoutBatchListRead: {
+            /** Items */
+            items: components["schemas"]["PayoutBatchRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** PayoutBatchRead */
+        PayoutBatchRead: {
+            /** Approved At */
+            approved_at: string | null;
+            /** Approved By User Id */
+            approved_by_user_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Created By User Id
+             * Format: uuid
+             */
+            created_by_user_id: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Instruction Set Fingerprint */
+            instruction_set_fingerprint: string | null;
+            /** Lines */
+            lines?: components["schemas"]["PayoutBatchLineRead"][];
+            /** Provider Submission Reference */
+            provider_submission_reference: string | null;
+            status: components["schemas"]["PayoutBatchStatus"];
+            /** Submitted At */
+            submitted_at: string | null;
+            /** Total Amount */
+            total_amount: string;
+        };
+        /** PayoutBatchReserve */
+        PayoutBatchReserve: {
+            /** Ledger Entry Ids */
+            ledger_entry_ids: string[];
+        };
+        /**
+         * PayoutBatchStatus
+         * @enum {string}
+         */
+        PayoutBatchStatus: "draft" | "reserved" | "submitted" | "reconciled" | "completed" | "failed" | "void";
         /** PayoutCalculationListResponse */
         PayoutCalculationListResponse: {
             /** Items */
@@ -3728,6 +4589,19 @@ export interface components {
             };
             /** Projection Fingerprint */
             projection_fingerprint: string;
+        };
+        /** PayoutDebtAllocate */
+        PayoutDebtAllocate: {
+            /** Currency */
+            currency: string;
+        };
+        /** PayoutDebtAllocationRead */
+        PayoutDebtAllocationRead: {
+            balance: components["schemas"]["DriverMoneyBalanceRead"];
+            /** Remainder Entry Ids */
+            remainder_entry_ids: string[];
+            /** Settlement Ids */
+            settlement_ids: string[];
         };
         /** PayoutLedgerEntrySummary */
         PayoutLedgerEntrySummary: {
@@ -4550,6 +5424,29 @@ export interface components {
             /** Year */
             year?: number | null;
         };
+        /** VerifiedBankAccountCreate */
+        VerifiedBankAccountCreate: {
+            /**
+             * Account Name
+             * Format: password
+             */
+            account_name: string;
+            /**
+             * Account Number
+             * Format: password
+             */
+            account_number: string;
+            /**
+             * Bank Code
+             * Format: password
+             */
+            bank_code: string;
+            /**
+             * Verification Reference
+             * Format: password
+             */
+            verification_reference: string;
+        };
         /** ZoneTypeCounts */
         ZoneTypeCounts: {
             /**
@@ -5292,6 +6189,75 @@ export interface operations {
             };
         };
     };
+    admin_get_fraud_disputes_api_v1_admin_fraud_disputes_get: {
+        parameters: {
+            query?: {
+                flag_id?: string[] | null;
+                status?: components["schemas"]["FraudDisputeStatus"] | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFraudDisputeList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_reply_to_fraud_dispute_api_v1_admin_fraud_disputes__dispute_id__reply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dispute_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FraudDisputeReply"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFraudDisputeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_list_fraud_flags_api_v1_admin_fraud_flags_get: {
         parameters: {
             query?: {
@@ -5317,6 +6283,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FraudFlagListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_acknowledge_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_acknowledge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                flag_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFraudFlagRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_resolve_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_resolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                flag_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FraudFlagResolveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFraudFlagRead"];
                 };
             };
             /** @description Validation Error */
@@ -5396,6 +6428,523 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImpressionEstimateListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_reveal_bank_account_api_v1_admin_payees_bank_account_versions__version_id__reveal_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BankAccountRevealRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankAccountRevealRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_rewrap_bank_account_api_v1_admin_payees_bank_accounts__bank_account_id__rewrap_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bank_account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankAccountVersionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_create_driver_payee_api_v1_admin_payees_drivers__driver_profile_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                driver_profile_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayeeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_add_verified_bank_account_api_v1_admin_payees__payee_id__bank_account_versions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifiedBankAccountCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankAccountVersionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_list_payout_batches_api_v1_admin_payout_batches_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutBatchListRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_create_payout_batch_api_v1_admin_payout_batches_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutBatchCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutBatchRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_get_driver_money_balance_api_v1_admin_payout_batches_debt_balances__driver_profile_id__get: {
+        parameters: {
+            query: {
+                currency: string;
+            };
+            header?: never;
+            path: {
+                driver_profile_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverMoneyBalanceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_allocate_driver_debt_api_v1_admin_payout_batches_debt_balances__driver_profile_id__allocate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                driver_profile_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutDebtAllocate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutDebtAllocationRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_poll_payout_line_api_v1_admin_payout_batches_lines__line_id__poll_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                line_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutBatchRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    provider_payout_webhook_api_v1_admin_payout_batches_provider_webhook_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Provider-Signature": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutBatchRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_get_payout_batch_api_v1_admin_payout_batches__batch_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutBatchRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_approve_payout_batch_api_v1_admin_payout_batches__batch_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutBatchRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_reserve_payout_batch_api_v1_admin_payout_batches__batch_id__reserve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutBatchReserve"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutBatchRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_retry_failed_payout_lines_api_v1_admin_payout_batches__batch_id__retry_failed_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutBatchRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_submit_payout_batch_api_v1_admin_payout_batches__batch_id__submit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutBatchRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_void_payout_batch_api_v1_admin_payout_batches__batch_id__void_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutBatchRead"];
                 };
             };
             /** @description Validation Error */
@@ -7393,6 +8942,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriverEarningsSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    driver_get_fraud_holds_api_v1_driver_fraud_holds_get: {
+        parameters: {
+            query?: {
+                trip_session_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverFraudHoldList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    driver_create_fraud_dispute_api_v1_driver_fraud_holds__flag_id__disputes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                flag_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FraudDisputeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverFraudDisputeRead"];
                 };
             };
             /** @description Validation Error */

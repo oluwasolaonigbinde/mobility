@@ -82,6 +82,14 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute(
+        sa.text(
+            "DO $$ BEGIN "
+            "IF EXISTS (SELECT 1 FROM assignment_rule_bindings) THEN "
+            "RAISE EXCEPTION '0021 downgrade blocked: frozen assignment payout bindings exist'; "
+            "END IF; END $$;"
+        )
+    )
     op.drop_column("assignment_rule_bindings", "exclusion_zone_geometry_wkts")
     op.drop_column("assignment_rule_bindings", "exclusion_zone_geometry_hash")
     op.drop_column("assignment_rule_bindings", "exclusion_zone_ids")

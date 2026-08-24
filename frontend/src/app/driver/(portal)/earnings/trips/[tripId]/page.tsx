@@ -8,16 +8,37 @@ import { formatDate, formatDuration, formatMoneyExact } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import type { components } from "@/lib/api/schema";
+import { DisputeForm } from "./dispute-form";
 
 export const metadata: Metadata = { title: "Trip earnings" };
 
 type LedgerStatus = components["schemas"]["EarningsLedgerEntryStatus"];
+type DriverFraudHold = components["schemas"]["DriverFraudHoldRead"];
+type DriverFraudPublicStatus = DriverFraudHold["public_status"];
+type DriverNoticeType = components["schemas"]["NotificationType"];
 
 const statusTone: Record<LedgerStatus, "green" | "amber" | "coral" | "default"> = {
   available: "green",
+  paid: "green",
   pending: "amber",
   voided: "coral",
   reversed: "default",
+};
+
+const holdStatus: Record<
+  DriverFraudPublicStatus,
+  { label: string; tone: "green" | "amber" | "coral" | "default" }
+> = {
+  assessment_pending: { label: "Assessment pending", tone: "amber" },
+  under_review: { label: "Under review", tone: "amber" },
+  issue_confirmed: { label: "Issue confirmed", tone: "coral" },
+  review_cleared: { label: "Review cleared", tone: "green" },
+};
+
+const noticeCopy: Record<DriverNoticeType, string> = {
+  fraud_hold_raised: "This trip was placed under review.",
+  fraud_review_resolved: "Staff completed their review of this trip.",
+  fraud_dispute_replied: "Staff replied to your dispute.",
 };
 
 const EXCLUSION_LABELS: Record<string, string> = {
@@ -48,6 +69,10 @@ export default async function DriverTripEarningsPage({
     });
   const data = breakdown.data;
   if (!data) notFound();
+  const holdsResponse = await api.GET("/api/v1/driver/fraud-holds", {
+    params: { query: { trip_session_id: tripId } },
+  });
+  const holds = holdsResponse.data?.items ?? [];
 
   const isV3 = data.formula_version === "payout_v3";
   const isHourly = data.formula_version === "payout_v2" || isV3;
@@ -96,6 +121,60 @@ export default async function DriverTripEarningsPage({
           </p>
         ) : null}
       </Panel>
+
+      {holds.map((hold) => {
+        const status = holdStatus[hold.public_status];
+        return (
+          <Panel key={hold.id} className="p-5" data-testid={`driver-fraud-hold-${hold.id}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="micro text-faint">Earnings review</p>
+                <h2 className="mt-1 text-lg font-semibold">{hold.reason.title}</h2>
+              </div>
+              <StatusChip tone={status.tone}>{status.label}</StatusChip>
+            </div>
+            <p className="text-muted mt-2 text-sm">{hold.reason.body}</p>
+
+            {hold.notices && hold.notices.length > 0 ? (
+              <div className="border-edge/60 mt-4 border-t pt-3">
+                <h3 className="micro text-faint mb-2">Updates</h3>
+                <ul className="flex flex-col gap-2">
+                  {hold.notices.map((notice) => (
+                    <li key={notice.id} className="text-sm">
+                      <p>{noticeCopy[notice.type_key]}</p>
+                      <p className="micro text-faint mt-0.5">{formatDate(notice.created_at)}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {hold.dispute ? (
+              <div className="border-edge/60 mt-4 border-t pt-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="micro text-muted">Your dispute</h3>
+                  <StatusChip tone={hold.dispute.status === "replied" ? "green" : "amber"}>
+                    {hold.dispute.status === "replied" ? "Staff replied" : "Awaiting reply"}
+                  </StatusChip>
+                </div>
+                <p className="mt-2 text-sm whitespace-pre-wrap">{hold.dispute.message}</p>
+                {hold.dispute.reply ? (
+                  <div className="bg-raised mt-3 rounded-lg p-3">
+                    <p className="micro text-faint">Staff reply</p>
+                    <p className="mt-1 text-sm whitespace-pre-wrap">{hold.dispute.reply}</p>
+                  </div>
+                ) : null}
+              </div>
+            ) : hold.public_status === "review_cleared" ? (
+              <p className="micro text-green mt-4">
+                This review is closed and no dispute is needed.
+              </p>
+            ) : (
+              <DisputeForm flagId={hold.id} tripId={tripId} />
+            )}
+          </Panel>
+        );
+      })}
 
       {isHourly ? (
         <>

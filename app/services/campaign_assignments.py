@@ -37,6 +37,10 @@ from app.services.payout_eligibility import (
     D22_ROLLING_WINDOW_SECONDS,
     STATIONARY_POLICY_V1,
 )
+from app.services.payout_rule_serialization import (
+    acquire_campaign_terms_lock,
+    database_clock,
+)
 
 # FND-07 (RM7): a lost race on either assignment-exclusivity index returns the
 # same stable 409 code as the pre-check that guards it, never a 500.
@@ -510,6 +514,7 @@ async def create_rule_binding_for_accept(
     *,
     assignment: CampaignAssignment,
     now: datetime,
+    campaign: Campaign,
     settings: Settings,
 ) -> AssignmentRuleBinding | None:
     """Freeze the campaign's effective revision onto the accepted assignment
@@ -564,6 +569,9 @@ async def create_rule_binding_for_accept(
         exclusion_zone_geometry_hash=frozen_zone_geometry_hash(exclusion_zone_rows),
         exclusion_zone_geometry_wkts=[str(row[1]) for row in exclusion_zone_rows],
         stationary_policy_marker=STATIONARY_POLICY_V1,
+        campaign_window_start_at=campaign.start_at,
+        campaign_window_end_at=campaign.end_at,
+        campaign_window_frozen=True,
         bound_at=now,
     )
     session.add(binding)
@@ -579,8 +587,19 @@ async def accept_driver_assignment(
     payload: CampaignAssignmentTransition,
     settings: Settings,
 ) -> CampaignAssignment:
-    now = utc_now()
     driver_profile = await get_driver_profile_for_user(session, user_id)
+    campaign_id = await session.scalar(
+        select(CampaignAssignment.campaign_id).where(
+            CampaignAssignment.id == assignment_id,
+            CampaignAssignment.driver_profile_id == driver_profile.id,
+        )
+    )
+    if campaign_id is None:
+        raise assignment_not_found()
+    # One campaign-scoped authority boundary: publication and acceptance
+    # cannot observe different clocks or interleave their revision reads.
+    await acquire_campaign_terms_lock(session, campaign_id)
+    now = await database_clock(session)
     # PR2: lock the assignment row BEFORE the status check so a concurrent
     # accept serializes here — the loser re-reads ACCEPTED and gets the
     # existing deterministic 400, and the binding insert below can never hit
@@ -607,7 +626,13 @@ async def accept_driver_assignment(
     assignment.status = CampaignAssignmentStatus.ACCEPTED.value
     assignment.accepted_at = now
     await session.flush()
-    await create_rule_binding_for_accept(session, assignment=assignment, now=now, settings=settings)
+    await create_rule_binding_for_accept(
+        session,
+        assignment=assignment,
+        now=now,
+        campaign=campaign,
+        settings=settings,
+    )
     await create_activation_event(
         session,
         assignment=assignment,

@@ -5,7 +5,7 @@ backfill writes exactly one payout_v3 genesis revision per campaign from its
 ACTIVE payout_v2 rule — values copied verbatim (money-neutral: v2 pricing
 keeps reading the frozen rule row), effective_from = the rule's created_at,
 the PR9 honesty reason recorded — while v1 rules and inactive v2 rules are
-not backfilled. Downgrade drops the table and the chain re-upgrades green.
+not backfilled. A populated downgrade is covered separately as fail-closed.
 """
 
 import asyncio
@@ -19,7 +19,6 @@ from sqlalchemy.pool import NullPool
 from test_migration_0014_partitioning import (
     configured_postgres_url,
     create_database_from_url,
-    downgrade_to,
     drop_database,
     fetch_all,
     upgrade_to,
@@ -164,24 +163,8 @@ def test_backfill_writes_one_genesis_revision_per_active_v2_rule(monkeypatch) ->
         )
         assert rule_rows == [(Decimal("1200.00"), Decimal("8.00"), "active")]
 
-        # Downgrade drops the table; the chain re-upgrades and re-backfills.
-        downgrade_to(migration_url, REVISION_PRE_REVISIONS, monkeypatch)
-        tables = asyncio.run(
-            fetch_all(
-                migration_url,
-                "SELECT count(*) FROM information_schema.tables"
-                " WHERE table_name = 'campaign_payout_rule_revisions'",
-            )
-        )
-        assert tables == [(0,)]
-        upgrade_to(migration_url, "head", monkeypatch)
-        recount = asyncio.run(
-            fetch_all(
-                migration_url,
-                "SELECT count(*) FROM campaign_payout_rule_revisions",
-            )
-        )
-        assert recount == [(1,)]
+        # Populated revision authority is intentionally irreversible. The
+        # focused downgrade-guard suite verifies that downgrade fails closed.
     finally:
         asyncio.run(drop_database(migration_url))
 

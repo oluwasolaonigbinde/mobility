@@ -87,7 +87,9 @@ export default async function DriverTrackPage() {
                   <p className="font-mono text-sm">{formatMoney(entry.amount, entry.currency)}</p>
                   <p
                     className={`micro mt-0.5 ${
-                      entry.status === "available" ? "text-green" : "text-amber"
+                      entry.status === "available" || entry.status === "paid"
+                        ? "text-green"
+                        : "text-amber"
                     }`}
                   >
                     {entry.status}

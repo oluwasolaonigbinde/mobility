@@ -12,6 +12,7 @@ from app.jobs.data_lifecycle import (
     premake_ping_partitions,
     purge_expired_ping_partitions,
 )
+from app.jobs.earnings_release import sweep_earnings_release_reviews
 from app.jobs.trip_processing import (
     process_trip,
     process_unprocessed_trips,
@@ -74,6 +75,11 @@ class WorkerSettings:
         # processing sweep.
         cron(
             seal_ended_trips_job,
+            minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
+            unique=True,
+        ),
+        cron(
+            sweep_earnings_release_reviews,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
             unique=True,
         ),

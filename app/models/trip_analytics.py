@@ -37,6 +37,7 @@ class FraudFlagType(StrEnum):
     EXCESSIVE_PING_GAP = "excessive_ping_gap"
     FUTURE_TIMESTAMP = "future_timestamp"
     ROUTE_LOOPING = "route_looping"
+    ROUTE_REPLAY = "route_replay"
     EXCLUSION_ZONE_PRESENCE = "exclusion_zone_presence"
 
 
@@ -49,6 +50,7 @@ class FraudFlagSeverity(StrEnum):
 class FraudFlagStatus(StrEnum):
     OPEN = "open"
     ACKNOWLEDGED = "acknowledged"
+    CONFIRMED = "confirmed"
     DISMISSED = "dismissed"
 
 
@@ -224,7 +226,7 @@ class FraudFlag(Base):
         CheckConstraint(
             "flag_type IN ('insufficient_pings', 'impossible_speed', 'poor_accuracy', "
             "'stationary_trip', 'excessive_ping_gap', 'future_timestamp', 'route_looping', "
-            "'exclusion_zone_presence')",
+            "'route_replay', 'exclusion_zone_presence')",
             name="ck_fraud_flags_flag_type",
         ),
         CheckConstraint(
@@ -232,8 +234,20 @@ class FraudFlag(Base):
             name="ck_fraud_flags_severity",
         ),
         CheckConstraint(
-            "status IN ('open', 'acknowledged', 'dismissed')",
+            "status IN ('open', 'acknowledged', 'confirmed', 'dismissed')",
             name="ck_fraud_flags_status",
+        ),
+        CheckConstraint(
+            "(status = 'open' AND reviewed_by_user_id IS NULL "
+            "AND reviewed_at IS NULL AND resolution_note IS NULL) OR "
+            "(status = 'acknowledged' AND reviewed_by_user_id IS NOT NULL "
+            "AND reviewed_at IS NOT NULL "
+            "AND resolution_note IS NULL) OR "
+            "(status IN ('confirmed', 'dismissed') "
+            "AND reviewed_by_user_id IS NOT NULL AND reviewed_at IS NOT NULL "
+            "AND resolution_note IS NOT NULL "
+            "AND length(trim(resolution_note)) BETWEEN 1 AND 2000)",
+            name="ck_fraud_flags_review_evidence",
         ),
         Index("ix_fraud_flags_trip_session_id", "trip_session_id"),
         Index("ix_fraud_flags_trip_analytics_id", "trip_analytics_id"),
@@ -245,12 +259,23 @@ class FraudFlag(Base):
         Index("ix_fraud_flags_status", "status"),
         Index("ix_fraud_flags_campaign_status", "campaign_id", "status"),
         Index(
-            "uq_fraud_flags_trip_open_flag_type",
+            "ix_fraud_flags_unresolved_sla",
+            "detected_at",
+            "id",
+            sqlite_where=text(
+                "status IN ('open', 'acknowledged') AND escalated_at IS NULL"
+            ),
+            postgresql_where=text(
+                "status IN ('open', 'acknowledged') AND escalated_at IS NULL"
+            ),
+        ),
+        Index(
+            "uq_fraud_flags_trip_nonterminal_flag_type",
             "trip_session_id",
             "flag_type",
             unique=True,
-            sqlite_where=text("status = 'open'"),
-            postgresql_where=text("status = 'open'"),
+            sqlite_where=text("status IN ('open', 'acknowledged', 'confirmed')"),
+            postgresql_where=text("status IN ('open', 'acknowledged', 'confirmed')"),
         ),
     )
 
@@ -298,6 +323,12 @@ class FraudFlag(Base):
         nullable=False,
     )
     detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reviewed_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolution_note: Mapped[str | None] = mapped_column(Text)
+    escalated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

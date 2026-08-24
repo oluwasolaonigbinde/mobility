@@ -35,6 +35,11 @@ def test_expected_postgres_constraint_names_are_classified(constraint_name: str)
             "uq_earnings_ledger_entries_payout_calculation_id",
         ),
         (
+            "UNIQUE constraint failed: fraud_flags.trip_session_id, "
+            "fraud_flags.flag_type",
+            "uq_fraud_flags_trip_nonterminal_flag_type",
+        ),
+        (
             "UNIQUE constraint failed: campaign_assignments.vehicle_id",
             "uq_campaign_assignments_vehicle_active",
         ),

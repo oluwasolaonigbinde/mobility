@@ -35,12 +35,14 @@ from test_payouts_v3 import bind_v2_graph, build_mixed_engine_day
 from test_trip_processing import PASSWORD, add_pings, run_pipeline
 
 from app.core.errors import AppError
+from app.models.campaign import Campaign
 from app.models.payout import (
     AssignmentRuleBinding,
     CampaignPayoutRule,
     EarningsLedgerEntry,
     EarningsLedgerEntryStatus,
     EarningsLedgerEntryType,
+    PayoutCalculation,
     PayoutCorrectionOrder,
     PayoutCorrectionOrderStatus,
 )
@@ -938,6 +940,36 @@ def test_v3_day_reprices_from_frozen_binding_through_an_order(
     assert target.delta_amount == Decimal("0.00")
     assert target.governing_values["binding_id"] == graph.binding.id
     assert target.governing_values["hourly_rate_naira"] == Decimal("1000.00")
+    assert target.governing_values["campaign_window_start_at"] == graph.campaign.start_at
+    assert target.governing_values["campaign_window_end_at"] == graph.campaign.end_at
+
+    async def move_live_window() -> None:
+        async with postgis_db_sessionmaker() as session:
+            await session.execute(
+                update(Campaign)
+                .where(Campaign.id == graph.campaign.id)
+                .values(
+                    start_at=graph.trip.ended_at + timedelta(days=10),
+                    end_at=graph.trip.ended_at + timedelta(days=20),
+                )
+            )
+            await session.commit()
+
+    asyncio.run(move_live_window())
+    after_window_edit = service(
+        postgis_db_sessionmaker,
+        lambda session: project_campaign_day(
+            session,
+            campaign_id=graph.campaign.id,
+            lagos_day=lagos_day_for(graph.trip.started_at),
+            settings=settings,
+        ),
+    )
+    # A v3-only correction consumes the accepted window carried in the
+    # binding. An unrelated later live campaign edit neither reprices nor
+    # stales the order projection.
+    assert after_window_edit.fingerprint == projection.fingerprint
+    assert after_window_edit.computations[0].trips[0].target_amount == Decimal("500.00")
 
 
 def test_mixed_v2_v3_day_shares_one_cap_pool_through_an_order(
@@ -989,6 +1021,8 @@ def test_mixed_v2_v3_day_shares_one_cap_pool_through_an_order(
     assert breakdown["payable_seconds_by_day_tier"] == {day_key: {"base": 1800, "premium": 0}}
     assert entry.ledger_metadata["formula_version"] == PAYOUT_V3
     assert entry.ledger_metadata["binding_id"]
+    assert entry.ledger_metadata["campaign_window_start_at"] == graph.campaign.start_at.isoformat()
+    assert entry.ledger_metadata["campaign_window_end_at"] == graph.campaign.end_at.isoformat()
 
     async def driver_breakdown():
         async with postgis_db_sessionmaker() as session:
@@ -1000,10 +1034,109 @@ def test_mixed_v2_v3_day_shares_one_cap_pool_through_an_order(
 
     corrected = asyncio.run(driver_breakdown())
     assert corrected.superseded_by_recompute is True
+    assert corrected.excluded_seconds_by_reason == breakdown["excluded_seconds_by_reason"]
     assert corrected.base_payable_seconds == 1800
     assert corrected.premium_payable_seconds == 0
     assert corrected.base_amount == Decimal("600.00")
     assert corrected.premium_amount == Decimal("0.00")
+
+    async def replace_explanation(*, eligible: int, excluded: dict[str, int] | None) -> None:
+        async with postgis_db_sessionmaker() as session:
+            stored_entry = await session.get(EarningsLedgerEntry, entry.id)
+            metadata = dict(stored_entry.ledger_metadata or {})
+            stored_breakdown = dict(metadata["breakdown"])
+            stored_breakdown["eligible_seconds"] = eligible
+            if excluded is None:
+                stored_breakdown.pop("excluded_seconds_by_reason", None)
+            else:
+                stored_breakdown["excluded_seconds_by_reason"] = excluded
+            metadata["breakdown"] = stored_breakdown
+            stored_entry.ledger_metadata = metadata
+
+            calculation = await session.scalar(
+                select(PayoutCalculation).where(PayoutCalculation.trip_session_id == graph.trip2.id)
+            )
+            calculation.excluded_seconds_by_reason = {"stale_original_reason": 77}
+            await session.commit()
+
+    # Both explanation fields come from the same newest recompute breakdown.
+    asyncio.run(replace_explanation(eligible=123, excluded={"changed_reason": 45}))
+    changed = asyncio.run(driver_breakdown())
+    assert changed.eligible_seconds == 123
+    assert changed.excluded_seconds_by_reason == {"changed_reason": 45}
+
+    # A deliberately empty fresh map clears the superseded calculation's
+    # reasons; a legacy recompute without the field reports unknown instead.
+    asyncio.run(replace_explanation(eligible=124, excluded={}))
+    cleared = asyncio.run(driver_breakdown())
+    assert cleared.eligible_seconds == 124
+    assert cleared.excluded_seconds_by_reason == {}
+    asyncio.run(replace_explanation(eligible=125, excluded=None))
+    legacy = asyncio.run(driver_breakdown())
+    assert legacy.superseded_by_recompute is True
+    assert legacy.eligible_seconds == 125
+    assert legacy.excluded_seconds_by_reason is None
+
+    async def append_malformed_newest_explanation() -> object:
+        async with postgis_db_sessionmaker() as session:
+            older = await session.get(EarningsLedgerEntry, entry.id)
+            older_metadata = dict(older.ledger_metadata or {})
+            older_breakdown = dict(older_metadata["breakdown"])
+            older_breakdown["eligible_seconds"] = 126
+            older_breakdown["excluded_seconds_by_reason"] = {"older_reason": 46}
+            older_metadata["breakdown"] = older_breakdown
+            older.ledger_metadata = older_metadata
+
+            newest_metadata = dict(older_metadata)
+            newest_breakdown = dict(older_breakdown)
+            newest_breakdown["eligible_seconds"] = -1
+            newest_breakdown["excluded_seconds_by_reason"] = ["malformed"]
+            newest_metadata["breakdown"] = newest_breakdown
+            newest = EarningsLedgerEntry(
+                payout_calculation_id=None,
+                driver_profile_id=older.driver_profile_id,
+                driver_user_id=older.driver_user_id,
+                campaign_id=older.campaign_id,
+                trip_session_id=older.trip_session_id,
+                vehicle_id=older.vehicle_id,
+                entry_type=EarningsLedgerEntryType.ADJUSTMENT.value,
+                status=EarningsLedgerEntryStatus.PENDING.value,
+                amount=Decimal("0.00"),
+                currency=older.currency,
+                description="Malformed explanation provenance regression",
+                occurred_at=older.occurred_at + timedelta(seconds=1),
+                release_at=older.release_at,
+                ledger_metadata=newest_metadata,
+            )
+            session.add(newest)
+            await session.commit()
+            return newest.id
+
+    malformed_entry_id = asyncio.run(append_malformed_newest_explanation())
+    malformed_over_older = asyncio.run(driver_breakdown())
+    assert malformed_over_older.superseded_by_recompute is True
+    assert malformed_over_older.eligible_seconds is None
+    assert malformed_over_older.excluded_seconds_by_reason is None
+
+    async def void_older_correction() -> None:
+        async with postgis_db_sessionmaker() as session:
+            older = await session.get(EarningsLedgerEntry, entry.id)
+            older.status = EarningsLedgerEntryStatus.VOIDED.value
+            await session.commit()
+
+    asyncio.run(void_older_correction())
+    malformed_over_original = asyncio.run(driver_breakdown())
+    assert malformed_over_original.superseded_by_recompute is True
+    assert malformed_over_original.eligible_seconds is None
+    assert malformed_over_original.excluded_seconds_by_reason is None
+
+    async def restore_older_correction() -> None:
+        async with postgis_db_sessionmaker() as session:
+            older = await session.get(EarningsLedgerEntry, entry.id)
+            older.status = EarningsLedgerEntryStatus.PENDING.value
+            await session.commit()
+
+    asyncio.run(restore_older_correction())
 
     # While the correction remains authoritative, unchanged inputs project no
     # further money movement.
@@ -1028,11 +1161,14 @@ def test_mixed_v2_v3_day_shares_one_cap_pool_through_an_order(
         async with postgis_db_sessionmaker() as session:
             stored = await session.get(EarningsLedgerEntry, entry.id)
             stored.status = EarningsLedgerEntryStatus.VOIDED.value
+            malformed = await session.get(EarningsLedgerEntry, malformed_entry_id)
+            malformed.status = EarningsLedgerEntryStatus.VOIDED.value
             await session.commit()
 
     asyncio.run(void_correction())
     fallback = asyncio.run(driver_breakdown())
     assert fallback.superseded_by_recompute is False
+    assert fallback.excluded_seconds_by_reason == {"stale_original_reason": 77}
     assert fallback.base_payable_seconds == 900
     assert fallback.premium_payable_seconds == 0
     assert fallback.base_amount == Decimal("300.00")

@@ -1,9 +1,15 @@
+# ruff: noqa: E402
 import asyncio
 import os
 from collections.abc import Generator
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
+
+os.environ.setdefault(
+    "PAYOUT_CRYPTO_KEYRING_B64",
+    '{"1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}',
+)
 
 import pytest
 from fastapi.testclient import TestClient

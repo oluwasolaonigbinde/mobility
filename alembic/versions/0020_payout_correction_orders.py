@@ -108,6 +108,17 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute(
+        sa.text(
+            "DO $$ BEGIN "
+            "IF EXISTS (SELECT 1 FROM payout_correction_orders) "
+            "OR EXISTS ("
+            "SELECT 1 FROM earnings_ledger_entries WHERE release_at IS NOT NULL"
+            ") THEN "
+            "RAISE EXCEPTION '0020 downgrade blocked: payout corrections or release dates exist'; "
+            "END IF; END $$;"
+        )
+    )
     op.drop_column("earnings_ledger_entries", "release_at")
     op.drop_index(
         "ix_payout_correction_orders_campaign_day",

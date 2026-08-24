@@ -21,27 +21,67 @@ def _progress() -> str:
     return (ROOT / "docs" / "progress.md").read_text()
 
 
+def _with_control_pointer(text: str, *, state: str, package: str, checkpoint: str) -> str:
+    """Replace the live pointer without depending on its current checkpoint."""
+    text = re.sub(
+        r"^\*\*Controller state:\*\* `[^`]+`$",
+        f"**Controller state:** `{state}`",
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    text = re.sub(
+        r"^\*\*Control package:\*\* `PKG-\d{2}`",
+        f"**Control package:** `{package}`",
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    return re.sub(
+        r"^\*\*Current checkpoint:\*\* `PKG-\d{2} / [A-Z0-9-]+`",
+        f"**Current checkpoint:** `{package} / {checkpoint}`",
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+
+
 def _pkg01_active() -> str:
     """Reconstruct the immediately preceding valid frontier for transition tests."""
-    text = (
-        _progress()
-        .replace(
-            "| 1 | **PKG-01 — foundations and empirical risk proof** | DONE |",
-            "| 1 | **PKG-01 — foundations and empirical risk proof** | **IN PROGRESS** |",
-        )
-        .replace(
-            "| 2 | **PKG-02 — money integrity and payout operations** | **NEXT** |",
-            "| 2 | **PKG-02 — money integrity and payout operations** | QUEUED |",
-        )
-        .replace("**Control package:** `PKG-02`", "**Control package:** `PKG-01`")
-        .replace(
-            "**Current checkpoint:** `PKG-02 / MNY-08A`",
-            "**Current checkpoint:** `PKG-01 / FND-02A`",
-        )
+    text = re.sub(
+        r"^(\| 1 \| \*\*PKG-01 —.*?\| )(?:\*\*[^|]+\*\*|DONE|QUEUED|BLOCKED)( \|)",
+        r"\1**IN PROGRESS**\2",
+        _progress(),
+        count=1,
+        flags=re.MULTILINE,
+    )
+    text = re.sub(
+        r"^(\| 2 \| \*\*PKG-02 —.*?\| )(?:\*\*[^|]+\*\*|DONE|QUEUED|BLOCKED)( \|)",
+        r"\1QUEUED\2",
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    text = re.sub(
+        r"^(\| 3 \| \*\*PKG-03 —.*?\| )(?:\*\*[^|]+\*\*|DONE|QUEUED|BLOCKED)( \|)",
+        r"\1QUEUED\2",
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    text = _with_control_pointer(
+        text,
+        state="ACTIVE",
+        package="PKG-01",
+        checkpoint="FND-02A",
     )
     lines = []
     for line in text.splitlines():
-        if re.match(r"\| [1-5] \| \*\*.*\| PKG-01 \| DONE \|", line):
+        pkg01_fixture_item = re.match(
+            r"\| ([1-5]) \| \*\*.*\| PKG-01 \| DONE \|", line
+        )
+        pkg02_live_item = re.match(r"\| \d+ \| \*\*.*\| PKG-02 \| DONE \|", line)
+        if pkg01_fixture_item or pkg02_live_item:
             line = line.replace("| DONE |", "| TODO |", 1)
         lines.append(line)
     return "\n".join(lines) + "\n"
@@ -81,16 +121,11 @@ def _paused_at_final_gate() -> str:
             line = re.sub(r"\| NOT RUN — [^|]+\|", "| COMPLETE |", line, count=1)
         package_lines.append(line)
     text = "\n".join(package_lines) + "\n"
-    return (
-        text.replace(
-            "**Controller state:** `ACTIVE`",
-            "**Controller state:** `PAUSED — EXT-LEGAL-PRIVACY`",
-        )
-        .replace("**Control package:** `PKG-02`", "**Control package:** `PKG-08`")
-        .replace(
-            "**Current checkpoint:** `PKG-02 / MNY-08A`",
-            "**Current checkpoint:** `PKG-08 / W4-03B`",
-        )
+    return _with_control_pointer(
+        text,
+        state="PAUSED — EXT-LEGAL-PRIVACY",
+        package="PKG-08",
+        checkpoint="W4-03B",
     )
 
 
@@ -304,11 +339,11 @@ def test_all_done_terminal_complete_state_is_valid() -> None:
             line = re.sub(r"\| NOT RUN — [^|]+\|", "| COMPLETE |", line, count=1)
         external_lines.append(line)
     text = "\n".join(external_lines) + "\n"
-    text = text.replace("**Controller state:** `ACTIVE`", "**Controller state:** `COMPLETE`")
-    text = text.replace("**Control package:** `PKG-02`", "**Control package:** `PKG-09`")
-    text = text.replace(
-        "**Current checkpoint:** `PKG-02 / MNY-08A`",
-        "**Current checkpoint:** `PKG-09 / W4-04B`",
+    text = _with_control_pointer(
+        text,
+        state="COMPLETE",
+        package="PKG-09",
+        checkpoint="W4-04B",
     )
     assert _errors(text) == []
 
@@ -414,8 +449,8 @@ def test_rejects_hidden_controller_pointer_decoy() -> None:
         _pkg01_active()
         .replace("### Current control pointer", "### Current control pointer\n\n" + decoy)
         .replace(
-            "**Control package:** `PKG-01` — see package queue row 2",
-            "**Control package:** `PKG-09` — see package queue row 2",
+            "**Control package:** `PKG-01` — controller-owned correction review",
+            "**Control package:** `PKG-09` — controller-owned correction review",
         )
     )
     errors = _errors(text)
@@ -521,8 +556,8 @@ def test_rejects_done_item_in_queued_package() -> None:
 
 def test_rejects_nonqueued_package_after_active_frontier() -> None:
     text = _progress().replace(
-        "| 3 | **PKG-03 — commercial contracts and billing** | QUEUED |",
-        "| 3 | **PKG-03 — commercial contracts and billing** | DONE |",
+        "| 4 | **PKG-04 — secure evidence, activation and communications** | QUEUED |",
+        "| 4 | **PKG-04 — secure evidence, activation and communications** | DONE |",
     )
     errors = _errors(text)
     assert any(

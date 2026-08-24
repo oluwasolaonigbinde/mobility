@@ -129,6 +129,14 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute(
+        sa.text(
+            "DO $$ BEGIN "
+            "IF EXISTS (SELECT 1 FROM campaign_payout_rule_revisions) THEN "
+            "RAISE EXCEPTION '0018 downgrade blocked: payout rule revisions exist'; "
+            "END IF; END $$;"
+        )
+    )
     op.drop_index(
         "ix_campaign_payout_rule_revisions_payout_rule_id",
         table_name="campaign_payout_rule_revisions",

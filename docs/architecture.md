@@ -1,11 +1,12 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.30 — 2026-08-20. Canonical source of truth: current state AND target state.**
+**Version 1.37 — 2026-08-23. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
 > originally described defects in already-built code; RM1/RM3/RM4/RM5/RM7 are
-> closed and RM2/RM6 are now closed. The other rows are
+> closed and RM2/RM6/RM8/RM10/RM11 are now closed; RM9's software control is
+> delivered while its physical-proof residual remains. The other rows are
 > requirements the owning slice must honour. Gates in §35.3 block named live
 > actions while permitting their owning slices to build and test synthetically
 > in the dependency order controlled by `docs/progress.md`.
@@ -449,9 +450,9 @@ queues/realtime ad hoc — §14 remains the one sanctioned design.
 
 ## 7. Data model
 
-### 7.1 Entities **[BUILT]** — 22 tables
+### 7.1 Entities **[BUILT]** — 28 tables
 
-<!-- verified 2026-08-03: grep -h "__tablename__" app/models/*.py | wc -l → 22 -->
+<!-- verified 2026-08-21: rg -o "__tablename__" app/models/*.py | wc -l → 28 -->
 
 Identity & orgs:
 
@@ -487,6 +488,7 @@ Matching & execution:
 | `campaign_activation_events` | Assignment lifecycle event log |
 | `trip_sessions` | A tracked drive under an assignment; denormalized FKs to campaign/driver/vehicle; timestamps only — **no geometry columns** (stale pre-S4 claim corrected; only `location_pings.geom` carries coordinates) |
 | `location_ping_batches` | Idempotent ingestion envelope (unique trip+key, payload hash, accepted count); purged by retention only when zero pings remain (§24.2.1) |
+| `quarantined_ping_batches` | Post-seal ping batches held for serialized admin apply/discard without automatic money recomputation (RM3/D15) |
 | `location_pings` | Individual GPS points per trip/batch; **monthly range-partitioned by `recorded_at`** with composite PK `(id, recorded_at)` (S4, migration `0014`, §24.2.2) |
 
 Derived (analytics → money):
@@ -494,9 +496,14 @@ Derived (analytics → money):
 | Table | Purpose / key relationships |
 |-------|------------------------------|
 | `trip_analytics` | Per-trip route metrics (distance, active time, zone overlap), `formula_version` |
-| `fraud_flags` | Typed/severity-classed flags against trips; links to trip_analytics. Status lifecycle `open \| acknowledged \| dismissed` (`ck_fraud_flags_status`); partial unique index `uq_fraud_flags_trip_open_flag_type` dedupes per flag type **only while `status='open'`** |
+| `fraud_flags` | Typed/severity-classed flags against trips; links to trip_analytics. Serialized lifecycle `open → acknowledged → confirmed \| dismissed` carries coherent reviewer/time/note evidence; partial unique index `uq_fraud_flags_trip_nonterminal_flag_type` dedupes each trip/type while the hold remains active (`open \| acknowledged \| confirmed`) |
+| `fraud_assessments` | One current attempt per sealed trip (`pending \| clean \| flagged \| error`) with formula, analytics/input fingerprints and current-flag provenance; pending/error never count as successful-current |
+| `route_replay_signatures` | One current detector/config/analytics-bound signature per trip; indexed absolute-payload and time-shift-normalized hashes support bounded cross-trip/account replay reconciliation without persisting raw route facts in review evidence |
 | `traffic_density_profiles` | Admin-managed density inputs for impression math |
 | `impression_estimates` | Per-trip estimated impressions + confidence, links density profile |
+| `campaign_payout_rule_revisions` | Append-only effective-dated payout-v3 rule revisions (MNY-06A) |
+| `assignment_rule_bindings` | Acceptance-time frozen payout terms and eligibility/geography fingerprints (MNY-06B) |
+| `payout_correction_orders` | Maker-checker projected correction lifecycle with value-complete evidence (MNY-06C) |
 | `payout_calculations` | Per-trip payout math snapshot (rule inputs + fraud multipliers) |
 | `earnings_ledger_entries` | Driver earnings ledger (typed, statused entries) |
 
@@ -510,21 +517,23 @@ Notes:
   PostgreSQL requires the partition key in unique constraints — S4);
   timestamps are timezone-aware with `func.now()` defaults; enums are Python
   `StrEnum` + DB check constraints (not native PG enums).
-- The derived chain is **trip_sessions → trip_analytics → (fraud_flags,
-  impression_estimates) → payout_calculations → earnings_ledger_entries**; each
-  step stores enough FK context (campaign, driver, vehicle) to be queried
+- The derived chain is **trip_sessions → trip_analytics → (route_replay_signatures
+  → fraud_flags → fraud_assessments, impression_estimates) → payout_calculations →
+  earnings_ledger_entries**; each step stores enough context to be queried
   independently.
 - Target-state table additions (billing, notifications, files, audience, jobs)
   are specified in their Part III sections and indexed in §30.
 
 ### 7.2 Migration policy **[BUILT]**
 
-- Alembic, 17 linear migrations `0001`–`0017` (extensions → identity/orgs →
+- Alembic, 24 linear migrations `0001`–`0024` (extensions → identity/orgs →
   drivers/vehicles → campaigns/creatives → zones → assignments → trip tracking →
   analytics/fraud → impressions → payouts → F7 password management → F7 audit
   indexes → S1 payout v2 → S4 ping partitioning + purge evidence → RM1 payout-day
-  allocation → RM3 trip seal protocol + quarantine → seal review hardening).
-  <!-- verified 2026-08-09: ls alembic/versions → 17; alembic heads → single head 0017_seal_review_hardening -->
+  allocation → RM3 trip seal protocol + quarantine → seal review hardening →
+  immutable payout revisions/bindings/corrections → current fraud assessments →
+  indexed route-replay signatures).
+  <!-- verified 2026-08-21: ls alembic/versions → 24; alembic heads → single head 0024_fraud_review_holds -->
   (Pre-existing doc drift note: this row still said "12" after S1 shipped
   0013 — corrected here in the S4 commit.)
 - `0001` enables `pgcrypto` + `postgis`.
@@ -1170,6 +1179,18 @@ time for positive deltas and idempotent execution. The driver breakdown reads
 the latest valid non-voided authoritative correction and explains formula,
 tier, seconds, frozen effective rates and amounts.
 
+**[BUILT — PKG02-C1]:** migration `0026` extends the immutable payout-v3
+binding with the nullable campaign payment window accepted by that assignment.
+Acceptance and revision publication share one campaign-scoped transaction lock
+and PostgreSQL wall clock, so the effective revision/window boundary cannot
+split across application and database time. Calculation, staleness, correction
+fingerprints and persisted payout/differential metadata consume the frozen
+window; legacy bindings without truthful window provenance fail closed. Live
+window edits still affect payout-v2 only. Populated financial authority in
+`0018`–`0021` and accepted `0026` windows blocks destructive downgrade.
+Adjacent-day corrections lock all overlapping trips in stable UUID order before
+their distinct day-cap locks, then restore chronological cap allocation.
+
 **[BUILT — FND-02A/B, D22]:** the `stationary-rd-v1` detector evaluates
 contiguous 120-second elapsed windows using deterministic endpoint
 interpolation inside valid GPS segments. Net displacement at or below 25 metres
@@ -1187,15 +1208,27 @@ create a new effective revision for future acceptances only.
 
 ### 16.2 Release scheduling (Q22)
 
-Ledger entries post as `pending` (built). The D18 release policy makes a
-current, successfully assessed **clean** earning available without a blanket
-seven-day delay; the configured weekly cadence controls disbursement batching,
-not earned-status approval. A suspected or flagged earning remains `pending`
-for admin approve/decline, with a seven-day review SLA and escalation. Reaching
-day seven never auto-releases an unresolved earning. One worker sweep (§14.3.2)
-applies RM8's authoritative assessment/hold predicate, the review transitions
-serialize with release, and the cadence/SLA live in Settings with no hard-coded
-weekday.
+Ledger entries post as `pending` (built). The D18 release policy makes an
+earning with a current successful assessment and no authoritative active hold
+available without a blanket seven-day delay; the configured weekly cadence
+controls disbursement batching, not earned-status approval. A dismissed flag
+remains part of the assessment fingerprint, so dismissal first makes the old
+assessment stale and release waits for reassessment. A suspected or flagged
+earning with an active hold remains `pending` for admin approve/decline, with a
+seven-day review SLA and escalation. Reaching the configured deadline never
+auto-releases an unresolved earning.
+
+**[BUILT — MNY-03A]:** one DB-derived worker sweep (§14.3.2) keyset-pages due
+trip candidates, then applies RM8's imported assessment/hold predicate under
+the existing trip scope and a post-wait database clock. Stable ledger-row locks
+and state rechecks make `pending → available` idempotent and serialize with
+review/detection. Open or acknowledged flags persist one escalation timestamp
+at the Settings-driven deadline without changing money. Migration `0027` also
+links at most one available reversal to a confirmed fraud flag; named
+confirmation posts the current positive available net using the already-built
+subtract-by-type convention. The admin queue shows the server-derived deadline,
+historical escalation state and post-release reversal consequence. No weekday
+is hard-coded.
 
 **Post-release flags:** analytics can be recomputed at any time (built admin
 endpoints), so a flag can be raised **after** its trip's earnings are
@@ -1204,11 +1237,7 @@ the flag-review sweep detects flags on already-released entries and surfaces a
 **reversal recommendation** in the admin fraud queue (no new table: the flag
 row itself is the recommendation — the affected released entries are derivable
 from its trip). A named admin confirms, which posts a typed `reversal` ledger
-entry. **Build honesty:** only the enum value `reversal` exists at the pin —
-no code creates or handles it, `ck_earnings_ledger_entries_amount_non_negative`
-forbids negative amounts, and `driver_earnings_summary` sums amounts with no
-netting by type (a naive positive reversal row would *increase* the balance).
-The sanctioned design: keep amounts non-negative — reversal entries carry
+entry. The sanctioned design keeps amounts non-negative — reversal entries carry
 **positive amounts with subtract-by-type semantics**, and every balance/summary
 computation (`driver_earnings_summary`, campaign cost summaries) **nets
 reversal-typed entries as negative**, shipped together with tests in the same
@@ -1222,11 +1251,10 @@ separate `ledger_net_total` aggregate (differential entries have no
 balance may go negative; it offsets against future earnings — never a
 collections flow. Q22 authorises named-admin audited corrections, not automatic
 clawback; once cash has been paid, RM11's carry-forward debt contract applies.
-The release sweep itself remains [TARGET] (MNY-03A).
 
 ### 16.3 Disbursement (Q27)
 
-- **Sensitive payee data (D17):** MNY-10A introduces one
+- **[BUILT — MNY-10A] Sensitive payee data (D17):** one
   `app/adapters/crypto/` provider boundary (`encrypt`, `decrypt`, `rotate`) for
   verified bank-account values and later KYC/national identifiers. The pilot
   provider uses authenticated per-record envelope encryption with a required,
@@ -1236,7 +1264,8 @@ The release sweep itself remains [TARGET] (MNY-03A).
   same port and supplies rewrap/re-encryption; it must not introduce a second
   ciphertext schema. Plaintext values are excluded from list APIs, logs, audit
   payloads, exports, errors and fallback storage.
-- Pilot (Q27/D18): **automated bank transfers through an approved provider**,
+- **[BUILT PROVIDER-NEUTRALLY — MNY-10B/MNY-10C]** Pilot (Q27/D18):
+  **automated bank transfers through an approved provider**,
   behind `app/adapters/disbursement/`. RM10's finality contract is binding:
   `draft → reserved → submitted → reconciled/completed | failed | void`;
   reservation is atomic; each line freezes the payee/account/amount and
@@ -1262,6 +1291,13 @@ The release sweep itself remains [TARGET] (MNY-03A).
   entries**, never edits (P6). RM6 requires a projected correction order,
   named adjuster, separate approver, mandatory reason and complete old/new
   audit; post-payment corrections follow RM11.
+- **[BUILT — MNY-11A] Post-payment debt:** verified provider success is the
+  only transition to immutable `paid`. A later reversal or confirmed-fraud
+  correction appends a currency-scoped debt obligation linked to its paid
+  sources; it never rewrites the paid row or initiates a negative transfer.
+  Future available credits are consumed whole in deterministic order, with one
+  exact residual credit when debt clears. Debt creation, allocation,
+  reservation and paid finality share one driver/currency lock order.
 
 ## 17. Fraud review & trust workflow (D5)
 
@@ -1269,36 +1305,63 @@ Q21 and Q22 are confirmed by D18. Shape fixed by D5 and RM8:
 **hold-and-review**. Automatic strike/suspension policy remains outside the
 adopted MVP rule unless separately recorded.
 
-- `fraud_flags` review lifecycle built on the **existing** statuses
-  (`open | acknowledged | dismissed`, §7.1): `acknowledged` becomes the
-  "under review" state, and a migration extends `ck_fraud_flags_status` with a
-  terminal `confirmed`; add `reviewed_by_user_id`, `reviewed_at`,
-  `resolution_note`. Extend the existing status/severity fields — no parallel
-  flag tables. **Dedup trap:** the unique index only guards `status='open'`
-  rows — moving a flag out of `open` lets re-detection insert a duplicate of
-  the same type; the review migration must extend the index predicate (or the
-  detection service must check non-open flags) in the same change.
-- **Holds:** one authoritative predicate holds `open`, `acknowledged`, and
-  unresolved `confirmed`; only `dismissed` releases. Release also requires a
-  current successful per-trip assessment (RM8). The predicate serializes with
-  review/release and is not duplicated by consumer. Flagged/suspected earnings
-  carry a seven-day review SLA; expiry escalates the case but leaves the money
-  held until a named admin approves or declines it. There is no timed
-  auto-release path.
-- New `/api/v1/admin/fraud-flags/{id}/review` endpoints (acknowledge, resolve);
-  the read-only admin fraud console ([BUILT], F5) becomes a working queue.
-- Driver-facing: flagged trips show sanitized reason + status; the in-product
-  dispute and response attach to the assessment/flag. Q34 keeps driver WhatsApp
-  as a manual operations channel, not the authoritative dispute record.
+**[BUILT — MNY-08A]:** every sealed trip now converges on one persisted current
+assessment attempt (`pending | clean | flagged | error`). Formula, analytics and
+canonical current-flag inputs are fingerprinted; the sweep also compares a
+flag-count/update watermark so later detection or review-state changes make an
+assessment due again. Only matching `clean`/`flagged` results are
+successful-current; `pending`, `error`, stale inputs and evaluation failures
+  remain fail-closed. MNY-08B supplies the authoritative hold below; MNY-03A
+  still owns release.
+
+**[BUILT — MNY-09A]:** canonical absolute-payload and time-shift-normalized
+route hashes now produce explainable cross-trip/account replay evidence without
+putting raw coordinates or timestamps in flags. Same-trip retries converge;
+same-driver repeats alone do not flag. Each normalized group keeps one latest
+cross-account review candidate, including mixed exact/time-shift matches and
+member departures. Old/new group transitions use sorted transaction advisory
+locks, while counts/latest selection, bounded evidence samples and cleanup stay
+database-side. Detector/config/analytics drift makes the assessment due again,
+  and evaluation failure remains fail-closed. This detector does not create an
+  independent money rule.
+
+**[BUILT — MNY-08B]:** migration `0024` implements the exact serialized
+`open → acknowledged → confirmed | dismissed` lifecycle on `fraud_flags` with
+reviewer, review-time and bounded mandatory terminal-note evidence. The
+non-terminal unique index covers `open`, `acknowledged` and `confirmed`, so
+re-detection cannot fork a reviewed hold. One shared `hold_active` predicate
+holds those same three states; only `dismissed` releases, and every impression,
+payout and later release consumer imports that contract. Ordinary review/money
+operations take a shared reconciliation gate and the trip scope; cross-trip
+replay reconciliation takes the exclusive gate, locks every affected trip in
+sorted order, then locks fingerprints and flag rows. Thus review, detection and
+money snapshots cannot race across group members. Exact transition retries are
+idempotent, conflicting retries and direct open-to-terminal resolution fail,
+and the state change plus audit event is atomic. The acknowledge/resolve admin
+endpoints and typed console expose bounded evidence and terminal reviewer
+context. The payout-v1 minimum floor is gated off whenever any active hold
+exists. Release still additionally requires a current successful assessment
+and remains MNY-03A work: seven-day expiry will escalate but never auto-release.
+
+**[BUILT — MNY-08C]:** migration `0025` adds an owner-only, one-per-flag
+dispute record and typed, transactionally deduplicated in-app notices for hold
+raised, review resolved and staff reply events. Driver projections expose only
+allowlisted reason/status/outcome fields; raw detector evidence, matched
+identities and internal review notes remain private. Exact create/reply retries
+converge, conflicting retries fail, and review resolution writes at most one
+notice and audit event under the existing authoritative flag lock. Confirmed
+and dismissed outcomes remain visible, staff replies are distinct from review
+notes, and disputed flags retain identity/evidence through detector
+reconciliation. Corrected driver explanations source eligible seconds and
+excluded reasons from the same newest authoritative recompute; malformed newest
+provenance does not fall through to stale history. Q34 keeps driver WhatsApp as
+a manual operations channel, not the authoritative dispute record.
 - Strikes/escalation (auto-suspension after N high-severity flags) is **not**
   part of the adopted Q21 MVP rule. If later approved, start with reviewable
   recommendations; never infer automatic suspension from hold-and-review.
-- Severity multipliers (0.9/0.7/0.25) remain configurable but secondary (D5);
-  the minimum-payout-floor loophole (floor paid even on fully-discounted trips
-  — real at the pin: `payouts.py` lifts `final_payout` to the floor whenever
-  gross > 0) is closed as part of v2: floor applies only to trips with no
-  confirmed/open flags ([OPEN] — maps to no numbered v2 question; confirm with
-  Somto and record in `decisions-log.md`).
+- Severity multipliers (0.9/0.7/0.25) remain configurable but secondary (D5).
+  The prior minimum-payout-floor loophole is closed: a floor applies only when
+  the authoritative active-hold count is zero.
 
 **Preserve:** detection engine (`trip_analytics` → `fraud_flags`) as built.
 **Extend:** flag model + admin endpoints + release predicate. **Replace:**
@@ -1632,8 +1695,11 @@ still Postgres territory with partitions + retention, not a new datastore.
    has **no coordinate/geometry columns** (only `location_pings.geom` exists;
    §7.1's and §22.2.1's contrary claims were stale). `started_at`/`ended_at`
    are timestamps, not location data, and stay. Aggregates (`trip_analytics`,
-   `impression_estimates`, heatmap-feeding data) are retained indefinitely —
-   they carry the business value and no raw traces.
+   `impression_estimates`, heatmap-feeding data) and MNY-09A's deterministic
+   route-replay hashes are retained with their owning trip today. The hashes
+   contain no raw coordinates/timestamps but remain pseudonymous derived
+   location-linkage data, may outlive raw pings, and must be included explicitly
+   in RM15's retention schedule and tested DSR runbook before real-driver GPS.
 2. **Monthly range partitioning** **[BUILT]** of `location_pings` by
    **`recorded_at`** (*amendment: the previously-named `captured_at` column
    never existed*) so purge = `DROP PARTITION` (instant, no bloat).
@@ -2048,17 +2114,17 @@ the reviewer described.
 | **RM3** ✅ **[FIXED 9 Aug 2026]** | F01 | RESOLVED — migration `0016`, seal protocol (D15) | **No trip-finality protocol, and late data is unrecoverable.** Trip end committed and enqueued the write-once money chain immediately; `TripEndRequest` carried no completeness signal; a post-end batch was rejected 400 outright; the PWA ended trips without checking its buffer. | **Done.** Lifecycle is now `active → ended → sealed` and **sealed is the sole money-chain trigger**: `process_ended_trip` blocks (`trip_not_sealed`) and the sweep selects `status='sealed'`; `get_trip_for_payout` requires sealed (analytics/impressions accept ended|sealed — diagnostics, not money). `/end` carries the client finalization watermark (`client_batch_count`/`client_ping_count`/`client_complete`); the trip fast-seals in the same transaction when the server holds ≥ `client_batch_count` batches, otherwise it seals on the late batch that completes the count (`late_data_complete`) or via the worker seal sweep after ⚙ `TRIP_SEAL_GRACE_SECONDS` (600). Every seal path is a guarded `UPDATE … WHERE status='ended'` (winner-only, audited `trip.sealed`); ingest re-reads the trip `FOR UPDATE` so a batch can never land mid-seal. Ended trips accept late batches (assignment-active gate deliberately skipped; `recorded_at ≤ ended_at +` ⚙ `LOCATION_PING_END_SKEW_SECONDS` (300)); post-seal batches are preserved in `quarantined_ping_batches` (never 400), with audited admin apply/discard — apply inserts the pings, names the affected Lagos days, and **never auto-recomputes money** (recompute-day is the corrective path). Quarantine payloads purge on the §24.2 retention window (`quarantined_batches_purged` evidence rows). **Review-hardened (9 Aug 2026 second pass, independent post-implementation review):** apply is allowed only after the trip's initial payout calculation exists (`QUARANTINE_APPLY_BLOCKED` otherwise) so post-seal evidence can affect money solely through recompute-day regardless of worker timing; a same-version analytics row computed before `sealed_at` is recomputed by the pipeline, never reused for money; `active → ended` is a guarded UPDATE (a losing concurrent end maps to `TRIP_ALREADY_ENDED`, never a constraint 500); apply/discard serialize on the quarantine row (`FOR UPDATE`) with resolution CHECKs (migration `0017`); 0016's backfilled seals gained their `trip.sealed` audit events (0017). | ~~Before real-driver GPS~~ Closed |
 | **RM4** ✅ **[FIXED 9 Aug 2026]** | *(new — found in verification)* | RESOLVED — durable queue (D15) | **Ping-batch retries could double-insert.** The client minted a fresh `crypto.randomUUID()` per flush attempt while server dedup is exactly `(trip_session_id, idempotency_key)`. | **Done.** The idempotency key is minted **once at batch-cut time inside a single IndexedDB transaction** and persisted with the batch (`frontend/src/lib/trips/ping-queue.ts`); every retry reuses it verbatim, so a persisted-but-unacknowledged batch dedupes (`duplicate: true`) instead of double-inserting — including replays across the seal boundary, which return the original live ACK. Server-side payload-hash conflict check kept. Terminal rejections (400/409/422) drop the batch (dead-letter) so one poison batch can never jam the queue. Vitest-proven. | ~~Before real-driver GPS~~ Closed |
 | **RM5** ✅ **[FIXED 9 Aug 2026]** | *(new — found in verification)* | RESOLVED — durable queue (D15) | **PWA lost unsent pings on reload.** The buffer was an in-memory ref; a reload remounted with an empty buffer and the sequence restarting at 0. | **Done.** Pings persist to IndexedDB **the moment they are recorded** (`pending` store), batches are cut atomically across `[pending, batches, meta]`, the per-trip sequence and cumulative watermark counters (`batchesCut`, `pingsRecorded`) survive reload, and the tracker drains leftovers on mount — into the ended-trip recovery window or server-side quarantine, both ACKed. A Web Locks single-writer guard stops a second tab from double-cutting the same pings. The driver ends an incomplete trip only through an explicit warning, and the end request records `client_complete: false` (RM3's incompleteness marker). **Review-hardened (9 Aug 2026 second pass):** storage and the cross-tab lock now fail CLOSED — no IndexedDB (or a mid-trip write failure) blocks starting/pauses tracking and the end watermark never claims completeness a healthy queue can't vouch for; missing or denied Web Locks disables both tracking and the End action in that tab; stranded previous-session data retries on a 60 s recovery loop and on browser `online`, not once per mount. Component-tested (storage failure, lock absence/denial, watermark honesty, recovery retries). This is now part of the D18 pilot PWA's production baseline. | ~~Before real-driver GPS~~ Closed |
-| **RM6** ✅ **[FIXED 20 Aug 2026]** | G1 | RESOLVED — PKG-01 MNY-06A/B/C | **Former defect:** one admin could mutate a rule and recompute historical earnings without immutable terms, a separate approver or value-complete evidence. | **Done.** Migrations `0018`–`0021` add append-only effective-dated revisions, acceptance-time bindings with frozen rates/cap/resolved eligibility and premium/exclusion geometries, and maker-checker correction orders. Direct recompute is retired; creator self-approval is rejected below the API, stale projections re-review, positive deltas require their own release time, execution is idempotent, and driver/admin explanations use persisted tier components that reconcile to the authoritative ledger amount. Evidence: 562-test PostGIS suite, migration/autogenerate checks, 155 frontend tests/build, 22 live-stack Playwright cases, two-admin synthetic correction journey, and independent money/security plus architecture/concurrency reviews PASS on `25fdd52`. | ~~Before pilot launch~~ Closed |
+| **RM6** ✅ **[FIXED 20 Aug 2026; HARDENED 21 Aug 2026]** | G1 | RESOLVED — PKG-01 MNY-06A/B/C + PKG02-C1 | **Former defect:** one admin could mutate a rule and recompute historical earnings without immutable terms, a separate approver or value-complete evidence. | **Done.** Migrations `0018`–`0021` add append-only effective-dated revisions, acceptance-time bindings with frozen rates/cap/resolved eligibility and premium/exclusion geometries, and maker-checker correction orders. PKG02-C1 adds one DB clock/shared acceptance-publication lock, freezes nullable accepted campaign windows in `0026`, makes populated financial downgrades fail closed and serializes adjacent-day cross-midnight corrections through stable trip locks. Direct recompute is retired; creator self-approval is rejected below the API, stale projections re-review, positive deltas require their own release time, execution is idempotent, and driver/admin explanations use persisted tier components that reconcile to the authoritative ledger amount. | ~~Before pilot launch~~ Closed |
 | **RM7** ✅ **[FIXED 16 Aug 2026]** | H2 (partial) | RESOLVED — PKG-01 FND-07 | **Exclusivity races surface as 500s.** The four exclusivity indexes exist and hold (see D13 rejected list), but their names were absent from `EXPECTED_UNIQUE_CONSTRAINTS` (`db/integrity.py`), so a lost race raised an unhandled `IntegrityError` instead of a clean 409. | **Done.** The four constraint names are registered in the integrity classifier (Postgres constraint-name and SQLite column-tuple paths) and the exact write sites that can enter an exclusivity index domain translate a lost race to the same stable 409 code as its guarding pre-check: assignment create → `DUPLICATE_CAMPAIGN_VEHICLE_ASSIGNMENT`, assignment activate → `ACTIVE_ASSIGNMENT_EXISTS_FOR_VEHICLE`, trip start → `ACTIVE_TRIP_EXISTS_FOR_DRIVER`/`ACTIVE_TRIP_EXISTS_FOR_VEHICLE` (accept/deactivate/cancel cannot enter a new index domain). Any other integrity failure re-raises untouched. Evidence: `tests/test_integrity.py` classifier coverage plus `tests/test_exclusivity_conflicts.py` — pre-check-defeated API lost-race envelopes and PostGIS two-transaction `asyncio.gather` races (one winner, coded 409 loser); no contract change (regenerated `openapi.json` byte-identical). | ~~Before pilot launch~~ Closed |
 
 ### 35.2 Specification requirements for unbuilt domains (fix in the owning slice)
 
 | ID | Origin | Status | Requirement | Owning section / slice |
 |----|--------|--------|-------------|------------------------|
-| **RM8** | F02/G4 | CODE-CONFIRMED (predicates) | Every fraud predicate today is **open-only** (`services/payouts.py:1037-1049`; min-floor gate `:1153-1163`; duplicate in `services/impressions.py:427-439`), statuses are `open/acknowledged/dismissed` with **no `confirmed`**, and the dedup index covers only `open` (`0008:338-342`). So `acknowledged` ("under review") currently reads identically to `dismissed`. Not yet exploitable — no acknowledge/dismiss endpoint exists — and the code comments the deferral. Also **no per-trip fraud-assessment record** exists: absence of a flag is indistinguishable from a clean assessment for any consumer. | Define one authoritative transition table with `hold_active` true for `open`, `acknowledged`, and unresolved `confirmed`; only `dismissed` releases. Add a per-trip assessment record (`pending/clean/flagged/error` + version + fingerprint) and require it current-and-successful before release. Extend the dedup index across non-terminal states. Serialize flag changes against release in one transaction. | §17, **S2 — before S3** |
-| **RM9** | G2 + F17 | DESIGN-GAP (irreducible) | GPS proves a *driver-controlled phone* moved, never that the *approved branded vehicle* moved. All eight fraud rules are per-trip (`services/trip_analytics.py:347-487`) and **no cross-trip/cross-account route or payload comparison exists** — an identical route replayed under a different trip or account is undetected. | Compensating controls, not a GPS redesign: bind assignment → one device + one vehicle; server-nonce start-of-shift proof-of-display; periodic evidence renewal for high earners; randomized physical spot checks; cross-trip/account identical-and-time-shifted route detection; hold the day on a missed challenge or concurrent session. Native attestation improves signal quality only — never treat it as proof the advertised vehicle moved. | §17/§19/§21, before pilot |
-| **RM10** | F05/G3 | DESIGN-GAP | Payout batches have no finality contract: no reserved state, no one-active-line-per-entry constraint, no frozen payee/amount snapshot/instruction fingerprint, no provider idempotency/reference, no per-line bank outcome, no reconciliation-before-`paid`. | `draft → reserved → submitted → reconciled/completed | failed | void`; atomic reservation with a DB constraint of one non-void line per ledger entry; snapshot verified bank-account version + beneficiary + amount; freeze/hash the provider instruction; unique idempotency key and external transfer reference per line; submit behind the approved adapter; mark paid **only** from signed-webhook or verified-poll line-level evidence; maker ≠ approver/reconciler. | §16.3, **S3** |
-| **RM11** | F04 | DESIGN-GAP (**downgraded** from BLOCKER) | The reviewers' "paid reversal is never recovered" scenario is **not current code**: statuses are `pending/available/voided/reversed` with **no `paid`**, no payout run exists, and `AVAILABLE` is set only by the demo seed. The status-inheritance mechanism is real (`services/payouts.py:2326-2331`) and correctly nets reversals within their bucket. It becomes a genuine defect only when S3 introduces cash payment. | When S3 lands: define `earned_net`, `released_available`, `cash_paid`, `carry_forward_debt`, `batch_payable`; post post-payment corrections to a carry-forward debit bucket and allocate future available credits against it; property-test "posting a reversal never increases any balance" across the payment boundary. Never model a new cash obligation as already paid. | §16.2/§16.3, **S3** |
+| **RM8** ✅ **[FIXED 21 Aug 2026]** | F02/G4 | RESOLVED — MNY-08A/B/C + MNY-03A | One versioned/fingerprinted `fraud_assessments` row distinguishes successful-current clean/flagged results from pending/error/stale attempts. Serialized `open → acknowledged → confirmed \| dismissed`, coherent reviewer evidence, non-terminal dedup and one shared `hold_active` predicate govern every money consumer. Shared/exclusive reconciliation gating closes cross-trip detection-versus-money races; only dismissal removes the hold. Sanitized owner-only reasons/disputes and deduped transactional outcomes expose no internal evidence. The release sweep now consumes the same successful-current assessment plus imported hold contract under the same trip scope, escalates unresolved reviews without auto-release, and posts at most one named-admin post-release reversal. | Done. Concurrency, stale-assessment, exact deadline, retry, downgrade and live synthetic review/reversal evidence pass. | §16.2/§17, MNY-03A |
+| **RM9** ⚠ **[PARTIALLY RESOLVED — MNY-09A 21 Aug 2026]** | G2 + F17 | DESIGN-GAP (irreducible); copied-route software control delivered | GPS proves a *driver-controlled phone* moved, never that the *approved branded vehicle* moved. MNY-09A now detects identical-payload and time-shifted cross-trip/account route replay as bounded, reviewable evidence, with same-trip retry and same-driver-repeat guards. This does not prove vehicle/display identity. | **Done in MNY-09A:** indexed/versioned copied-route detection feeding the existing assessment contract, never a second hold predicate. **Remaining:** bind assignment → one device + one vehicle; server-nonce start-of-shift proof-of-display; periodic evidence renewal for high earners; randomized physical spot checks; hold the day on a missed challenge or concurrent session. Native attestation improves signal quality only — never treat it as proof the advertised vehicle moved. | §17/§19/§21, before pilot |
+| **RM10** ✅ **[FIXED 23 Aug 2026]** | F05/G3 | RESOLVED — MNY-10A/B/C | Versioned encrypted payees/accounts feed atomic whole-entry reservation with frozen instructions, stable idempotency and maker-checker approval. Verified provider evidence reconciles each line independently; only a successful line marks its ledger row `paid`, partial failure stays retryable, and no batch assertion creates cash finality. Live submission remains disabled until `EXT-DISBURSEMENT-PROVIDER`. | Done. Migration, ciphertext/redaction/RBAC, reservation race/tamper/property, webhook/poll convergence, partial outcome and API/UI evidence pass. | §16.3, MNY-10A/B/C |
+| **RM11** ✅ **[FIXED 23 Aug 2026]** | F04 | RESOLVED — MNY-11A | Paid rows remain immutable. Later corrections and confirmed fraud append currency-scoped debt with exact paid-source provenance; deterministic whole-credit allocation clears debt before any residual becomes batchable. Debt, reservation and finality share one driver/currency lock order. | Done. Multi-period/currency/property, paid-fraud, allocation/reservation and forced-overlap finality-versus-confirmation races pass. | §16.2/§16.3, MNY-11A |
 | **RM12** | G5/F08 | DESIGN-GAP | Nothing bounds driver liability by confirmed funding: invoice status proves an advertiser price was paid, §15.5 separates spend from driver cost, D4 caps per driver-day but not per campaign, and Q9 expansions apply immediately. Commercial terms are also not effective-dated, so recompute can price past work under never-accepted terms (compounding RM6). | Immutable campaign financial authorization (funded amount, approved subsidy, max driver liability); reserve `rate × cap × covered vehicle-days` at offer/assignment activation; Q9 expansions apply immediately only inside pre-funded headroom, else `pending_funding`; block new sessions past the reserve while honouring hours already validly performed. Add effective-dated snapshots for offers, payout rules, zones, eligibility params, and tax/billing config; each eligible interval resolves the revision then in force. Keep the liability reserve distinct from advertiser budget/spend. | §15/§16.1/§21, **W2 entry** |
 | **RM13** | G6, G7/F07, F06 | DESIGN-GAP | Three commercial-lifecycle contracts are missing: (a) **receipt identity** — no canonical external cash-receipt uniqueness, currency/amount match, or reconciled state, so one transfer can fund two obligations; (b) **cancellation** — no `financial_cutoff_at` that ingestion/classification/recompute/release all honour, and no settlement entity; (c) **activation** — campaign/assignment/installation/trip gates are described separately, not as one atomic invariant. | (a) One receipt = one immutable row (unique bank/provider transaction id, amount, currency, payer, evidence) with separate allocation rows; `observed → reconciled → confirmed | reversed`; activation counts only confirmed allocations; a reversal withdraws funding authority at a recorded cutoff. (b) One idempotent cancellation command under a campaign lock setting an immutable cutoff; clip payable intervals at it; append-only settlement revisions with unique external refund reference. (c) One atomic activation service that locks and re-reads every prerequisite and stores an activation snapshot; trip start rechecks campaign + assignment + approved evidence. | §15/§18/§21, **W2** |
 | **RM14** | F16 | **SCOPE SUPERSEDED / DEFERRED BY D18** | This row was raised against D11's former native-in-MVP promise. D18 now makes the production screen-on PWA the pilot client and moves native background execution, native credentials/storage, OS termination, push and store-review evidence to Phase 2. The risk is deferred, not falsely closed. | Preserve RM14 as the Phase 2 native acceptance contract. Pilot readiness instead proves the D15/D16 PWA queue/seal, explicit Start/End and screen-on fail-closed behaviour across the §23 Android/iOS browser/device matrix, including permission/revocation, reload/offline/retry, storage/lock failure, visibility degradation, battery, accuracy, completeness and sync latency. | §23; D18; R14/W4 IDs repurposed to production-PWA proof |
@@ -2080,7 +2146,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Gate | Blocks | Rows |
 |------|--------|------|
-| **G-money** | Any real earnings release, export, or transfer; owning slices may implement/test synthetically in dependency order | RM1, RM6, RM8, RM10, RM11 |
+| **G-money** | Any real earnings release, export, or transfer; owning slices may implement/test synthetically in dependency order | ~~RM1, RM6, RM8, RM10, RM11~~ fixed; financially effective provider transfer still requires `EXT-DISBURSEMENT-PROVIDER` |
 | **G-GPS** | Any real-driver tracking, PWA or native | ~~RM2~~ ~~RM3~~ ~~RM4~~ ~~RM5~~ (fixed), RM9, RM15 (privacy artifacts), RM18 |
 | **G-commercial** | Real invoice issuance, production spend, or live campaign activation; owning slices may implement/test synthetically | RM12, RM13 |
 | **G-advertiser** | Any live advertiser heatmap (**including the existing one**) or issued report | RM15 (disclosure control), RM16 |
@@ -2091,6 +2157,14 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.38 | 2026-08-24 | **PKG-02 correction reconciliation.** A due reversal now enters debt authority in the same release transaction after status flush and before audit/commit, in stable driver/currency/entry order; an active reservation rolls back the entire release. Because migration `0031` has not reached a non-disposable environment, its upgrade now idempotently backfills all eligible available reversals into driver/currency debt accounts and obligations, links any same-trip paid non-reversal provenance, conserves account totals, and refuses unsafe active reservations or populated downgrades. Economic/provenance projections retain non-voided sources, subtract reversals and give `debt_remainder` zero economic value; settlement projections separately expose released credit, paid cash, debt and `max(released − debt, 0)` batch-payable value. Driver API/dashboard/earnings surfaces and all three §9 baselines moved together. Evidence: focused PostgreSQL release/reservation race, debt/residual and populated migration tests; frontend 191 tests/type/lint/build; backend aggregate 793 pass/3 skip followed by 41-pass recheck of the only 13 documentation-contract fixture failures; independent clean-context minimal-change review PASS. No live provider or real-world validation is claimed. |
+| v1.37 | 2026-08-23 | **PKG-02 money integrity and payout operations closed; RM10/RM11 resolved.** Migrations `0028`–`0031` add encrypted append-only driver payee/account versions, atomic whole-entry payout reservation with frozen instructions and maker-checker approval, verified line-level provider reconciliation before immutable paid finality, and currency-scoped carry-forward debt with paid-source provenance. Live adapters remain fail-closed behind `EXT-DISBURSEMENT-PROVIDER`. The controlled §9 baselines moved once. Aggregate Package 2 evidence covers 541 backend passes plus one intentional skip across the non-repeated integration partitions, 187 frontend tests, type/lint/build, migration/autogenerate, crypto, property, concurrency and synthetic end-to-end flows. The consolidated review's lock-order and paid-state findings were corrected once and rechecked RESOLVED; the forced-overlap provider-finality/confirmed-fraud race preserves paid history and creates exactly one obligation. No live provider, physical-device, real-route, external-staging, pilot or user-feedback validation is claimed. |
+| v1.36 | 2026-08-21 | **MNY-03A clean release and flagged-review SLA delivered; RM8 closed.** Migration `0027` adds persisted one-time escalation evidence and unique fraud-flag-linked reversal provenance. A starvation-safe DB-derived sweep uses the existing trip scope, post-wait DB clock, exact successful-current assessment and imported hold predicate before stable `pending → available` transitions; dismissal requires reassessment. Open/acknowledged reviews escalate at the configurable deadline without auto-release. Named confirmation after release posts one positive subtract-by-type available reversal, while retry/multiple flags cannot over-reverse. The typed admin queue shows deadlines, escalation history and reversal consequences; all three §9 artifacts moved together. Evidence: focused PostgreSQL currentness/time/concurrency/migration tests, worker/API/UI and contract checks, live synthetic desktop/mobile recommendation plus named one-reversal confirmation, and one money/concurrency correction round rechecked RESOLVED. No physical-device, real-route, external-staging, pilot or user-feedback validation is claimed. |
+| v1.35 | 2026-08-21 | **PKG02-C1 financial-authority hardening delivered.** Migration `0026` freezes nullable campaign payment windows on new payout-v3 bindings; legacy provenance fails closed. Assignment acceptance and payout-rule publication share a campaign transaction lock and PostgreSQL wall clock. Calculation, staleness, correction fingerprints and persisted money metadata use frozen windows, while v2 retains live-window sensitivity. Populated downgrades `0018`–`0021`/authoritative `0026` fail closed. Adjacent-day correction projection locks overlapping trips in stable UUID order before day-cap locks, then allocates chronologically. Focused migration, clock/window, nullable-metadata and opposing-order cross-midnight race evidence passed; one money/concurrency review's two medium findings were corrected once and rechecked RESOLVED. No API or external/live contract changed. |
+| v1.34 | 2026-08-21 | **MNY-08C driver reasons, disputes and in-app outcomes delivered.** Migration `0025` adds owner-only one-per-flag disputes and typed transactional notices. Sanitized projections keep detector evidence, matched identities and internal review notes private; exact retries converge; confirmed/dismissed outcomes remain visible; replies remain separate from review notes; disputed flag provenance survives reconciliation. Corrected earnings explanations source the eligible/excluded pair from the same newest authoritative recompute and do not fall through on malformed newest provenance. Evidence: focused PostgreSQL privacy/idempotency/atomicity/concurrency tests, 25 focused frontend tests, type/lint, synchronized §9 artifacts, two-profile desktop/mobile live dispute→reply→reload, and privacy/security recheck RESOLVED after one combined correction round. No physical-device, route, staging, pilot or user-feedback validation is claimed. |
+| v1.33 | 2026-08-21 | **MNY-08B serialized review and authoritative holds delivered; RM8 narrowed to release.** Migration `0024` adds coherent reviewer/time/note evidence, terminal `confirmed`, and non-terminal trip/type dedup for the exact `open → acknowledged → confirmed \| dismissed` graph. One shared predicate holds open, acknowledged and confirmed flags across impression, payout and later release consumers; only dismissal releases, and the payout-v1 floor cannot restore held pay. A shared/exclusive PostgreSQL reconciliation gate plus sorted affected-trip/fingerprint/row locks closes cross-trip detection-versus-money races; analytics recomputation enters the same scope before any write, closing the broader admin-versus-worker lock cycle. Exact retries converge, illegal/conflicting transitions fail, and review plus audit is atomic. The typed admin queue now acknowledges/resolves bounded evidence. Evidence: focused SQLite/Postgres suites including detector, money-holder and admin/worker races, migration fail-closed/downgrade and empty-cycle checks, 166 frontend tests, type/lint/build, two-project live seeded Playwright, synchronized §9 artifacts, and independent money/concurrency recheck RESOLVED after one combined correction round. No real-device, route, staging, pilot or user-feedback validation is claimed. |
+| v1.32 | 2026-08-21 | **MNY-09A copied-route detection delivered; RM9 partially resolved.** Migration `0023` adds one current detector/config/analytics-bound replay signature per trip with indexed absolute-payload and time-shift-normalized fingerprints. One latest cross-account candidate per normalized group becomes privacy-bounded review evidence; same-trip retries and same-driver repeats alone do not flag. Sorted old/new group locks and DB-bounded reconciliation cover reverse processing, membership departure, scale and concurrent transitions. Failures remain due and no new hold predicate is introduced. Evidence: 165 focused SQLite and 189 focused Postgres tests, property/scale and pipeline coverage, seeded-data downgrade, empty migration cycle, filtered autogenerate-empty, ruff/diff clean, and independent fraud/privacy review RESOLVED after one correction round. The staged public enum movement was integrated with MNY-08B at v1.33. Derived replay hashes are classified as pseudonymous trip-linked location data for RM15 retention/DSR handling. |
+| v1.31 | 2026-08-21 | **MNY-08A current fraud assessments delivered; RM8 partially closed.** Migration `0022` adds one versioned/fingerprinted current assessment attempt per sealed trip with explicit pending/clean/flagged/error states and current-flag count/update provenance. The DB-derived worker sweep reselects stale formula, analytics and flag inputs; only successful-current clean/flagged states qualify for the later release contract, while sanitized evaluation errors remain due. Named uniqueness convergence handles simultaneous workers. Evidence: empty migration upgrade and downgrade/re-upgrade at one head; 60 focused Postgres and 118 focused SQLite tests; ruff/diff clean; independent money/concurrency review findings corrected once and rechecked RESOLVED. No public API or §9 baseline change. MNY-08B/MNY-03A still own the serialized hold/release contract. |
 | v1.30 | 2026-08-20 | **PKG-01 closed: parked-time payout and build-risk foundations delivered (D22/D23).** `stationary-rd-v1` freezes the reviewed 120-second/25-metre/2-confirm/1-release rule and complete common values for new payout-v3 acceptances, persists classifier/payout/correction evidence and driver/admin explanations, fails closed on unknown markers, and preserves payout-v1/v2 fingerprints. RM2 is closed. Deterministic PostGIS/frontend/build checks and the production-like desktop/mobile browser flow pass; API baselines did not move. R14-A/B and R17-A automated/synthetic build proofs are complete. Representative Android/iPhone physical/route/battery and approved external-staging validation remain explicitly NOT RUN and continue to gate later W4 real use. |
 | v1.29 | 2026-08-20 | **Build-first versus real-world validation contract recorded (D23).** R14-A/R14-B close on deterministic capability, denial/revocation, queue/tracker, interrupted synthetic-flow and desktop/mobile browser-profile evidence; R17-A closes on provider-neutral production-compose, edge, smoke, migration and recovery-contract evidence. Representative Android/iPhone route/battery runs and external staging deployment/public-edge/restore evidence remain explicitly NOT RUN in `docs/progress.md` and still gate W4 real GPS, release and pilot acceptance. `EXT-STAGING-APPROVAL` remains missing; no device or deployment evidence is invented. The progress validator pins R17-A's build prerequisite as `none` while preserving the stable external ID and later live gate. |
 | v1.28 | 2026-08-20 | **MNY-06A/B/C delivered; RM6 closed.** Effective-dated immutable payout revisions, acceptance-time `payout_v3` bindings with fully frozen rates/cap/eligibility and premium/exclusion geometries, shared chronological Lagos-day cap allocation, exact persisted tier components, and maker-checker correction orders replace mutable rule/recompute authority. Admin revision/correction UI and driver tier explanations shipped with migrations `0018`–`0021` and all three §9 baselines. Evidence on reviewed candidate `25fdd52`: PostGIS 562 passed (3 expected skips), migration up/down/re-upgrade + autogenerate-empty, frontend 155 tests/typecheck/lint/build, live-stack Playwright 22 passed, two-admin correction journey, and independent money/security, architecture/concurrency/frozen-terms and minimal-change reviews PASS. |

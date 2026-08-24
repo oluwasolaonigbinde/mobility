@@ -1,9 +1,9 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 from app.models.trip_analytics import (
     FraudFlagSeverity,
@@ -51,8 +51,45 @@ class FraudFlagRead(BaseModel):
     description: str
     evidence: dict[str, Any] = Field(default_factory=dict)
     detected_at: datetime
+    reviewed_by_user_id: UUID | None
+    reviewed_at: datetime | None
+    resolution_note: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class FraudFlagMoneyEffectRead(BaseModel):
+    available_net: Decimal
+    currency: str | None
+    reversal_entry_id: UUID | None
+    reversal_recommended: bool
+
+    @field_serializer("available_net")
+    def serialize_available_net(self, value: Decimal) -> str:
+        return str(value)
+
+
+class AdminFraudFlagRead(FraudFlagRead):
+    review_due_at: datetime
+    escalated_at: datetime | None
+    money_effect: FraudFlagMoneyEffectRead
+
+
+class FraudFlagResolveRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    outcome: Literal["confirmed", "dismissed"]
+    note: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("note", mode="before")
+    @classmethod
+    def normalize_note(cls, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("note must not be blank")
+        return normalized
 
 
 class TripAnalyticsRead(DecimalStringMixin):
@@ -95,7 +132,7 @@ class TripAnalyticsRead(DecimalStringMixin):
 
 
 class FraudFlagListResponse(BaseModel):
-    items: list[FraudFlagRead]
+    items: list[AdminFraudFlagRead]
     total: int
     limit: int
     offset: int

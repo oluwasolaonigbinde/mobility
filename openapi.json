@@ -295,6 +295,286 @@
         "title": "AdminDriverProfileRead",
         "type": "object"
       },
+      "AdminFraudDisputeList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminFraudDisputeRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "AdminFraudDisputeList",
+        "type": "object"
+      },
+      "AdminFraudDisputeRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "fraud_flag_id": {
+            "format": "uuid",
+            "title": "Fraud Flag Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "replied_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replied At"
+          },
+          "replied_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replied By User Id"
+          },
+          "reply": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FraudDisputeStatus"
+          },
+          "submitted_by_user_id": {
+            "format": "uuid",
+            "title": "Submitted By User Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "fraud_flag_id",
+          "driver_profile_id",
+          "submitted_by_user_id",
+          "message",
+          "status",
+          "replied_by_user_id",
+          "replied_at",
+          "reply",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AdminFraudDisputeRead",
+        "type": "object"
+      },
+      "AdminFraudFlagRead": {
+        "properties": {
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "detected_at": {
+            "format": "date-time",
+            "title": "Detected At",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "escalated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escalated At"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "title": "Evidence",
+            "type": "object"
+          },
+          "flag_type": {
+            "$ref": "#/components/schemas/FraudFlagType"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "money_effect": {
+            "$ref": "#/components/schemas/FraudFlagMoneyEffectRead"
+          },
+          "resolution_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Note"
+          },
+          "review_due_at": {
+            "format": "date-time",
+            "title": "Review Due At",
+            "type": "string"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By User Id"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/FraudFlagSeverity"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FraudFlagStatus"
+          },
+          "trip_analytics_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Analytics Id"
+          },
+          "trip_session_id": {
+            "format": "uuid",
+            "title": "Trip Session Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "vehicle_id": {
+            "format": "uuid",
+            "title": "Vehicle Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "trip_session_id",
+          "trip_analytics_id",
+          "assignment_id",
+          "campaign_id",
+          "driver_profile_id",
+          "vehicle_id",
+          "flag_type",
+          "severity",
+          "status",
+          "description",
+          "detected_at",
+          "reviewed_by_user_id",
+          "reviewed_at",
+          "resolution_note",
+          "created_at",
+          "updated_at",
+          "review_due_at",
+          "escalated_at",
+          "money_effect"
+        ],
+        "title": "AdminFraudFlagRead",
+        "type": "object"
+      },
       "AdminOrganizationCreateResponse": {
         "properties": {
           "organization": {
@@ -928,6 +1208,99 @@
           "created_at"
         ],
         "title": "AuditEventRead",
+        "type": "object"
+      },
+      "BankAccountRevealRead": {
+        "properties": {
+          "account_name": {
+            "title": "Account Name",
+            "type": "string"
+          },
+          "account_number": {
+            "title": "Account Number",
+            "type": "string"
+          },
+          "bank_code": {
+            "title": "Bank Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_name",
+          "account_number",
+          "bank_code"
+        ],
+        "title": "BankAccountRevealRead",
+        "type": "object"
+      },
+      "BankAccountRevealRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "purpose": {
+            "maxLength": 64,
+            "minLength": 3,
+            "pattern": "^[a-z][a-z0-9_]+$",
+            "title": "Purpose",
+            "type": "string"
+          }
+        },
+        "required": [
+          "purpose"
+        ],
+        "title": "BankAccountRevealRequest",
+        "type": "object"
+      },
+      "BankAccountVersionRead": {
+        "properties": {
+          "bank_account_id": {
+            "format": "uuid",
+            "title": "Bank Account Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "encryption_algorithm": {
+            "title": "Encryption Algorithm",
+            "type": "string"
+          },
+          "encryption_key_version": {
+            "title": "Encryption Key Version",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "payee_version_id": {
+            "format": "uuid",
+            "title": "Payee Version Id",
+            "type": "string"
+          },
+          "verified_at": {
+            "format": "date-time",
+            "title": "Verified At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "bank_account_id",
+          "payee_version_id",
+          "version",
+          "encryption_algorithm",
+          "encryption_key_version",
+          "verified_at",
+          "created_at"
+        ],
+        "title": "BankAccountVersionRead",
         "type": "object"
       },
       "CalculatePayoutRequest": {
@@ -4087,6 +4460,39 @@
             ],
             "title": "Available Amount"
           },
+          "batch_payable_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Payable Amount"
+          },
+          "carry_forward_debt_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carry Forward Debt Amount"
+          },
+          "cash_paid_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cash Paid Amount"
+          },
           "currency": {
             "title": "Currency",
             "type": "string"
@@ -4106,6 +4512,17 @@
             ],
             "title": "Lifetime Earned Amount"
           },
+          "paid_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid Amount"
+          },
           "pending_amount": {
             "anyOf": [
               {
@@ -4116,6 +4533,17 @@
               }
             ],
             "title": "Pending Amount"
+          },
+          "released_available_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Released Available Amount"
           },
           "voided_amount": {
             "anyOf": [
@@ -4133,8 +4561,13 @@
           "currency",
           "pending_amount",
           "available_amount",
+          "paid_amount",
           "voided_amount",
           "lifetime_earned_amount",
+          "released_available_amount",
+          "cash_paid_amount",
+          "carry_forward_debt_amount",
+          "batch_payable_amount",
           "ledger_entry_count"
         ],
         "title": "DriverEarningsCurrencySummary",
@@ -4160,6 +4593,285 @@
           "totals_by_currency"
         ],
         "title": "DriverEarningsSummary",
+        "type": "object"
+      },
+      "DriverFraudDisputeRead": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "replied_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replied At"
+          },
+          "reply": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FraudDisputeStatus"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "message",
+          "status",
+          "reply",
+          "submitted_at",
+          "replied_at"
+        ],
+        "title": "DriverFraudDisputeRead",
+        "type": "object"
+      },
+      "DriverFraudHoldList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DriverFraudHoldRead"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "DriverFraudHoldList",
+        "type": "object"
+      },
+      "DriverFraudHoldRead": {
+        "properties": {
+          "detected_at": {
+            "format": "date-time",
+            "title": "Detected At",
+            "type": "string"
+          },
+          "dispute": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DriverFraudDisputeRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "notices": {
+            "items": {
+              "$ref": "#/components/schemas/DriverNotificationRead"
+            },
+            "title": "Notices",
+            "type": "array"
+          },
+          "public_status": {
+            "enum": [
+              "assessment_pending",
+              "under_review",
+              "issue_confirmed",
+              "review_cleared"
+            ],
+            "title": "Public Status",
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/DriverFraudHoldReason"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "trip_session_id": {
+            "format": "uuid",
+            "title": "Trip Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "trip_session_id",
+          "public_status",
+          "reason",
+          "detected_at",
+          "reviewed_at",
+          "dispute"
+        ],
+        "title": "DriverFraudHoldRead",
+        "type": "object"
+      },
+      "DriverFraudHoldReason": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "version": {
+            "const": "v1",
+            "default": "v1",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "title",
+          "body"
+        ],
+        "title": "DriverFraudHoldReason",
+        "type": "object"
+      },
+      "DriverMoneyBalanceRead": {
+        "properties": {
+          "batch_payable": {
+            "title": "Batch Payable",
+            "type": "string"
+          },
+          "carry_forward_debt": {
+            "title": "Carry Forward Debt",
+            "type": "string"
+          },
+          "cash_paid": {
+            "title": "Cash Paid",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "earned_net": {
+            "title": "Earned Net",
+            "type": "string"
+          },
+          "released_available": {
+            "title": "Released Available",
+            "type": "string"
+          }
+        },
+        "required": [
+          "driver_profile_id",
+          "currency",
+          "earned_net",
+          "released_available",
+          "cash_paid",
+          "carry_forward_debt",
+          "batch_payable"
+        ],
+        "title": "DriverMoneyBalanceRead",
+        "type": "object"
+      },
+      "DriverNotificationRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "fraud_dispute_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fraud Dispute Id"
+          },
+          "fraud_flag_id": {
+            "format": "uuid",
+            "title": "Fraud Flag Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "template_version": {
+            "title": "Template Version",
+            "type": "string"
+          },
+          "trip_session_id": {
+            "format": "uuid",
+            "title": "Trip Session Id",
+            "type": "string"
+          },
+          "type_key": {
+            "$ref": "#/components/schemas/NotificationType"
+          }
+        },
+        "required": [
+          "id",
+          "type_key",
+          "template_version",
+          "fraud_flag_id",
+          "trip_session_id",
+          "created_at"
+        ],
+        "title": "DriverNotificationRead",
         "type": "object"
       },
       "DriverOnboardingStatus": {
@@ -4892,7 +5604,8 @@
           "pending",
           "available",
           "voided",
-          "reversed"
+          "reversed",
+          "paid"
         ],
         "title": "EarningsLedgerEntryStatus",
         "type": "string"
@@ -4901,7 +5614,8 @@
         "enum": [
           "trip_payout",
           "adjustment",
-          "reversal"
+          "reversal",
+          "debt_remainder"
         ],
         "title": "EarningsLedgerEntryType",
         "type": "string"
@@ -4930,11 +5644,56 @@
         "title": "EstimateImpressionsRequest",
         "type": "object"
       },
+      "FraudDisputeCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "FraudDisputeCreate",
+        "type": "object"
+      },
+      "FraudDisputeReply": {
+        "additionalProperties": false,
+        "properties": {
+          "reply": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reply",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reply"
+        ],
+        "title": "FraudDisputeReply",
+        "type": "object"
+      },
+      "FraudDisputeStatus": {
+        "enum": [
+          "open",
+          "replied"
+        ],
+        "title": "FraudDisputeStatus",
+        "type": "string"
+      },
       "FraudFlagCounts": {
         "properties": {
           "acknowledged": {
             "default": 0,
             "title": "Acknowledged",
+            "type": "integer"
+          },
+          "confirmed": {
+            "default": 0,
+            "title": "Confirmed",
             "type": "integer"
           },
           "dismissed": {
@@ -4970,7 +5729,7 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/FraudFlagRead"
+              "$ref": "#/components/schemas/AdminFraudFlagRead"
             },
             "title": "Items",
             "type": "array"
@@ -4995,6 +5754,49 @@
           "offset"
         ],
         "title": "FraudFlagListResponse",
+        "type": "object"
+      },
+      "FraudFlagMoneyEffectRead": {
+        "properties": {
+          "available_net": {
+            "title": "Available Net",
+            "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "reversal_entry_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reversal Entry Id"
+          },
+          "reversal_recommended": {
+            "title": "Reversal Recommended",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "available_net",
+          "currency",
+          "reversal_entry_id",
+          "reversal_recommended"
+        ],
+        "title": "FraudFlagMoneyEffectRead",
         "type": "object"
       },
       "FraudFlagRead": {
@@ -5040,6 +5842,41 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "resolution_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Note"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By User Id"
           },
           "severity": {
             "$ref": "#/components/schemas/FraudFlagSeverity"
@@ -5088,10 +5925,38 @@
           "status",
           "description",
           "detected_at",
+          "reviewed_by_user_id",
+          "reviewed_at",
+          "resolution_note",
           "created_at",
           "updated_at"
         ],
         "title": "FraudFlagRead",
+        "type": "object"
+      },
+      "FraudFlagResolveRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Note",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "confirmed",
+              "dismissed"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome",
+          "note"
+        ],
+        "title": "FraudFlagResolveRequest",
         "type": "object"
       },
       "FraudFlagSeverity": {
@@ -5107,6 +5972,7 @@
         "enum": [
           "open",
           "acknowledged",
+          "confirmed",
           "dismissed"
         ],
         "title": "FraudFlagStatus",
@@ -5121,6 +5987,7 @@
           "excessive_ping_gap",
           "future_timestamp",
           "route_looping",
+          "route_replay",
           "exclusion_zone_presence"
         ],
         "title": "FraudFlagType",
@@ -5994,6 +6861,15 @@
         "title": "MembershipStatus",
         "type": "string"
       },
+      "NotificationType": {
+        "enum": [
+          "fraud_hold_raised",
+          "fraud_review_resolved",
+          "fraud_dispute_replied"
+        ],
+        "title": "NotificationType",
+        "type": "string"
+      },
       "OrganizationMembershipRead": {
         "properties": {
           "role": {
@@ -6017,6 +6893,381 @@
           "disabled"
         ],
         "title": "OrganizationStatus",
+        "type": "string"
+      },
+      "PayeeRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "payee_type": {
+            "$ref": "#/components/schemas/PayeeType"
+          },
+          "subject_id": {
+            "format": "uuid",
+            "title": "Subject Id",
+            "type": "string"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "version_id": {
+            "format": "uuid",
+            "title": "Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "payee_type",
+          "subject_id",
+          "version_id",
+          "version",
+          "created_at"
+        ],
+        "title": "PayeeRead",
+        "type": "object"
+      },
+      "PayeeType": {
+        "enum": [
+          "driver"
+        ],
+        "title": "PayeeType",
+        "type": "string"
+      },
+      "PayoutBatchCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency"
+        ],
+        "title": "PayoutBatchCreate",
+        "type": "object"
+      },
+      "PayoutBatchLineRead": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "bank_account_version_id": {
+            "format": "uuid",
+            "title": "Bank Account Version Id",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "instruction": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Instruction",
+            "type": "object"
+          },
+          "instruction_fingerprint": {
+            "title": "Instruction Fingerprint",
+            "type": "string"
+          },
+          "last_provider_evidence_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Provider Evidence At"
+          },
+          "ledger_entry_id": {
+            "format": "uuid",
+            "title": "Ledger Entry Id",
+            "type": "string"
+          },
+          "payee_version_id": {
+            "format": "uuid",
+            "title": "Payee Version Id",
+            "type": "string"
+          },
+          "provider_transfer_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Transfer Reference"
+          },
+          "reconciled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reconciled At"
+          },
+          "reconciled_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reconciled By User Id"
+          },
+          "reservation_active": {
+            "title": "Reservation Active",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PayoutBatchLineStatus"
+          }
+        },
+        "required": [
+          "id",
+          "ledger_entry_id",
+          "payee_version_id",
+          "bank_account_version_id",
+          "amount",
+          "currency",
+          "instruction",
+          "instruction_fingerprint",
+          "idempotency_key",
+          "status",
+          "provider_transfer_reference",
+          "reconciled_by_user_id",
+          "reconciled_at",
+          "last_provider_evidence_at",
+          "reservation_active"
+        ],
+        "title": "PayoutBatchLineRead",
+        "type": "object"
+      },
+      "PayoutBatchLineStatus": {
+        "enum": [
+          "reserved",
+          "submitted",
+          "succeeded",
+          "failed",
+          "void"
+        ],
+        "title": "PayoutBatchLineStatus",
+        "type": "string"
+      },
+      "PayoutBatchListRead": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PayoutBatchRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "PayoutBatchListRead",
+        "type": "object"
+      },
+      "PayoutBatchRead": {
+        "properties": {
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "approved_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By User Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by_user_id": {
+            "format": "uuid",
+            "title": "Created By User Id",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "instruction_set_fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction Set Fingerprint"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PayoutBatchLineRead"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "provider_submission_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Submission Reference"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PayoutBatchStatus"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "total_amount": {
+            "title": "Total Amount",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "currency",
+          "total_amount",
+          "instruction_set_fingerprint",
+          "provider_submission_reference",
+          "created_by_user_id",
+          "approved_by_user_id",
+          "approved_at",
+          "submitted_at",
+          "created_at"
+        ],
+        "title": "PayoutBatchRead",
+        "type": "object"
+      },
+      "PayoutBatchReserve": {
+        "additionalProperties": false,
+        "properties": {
+          "ledger_entry_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Ledger Entry Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ledger_entry_ids"
+        ],
+        "title": "PayoutBatchReserve",
+        "type": "object"
+      },
+      "PayoutBatchStatus": {
+        "enum": [
+          "draft",
+          "reserved",
+          "submitted",
+          "reconciled",
+          "completed",
+          "failed",
+          "void"
+        ],
+        "title": "PayoutBatchStatus",
         "type": "string"
       },
       "PayoutCalculationListResponse": {
@@ -6611,6 +7862,52 @@
           "projection_fingerprint"
         ],
         "title": "PayoutDayProjection",
+        "type": "object"
+      },
+      "PayoutDebtAllocate": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency"
+        ],
+        "title": "PayoutDebtAllocate",
+        "type": "object"
+      },
+      "PayoutDebtAllocationRead": {
+        "properties": {
+          "balance": {
+            "$ref": "#/components/schemas/DriverMoneyBalanceRead"
+          },
+          "remainder_entry_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Remainder Entry Ids",
+            "type": "array"
+          },
+          "settlement_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Settlement Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "balance",
+          "settlement_ids",
+          "remainder_entry_ids"
+        ],
+        "title": "PayoutDebtAllocationRead",
         "type": "object"
       },
       "PayoutLedgerEntrySummary": {
@@ -9057,6 +10354,42 @@
         "title": "VehicleUpdate",
         "type": "object"
       },
+      "VerifiedBankAccountCreate": {
+        "properties": {
+          "account_name": {
+            "format": "password",
+            "title": "Account Name",
+            "type": "string",
+            "writeOnly": true
+          },
+          "account_number": {
+            "format": "password",
+            "title": "Account Number",
+            "type": "string",
+            "writeOnly": true
+          },
+          "bank_code": {
+            "format": "password",
+            "title": "Bank Code",
+            "type": "string",
+            "writeOnly": true
+          },
+          "verification_reference": {
+            "format": "password",
+            "title": "Verification Reference",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "account_name",
+          "account_number",
+          "bank_code",
+          "verification_reference"
+        ],
+        "title": "VerifiedBankAccountCreate",
+        "type": "object"
+      },
       "ZoneTypeCounts": {
         "properties": {
           "bonus": {
@@ -10676,6 +12009,161 @@
         ]
       }
     },
+    "/api/v1/admin/fraud-disputes": {
+      "get": {
+        "operationId": "admin_get_fraud_disputes_api_v1_admin_fraud_disputes_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "flag_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Flag Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/FraudDisputeStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminFraudDisputeList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Get Fraud Disputes",
+        "tags": [
+          "Fraud disputes"
+        ]
+      }
+    },
+    "/api/v1/admin/fraud-disputes/{dispute_id}/reply": {
+      "post": {
+        "operationId": "admin_reply_to_fraud_dispute_api_v1_admin_fraud_disputes__dispute_id__reply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dispute_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Dispute Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FraudDisputeReply"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminFraudDisputeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Reply To Fraud Dispute",
+        "tags": [
+          "Fraud disputes"
+        ]
+      }
+    },
     "/api/v1/admin/fraud-flags": {
       "get": {
         "operationId": "admin_list_fraud_flags_api_v1_admin_fraud_flags_get",
@@ -10831,6 +12319,112 @@
           }
         ],
         "summary": "List fraud and anomaly flags",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/admin/fraud-flags/{flag_id}/review/acknowledge": {
+      "post": {
+        "operationId": "admin_acknowledge_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_acknowledge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "flag_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Flag Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminFraudFlagRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Acknowledge a fraud flag for staff review",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/admin/fraud-flags/{flag_id}/review/resolve": {
+      "post": {
+        "operationId": "admin_resolve_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "flag_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Flag Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FraudFlagResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminFraudFlagRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Resolve a fraud flag review",
         "tags": [
           "Analytics"
         ]
@@ -11167,6 +12761,828 @@
         "summary": "List impression estimates",
         "tags": [
           "Impressions"
+        ]
+      }
+    },
+    "/api/v1/admin/payees/bank-account-versions/{version_id}/reveal": {
+      "post": {
+        "operationId": "admin_reveal_bank_account_api_v1_admin_payees_bank_account_versions__version_id__reveal_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BankAccountRevealRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankAccountRevealRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Reveal Bank Account",
+        "tags": [
+          "Admin payees"
+        ]
+      }
+    },
+    "/api/v1/admin/payees/bank-accounts/{bank_account_id}/rewrap": {
+      "post": {
+        "operationId": "admin_rewrap_bank_account_api_v1_admin_payees_bank_accounts__bank_account_id__rewrap_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bank_account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Bank Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankAccountVersionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Rewrap Bank Account",
+        "tags": [
+          "Admin payees"
+        ]
+      }
+    },
+    "/api/v1/admin/payees/drivers/{driver_profile_id}": {
+      "post": {
+        "operationId": "admin_create_driver_payee_api_v1_admin_payees_drivers__driver_profile_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "driver_profile_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Driver Profile Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayeeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Create Driver Payee",
+        "tags": [
+          "Admin payees"
+        ]
+      }
+    },
+    "/api/v1/admin/payees/{payee_id}/bank-account-versions": {
+      "post": {
+        "operationId": "admin_add_verified_bank_account_api_v1_admin_payees__payee_id__bank_account_versions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "payee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payee Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifiedBankAccountCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankAccountVersionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Add Verified Bank Account",
+        "tags": [
+          "Admin payees"
+        ]
+      }
+    },
+    "/api/v1/admin/payout-batches": {
+      "get": {
+        "operationId": "admin_list_payout_batches_api_v1_admin_payout_batches_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutBatchListRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin List Payout Batches",
+        "tags": [
+          "Admin payout batches"
+        ]
+      },
+      "post": {
+        "operationId": "admin_create_payout_batch_api_v1_admin_payout_batches_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutBatchCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutBatchRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Create Payout Batch",
+        "tags": [
+          "Admin payout batches"
+        ]
+      }
+    },
+    "/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}": {
+      "get": {
+        "operationId": "admin_get_driver_money_balance_api_v1_admin_payout_batches_debt_balances__driver_profile_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "driver_profile_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Driver Profile Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "currency",
+            "required": true,
+            "schema": {
+              "maxLength": 3,
+              "minLength": 3,
+              "title": "Currency",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverMoneyBalanceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Get Driver Money Balance",
+        "tags": [
+          "Admin payout batches"
+        ]
+      }
+    },
+    "/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}/allocate": {
+      "post": {
+        "operationId": "admin_allocate_driver_debt_api_v1_admin_payout_batches_debt_balances__driver_profile_id__allocate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "driver_profile_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Driver Profile Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutDebtAllocate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutDebtAllocationRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Allocate Driver Debt",
+        "tags": [
+          "Admin payout batches"
+        ]
+      }
+    },
+    "/api/v1/admin/payout-batches/lines/{line_id}/poll": {
+      "post": {
+        "operationId": "admin_poll_payout_line_api_v1_admin_payout_batches_lines__line_id__poll_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "line_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Line Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutBatchRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Poll Payout Line",
+        "tags": [
+          "Admin payout batches"
+        ]
+      }
+    },
+    "/api/v1/admin/payout-batches/provider-webhook": {
+      "post": {
+        "operationId": "provider_payout_webhook_api_v1_admin_payout_batches_provider_webhook_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Provider-Signature",
+            "required": true,
+            "schema": {
+              "title": "X-Provider-Signature",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutBatchRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Provider Payout Webhook",
+        "tags": [
+          "Admin payout batches"
+        ]
+      }
+    },
+    "/api/v1/admin/payout-batches/{batch_id}": {
+      "get": {
+        "operationId": "admin_get_payout_batch_api_v1_admin_payout_batches__batch_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutBatchRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Get Payout Batch",
+        "tags": [
+          "Admin payout batches"
+        ]
+      }
+    },
+    "/api/v1/admin/payout-batches/{batch_id}/approve": {
+      "post": {
+        "operationId": "admin_approve_payout_batch_api_v1_admin_payout_batches__batch_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutBatchRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Approve Payout Batch",
+        "tags": [
+          "Admin payout batches"
+        ]
+      }
+    },
+    "/api/v1/admin/payout-batches/{batch_id}/reserve": {
+      "post": {
+        "operationId": "admin_reserve_payout_batch_api_v1_admin_payout_batches__batch_id__reserve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutBatchReserve"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutBatchRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Reserve Payout Batch",
+        "tags": [
+          "Admin payout batches"
+        ]
+      }
+    },
+    "/api/v1/admin/payout-batches/{batch_id}/retry-failed": {
+      "post": {
+        "operationId": "admin_retry_failed_payout_lines_api_v1_admin_payout_batches__batch_id__retry_failed_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutBatchRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Retry Failed Payout Lines",
+        "tags": [
+          "Admin payout batches"
+        ]
+      }
+    },
+    "/api/v1/admin/payout-batches/{batch_id}/submit": {
+      "post": {
+        "operationId": "admin_submit_payout_batch_api_v1_admin_payout_batches__batch_id__submit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutBatchRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Submit Payout Batch",
+        "tags": [
+          "Admin payout batches"
+        ]
+      }
+    },
+    "/api/v1/admin/payout-batches/{batch_id}/void": {
+      "post": {
+        "operationId": "admin_void_payout_batch_api_v1_admin_payout_batches__batch_id__void_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutBatchRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Void Payout Batch",
+        "tags": [
+          "Admin payout batches"
         ]
       }
     },
@@ -15315,6 +17731,119 @@
         "summary": "Read current driver earnings summary",
         "tags": [
           "Payouts"
+        ]
+      }
+    },
+    "/api/v1/driver/fraud-holds": {
+      "get": {
+        "operationId": "driver_get_fraud_holds_api_v1_driver_fraud_holds_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "trip_session_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Trip Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverFraudHoldList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Driver Get Fraud Holds",
+        "tags": [
+          "Fraud disputes"
+        ]
+      }
+    },
+    "/api/v1/driver/fraud-holds/{flag_id}/disputes": {
+      "post": {
+        "operationId": "driver_create_fraud_dispute_api_v1_driver_fraud_holds__flag_id__disputes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "flag_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Flag Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FraudDisputeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverFraudDisputeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Driver Create Fraud Dispute",
+        "tags": [
+          "Fraud disputes"
         ]
       }
     },

@@ -32,9 +32,7 @@ from app.models.payout import (
 )
 from app.models.trip import LocationPing, TripSession, TripSessionStatus
 from app.models.trip_analytics import (
-    FraudFlag,
     FraudFlagSeverity,
-    FraudFlagStatus,
     TripAnalytics,
     TripAnalyticsStatus,
 )
@@ -45,12 +43,14 @@ from app.schemas.payouts import (
 )
 from app.services.campaigns import get_advertiser_campaign
 from app.services.drivers import get_required_driver_profile_with_user_by_user_id
+from app.services.fraud_holds import fraud_hold_counts
 from app.services.impressions import (
     ensure_current_estimate_source,
     impression_output_fingerprint,
     quantize_2,
     quantize_4,
 )
+from app.services.payout_debt import driver_money_balance, record_reversal_obligation
 from app.services.payout_eligibility import (
     D22_ROLLING_CONFIRMATION_WINDOWS,
     D22_ROLLING_MAX_DISPLACEMENT_M,
@@ -61,6 +61,10 @@ from app.services.payout_eligibility import (
     EligibilityParams,
     EligibilityPing,
     classify_session,
+)
+from app.services.payout_rule_serialization import (
+    acquire_campaign_terms_lock,
+    database_clock,
 )
 from app.services.provenance import stable_source_fingerprint
 from app.services.trip_analytics import (
@@ -180,8 +184,13 @@ class DriverCurrencyEarnings:
     currency: str
     pending_amount: Decimal
     available_amount: Decimal
+    paid_amount: Decimal
     voided_amount: Decimal
     lifetime_earned_amount: Decimal
+    released_available_amount: Decimal
+    cash_paid_amount: Decimal
+    carry_forward_debt_amount: Decimal
+    batch_payable_amount: Decimal
     ledger_entry_count: int
 
 
@@ -214,10 +223,18 @@ class CampaignCost:
 
 
 def signed_ledger_amount_expression():
-    """Ledger sign convention (architecture 16.2, next-steps ledger block):
-    every amount is stored positive; balance computations net reversal-typed
-    entries as negative; adjustments are ordinary positive earnings."""
+    """Economic/provenance sign convention.
+
+    A debt remainder is settlement provenance for an already-recorded source,
+    never a second economic earning. Reversals are negative; a non-voided
+    original remains economic even if allocation changes its settlement status
+    to ``reversed``.
+    """
     return case(
+        (
+            EarningsLedgerEntry.entry_type == EarningsLedgerEntryType.DEBT_REMAINDER.value,
+            0,
+        ),
         (
             EarningsLedgerEntry.entry_type == EarningsLedgerEntryType.REVERSAL.value,
             -EarningsLedgerEntry.amount,
@@ -706,11 +723,13 @@ async def create_payout_rule_revision(
 
     Guards: effective_from strictly after the latest revision's (no
     retro-insertion — retroactivity is MNY-06C's correction order) and not
-    before the DB clock. revision_number is latest + 1 read in-transaction;
-    the two unique constraints serialize concurrent supersedes fail-closed,
-    and the loser surfaces as a stable 409. Returns (revision, previous) so
-    the caller can audit full before/after values.
+    before the DB clock. A campaign-scoped authority lock serializes valid
+    concurrent publications into successive, gap-free revision numbers and
+    shares the same boundary as assignment acceptance. Returns (revision,
+    previous) so the caller can audit full before/after values.
     """
+    await acquire_campaign_terms_lock(session, campaign_id)
+    db_now = await database_clock(session)
     rule = await get_campaign_payout_rule(session, campaign_id=campaign_id, rule_id=rule_id)
     if rule.formula_version != PAYOUT_V2:
         raise invalid_rule_revision(
@@ -721,10 +740,6 @@ async def create_payout_rule_revision(
         raise rule_inactive()
     validate_eligibility_params_overlay(payload.eligibility_params)
 
-    if session.get_bind().dialect.name == "postgresql":
-        db_now = await session.scalar(select(func.now()))
-    else:
-        db_now = utc_now()
     latest = await latest_payout_rule_revision(session, campaign_id)
     if latest is not None and payload.effective_from <= _ensure_utc_aware(latest.effective_from):
         raise invalid_rule_revision(
@@ -1287,6 +1302,19 @@ async def binding_for_assignment(
     )
 
 
+def frozen_campaign_window(
+    binding: AssignmentRuleBinding,
+) -> tuple[datetime | None, datetime | None]:
+    """Return authoritative accepted windows or fail closed for legacy v3."""
+    if not binding.campaign_window_frozen:
+        raise AppError(
+            "PAYOUT_BINDING_WINDOW_NOT_FROZEN",
+            "The payout binding predates the accepted campaign-window freeze; resolve manually",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    return binding.campaign_window_start_at, binding.campaign_window_end_at
+
+
 def latest_payout_calculation_ids(
     *,
     campaign_id: UUID | None = None,
@@ -1467,21 +1495,6 @@ def price_payable_seconds(payable_seconds: int, hourly_rate: Decimal) -> Decimal
     return quantize_ngn_half_up(Decimal(payable_seconds) * hourly_rate / SECONDS_PER_HOUR)
 
 
-async def open_fraud_counts(session: AsyncSession, trip_id: UUID) -> dict[str, int]:
-    result = await session.execute(
-        select(FraudFlag.severity, func.count(FraudFlag.id))
-        .where(
-            FraudFlag.trip_session_id == trip_id,
-            FraudFlag.status == FraudFlagStatus.OPEN.value,
-        )
-        .group_by(FraudFlag.severity)
-    )
-    counts = {severity.value: 0 for severity in FraudFlagSeverity}
-    for severity, count in result.all():
-        counts[str(severity)] = int(count)
-    return counts
-
-
 def payout_fraud_multiplier(counts: dict[str, int], rule: CampaignPayoutRule) -> Decimal:
     if counts[FraudFlagSeverity.HIGH.value] > 0:
         return Decimal(rule.high_fraud_multiplier)
@@ -1581,12 +1594,12 @@ def payout_values(
         cap_adjustment += Decimal(rule.max_payout_per_trip) - final_payout
         final_payout = Decimal(rule.max_payout_per_trip)
     # Min-floor loophole closed with v2 (architecture 17, decisions-log): the
-    # floor lifts only trips with no open fraud flags (extend to `confirmed`
-    # when S2 adds that status).
-    no_open_flags = all(count == 0 for count in counts.values())
+    # The shared hold snapshot covers open, acknowledged and confirmed. A
+    # local/open-only predicate here would let the floor restore held pay.
+    no_active_holds = all(count == 0 for count in counts.values())
     if (
         gross_payout > 0
-        and no_open_flags
+        and no_active_holds
         and Decimal("0") < final_payout < rule.min_payout_per_trip
     ):
         cap_adjustment += Decimal(rule.min_payout_per_trip) - final_payout
@@ -2098,7 +2111,8 @@ async def calculate_trip_payout_v3(
     slices at the base rate (no premium disclosed on the revision)."""
     ensure_postgis(session)
     calculated_at = now or utc_now()
-    campaign = await get_campaign(session, trip.campaign_id)
+    await get_campaign(session, trip.campaign_id)
+    window_start_at, window_end_at = frozen_campaign_window(binding)
     revision = await session.get(CampaignPayoutRuleRevision, binding.revision_id)
     rule = await session.get(CampaignPayoutRule, revision.payout_rule_id)
     params = frozen_eligibility_params(binding)
@@ -2115,8 +2129,8 @@ async def calculate_trip_payout_v3(
         session_started_at=trip.started_at,
         session_ended_at=trip.ended_at,
         pings=[row.ping for row in ping_rows],
-        window_start_at=campaign.start_at,
-        window_end_at=campaign.end_at,
+        window_start_at=window_start_at,
+        window_end_at=window_end_at,
         params=params,
         stationary_policy_marker=binding.stationary_policy_marker,
     )
@@ -2129,8 +2143,8 @@ async def calculate_trip_payout_v3(
         zone_fingerprint=(
             f"{binding.premium_zone_geometry_hash}:{binding.exclusion_zone_geometry_hash}"
         ),
-        window_start_at=campaign.start_at,
-        window_end_at=campaign.end_at,
+        window_start_at=window_start_at,
+        window_end_at=window_end_at,
     )
 
     lagos_day = lagos_day_for(trip.started_at)
@@ -2209,6 +2223,12 @@ async def calculate_trip_payout_v3(
             "binding_id": str(binding.id),
             "revision_id": str(binding.revision_id),
             "bound_at": binding.bound_at.isoformat(),
+            "campaign_window_start_at": (
+                window_start_at.isoformat() if window_start_at is not None else None
+            ),
+            "campaign_window_end_at": (
+                window_end_at.isoformat() if window_end_at is not None else None
+            ),
             "premium_zone_ids": list(binding.premium_zone_ids or []),
             "premium_zone_geometry_hash": binding.premium_zone_geometry_hash,
             "exclusion_zone_ids": list(binding.exclusion_zone_ids or []),
@@ -2338,13 +2358,14 @@ async def v3_calculation_is_stale(
     money: re-derive the inputs fingerprint from the frozen binding and the
     current ping set, and compare. Money is never auto-rewritten."""
     binding = await binding_for_assignment(session, trip.assignment_id)
-    if binding is None:
+    if binding is None or not binding.campaign_window_frozen:
         return True
     revision = await session.get(CampaignPayoutRuleRevision, binding.revision_id)
     rule = await session.get(CampaignPayoutRule, revision.payout_rule_id)
     if rule is None:
         return True
-    campaign = await get_campaign(session, trip.campaign_id)
+    await get_campaign(session, trip.campaign_id)
+    window_start_at, window_end_at = frozen_campaign_window(binding)
     params = frozen_eligibility_params(binding)
     ping_rows = await load_eligibility_pings(
         session,
@@ -2361,8 +2382,8 @@ async def v3_calculation_is_stale(
         zone_fingerprint=(
             f"{binding.premium_zone_geometry_hash}:{binding.exclusion_zone_geometry_hash}"
         ),
-        window_start_at=campaign.start_at,
-        window_end_at=campaign.end_at,
+        window_start_at=window_start_at,
+        window_end_at=window_end_at,
     )
     return calculation.inputs_fingerprint != current
 
@@ -2513,7 +2534,7 @@ async def calculate_trip_payout(
     analytics = await get_analytics_for_trip(session, trip.id)
     ensure_current_analytics_formula(analytics, settings)
     estimate = await get_impression_estimate_for_trip(session, trip_id=trip.id, settings=settings)
-    counts = await open_fraud_counts(session, trip.id)
+    counts = await fraud_hold_counts(session, trip.id)
     ensure_current_estimate_source(
         estimate,
         analytics,
@@ -2722,6 +2743,31 @@ async def driver_earnings_summary(
                 ),
                 0,
             ),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            EarningsLedgerEntry.status == EarningsLedgerEntryStatus.PAID.value,
+                            signed_amount,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            EarningsLedgerEntry.status
+                            != EarningsLedgerEntryStatus.VOIDED.value,
+                            signed_amount,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
             func.count(EarningsLedgerEntry.id),
         )
         .where(*filters)
@@ -2732,14 +2778,25 @@ async def driver_earnings_summary(
         pending = quantize_2(Decimal(str(row[1] or 0)))
         available = quantize_2(Decimal(str(row[2] or 0)))
         voided = quantize_2(Decimal(str(row[3] or 0)))
+        paid = quantize_2(Decimal(str(row[4] or 0)))
+        balance = await driver_money_balance(
+            session,
+            driver_profile_id=profile.id,
+            currency=row[0],
+        )
         totals.append(
             DriverCurrencyEarnings(
                 currency=row[0],
                 pending_amount=pending,
                 available_amount=available,
+                paid_amount=paid,
                 voided_amount=voided,
-                lifetime_earned_amount=quantize_2(pending + available),
-                ledger_entry_count=int(row[4] or 0),
+                lifetime_earned_amount=quantize_2(Decimal(str(row[5] or 0))),
+                released_available_amount=balance.released_available,
+                cash_paid_amount=balance.cash_paid,
+                carry_forward_debt_amount=balance.carry_forward_debt,
+                batch_payable_amount=balance.batch_payable,
+                ledger_entry_count=int(row[6] or 0),
             )
         )
     if not totals:
@@ -2748,8 +2805,13 @@ async def driver_earnings_summary(
                 currency=validate_currency_code(currency, fallback=settings.default_currency),
                 pending_amount=Decimal("0.00"),
                 available_amount=Decimal("0.00"),
+                paid_amount=Decimal("0.00"),
                 voided_amount=Decimal("0.00"),
                 lifetime_earned_amount=Decimal("0.00"),
+                released_available_amount=Decimal("0.00"),
+                cash_paid_amount=Decimal("0.00"),
+                carry_forward_debt_amount=Decimal("0.00"),
+                batch_payable_amount=Decimal("0.00"),
                 ledger_entry_count=0,
             )
         )
@@ -3003,6 +3065,7 @@ class DayTripTarget:
     target_amount: Decimal
     delta_amount: Decimal
     eligible_seconds: int
+    excluded_seconds_by_reason: dict[str, int]
     payable_seconds: int
     payable_by_day: dict[str, int]
     payable_by_day_tier: dict[str, dict[str, int]] | None
@@ -3142,8 +3205,11 @@ async def compute_payout_day_targets(
     day_range = lagos_day_utc_range(lagos_date)
     day_key = lagos_date.isoformat()
 
-    await acquire_paycap_lock(session, paycap_lock_key(driver_profile_id, campaign_id, lagos_date))
-
+    # Adjacent Lagos-day orders can share a cross-midnight trip while taking
+    # different paycap advisory locks. Lock every overlapping trip first, in
+    # stable UUID order, so only one projection/execution can price that shared
+    # ledger position at a time. This also matches the pipeline's trip-before-
+    # paycap order and prevents reverse-order deadlocks across multi-trip days.
     trips_result = await session.execute(
         select(TripSession)
         .where(
@@ -3159,9 +3225,15 @@ async def compute_payout_day_targets(
             TripSession.started_at < day_range[1],
             TripSession.ended_at >= day_range[0],
         )
-        .order_by(TripSession.started_at, TripSession.id)
+        .order_by(TripSession.id)
+        .with_for_update()
     )
-    trips = list(trips_result.scalars().all())
+    locked_trips = list(trips_result.scalars().all())
+    await acquire_paycap_lock(session, paycap_lock_key(driver_profile_id, campaign_id, lagos_date))
+
+    # Cap consumption remains chronological after the distinct lock-ordering
+    # phase above.
+    trips = sorted(locked_trips, key=lambda trip: (trip.started_at, trip.id))
     trip_ids = [trip.id for trip in trips]
 
     calculations_by_trip: dict[UUID, PayoutCalculation] = {}
@@ -3228,6 +3300,7 @@ async def compute_payout_day_targets(
                     " frozen rule binding; resolve manually",
                     status_code=status.HTTP_409_CONFLICT,
                 )
+            window_start_at, window_end_at = frozen_campaign_window(binding)
             trip_cap_seconds = int(Decimal(binding.daily_payable_hours_cap) * SECONDS_PER_HOUR)
             hourly_rate = Decimal(binding.hourly_rate_naira)
             premium_hourly_rate = (
@@ -3253,6 +3326,8 @@ async def compute_payout_day_targets(
                 "exclusion_zone_ids": list(binding.exclusion_zone_ids or []),
                 "exclusion_zone_geometry_hash": binding.exclusion_zone_geometry_hash,
                 "stationary_policy_marker": binding.stationary_policy_marker,
+                "campaign_window_start_at": window_start_at,
+                "campaign_window_end_at": window_end_at,
                 "currency": calculation.currency,
             }
         else:
@@ -3276,6 +3351,7 @@ async def compute_payout_day_targets(
         # analytics healed after the write-once calculation (D9).
         if voided or calculation.status == PayoutCalculationStatus.BLOCKED.value:
             eligible_seconds = 0
+            excluded_seconds_by_reason: dict[str, int] = {}
             payable_seconds = 0
             payable_by_day: dict[str, int] = {}
             if formula_version == PAYOUT_V3:
@@ -3295,6 +3371,7 @@ async def compute_payout_day_targets(
                 params=v2_params,
             )
             eligible_seconds = breakdown.eligible_seconds
+            excluded_seconds_by_reason = breakdown.excluded_seconds_by_reason
             # Re-allocate only the day being recomputed; the trip's seconds on
             # any other Lagos day keep their stored allocation, because those
             # days' caps are not being re-run under this lock (RM1). A prior
@@ -3339,8 +3416,8 @@ async def compute_payout_day_targets(
                 session_started_at=trip.started_at,
                 session_ended_at=trip.ended_at,
                 pings=[row.ping for row in ping_rows],
-                window_start_at=campaign.start_at,
-                window_end_at=campaign.end_at,
+                window_start_at=window_start_at,
+                window_end_at=window_end_at,
                 params=v3_params,
                 stationary_policy_marker=binding.stationary_policy_marker,
             )
@@ -3354,6 +3431,7 @@ async def compute_payout_day_targets(
                 ),
             }
             eligible_seconds = breakdown.eligible_seconds
+            excluded_seconds_by_reason = breakdown.excluded_seconds_by_reason
             # PR4 chronological fill of the recomputed day only: the trip's
             # earliest eligible seconds on this day draw the shared pool
             # first, whatever their tier.
@@ -3428,6 +3506,7 @@ async def compute_payout_day_targets(
                 target_amount=target_amount,
                 delta_amount=delta,
                 eligible_seconds=eligible_seconds,
+                excluded_seconds_by_reason=excluded_seconds_by_reason,
                 payable_seconds=payable_seconds,
                 payable_by_day=payable_by_day,
                 payable_by_day_tier=payable_by_day_tier,
@@ -3520,6 +3599,7 @@ async def write_day_differentials(
                 )
             breakdown_metadata = {
                 "eligible_seconds": target.eligible_seconds,
+                "excluded_seconds_by_reason": target.excluded_seconds_by_reason,
                 "payable_seconds": target.payable_seconds,
                 "payable_seconds_by_day": target.payable_by_day,
                 "hourly_rate_naira": str(target.hourly_rate),
@@ -3567,6 +3647,14 @@ async def write_day_differentials(
             if target.formula_version == PAYOUT_V3:
                 ledger_metadata["binding_id"] = str(target.governing_values["binding_id"])
                 ledger_metadata["revision_id"] = str(target.governing_values["revision_id"])
+                frozen_start = target.governing_values["campaign_window_start_at"]
+                frozen_end = target.governing_values["campaign_window_end_at"]
+                ledger_metadata["campaign_window_start_at"] = (
+                    frozen_start.isoformat() if frozen_start is not None else None
+                )
+                ledger_metadata["campaign_window_end_at"] = (
+                    frozen_end.isoformat() if frozen_end is not None else None
+                )
             if correction_order_id is not None:
                 ledger_metadata["correction_order_id"] = str(correction_order_id)
             entry = EarningsLedgerEntry(
@@ -3591,6 +3679,7 @@ async def write_day_differentials(
                 adjustment_count += 1
             else:
                 reversal_count += 1
+                await record_reversal_obligation(session, reversal_entry=entry)
         outcomes.append(
             RecomputeDayTripOutcome(
                 trip_session_id=target.trip_session_id,
@@ -3752,6 +3841,36 @@ def _tier_breakdown_from_stored_metadata(
     )
 
 
+def _recompute_explanation_from_stored_metadata(
+    source: dict,
+) -> tuple[int | None, dict[str, int] | None] | None:
+    """Validate the paired driver-explanation values on a recompute entry.
+
+    Legacy entries did not store exclusion reasons. They remain authoritative
+    for their stored eligible seconds, but the missing reason map is unknown —
+    it must never fall back to the superseded calculation's stale reasons.
+    """
+    eligible_raw = source.get("eligible_seconds")
+    if eligible_raw is None:
+        eligible_seconds = None
+    elif type(eligible_raw) is int and eligible_raw >= 0:
+        eligible_seconds = eligible_raw
+    else:
+        return None
+
+    if "excluded_seconds_by_reason" not in source:
+        return eligible_seconds, None
+    excluded_raw = source["excluded_seconds_by_reason"]
+    if not isinstance(excluded_raw, dict):
+        return None
+    excluded: dict[str, int] = {}
+    for reason, seconds in excluded_raw.items():
+        if not isinstance(reason, str) or not reason or type(seconds) is not int or seconds < 0:
+            return None
+        excluded[reason] = seconds
+    return eligible_seconds, excluded
+
+
 async def driver_trip_earnings_breakdown(
     session: AsyncSession,
     *,
@@ -3787,7 +3906,10 @@ async def driver_trip_earnings_breakdown(
     currency = calculation.currency if calculation is not None else entries[0].currency
     amount = Decimal("0.00")
     for entry in entries:
-        if entry.status == EarningsLedgerEntryStatus.VOIDED.value:
+        if (
+            entry.status == EarningsLedgerEntryStatus.VOIDED.value
+            or entry.entry_type == EarningsLedgerEntryType.DEBT_REMAINDER.value
+        ):
             continue
         if entry.entry_type == EarningsLedgerEntryType.REVERSAL.value:
             amount -= entry.amount
@@ -3843,7 +3965,9 @@ async def driver_trip_earnings_breakdown(
                 ) = tier
                 hourly_rate = base_hourly_rate
 
-        authoritative_recompute_entries = []
+        authoritative_recompute_entries: list[
+            tuple[EarningsLedgerEntry, tuple[int | None, dict[str, int] | None]]
+        ] = []
         for entry in entries:
             entry_metadata = entry.ledger_metadata or {}
             stored = entry_metadata.get("breakdown")
@@ -3864,14 +3988,17 @@ async def driver_trip_earnings_breakdown(
                 _tier_breakdown_from_stored_metadata(stored) is None
             ):
                 continue
-            authoritative_recompute_entries.append(entry)
+            # The newest otherwise-authoritative recompute remains the
+            # provenance boundary even when its explanation pair is malformed.
+            # Falling through to an older correction (or the original
+            # calculation) would re-expose stale driver reasons.
+            explanation = _recompute_explanation_from_stored_metadata(stored) or (None, None)
+            authoritative_recompute_entries.append((entry, explanation))
 
         if authoritative_recompute_entries:
             superseded = True
-            newest = authoritative_recompute_entries[-1]
+            newest, (eligible_seconds, excluded) = authoritative_recompute_entries[-1]
             stored = (newest.ledger_metadata or {}).get("breakdown") or {}
-            if stored.get("eligible_seconds") is not None:
-                eligible_seconds = int(stored["eligible_seconds"])
             if stored.get("payable_seconds") is not None:
                 capped_seconds = int(stored["payable_seconds"])
             if stored.get("hourly_rate_naira") is not None:

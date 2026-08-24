@@ -103,6 +103,54 @@ AUDITED = {
     ("POST", "/api/v1/admin/trips/{trip_id}/recompute-analytics"): (
         "admin.trip_analytics.recomputed"
     ),
+    ("POST", "/api/v1/admin/fraud-flags/{flag_id}/review/acknowledge"): (
+        "admin.fraud_flag.acknowledged"
+    ),
+    ("POST", "/api/v1/admin/fraud-flags/{flag_id}/review/resolve"): (
+        "admin.fraud_flag.resolved"
+    ),
+    ("POST", "/api/v1/driver/fraud-holds/{flag_id}/disputes"): (
+        "driver.fraud_dispute.created"
+    ),
+    ("POST", "/api/v1/admin/fraud-disputes/{dispute_id}/reply"): (
+        "admin.fraud_dispute.replied"
+    ),
+    ("POST", "/api/v1/admin/payees/drivers/{driver_profile_id}"): "admin.payee.created",
+    ("POST", "/api/v1/admin/payees/{payee_id}/bank-account-versions"): (
+        "admin.bank_account.verified"
+    ),
+    ("POST", "/api/v1/admin/payees/bank-account-versions/{version_id}/reveal"): (
+        "admin.bank_account.read"
+    ),
+    ("POST", "/api/v1/admin/payees/bank-accounts/{bank_account_id}/rewrap"): (
+        "admin.bank_account.rewrapped"
+    ),
+    ("POST", "/api/v1/admin/payout-batches"): "admin.payout_batch.created",
+    (
+        "POST",
+        "/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}/allocate",
+    ): "admin.payout_debt.allocated",
+    ("POST", "/api/v1/admin/payout-batches/{batch_id}/reserve"): (
+        "admin.payout_batch.reserved"
+    ),
+    ("POST", "/api/v1/admin/payout-batches/{batch_id}/approve"): (
+        "admin.payout_batch.approved"
+    ),
+    ("POST", "/api/v1/admin/payout-batches/{batch_id}/submit"): (
+        "admin.payout_batch.submitted"
+    ),
+    ("POST", "/api/v1/admin/payout-batches/provider-webhook"): (
+        "provider.payout_line.reconciled"
+    ),
+    ("POST", "/api/v1/admin/payout-batches/lines/{line_id}/poll"): (
+        "provider.payout_line.reconciled"
+    ),
+    ("POST", "/api/v1/admin/payout-batches/{batch_id}/retry-failed"): (
+        "admin.payout_batch.failed_lines_retried"
+    ),
+    ("POST", "/api/v1/admin/payout-batches/{batch_id}/void"): (
+        "admin.payout_batch.voided"
+    ),
     ("POST", "/api/v1/admin/traffic-density-profiles"): (
         "admin.traffic_density_profile.created"
     ),
