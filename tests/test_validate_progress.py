@@ -445,14 +445,12 @@ def test_rejects_hidden_controller_pointer_decoy() -> None:
         "**Current checkpoint:** `PKG-01 / FND-02A`\n"
         "-->\n"
     )
-    text = (
-        _pkg01_active()
-        .replace("### Current control pointer", "### Current control pointer\n\n" + decoy)
-        .replace(
-            "**Control package:** `PKG-01` — controller-owned correction review",
-            "**Control package:** `PKG-09` — controller-owned correction review",
-        )
+    text = _pkg01_active().replace(
+        "### Current control pointer", "### Current control pointer\n\n" + decoy
     )
+    prefix, marker, suffix = text.rpartition("**Control package:** `PKG-01`")
+    assert marker
+    text = prefix + "**Control package:** `PKG-09`" + suffix
     errors = _errors(text)
     assert any("control package pointer does not match" in error for error in errors)
 
@@ -633,8 +631,12 @@ def test_blocked_item_names_all_direct_missing_inputs() -> None:
 
 
 def test_rejects_stale_control_package_pointer() -> None:
-    text = _progress().replace(
-        "**Control package:** `PKG-02`", "**Control package:** `PKG-09`"
+    text = re.sub(
+        r"^\*\*Control package:\*\* `PKG-\d{2}`",
+        "**Control package:** `PKG-09`",
+        _progress(),
+        count=1,
+        flags=re.MULTILINE,
     )
     errors = _errors(text)
     assert any("control package pointer does not match" in error for error in errors)

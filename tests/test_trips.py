@@ -195,6 +195,7 @@ def create_trip_ready_graph(
             created_by_user_id=admin.id,
             hourly_rate="1.00",
             daily_cap_hours="1.00",
+            rule_status="inactive",
         )
         payout_revision = create_revision_row(
             db_sessionmaker,

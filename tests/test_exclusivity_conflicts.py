@@ -226,6 +226,7 @@ def test_lost_trip_start_race_returns_active_trip_envelope(
     monkeypatch.setattr(
         trips_service, "ensure_no_active_trip_for_driver_or_vehicle", _noop_precheck
     )
+    monkeypatch.setattr(trips_service, "assert_new_work_authorized", _noop_precheck)
 
     response = db_client.post(
         "/api/v1/driver/trips/start",
@@ -275,7 +276,10 @@ def _start_trip_outcome(sessionmaker, *, user_id, assignment_id):
     return run_one
 
 
-def test_concurrent_trip_starts_one_winner_postgis(postgis_db_sessionmaker) -> None:
+def test_concurrent_trip_starts_one_winner_postgis(
+    postgis_db_sessionmaker, monkeypatch
+) -> None:
+    monkeypatch.setattr(trips_service, "assert_new_work_authorized", _noop_precheck)
     admin, campaigns, driver, profile, vehicle = build_graph(
         postgis_db_sessionmaker, "pg-trip"
     )

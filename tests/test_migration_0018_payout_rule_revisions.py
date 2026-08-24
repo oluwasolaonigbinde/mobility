@@ -43,7 +43,9 @@ def seed_rules_at_0017(migration_url: str) -> SimpleNamespace:
     advertiser = create_test_user(
         sessionmaker, email="m18-advertiser@example.com", role=UserRole.ADVERTISER
     )
-    organization, _ = create_test_organization(sessionmaker, owner_user_id=advertiser.id)
+    organization, _ = create_test_organization(
+        sessionmaker, owner_user_id=advertiser.id, legacy_schema=True
+    )
     v2_campaign = create_test_campaign(
         sessionmaker,
         organization_id=organization.id,

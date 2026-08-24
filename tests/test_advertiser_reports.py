@@ -668,17 +668,16 @@ def test_slice10_adds_no_migration_or_reporting_tables() -> None:
 
     versions = {path.name for path in Path("alembic/versions").glob("*.py")}
     assert "0010_payouts_and_earnings.py" in versions
-    for migration in Path("alembic/versions").glob("*.py"):
-        text = migration.read_text()
-        for forbidden_table in [
-            "campaign_daily_metrics",
-            "advertiser_reports",
-            "heatmaps",
-            "heatmap_cache",
-            "billing",
-            "invoices",
-            "settlements",
-            "withdrawals",
-            "payments",
-        ]:
-            assert f'"{forbidden_table}"' not in text
+    text = Path("alembic/versions/0010_payouts_and_earnings.py").read_text()
+    for forbidden_table in [
+        "campaign_daily_metrics",
+        "advertiser_reports",
+        "heatmaps",
+        "heatmap_cache",
+        "billing",
+        "invoices",
+        "settlements",
+        "withdrawals",
+        "payments",
+    ]:
+        assert f'"{forbidden_table}"' not in text

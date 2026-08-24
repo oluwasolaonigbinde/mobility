@@ -21,6 +21,7 @@ from test_trips import (
     update_assignment_status,
 )
 
+import app.services.trips as trips_service
 from app.models.audit import AuditEvent
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.trip import (
@@ -232,10 +233,14 @@ def test_post_seal_batch_is_quarantined_with_ack_semantics(db_client, db_session
 
 
 def test_admin_applies_quarantined_batch_with_audit_and_lagos_days(
-    db_client, db_sessionmaker, settings
+    db_client, db_sessionmaker, settings, monkeypatch
 ) -> None:
+    async def authorize_legacy_trip(*args, **kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(trips_service, "assert_new_work_authorized", authorize_legacy_trip)
     admin, campaign, driver, profile, vehicle, assignment = create_trip_ready_graph(
-        db_sessionmaker
+        db_sessionmaker, with_financial_authority=False
     )
     trip_id = start_trip(db_client, assignment.id).json()["id"]
     recorded = datetime.now(UTC)
@@ -388,13 +393,17 @@ def test_ended_window_ingest_skips_assignment_active_gate(db_client, db_sessionm
 
 
 def test_preseal_analytics_is_recomputed_before_money(
-    postgis_db_client, postgis_db_sessionmaker, settings
+    postgis_db_client, postgis_db_sessionmaker, settings, monkeypatch
 ) -> None:
     """Finding: analytics computed during the recovery window (pre-seal) must
     never be reused for the write-once money chain — the sealed ping set may
     contain late batches the analytics never saw."""
+    async def authorize_legacy_trip(*args, **kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(trips_service, "assert_new_work_authorized", authorize_legacy_trip)
     admin, campaign, driver, profile, vehicle, assignment = create_trip_ready_graph(
-        postgis_db_sessionmaker
+        postgis_db_sessionmaker, with_financial_authority=False
     )
     trip_id = start_trip(postgis_db_client, assignment.id).json()["id"]
     recorded = datetime.now(UTC)

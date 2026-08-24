@@ -203,9 +203,66 @@ def create_test_organization(
     owner_user_id: UUID | None = None,
     membership_role: MembershipRole = MembershipRole.OWNER,
     membership_status: MembershipStatus = MembershipStatus.ACTIVE,
+    legacy_schema: bool = False,
 ) -> tuple[AdvertiserOrganization, OrganizationMembership | None]:
     async def create() -> tuple[AdvertiserOrganization, OrganizationMembership | None]:
         async with db_sessionmaker() as session:
+            if legacy_schema:
+                # Historical migration tests deliberately stop before the
+                # Package 3 company-profile columns. Seed the stable 0002
+                # shape instead of asking the current ORM to INSERT columns
+                # that do not exist at that revision.
+                organization_id = uuid4()
+                await session.execute(
+                    text(
+                        "INSERT INTO advertiser_organizations "
+                        "(id, name, billing_email, country_code, currency, status) "
+                        "VALUES (:id, :name, :billing_email, :country_code, :currency, :status)"
+                    ),
+                    {
+                        "id": organization_id,
+                        "name": name,
+                        "billing_email": billing_email,
+                        "country_code": country_code,
+                        "currency": currency,
+                        "status": organization_status.value,
+                    },
+                )
+                membership = None
+                if owner_user_id is not None:
+                    membership_id = uuid4()
+                    await session.execute(
+                        text(
+                            "INSERT INTO organization_memberships "
+                            "(id, organization_id, user_id, role, status) "
+                            "VALUES (:id, :organization_id, :user_id, :role, :status)"
+                        ),
+                        {
+                            "id": membership_id,
+                            "organization_id": organization_id,
+                            "user_id": owner_user_id,
+                            "role": membership_role.value,
+                            "status": membership_status.value,
+                        },
+                    )
+                    membership = OrganizationMembership(
+                        id=membership_id,
+                        organization_id=organization_id,
+                        user_id=owner_user_id,
+                        role=membership_role,
+                        status=membership_status,
+                    )
+                await session.commit()
+                organization = AdvertiserOrganization(
+                    id=organization_id,
+                    name=name,
+                    billing_email=billing_email,
+                    country_code=country_code,
+                    currency=currency,
+                    status=organization_status,
+                )
+                return organization, membership
+
             organization = AdvertiserOrganization(
                 name=name,
                 billing_email=billing_email,

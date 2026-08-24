@@ -45,7 +45,9 @@ def seed_pre_seal_ended_trip(migration_url: str) -> SimpleNamespace:
         sessionmaker, email="m17-advertiser@example.com", role=UserRole.ADVERTISER
     )
     driver = create_test_user(sessionmaker, email="m17-driver@example.com", role=UserRole.DRIVER)
-    organization, _ = create_test_organization(sessionmaker, owner_user_id=advertiser.id)
+    organization, _ = create_test_organization(
+        sessionmaker, owner_user_id=advertiser.id, legacy_schema=True
+    )
     campaign = create_test_campaign(
         sessionmaker, organization_id=organization.id, created_by_user_id=advertiser.id
     )
