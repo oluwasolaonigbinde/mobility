@@ -117,7 +117,7 @@ def test_on_shutdown_tolerates_missing_engine() -> None:
 
 def test_worker_settings_importable_without_broker_or_database() -> None:
     assert len(WorkerSettings.functions) == 2
-    assert len(WorkerSettings.cron_jobs) == 6
+    assert len(WorkerSettings.cron_jobs) == 7
     assert WorkerSettings.keep_result == 0
     assert WorkerSettings.on_startup is worker.on_startup
     assert WorkerSettings.on_shutdown is worker.on_shutdown
@@ -191,12 +191,8 @@ def test_compose_worker_uses_strict_entry_and_passes_sweep_settings() -> None:
     compose = yaml.safe_load(compose_path.read_text())
 
     backend_env = compose["x-backend-env"]
-    assert backend_env["WORKER_SWEEP_INTERVAL_MINUTES"] == (
-        "${WORKER_SWEEP_INTERVAL_MINUTES:-5}"
-    )
+    assert backend_env["WORKER_SWEEP_INTERVAL_MINUTES"] == ("${WORKER_SWEEP_INTERVAL_MINUTES:-5}")
     assert backend_env["WORKER_SWEEP_BATCH_SIZE"] == "${WORKER_SWEEP_BATCH_SIZE:-25}"
     assert backend_env["FRAUD_REVIEW_SLA_DAYS"] == "${FRAUD_REVIEW_SLA_DAYS:-7}"
-    assert compose["services"]["worker"]["command"] == (
-        "arq app.jobs.worker_entry.WorkerSettings"
-    )
+    assert compose["services"]["worker"]["command"] == ("arq app.jobs.worker_entry.WorkerSettings")
     assert "ports" not in compose["services"]["worker"]

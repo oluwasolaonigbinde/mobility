@@ -160,9 +160,62 @@ AUDITED = {
     ("POST", "/api/v1/admin/trips/{trip_id}/estimate-impressions"): (
         "admin.impression_estimate.computed"
     ),
+    ("PATCH", "/api/v1/advertiser/company"): "advertiser_company_profile.updated",
+    (
+        "PATCH",
+        "/api/v1/admin/advertiser-organizations/{organization_id}/company",
+    ): "advertiser_company_profile.updated",
+    ("POST", "/api/v1/advertiser/campaigns/{campaign_id}/quote-request"): (
+        "commercial.quote_request.created"
+    ),
+    ("POST", "/api/v1/admin/campaigns/{campaign_id}/quote-request"): (
+        "commercial.quote_request.created"
+    ),
+    ("POST", "/api/v1/admin/quote-requests/{quote_request_id}/revisions"): (
+        "commercial.quotation_revision.recorded"
+    ),
+    ("POST", "/api/v1/advertiser/quotations/{revision_id}/accept"): (
+        "commercial.terms.accepted"
+    ),
+    ("POST", "/api/v1/admin/quotations/{revision_id}/accept-external"): (
+        "commercial.terms.accepted"
+    ),
+    ("POST", "/api/v1/admin/billing/manual-transfers"): "billing.receipt.*",
+    ("POST", "/api/v1/admin/invoice-issuer-profiles"): (
+        "billing.invoice_issuer_profile.recorded"
+    ),
+    ("POST", "/api/v1/admin/invoices"): "billing.invoice_draft.created",
+    ("POST", "/api/v1/admin/invoices/{invoice_id}/issue"): "billing.invoice.issued",
+    ("POST", "/api/v1/admin/campaigns/{campaign_id}/financial-authority"): (
+        "billing.financial_authorization.recorded"
+    ),
+    ("POST", "/api/v1/advertiser/campaigns/{campaign_id}/expedited-waiver"): (
+        "billing.expedited_waiver.accepted"
+    ),
+    ("POST", "/api/v1/admin/campaigns/{campaign_id}/production-start"): (
+        "billing.production.started"
+    ),
+    ("POST", "/api/v1/admin/receipts/{receipt_id}/reverse"): (
+        "billing.receipt.reversed"
+    ),
+    ("POST", "/api/v1/admin/invoices/{invoice_id}/corrections"): (
+        "billing.invoice.corrected"
+    ),
+    ("POST", "/api/v1/admin/refunds"): "billing.refund.recorded",
+    ("POST", "/api/v1/admin/credit-settlements"): (
+        "billing.credit_settlement.recorded"
+    ),
+    ("POST", "/api/v1/admin/campaigns/{campaign_id}/budget-policy-evaluation"): (
+        "billing.budget_policy.blocked"
+    ),
 }
 
 EXEMPT = {
+    ("POST", "/api/v1/webhooks/payments"): (
+        "Provider-authenticated machine callback: the append-only payment_gateway_events row "
+        "is the canonical ingestion evidence and downstream receipt/allocation mutations are "
+        "audited by the async worker. Duplicate callbacks do not create another event."
+    ),
     ("POST", "/api/v1/admin/payouts/recompute-day"): (
         "Retired endpoint (MNY-06C/PR7): the direct day-recompute execute"
         " path always answers 409 RECOMPUTE_REQUIRES_CORRECTION_ORDER and"

@@ -21,6 +21,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/advertiser-organizations/{organization_id}/company": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Company */
+        get: operations["admin_company_api_v1_admin_advertiser_organizations__organization_id__company_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Admin Update Company */
+        patch: operations["admin_update_company_api_v1_admin_advertiser_organizations__organization_id__company_patch"];
+        trace?: never;
+    };
     "/api/v1/admin/audit-events": {
         parameters: {
             query?: never;
@@ -32,6 +50,40 @@ export interface paths {
         get: operations["admin_list_audit_events_api_v1_admin_audit_events_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/billing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Billing History */
+        get: operations["admin_billing_history_api_v1_admin_billing_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/billing/manual-transfers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Record Manual Transfer */
+        post: operations["admin_record_manual_transfer_api_v1_admin_billing_manual_transfers_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -124,6 +176,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/campaigns/{campaign_id}/budget-policy-evaluation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Record Blocked Budget Evaluation */
+        post: operations["admin_record_blocked_budget_evaluation_api_v1_admin_campaigns__campaign_id__budget_policy_evaluation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{campaign_id}/commercial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Campaign Commercial */
+        get: operations["admin_campaign_commercial_api_v1_admin_campaigns__campaign_id__commercial_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{campaign_id}/financial-authority": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Record Financial Authority */
+        post: operations["admin_record_financial_authority_api_v1_admin_campaigns__campaign_id__financial_authority_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/campaigns/{campaign_id}/payout-rules": {
         parameters: {
             query?: never;
@@ -172,6 +275,57 @@ export interface paths {
         put?: never;
         /** Create an effective-dated payout-rule revision (supersede) */
         post: operations["admin_create_payout_rule_revision_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__revisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{campaign_id}/production-start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Record Production Start */
+        post: operations["admin_record_production_start_api_v1_admin_campaigns__campaign_id__production_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{campaign_id}/quote-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Record External Quote Request */
+        post: operations["admin_record_external_quote_request_api_v1_admin_campaigns__campaign_id__quote_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/credit-settlements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Record Credit Settlement */
+        post: operations["admin_record_credit_settlement_api_v1_admin_credit_settlements_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -363,6 +517,74 @@ export interface paths {
         get: operations["admin_list_impression_estimates_api_v1_admin_impression_estimates_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/invoice-issuer-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Record Issuer Profile */
+        post: operations["admin_record_issuer_profile_api_v1_admin_invoice_issuer_profiles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Create Invoice */
+        post: operations["admin_create_invoice_api_v1_admin_invoices_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/invoices/{invoice_id}/corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Record Invoice Correction */
+        post: operations["admin_record_invoice_correction_api_v1_admin_invoices__invoice_id__corrections_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/invoices/{invoice_id}/issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Issue Invoice */
+        post: operations["admin_issue_invoice_api_v1_admin_invoices__invoice_id__issue_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -789,6 +1011,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/quotations/{revision_id}/accept-external": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Record External Quote Acceptance */
+        post: operations["admin_record_external_quote_acceptance_api_v1_admin_quotations__revision_id__accept_external_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/quote-requests/{quote_request_id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Record Quote Revision */
+        post: operations["admin_record_quote_revision_api_v1_admin_quote_requests__quote_request_id__revisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/receipts/{receipt_id}/reverse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Reverse Receipt */
+        post: operations["admin_reverse_receipt_api_v1_admin_receipts__receipt_id__reverse_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Record Refund */
+        post: operations["admin_record_refund_api_v1_admin_refunds_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/traffic-density-profiles": {
         parameters: {
             query?: never;
@@ -1014,6 +1304,23 @@ export interface paths {
         patch: operations["admin_update_vehicle_api_v1_admin_vehicles__vehicle_id__patch"];
         trace?: never;
     };
+    "/api/v1/advertiser/billing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Advertiser Billing History */
+        get: operations["advertiser_billing_history_api_v1_advertiser_billing_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/advertiser/campaigns": {
         parameters: {
             query?: never;
@@ -1048,6 +1355,23 @@ export interface paths {
         head?: never;
         /** Update current advertiser campaign */
         patch: operations["advertiser_update_campaign_api_v1_advertiser_campaigns__campaign_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/advertiser/campaigns/{campaign_id}/commercial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Advertiser Campaign Commercial */
+        get: operations["advertiser_campaign_commercial_api_v1_advertiser_campaigns__campaign_id__commercial_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/advertiser/campaigns/{campaign_id}/cost-summary": {
@@ -1123,6 +1447,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/advertiser/campaigns/{campaign_id}/expedited-waiver": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Advertiser Accept Expedited Waiver */
+        post: operations["advertiser_accept_expedited_waiver_api_v1_advertiser_campaigns__campaign_id__expedited_waiver_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/advertiser/campaigns/{campaign_id}/heatmap": {
         parameters: {
             query?: never;
@@ -1154,6 +1495,23 @@ export interface paths {
         get: operations["advertiser_get_campaign_impression_summary_api_v1_advertiser_campaigns__campaign_id__impressions_summary_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/campaigns/{campaign_id}/quote-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Advertiser Request Quote */
+        post: operations["advertiser_request_quote_api_v1_advertiser_campaigns__campaign_id__quote_request_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1257,6 +1615,24 @@ export interface paths {
         patch: operations["advertiser_update_campaign_zone_api_v1_advertiser_campaigns__campaign_id__zones__zone_id__patch"];
         trace?: never;
     };
+    "/api/v1/advertiser/company": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Advertiser Company */
+        get: operations["advertiser_company_api_v1_advertiser_company_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Advertiser Update Company */
+        patch: operations["advertiser_update_company_api_v1_advertiser_company_patch"];
+        trace?: never;
+    };
     "/api/v1/advertiser/dashboard/summary": {
         parameters: {
             query?: never;
@@ -1288,6 +1664,23 @@ export interface paths {
         get: operations["advertiser_organization_api_v1_advertiser_organization_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/quotations/{revision_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Advertiser Accept Quote */
+        post: operations["advertiser_accept_quote_api_v1_advertiser_quotations__revision_id__accept_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1766,6 +2159,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/webhooks/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Payment Webhook */
+        post: operations["payment_webhook_api_v1_webhooks_payments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -1787,6 +2197,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AcceptanceMethod
+         * @enum {string}
+         */
+        AcceptanceMethod: "in_platform" | "external_recorded";
         /** ActiveCampaignAssignmentResponse */
         ActiveCampaignAssignmentResponse: {
             assignment: components["schemas"]["CampaignAssignmentRead"] | null;
@@ -2315,6 +2730,52 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** BillingHistoryEntry */
+        BillingHistoryEntry: {
+            /** Allocations */
+            allocations: components["schemas"]["ReceiptAllocationRead"][];
+            /** Current Status */
+            current_status: string | null;
+            /** Events */
+            events: components["schemas"]["ReceiptEventRead"][];
+            receipt: components["schemas"]["ReceiptRead"];
+        };
+        /** BudgetEvaluationRead */
+        BudgetEvaluationRead: {
+            /** Alert Threshold Amount */
+            alert_threshold_amount: string | null;
+            /** Billing Spend Amount */
+            billing_spend_amount: string | null;
+            /** Campaign Budget Amount */
+            campaign_budget_amount: string | null;
+            /** Campaign Daily Budget Amount */
+            campaign_daily_budget_amount: string | null;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Evaluated At
+             * Format: date-time
+             */
+            evaluated_at: string;
+            /** External Gate */
+            external_gate: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Pause Applied */
+            pause_applied: boolean;
+            /** Pause Threshold Amount */
+            pause_threshold_amount: string | null;
+            /** State */
+            state: string;
+        };
         /** CalculatePayoutRequest */
         CalculatePayoutRequest: {
             /** Metadata */
@@ -2478,6 +2939,22 @@ export interface components {
             metadata?: {
                 [key: string]: unknown;
             };
+        };
+        /** CampaignCommercialRead */
+        CampaignCommercialRead: {
+            /** Budget Evaluations */
+            budget_evaluations: components["schemas"]["BudgetEvaluationRead"][];
+            financial_authority: components["schemas"]["FinancialAuthorityRead"] | null;
+            /** Invoices */
+            invoices: components["schemas"]["InvoiceRead"][];
+            production_start: components["schemas"]["ProductionStartRead"] | null;
+            quote_request: components["schemas"]["QuoteRequestRead"] | null;
+            /** Revisions */
+            revisions: components["schemas"]["QuoteRevisionRead"][];
+            /** Settlements */
+            settlements: components["schemas"]["SettlementRead"][];
+            terms: components["schemas"]["CommercialTermsRead"] | null;
+            waiver: components["schemas"]["WaiverRead"] | null;
         };
         /** CampaignCreate */
         CampaignCreate: {
@@ -3082,6 +3559,151 @@ export interface components {
             /** New Password */
             new_password: string;
         };
+        /** CommercialTermsRead */
+        CommercialTermsRead: {
+            /** Acceptance Method */
+            acceptance_method: string;
+            /**
+             * Accepted At
+             * Format: date-time
+             */
+            accepted_at: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Currency */
+            currency: string;
+            /** Gross Amount */
+            gross_amount: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Line Items */
+            line_items: {
+                [key: string]: unknown;
+            }[];
+            /** Net Amount */
+            net_amount: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Payment Class */
+            payment_class: string;
+            /** Payment Terms */
+            payment_terms: {
+                [key: string]: unknown;
+            };
+            /** Production Cost Amount */
+            production_cost_amount: string;
+            /** Production Scope */
+            production_scope: {
+                [key: string]: unknown;
+            };
+            /**
+             * Quotation Revision Id
+             * Format: uuid
+             */
+            quotation_revision_id: string;
+            /** Quotation Revision Number */
+            quotation_revision_number: number;
+            /** Quote Reference */
+            quote_reference: string;
+            /** Standard Production Wait Hours */
+            standard_production_wait_hours: number;
+            /** Tax Amount */
+            tax_amount: string;
+            /** Tax Rate */
+            tax_rate: string;
+        };
+        /** CompanyProfileRead */
+        CompanyProfileRead: {
+            /** Address City */
+            address_city: string | null;
+            /** Address Country Code */
+            address_country_code: string | null;
+            /** Address Line 1 */
+            address_line_1: string | null;
+            /** Address Line 2 */
+            address_line_2: string | null;
+            /** Address Postal Code */
+            address_postal_code: string | null;
+            /** Address Region */
+            address_region: string | null;
+            /** Billing Contact Name */
+            billing_contact_name: string | null;
+            /** Billing Contact Phone */
+            billing_contact_phone: string | null;
+            /** Billing Email */
+            billing_email: string | null;
+            /** Country Code */
+            country_code: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Industry */
+            industry: string | null;
+            /** Name */
+            name: string;
+            /** Operational Contact Email */
+            operational_contact_email: string | null;
+            /** Operational Contact Name */
+            operational_contact_name: string | null;
+            /** Operational Contact Phone */
+            operational_contact_phone: string | null;
+            /** Profile Notes */
+            profile_notes: string | null;
+            /** Status */
+            status: string;
+        };
+        /** CompanyProfileUpdate */
+        CompanyProfileUpdate: {
+            /** Address City */
+            address_city?: string | null;
+            /** Address Country Code */
+            address_country_code?: string | null;
+            /** Address Line 1 */
+            address_line_1?: string | null;
+            /** Address Line 2 */
+            address_line_2?: string | null;
+            /** Address Postal Code */
+            address_postal_code?: string | null;
+            /** Address Region */
+            address_region?: string | null;
+            /** Billing Contact Name */
+            billing_contact_name?: string | null;
+            /** Billing Contact Phone */
+            billing_contact_phone?: string | null;
+            /** Billing Email */
+            billing_email?: string | null;
+            /** Country Code */
+            country_code?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Industry */
+            industry?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Operational Contact Email */
+            operational_contact_email?: string | null;
+            /** Operational Contact Name */
+            operational_contact_name?: string | null;
+            /** Operational Contact Phone */
+            operational_contact_phone?: string | null;
+            /** Profile Notes */
+            profile_notes?: string | null;
+            /** Status */
+            status?: string | null;
+        };
         /** CreativeCreate */
         CreativeCreate: {
             /** Asset Url */
@@ -3223,6 +3845,20 @@ export interface components {
             status?: components["schemas"]["CreativeStatus"] | null;
             /** Width Px */
             width_px?: number | null;
+        };
+        /** CreditSettlementCreate */
+        CreditSettlementCreate: {
+            /**
+             * Commercial Terms Id
+             * Format: uuid
+             */
+            commercial_terms_id: string;
+            /** External Reference */
+            external_reference: string;
+            /** Reason */
+            reason: string;
+            /** Settlement Provider */
+            settlement_provider: string;
         };
         /** CurrentTripResponse */
         CurrentTripResponse: {
@@ -3680,6 +4316,76 @@ export interface components {
             /** Traffic Density Profile Id */
             traffic_density_profile_id?: string | null;
         };
+        /** FinancialAuthorityCreate */
+        FinancialAuthorityCreate: {
+            /** Approved By User Id */
+            approved_by_user_id?: string | null;
+            authority_type: components["schemas"]["FinancialAuthorityType"];
+            /** Credit Limit */
+            credit_limit?: number | string | null;
+            /** Credit Terms */
+            credit_terms?: {
+                [key: string]: unknown;
+            } | null;
+            /** Due At */
+            due_at?: string | null;
+            /** Max Driver Liability */
+            max_driver_liability: number | string;
+            /** Reason */
+            reason: string;
+            /** Subsidy Amount */
+            subsidy_amount?: number | string | null;
+            /** Subsidy Reference */
+            subsidy_reference?: string | null;
+        };
+        /** FinancialAuthorityRead */
+        FinancialAuthorityRead: {
+            /** Authority Type */
+            authority_type: string;
+            /** Authorized Amount */
+            authorized_amount: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Commercial Terms Id
+             * Format: uuid
+             */
+            commercial_terms_id: string;
+            /** Credit Due At */
+            credit_due_at: string | null;
+            /** Credit Limit */
+            credit_limit: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Effective From
+             * Format: date-time
+             */
+            effective_from: string;
+            /** Funded Cash Amount */
+            funded_cash_amount: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Max Driver Liability */
+            max_driver_liability: string;
+            /** Reason */
+            reason: string;
+            /** Revision Number */
+            revision_number: number;
+            /** Subsidy Reference */
+            subsidy_reference: string | null;
+        };
+        /**
+         * FinancialAuthorityType
+         * @enum {string}
+         */
+        FinancialAuthorityType: "prepaid_cash" | "approved_credit" | "subsidy";
         /** FraudDisputeCreate */
         FraudDisputeCreate: {
             /** Message */
@@ -4056,6 +4762,181 @@ export interface components {
             /** Insufficient Data Trip Count */
             insufficient_data_trip_count: number;
         };
+        /** InvoiceCorrectionCreate */
+        InvoiceCorrectionCreate: {
+            correction_type: components["schemas"]["InvoiceCorrectionType"];
+            /** Net Amount */
+            net_amount: number | string;
+            /** Reason */
+            reason: string;
+            /** Tax Amount */
+            tax_amount: number | string;
+        };
+        /** InvoiceCorrectionRead */
+        InvoiceCorrectionRead: {
+            /** Correction Number */
+            correction_number: string;
+            /** Correction Type */
+            correction_type: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /** Gross Amount */
+            gross_amount: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Invoice Id
+             * Format: uuid
+             */
+            invoice_id: string;
+            /** Net Amount */
+            net_amount: string;
+            /** Reason */
+            reason: string;
+            /** Sequence Number */
+            sequence_number: number;
+            /** Tax Amount */
+            tax_amount: string;
+        };
+        /**
+         * InvoiceCorrectionType
+         * @enum {string}
+         */
+        InvoiceCorrectionType: "credit_note" | "debit_note";
+        /** InvoiceDraftCreate */
+        InvoiceDraftCreate: {
+            /**
+             * Commercial Terms Id
+             * Format: uuid
+             */
+            commercial_terms_id: string;
+        };
+        /** InvoiceIssue */
+        InvoiceIssue: {
+            /**
+             * Issuer Profile Id
+             * Format: uuid
+             */
+            issuer_profile_id: string;
+        };
+        /** InvoiceRead */
+        InvoiceRead: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Commercial Terms Id
+             * Format: uuid
+             */
+            commercial_terms_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /** Customer Snapshot */
+            customer_snapshot: {
+                [key: string]: unknown;
+            };
+            /** Gross Amount */
+            gross_amount: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Number */
+            invoice_number: string | null;
+            /** Issued At */
+            issued_at: string | null;
+            /** Issuer Profile Id */
+            issuer_profile_id: string | null;
+            /** Issuer Snapshot */
+            issuer_snapshot: {
+                [key: string]: unknown;
+            } | null;
+            /** Line Items */
+            line_items: {
+                [key: string]: unknown;
+            }[];
+            /** Net Amount */
+            net_amount: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Status */
+            status: string;
+            /** Tax Amount */
+            tax_amount: string;
+            /** Tax Rate */
+            tax_rate: string;
+        };
+        /** IssuerProfileCreate */
+        IssuerProfileCreate: {
+            /** Country Code */
+            country_code: string;
+            /** External Input Reference */
+            external_input_reference: string;
+            /** Invoice Wording */
+            invoice_wording: string;
+            /** Legal Name */
+            legal_name: string;
+            /** Numbering Prefix */
+            numbering_prefix: string;
+            /** Registered Address */
+            registered_address: string;
+            /** Tax Identification Number */
+            tax_identification_number: string;
+            verification_status: components["schemas"]["IssuerVerificationStatus"];
+        };
+        /** IssuerProfileRead */
+        IssuerProfileRead: {
+            /** Country Code */
+            country_code: string;
+            /** External Input Reference */
+            external_input_reference: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Wording */
+            invoice_wording: string;
+            /** Legal Name */
+            legal_name: string;
+            /** Numbering Prefix */
+            numbering_prefix: string;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Registered Address */
+            registered_address: string;
+            /** Tax Identification Number */
+            tax_identification_number: string;
+            /** Verification Status */
+            verification_status: string;
+        };
+        /**
+         * IssuerVerificationStatus
+         * @enum {string}
+         */
+        IssuerVerificationStatus: "synthetic" | "verified";
         /** LocationPingBatchCreate */
         LocationPingBatchCreate: {
             /** Idempotency Key */
@@ -4161,6 +5042,45 @@ export interface components {
             role: components["schemas"]["UserRole"];
             status: components["schemas"]["UserStatus"];
         };
+        /** ManualTransferCreate */
+        ManualTransferCreate: {
+            /** Allocation Amount */
+            allocation_amount?: number | string | null;
+            /**
+             * Commercial Terms Id
+             * Format: uuid
+             */
+            commercial_terms_id: string;
+            /** Currency */
+            currency: string;
+            /** Evidence Reference */
+            evidence_reference: string;
+            /** Expected Amount */
+            expected_amount: number | string;
+            /** External Transaction Id */
+            external_transaction_id: string;
+            /** Observed Amount */
+            observed_amount: number | string;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Payer Name */
+            payer_name: string;
+        };
+        /** ManualTransferResult */
+        ManualTransferResult: {
+            allocation: components["schemas"]["ReceiptAllocationRead"] | null;
+            /** Matched */
+            matched: boolean;
+            receipt: components["schemas"]["ReceiptRead"];
+        };
         /** MeAdvertiserOrganization */
         MeAdvertiserOrganization: {
             /** Currency */
@@ -4241,6 +5161,23 @@ export interface components {
          * @enum {string}
          */
         PayeeType: "driver";
+        /**
+         * PaymentClass
+         * @enum {string}
+         */
+        PaymentClass: "standard_prepaid" | "approved_corporate_credit";
+        /** PaymentWebhookReceipt */
+        PaymentWebhookReceipt: {
+            /** Accepted */
+            accepted: boolean;
+            /** Duplicate */
+            duplicate: boolean;
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+        };
         /** PayoutBatchCreate */
         PayoutBatchCreate: {
             /** Currency */
@@ -4608,6 +5545,40 @@ export interface components {
             id: string;
             status: components["schemas"]["EarningsLedgerEntryStatus"];
         };
+        /** ProductionStartCreate */
+        ProductionStartCreate: {
+            /** Waiver Id */
+            waiver_id?: string | null;
+        };
+        /** ProductionStartRead */
+        ProductionStartRead: {
+            /** Authority Basis */
+            authority_basis: string;
+            /**
+             * Authorization Id
+             * Format: uuid
+             */
+            authorization_id: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Fully Funded At */
+            fully_funded_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Waiver Id */
+            waiver_id: string | null;
+        };
         /** QualitySummary */
         QualitySummary: {
             /** Average Quality Score */
@@ -4689,6 +5660,224 @@ export interface components {
              */
             trip_session_id: string;
         };
+        /** QuoteAccept */
+        QuoteAccept: {
+            /** @default in_platform */
+            acceptance_method: components["schemas"]["AcceptanceMethod"];
+            /** External Acceptance Reference */
+            external_acceptance_reference?: string | null;
+            /** External Accepted At */
+            external_accepted_at?: string | null;
+        };
+        /** QuoteRequestCreate */
+        QuoteRequestCreate: {
+            /** Request Details */
+            request_details?: {
+                [key: string]: unknown;
+            };
+        };
+        /** QuoteRequestRead */
+        QuoteRequestRead: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Request Details */
+            request_details: {
+                [key: string]: unknown;
+            };
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            /**
+             * Requested By User Id
+             * Format: uuid
+             */
+            requested_by_user_id: string;
+            /** Source */
+            source: string;
+        };
+        /** QuoteRevisionCreate */
+        QuoteRevisionCreate: {
+            /** Currency */
+            currency: string;
+            /** Line Items */
+            line_items: {
+                [key: string]: unknown;
+            }[];
+            payment_class: components["schemas"]["PaymentClass"];
+            /** Payment Terms */
+            payment_terms?: {
+                [key: string]: unknown;
+            };
+            /** Production Scope */
+            production_scope: {
+                [key: string]: unknown;
+            };
+            /** Quote Reference */
+            quote_reference: string;
+            /** Tax Rate */
+            tax_rate: number | string;
+        };
+        /** QuoteRevisionRead */
+        QuoteRevisionRead: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /** Gross Amount */
+            gross_amount: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Line Items */
+            line_items: {
+                [key: string]: unknown;
+            }[];
+            /** Net Amount */
+            net_amount: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Payment Class */
+            payment_class: string;
+            /** Payment Terms */
+            payment_terms: {
+                [key: string]: unknown;
+            };
+            /** Production Cost Amount */
+            production_cost_amount: string;
+            /** Production Scope */
+            production_scope: {
+                [key: string]: unknown;
+            };
+            /** Quote Reference */
+            quote_reference: string;
+            /**
+             * Quote Request Id
+             * Format: uuid
+             */
+            quote_request_id: string;
+            /** Revision Number */
+            revision_number: number;
+            /** Tax Amount */
+            tax_amount: string;
+            /** Tax Rate */
+            tax_rate: string;
+        };
+        /** ReceiptAllocationRead */
+        ReceiptAllocationRead: {
+            /**
+             * Allocated At
+             * Format: date-time
+             */
+            allocated_at: string;
+            /** Amount */
+            amount: string;
+            /**
+             * Commercial Terms Id
+             * Format: uuid
+             */
+            commercial_terms_id: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Receipt Id
+             * Format: uuid
+             */
+            receipt_id: string;
+        };
+        /** ReceiptEventRead */
+        ReceiptEventRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Reason */
+            reason: string | null;
+            /**
+             * Receipt Id
+             * Format: uuid
+             */
+            receipt_id: string;
+            /** Sequence Number */
+            sequence_number: number;
+            /** Status */
+            status: string;
+        };
+        /** ReceiptRead */
+        ReceiptRead: {
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+            /** Evidence Reference */
+            evidence_reference: string;
+            /** External Transaction Id */
+            external_transaction_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Method */
+            method: string;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Payer Name */
+            payer_name: string;
+            /** Provider */
+            provider: string;
+        };
+        /** ReceiptReverse */
+        ReceiptReverse: {
+            /** Reason */
+            reason: string;
+        };
         /** RecomputeDayTripResult */
         RecomputeDayTripResult: {
             /** Delta Amount */
@@ -4762,6 +5951,27 @@ export interface components {
             /** Trips */
             trips: components["schemas"]["RecomputeDayTripResult"][];
         };
+        /** RefundCreate */
+        RefundCreate: {
+            /** Amount */
+            amount: number | string;
+            /**
+             * Commercial Terms Id
+             * Format: uuid
+             */
+            commercial_terms_id: string;
+            /** External Reference */
+            external_reference: string;
+            /** Reason */
+            reason: string;
+            /**
+             * Receipt Id
+             * Format: uuid
+             */
+            receipt_id: string;
+            /** Settlement Provider */
+            settlement_provider: string;
+        };
         /** RouteAnalyticsSummary */
         RouteAnalyticsSummary: {
             /** Analyzed Trip Count */
@@ -4776,6 +5986,47 @@ export interface components {
             target_zone_distance_m: string | null;
             /** Total Distance M */
             total_distance_m: string | null;
+        };
+        /** SettlementRead */
+        SettlementRead: {
+            /** Amount */
+            amount: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Commercial Terms Id
+             * Format: uuid
+             */
+            commercial_terms_id: string;
+            /** Currency */
+            currency: string;
+            /** Disposition */
+            disposition: string;
+            /** Eligibility Ends At */
+            eligibility_ends_at: string | null;
+            /** External Reference */
+            external_reference: string;
+            /** Funding Authorized At */
+            funding_authorized_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Reason */
+            reason: string;
+            /** Receipt Id */
+            receipt_id: string | null;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Settlement Provider */
+            settlement_provider: string;
         };
         /** TrafficDensityProfileCreate */
         TrafficDensityProfileCreate: {
@@ -5439,6 +6690,40 @@ export interface components {
              */
             verification_reference: string;
         };
+        /** WaiverCreate */
+        WaiverCreate: {
+            /** Accepted Wording */
+            accepted_wording: string;
+            /** Wording Version */
+            wording_version: string;
+        };
+        /** WaiverRead */
+        WaiverRead: {
+            /**
+             * Accepted At
+             * Format: date-time
+             */
+            accepted_at: string;
+            /** Accepted Wording Hash */
+            accepted_wording_hash: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Commercial Terms Id
+             * Format: uuid
+             */
+            commercial_terms_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Wording Version */
+            wording_version: string;
+        };
         /** ZoneTypeCounts */
         ZoneTypeCounts: {
             /**
@@ -5563,6 +6848,72 @@ export interface operations {
             };
         };
     };
+    admin_company_api_v1_admin_advertiser_organizations__organization_id__company_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyProfileRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_update_company_api_v1_admin_advertiser_organizations__organization_id__company_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompanyProfileUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyProfileRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_list_audit_events_api_v1_admin_audit_events_get: {
         parameters: {
             query?: {
@@ -5588,6 +6939,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditEventListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_billing_history_api_v1_admin_billing_get: {
+        parameters: {
+            query: {
+                organization_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingHistoryEntry"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_record_manual_transfer_api_v1_admin_billing_manual_transfers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualTransferCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManualTransferResult"];
                 };
             };
             /** @description Validation Error */
@@ -5801,6 +7216,103 @@ export interface operations {
             };
         };
     };
+    admin_record_blocked_budget_evaluation_api_v1_admin_campaigns__campaign_id__budget_policy_evaluation_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetEvaluationRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_campaign_commercial_api_v1_admin_campaigns__campaign_id__commercial_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignCommercialRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_record_financial_authority_api_v1_admin_campaigns__campaign_id__financial_authority_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FinancialAuthorityCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FinancialAuthorityRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_list_campaign_payout_rules_api_v1_admin_campaigns__campaign_id__payout_rules_get: {
         parameters: {
             query?: {
@@ -5997,6 +7509,109 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignPayoutRuleRevisionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_record_production_start_api_v1_admin_campaigns__campaign_id__production_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductionStartCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductionStartRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_record_external_quote_request_api_v1_admin_campaigns__campaign_id__quote_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuoteRequestCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuoteRequestRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_record_credit_settlement_api_v1_admin_credit_settlements_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreditSettlementCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettlementRead"];
                 };
             };
             /** @description Validation Error */
@@ -6420,6 +8035,142 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImpressionEstimateListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_record_issuer_profile_api_v1_admin_invoice_issuer_profiles_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IssuerProfileCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssuerProfileRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_create_invoice_api_v1_admin_invoices_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceDraftCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_record_invoice_correction_api_v1_admin_invoices__invoice_id__corrections_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceCorrectionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceCorrectionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_issue_invoice_api_v1_admin_invoices__invoice_id__issue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceIssue"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceRead"];
                 };
             };
             /** @description Validation Error */
@@ -7279,6 +9030,144 @@ export interface operations {
             };
         };
     };
+    admin_record_external_quote_acceptance_api_v1_admin_quotations__revision_id__accept_external_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuoteAccept"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommercialTermsRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_record_quote_revision_api_v1_admin_quote_requests__quote_request_id__revisions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                quote_request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuoteRevisionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuoteRevisionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_reverse_receipt_api_v1_admin_receipts__receipt_id__reverse_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                receipt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptReverse"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_record_refund_api_v1_admin_refunds_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettlementRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_list_traffic_density_profiles_api_v1_admin_traffic_density_profiles_get: {
         parameters: {
             query?: {
@@ -7859,6 +9748,26 @@ export interface operations {
             };
         };
     };
+    advertiser_billing_history_api_v1_advertiser_billing_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingHistoryEntry"][];
+                };
+            };
+        };
+    };
     advertiser_list_campaigns_api_v1_advertiser_campaigns_get: {
         parameters: {
             query?: {
@@ -7980,6 +9889,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advertiser_campaign_commercial_api_v1_advertiser_campaigns__campaign_id__commercial_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignCommercialRead"];
                 };
             };
             /** @description Validation Error */
@@ -8203,6 +10143,41 @@ export interface operations {
             };
         };
     };
+    advertiser_accept_expedited_waiver_api_v1_advertiser_campaigns__campaign_id__expedited_waiver_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaiverCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaiverRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     advertiser_get_campaign_heatmap_api_v1_advertiser_campaigns__campaign_id__heatmap_get: {
         parameters: {
             query?: {
@@ -8264,6 +10239,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignImpressionSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advertiser_request_quote_api_v1_advertiser_campaigns__campaign_id__quote_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuoteRequestCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuoteRequestRead"];
                 };
             };
             /** @description Validation Error */
@@ -8554,6 +10564,59 @@ export interface operations {
             };
         };
     };
+    advertiser_company_api_v1_advertiser_company_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyProfileRead"];
+                };
+            };
+        };
+    };
+    advertiser_update_company_api_v1_advertiser_company_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompanyProfileUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyProfileRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     advertiser_get_dashboard_summary_api_v1_advertiser_dashboard_summary_get: {
         parameters: {
             query?: {
@@ -8602,6 +10665,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdvertiserOrganizationContextResponse"];
+                };
+            };
+        };
+    };
+    advertiser_accept_quote_api_v1_advertiser_quotations__revision_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuoteAccept"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommercialTermsRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -9424,6 +11522,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    payment_webhook_api_v1_webhooks_payments_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Payment-Signature": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentWebhookReceipt"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

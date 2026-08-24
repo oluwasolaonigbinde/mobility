@@ -5,6 +5,7 @@ from app.api.v1.advertiser_organizations import router as advertiser_organizatio
 from app.api.v1.advertiser_reports import router as advertiser_reports_router
 from app.api.v1.audit import router as audit_router
 from app.api.v1.auth import router as auth_router
+from app.api.v1.billing import router as billing_router
 from app.api.v1.campaign_assignments import router as campaign_assignments_router
 from app.api.v1.campaign_zones import router as campaign_zones_router
 from app.api.v1.campaigns import router as campaigns_router
@@ -24,6 +25,7 @@ from app.api.v1.vehicles import router as vehicles_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
+api_router.include_router(billing_router)
 api_router.include_router(me_router)
 api_router.include_router(payees_router)
 api_router.include_router(disbursements_router)

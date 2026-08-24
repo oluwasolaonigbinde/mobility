@@ -13,7 +13,10 @@ from app.jobs.data_lifecycle import (
     purge_expired_ping_partitions,
 )
 from app.jobs.earnings_release import sweep_earnings_release_reviews
-from app.jobs.payment_gateway import process_payment_gateway_event_job
+from app.jobs.payment_gateway import (
+    process_payment_gateway_event_job,
+    sweep_payment_gateway_events,
+)
 from app.jobs.trip_processing import (
     process_trip,
     process_unprocessed_trips,
@@ -88,6 +91,11 @@ class WorkerSettings:
         ),
         cron(
             sweep_earnings_release_reviews,
+            minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
+            unique=True,
+        ),
+        cron(
+            sweep_payment_gateway_events,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
             unique=True,
         ),

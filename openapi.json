@@ -1,6 +1,14 @@
 {
   "components": {
     "schemas": {
+      "AcceptanceMethod": {
+        "enum": [
+          "in_platform",
+          "external_recorded"
+        ],
+        "title": "AcceptanceMethod",
+        "type": "string"
+      },
       "ActiveCampaignAssignmentResponse": {
         "properties": {
           "assignment": {
@@ -1303,6 +1311,157 @@
         "title": "BankAccountVersionRead",
         "type": "object"
       },
+      "BillingHistoryEntry": {
+        "properties": {
+          "allocations": {
+            "items": {
+              "$ref": "#/components/schemas/ReceiptAllocationRead"
+            },
+            "title": "Allocations",
+            "type": "array"
+          },
+          "current_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Status"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/ReceiptEventRead"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/ReceiptRead"
+          }
+        },
+        "required": [
+          "receipt",
+          "events",
+          "allocations",
+          "current_status"
+        ],
+        "title": "BillingHistoryEntry",
+        "type": "object"
+      },
+      "BudgetEvaluationRead": {
+        "properties": {
+          "alert_threshold_amount": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Threshold Amount"
+          },
+          "billing_spend_amount": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billing Spend Amount"
+          },
+          "campaign_budget_amount": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Budget Amount"
+          },
+          "campaign_daily_budget_amount": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Daily Budget Amount"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "evaluated_at": {
+            "format": "date-time",
+            "title": "Evaluated At",
+            "type": "string"
+          },
+          "external_gate": {
+            "title": "External Gate",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "pause_applied": {
+            "title": "Pause Applied",
+            "type": "boolean"
+          },
+          "pause_threshold_amount": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pause Threshold Amount"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "campaign_id",
+          "state",
+          "external_gate",
+          "campaign_budget_amount",
+          "campaign_daily_budget_amount",
+          "currency",
+          "billing_spend_amount",
+          "alert_threshold_amount",
+          "pause_threshold_amount",
+          "pause_applied",
+          "evaluated_at"
+        ],
+        "title": "BudgetEvaluationRead",
+        "type": "object"
+      },
       "CalculatePayoutRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1709,6 +1868,101 @@
           }
         },
         "title": "CampaignAssignmentTransition",
+        "type": "object"
+      },
+      "CampaignCommercialRead": {
+        "properties": {
+          "budget_evaluations": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetEvaluationRead"
+            },
+            "title": "Budget Evaluations",
+            "type": "array"
+          },
+          "financial_authority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FinancialAuthorityRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "invoices": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceRead"
+            },
+            "title": "Invoices",
+            "type": "array"
+          },
+          "production_start": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProductionStartRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quote_request": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuoteRequestRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revisions": {
+            "items": {
+              "$ref": "#/components/schemas/QuoteRevisionRead"
+            },
+            "title": "Revisions",
+            "type": "array"
+          },
+          "settlements": {
+            "items": {
+              "$ref": "#/components/schemas/SettlementRead"
+            },
+            "title": "Settlements",
+            "type": "array"
+          },
+          "terms": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommercialTermsRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "waiver": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WaiverRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "quote_request",
+          "revisions",
+          "terms",
+          "invoices",
+          "financial_authority",
+          "waiver",
+          "production_start",
+          "settlements",
+          "budget_evaluations"
+        ],
+        "title": "CampaignCommercialRead",
         "type": "object"
       },
       "CampaignCreate": {
@@ -3761,6 +4015,539 @@
         "title": "ChangePasswordRequest",
         "type": "object"
       },
+      "CommercialTermsRead": {
+        "properties": {
+          "acceptance_method": {
+            "title": "Acceptance Method",
+            "type": "string"
+          },
+          "accepted_at": {
+            "format": "date-time",
+            "title": "Accepted At",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "gross_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Gross Amount",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "line_items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Line Items",
+            "type": "array"
+          },
+          "net_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Net Amount",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "payment_class": {
+            "title": "Payment Class",
+            "type": "string"
+          },
+          "payment_terms": {
+            "additionalProperties": true,
+            "title": "Payment Terms",
+            "type": "object"
+          },
+          "production_cost_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Production Cost Amount",
+            "type": "string"
+          },
+          "production_scope": {
+            "additionalProperties": true,
+            "title": "Production Scope",
+            "type": "object"
+          },
+          "quotation_revision_id": {
+            "format": "uuid",
+            "title": "Quotation Revision Id",
+            "type": "string"
+          },
+          "quotation_revision_number": {
+            "title": "Quotation Revision Number",
+            "type": "integer"
+          },
+          "quote_reference": {
+            "title": "Quote Reference",
+            "type": "string"
+          },
+          "standard_production_wait_hours": {
+            "title": "Standard Production Wait Hours",
+            "type": "integer"
+          },
+          "tax_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Tax Amount",
+            "type": "string"
+          },
+          "tax_rate": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Tax Rate",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "campaign_id",
+          "organization_id",
+          "quotation_revision_id",
+          "quote_reference",
+          "quotation_revision_number",
+          "currency",
+          "line_items",
+          "production_scope",
+          "production_cost_amount",
+          "payment_class",
+          "payment_terms",
+          "standard_production_wait_hours",
+          "net_amount",
+          "tax_rate",
+          "tax_amount",
+          "gross_amount",
+          "acceptance_method",
+          "accepted_at"
+        ],
+        "title": "CommercialTermsRead",
+        "type": "object"
+      },
+      "CompanyProfileRead": {
+        "properties": {
+          "address_city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address City"
+          },
+          "address_country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address Country Code"
+          },
+          "address_line_1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address Line 1"
+          },
+          "address_line_2": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address Line 2"
+          },
+          "address_postal_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address Postal Code"
+          },
+          "address_region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address Region"
+          },
+          "billing_contact_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billing Contact Name"
+          },
+          "billing_contact_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billing Contact Phone"
+          },
+          "billing_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billing Email"
+          },
+          "country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Industry"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "operational_contact_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operational Contact Email"
+          },
+          "operational_contact_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operational Contact Name"
+          },
+          "operational_contact_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operational Contact Phone"
+          },
+          "profile_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Notes"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "billing_email",
+          "address_line_1",
+          "address_line_2",
+          "address_city",
+          "address_region",
+          "address_postal_code",
+          "address_country_code",
+          "industry",
+          "operational_contact_name",
+          "operational_contact_email",
+          "operational_contact_phone",
+          "billing_contact_name",
+          "billing_contact_phone",
+          "profile_notes",
+          "country_code",
+          "currency",
+          "status"
+        ],
+        "title": "CompanyProfileRead",
+        "type": "object"
+      },
+      "CompanyProfileUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "address_city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address City"
+          },
+          "address_country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address Country Code"
+          },
+          "address_line_1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address Line 1"
+          },
+          "address_line_2": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address Line 2"
+          },
+          "address_postal_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address Postal Code"
+          },
+          "address_region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address Region"
+          },
+          "billing_contact_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billing Contact Name"
+          },
+          "billing_contact_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billing Contact Phone"
+          },
+          "billing_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billing Email"
+          },
+          "country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Industry"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "operational_contact_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operational Contact Email"
+          },
+          "operational_contact_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operational Contact Name"
+          },
+          "operational_contact_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operational Contact Phone"
+          },
+          "profile_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Notes"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "title": "CompanyProfileUpdate",
+        "type": "object"
+      },
       "CreativeCreate": {
         "additionalProperties": false,
         "properties": {
@@ -4204,6 +4991,35 @@
           }
         },
         "title": "CreativeUpdate",
+        "type": "object"
+      },
+      "CreditSettlementCreate": {
+        "properties": {
+          "commercial_terms_id": {
+            "format": "uuid",
+            "title": "Commercial Terms Id",
+            "type": "string"
+          },
+          "external_reference": {
+            "title": "External Reference",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "settlement_provider": {
+            "title": "Settlement Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "commercial_terms_id",
+          "settlement_provider",
+          "external_reference",
+          "reason"
+        ],
+        "title": "CreditSettlementCreate",
         "type": "object"
       },
       "CurrentTripResponse": {
@@ -5596,6 +6412,231 @@
         "title": "EstimateImpressionsRequest",
         "type": "object"
       },
+      "FinancialAuthorityCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "approved_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By User Id"
+          },
+          "authority_type": {
+            "$ref": "#/components/schemas/FinancialAuthorityType"
+          },
+          "credit_limit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit Limit"
+          },
+          "credit_terms": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit Terms"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "max_driver_liability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Max Driver Liability"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "subsidy_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subsidy Amount"
+          },
+          "subsidy_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subsidy Reference"
+          }
+        },
+        "required": [
+          "authority_type",
+          "max_driver_liability",
+          "reason"
+        ],
+        "title": "FinancialAuthorityCreate",
+        "type": "object"
+      },
+      "FinancialAuthorityRead": {
+        "properties": {
+          "authority_type": {
+            "title": "Authority Type",
+            "type": "string"
+          },
+          "authorized_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Authorized Amount",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "commercial_terms_id": {
+            "format": "uuid",
+            "title": "Commercial Terms Id",
+            "type": "string"
+          },
+          "credit_due_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit Due At"
+          },
+          "credit_limit": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit Limit"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "effective_from": {
+            "format": "date-time",
+            "title": "Effective From",
+            "type": "string"
+          },
+          "funded_cash_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Funded Cash Amount",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "max_driver_liability": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Max Driver Liability",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "revision_number": {
+            "title": "Revision Number",
+            "type": "integer"
+          },
+          "subsidy_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subsidy Reference"
+          }
+        },
+        "required": [
+          "id",
+          "campaign_id",
+          "commercial_terms_id",
+          "revision_number",
+          "authority_type",
+          "currency",
+          "authorized_amount",
+          "funded_cash_amount",
+          "max_driver_liability",
+          "credit_limit",
+          "credit_due_at",
+          "subsidy_reference",
+          "effective_from",
+          "reason"
+        ],
+        "title": "FinancialAuthorityRead",
+        "type": "object"
+      },
+      "FinancialAuthorityType": {
+        "enum": [
+          "prepaid_cash",
+          "approved_credit",
+          "subsidy"
+        ],
+        "title": "FinancialAuthorityType",
+        "type": "string"
+      },
       "FraudDisputeCreate": {
         "additionalProperties": false,
         "properties": {
@@ -6484,6 +7525,408 @@
         "title": "ImpressionSummary",
         "type": "object"
       },
+      "InvoiceCorrectionCreate": {
+        "properties": {
+          "correction_type": {
+            "$ref": "#/components/schemas/InvoiceCorrectionType"
+          },
+          "net_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Net Amount"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "tax_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Tax Amount"
+          }
+        },
+        "required": [
+          "correction_type",
+          "net_amount",
+          "tax_amount",
+          "reason"
+        ],
+        "title": "InvoiceCorrectionCreate",
+        "type": "object"
+      },
+      "InvoiceCorrectionRead": {
+        "properties": {
+          "correction_number": {
+            "title": "Correction Number",
+            "type": "string"
+          },
+          "correction_type": {
+            "title": "Correction Type",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "gross_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Gross Amount",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoice_id": {
+            "format": "uuid",
+            "title": "Invoice Id",
+            "type": "string"
+          },
+          "net_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Net Amount",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "sequence_number": {
+            "title": "Sequence Number",
+            "type": "integer"
+          },
+          "tax_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Tax Amount",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "invoice_id",
+          "sequence_number",
+          "correction_number",
+          "correction_type",
+          "currency",
+          "net_amount",
+          "tax_amount",
+          "gross_amount",
+          "reason",
+          "created_at"
+        ],
+        "title": "InvoiceCorrectionRead",
+        "type": "object"
+      },
+      "InvoiceCorrectionType": {
+        "enum": [
+          "credit_note",
+          "debit_note"
+        ],
+        "title": "InvoiceCorrectionType",
+        "type": "string"
+      },
+      "InvoiceDraftCreate": {
+        "properties": {
+          "commercial_terms_id": {
+            "format": "uuid",
+            "title": "Commercial Terms Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "commercial_terms_id"
+        ],
+        "title": "InvoiceDraftCreate",
+        "type": "object"
+      },
+      "InvoiceIssue": {
+        "properties": {
+          "issuer_profile_id": {
+            "format": "uuid",
+            "title": "Issuer Profile Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "issuer_profile_id"
+        ],
+        "title": "InvoiceIssue",
+        "type": "object"
+      },
+      "InvoiceRead": {
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "commercial_terms_id": {
+            "format": "uuid",
+            "title": "Commercial Terms Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "customer_snapshot": {
+            "additionalProperties": true,
+            "title": "Customer Snapshot",
+            "type": "object"
+          },
+          "gross_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Gross Amount",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoice_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Number"
+          },
+          "issued_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issued At"
+          },
+          "issuer_profile_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuer Profile Id"
+          },
+          "issuer_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuer Snapshot"
+          },
+          "line_items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Line Items",
+            "type": "array"
+          },
+          "net_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Net Amount",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tax_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Tax Amount",
+            "type": "string"
+          },
+          "tax_rate": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Tax Rate",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "commercial_terms_id",
+          "campaign_id",
+          "organization_id",
+          "issuer_profile_id",
+          "invoice_number",
+          "status",
+          "customer_snapshot",
+          "issuer_snapshot",
+          "line_items",
+          "currency",
+          "net_amount",
+          "tax_rate",
+          "tax_amount",
+          "gross_amount",
+          "created_at",
+          "issued_at"
+        ],
+        "title": "InvoiceRead",
+        "type": "object"
+      },
+      "IssuerProfileCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "country_code": {
+            "title": "Country Code",
+            "type": "string"
+          },
+          "external_input_reference": {
+            "title": "External Input Reference",
+            "type": "string"
+          },
+          "invoice_wording": {
+            "title": "Invoice Wording",
+            "type": "string"
+          },
+          "legal_name": {
+            "title": "Legal Name",
+            "type": "string"
+          },
+          "numbering_prefix": {
+            "title": "Numbering Prefix",
+            "type": "string"
+          },
+          "registered_address": {
+            "title": "Registered Address",
+            "type": "string"
+          },
+          "tax_identification_number": {
+            "title": "Tax Identification Number",
+            "type": "string"
+          },
+          "verification_status": {
+            "$ref": "#/components/schemas/IssuerVerificationStatus"
+          }
+        },
+        "required": [
+          "legal_name",
+          "tax_identification_number",
+          "registered_address",
+          "country_code",
+          "invoice_wording",
+          "numbering_prefix",
+          "verification_status",
+          "external_input_reference"
+        ],
+        "title": "IssuerProfileCreate",
+        "type": "object"
+      },
+      "IssuerProfileRead": {
+        "properties": {
+          "country_code": {
+            "title": "Country Code",
+            "type": "string"
+          },
+          "external_input_reference": {
+            "title": "External Input Reference",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoice_wording": {
+            "title": "Invoice Wording",
+            "type": "string"
+          },
+          "legal_name": {
+            "title": "Legal Name",
+            "type": "string"
+          },
+          "numbering_prefix": {
+            "title": "Numbering Prefix",
+            "type": "string"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "registered_address": {
+            "title": "Registered Address",
+            "type": "string"
+          },
+          "tax_identification_number": {
+            "title": "Tax Identification Number",
+            "type": "string"
+          },
+          "verification_status": {
+            "title": "Verification Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "legal_name",
+          "tax_identification_number",
+          "registered_address",
+          "country_code",
+          "invoice_wording",
+          "numbering_prefix",
+          "verification_status",
+          "external_input_reference",
+          "recorded_at"
+        ],
+        "title": "IssuerProfileRead",
+        "type": "object"
+      },
+      "IssuerVerificationStatus": {
+        "enum": [
+          "synthetic",
+          "verified"
+        ],
+        "title": "IssuerVerificationStatus",
+        "type": "string"
+      },
       "LocationPingBatchCreate": {
         "additionalProperties": false,
         "properties": {
@@ -6740,6 +8183,122 @@
         "title": "LoginUser",
         "type": "object"
       },
+      "ManualTransferCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "allocation_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allocation Amount"
+          },
+          "commercial_terms_id": {
+            "format": "uuid",
+            "title": "Commercial Terms Id",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "evidence_reference": {
+            "title": "Evidence Reference",
+            "type": "string"
+          },
+          "expected_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Expected Amount"
+          },
+          "external_transaction_id": {
+            "title": "External Transaction Id",
+            "type": "string"
+          },
+          "observed_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Observed Amount"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "payer_name": {
+            "title": "Payer Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "organization_id",
+          "commercial_terms_id",
+          "external_transaction_id",
+          "observed_amount",
+          "expected_amount",
+          "currency",
+          "payer_name",
+          "evidence_reference",
+          "observed_at"
+        ],
+        "title": "ManualTransferCreate",
+        "type": "object"
+      },
+      "ManualTransferResult": {
+        "properties": {
+          "allocation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReceiptAllocationRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "matched": {
+            "title": "Matched",
+            "type": "boolean"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/ReceiptRead"
+          }
+        },
+        "required": [
+          "receipt",
+          "matched",
+          "allocation"
+        ],
+        "title": "ManualTransferResult",
+        "type": "object"
+      },
       "MeAdvertiserOrganization": {
         "properties": {
           "currency": {
@@ -6900,6 +8459,38 @@
         ],
         "title": "PayeeType",
         "type": "string"
+      },
+      "PaymentClass": {
+        "enum": [
+          "standard_prepaid",
+          "approved_corporate_credit"
+        ],
+        "title": "PaymentClass",
+        "type": "string"
+      },
+      "PaymentWebhookReceipt": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "boolean"
+          },
+          "duplicate": {
+            "title": "Duplicate",
+            "type": "boolean"
+          },
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "accepted",
+          "duplicate"
+        ],
+        "title": "PaymentWebhookReceipt",
+        "type": "object"
       },
       "PayoutBatchCreate": {
         "additionalProperties": false,
@@ -7897,6 +9488,87 @@
         "title": "PayoutLedgerEntrySummary",
         "type": "object"
       },
+      "ProductionStartCreate": {
+        "properties": {
+          "waiver_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waiver Id"
+          }
+        },
+        "title": "ProductionStartCreate",
+        "type": "object"
+      },
+      "ProductionStartRead": {
+        "properties": {
+          "authority_basis": {
+            "title": "Authority Basis",
+            "type": "string"
+          },
+          "authorization_id": {
+            "format": "uuid",
+            "title": "Authorization Id",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "fully_funded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fully Funded At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "waiver_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waiver Id"
+          }
+        },
+        "required": [
+          "id",
+          "campaign_id",
+          "authorization_id",
+          "authority_basis",
+          "waiver_id",
+          "fully_funded_at",
+          "started_at"
+        ],
+        "title": "ProductionStartRead",
+        "type": "object"
+      },
       "QualitySummary": {
         "properties": {
           "average_quality_score": {
@@ -8101,6 +9773,432 @@
         "title": "QuarantinedPingBatchRead",
         "type": "object"
       },
+      "QuoteAccept": {
+        "additionalProperties": false,
+        "properties": {
+          "acceptance_method": {
+            "$ref": "#/components/schemas/AcceptanceMethod",
+            "default": "in_platform"
+          },
+          "external_acceptance_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Acceptance Reference"
+          },
+          "external_accepted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Accepted At"
+          }
+        },
+        "title": "QuoteAccept",
+        "type": "object"
+      },
+      "QuoteRequestCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "request_details": {
+            "additionalProperties": true,
+            "title": "Request Details",
+            "type": "object"
+          }
+        },
+        "title": "QuoteRequestCreate",
+        "type": "object"
+      },
+      "QuoteRequestRead": {
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "request_details": {
+            "additionalProperties": true,
+            "title": "Request Details",
+            "type": "object"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "requested_by_user_id": {
+            "format": "uuid",
+            "title": "Requested By User Id",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "campaign_id",
+          "organization_id",
+          "source",
+          "request_details",
+          "requested_by_user_id",
+          "requested_at"
+        ],
+        "title": "QuoteRequestRead",
+        "type": "object"
+      },
+      "QuoteRevisionCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "line_items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Line Items",
+            "type": "array"
+          },
+          "payment_class": {
+            "$ref": "#/components/schemas/PaymentClass"
+          },
+          "payment_terms": {
+            "additionalProperties": true,
+            "title": "Payment Terms",
+            "type": "object"
+          },
+          "production_scope": {
+            "additionalProperties": true,
+            "title": "Production Scope",
+            "type": "object"
+          },
+          "quote_reference": {
+            "title": "Quote Reference",
+            "type": "string"
+          },
+          "tax_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Tax Rate"
+          }
+        },
+        "required": [
+          "quote_reference",
+          "currency",
+          "line_items",
+          "production_scope",
+          "payment_class",
+          "tax_rate"
+        ],
+        "title": "QuoteRevisionCreate",
+        "type": "object"
+      },
+      "QuoteRevisionRead": {
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "gross_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Gross Amount",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "line_items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Line Items",
+            "type": "array"
+          },
+          "net_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Net Amount",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "payment_class": {
+            "title": "Payment Class",
+            "type": "string"
+          },
+          "payment_terms": {
+            "additionalProperties": true,
+            "title": "Payment Terms",
+            "type": "object"
+          },
+          "production_cost_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Production Cost Amount",
+            "type": "string"
+          },
+          "production_scope": {
+            "additionalProperties": true,
+            "title": "Production Scope",
+            "type": "object"
+          },
+          "quote_reference": {
+            "title": "Quote Reference",
+            "type": "string"
+          },
+          "quote_request_id": {
+            "format": "uuid",
+            "title": "Quote Request Id",
+            "type": "string"
+          },
+          "revision_number": {
+            "title": "Revision Number",
+            "type": "integer"
+          },
+          "tax_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Tax Amount",
+            "type": "string"
+          },
+          "tax_rate": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Tax Rate",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "quote_request_id",
+          "campaign_id",
+          "organization_id",
+          "revision_number",
+          "quote_reference",
+          "currency",
+          "line_items",
+          "production_scope",
+          "production_cost_amount",
+          "payment_class",
+          "payment_terms",
+          "net_amount",
+          "tax_rate",
+          "tax_amount",
+          "gross_amount",
+          "created_at"
+        ],
+        "title": "QuoteRevisionRead",
+        "type": "object"
+      },
+      "ReceiptAllocationRead": {
+        "properties": {
+          "allocated_at": {
+            "format": "date-time",
+            "title": "Allocated At",
+            "type": "string"
+          },
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "commercial_terms_id": {
+            "format": "uuid",
+            "title": "Commercial Terms Id",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "receipt_id": {
+            "format": "uuid",
+            "title": "Receipt Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "receipt_id",
+          "commercial_terms_id",
+          "amount",
+          "currency",
+          "allocated_at"
+        ],
+        "title": "ReceiptAllocationRead",
+        "type": "object"
+      },
+      "ReceiptEventRead": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "receipt_id": {
+            "format": "uuid",
+            "title": "Receipt Id",
+            "type": "string"
+          },
+          "sequence_number": {
+            "title": "Sequence Number",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "receipt_id",
+          "sequence_number",
+          "status",
+          "reason",
+          "occurred_at"
+        ],
+        "title": "ReceiptEventRead",
+        "type": "object"
+      },
+      "ReceiptRead": {
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "evidence_reference": {
+            "title": "Evidence Reference",
+            "type": "string"
+          },
+          "external_transaction_id": {
+            "title": "External Transaction Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "payer_name": {
+            "title": "Payer Name",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "organization_id",
+          "method",
+          "provider",
+          "external_transaction_id",
+          "amount",
+          "currency",
+          "payer_name",
+          "evidence_reference",
+          "observed_at"
+        ],
+        "title": "ReceiptRead",
+        "type": "object"
+      },
+      "ReceiptReverse": {
+        "properties": {
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "ReceiptReverse",
+        "type": "object"
+      },
       "RecomputeDayTripResult": {
         "properties": {
           "delta_amount": {
@@ -8263,6 +10361,54 @@
         "title": "RecomputePayoutDayResult",
         "type": "object"
       },
+      "RefundCreate": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Amount"
+          },
+          "commercial_terms_id": {
+            "format": "uuid",
+            "title": "Commercial Terms Id",
+            "type": "string"
+          },
+          "external_reference": {
+            "title": "External Reference",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "receipt_id": {
+            "format": "uuid",
+            "title": "Receipt Id",
+            "type": "string"
+          },
+          "settlement_provider": {
+            "title": "Settlement Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "commercial_terms_id",
+          "receipt_id",
+          "amount",
+          "settlement_provider",
+          "external_reference",
+          "reason"
+        ],
+        "title": "RefundCreate",
+        "type": "object"
+      },
       "RouteAnalyticsSummary": {
         "properties": {
           "analyzed_trip_count": {
@@ -8334,6 +10480,108 @@
           "average_quality_score"
         ],
         "title": "RouteAnalyticsSummary",
+        "type": "object"
+      },
+      "SettlementRead": {
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "commercial_terms_id": {
+            "format": "uuid",
+            "title": "Commercial Terms Id",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "disposition": {
+            "title": "Disposition",
+            "type": "string"
+          },
+          "eligibility_ends_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eligibility Ends At"
+          },
+          "external_reference": {
+            "title": "External Reference",
+            "type": "string"
+          },
+          "funding_authorized_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Funding Authorized At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "receipt_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Id"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "settlement_provider": {
+            "title": "Settlement Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "commercial_terms_id",
+          "campaign_id",
+          "receipt_id",
+          "disposition",
+          "amount",
+          "currency",
+          "funding_authorized_at",
+          "eligibility_ends_at",
+          "settlement_provider",
+          "external_reference",
+          "reason",
+          "recorded_at"
+        ],
+        "title": "SettlementRead",
         "type": "object"
       },
       "TrafficDensityProfileCreate": {
@@ -10342,6 +12590,66 @@
         "title": "VerifiedBankAccountCreate",
         "type": "object"
       },
+      "WaiverCreate": {
+        "properties": {
+          "accepted_wording": {
+            "title": "Accepted Wording",
+            "type": "string"
+          },
+          "wording_version": {
+            "title": "Wording Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "wording_version",
+          "accepted_wording"
+        ],
+        "title": "WaiverCreate",
+        "type": "object"
+      },
+      "WaiverRead": {
+        "properties": {
+          "accepted_at": {
+            "format": "date-time",
+            "title": "Accepted At",
+            "type": "string"
+          },
+          "accepted_wording_hash": {
+            "title": "Accepted Wording Hash",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "commercial_terms_id": {
+            "format": "uuid",
+            "title": "Commercial Terms Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "wording_version": {
+            "title": "Wording Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "campaign_id",
+          "commercial_terms_id",
+          "wording_version",
+          "accepted_wording_hash",
+          "accepted_at"
+        ],
+        "title": "WaiverRead",
+        "type": "object"
+      },
       "ZoneTypeCounts": {
         "properties": {
           "bonus": {
@@ -10636,6 +12944,110 @@
         ]
       }
     },
+    "/api/v1/admin/advertiser-organizations/{organization_id}/company": {
+      "get": {
+        "operationId": "admin_company_api_v1_admin_advertiser_organizations__organization_id__company_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Organization Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyProfileRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Company",
+        "tags": [
+          "Commercial billing"
+        ]
+      },
+      "patch": {
+        "operationId": "admin_update_company_api_v1_admin_advertiser_organizations__organization_id__company_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Organization Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanyProfileUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyProfileRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Update Company",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
     "/api/v1/admin/audit-events": {
       "get": {
         "operationId": "admin_list_audit_events_api_v1_admin_audit_events_get",
@@ -10793,6 +13205,104 @@
         "summary": "List audit events",
         "tags": [
           "Admin Audit"
+        ]
+      }
+    },
+    "/api/v1/admin/billing": {
+      "get": {
+        "operationId": "admin_billing_history_api_v1_admin_billing_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Organization Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BillingHistoryEntry"
+                  },
+                  "title": "Response Admin Billing History Api V1 Admin Billing Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Billing History",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/billing/manual-transfers": {
+      "post": {
+        "operationId": "admin_record_manual_transfer_api_v1_admin_billing_manual_transfers_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualTransferCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualTransferResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Record Manual Transfer",
+        "tags": [
+          "Commercial billing"
         ]
       }
     },
@@ -11216,6 +13726,160 @@
         ]
       }
     },
+    "/api/v1/admin/campaigns/{campaign_id}/budget-policy-evaluation": {
+      "post": {
+        "operationId": "admin_record_blocked_budget_evaluation_api_v1_admin_campaigns__campaign_id__budget_policy_evaluation_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetEvaluationRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Record Blocked Budget Evaluation",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/campaigns/{campaign_id}/commercial": {
+      "get": {
+        "operationId": "admin_campaign_commercial_api_v1_admin_campaigns__campaign_id__commercial_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignCommercialRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Campaign Commercial",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/campaigns/{campaign_id}/financial-authority": {
+      "post": {
+        "operationId": "admin_record_financial_authority_api_v1_admin_campaigns__campaign_id__financial_authority_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinancialAuthorityCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinancialAuthorityRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Record Financial Authority",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
     "/api/v1/admin/campaigns/{campaign_id}/payout-rules": {
       "get": {
         "operationId": "admin_list_campaign_payout_rules_api_v1_admin_campaigns__campaign_id__payout_rules_get",
@@ -11627,6 +14291,168 @@
         "summary": "Create an effective-dated payout-rule revision (supersede)",
         "tags": [
           "Payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/campaigns/{campaign_id}/production-start": {
+      "post": {
+        "operationId": "admin_record_production_start_api_v1_admin_campaigns__campaign_id__production_start_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductionStartCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductionStartRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Record Production Start",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/campaigns/{campaign_id}/quote-request": {
+      "post": {
+        "operationId": "admin_record_external_quote_request_api_v1_admin_campaigns__campaign_id__quote_request_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteRequestCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuoteRequestRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Record External Quote Request",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/credit-settlements": {
+      "post": {
+        "operationId": "admin_record_credit_settlement_api_v1_admin_credit_settlements_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreditSettlementCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettlementRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Record Credit Settlement",
+        "tags": [
+          "Commercial billing"
         ]
       }
     },
@@ -12713,6 +15539,214 @@
         "summary": "List impression estimates",
         "tags": [
           "Impressions"
+        ]
+      }
+    },
+    "/api/v1/admin/invoice-issuer-profiles": {
+      "post": {
+        "operationId": "admin_record_issuer_profile_api_v1_admin_invoice_issuer_profiles_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssuerProfileCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssuerProfileRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Record Issuer Profile",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/invoices": {
+      "post": {
+        "operationId": "admin_create_invoice_api_v1_admin_invoices_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvoiceDraftCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Create Invoice",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/invoices/{invoice_id}/corrections": {
+      "post": {
+        "operationId": "admin_record_invoice_correction_api_v1_admin_invoices__invoice_id__corrections_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvoiceCorrectionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceCorrectionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Record Invoice Correction",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/invoices/{invoice_id}/issue": {
+      "post": {
+        "operationId": "admin_issue_invoice_api_v1_admin_invoices__invoice_id__issue_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvoiceIssue"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Issue Invoice",
+        "tags": [
+          "Commercial billing"
         ]
       }
     },
@@ -14200,6 +17234,226 @@
         ]
       }
     },
+    "/api/v1/admin/quotations/{revision_id}/accept-external": {
+      "post": {
+        "operationId": "admin_record_external_quote_acceptance_api_v1_admin_quotations__revision_id__accept_external_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Revision Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteAccept"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommercialTermsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Record External Quote Acceptance",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/quote-requests/{quote_request_id}/revisions": {
+      "post": {
+        "operationId": "admin_record_quote_revision_api_v1_admin_quote_requests__quote_request_id__revisions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "quote_request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Quote Request Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteRevisionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuoteRevisionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Record Quote Revision",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/receipts/{receipt_id}/reverse": {
+      "post": {
+        "operationId": "admin_reverse_receipt_api_v1_admin_receipts__receipt_id__reverse_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Receipt Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiptReverse"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Reverse Receipt",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/refunds": {
+      "post": {
+        "operationId": "admin_record_refund_api_v1_admin_refunds_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettlementRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Record Refund",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
     "/api/v1/admin/traffic-density-profiles": {
       "get": {
         "operationId": "admin_list_traffic_density_profiles_api_v1_admin_traffic_density_profiles_get",
@@ -15357,6 +18611,36 @@
         ]
       }
     },
+    "/api/v1/advertiser/billing": {
+      "get": {
+        "operationId": "advertiser_billing_history_api_v1_advertiser_billing_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BillingHistoryEntry"
+                  },
+                  "title": "Response Advertiser Billing History Api V1 Advertiser Billing Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Billing History",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
     "/api/v1/advertiser/campaigns": {
       "get": {
         "operationId": "advertiser_list_campaigns_api_v1_advertiser_campaigns_get",
@@ -15613,6 +18897,54 @@
         "summary": "Update current advertiser campaign",
         "tags": [
           "Campaigns"
+        ]
+      }
+    },
+    "/api/v1/advertiser/campaigns/{campaign_id}/commercial": {
+      "get": {
+        "operationId": "advertiser_campaign_commercial_api_v1_advertiser_campaigns__campaign_id__commercial_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignCommercialRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Campaign Commercial",
+        "tags": [
+          "Commercial billing"
         ]
       }
     },
@@ -16103,6 +19435,64 @@
         ]
       }
     },
+    "/api/v1/advertiser/campaigns/{campaign_id}/expedited-waiver": {
+      "post": {
+        "operationId": "advertiser_accept_expedited_waiver_api_v1_advertiser_campaigns__campaign_id__expedited_waiver_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WaiverCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaiverRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Accept Expedited Waiver",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
     "/api/v1/advertiser/campaigns/{campaign_id}/heatmap": {
       "get": {
         "description": "Return bounded GeoJSON heatmap cells for an advertiser campaign. Demo bbox: 3.35,6.43,3.47,6.56.",
@@ -16314,6 +19704,64 @@
         "summary": "Read advertiser campaign impression summary",
         "tags": [
           "Impressions"
+        ]
+      }
+    },
+    "/api/v1/advertiser/campaigns/{campaign_id}/quote-request": {
+      "post": {
+        "operationId": "advertiser_request_quote_api_v1_advertiser_campaigns__campaign_id__quote_request_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteRequestCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuoteRequestRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Request Quote",
+        "tags": [
+          "Commercial billing"
         ]
       }
     },
@@ -16985,6 +20433,76 @@
         ]
       }
     },
+    "/api/v1/advertiser/company": {
+      "get": {
+        "operationId": "advertiser_company_api_v1_advertiser_company_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyProfileRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Company",
+        "tags": [
+          "Commercial billing"
+        ]
+      },
+      "patch": {
+        "operationId": "advertiser_update_company_api_v1_advertiser_company_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanyProfileUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyProfileRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Update Company",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
     "/api/v1/advertiser/dashboard/summary": {
       "get": {
         "description": "Aggregate stored campaign, trip, impression, payout, and fraud data for the current advertiser organization. The demo seed returns non-empty data here.",
@@ -17081,6 +20599,64 @@
         "summary": "Get current advertiser organization",
         "tags": [
           "Advertiser Organizations"
+        ]
+      }
+    },
+    "/api/v1/advertiser/quotations/{revision_id}/accept": {
+      "post": {
+        "operationId": "advertiser_accept_quote_api_v1_advertiser_quotations__revision_id__accept_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Revision Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteAccept"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommercialTermsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Accept Quote",
+        "tags": [
+          "Commercial billing"
         ]
       }
     },
@@ -18414,6 +21990,48 @@
         "summary": "Get current user context",
         "tags": [
           "Auth"
+        ]
+      }
+    },
+    "/api/v1/webhooks/payments": {
+      "post": {
+        "operationId": "payment_webhook_api_v1_webhooks_payments_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Payment-Signature",
+            "required": true,
+            "schema": {
+              "title": "X-Payment-Signature",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentWebhookReceipt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Payment Webhook",
+        "tags": [
+          "Commercial billing"
         ]
       }
     },

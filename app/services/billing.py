@@ -91,6 +91,13 @@ def _aware_utc(value: datetime) -> datetime:
     return value.astimezone(UTC)
 
 
+def _stored_aware_utc(value: datetime) -> datetime:
+    """Normalize a trusted DB timestamp (SQLite reflection drops tzinfo)."""
+    if value.tzinfo is None or value.utcoffset() is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
 def _money(value: Decimal | str, field: str) -> Decimal:
     try:
         amount = Decimal(value)
@@ -554,7 +561,8 @@ async def record_payment_receipt(
                 Decimal(str(amount)) == Decimal(gateway_event.amount),
                 currency.strip().upper() == gateway_event.currency,
                 payer_name.strip() == gateway_event.payer_name,
-                observed_at == gateway_event.occurred_at,
+                _stored_aware_utc(observed_at)
+                == _stored_aware_utc(gateway_event.occurred_at),
             )
         ):
             raise AppError(
@@ -1119,6 +1127,14 @@ async def create_invoice_draft(
             "An invoice already exists for these accepted terms",
             status_code=status.HTTP_409_CONFLICT,
         ) from exc
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="billing.invoice_draft.created",
+        entity_type="invoice",
+        entity_id=str(invoice.id),
+        metadata={"commercial_terms_id": str(terms.id), "campaign_id": str(terms.campaign_id)},
+    )
     return invoice
 
 
@@ -2299,7 +2315,7 @@ async def process_payment_gateway_event(
         currency=event.currency,
         payer_name=event.payer_name,
         evidence_reference=f"gateway:{event.provider}:{event.external_transaction_id}",
-        observed_at=event.occurred_at,
+        observed_at=_stored_aware_utc(event.occurred_at),
         trusted_gateway_event_id=event.id,
     )
     await _reconcile_verified_gateway_receipt(session, receipt=receipt, event=event)
@@ -2732,6 +2748,17 @@ async def record_credit_contract_settlement(
     )
     session.add(settlement)
     await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="billing.credit_settlement.recorded",
+        entity_type="refund_settlement",
+        entity_id=str(settlement.id),
+        metadata={
+            "commercial_terms_id": str(terms.id),
+            "external_reference": reference,
+        },
+    )
     return settlement
 
 
