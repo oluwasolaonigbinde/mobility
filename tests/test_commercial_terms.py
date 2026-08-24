@@ -235,6 +235,11 @@ def test_quote_request_and_acceptance_are_tenant_safe(db_sessionmaker) -> None:
             "1.1",
             "INVALID_TAX_RATE",
         ),
+        (
+            [{"code": "X", "description": "Bad", "kind": "media", "amount": "1.00"}],
+            "0.0750001",
+            "INVALID_TAX_RATE",
+        ),
     ],
 )
 def test_invalid_quotation_arithmetic_fails_closed(
@@ -265,5 +270,81 @@ def test_invalid_quotation_arithmetic_fails_closed(
                     tax_rate=tax_rate,
                 )
             assert caught.value.code == expected_code
+
+    asyncio.run(scenario())
+
+
+def test_acceptance_method_must_match_quote_request_provenance(db_sessionmaker) -> None:
+    admin, owner, organization, campaign = _commercial_fixture(db_sessionmaker)
+    external_campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=admin.id,
+        name="External quote campaign",
+    )
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            request = await request_custom_quote(
+                session,
+                campaign_id=campaign.id,
+                actor_user_id=owner.id,
+                source=QuoteRequestSource.IN_PLATFORM,
+                request_details={},
+            )
+            revision = await record_quotation_revision(
+                session,
+                quote_request_id=request.id,
+                actor_user_id=admin.id,
+                quote_reference="PROVENANCE-Q1",
+                currency="NGN",
+                line_items=[
+                    {"code": "M", "description": "Media", "kind": "media", "amount": "10.00"}
+                ],
+                production_scope={"vehicle_count": 1},
+                payment_class=PaymentClass.STANDARD_PREPAID,
+                payment_terms={},
+                tax_rate="0",
+            )
+            with pytest.raises(AppError) as mismatch:
+                await accept_quotation_revision(
+                    session,
+                    quotation_revision_id=revision.id,
+                    actor_user_id=admin.id,
+                    acceptance_method=AcceptanceMethod.EXTERNAL_RECORDED,
+                    external_accepted_at=datetime.now(UTC),
+                    external_acceptance_reference="wrong-path",
+                )
+            assert mismatch.value.code == "ACCEPTANCE_PROVENANCE_MISMATCH"
+
+            external_request = await request_custom_quote(
+                session,
+                campaign_id=external_campaign.id,
+                actor_user_id=admin.id,
+                source=QuoteRequestSource.EXTERNAL_RECORDED,
+                request_details={"source": "signed deal"},
+            )
+            external_revision = await record_quotation_revision(
+                session,
+                quote_request_id=external_request.id,
+                actor_user_id=admin.id,
+                quote_reference="PROVENANCE-Q2",
+                currency="NGN",
+                line_items=[
+                    {"code": "M", "description": "Media", "kind": "media", "amount": "10.00"}
+                ],
+                production_scope={"vehicle_count": 1},
+                payment_class=PaymentClass.STANDARD_PREPAID,
+                payment_terms={},
+                tax_rate="0",
+            )
+            with pytest.raises(AppError) as reverse_mismatch:
+                await accept_quotation_revision(
+                    session,
+                    quotation_revision_id=external_revision.id,
+                    actor_user_id=owner.id,
+                    acceptance_method=AcceptanceMethod.IN_PLATFORM,
+                )
+            assert reverse_mismatch.value.code == "ACCEPTANCE_PROVENANCE_MISMATCH"
 
     asyncio.run(scenario())

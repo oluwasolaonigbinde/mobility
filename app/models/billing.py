@@ -425,9 +425,12 @@ class Invoice(Base):
             "gross_amount = net_amount + tax_amount", name="ck_invoices_total_conservation"
         ),
         CheckConstraint(
-            "(status = 'draft' AND invoice_number IS NULL AND issued_at IS NULL) OR "
-            "(status IN ('issued', 'void') AND invoice_number IS NOT NULL "
-            "AND issued_at IS NOT NULL)",
+            "(status = 'draft' AND invoice_number IS NULL AND issued_at IS NULL AND "
+            "issuer_profile_id IS NULL AND issuer_snapshot IS NULL AND "
+            "issued_by_user_id IS NULL) OR "
+            "(status IN ('issued', 'void') AND invoice_number IS NOT NULL AND "
+            "issued_at IS NOT NULL AND issuer_profile_id IS NOT NULL AND "
+            "issuer_snapshot IS NOT NULL AND issued_by_user_id IS NOT NULL)",
             name="ck_invoices_issuance_state",
         ),
         UniqueConstraint("commercial_terms_id", name="uq_invoices_commercial_terms"),
@@ -452,7 +455,7 @@ class Invoice(Base):
     invoice_number: Mapped[str | None] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     customer_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    issuer_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    issuer_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True))
     line_items: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     net_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)

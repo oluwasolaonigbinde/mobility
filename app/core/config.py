@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     session_absolute_lifetime_minutes: int = 720
     password_min_length: int = 12
     default_currency: str = "NGN"
+    invoice_issuer_external_input_reference: str = ""
     payout_crypto_keyring_b64: SecretStr
     payout_crypto_key_version: int = 1
     max_campaign_zone_area_sq_km: int = 5000

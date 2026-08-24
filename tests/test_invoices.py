@@ -8,6 +8,7 @@ from test_receipt_allocations import _accepted_terms
 
 from app.core.errors import AppError
 from app.models.billing import IssuerVerificationStatus, ReceiptMethod
+from app.models.organization import AdvertiserOrganization
 from app.models.user import UserRole
 from app.services.billing import (
     allocate_payment_receipt,
@@ -33,7 +34,7 @@ def _fixture(db_sessionmaker):
     return admin, owner, organization, campaign
 
 
-async def _issuer(session, admin, verification_status, reference):
+async def _issuer(session, admin, verification_status, reference, settings):
     return await record_invoice_issuer_profile(
         session,
         actor_user_id=admin.id,
@@ -45,10 +46,13 @@ async def _issuer(session, admin, verification_status, reference):
         numbering_prefix="CV",
         verification_status=verification_status,
         external_input_reference=reference,
+        settings=settings,
     )
 
 
-def test_vat_invoice_issues_from_frozen_terms_and_verified_issuer_facts(db_sessionmaker) -> None:
+def test_vat_invoice_issues_from_frozen_terms_and_verified_issuer_facts(
+    db_sessionmaker, settings
+) -> None:
     admin, owner, organization, campaign = _fixture(db_sessionmaker)
 
     async def scenario() -> None:
@@ -70,39 +74,96 @@ def test_vat_invoice_issues_from_frozen_terms_and_verified_issuer_facts(db_sessi
             assert draft.tax_rate == Decimal("0.075")
             assert draft.tax_amount == Decimal("7500.00")
             assert draft.gross_amount == Decimal("107500.00")
+            with pytest.raises(AppError) as untrusted_verified:
+                await _issuer(
+                    session,
+                    admin,
+                    IssuerVerificationStatus.VERIFIED,
+                    "UNREGISTERED-Q28",
+                    settings,
+                )
+            assert untrusted_verified.value.code == "VERIFIED_ISSUER_GATE_REQUIRED"
             synthetic = await _issuer(
-                session, admin, IssuerVerificationStatus.SYNTHETIC, "SYNTHETIC-Q28-TEST"
+                session,
+                admin,
+                IssuerVerificationStatus.SYNTHETIC,
+                "SYNTHETIC-Q28-TEST",
+                settings,
             )
+            production_settings = settings.model_copy(update={"environment": "production"})
             with pytest.raises(AppError) as blocked:
                 await issue_invoice(
                     session,
                     invoice_id=draft.id,
                     issuer_profile_id=synthetic.id,
                     actor_user_id=admin.id,
+                    settings=production_settings,
                 )
             assert blocked.value.code == "VERIFIED_ISSUER_FACTS_REQUIRED"
-
-            verified = await _issuer(
-                session, admin, IssuerVerificationStatus.VERIFIED, "EXT-Q28-TEST-FIXTURE"
-            )
+            current_organization = await session.get(AdvertiserOrganization, organization.id)
+            assert current_organization is not None
+            current_organization.name = "Current bill-to name"
+            await session.flush()
             issued = await issue_invoice(
                 session,
                 invoice_id=draft.id,
-                issuer_profile_id=verified.id,
+                issuer_profile_id=synthetic.id,
                 actor_user_id=admin.id,
+                settings=settings,
             )
             await session.commit()
             assert issued.invoice_number is not None
-            assert issued.invoice_number.startswith(f"CV-{issued.issued_at.year}-000001")
+            assert issued.invoice_number.startswith(f"TEST-CV-{issued.issued_at.year}-000001")
             assert issued.issuer_snapshot["legal_name"] == "Terrax Media"
+            assert issued.issuer_snapshot["synthetic_test_authority"] is True
+            assert issued.customer_snapshot["name"] == "Current bill-to name"
             assert issued.line_items == terms.line_items
             assert await invoice_payment_status(session, issued) == ("unpaid", Decimal("0"))
 
     asyncio.run(scenario())
 
 
+def test_issuer_provenance_replay_must_be_exact(db_sessionmaker, settings) -> None:
+    admin, _, _, _ = _fixture(db_sessionmaker)
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            first = await _issuer(
+                session,
+                admin,
+                IssuerVerificationStatus.SYNTHETIC,
+                "SYNTHETIC-Q28-REPLAY",
+                settings,
+            )
+            same = await _issuer(
+                session,
+                admin,
+                IssuerVerificationStatus.SYNTHETIC,
+                "SYNTHETIC-Q28-REPLAY",
+                settings,
+            )
+            assert same.id == first.id
+            with pytest.raises(AppError) as conflict:
+                await record_invoice_issuer_profile(
+                    session,
+                    actor_user_id=admin.id,
+                    legal_name="Different issuer",
+                    tax_identification_number="TEST-TIN-ONLY",
+                    registered_address="Test fixture address, Abuja",
+                    country_code="NG",
+                    invoice_wording="VAT-inclusive test fixture invoice",
+                    numbering_prefix="CV",
+                    verification_status=IssuerVerificationStatus.SYNTHETIC,
+                    external_input_reference="SYNTHETIC-Q28-REPLAY",
+                    settings=settings,
+                )
+            assert conflict.value.code == "ISSUER_PROVENANCE_CONFLICT"
+
+    asyncio.run(scenario())
+
+
 def test_invoice_numbering_is_scope_sequential_and_payment_status_is_allocation_derived(
-    db_sessionmaker,
+    db_sessionmaker, settings
 ) -> None:
     admin, owner, organization, first_campaign = _fixture(db_sessionmaker)
     second_campaign = create_test_campaign(
@@ -115,7 +176,11 @@ def test_invoice_numbering_is_scope_sequential_and_payment_status_is_allocation_
     async def scenario() -> None:
         async with db_sessionmaker() as session:
             issuer = await _issuer(
-                session, admin, IssuerVerificationStatus.VERIFIED, "EXT-Q28-TEST-SEQUENCE"
+                session,
+                admin,
+                IssuerVerificationStatus.SYNTHETIC,
+                "SYNTHETIC-Q28-SEQUENCE",
+                settings,
             )
             first_terms = await _accepted_terms(
                 session,
@@ -142,6 +207,7 @@ def test_invoice_numbering_is_scope_sequential_and_payment_status_is_allocation_
                 ).id,
                 issuer_profile_id=issuer.id,
                 actor_user_id=admin.id,
+                settings=settings,
             )
             second = await issue_invoice(
                 session,
@@ -152,6 +218,7 @@ def test_invoice_numbering_is_scope_sequential_and_payment_status_is_allocation_
                 ).id,
                 issuer_profile_id=issuer.id,
                 actor_user_id=admin.id,
+                settings=settings,
             )
             assert first.invoice_number.endswith("000001")
             assert second.invoice_number.endswith("000002")

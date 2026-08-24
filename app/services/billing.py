@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
+from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.billing import (
     AcceptanceMethod,
@@ -83,10 +84,10 @@ def _tax_rate(value: Decimal | str) -> Decimal:
             "tax_rate must be a decimal between 0 and 1",
             status_code=status.HTTP_400_BAD_REQUEST,
         ) from exc
-    if not rate.is_finite() or rate < 0 or rate > 1:
+    if not rate.is_finite() or rate < 0 or rate > 1 or rate != rate.quantize(Decimal("0.000001")):
         raise AppError(
             "INVALID_TAX_RATE",
-            "tax_rate must be a decimal between 0 and 1",
+            "tax_rate must be a decimal between 0 and 1 with at most six decimal places",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     return rate
@@ -328,6 +329,18 @@ async def accept_quotation_revision(
             .with_for_update()
         )
     ).scalar_one()
+    quote_request = await session.get(CommercialQuoteRequest, revision.quote_request_id)
+    expected_source = (
+        QuoteRequestSource.IN_PLATFORM
+        if acceptance_method == AcceptanceMethod.IN_PLATFORM
+        else QuoteRequestSource.EXTERNAL_RECORDED
+    )
+    if quote_request is None or quote_request.source != expected_source:
+        raise AppError(
+            "ACCEPTANCE_PROVENANCE_MISMATCH",
+            "Acceptance method must match the recorded quotation provenance",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     now = await database_clock(session)
     if acceptance_method == AcceptanceMethod.IN_PLATFORM:
         organization, _ = await get_required_advertiser_context(
@@ -489,21 +502,24 @@ async def record_payment_receipt(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     observed = _aware_utc(observed_at)
+
+    def exact_match(candidate: PaymentReceipt) -> bool:
+        return (
+            candidate.organization_id == organization_id
+            and candidate.method == method
+            and candidate.provider == normalized_provider
+            and candidate.amount == receipt_amount
+            and candidate.currency == normalized_currency
+            and candidate.payer_name == normalized_payer
+            and candidate.evidence_reference == evidence
+            and candidate.observed_at == observed
+        )
+
     existing = await session.scalar(
         select(PaymentReceipt).where(PaymentReceipt.external_transaction_id == external_id)
     )
     if existing is not None:
-        exact = (
-            existing.organization_id == organization_id
-            and existing.method == method
-            and existing.provider == normalized_provider
-            and existing.amount == receipt_amount
-            and existing.currency == normalized_currency
-            and existing.payer_name == normalized_payer
-            and existing.evidence_reference == evidence
-            and existing.observed_at == observed
-        )
-        if exact:
+        if exact_match(existing):
             return existing
         raise AppError(
             "RECEIPT_IDENTITY_CONFLICT",
@@ -527,6 +543,11 @@ async def record_payment_receipt(
             session.add(receipt)
             await session.flush()
     except IntegrityError as exc:
+        concurrent = await session.scalar(
+            select(PaymentReceipt).where(PaymentReceipt.external_transaction_id == external_id)
+        )
+        if concurrent is not None and exact_match(concurrent):
+            return concurrent
         raise AppError(
             "RECEIPT_IDENTITY_CONFLICT",
             "External transaction identity is already recorded",
@@ -830,6 +851,7 @@ async def record_invoice_issuer_profile(
     numbering_prefix: str,
     verification_status: IssuerVerificationStatus,
     external_input_reference: str,
+    settings: Settings,
 ) -> InvoiceIssuerProfile:
     await _active_admin(session, actor_user_id)
     values = {
@@ -847,13 +869,31 @@ async def record_invoice_issuer_profile(
             "Complete issuer facts and their external provenance are required",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+    if verification_status == IssuerVerificationStatus.VERIFIED and (
+        not settings.invoice_issuer_external_input_reference
+        or values["external_input_reference"] != settings.invoice_issuer_external_input_reference
+    ):
+        raise AppError(
+            "VERIFIED_ISSUER_GATE_REQUIRED",
+            "Verified issuer facts require the registered external Q28 gate",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     existing = await session.scalar(
         select(InvoiceIssuerProfile).where(
             InvoiceIssuerProfile.external_input_reference == values["external_input_reference"]
         )
     )
     if existing is not None:
-        return existing
+        exact = all(getattr(existing, field) == value for field, value in values.items()) and (
+            existing.verification_status == verification_status
+        )
+        if exact:
+            return existing
+        raise AppError(
+            "ISSUER_PROVENANCE_CONFLICT",
+            "Issuer provenance reference conflicts with existing immutable facts",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     now = await database_clock(session)
     profile = InvoiceIssuerProfile(
         **values,
@@ -861,8 +901,28 @@ async def record_invoice_issuer_profile(
         recorded_by_user_id=actor_user_id,
         recorded_at=now,
     )
-    session.add(profile)
-    await session.flush()
+    try:
+        async with session.begin_nested():
+            session.add(profile)
+            await session.flush()
+    except IntegrityError as exc:
+        concurrent = await session.scalar(
+            select(InvoiceIssuerProfile).where(
+                InvoiceIssuerProfile.external_input_reference == values["external_input_reference"]
+            )
+        )
+        if concurrent is not None:
+            exact = (
+                all(getattr(concurrent, field) == value for field, value in values.items())
+                and concurrent.verification_status == verification_status
+            )
+            if exact:
+                return concurrent
+        raise AppError(
+            "ISSUER_PROVENANCE_CONFLICT",
+            "Issuer provenance reference conflicts with existing immutable facts",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from exc
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,
@@ -961,6 +1021,7 @@ async def issue_invoice(
     invoice_id: UUID,
     issuer_profile_id: UUID,
     actor_user_id: UUID,
+    settings: Settings,
 ) -> Invoice:
     await _active_admin(session, actor_user_id)
     invoice = await session.scalar(
@@ -977,13 +1038,27 @@ async def issue_invoice(
             status_code=status.HTTP_409_CONFLICT,
         )
     issuer = await session.get(InvoiceIssuerProfile, issuer_profile_id)
-    if issuer is None or issuer.verification_status != IssuerVerificationStatus.VERIFIED:
+    synthetic_test_authority = (
+        issuer is not None
+        and settings.environment == "test"
+        and issuer.verification_status == IssuerVerificationStatus.SYNTHETIC
+    )
+    configured_verified_authority = (
+        issuer is not None
+        and issuer.verification_status == IssuerVerificationStatus.VERIFIED
+        and bool(settings.invoice_issuer_external_input_reference)
+        and issuer.external_input_reference == settings.invoice_issuer_external_input_reference
+    )
+    if not synthetic_test_authority and not configured_verified_authority:
         raise AppError(
             "VERIFIED_ISSUER_FACTS_REQUIRED",
             "Real invoice issuance requires externally verified statutory issuer facts",
             status_code=status.HTTP_409_CONFLICT,
         )
     now = await database_clock(session)
+    organization = await session.get(AdvertiserOrganization, invoice.organization_id)
+    if organization is None:
+        raise AppError("ORGANIZATION_NOT_FOUND", "Organization was not found", status_code=404)
     year = now.year
     await _acquire_invoice_number_lock(session, issuer.id, year)
     sequence = await session.scalar(
@@ -1003,8 +1078,12 @@ async def issue_invoice(
     number = sequence.next_number
     sequence.next_number += 1
     invoice.issuer_profile_id = issuer.id
-    invoice.invoice_number = f"{issuer.numbering_prefix}-{year}-{number:06d}"
+    number_prefix = (
+        f"TEST-{issuer.numbering_prefix}" if synthetic_test_authority else issuer.numbering_prefix
+    )
+    invoice.invoice_number = f"{number_prefix}-{year}-{number:06d}"
     invoice.status = InvoiceStatus.ISSUED
+    invoice.customer_snapshot = _customer_snapshot(organization)
     invoice.issuer_snapshot = {
         "legal_name": issuer.legal_name,
         "tax_identification_number": issuer.tax_identification_number,
@@ -1012,6 +1091,7 @@ async def issue_invoice(
         "country_code": issuer.country_code,
         "invoice_wording": issuer.invoice_wording,
         "external_input_reference": issuer.external_input_reference,
+        "synthetic_test_authority": synthetic_test_authority,
     }
     invoice.issued_by_user_id = actor_user_id
     invoice.issued_at = now
@@ -1058,3 +1138,113 @@ async def invoice_payment_status(session: AsyncSession, invoice: Invoice) -> tup
     if funded < invoice.gross_amount:
         return "partially_paid", funded
     return "paid", funded
+
+
+async def process_manual_bank_transfer(
+    session: AsyncSession,
+    *,
+    organization_id: UUID,
+    commercial_terms_id: UUID,
+    actor_user_id: UUID,
+    external_transaction_id: str,
+    observed_amount: Decimal | str,
+    expected_amount: Decimal | str,
+    currency: str,
+    payer_name: str,
+    evidence_reference: str,
+    observed_at: datetime,
+    allocation_amount: Decimal | str | None = None,
+) -> tuple[PaymentReceipt, ReceiptReconciliation, ReceiptAllocation | None]:
+    """Record, reconcile and conditionally confirm one manual bank statement line."""
+    receipt = await record_payment_receipt(
+        session,
+        organization_id=organization_id,
+        actor_user_id=actor_user_id,
+        method=ReceiptMethod.MANUAL_TRANSFER,
+        provider="manual-bank-transfer",
+        external_transaction_id=external_transaction_id,
+        amount=observed_amount,
+        currency=currency,
+        payer_name=payer_name,
+        evidence_reference=evidence_reference,
+        observed_at=observed_at,
+    )
+    reconciliation = await reconcile_payment_receipt(
+        session,
+        receipt_id=receipt.id,
+        actor_user_id=actor_user_id,
+        expected_amount=expected_amount,
+        expected_currency=currency,
+    )
+    if not reconciliation.matched:
+        return receipt, reconciliation, None
+    await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=actor_user_id)
+    amount_to_allocate = allocation_amount if allocation_amount is not None else observed_amount
+    allocation = await allocate_payment_receipt(
+        session,
+        receipt_id=receipt.id,
+        commercial_terms_id=commercial_terms_id,
+        actor_user_id=actor_user_id,
+        amount=amount_to_allocate,
+    )
+    return receipt, reconciliation, allocation
+
+
+async def billing_history(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    organization_id: UUID | None = None,
+) -> list[dict]:
+    actor = await session.get(User, actor_user_id)
+    if actor is None or actor.status != UserStatus.ACTIVE:
+        raise AppError(
+            "BILLING_HISTORY_NOT_FOUND", "Billing history was not found", status_code=404
+        )
+    if actor.role == UserRole.ADMIN:
+        if organization_id is None:
+            raise AppError(
+                "ORGANIZATION_REQUIRED",
+                "organization_id is required for an administrator",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        scoped_organization_id = organization_id
+    else:
+        organization, _ = await get_required_advertiser_context(
+            session, actor_user_id, require_write=False
+        )
+        if organization_id is not None and organization.id != organization_id:
+            raise AppError(
+                "BILLING_HISTORY_NOT_FOUND", "Billing history was not found", status_code=404
+            )
+        scoped_organization_id = organization.id
+    receipts = list(
+        await session.scalars(
+            select(PaymentReceipt)
+            .where(PaymentReceipt.organization_id == scoped_organization_id)
+            .order_by(PaymentReceipt.observed_at.desc(), PaymentReceipt.id.desc())
+        )
+    )
+    history: list[dict] = []
+    for receipt in receipts:
+        events = list(
+            await session.scalars(
+                select(ReceiptLifecycleEvent)
+                .where(ReceiptLifecycleEvent.receipt_id == receipt.id)
+                .order_by(ReceiptLifecycleEvent.sequence_number)
+            )
+        )
+        allocations = list(
+            await session.scalars(
+                select(ReceiptAllocation).where(ReceiptAllocation.receipt_id == receipt.id)
+            )
+        )
+        history.append(
+            {
+                "receipt": receipt,
+                "events": events,
+                "allocations": allocations,
+                "current_status": events[-1].status if events else None,
+            }
+        )
+    return history

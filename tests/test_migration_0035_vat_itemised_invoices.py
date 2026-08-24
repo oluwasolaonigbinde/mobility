@@ -52,9 +52,25 @@ def test_issued_invoice_is_database_immutable_and_blocks_downgrade(monkeypatch) 
                 await connection.execute(
                     text(
                         """
+                        INSERT INTO invoice_issuer_profiles
+                          (id, legal_name, tax_identification_number, registered_address,
+                           country_code, invoice_wording, numbering_prefix,
+                           verification_status, external_input_reference,
+                           recorded_by_user_id, recorded_at)
+                        VALUES
+                          ('35000000-0000-0000-0000-000000000006', 'Terrax Media',
+                           'TEST', 'Test', 'NG', 'Test', 'CV', 'synthetic', 'TEST-35',
+                           '35000000-0000-0000-0000-000000000005', now())
+                        """
+                    )
+                )
+                await connection.execute(
+                    text(
+                        """
                         INSERT INTO invoices
                           (id, commercial_terms_id, campaign_id, organization_id,
-                           invoice_number, status, customer_snapshot, issuer_snapshot,
+                           issuer_profile_id, invoice_number, status, customer_snapshot,
+                           issuer_snapshot,
                            line_items, currency, net_amount, tax_rate, tax_amount,
                            gross_amount, created_by_user_id, created_at, issued_by_user_id,
                            issued_at)
@@ -62,7 +78,8 @@ def test_issued_invoice_is_database_immutable_and_blocks_downgrade(monkeypatch) 
                           ('35000000-0000-0000-0000-000000000001',
                            '35000000-0000-0000-0000-000000000002',
                            '35000000-0000-0000-0000-000000000003',
-                           '35000000-0000-0000-0000-000000000004', 'CV-2026-000001',
+                           '35000000-0000-0000-0000-000000000004',
+                           '35000000-0000-0000-0000-000000000006', 'CV-2026-000001',
                            'issued', '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, 'NGN',
                            100, 0.075, 7.50, 107.50,
                            '35000000-0000-0000-0000-000000000005', now(),
@@ -84,7 +101,7 @@ def test_issued_invoice_is_database_immutable_and_blocks_downgrade(monkeypatch) 
     try:
         upgrade_to(migration_url, "head", monkeypatch)
         asyncio.run(seed_and_mutate())
-        with pytest.raises(RuntimeError, match="0035 downgrade blocked"):
+        with pytest.raises(RuntimeError, match="0036 downgrade blocked"):
             downgrade_to(migration_url, PRE_INVOICE_REVISION, monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
