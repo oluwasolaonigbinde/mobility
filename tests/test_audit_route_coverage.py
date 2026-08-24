@@ -44,6 +44,11 @@ AUDITED = {
         "admin.campaign_assignment.cancelled"
     ),
     ("POST", "/api/v1/advertiser/campaigns"): "advertiser.campaign.created",
+    ("POST", "/api/v1/advertiser/retargeting-sources"): "retargeting_source.created",
+    (
+        "POST",
+        "/api/v1/advertiser/retargeting-sources/{source_id}/deactivate",
+    ): "retargeting_source.deactivated",
     ("PATCH", "/api/v1/advertiser/campaigns/{campaign_id}"): "advertiser.campaign.updated",
     ("POST", "/api/v1/advertiser/campaigns/{campaign_id}/submit"): (
         "advertiser.campaign.submitted_for_review"

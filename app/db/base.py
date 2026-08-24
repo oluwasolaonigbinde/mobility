@@ -21,6 +21,7 @@ import app.models.notification  # noqa: E402,F401
 import app.models.organization  # noqa: E402,F401
 import app.models.payee  # noqa: E402,F401
 import app.models.payout  # noqa: E402,F401
+import app.models.retargeting_source  # noqa: E402,F401
 import app.models.route_replay  # noqa: E402,F401
 import app.models.trip  # noqa: E402,F401
 import app.models.trip_analytics  # noqa: E402,F401

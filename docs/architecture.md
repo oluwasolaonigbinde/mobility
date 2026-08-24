@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.44 — 2026-08-24. Canonical source of truth: current state AND target state.**
+**Version 1.45 — 2026-08-24. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1656,7 +1656,7 @@ allowlists aggregate geography/cell, time-window and contextual campaign
 fields and rejects identity fields, free-form person-level data and raw route
 coordinates. Export ships disabled until Q31 legal sign-off.
 
-### 22.4 Retargeting sources & follow-up insights (D11) [TARGET]
+### 22.4 Retargeting sources & follow-up insights (D11) [PARTIAL — W3-01A BUILT]
 
 The inbound half of Module G: a `retargeting_sources` table (advertiser-scoped;
 type ∈ website-traffic / digital-campaign-audience / CRM-upload-reference /
@@ -1670,6 +1670,14 @@ metadata, never identity data, and never join to raw pings. Admin gets a
 retargeting source/insight monitoring view. Placement: same audience domain
 (`services/audience.py`), advertiser + admin API surfaces, frontend under the
 existing role IA.
+
+W3-01A's inbound registry is built through migration `0046`: its five
+discriminated aggregate-only shapes, candidate/unapproved legal state, expiry,
+DSR fields, immutable create/deactivate history and actor-scoped retry identity
+share one closed API contract. The central §22.2 gate precedes every read and
+mutation, so live use remains denied while `EXT-LEGAL-PRIVACY` is missing.
+Campaign/zone/time linkage and all downstream insight/activation behavior in
+this section remain target work owned by W3-01B onward.
 
 Two proposal-promised metrics are the named product faces of these same
 aggregates (they are analytics surfaces, not new data): **high-exposure zone
@@ -2231,6 +2239,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.45 | 2026-08-24 | **W3-01A typed planning-source registry delivered behind the privacy gate.** Migration `0046` adds advertiser-organization projections, append-only create/deactivate evidence and actor/operation-scoped retry authority for exactly five discriminated aggregate-only D11 source shapes. Candidate provenance, explicitly unapproved basis/notice state, expiry and DSR fields move through one closed public contract; identifiers, URLs, uploads, notes and opaque metadata reject. Active-tenant/RBAC checks, DB-time expiry, populated downgrade refusal and PostgreSQL same-key concurrency proof preserve isolation and history. Advertiser management and read-only admin monitoring move with all three §9 baselines. Independent privacy/security review's open response-contract and concurrent-proof findings were corrected and rechecked PASS. `EXT-LEGAL-PRIVACY` remains MISSING; no live ingestion, approved basis, identity, upload, source linkage or raw-ping reader is authorized. |
 | v1.44 | 2026-08-24 | **W3-00C central disclosure control delivered; RM15 narrowed, not closed.** Migration `0045`, one service boundary and fail-closed Compose settings cover all eight current advertiser/report/heatmap outputs. Production denies before reads/history unless non-placeholder legal, threshold and retention references exist; report surfaces remain denied pending W3-00E. The sole grandfathered heatmap reader filters fixed/coarse cells by distinct vehicles, trips and days and requested-metric contributor share. Atomic served/suppressed history binds request and result identity, serializes global/organization/campaign overlap and blocks complementary/cross-principal/cross-endpoint/changed-result differencing; a daily DB-time worker purge enforces physical expiry and populated downgrade refuses loss. Focused PostgreSQL threshold, suppression, hierarchical sequential/concurrent, tenant/RBAC, migration/autogenerate and no-read/no-write gate evidence passes. Independent privacy/security/architecture review's parent/child-overlap and no-traffic-retention findings were corrected and rechecked PASS. Thresholds remain synthetic/unapproved, `EXT-LEGAL-PRIVACY` remains MISSING, and no live output or new raw-ping reader is authorized. |
 | v1.43 | 2026-08-24 | **W3-00D measurement methodology and claims contract delivered; RM16 narrowed, not closed.** A machine-checkable hierarchy now defines measured operational facts, modelled potential contacts, synthetic-only target-area coverage, driver campaign cost and conditional true ROI with units, provenance/vintage, missing-data and uncertainty rules. Current advertiser copy uses Campaign Performance Analysis and safe modelled-contact/model-diagnostic language. Performance-only and explicitly test-only ROI goldens prove omission and gate arithmetic without supplying approval. Production ROI and live issuance remain disabled; `EXT-REPORT-METHOD` remains MISSING. Four focused contract/copy tests, frontend typecheck, 210 frontend tests, formatting/diff checks and independent measurement/legal/commercial review pass after the model-confidence disclaimer was made explicit. W3-00E run/proof manifests and W3-01 Module G controls remain outstanding. |
 | v1.42 | 2026-08-24 | **W3-00A privacy operating model delivered as synthetic build control; RM15 narrowed, not closed.** A machine-checkable nine-purpose DPIA/ROPA register and operator guide now record organizational controller/processor roles, candidate bases explicitly marked unapproved, retention dispositions, recipients, processor/region gaps, notice/withdrawal and breach responsibilities. A deterministic withdrawal/raw-route-breach tabletop stops at legal, Package 4 and W3-00B gates. `live_use_authorized=false`; every named owner, wording, legal basis, retention/DSR decision, provider, region and notification rule remains MISSING. Focused privacy/control tests, progress validation, JSON/style/diff checks and independent privacy review pass after removing staff from raw-location recipients. No real person/data, legal approval, DSR execution, provider or live-use claim. |

@@ -62,9 +62,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 **Control package:** `PKG-05` — Package 4 is blocked only on its recorded
 storage/scanner/KMS/email/phone inputs and transitive checklist dependencies;
 Package 5 is the next dependency-safe package frontier.
-**Current checkpoint:** `PKG-05 / W3-01A` — W3-00A, W3-00D and W3-00C are
-focused-verified and complete. The typed retargeting source registry is the
-next dependency-safe checkpoint under the reviewed Package 5 plan.
+**Current checkpoint:** `PKG-05 / W3-01B` — W3-00A, W3-00D, W3-00C and
+W3-01A are focused-verified and complete. Source/campaign/zone/time linkage is
+the next dependency-safe checkpoint under the reviewed Package 5 plan.
 
 ## Executable package queue
 
@@ -545,6 +545,28 @@ next dependency-safe checkpoint under the reviewed Package 5 plan.
   overlap and guaranteed no-traffic retention, returning PASS. No new raw-
   ping reader, report issuance, real data, approved threshold or live output
   is claimed.
+- **W3-01A checkpoint evidence (24 Aug 2026):** migration `0046` adds an
+  advertiser-organization source projection, append-only lifecycle evidence
+  and actor/operation-scoped retry authority for exactly the five D11 planning
+  source kinds. Positive discriminated schemas expose only aggregate category,
+  channel, stage, bounded-window/count-band and confidence-band facts plus
+  candidate provenance, unapproved basis/notice state, expiry and DSR role/
+  status; identifiers, URLs, uploads, notes, opaque metadata and unknown/nested
+  fields reject. The central privacy gate runs before every advertiser/admin
+  read or mutation, active organization membership is service-enforced, and
+  corrections are deactivate-plus-new rather than mutable updates. Exact and
+  concurrent same-key retries converge under an advisory transaction lock;
+  changed payload reuse conflicts. Source/event snapshots share one closed
+  public contract, history is trigger-protected, expiry is DB-time derived,
+  and populated downgrade refuses loss. Advertiser management and read-only
+  admin monitoring role surfaces move with all three §9 baselines. Focused
+  API/RBAC/lifecycle/expiry/retry/contract tests, frontend type/lint, Ruff and
+  generated-contract checks pass; the PostgreSQL race/migration tests are
+  present and skip only when the optional test database is unavailable.
+  Independent privacy/security review found the initially open response
+  dictionary and missing concurrent proof; both were corrected and rechecked
+  PASS. `EXT-LEGAL-PRIVACY` remains MISSING; no approved lawful basis, real
+  audience, upload, identity, raw-ping join or live source use is claimed.
 - **Closure:** privacy/measurement review proves suppression, reproducibility,
   provenance and safe claims before any advertiser live-use gate opens.
 
@@ -674,7 +696,7 @@ verification, gates or required specialist review.
 | 46 | **W3-00C — central disclosure-control service** | PKG-05 | DONE | Every advertiser heatmap/report/audience query enforces one privacy floor. | leaf: W3-00A |
 | 47 | **W3-00D — measurement methodology contract** | PKG-05 | DONE | Product defines modelled potential contacts, provenance, uncertainty and claims; Campaign Performance Analysis is standard and true ROI requires approved inputs and method. | none |
 | 48 | **W3-00E — immutable measurement runs and proof manifests** | PKG-05 | TODO | Issued results bind frozen inputs to creative/evidence/assignment/period and reproduce whether the ROI gate passed or failed closed. | leaf: W3-00D, W2-03C, W2-03D |
-| 49 | **W3-01A — typed retargeting source registry** | PKG-05 | TODO | Advertiser/admin manage allowlisted aggregate planning sources without identifiers. | leaf: W3-00A, W3-00D |
+| 49 | **W3-01A — typed retargeting source registry** | PKG-05 | DONE | Advertiser/admin manage allowlisted aggregate planning sources without identifiers. | leaf: W3-00A, W3-00D |
 | 50 | **W3-01B — source/campaign/zone linkage** | PKG-05 | TODO | Owned sources link safely to campaigns, zones and time windows. | leaf: W3-01A |
 | 51 | **W3-01C — governed exposure segments** | PKG-05 | TODO | Worker materializes versioned, suppressed coverage-cell/time aggregates. | leaf: W3-00C, W3-00D, W3-00E, W3-01B |
 | 52 | **W3-01D — recommendations, export and gated activation** | PKG-05 | TODO | Safe geography/time/context recommendations, controlled export and activation use one governed aggregate; identifiers/person-level payloads reject and live push fails closed without EXT-AD-PLATFORM. | leaf: W3-01C, W3-00D, W3-00E |

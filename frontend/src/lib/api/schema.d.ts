@@ -1147,6 +1147,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/retargeting-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Admin Sources */
+        get: operations["list_admin_sources_api_v1_admin_retargeting_sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retargeting-sources/{source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Admin Source */
+        get: operations["get_admin_source_api_v1_admin_retargeting_sources__source_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retargeting-sources/{source_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Source History */
+        get: operations["admin_source_history_api_v1_admin_retargeting_sources__source_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/traffic-density-profiles": {
         parameters: {
             query?: never;
@@ -1801,6 +1852,75 @@ export interface paths {
         put?: never;
         /** Advertiser Accept Quote */
         post: operations["advertiser_accept_quote_api_v1_advertiser_quotations__revision_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/retargeting-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Advertiser Sources */
+        get: operations["list_advertiser_sources_api_v1_advertiser_retargeting_sources_get"];
+        put?: never;
+        /** Create Advertiser Retargeting Source */
+        post: operations["create_advertiser_retargeting_source_api_v1_advertiser_retargeting_sources_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/retargeting-sources/{source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Advertiser Source */
+        get: operations["get_advertiser_source_api_v1_advertiser_retargeting_sources__source_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/retargeting-sources/{source_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deactivate Advertiser Source */
+        post: operations["deactivate_advertiser_source_api_v1_advertiser_retargeting_sources__source_id__deactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/retargeting-sources/{source_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Advertiser Source History */
+        get: operations["advertiser_source_history_api_v1_advertiser_retargeting_sources__source_id__history_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4129,6 +4249,59 @@ export interface components {
             /** Settlement Provider */
             settlement_provider: string;
         };
+        /** CrmUploadReferenceSourceCreate */
+        CrmUploadReferenceSourceCreate: {
+            /**
+             * Consent Disclaimer Status
+             * @constant
+             */
+            consent_disclaimer_status: "not-reviewed";
+            /**
+             * Dsr Owner Role
+             * @enum {string}
+             */
+            dsr_owner_role: "privacy-officer" | "compliance-owner";
+            /**
+             * Dsr Status
+             * @enum {string}
+             */
+            dsr_status: "pending" | "not-applicable";
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Lawful Basis Reference
+             * @enum {string}
+             */
+            lawful_basis_reference: "candidate-legitimate-interest" | "candidate-consent";
+            /**
+             * Lawful Basis Status
+             * @constant
+             */
+            lawful_basis_status: "unapproved";
+            /**
+             * Provenance
+             * @enum {string}
+             */
+            provenance: "advertiser-declared" | "third-party-aggregate";
+            /**
+             * Record Count Band
+             * @enum {string}
+             */
+            record_count_band: "0-99" | "100-999" | "1000-plus";
+            /**
+             * Reference Mode
+             * @constant
+             */
+            reference_mode: "aggregate-availability-only";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            source_type: "CRM-upload-reference";
+        };
         /** CurrentTripResponse */
         CurrentTripResponse: {
             trip: components["schemas"]["TripRead"] | null;
@@ -4194,6 +4367,61 @@ export interface components {
         DashboardCostSummary: {
             /** Totals By Currency */
             totals_by_currency: components["schemas"]["DashboardCostCurrencySummary"][];
+        };
+        /** DigitalCampaignAudienceSourceCreate */
+        DigitalCampaignAudienceSourceCreate: {
+            /** Aggregation Window Days */
+            aggregation_window_days: number;
+            /**
+             * Audience Stage
+             * @enum {string}
+             */
+            audience_stage: "awareness" | "consideration" | "conversion-intent";
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "search" | "social" | "display";
+            /**
+             * Consent Disclaimer Status
+             * @constant
+             */
+            consent_disclaimer_status: "not-reviewed";
+            /**
+             * Dsr Owner Role
+             * @enum {string}
+             */
+            dsr_owner_role: "privacy-officer" | "compliance-owner";
+            /**
+             * Dsr Status
+             * @enum {string}
+             */
+            dsr_status: "pending" | "not-applicable";
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Lawful Basis Reference
+             * @enum {string}
+             */
+            lawful_basis_reference: "candidate-legitimate-interest" | "candidate-consent";
+            /**
+             * Lawful Basis Status
+             * @constant
+             */
+            lawful_basis_status: "unapproved";
+            /**
+             * Provenance
+             * @enum {string}
+             */
+            provenance: "advertiser-declared" | "third-party-aggregate";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            source_type: "digital-campaign-audience";
         };
         /** DriverEarningsCurrencySummary */
         DriverEarningsCurrencySummary: {
@@ -5340,6 +5568,59 @@ export interface components {
             role: components["schemas"]["UserRole"];
             status: components["schemas"]["UserStatus"];
         };
+        /** ManualInsightSourceCreate */
+        ManualInsightSourceCreate: {
+            /**
+             * Confidence Band
+             * @enum {string}
+             */
+            confidence_band: "low" | "medium" | "high";
+            /**
+             * Consent Disclaimer Status
+             * @constant
+             */
+            consent_disclaimer_status: "not-reviewed";
+            /**
+             * Dsr Owner Role
+             * @enum {string}
+             */
+            dsr_owner_role: "privacy-officer" | "compliance-owner";
+            /**
+             * Dsr Status
+             * @enum {string}
+             */
+            dsr_status: "pending" | "not-applicable";
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Insight Category
+             * @enum {string}
+             */
+            insight_category: "area-demand" | "time-pattern" | "contextual-affinity";
+            /**
+             * Lawful Basis Reference
+             * @enum {string}
+             */
+            lawful_basis_reference: "candidate-legitimate-interest" | "candidate-consent";
+            /**
+             * Lawful Basis Status
+             * @constant
+             */
+            lawful_basis_status: "unapproved";
+            /**
+             * Provenance
+             * @enum {string}
+             */
+            provenance: "advertiser-declared" | "third-party-aggregate";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            source_type: "manual-insight";
+        };
         /** ManualTransferCreate */
         ManualTransferCreate: {
             /** Allocation Amount */
@@ -6312,6 +6593,79 @@ export interface components {
             /** Settlement Provider */
             settlement_provider: string;
         };
+        /** RetargetingSourceEventRead */
+        RetargetingSourceEventRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Event Type
+             * @enum {string}
+             */
+            event_type: "created" | "deactivated";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Sequence Number */
+            sequence_number: number;
+            /** Snapshot */
+            snapshot: components["schemas"]["WebsiteTrafficSourceCreate"] | components["schemas"]["DigitalCampaignAudienceSourceCreate"] | components["schemas"]["CrmUploadReferenceSourceCreate"] | components["schemas"]["UtmSourceCreate"] | components["schemas"]["ManualInsightSourceCreate"];
+            /** Snapshot Sha256 */
+            snapshot_sha256: string;
+        };
+        /** RetargetingSourceHistoryRead */
+        RetargetingSourceHistoryRead: {
+            /** Events */
+            events: components["schemas"]["RetargetingSourceEventRead"][];
+            source: components["schemas"]["RetargetingSourceRead"];
+        };
+        /** RetargetingSourceListRead */
+        RetargetingSourceListRead: {
+            /** Items */
+            items: components["schemas"]["RetargetingSourceRead"][];
+            /** Total */
+            total: number;
+        };
+        /** RetargetingSourceRead */
+        RetargetingSourceRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Deactivated At */
+            deactivated_at: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Snapshot */
+            snapshot: components["schemas"]["WebsiteTrafficSourceCreate"] | components["schemas"]["DigitalCampaignAudienceSourceCreate"] | components["schemas"]["CrmUploadReferenceSourceCreate"] | components["schemas"]["UtmSourceCreate"] | components["schemas"]["ManualInsightSourceCreate"];
+            /** Snapshot Sha256 */
+            snapshot_sha256: string;
+            /** Source Type */
+            source_type: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "expired" | "deactivated";
+        };
         /** RouteAnalyticsSummary */
         RouteAnalyticsSummary: {
             /** Analyzed Trip Count */
@@ -6872,6 +7226,59 @@ export interface components {
             role?: components["schemas"]["UserRole"] | null;
             status?: components["schemas"]["UserStatus"] | null;
         };
+        /** UtmSourceCreate */
+        UtmSourceCreate: {
+            /**
+             * Campaign Stage
+             * @enum {string}
+             */
+            campaign_stage: "awareness" | "consideration" | "conversion-intent";
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "search" | "social" | "display" | "email";
+            /**
+             * Consent Disclaimer Status
+             * @constant
+             */
+            consent_disclaimer_status: "not-reviewed";
+            /**
+             * Dsr Owner Role
+             * @enum {string}
+             */
+            dsr_owner_role: "privacy-officer" | "compliance-owner";
+            /**
+             * Dsr Status
+             * @enum {string}
+             */
+            dsr_status: "pending" | "not-applicable";
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Lawful Basis Reference
+             * @enum {string}
+             */
+            lawful_basis_reference: "candidate-legitimate-interest" | "candidate-consent";
+            /**
+             * Lawful Basis Status
+             * @constant
+             */
+            lawful_basis_status: "unapproved";
+            /**
+             * Provenance
+             * @enum {string}
+             */
+            provenance: "advertiser-declared" | "third-party-aggregate";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            source_type: "UTM-source";
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -7063,6 +7470,56 @@ export interface components {
             id: string;
             /** Wording Version */
             wording_version: string;
+        };
+        /** WebsiteTrafficSourceCreate */
+        WebsiteTrafficSourceCreate: {
+            /** Aggregation Window Days */
+            aggregation_window_days: number;
+            /**
+             * Audience Category
+             * @enum {string}
+             */
+            audience_category: "site-visitor" | "content-interest" | "conversion-intent";
+            /**
+             * Consent Disclaimer Status
+             * @constant
+             */
+            consent_disclaimer_status: "not-reviewed";
+            /**
+             * Dsr Owner Role
+             * @enum {string}
+             */
+            dsr_owner_role: "privacy-officer" | "compliance-owner";
+            /**
+             * Dsr Status
+             * @enum {string}
+             */
+            dsr_status: "pending" | "not-applicable";
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Lawful Basis Reference
+             * @enum {string}
+             */
+            lawful_basis_reference: "candidate-legitimate-interest" | "candidate-consent";
+            /**
+             * Lawful Basis Status
+             * @constant
+             */
+            lawful_basis_status: "unapproved";
+            /**
+             * Provenance
+             * @enum {string}
+             */
+            provenance: "advertiser-declared" | "third-party-aggregate";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            source_type: "website-traffic";
         };
         /** ZoneTypeCounts */
         ZoneTypeCounts: {
@@ -9640,6 +10097,88 @@ export interface operations {
             };
         };
     };
+    list_admin_sources_api_v1_admin_retargeting_sources_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetargetingSourceListRead"];
+                };
+            };
+        };
+    };
+    get_admin_source_api_v1_admin_retargeting_sources__source_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetargetingSourceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_source_history_api_v1_admin_retargeting_sources__source_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetargetingSourceHistoryRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_list_traffic_density_profiles_api_v1_admin_traffic_density_profiles_get: {
         parameters: {
             query?: {
@@ -11281,6 +11820,156 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommercialTermsRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_advertiser_sources_api_v1_advertiser_retargeting_sources_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetargetingSourceListRead"];
+                };
+            };
+        };
+    };
+    create_advertiser_retargeting_source_api_v1_advertiser_retargeting_sources_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebsiteTrafficSourceCreate"] | components["schemas"]["DigitalCampaignAudienceSourceCreate"] | components["schemas"]["CrmUploadReferenceSourceCreate"] | components["schemas"]["UtmSourceCreate"] | components["schemas"]["ManualInsightSourceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetargetingSourceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_advertiser_source_api_v1_advertiser_retargeting_sources__source_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetargetingSourceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_advertiser_source_api_v1_advertiser_retargeting_sources__source_id__deactivate_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetargetingSourceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advertiser_source_history_api_v1_advertiser_retargeting_sources__source_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetargetingSourceHistoryRead"];
                 };
             };
             /** @description Validation Error */
