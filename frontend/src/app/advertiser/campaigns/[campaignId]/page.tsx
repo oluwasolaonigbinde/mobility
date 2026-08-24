@@ -17,6 +17,7 @@ import { Panel } from "@/components/ui/panel";
 import { Stat } from "@/components/ui/stat";
 import { StatusChip } from "@/components/ui/status-chip";
 import { StatusActions } from "./status-actions";
+import { CommercialPanel } from "./commercial-panel";
 
 export const metadata: Metadata = { title: "Campaign" };
 
@@ -38,15 +39,18 @@ const placementLabel: Record<string, string> = {
 
 export default async function CampaignDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ campaignId: string }>;
+  searchParams: Promise<{ commercial_error?: string }>;
 }) {
   const { campaignId } = await params;
+  const query = await searchParams;
   const api = createApiClient(await getSessionToken());
 
-  let campaign, summary, creatives;
+  let campaign, summary, creatives, commercial;
   try {
-    [{ data: campaign }, { data: summary }, { data: creatives }] = await Promise.all([
+    [{ data: campaign }, { data: summary }, { data: creatives }, { data: commercial }] = await Promise.all([
       api.GET("/api/v1/advertiser/campaigns/{campaign_id}", {
         params: { path: { campaign_id: campaignId } },
       }),
@@ -54,6 +58,9 @@ export default async function CampaignDetailPage({
         params: { path: { campaign_id: campaignId } },
       }),
       api.GET("/api/v1/advertiser/campaigns/{campaign_id}/creatives", {
+        params: { path: { campaign_id: campaignId } },
+      }),
+      api.GET("/api/v1/advertiser/campaigns/{campaign_id}/commercial", {
         params: { path: { campaign_id: campaignId } },
       }),
     ]);
@@ -152,6 +159,14 @@ export default async function CampaignDetailPage({
           hint="Open on this campaign"
         />
       </div>
+
+      {commercial ? (
+        <CommercialPanel
+          campaignId={campaign.id}
+          commercial={commercial}
+          error={query.commercial_error}
+        />
+      ) : null}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         {/* Details */}
