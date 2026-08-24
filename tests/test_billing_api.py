@@ -88,6 +88,14 @@ def test_commercial_api_journey_is_tenant_scoped_and_uses_canonical_cash(
     assert accepted.status_code == 200, accepted.text
     terms_id = accepted.json()["id"]
 
+    premature = db_client.patch(
+        f"/api/v1/advertiser/campaigns/{campaign.id}",
+        headers=owner_headers,
+        json={"status": "active"},
+    )
+    assert premature.status_code == 409
+    assert premature.json()["error"]["code"] == "PRODUCTION_FINANCIAL_AUTHORITY_REQUIRED"
+
     transfer = db_client.post(
         "/api/v1/admin/billing/manual-transfers",
         headers=admin_headers,

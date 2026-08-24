@@ -157,3 +157,69 @@ export async function recordInvoiceCorrectionAction(
   revalidatePath(path(campaignId));
   redirect(`${path(campaignId)}?saved=correction`);
 }
+
+export async function recordFinancialAuthorityAction(
+  campaignId: string,
+  paymentClass: "standard_prepaid" | "approved_corporate_credit",
+  approverId: string,
+  formData: FormData,
+) {
+  try {
+    const api = createApiClient(await getSessionToken());
+    const isCredit = paymentClass === "approved_corporate_credit";
+    await api.POST("/api/v1/admin/campaigns/{campaign_id}/financial-authority", {
+      params: { path: { campaign_id: campaignId } },
+      body: {
+        authority_type: isCredit ? "approved_credit" : "prepaid_cash",
+        max_driver_liability: String(formData.get("max_driver_liability") ?? "").trim(),
+        reason: String(formData.get("reason") ?? "").trim(),
+        credit_limit: isCredit
+          ? String(formData.get("credit_limit") ?? "").trim()
+          : null,
+        due_at: isCredit
+          ? new Date(String(formData.get("due_at") ?? "")).toISOString()
+          : null,
+        approved_by_user_id: isCredit ? approverId : null,
+        credit_terms: isCredit
+          ? { notes: String(formData.get("credit_terms") ?? "").trim() }
+          : null,
+        subsidy_amount: null,
+        subsidy_reference: null,
+      },
+    });
+  } catch (error) {
+    fail(campaignId, error);
+  }
+  revalidatePath(path(campaignId));
+  redirect(`${path(campaignId)}?saved=authority`);
+}
+
+export async function recordProductionStartAction(
+  campaignId: string,
+  waiverId: string | null,
+) {
+  try {
+    const api = createApiClient(await getSessionToken());
+    await api.POST("/api/v1/admin/campaigns/{campaign_id}/production-start", {
+      params: { path: { campaign_id: campaignId } },
+      body: { waiver_id: waiverId },
+    });
+  } catch (error) {
+    fail(campaignId, error);
+  }
+  revalidatePath(path(campaignId));
+  redirect(`${path(campaignId)}?saved=production`);
+}
+
+export async function recordBudgetBlockedStateAction(campaignId: string) {
+  try {
+    const api = createApiClient(await getSessionToken());
+    await api.POST("/api/v1/admin/campaigns/{campaign_id}/budget-policy-evaluation", {
+      params: { path: { campaign_id: campaignId } },
+    });
+  } catch (error) {
+    fail(campaignId, error);
+  }
+  revalidatePath(path(campaignId));
+  redirect(`${path(campaignId)}?saved=budget`);
+}

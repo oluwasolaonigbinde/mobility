@@ -43,3 +43,21 @@ export async function acceptQuoteAction(campaignId: string, revisionId: string) 
   revalidatePath(campaignPath(campaignId));
   redirect(`${campaignPath(campaignId)}?quote_accepted=1`);
 }
+
+export async function acceptExpeditedWaiverAction(campaignId: string, formData: FormData) {
+  try {
+    const api = createApiClient(await getSessionToken());
+    await api.POST("/api/v1/advertiser/campaigns/{campaign_id}/expedited-waiver", {
+      params: { path: { campaign_id: campaignId } },
+      body: {
+        wording_version: "advertiser-expedited-v1",
+        accepted_wording: String(formData.get("accepted_wording") ?? "").trim(),
+      },
+    });
+  } catch (error) {
+    const message = error instanceof ApiError ? error.message : "Could not record the waiver";
+    redirect(`${campaignPath(campaignId)}?commercial_error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath(campaignPath(campaignId));
+  redirect(`${campaignPath(campaignId)}?waiver_recorded=1`);
+}

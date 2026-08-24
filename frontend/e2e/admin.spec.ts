@@ -18,7 +18,7 @@ test("admin overview shows network counts and full nav", async ({ page }) => {
   await loginAsAdmin(page);
   await expect(page.getByRole("heading", { name: "Fleet & Trust Operations" })).toBeVisible();
   const nav = page.getByRole("navigation", { name: "Primary" }).first();
-  for (const item of ["Users", "Drivers", "Vehicles", "Assignments", "Fraud", "Payouts", "Audit"]) {
+  for (const item of ["Users", "Drivers", "Vehicles", "Assignments", "Fraud", "Payouts", "Billing", "Audit"]) {
     await expect(nav.getByRole("link", { name: item })).toBeVisible();
   }
 });

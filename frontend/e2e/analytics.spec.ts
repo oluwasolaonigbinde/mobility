@@ -24,7 +24,7 @@ test("attribution report renders charts and the daily table", async ({ page }) =
 
   await expect(page.getByRole("heading", { name: "Attribution report" })).toBeVisible();
   await expect(page.getByRole("img", { name: "Daily estimated impressions" })).toBeVisible();
-  await expect(page.getByRole("img", { name: "Daily media spend" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Daily driver campaign cost" })).toBeVisible();
   // Seeded daily metrics: two analyzed trips on two days
   await expect(page.getByRole("cell", { name: "10,064" })).toBeVisible();
   await expect(page.getByText("Daily breakdown")).toBeVisible();

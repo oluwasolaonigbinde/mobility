@@ -46,9 +46,10 @@ export default async function AdvertiserOverviewPage() {
           hint={`${formatCount(summary?.trips.total)} trips recorded`}
         />
         <Stat
-          label="Spend to date"
+          label="Driver campaign cost"
           value={costTotal ? formatMoney(costTotal.final_payout_total, costTotal.currency) : "—"}
           tone="green"
+          hint="Payout projection — not advertiser spend"
         />
         <Stat
           label="Open fraud flags"

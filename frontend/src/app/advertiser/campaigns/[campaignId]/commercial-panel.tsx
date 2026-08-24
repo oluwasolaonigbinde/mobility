@@ -3,7 +3,11 @@ import type { components } from "@/lib/api/schema";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
-import { acceptQuoteAction, requestQuoteAction } from "./commercial-actions";
+import {
+  acceptExpeditedWaiverAction,
+  acceptQuoteAction,
+  requestQuoteAction,
+} from "./commercial-actions";
 
 type Commercial = components["schemas"]["CampaignCommercialRead"];
 
@@ -19,6 +23,7 @@ export function CommercialPanel({
   const latest = commercial.revisions.at(-1);
   const requestAction = requestQuoteAction.bind(null, campaignId);
   const acceptAction = latest ? acceptQuoteAction.bind(null, campaignId, latest.id) : undefined;
+  const waiverAction = acceptExpeditedWaiverAction.bind(null, campaignId);
   return (
     <Panel className="mt-6 p-6">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -60,6 +65,32 @@ export function CommercialPanel({
         </div>
       ) : commercial.quote_request ? (
         <p className="text-muted text-sm">Your request is recorded. Operations will add a structured revision.</p>
+      ) : null}
+      {commercial.terms ? (
+        <div className="border-edge mt-5 grid gap-4 border-t pt-5 md:grid-cols-3">
+          <div>
+            <p className="micro text-muted">Funding authority</p>
+            <p className="mt-1 text-sm">{commercial.financial_authority ? `${commercial.financial_authority.authority_type.replaceAll("_", " ")} · ${formatMoney(commercial.financial_authority.authorized_amount, commercial.financial_authority.currency)}` : "Pending"}</p>
+          </div>
+          <div>
+            <p className="micro text-muted">Production</p>
+            <p className="mt-1 text-sm">{commercial.production_start ? `Started · ${commercial.production_start.authority_basis.replaceAll("_", " ")}` : "Not authorised to start"}</p>
+          </div>
+          <div>
+            <p className="micro text-muted">Budget policy</p>
+            <p className="mt-1 text-sm">{commercial.budget_evaluations.at(-1)?.state.replaceAll("_", " ") ?? "Not evaluated"}</p>
+          </div>
+        </div>
+      ) : null}
+      {commercial.terms?.payment_class === "standard_prepaid" && !commercial.waiver && !commercial.production_start ? (
+        <form action={waiverAction} className="border-edge mt-5 border-t pt-5">
+          <label className="flex items-start gap-3 text-sm">
+            <input type="checkbox" required className="mt-1" />
+            <span>I request expedited production and understand refund eligibility ends only when expedited production actually starts.</span>
+          </label>
+          <input type="hidden" name="accepted_wording" value="I request expedited production and understand refund eligibility ends only when expedited production actually starts." />
+          <Button type="submit" variant="ghost" className="mt-3">Record expedited waiver</Button>
+        </form>
       ) : null}
     </Panel>
   );

@@ -26,6 +26,15 @@ export async function updateCampaignStatusAction(
 
   try {
     const api = createApiClient(await getSessionToken());
+    if (parsed.data.to === "active") {
+      const { data: commercial } = await api.GET(
+        "/api/v1/advertiser/campaigns/{campaign_id}/commercial",
+        { params: { path: { campaign_id: parsed.data.campaignId } } },
+      );
+      if (commercial?.terms && !commercial.production_start) {
+        return { error: "Funding and production authority are required before launch or resume." };
+      }
+    }
     await api.PATCH("/api/v1/advertiser/campaigns/{campaign_id}", {
       params: { path: { campaign_id: parsed.data.campaignId } },
       body: { status: parsed.data.to },

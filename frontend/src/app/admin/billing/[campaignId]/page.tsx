@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/current-user";
 import { formatMoney } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -13,8 +14,11 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { recordRevisionAction } from "./actions";
 import {
   createInvoiceAction,
+  recordBudgetBlockedStateAction,
+  recordFinancialAuthorityAction,
   recordInvoiceCorrectionAction,
   recordManualTransferAction,
+  recordProductionStartAction,
   recordRefundAction,
   reverseReceiptAction,
 } from "./actions";
@@ -29,6 +33,7 @@ export default async function AdminCampaignBillingPage({
   searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
   const { campaignId } = await params;
+  const me = await requireRole("admin");
   const notice = await searchParams;
   const api = createApiClient(await getSessionToken());
   let campaign, commercial, history;
@@ -206,6 +211,51 @@ export default async function AdminCampaignBillingPage({
             </form>
           )}
         </Panel>
+      ) : null}
+
+      {commercial.terms ? (
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <Panel className="p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div><h2 className="font-display text-xl font-semibold">Funding &amp; production authority</h2><p className="micro text-muted mt-1">Liability remains distinct from advertiser price.</p></div>
+              <StatusChip tone={commercial.production_start ? "green" : commercial.financial_authority ? "amber" : "default"}>{commercial.production_start ? "Production started" : commercial.financial_authority ? "Funded — start pending" : "Pending funding"}</StatusChip>
+            </div>
+            {!commercial.financial_authority ? (
+              <form action={recordFinancialAuthorityAction.bind(null, campaignId, commercial.terms.payment_class as "standard_prepaid" | "approved_corporate_credit", me.user.id)} className="mt-5 grid gap-4">
+                <Field name="max_driver_liability" label="Maximum driver liability" required />
+                {commercial.terms.payment_class === "approved_corporate_credit" ? (
+                  <>
+                    <Field name="credit_limit" label="Approved credit limit" required />
+                    <Field name="due_at" label="Credit due at" type="datetime-local" required />
+                    <Field name="credit_terms" label="Approved credit terms" required />
+                  </>
+                ) : null}
+                <Field name="reason" label="Authority evidence / reason" required />
+                <Button type="submit">Record financial authority</Button>
+              </form>
+            ) : !commercial.production_start ? (
+              <div className="mt-5">
+                <p className="text-muted mb-3 text-sm">Standard prepaid starts only after the exact 24-hour boundary, unless the advertiser’s immutable waiver is supplied. The server rechecks the boundary.</p>
+                <form action={recordProductionStartAction.bind(null, campaignId, commercial.waiver?.id ?? null)}>
+                  <Button type="submit">Record production start</Button>
+                </form>
+              </div>
+            ) : (
+              <p className="mt-5 text-sm">Basis: {commercial.production_start.authority_basis.replaceAll("_", " ")}</p>
+            )}
+          </Panel>
+
+          <Panel className="p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div><h2 className="font-display text-xl font-semibold">Advertiser budget policy</h2><p className="micro text-muted mt-1">Billing spend—not driver payout cost—will drive enforcement.</p></div>
+              <StatusChip tone="amber">External policy required</StatusChip>
+            </div>
+            <p className="text-muted mt-5 text-sm">Thresholds, recognition timing, pause/resume and override behavior remain disabled under EXT-BUDGET-POLICY. Recording the blocked state creates admin-visible evidence without pausing this campaign.</p>
+            <form action={recordBudgetBlockedStateAction.bind(null, campaignId)} className="mt-4">
+              <Button type="submit" variant="ghost">Record blocked policy state</Button>
+            </form>
+          </Panel>
+        </div>
       ) : null}
     </div>
   );

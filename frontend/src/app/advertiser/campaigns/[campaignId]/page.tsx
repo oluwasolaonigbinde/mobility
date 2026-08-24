@@ -96,7 +96,11 @@ export default async function CampaignDetailPage({
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <StatusActions campaignId={campaign.id} status={campaign.status} />
+          <StatusActions
+            campaignId={campaign.id}
+            status={campaign.status}
+            productionAuthorized={Boolean(commercial?.production_start)}
+          />
           <div className="flex flex-wrap justify-end gap-2">
             <Link
               href={`/advertiser/campaigns/${campaign.id}/report`}
@@ -143,14 +147,10 @@ export default async function CampaignDetailPage({
           tone="amber"
         />
         <Stat
-          label="Spend"
+          label="Driver campaign cost"
           value={cost ? formatMoney(cost.final_payout_total, cost.currency) : "—"}
           tone="green"
-          hint={
-            campaign.budget_amount
-              ? `of ${formatMoney(campaign.budget_amount, campaign.currency)} budget`
-              : undefined
-          }
+          hint="Verified driver payout projection — not advertiser spend"
         />
         <Stat
           label="Fraud flags"

@@ -94,7 +94,7 @@ test("login rejects bad credentials without leaking detail", async ({ page }) =>
   expect(page.url()).toContain("/login");
 });
 
-test("full campaign lifecycle: create via wizard, launch, pause", async ({ page }) => {
+test("campaign creation stays draft until commercial authority exists", async ({ page }) => {
   const name = `E2E Campaign ${randomUUID()}`;
   let campaignId: string | undefined;
   try {
@@ -139,33 +139,14 @@ test("full campaign lifecycle: create via wizard, launch, pause", async ({ page 
     await expect(page.getByText("Draft", { exact: true })).toBeVisible();
     await expect(page.getByText("E2E door panel")).toBeVisible();
 
-    // Draft → live
-    await Promise.all([
-      page.waitForResponse(
-        (response) =>
-          response.request().method() === "POST" &&
-          response.url().includes(`/advertiser/campaigns/${campaignId}`),
-      ),
-      page.getByRole("button", { name: "Launch now" }).click(),
-    ]);
-    await page.reload();
-    await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
-
-    // Live → paused
-    await Promise.all([
-      page.waitForResponse(
-        (response) =>
-          response.request().method() === "POST" &&
-          response.url().includes(`/advertiser/campaigns/${campaignId}`),
-      ),
-      page.getByRole("button", { name: "Pause" }).click(),
-    ]);
-    await page.reload();
-    await expect(page.getByText("Paused", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Resume" })).toBeVisible();
+    // No direct draft → live bypass: commercial terms, funding, and a recorded
+    // production start must exist before the launch action is exposed.
+    await expect(page.getByRole("button", { name: "Launch now" })).not.toBeVisible();
+    await expect(page.getByText(/Launch and resume unlock after funding/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Request custom quotation" })).toBeVisible();
 
     // The list reflects the new campaign
-    await page.goto("/advertiser/campaigns?status=paused");
+    await page.goto("/advertiser/campaigns?status=draft");
     await expect(page.getByRole("link", { name })).toBeVisible();
   } finally {
     cleanupE2ECampaign(campaignId, name);
