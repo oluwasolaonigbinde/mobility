@@ -2,12 +2,11 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import exists, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from app.core.errors import AppError
-from app.models.billing import CommercialTerms, ProductionStart
 from app.models.campaign import Campaign, CampaignCreative
 from app.models.organization import (
     AdvertiserOrganization,
@@ -86,6 +85,12 @@ async def create_campaign(
     user_id: UUID,
     payload: CampaignCreate,
 ) -> Campaign:
+    if payload.status == "active":
+        raise AppError(
+            "CAMPAIGN_ACTIVE_CREATE_FORBIDDEN",
+            "A campaign must be funded and authorized before it can become active",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     organization, _ = await get_required_advertiser_context(
         session,
         user_id,
@@ -207,23 +212,9 @@ async def update_advertiser_campaign(
     ensure_campaign_rules(**prospective)
 
     if update_values.get("status") == "active":
-        has_commercial_terms = bool(
-            await session.scalar(
-                select(exists().where(CommercialTerms.campaign_id == campaign.id))
-            )
-        )
-        if has_commercial_terms:
-            production_started = bool(
-                await session.scalar(
-                    select(exists().where(ProductionStart.campaign_id == campaign.id))
-                )
-            )
-            if not production_started:
-                raise AppError(
-                    "PRODUCTION_FINANCIAL_AUTHORITY_REQUIRED",
-                    "Commercial campaigns cannot activate before recorded production authority",
-                    status_code=status.HTTP_409_CONFLICT,
-                )
+        from app.services.billing import assert_campaign_production_authorized
+
+        await assert_campaign_production_authorized(session, campaign_id=campaign.id)
 
     for field, value in update_values.items():
         setattr(campaign, field, value)

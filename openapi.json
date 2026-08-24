@@ -7733,6 +7733,13 @@
             "title": "Commercial Terms Id",
             "type": "string"
           },
+          "corrections": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceCorrectionRead"
+            },
+            "title": "Corrections",
+            "type": "array"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -7746,6 +7753,18 @@
             "additionalProperties": true,
             "title": "Customer Snapshot",
             "type": "object"
+          },
+          "effective_obligation_amount": {
+            "default": "0.00",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Effective Obligation Amount",
+            "type": "string"
+          },
+          "funded_amount": {
+            "default": "0.00",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Funded Amount",
+            "type": "string"
           },
           "gross_amount": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -7820,6 +7839,11 @@
           "organization_id": {
             "format": "uuid",
             "title": "Organization Id",
+            "type": "string"
+          },
+          "payment_status": {
+            "default": "unpaid",
+            "title": "Payment Status",
             "type": "string"
           },
           "status": {
@@ -22048,10 +22072,17 @@
           {
             "in": "header",
             "name": "X-Payment-Signature",
-            "required": true,
+            "required": false,
             "schema": {
-              "title": "X-Payment-Signature",
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Payment-Signature"
             }
           }
         ],

@@ -1,5 +1,5 @@
 import asyncio
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import create_test_campaign, create_test_organization, create_test_user
@@ -14,17 +14,25 @@ from app.models.billing import (
     IssuerVerificationStatus,
     PaymentClass,
     QuoteRequestSource,
+    ReceiptMethod,
 )
 from app.models.user import UserRole
 from app.services import billing
 from app.services.billing import (
     accept_quotation_revision,
     adjusted_invoice_obligation,
+    allocate_payment_receipt,
+    assert_campaign_production_authorized,
+    confirm_payment_receipt,
     create_invoice_draft,
+    invoice_payment_status,
     issue_invoice,
+    reconcile_payment_receipt,
     record_credit_contract_settlement,
     record_expedited_production_waiver,
     record_invoice_correction,
+    record_payment_receipt,
+    record_prepaid_cash_authorization,
     record_production_start,
     record_quotation_revision,
     record_refund_settlement,
@@ -105,6 +113,193 @@ def test_invoice_corrections_are_itemised_append_only_and_bounded(
                 )
             assert excessive.value.code == "INVOICE_CREDIT_EXCEEDS_OBLIGATION"
             await session.commit()
+
+    asyncio.run(scenario())
+
+
+def test_effective_invoice_obligation_drives_allocation_status_and_production(
+    db_sessionmaker, settings, monkeypatch
+) -> None:
+    admin, owner, organization, campaign = _fixture(db_sessionmaker, "projection")
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            terms = await _accepted_terms(
+                session,
+                campaign=campaign,
+                admin=admin,
+                owner=owner,
+                reference="PROJECTION-INVOICE",
+                amount="100.00",
+            )
+            draft = await create_invoice_draft(
+                session, commercial_terms_id=terms.id, actor_user_id=admin.id
+            )
+            issuer = await _issuer(
+                session,
+                admin,
+                IssuerVerificationStatus.SYNTHETIC,
+                "SYNTHETIC-PROJECTION",
+                settings,
+            )
+            invoice = await issue_invoice(
+                session,
+                invoice_id=draft.id,
+                issuer_profile_id=issuer.id,
+                actor_user_id=admin.id,
+                settings=settings,
+            )
+            await record_invoice_correction(
+                session,
+                invoice_id=invoice.id,
+                actor_user_id=admin.id,
+                correction_type=InvoiceCorrectionType.CREDIT_NOTE,
+                net_amount="20.00",
+                tax_amount="0.00",
+                reason="approved scope reduction",
+            )
+            receipt = await record_payment_receipt(
+                session,
+                organization_id=organization.id,
+                actor_user_id=admin.id,
+                method=ReceiptMethod.MANUAL_TRANSFER,
+                provider="bank-transfer",
+                external_transaction_id="PROJECTION-PAYMENT",
+                amount="100.00",
+                currency="NGN",
+                payer_name="Advertiser",
+                evidence_reference="PROJECTION-EVIDENCE",
+                observed_at=datetime.now(UTC),
+            )
+            await reconcile_payment_receipt(
+                session,
+                receipt_id=receipt.id,
+                actor_user_id=admin.id,
+                expected_amount="100.00",
+                expected_currency="NGN",
+            )
+            await confirm_payment_receipt(
+                session, receipt_id=receipt.id, actor_user_id=admin.id
+            )
+            with pytest.raises(AppError) as overfunding:
+                await allocate_payment_receipt(
+                    session,
+                    receipt_id=receipt.id,
+                    commercial_terms_id=terms.id,
+                    actor_user_id=admin.id,
+                    amount="80.01",
+                )
+            assert overfunding.value.code == "OBLIGATION_OVERFUNDING"
+            allocation = await allocate_payment_receipt(
+                session,
+                receipt_id=receipt.id,
+                commercial_terms_id=terms.id,
+                actor_user_id=admin.id,
+                amount="80.00",
+            )
+            assert await invoice_payment_status(session, invoice) == (
+                "paid",
+                allocation.amount,
+            )
+            await record_prepaid_cash_authorization(
+                session,
+                campaign_id=campaign.id,
+                actor_user_id=admin.id,
+                max_driver_liability="60.00",
+                reason="corrected obligation funded",
+            )
+
+            async def at_boundary(_session):
+                return allocation.allocated_at + timedelta(hours=24)
+
+            monkeypatch.setattr(billing, "database_clock", at_boundary)
+            production = await record_production_start(
+                session, campaign_id=campaign.id, actor_user_id=admin.id
+            )
+            assert production.fully_funded_at == allocation.allocated_at
+            await record_invoice_correction(
+                session,
+                invoice_id=invoice.id,
+                actor_user_id=admin.id,
+                correction_type=InvoiceCorrectionType.DEBIT_NOTE,
+                net_amount="10.00",
+                tax_amount="0.00",
+                reason="approved scope increase",
+            )
+            with pytest.raises(AppError) as underfunded:
+                await assert_campaign_production_authorized(
+                    session, campaign_id=campaign.id
+                )
+            assert underfunded.value.code == "NEW_WORK_NOT_FINANCIALLY_AUTHORIZED"
+            await session.commit()
+
+    asyncio.run(scenario())
+
+
+def test_corrected_obligation_reanchors_window_without_rewriting_cash_authority(
+    db_sessionmaker, settings, monkeypatch
+) -> None:
+    admin, owner, organization, campaign = _fixture(db_sessionmaker, "refund-projection")
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            terms, allocation, _ = await _funded_terms(
+                session,
+                admin=admin,
+                owner=owner,
+                organization=organization,
+                campaign=campaign,
+                reference="REFUND-PROJECTION",
+            )
+            draft = await create_invoice_draft(
+                session, commercial_terms_id=terms.id, actor_user_id=admin.id
+            )
+            issuer = await _issuer(
+                session,
+                admin,
+                IssuerVerificationStatus.SYNTHETIC,
+                "SYNTHETIC-REFUND-PROJECTION",
+                settings,
+            )
+            invoice = await issue_invoice(
+                session,
+                invoice_id=draft.id,
+                issuer_profile_id=issuer.id,
+                actor_user_id=admin.id,
+                settings=settings,
+            )
+            await record_invoice_correction(
+                session,
+                invoice_id=invoice.id,
+                actor_user_id=admin.id,
+                correction_type=InvoiceCorrectionType.CREDIT_NOTE,
+                net_amount="20.00",
+                tax_amount="0.00",
+                reason="approved scope reduction",
+            )
+            await reverse_payment_receipt(
+                session,
+                receipt_id=allocation.receipt_id,
+                actor_user_id=admin.id,
+                reason="advertiser cancellation",
+            )
+
+            async def before_boundary(_session):
+                return allocation.allocated_at + timedelta(hours=23)
+
+            monkeypatch.setattr(billing, "database_clock", before_boundary)
+            settlement = await record_refund_settlement(
+                session,
+                commercial_terms_id=terms.id,
+                receipt_id=allocation.receipt_id,
+                actor_user_id=admin.id,
+                amount="100.00",
+                settlement_provider="bank",
+                external_reference="REFUND-PROJECTION-FULL-CASH",
+                reason="refund allocated cash after corrected invoice",
+            )
+            assert settlement.funding_authorized_at == allocation.allocated_at
+            assert settlement.amount == allocation.amount
 
     asyncio.run(scenario())
 

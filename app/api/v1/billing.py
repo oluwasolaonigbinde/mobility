@@ -22,6 +22,7 @@ from app.models.billing import (
     ExpeditedProductionWaiver,
     FinancialAuthorityType,
     Invoice,
+    InvoiceCorrection,
     ProductionStart,
     QuoteRequestSource,
     RefundSettlement,
@@ -63,10 +64,12 @@ from app.schemas.billing import (
 )
 from app.services.billing import (
     accept_quotation_revision,
+    adjusted_invoice_obligation,
     billing_history,
     create_invoice_draft,
     evaluate_campaign_budget_policy,
     ingest_payment_gateway_webhook,
+    invoice_payment_status,
     issue_invoice,
     process_manual_bank_transfer,
     record_approved_credit_authorization,
@@ -96,6 +99,29 @@ def get_payment_gateway_adapter() -> PaymentGatewayAdapter:
 
 
 PaymentGatewayDependency = Annotated[PaymentGatewayAdapter, Depends(get_payment_gateway_adapter)]
+
+
+async def _invoice_read(session: SessionDependency, invoice: Invoice) -> InvoiceRead:
+    payment_status, funded_amount = await invoice_payment_status(session, invoice)
+    corrections = list(
+        await session.scalars(
+            select(InvoiceCorrection)
+            .where(InvoiceCorrection.invoice_id == invoice.id)
+            .order_by(InvoiceCorrection.sequence_number)
+        )
+    )
+    return InvoiceRead.model_validate(invoice).model_copy(
+        update={
+            "effective_obligation_amount": await adjusted_invoice_obligation(
+                session, invoice.id
+            ),
+            "funded_amount": funded_amount,
+            "payment_status": payment_status,
+            "corrections": [
+                InvoiceCorrectionRead.model_validate(correction) for correction in corrections
+            ],
+        }
+    )
 
 
 async def _campaign_commercial_state(
@@ -157,7 +183,7 @@ async def _campaign_commercial_state(
         quote_request=quote_request,
         revisions=revisions,
         terms=terms,
-        invoices=invoices,
+        invoices=[await _invoice_read(session, invoice) for invoice in invoices],
         financial_authority=financial_authority,
         waiver=waiver,
         production_start=production_start,
@@ -437,7 +463,7 @@ async def admin_create_invoice(
         actor_user_id=user.id,
     )
     await session.commit()
-    return InvoiceRead.model_validate(invoice)
+    return await _invoice_read(session, invoice)
 
 
 @router.post("/admin/invoices/{invoice_id}/issue", response_model=InvoiceRead)
@@ -456,7 +482,7 @@ async def admin_issue_invoice(
         settings=settings,
     )
     await session.commit()
-    return InvoiceRead.model_validate(invoice)
+    return await _invoice_read(session, invoice)
 
 
 @router.post(
@@ -629,7 +655,7 @@ async def payment_webhook(
     session: SessionDependency,
     adapter: PaymentGatewayDependency,
     enqueuer: PaymentEventEnqueuerDependency,
-    signature: str = Header(alias="X-Payment-Signature"),
+    signature: str | None = Header(default=None, alias="X-Payment-Signature"),
 ) -> PaymentWebhookReceipt:
     event, created = await ingest_payment_gateway_webhook(
         session,

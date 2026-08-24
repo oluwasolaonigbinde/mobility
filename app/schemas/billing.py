@@ -221,6 +221,20 @@ class IssuerProfileRead(ORMRead):
     recorded_at: datetime
 
 
+class InvoiceCorrectionRead(ORMRead):
+    id: UUID
+    invoice_id: UUID
+    sequence_number: int
+    correction_number: str
+    correction_type: str
+    currency: str
+    net_amount: Decimal
+    tax_amount: Decimal
+    gross_amount: Decimal
+    reason: str
+    created_at: datetime
+
+
 class InvoiceRead(ORMRead):
     id: UUID
     commercial_terms_id: UUID
@@ -237,6 +251,10 @@ class InvoiceRead(ORMRead):
     tax_rate: Decimal
     tax_amount: Decimal
     gross_amount: Decimal
+    effective_obligation_amount: Decimal = Decimal("0.00")
+    funded_amount: Decimal = Decimal("0.00")
+    payment_status: str = "unpaid"
+    corrections: list[InvoiceCorrectionRead] = Field(default_factory=list)
     created_at: datetime
     issued_at: datetime | None
 
@@ -316,20 +334,6 @@ class InvoiceCorrectionCreate(BaseModel):
     net_amount: Decimal
     tax_amount: Decimal
     reason: str
-
-
-class InvoiceCorrectionRead(ORMRead):
-    id: UUID
-    invoice_id: UUID
-    sequence_number: int
-    correction_number: str
-    correction_type: str
-    currency: str
-    net_amount: Decimal
-    tax_amount: Decimal
-    gross_amount: Decimal
-    reason: str
-    created_at: datetime
 
 
 class RefundCreate(BaseModel):

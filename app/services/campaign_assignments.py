@@ -27,6 +27,7 @@ from app.schemas.campaign_assignments import (
     CampaignAssignmentCreate,
     CampaignAssignmentTransition,
 )
+from app.services.billing import reserve_assignment_liability
 from app.services.campaigns import comparable_campaign_datetime
 from app.services.drivers import get_driver_profile_by_user_id
 from app.services.payout_eligibility import (
@@ -626,13 +627,24 @@ async def accept_driver_assignment(
     assignment.status = CampaignAssignmentStatus.ACCEPTED.value
     assignment.accepted_at = now
     await session.flush()
-    await create_rule_binding_for_accept(
+    binding = await create_rule_binding_for_accept(
         session,
         assignment=assignment,
         now=now,
         campaign=campaign,
         settings=settings,
     )
+    if (
+        binding is not None
+        and binding.campaign_window_start_at is not None
+        and binding.campaign_window_end_at is not None
+    ):
+        await reserve_assignment_liability(
+            session,
+            assignment_id=assignment.id,
+            actor_user_id=user_id,
+            require_admin=False,
+        )
     await create_activation_event(
         session,
         assignment=assignment,

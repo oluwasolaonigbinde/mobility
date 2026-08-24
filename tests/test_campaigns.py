@@ -104,6 +104,40 @@ def test_advertiser_manager_can_create_campaign(db_client, db_sessionmaker) -> N
     assert response.json()["currency"] == "NGN"
 
 
+def test_active_campaign_creation_and_unfunded_activation_are_rejected(
+    db_client, db_sessionmaker
+) -> None:
+    advertiser, organization = create_advertiser_with_org(
+        db_sessionmaker,
+        email="commercial-activation@example.com",
+    )
+    headers = auth_headers(db_client, advertiser.email, PASSWORD)
+
+    active_create = db_client.post(
+        "/api/v1/advertiser/campaigns",
+        headers=headers,
+        json=campaign_payload(status="active"),
+    )
+    campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=advertiser.id,
+    )
+    activate_without_terms = db_client.patch(
+        f"/api/v1/advertiser/campaigns/{campaign.id}",
+        headers=headers,
+        json={"status": "active"},
+    )
+
+    assert active_create.status_code == http_status.HTTP_409_CONFLICT
+    assert active_create.json()["error"]["code"] == "CAMPAIGN_ACTIVE_CREATE_FORBIDDEN"
+    assert activate_without_terms.status_code == http_status.HTTP_409_CONFLICT
+    assert (
+        activate_without_terms.json()["error"]["code"]
+        == "PRODUCTION_FINANCIAL_AUTHORITY_REQUIRED"
+    )
+
+
 def test_advertiser_viewer_and_missing_membership_cannot_write_campaigns(
     db_client,
     db_sessionmaker,

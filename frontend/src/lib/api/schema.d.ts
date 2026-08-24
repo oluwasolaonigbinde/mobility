@@ -4847,6 +4847,8 @@ export interface components {
              * Format: uuid
              */
             commercial_terms_id: string;
+            /** Corrections */
+            corrections?: components["schemas"]["InvoiceCorrectionRead"][];
             /**
              * Created At
              * Format: date-time
@@ -4858,6 +4860,16 @@ export interface components {
             customer_snapshot: {
                 [key: string]: unknown;
             };
+            /**
+             * Effective Obligation Amount
+             * @default 0.00
+             */
+            effective_obligation_amount: string;
+            /**
+             * Funded Amount
+             * @default 0.00
+             */
+            funded_amount: string;
             /** Gross Amount */
             gross_amount: string;
             /**
@@ -4886,6 +4898,11 @@ export interface components {
              * Format: uuid
              */
             organization_id: string;
+            /**
+             * Payment Status
+             * @default unpaid
+             */
+            payment_status: string;
             /** Status */
             status: string;
             /** Tax Amount */
@@ -11537,8 +11554,8 @@ export interface operations {
     payment_webhook_api_v1_webhooks_payments_post: {
         parameters: {
             query?: never;
-            header: {
-                "X-Payment-Signature": string;
+            header?: {
+                "X-Payment-Signature"?: string | null;
             };
             path?: never;
             cookie?: never;

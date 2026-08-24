@@ -3,6 +3,7 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import exists, func, select
 from sqlalchemy.exc import IntegrityError
@@ -79,6 +80,7 @@ RECEIPT_SEQUENCE = {
 }
 
 LIABILITY_FORMULA_VERSION = "rate-cap-vehicle-days-v1"
+LAGOS_TZ = ZoneInfo("Africa/Lagos")
 
 
 def _aware_utc(value: datetime) -> datetime:
@@ -884,7 +886,10 @@ async def allocate_payment_receipt(
             "Allocation would exceed the receipt amount",
             status_code=status.HTTP_409_CONFLICT,
         )
-    if Decimal(terms_allocated or 0) + allocation_amount > terms.gross_amount:
+    effective_obligation = await effective_invoice_obligation(
+        session, commercial_terms_id=terms.id
+    )
+    if Decimal(terms_allocated or 0) + allocation_amount > effective_obligation:
         raise AppError(
             "OBLIGATION_OVERFUNDING",
             "Allocation would exceed the accepted commercial obligation",
@@ -1265,10 +1270,15 @@ async def invoice_payment_status(session: AsyncSession, invoice: Invoice) -> tup
             ),
         )
     )
-    funded = Decimal(allocated or 0)
+    funded = Decimal(allocated or 0).quantize(MONEY_QUANTUM)
+    obligation = await effective_invoice_obligation(
+        session, commercial_terms_id=invoice.commercial_terms_id
+    )
+    if obligation == 0:
+        return "paid", funded
     if funded <= 0:
         return "unpaid", funded
-    if funded < invoice.gross_amount:
+    if funded < obligation:
         return "partially_paid", funded
     return "paid", funded
 
@@ -1717,8 +1727,18 @@ async def record_subsidy_authorization(
 
 
 async def _authorization_usable_liability(
-    session: AsyncSession, authorization: CampaignFinancialAuthorization
+    session: AsyncSession,
+    authorization: CampaignFinancialAuthorization,
+    *,
+    effective_at: datetime | None = None,
 ) -> Decimal:
+    if authorization.authority_type == FinancialAuthorityType.APPROVED_CREDIT:
+        at = effective_at or await database_clock(session)
+        if (
+            authorization.credit_due_at is None
+            or _stored_aware_utc(authorization.credit_due_at) <= at
+        ):
+            return Decimal("0.00")
     if authorization.authority_type != FinancialAuthorityType.PREPAID_CASH:
         return Decimal(authorization.max_driver_liability)
     source_receipts = list(
@@ -1759,8 +1779,18 @@ async def reserve_assignment_liability(
     *,
     assignment_id: UUID,
     actor_user_id: UUID,
+    require_admin: bool = True,
 ) -> CampaignLiabilityReservation:
-    await _active_admin(session, actor_user_id)
+    if require_admin:
+        await _active_admin(session, actor_user_id)
+    else:
+        actor = await session.get(User, actor_user_id)
+        if actor is None or actor.status != UserStatus.ACTIVE:
+            raise AppError(
+                "ACTIVE_ACTOR_REQUIRED",
+                "An active user is required to reserve assignment liability",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
     assignment = await session.get(CampaignAssignment, assignment_id)
     if assignment is None:
         raise AppError("ASSIGNMENT_NOT_FOUND", "Assignment was not found", status_code=404)
@@ -1775,8 +1805,9 @@ async def reserve_assignment_liability(
             "A frozen rate and daily cap are required before reserving liability",
             status_code=status.HTTP_409_CONFLICT,
         )
-    seconds = (binding.campaign_window_end_at - binding.campaign_window_start_at).total_seconds()
-    covered_days = max(1, int((seconds + 86399) // 86400))
+    start_date = _stored_aware_utc(binding.campaign_window_start_at).astimezone(LAGOS_TZ).date()
+    end_date = _stored_aware_utc(binding.campaign_window_end_at).astimezone(LAGOS_TZ).date()
+    covered_days = max(1, (end_date - start_date).days + 1)
     rate = max(
         Decimal(binding.hourly_rate_naira),
         Decimal(binding.premium_hourly_rate_naira or binding.hourly_rate_naira),
@@ -1803,7 +1834,7 @@ async def reserve_assignment_liability(
         or 0
     )
     usable = (
-        await _authorization_usable_liability(session, authorization)
+        await _authorization_usable_liability(session, authorization, effective_at=now)
         if authorization is not None
         else Decimal("0.00")
     )
@@ -1931,10 +1962,15 @@ async def record_expedited_production_waiver(
 
 
 async def _fully_funded_at(session: AsyncSession, terms: CommercialTerms) -> datetime | None:
+    obligation = await effective_invoice_obligation(
+        session, commercial_terms_id=terms.id
+    )
+    if obligation == 0:
+        return await database_clock(session)
     cumulative = Decimal("0.00")
     for allocation in await _active_cash_allocations(session, terms.id):
         cumulative += Decimal(allocation.amount)
-        if cumulative >= Decimal(terms.gross_amount):
+        if cumulative >= obligation:
             return allocation.allocated_at
     return None
 
@@ -1968,7 +2004,10 @@ async def record_production_start(
     fully_funded_at: datetime | None = None
     waiver: ExpeditedProductionWaiver | None = None
     if authorization.authority_type == FinancialAuthorityType.APPROVED_CREDIT:
-        if authorization.credit_due_at is None or authorization.credit_due_at <= now:
+        if (
+            authorization.credit_due_at is None
+            or _stored_aware_utc(authorization.credit_due_at) <= now
+        ):
             raise AppError(
                 "CREDIT_AUTHORITY_EXPIRED",
                 "Approved credit is no longer valid for production start",
@@ -2000,7 +2039,11 @@ async def record_production_start(
             basis = ProductionAuthorityBasis.STANDARD_WINDOW_ELAPSED
         else:
             waiver = await session.get(ExpeditedProductionWaiver, waiver_id)
-            if waiver is None or waiver.campaign_id != campaign_id or waiver.accepted_at > now:
+            if (
+                waiver is None
+                or waiver.campaign_id != campaign_id
+                or _stored_aware_utc(waiver.accepted_at) > now
+            ):
                 raise AppError(
                     "VALID_EXPEDITED_WAIVER_REQUIRED",
                     "A valid immutable advertiser waiver is required",
@@ -2038,12 +2081,18 @@ async def record_production_start(
 async def assert_new_work_authorized(
     session: AsyncSession, *, campaign_id: UUID, assignment_id: UUID
 ) -> None:
-    terms = await _commercial_terms_for_campaign(session, campaign_id)
-    if terms is None:
-        return
-    production_start = await session.scalar(
-        select(ProductionStart).where(ProductionStart.campaign_id == campaign_id)
-    )
+    try:
+        authorization = await assert_campaign_production_authorized(
+            session, campaign_id=campaign_id
+        )
+    except AppError as exc:
+        if exc.code == "CREDIT_AUTHORITY_EXPIRED":
+            raise
+        raise AppError(
+            "NEW_WORK_NOT_FINANCIALLY_AUTHORIZED",
+            "Current campaign funding does not authorize new work",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from exc
     reservation = await session.scalar(
         select(CampaignLiabilityReservation).where(
             CampaignLiabilityReservation.campaign_id == campaign_id,
@@ -2051,12 +2100,71 @@ async def assert_new_work_authorized(
             CampaignLiabilityReservation.status == "reserved",
         )
     )
-    if production_start is None or reservation is None:
+    if reservation is None:
         raise AppError(
             "NEW_WORK_NOT_FINANCIALLY_AUTHORIZED",
             "Production start and a funded assignment liability reserve are required",
             status_code=status.HTTP_409_CONFLICT,
         )
+    usable = await _authorization_usable_liability(session, authorization)
+    reserved_total = Decimal(
+        await session.scalar(
+            select(func.coalesce(func.sum(CampaignLiabilityReservation.reserved_amount), 0)).where(
+                CampaignLiabilityReservation.campaign_id == campaign_id,
+                CampaignLiabilityReservation.status == "reserved",
+            )
+        )
+        or 0
+    )
+    if usable < reserved_total:
+        raise AppError(
+            "NEW_WORK_NOT_FINANCIALLY_AUTHORIZED",
+            "Current financial authority no longer covers reserved driver liability",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+
+async def assert_campaign_production_authorized(
+    session: AsyncSession, *, campaign_id: UUID
+) -> CampaignFinancialAuthorization:
+    terms = await _commercial_terms_for_campaign(session, campaign_id)
+    production_start = await session.scalar(
+        select(ProductionStart).where(ProductionStart.campaign_id == campaign_id)
+    )
+    now = await database_clock(session)
+    authorization = await effective_financial_authorization(
+        session, campaign_id=campaign_id, effective_at=now
+    )
+    if terms is None or production_start is None or authorization is None:
+        raise AppError(
+            "PRODUCTION_FINANCIAL_AUTHORITY_REQUIRED",
+            "Campaign activation requires accepted terms and current production authority",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    usable = await _authorization_usable_liability(
+        session, authorization, effective_at=now
+    )
+    if authorization.authority_type == FinancialAuthorityType.APPROVED_CREDIT:
+        if usable <= 0:
+            raise AppError(
+                "CREDIT_AUTHORITY_EXPIRED",
+                "Approved credit is no longer valid for new work",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+    elif authorization.authority_type == FinancialAuthorityType.PREPAID_CASH:
+        if await _fully_funded_at(session, terms) is None or usable <= 0:
+            raise AppError(
+                "NEW_WORK_NOT_FINANCIALLY_AUTHORIZED",
+                "Confirmed cash authority no longer covers new work",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+    else:
+        raise AppError(
+            "NEW_WORK_NOT_FINANCIALLY_AUTHORIZED",
+            "Subsidy authority does not authorize advertiser production",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    return authorization
 
 
 async def ingest_payment_gateway_webhook(
@@ -2064,8 +2172,14 @@ async def ingest_payment_gateway_webhook(
     *,
     adapter: PaymentGatewayAdapter,
     payload: bytes,
-    signature: str,
+    signature: str | None,
 ) -> tuple[PaymentGatewayEvent, bool]:
+    if signature is None or not signature.strip():
+        raise AppError(
+            "PAYMENT_WEBHOOK_UNAUTHORIZED",
+            "Payment webhook authentication failed",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
     try:
         verified = await adapter.parse_webhook(payload, signature)
     except PaymentGatewayUnavailableError as exc:
@@ -2489,6 +2603,22 @@ async def adjusted_invoice_obligation(session: AsyncSession, invoice_id: UUID) -
     invoice = await session.get(Invoice, invoice_id)
     if invoice is None:
         raise AppError("INVOICE_NOT_FOUND", "Invoice was not found", status_code=404)
+    return await effective_invoice_obligation(
+        session, commercial_terms_id=invoice.commercial_terms_id
+    )
+
+
+async def effective_invoice_obligation(
+    session: AsyncSession, *, commercial_terms_id: UUID
+) -> Decimal:
+    terms = await session.get(CommercialTerms, commercial_terms_id)
+    if terms is None:
+        raise AppError("COMMERCIAL_TERMS_NOT_FOUND", "Commercial terms were not found", 404)
+    invoice = await session.scalar(
+        select(Invoice).where(Invoice.commercial_terms_id == commercial_terms_id)
+    )
+    if invoice is None:
+        return Decimal(terms.gross_amount)
     rows = list(
         await session.scalars(
             select(InvoiceCorrection).where(InvoiceCorrection.invoice_id == invoice.id)
@@ -2506,6 +2636,11 @@ async def adjusted_invoice_obligation(session: AsyncSession, invoice_id: UUID) -
 async def _historical_fully_funded_at(
     session: AsyncSession, terms: CommercialTerms
 ) -> datetime | None:
+    obligation = await effective_invoice_obligation(
+        session, commercial_terms_id=terms.id
+    )
+    if obligation == 0:
+        return terms.accepted_at
     cumulative = Decimal("0.00")
     allocations = list(
         await session.scalars(
@@ -2516,7 +2651,7 @@ async def _historical_fully_funded_at(
     )
     for allocation in allocations:
         cumulative += Decimal(allocation.amount)
-        if cumulative >= Decimal(terms.gross_amount):
+        if cumulative >= obligation:
             return allocation.allocated_at
     return None
 

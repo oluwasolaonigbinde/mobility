@@ -19,6 +19,7 @@ from test_trips import create_trip_ready_graph, start_trip
 from app.core.errors import AppError
 from app.models.billing import (
     AcceptanceMethod,
+    CampaignLiabilityReservation,
     PaymentClass,
     ProductionAuthorityBasis,
     QuoteRequestSource,
@@ -28,10 +29,12 @@ from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
 from app.models.user import User, UserRole
 from app.models.vehicle import VehicleStatus
+from app.schemas.campaign_assignments import CampaignAssignmentTransition
 from app.services import billing
 from app.services.billing import (
     accept_quotation_revision,
     allocate_payment_receipt,
+    assert_campaign_production_authorized,
     confirm_payment_receipt,
     reconcile_payment_receipt,
     record_approved_credit_authorization,
@@ -42,7 +45,9 @@ from app.services.billing import (
     record_quotation_revision,
     request_custom_quote,
     reserve_assignment_liability,
+    reverse_payment_receipt,
 )
+from app.services.campaign_assignments import accept_driver_assignment
 
 
 def _fixture(db_sessionmaker, suffix: str):
@@ -159,8 +164,8 @@ def test_concurrent_liability_reservations_never_overbook(
         organization_id=organization.id,
         created_by_user_id=admin.id,
         name="Reservation campaign",
-        start_at=datetime(2026, 1, 1, tzinfo=UTC),
-        end_at=datetime(2026, 1, 2, tzinfo=UTC),
+        start_at=datetime(2026, 1, 1, 22, 30, tzinfo=UTC),
+        end_at=datetime(2026, 1, 1, 23, 30, tzinfo=UTC),
     )
     assignments = []
     for index in (1, 2):
@@ -196,7 +201,7 @@ def test_concurrent_liability_reservations_never_overbook(
         postgis_db_sessionmaker,
         campaign_id=campaign.id,
         created_by_user_id=admin.id,
-        hourly_rate="60.00",
+        hourly_rate="40.00",
         daily_cap_hours="1.00",
     )
     revision = create_revision_row(
@@ -204,7 +209,7 @@ def test_concurrent_liability_reservations_never_overbook(
         campaign_id=campaign.id,
         rule_id=rule.id,
         created_by_user_id=admin.id,
-        base="60.00",
+        base="40.00",
         premium=None,
         cap="1.00",
     )
@@ -244,6 +249,94 @@ def test_concurrent_liability_reservations_never_overbook(
         return await asyncio.gather(*(reserve(row.id) for row in assignments))
 
     assert sorted(asyncio.run(overlap())) == ["pending_funding", "reserved"]
+
+    async def assert_inclusive_lagos_dates() -> None:
+        async with postgis_db_sessionmaker() as session:
+            reservation = await session.scalar(
+                select(CampaignLiabilityReservation).where(
+                    CampaignLiabilityReservation.status == "reserved"
+                )
+            )
+            assert reservation is not None
+            assert reservation.covered_vehicle_days == 2
+            assert str(reservation.requested_amount) == "80.00"
+
+    asyncio.run(assert_inclusive_lagos_dates())
+
+
+def test_assignment_acceptance_creates_pending_reservation_after_frozen_binding(
+    postgis_db_sessionmaker, settings
+) -> None:
+    admin, _, organization, _ = _fixture(postgis_db_sessionmaker, "accept-reservation")
+    campaign = create_test_campaign(
+        postgis_db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=admin.id,
+        start_at=datetime(2099, 1, 1, tzinfo=UTC),
+        end_at=datetime(2099, 1, 1, 23, tzinfo=UTC),
+    )
+    driver = create_test_user(
+        postgis_db_sessionmaker,
+        email="accept-reservation-driver@example.com",
+        role=UserRole.DRIVER,
+    )
+    profile = create_test_driver_profile(
+        postgis_db_sessionmaker,
+        user_id=driver.id,
+        onboarding_status=DriverOnboardingStatus.ACTIVE,
+        license_number="ACCEPT-RESERVE",
+    )
+    vehicle = create_test_vehicle(
+        postgis_db_sessionmaker,
+        driver_profile_id=profile.id,
+        plate_number="ACR-001",
+        vehicle_status=VehicleStatus.ACTIVE,
+    )
+    assignment = create_test_campaign_assignment(
+        postgis_db_sessionmaker,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        assigned_by_user_id=admin.id,
+        assignment_status=CampaignAssignmentStatus.OFFERED,
+    )
+    rule = create_v2_rule(
+        postgis_db_sessionmaker,
+        campaign_id=campaign.id,
+        created_by_user_id=admin.id,
+        hourly_rate="10.00",
+        daily_cap_hours="1.00",
+    )
+    create_revision_row(
+        postgis_db_sessionmaker,
+        campaign_id=campaign.id,
+        rule_id=rule.id,
+        created_by_user_id=admin.id,
+        base="10.00",
+        premium=None,
+        cap="1.00",
+    )
+
+    async def scenario() -> None:
+        async with postgis_db_sessionmaker() as session:
+            await accept_driver_assignment(
+                session,
+                user_id=driver.id,
+                assignment_id=assignment.id,
+                payload=CampaignAssignmentTransition(metadata={}),
+                settings=settings,
+            )
+            reservation = await session.scalar(
+                select(CampaignLiabilityReservation).where(
+                    CampaignLiabilityReservation.assignment_id == assignment.id
+                )
+            )
+            assert reservation is not None
+            assert reservation.status == "pending_funding"
+            assert reservation.assignment_rule_binding_id is not None
+            await session.commit()
+
+    asyncio.run(scenario())
 
 
 def test_expedited_waiver_is_immutable_and_start_is_separate(db_sessionmaker) -> None:
@@ -355,6 +448,119 @@ def test_approved_credit_snapshots_limit_due_date_approver_and_terms(db_sessionm
     asyncio.run(scenario())
 
 
+def test_new_work_revalidates_reversed_cash_and_expired_credit(
+    db_sessionmaker, monkeypatch
+) -> None:
+    cash_admin, cash_owner, cash_org, cash_campaign = _fixture(
+        db_sessionmaker, "reversed-after-start"
+    )
+
+    async def cash_scenario() -> None:
+        async with db_sessionmaker() as session:
+            _, allocation, _ = await _funded_terms(
+                session,
+                admin=cash_admin,
+                owner=cash_owner,
+                organization=cash_org,
+                campaign=cash_campaign,
+                reference="AUTH-REVERSED-AFTER-START",
+            )
+            waiver = await record_expedited_production_waiver(
+                session,
+                campaign_id=cash_campaign.id,
+                actor_user_id=cash_owner.id,
+                wording_version="reversal-v1",
+                accepted_wording="I request expedited production.",
+            )
+            await record_production_start(
+                session,
+                campaign_id=cash_campaign.id,
+                actor_user_id=cash_admin.id,
+                waiver_id=waiver.id,
+            )
+            await reverse_payment_receipt(
+                session,
+                receipt_id=allocation.receipt_id,
+                actor_user_id=cash_admin.id,
+                reason="bank reversal after production",
+            )
+            with pytest.raises(AppError) as reversed_error:
+                await assert_campaign_production_authorized(
+                    session, campaign_id=cash_campaign.id
+                )
+            assert reversed_error.value.code == "NEW_WORK_NOT_FINANCIALLY_AUTHORIZED"
+
+    asyncio.run(cash_scenario())
+
+    credit_admin, credit_owner, _, credit_campaign = _fixture(
+        db_sessionmaker, "expired-credit-after-start"
+    )
+
+    async def credit_scenario() -> None:
+        async with db_sessionmaker() as session:
+            request = await request_custom_quote(
+                session,
+                campaign_id=credit_campaign.id,
+                actor_user_id=credit_owner.id,
+                source=QuoteRequestSource.IN_PLATFORM,
+                request_details={"credit_requested": True},
+            )
+            revision = await record_quotation_revision(
+                session,
+                quote_request_id=request.id,
+                actor_user_id=credit_admin.id,
+                quote_reference="AUTH-EXPIRING-CREDIT",
+                currency="NGN",
+                line_items=[
+                    {
+                        "code": "MEDIA",
+                        "description": "Media",
+                        "kind": "media",
+                        "amount": "100.00",
+                    }
+                ],
+                production_scope={"vehicle_count": 1},
+                payment_class=PaymentClass.APPROVED_CORPORATE_CREDIT,
+                payment_terms={"net_days": 1},
+                tax_rate="0",
+            )
+            await accept_quotation_revision(
+                session,
+                quotation_revision_id=revision.id,
+                actor_user_id=credit_owner.id,
+                acceptance_method=AcceptanceMethod.IN_PLATFORM,
+            )
+            due_at = datetime.now(UTC) + timedelta(hours=1)
+            await record_approved_credit_authorization(
+                session,
+                campaign_id=credit_campaign.id,
+                actor_user_id=credit_admin.id,
+                credit_limit="100.00",
+                max_driver_liability="80.00",
+                due_at=due_at,
+                approved_by_user_id=credit_admin.id,
+                credit_terms={"approval_reference": "EXPIRING"},
+                reason="short synthetic credit",
+            )
+            await record_production_start(
+                session,
+                campaign_id=credit_campaign.id,
+                actor_user_id=credit_admin.id,
+            )
+
+            async def after_due(_session):
+                return due_at + timedelta(microseconds=1)
+
+            monkeypatch.setattr(billing, "database_clock", after_due)
+            with pytest.raises(AppError) as expired_error:
+                await assert_campaign_production_authorized(
+                    session, campaign_id=credit_campaign.id
+                )
+            assert expired_error.value.code == "CREDIT_AUTHORITY_EXPIRED"
+
+    asyncio.run(credit_scenario())
+
+
 def test_trip_start_fails_closed_for_commercial_campaign_without_authority(
     db_client, db_sessionmaker
 ) -> None:
@@ -364,6 +570,7 @@ def test_trip_start_fails_closed_for_commercial_campaign_without_authority(
         advertiser_email="commercial-guard-owner@example.com",
         driver_email="commercial-guard-driver@example.com",
         plate_number="CG-001",
+        with_financial_authority=False,
     )
 
     async def add_terms() -> None:

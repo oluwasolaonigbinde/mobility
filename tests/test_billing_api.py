@@ -9,13 +9,25 @@ from conftest import (
     create_test_user,
 )
 from sqlalchemy import func, select
+from test_invoices import _issuer
+from test_receipt_allocations import _accepted_terms
 
 from app.adapters.payments import FakePaymentGatewayAdapter
 from app.api.v1.billing import get_payment_gateway_adapter
 from app.api.v1.dependencies import get_payment_event_enqueuer
 from app.jobs.payment_gateway import sweep_payment_gateway_events
-from app.models.billing import PaymentGatewayProcessingAttempt, PaymentReceipt
+from app.models.billing import (
+    InvoiceCorrectionType,
+    IssuerVerificationStatus,
+    PaymentGatewayProcessingAttempt,
+    PaymentReceipt,
+)
 from app.models.user import UserRole
+from app.services.billing import (
+    create_invoice_draft,
+    issue_invoice,
+    record_invoice_correction,
+)
 
 
 def _fixture(db_sessionmaker, suffix: str):
@@ -219,3 +231,77 @@ def test_payment_webhook_commits_then_enqueues_and_duplicate_reenqueues(
             return int(await session.scalar(select(func.count()).select_from(PaymentReceipt)) or 0)
 
     assert asyncio.run(receipt_count()) == 1
+
+
+def test_payment_webhook_missing_or_blank_signature_is_explicitly_unauthorized(db_client) -> None:
+    payload = b"{}"
+
+    missing = db_client.post("/api/v1/webhooks/payments", content=payload)
+    blank = db_client.post(
+        "/api/v1/webhooks/payments",
+        content=payload,
+        headers={"X-Payment-Signature": ""},
+    )
+
+    assert missing.status_code == blank.status_code == 401
+    assert missing.json()["error"]["code"] == "PAYMENT_WEBHOOK_UNAUTHORIZED"
+    assert blank.json()["error"]["code"] == "PAYMENT_WEBHOOK_UNAUTHORIZED"
+
+
+def test_campaign_commercial_api_exposes_derived_invoice_status(
+    db_client, db_sessionmaker, settings
+) -> None:
+    admin, owner, _, campaign = _fixture(db_sessionmaker, "invoice-projection")
+
+    async def setup() -> None:
+        async with db_sessionmaker() as session:
+            terms = await _accepted_terms(
+                session,
+                campaign=campaign,
+                admin=admin,
+                owner=owner,
+                reference="API-INVOICE-PROJECTION",
+                amount="100.00",
+            )
+            draft = await create_invoice_draft(
+                session, commercial_terms_id=terms.id, actor_user_id=admin.id
+            )
+            issuer = await _issuer(
+                session,
+                admin,
+                IssuerVerificationStatus.SYNTHETIC,
+                "SYNTHETIC-API-INVOICE-PROJECTION",
+                settings,
+            )
+            invoice = await issue_invoice(
+                session,
+                invoice_id=draft.id,
+                issuer_profile_id=issuer.id,
+                actor_user_id=admin.id,
+                settings=settings,
+            )
+            await record_invoice_correction(
+                session,
+                invoice_id=invoice.id,
+                actor_user_id=admin.id,
+                correction_type=InvoiceCorrectionType.CREDIT_NOTE,
+                net_amount="20.00",
+                tax_amount="0.00",
+                reason="approved scope reduction",
+            )
+            await session.commit()
+
+    asyncio.run(setup())
+    response = db_client.get(
+        f"/api/v1/admin/campaigns/{campaign.id}/commercial",
+        headers=auth_headers(db_client, admin.email),
+    )
+
+    assert response.status_code == 200, response.text
+    invoice = response.json()["invoices"][0]
+    assert invoice["effective_obligation_amount"] == "80.00"
+    assert invoice["funded_amount"] == "0.00"
+    assert invoice["payment_status"] == "unpaid"
+    assert len(invoice["corrections"]) == 1
+    assert invoice["corrections"][0]["correction_type"] == "credit_note"
+    assert invoice["corrections"][0]["gross_amount"] == "20.00"
