@@ -1,9 +1,15 @@
+# ruff: noqa: E402
 import asyncio
 import os
 from collections.abc import Generator
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
+
+os.environ.setdefault(
+    "PAYOUT_CRYPTO_KEYRING_B64",
+    '{"1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}',
+)
 
 import pytest
 from fastapi.testclient import TestClient
@@ -40,7 +46,13 @@ from app.models.organization import (
     OrganizationStatus,
 )
 from app.models.payout import CampaignPayoutRule, EarningsLedgerEntry, PayoutCalculation
-from app.models.trip import LocationPing, LocationPingBatch, TripSession, TripSessionStatus
+from app.models.trip import (
+    LocationPing,
+    LocationPingBatch,
+    TripSealReason,
+    TripSession,
+    TripSessionStatus,
+)
 from app.models.trip_analytics import TripAnalytics
 from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle, VehicleStatus, VehicleType
@@ -191,9 +203,66 @@ def create_test_organization(
     owner_user_id: UUID | None = None,
     membership_role: MembershipRole = MembershipRole.OWNER,
     membership_status: MembershipStatus = MembershipStatus.ACTIVE,
+    legacy_schema: bool = False,
 ) -> tuple[AdvertiserOrganization, OrganizationMembership | None]:
     async def create() -> tuple[AdvertiserOrganization, OrganizationMembership | None]:
         async with db_sessionmaker() as session:
+            if legacy_schema:
+                # Historical migration tests deliberately stop before the
+                # Package 3 company-profile columns. Seed the stable 0002
+                # shape instead of asking the current ORM to INSERT columns
+                # that do not exist at that revision.
+                organization_id = uuid4()
+                await session.execute(
+                    text(
+                        "INSERT INTO advertiser_organizations "
+                        "(id, name, billing_email, country_code, currency, status) "
+                        "VALUES (:id, :name, :billing_email, :country_code, :currency, :status)"
+                    ),
+                    {
+                        "id": organization_id,
+                        "name": name,
+                        "billing_email": billing_email,
+                        "country_code": country_code,
+                        "currency": currency,
+                        "status": organization_status.value,
+                    },
+                )
+                membership = None
+                if owner_user_id is not None:
+                    membership_id = uuid4()
+                    await session.execute(
+                        text(
+                            "INSERT INTO organization_memberships "
+                            "(id, organization_id, user_id, role, status) "
+                            "VALUES (:id, :organization_id, :user_id, :role, :status)"
+                        ),
+                        {
+                            "id": membership_id,
+                            "organization_id": organization_id,
+                            "user_id": owner_user_id,
+                            "role": membership_role.value,
+                            "status": membership_status.value,
+                        },
+                    )
+                    membership = OrganizationMembership(
+                        id=membership_id,
+                        organization_id=organization_id,
+                        user_id=owner_user_id,
+                        role=membership_role,
+                        status=membership_status,
+                    )
+                await session.commit()
+                organization = AdvertiserOrganization(
+                    id=organization_id,
+                    name=name,
+                    billing_email=billing_email,
+                    country_code=country_code,
+                    currency=currency,
+                    status=organization_status,
+                )
+                return organization, membership
+
             organization = AdvertiserOrganization(
                 name=name,
                 billing_email=billing_email,
@@ -382,9 +451,17 @@ def create_test_trip_session(
     started_at=None,
     ended_at=None,
     end_reason: str | None = None,
+    sealed_at=None,
+    seal_reason: str | None = None,
     metadata: dict | None = None,
 ) -> TripSession:
     started_at = started_at or datetime.now(UTC)
+    # Sealed trips must satisfy ck_trip_sessions_sealed_fields; default the
+    # evidence columns so factory callers only pick the status.
+    if trip_status == TripSessionStatus.SEALED:
+        ended_at = ended_at or started_at
+        sealed_at = sealed_at or ended_at
+        seal_reason = seal_reason or TripSealReason.CLIENT_COMPLETE.value
 
     async def create() -> TripSession:
         async with db_sessionmaker() as session:
@@ -398,6 +475,8 @@ def create_test_trip_session(
                 started_at=started_at,
                 ended_at=ended_at,
                 end_reason=end_reason,
+                sealed_at=sealed_at,
+                seal_reason=seal_reason,
                 trip_metadata=metadata or {},
             )
             session.add(trip)

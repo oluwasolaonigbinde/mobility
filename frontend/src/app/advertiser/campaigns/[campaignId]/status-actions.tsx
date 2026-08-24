@@ -13,15 +13,19 @@ import { cx } from "@/lib/cx";
 export function StatusActions({
   campaignId,
   status,
+  productionAuthorized,
 }: {
   campaignId: string;
   status: CampaignStatus;
+  productionAuthorized: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | undefined>();
-  const actions = statusActions[status];
+  const actions = statusActions[status].filter(
+    (action) => action.to !== "active" || productionAuthorized,
+  );
 
-  if (actions.length === 0) return null;
+  if (actions.length === 0 && productionAuthorized) return null;
 
   function run(to: CampaignStatus, destructive?: boolean) {
     if (destructive && !window.confirm("This cannot be undone from the dashboard. Continue?")) {
@@ -57,6 +61,11 @@ export function StatusActions({
       {error ? (
         <p role="alert" className="text-coral text-xs">
           {error}
+        </p>
+      ) : null}
+      {!productionAuthorized && ["draft", "scheduled", "paused"].includes(status) ? (
+        <p className="text-amber max-w-xs text-right text-xs">
+          Launch and resume unlock after funding and production authority are recorded.
         </p>
       ) : null}
     </div>

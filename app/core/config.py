@@ -1,8 +1,10 @@
+import base64
+import binascii
 import json
 from functools import lru_cache
 from typing import Annotated
 
-from pydantic import BeforeValidator, Field, field_validator, model_validator
+from pydantic import BeforeValidator, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -59,6 +61,9 @@ class Settings(BaseSettings):
     session_absolute_lifetime_minutes: int = 720
     password_min_length: int = 12
     default_currency: str = "NGN"
+    invoice_issuer_external_input_reference: str = ""
+    payout_crypto_keyring_b64: SecretStr
+    payout_crypto_key_version: int = 1
     max_campaign_zone_area_sq_km: int = 5000
     max_location_pings_per_batch: int = 500
     location_ping_future_skew_seconds: int = 300
@@ -76,6 +81,13 @@ class Settings(BaseSettings):
     route_analytics_stationary_ratio_threshold: float = 0.8
     route_analytics_looping_radius_m: float = 50.0
     route_analytics_looping_min_distance_m: float = 1000.0
+    route_replay_detector_version: str = "route_replay_v1"
+    route_replay_coordinate_precision: int = 5
+    route_replay_time_tolerance_seconds: int = 5
+    route_replay_min_valid_pings: int = 10
+    route_replay_min_distance_m: float = 250.0
+    route_replay_max_evidence_matches: int = 10
+    fraud_assessment_formula_version: str = "fraud_assessment_v1"
     impression_formula_version: str = "impressions_v1"
     impression_default_traffic_density_per_km: float = 120.0
     impression_default_dwell_impressions_per_minute: float = 3.0
@@ -86,6 +98,13 @@ class Settings(BaseSettings):
     impression_min_confidence: float = 0.0
     impression_max_confidence: float = 1.0
     payout_formula_version: str = "payout_v1"
+    payout_eligibility_stationary_radius_m: int = 200
+    payout_eligibility_stationary_window_min: int = 5
+    payout_eligibility_stationary_grace_min: int = 4
+    payout_eligibility_max_accuracy_m: int = 75
+    payout_eligibility_teleport_kmh: int = 180
+    payout_eligibility_max_ping_gap_seconds: int = 120
+    payout_default_hourly_rate_ngn: float = 0.0
     payout_default_base_rate_per_km: float = 0.0
     payout_default_base_rate_per_active_hour: float = 0.0
     payout_default_target_zone_bonus_rate_per_km: float = 0.0
@@ -104,8 +123,16 @@ class Settings(BaseSettings):
     heatmap_max_cells: int = 5000
     heatmap_min_trips_per_cell: int = 1
     allow_demo_seed: bool = False
+    # RM3 seal protocol: recovery window after an incomplete/legacy trip end
+    # before the sweep force-seals; and how far past ended_at a late ping's
+    # recorded_at may fall (matches location_ping_future_skew tolerance).
+    trip_seal_grace_seconds: int = 600
+    location_ping_end_skew_seconds: int = 300
     worker_sweep_interval_minutes: int = 5
     worker_sweep_batch_size: int = 25
+    fraud_review_sla_days: int = 7
+    ping_retention_months: int = 12
+    partition_premake_months: int = 4
 
     @field_validator("api_v1_prefix")
     @classmethod
@@ -171,6 +198,8 @@ class Settings(BaseSettings):
         "max_location_pings_per_batch",
         "location_ping_future_skew_seconds",
         "location_ping_start_skew_seconds",
+        "location_ping_end_skew_seconds",
+        "trip_seal_grace_seconds",
         "max_location_accuracy_m",
         "max_location_speed_mps",
     )
@@ -183,6 +212,9 @@ class Settings(BaseSettings):
     @field_validator(
         "route_analytics_min_valid_pings",
         "route_analytics_max_ping_gap_seconds",
+        "route_replay_time_tolerance_seconds",
+        "route_replay_min_valid_pings",
+        "route_replay_max_evidence_matches",
     )
     @classmethod
     def validate_positive_route_analytics_ints(cls, value: int) -> int:
@@ -197,11 +229,19 @@ class Settings(BaseSettings):
         "route_analytics_poor_accuracy_threshold_m",
         "route_analytics_looping_radius_m",
         "route_analytics_looping_min_distance_m",
+        "route_replay_min_distance_m",
     )
     @classmethod
     def validate_positive_route_analytics_floats(cls, value: float) -> float:
         if value <= 0:
             raise ValueError("Route analytics numeric settings must be positive")
+        return value
+
+    @field_validator("route_replay_coordinate_precision")
+    @classmethod
+    def validate_route_replay_coordinate_precision(cls, value: int) -> int:
+        if value < 3 or value > 7:
+            raise ValueError("ROUTE_REPLAY_COORDINATE_PRECISION must be between 3 and 7")
         return value
 
     @field_validator(
@@ -236,6 +276,33 @@ class Settings(BaseSettings):
     def validate_impression_ratios(cls, value: float) -> float:
         if value < 0 or value > 1:
             raise ValueError("Impression ratio settings must be between 0 and 1")
+        return value
+
+    @field_validator(
+        "payout_eligibility_stationary_radius_m",
+        "payout_eligibility_stationary_window_min",
+        "payout_eligibility_max_accuracy_m",
+        "payout_eligibility_teleport_kmh",
+        "payout_eligibility_max_ping_gap_seconds",
+    )
+    @classmethod
+    def validate_positive_payout_eligibility_settings(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("Payout eligibility settings must be positive")
+        return value
+
+    @field_validator("payout_eligibility_stationary_grace_min")
+    @classmethod
+    def validate_payout_eligibility_grace(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("PAYOUT_ELIGIBILITY_STATIONARY_GRACE_MIN must be non-negative")
+        return value
+
+    @field_validator("payout_default_hourly_rate_ngn")
+    @classmethod
+    def validate_payout_default_hourly_rate(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("PAYOUT_DEFAULT_HOURLY_RATE_NGN must be nonnegative")
         return value
 
     @field_validator(
@@ -307,6 +374,27 @@ class Settings(BaseSettings):
             raise ValueError("WORKER_SWEEP_BATCH_SIZE must be positive")
         return value
 
+    @field_validator("fraud_review_sla_days")
+    @classmethod
+    def validate_fraud_review_sla_days(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("FRAUD_REVIEW_SLA_DAYS must be positive")
+        return value
+
+    @field_validator("ping_retention_months")
+    @classmethod
+    def validate_ping_retention_months(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("PING_RETENTION_MONTHS must be at least 1")
+        return value
+
+    @field_validator("partition_premake_months")
+    @classmethod
+    def validate_partition_premake_months(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("PARTITION_PREMAKE_MONTHS must be at least 1")
+        return value
+
     @field_validator("default_currency")
     @classmethod
     def normalize_default_currency(cls, value: str) -> str:
@@ -315,8 +403,47 @@ class Settings(BaseSettings):
             raise ValueError("DEFAULT_CURRENCY must be a 3-letter code")
         return normalized
 
+    @field_validator("payout_crypto_keyring_b64")
+    @classmethod
+    def validate_payout_crypto_keyring(cls, value: SecretStr) -> SecretStr:
+        try:
+            raw = json.loads(value.get_secret_value())
+            if not isinstance(raw, dict) or not raw:
+                raise ValueError
+            for version, encoded in raw.items():
+                if not isinstance(version, str) or not version.isdigit() or int(version) < 1:
+                    raise ValueError
+                if not isinstance(encoded, str):
+                    raise ValueError
+                decoded = base64.b64decode(encoded, validate=True)
+                if len(decoded) != 32:
+                    raise ValueError
+        except (binascii.Error, json.JSONDecodeError, ValueError) as exc:
+            raise ValueError(
+                "PAYOUT_CRYPTO_KEYRING_B64 must be a JSON object of positive versions "
+                "to base64-encoded 32-byte keys"
+            ) from exc
+        return value
+
+    @field_validator("payout_crypto_key_version")
+    @classmethod
+    def validate_payout_crypto_key_version(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("PAYOUT_CRYPTO_KEY_VERSION must be positive")
+        return value
+
+    @property
+    def payout_crypto_keys(self) -> dict[int, bytes]:
+        raw = json.loads(self.payout_crypto_keyring_b64.get_secret_value())
+        return {
+            int(version): base64.b64decode(encoded, validate=True)
+            for version, encoded in raw.items()
+        }
+
     @model_validator(mode="after")
     def validate_impression_confidence_bounds(self) -> "Settings":
+        if self.payout_crypto_key_version not in self.payout_crypto_keys:
+            raise ValueError("PAYOUT_CRYPTO_KEY_VERSION must exist in PAYOUT_CRYPTO_KEYRING_B64")
         if self.impression_min_confidence > self.impression_max_confidence:
             raise ValueError("IMPRESSION_MIN_CONFIDENCE must not exceed IMPRESSION_MAX_CONFIDENCE")
         if (

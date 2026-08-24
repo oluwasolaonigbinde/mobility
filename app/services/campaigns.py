@@ -85,6 +85,12 @@ async def create_campaign(
     user_id: UUID,
     payload: CampaignCreate,
 ) -> Campaign:
+    if payload.status == "active":
+        raise AppError(
+            "CAMPAIGN_ACTIVE_CREATE_FORBIDDEN",
+            "A campaign must be funded and authorized before it can become active",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     organization, _ = await get_required_advertiser_context(
         session,
         user_id,
@@ -184,6 +190,38 @@ async def update_advertiser_campaign(
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
+    requested_currency = update_values.get("currency")
+    if requested_currency is not None:
+        from app.models.billing import CommercialTerms
+        from app.services.payout_rule_serialization import acquire_campaign_terms_lock
+
+        await acquire_campaign_terms_lock(session, campaign.id)
+        campaign = await session.scalar(
+            select(Campaign)
+            .where(
+                Campaign.id == campaign_id,
+                Campaign.organization_id == campaign.organization_id,
+            )
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if campaign is None:
+            raise AppError(
+                "CAMPAIGN_NOT_FOUND",
+                "Campaign was not found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        if requested_currency != campaign.currency:
+            accepted_terms_id = await session.scalar(
+                select(CommercialTerms.id).where(CommercialTerms.campaign_id == campaign.id)
+            )
+            if accepted_terms_id is not None:
+                raise AppError(
+                    "CAMPAIGN_CURRENCY_IMMUTABLE",
+                    "Campaign currency cannot change after commercial terms are accepted",
+                    status_code=status.HTTP_409_CONFLICT,
+                )
+
     if "metadata" in update_values:
         metadata = update_values.pop("metadata")
         if metadata is None:
@@ -204,6 +242,11 @@ async def update_advertiser_campaign(
         ),
     }
     ensure_campaign_rules(**prospective)
+
+    if update_values.get("status") == "active":
+        from app.services.billing import assert_campaign_production_authorized
+
+        await assert_campaign_production_authorized(session, campaign_id=campaign.id)
 
     for field, value in update_values.items():
         setattr(campaign, field, value)

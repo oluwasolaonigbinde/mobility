@@ -3,7 +3,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 
-from app.api.v1.dependencies import AdminUserDependency, DriverUserDependency, SessionDependency
+from app.api.v1.dependencies import (
+    AdminUserDependency,
+    DriverUserDependency,
+    SessionDependency,
+    SettingsDependency,
+)
 from app.models.campaign import Campaign
 from app.models.campaign_assignment import (
     CampaignActivationEvent,
@@ -312,12 +317,14 @@ async def driver_accept_campaign_assignment(
     payload: CampaignAssignmentTransition,
     current_user: DriverUserDependency,
     session: SessionDependency,
+    settings: SettingsDependency,
 ) -> CampaignAssignmentRead:
     assignment = await accept_driver_assignment(
         session,
         user_id=current_user.id,
         assignment_id=assignment_id,
         payload=payload,
+        settings=settings,
     )
     await session.commit()
     return await assignment_response(session, assignment, include_events=True)

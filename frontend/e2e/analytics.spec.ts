@@ -24,7 +24,7 @@ test("attribution report renders charts and the daily table", async ({ page }) =
 
   await expect(page.getByRole("heading", { name: "Attribution report" })).toBeVisible();
   await expect(page.getByRole("img", { name: "Daily estimated impressions" })).toBeVisible();
-  await expect(page.getByRole("img", { name: "Daily media spend" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Daily driver campaign cost" })).toBeVisible();
   // Seeded daily metrics: two analyzed trips on two days
   await expect(page.getByRole("cell", { name: "10,064" })).toBeVisible();
   await expect(page.getByText("Daily breakdown")).toBeVisible();
@@ -36,13 +36,32 @@ test("exposure heatmap loads cells for the seeded campaign", async ({ page }) =>
   await page.getByRole("link", { name: /Exposure map/ }).click();
   await page.waitForURL(/\/map$/);
 
-  await expect(page.getByRole("heading", { name: "Exposure heatmap" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Where your campaign was seen" })).toBeVisible();
+  await expect(page.getByTestId("heatmap-guide")).toContainText(
+    "Each square is a 500m × 500m area",
+  );
+  await expect(page.getByRole("button", { name: "Scan visible area" })).toBeVisible();
+  const zoneKey = page.getByLabel("Zone colour key");
+  await expect(zoneKey.getByText("Target area", { exact: true })).toBeVisible();
+  await expect(zoneKey.getByText("Bonus area", { exact: true })).toBeVisible();
+  await expect(zoneKey.getByText("Excluded area", { exact: true })).toBeVisible();
   await expect(page.getByTestId("heatmap-map").locator("canvas")).toBeVisible();
   // The initial scan returns a populated grid (exact count varies as trips
   // accumulate — this is a live dataset, assert shape not snapshot)
-  await expect(page.getByText(/[1-9]\d* cells · 500m grid/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/[1-9]\d* areas · 500m grid/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("metric-summary")).toContainText("estimated impressions");
 
-  // Metric switch triggers a rescan and keeps the cells
+  // Metric switch triggers a rescan, explains the selected data, and keeps the cells.
   await page.getByRole("radio", { name: "GPS pings" }).click();
-  await expect(page.getByText(/[1-9]\d* cells/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("heatmap-guide")).toContainText(
+    "Where did campaign vehicles report their location?",
+  );
+  // The enriched seed writes overlapping routes, so cells legitimately carry
+  // different GPS-update counts — assert the summary explains the metric, not
+  // a snapshot of seed density (uniform vs. ranged both render a summary).
+  await expect(page.getByTestId("metric-summary")).toContainText(
+    /[1-9]\d* mapped areas (range from|have the same value)/,
+    { timeout: 15_000 },
+  );
+  await expect(page.getByTestId("metric-summary")).toContainText(/GPS update/);
 });

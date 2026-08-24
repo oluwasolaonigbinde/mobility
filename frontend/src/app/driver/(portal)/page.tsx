@@ -4,7 +4,7 @@ import { requireRole } from "@/lib/auth/current-user";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { ApiError } from "@/lib/api/errors";
-import { formatMoney } from "@/lib/format";
+import { formatDate, formatMoney } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 
@@ -16,7 +16,7 @@ export default async function DriverHomePage() {
 
   // A fresh driver user may not have a profile/assignment yet — 404s here
   // are legitimate states, not failures.
-  const [earnings, active, current] = await Promise.all([
+  const [earnings, active, current, assignments, ledger] = await Promise.all([
     api.GET("/api/v1/driver/earnings/summary").catch((e) => {
       if (e instanceof ApiError && e.status === 404) return { data: undefined };
       throw e;
@@ -29,11 +29,28 @@ export default async function DriverHomePage() {
       if (e instanceof ApiError && e.status === 404) return { data: undefined };
       throw e;
     }),
+    api
+      .GET("/api/v1/driver/campaign-assignments", { params: { query: { limit: 50 } } })
+      .catch((e) => {
+        if (e instanceof ApiError && e.status === 404) return { data: undefined };
+        throw e;
+      }),
+    api.GET("/api/v1/driver/earnings/ledger", { params: { query: { limit: 6 } } }).catch((e) => {
+      if (e instanceof ApiError && e.status === 404) return { data: undefined };
+      throw e;
+    }),
   ]);
 
   const totals = earnings.data?.totals_by_currency ?? [];
   const assignment = active.data?.assignment ?? null;
   const trip = current.data?.trip ?? null;
+  const allAssignments = assignments.data?.items ?? [];
+  const recentEntries = ledger.data?.items ?? [];
+  const campaignNames = new Map(
+    allAssignments.map((item) => [item.campaign_id, item.campaign?.name ?? "Campaign"]),
+  );
+  const completedCampaigns = allAssignments.filter((item) => item.status === "completed").length;
+  const tripCount = recentEntries.filter((entry) => entry.trip_session_id).length;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
@@ -44,6 +61,24 @@ export default async function DriverHomePage() {
         <h1 className="font-display text-2xl font-semibold tracking-tight">
           {me.user.full_name.split(" ")[0]}
         </h1>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <Panel className="p-3.5">
+          <p className="micro text-faint">Campaigns</p>
+          <p className="font-display mt-1 text-2xl font-semibold">{allAssignments.length}</p>
+          <p className="text-muted mt-0.5 text-[11px]">{completedCampaigns} completed</p>
+        </Panel>
+        <Panel className="p-3.5">
+          <p className="micro text-faint">Trip entries</p>
+          <p className="font-display mt-1 text-2xl font-semibold">{tripCount}</p>
+          <p className="text-muted mt-0.5 text-[11px]">recent ledger</p>
+        </Panel>
+        <Panel className="p-3.5">
+          <p className="micro text-faint">Standing</p>
+          <p className="font-display text-green mt-1 text-sm font-semibold">READY</p>
+          <p className="text-muted mt-1 text-[11px]">vehicle active</p>
+        </Panel>
       </div>
 
       {/* Live trip banner */}
@@ -68,7 +103,7 @@ export default async function DriverHomePage() {
 
       {/* Earnings snapshot */}
       <Panel className="p-5">
-        <p className="micro text-muted">Available earnings</p>
+        <p className="micro text-muted">Batch-payable earnings</p>
         {totals.length === 0 ? (
           <>
             <p className="font-display mt-1 text-3xl font-semibold">₦0</p>
@@ -80,10 +115,11 @@ export default async function DriverHomePage() {
           totals.map((t) => (
             <div key={t.currency}>
               <p className="font-display text-green mt-1 text-3xl font-semibold">
-                {formatMoney(t.available_amount, t.currency)}
+                {formatMoney(t.batch_payable_amount, t.currency)}
               </p>
               <p className="text-muted mt-1 text-xs">
                 {formatMoney(t.pending_amount, t.currency)} pending ·{" "}
+                {formatMoney(t.carry_forward_debt_amount, t.currency)} carried debt ·{" "}
                 {formatMoney(t.lifetime_earned_amount, t.currency)} lifetime
               </p>
             </div>
@@ -118,6 +154,48 @@ export default async function DriverHomePage() {
               See offers →
             </Link>
           </>
+        )}
+      </Panel>
+
+      <Panel className="overflow-hidden">
+        <div className="border-edge flex items-center justify-between border-b px-5 py-3.5">
+          <div>
+            <p className="micro text-muted">Recent activity</p>
+            <p className="text-muted mt-1 text-xs">Every earning links back to a verified trip.</p>
+          </div>
+          <Link href="/driver/earnings" className="micro text-amber">
+            All activity →
+          </Link>
+        </div>
+        {recentEntries.length === 0 ? (
+          <p className="text-muted px-5 py-8 text-center text-sm">
+            Your completed trips will appear here.
+          </p>
+        ) : (
+          <ul className="divide-edge/60 divide-y">
+            {recentEntries.slice(0, 4).map((entry) => (
+              <li key={entry.id} className="flex items-center justify-between gap-4 px-5 py-3.5">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">
+                    {campaignNames.get(entry.campaign_id) ?? "Campaign trip"}
+                  </p>
+                  <p className="micro text-faint mt-0.5">{formatDate(entry.occurred_at)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-mono text-sm">{formatMoney(entry.amount, entry.currency)}</p>
+                  <p
+                    className={`micro mt-0.5 ${
+                      entry.status === "available" || entry.status === "paid"
+                        ? "text-green"
+                        : "text-amber"
+                    }`}
+                  >
+                    {entry.status}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
       </Panel>
     </div>

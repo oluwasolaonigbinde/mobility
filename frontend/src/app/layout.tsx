@@ -1,5 +1,15 @@
 import type { Metadata } from "next";
-import { clashDisplay, satoshi, plexMono } from "@/lib/fonts";
+import {
+  archivo,
+  bricolage,
+  clashDisplay,
+  fraunces,
+  inter,
+  plexMono,
+  satoshi,
+} from "@/lib/fonts";
+import { THEME_BOOT_SCRIPT } from "@/lib/themes";
+import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,9 +29,14 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${clashDisplay.variable} ${satoshi.variable} ${plexMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+      className={`${clashDisplay.variable} ${satoshi.variable} ${plexMono.variable} ${inter.variable} ${fraunces.variable} ${bricolage.variable} ${archivo.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        {children}
+        <ThemeSwitcher />
+      </body>
     </html>
   );
 }

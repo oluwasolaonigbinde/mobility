@@ -2,7 +2,16 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, UniqueConstraint, func, text
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -42,6 +51,19 @@ class AdvertiserOrganization(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     billing_email: Mapped[str | None] = mapped_column(String(255))
+    address_line_1: Mapped[str | None] = mapped_column(String(255))
+    address_line_2: Mapped[str | None] = mapped_column(String(255))
+    address_city: Mapped[str | None] = mapped_column(String(128))
+    address_region: Mapped[str | None] = mapped_column(String(128))
+    address_postal_code: Mapped[str | None] = mapped_column(String(32))
+    address_country_code: Mapped[str | None] = mapped_column(String(2))
+    industry: Mapped[str | None] = mapped_column(String(128))
+    operational_contact_name: Mapped[str | None] = mapped_column(String(255))
+    operational_contact_email: Mapped[str | None] = mapped_column(String(255))
+    operational_contact_phone: Mapped[str | None] = mapped_column(String(32))
+    billing_contact_name: Mapped[str | None] = mapped_column(String(255))
+    billing_contact_phone: Mapped[str | None] = mapped_column(String(32))
+    profile_notes: Mapped[str | None] = mapped_column(Text)
     country_code: Mapped[str | None] = mapped_column(String(2))
     currency: Mapped[str] = mapped_column(String(3), nullable=False, server_default="NGN")
     status: Mapped[str] = mapped_column(String(32), nullable=False)

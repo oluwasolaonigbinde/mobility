@@ -6,20 +6,30 @@ from sqlalchemy.exc import IntegrityError
 EXPECTED_UNIQUE_CONSTRAINTS = frozenset(
     {
         "uq_trip_analytics_trip_session_id",
-        "uq_fraud_flags_trip_open_flag_type",
+        "uq_fraud_assessments_trip_session_id",
+        "uq_route_replay_signatures_trip_session_id",
+        "uq_fraud_flags_trip_nonterminal_flag_type",
         "uq_impression_estimates_trip_formula_profile",
         "uq_payout_calculations_trip_formula_rule",
         "uq_earnings_ledger_entries_payout_calculation_id",
         "uq_traffic_density_profiles_active_default",
+        "uq_campaign_assignments_vehicle_active",
+        "uq_campaign_assignments_campaign_vehicle_non_terminal",
+        "uq_trip_sessions_driver_profile_active",
+        "uq_trip_sessions_vehicle_active",
     }
 )
 
 _SQLITE_UNIQUE_COLUMNS = {
     ("trip_analytics.trip_session_id",): "uq_trip_analytics_trip_session_id",
+    ("fraud_assessments.trip_session_id",): "uq_fraud_assessments_trip_session_id",
+    ("route_replay_signatures.trip_session_id",): (
+        "uq_route_replay_signatures_trip_session_id"
+    ),
     (
         "fraud_flags.trip_session_id",
         "fraud_flags.flag_type",
-    ): "uq_fraud_flags_trip_open_flag_type",
+    ): "uq_fraud_flags_trip_nonterminal_flag_type",
     (
         "impression_estimates.trip_session_id",
         "impression_estimates.formula_version",
@@ -36,6 +46,19 @@ _SQLITE_UNIQUE_COLUMNS = {
     (
         "traffic_density_profiles.is_default",
     ): "uq_traffic_density_profiles_active_default",
+    (
+        "campaign_assignments.vehicle_id",
+    ): "uq_campaign_assignments_vehicle_active",
+    (
+        "campaign_assignments.campaign_id",
+        "campaign_assignments.vehicle_id",
+    ): "uq_campaign_assignments_campaign_vehicle_non_terminal",
+    (
+        "trip_sessions.driver_profile_id",
+    ): "uq_trip_sessions_driver_profile_active",
+    (
+        "trip_sessions.vehicle_id",
+    ): "uq_trip_sessions_vehicle_active",
 }
 
 _QUOTED_CONSTRAINT_RE = re.compile(r'(?:constraint|index) ["\']([^"\']+)["\']', re.I)

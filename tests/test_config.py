@@ -27,6 +27,12 @@ def test_settings_defaults_load() -> None:
     assert settings.route_analytics_stationary_ratio_threshold == 0.8
     assert settings.route_analytics_looping_radius_m == 50.0
     assert settings.route_analytics_looping_min_distance_m == 1000.0
+    assert settings.route_replay_detector_version == "route_replay_v1"
+    assert settings.route_replay_coordinate_precision == 5
+    assert settings.route_replay_time_tolerance_seconds == 5
+    assert settings.route_replay_min_valid_pings == 10
+    assert settings.route_replay_min_distance_m == 250.0
+    assert settings.route_replay_max_evidence_matches == 10
     assert settings.impression_formula_version == "impressions_v1"
     assert settings.impression_default_traffic_density_per_km == 120.0
     assert settings.impression_default_dwell_impressions_per_minute == 3.0
@@ -47,6 +53,39 @@ def test_settings_defaults_load() -> None:
     assert settings.payout_default_high_fraud_multiplier == 0.25
     assert settings.payout_default_min_payout_per_trip == 0.0
     assert settings.payout_default_max_payout_per_trip is None
+    assert settings.payout_crypto_key_version == 1
+    assert len(settings.payout_crypto_keys[1]) == 32
+    assert "AAECAw" not in repr(settings)
+
+
+def test_payout_crypto_kek_is_required(monkeypatch) -> None:
+    monkeypatch.delenv("PAYOUT_CRYPTO_KEYRING_B64")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "not-json",
+        "{}",
+        '{"1":"c2hvcnQ="}',
+        '{"zero":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}',
+    ],
+)
+def test_payout_crypto_keyring_must_contain_versioned_aes256_keys(value: str) -> None:
+    with pytest.raises(ValidationError):
+        Settings(payout_crypto_keyring_b64=value)
+
+
+def test_payout_crypto_key_version_must_be_positive() -> None:
+    with pytest.raises(ValidationError):
+        Settings(payout_crypto_key_version=0)
+
+
+def test_payout_crypto_active_key_version_must_exist() -> None:
+    with pytest.raises(ValidationError):
+        Settings(payout_crypto_key_version=2)
 
 
 def test_cors_origin_string_parses_as_list() -> None:
@@ -59,9 +98,7 @@ def test_cors_origin_string_parses_as_list() -> None:
 
 
 def test_cors_origin_json_string_parses_as_list() -> None:
-    settings = Settings(
-        backend_cors_origins='["http://localhost:3000","http://localhost:5173"]'
-    )
+    settings = Settings(backend_cors_origins='["http://localhost:3000","http://localhost:5173"]')
 
     assert settings.backend_cors_origins == [
         "http://localhost:3000",
@@ -124,6 +161,10 @@ def test_location_tracking_settings_must_be_positive(
         "route_analytics_poor_accuracy_threshold_m",
         "route_analytics_looping_radius_m",
         "route_analytics_looping_min_distance_m",
+        "route_replay_time_tolerance_seconds",
+        "route_replay_min_valid_pings",
+        "route_replay_min_distance_m",
+        "route_replay_max_evidence_matches",
     ],
 )
 @pytest.mark.parametrize("invalid_value", [0, -1])
@@ -133,6 +174,12 @@ def test_route_analytics_settings_must_be_positive(
 ) -> None:
     with pytest.raises(ValidationError):
         Settings(**{setting_name: invalid_value})
+
+
+@pytest.mark.parametrize("invalid_value", [2, 8])
+def test_route_replay_coordinate_precision_is_bounded(invalid_value: int) -> None:
+    with pytest.raises(ValidationError):
+        Settings(route_replay_coordinate_precision=invalid_value)
 
 
 @pytest.mark.parametrize(

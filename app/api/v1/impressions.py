@@ -30,6 +30,7 @@ from app.schemas.impressions import (
     TrafficDensityProfileRead,
     TrafficDensityProfileUpdate,
 )
+from app.services.audit import create_audit_event
 from app.services.impressions import (
     advertiser_campaign_impression_summary,
     create_traffic_density_profile,
@@ -134,8 +135,15 @@ async def admin_create_traffic_density_profile(
     current_user: AdminUserDependency,
     session: SessionDependency,
 ) -> TrafficDensityProfileRead:
-    del current_user
     profile = await create_traffic_density_profile(session, payload)
+    await create_audit_event(
+        session,
+        actor_user_id=current_user.id,
+        action="admin.traffic_density_profile.created",
+        entity_type="traffic_density_profile",
+        entity_id=str(profile.id),
+        metadata={"name": profile.name, "profile_type": profile.profile_type},
+    )
     await session.commit()
     return profile_response(profile)
 
@@ -196,8 +204,15 @@ async def admin_update_traffic_density_profile(
     current_user: AdminUserDependency,
     session: SessionDependency,
 ) -> TrafficDensityProfileRead:
-    del current_user
     profile = await update_traffic_density_profile(session, profile_id=profile_id, payload=payload)
+    await create_audit_event(
+        session,
+        actor_user_id=current_user.id,
+        action="admin.traffic_density_profile.updated",
+        entity_type="traffic_density_profile",
+        entity_id=str(profile.id),
+        metadata={"changed_fields": sorted(payload.model_dump(exclude_unset=True))},
+    )
     await session.commit()
     return profile_response(profile)
 
@@ -214,7 +229,6 @@ async def admin_estimate_trip_impressions(
     settings: SettingsDependency,
     payload: Annotated[EstimateImpressionsRequest | None, Body()] = None,
 ) -> ImpressionEstimateRead:
-    del current_user
     estimate = await estimate_trip_impressions(
         session,
         trip_id=trip_id,
@@ -223,6 +237,17 @@ async def admin_estimate_trip_impressions(
         ),
         metadata=payload.metadata if payload is not None else {},
         settings=settings,
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=current_user.id,
+        action="admin.impression_estimate.computed",
+        entity_type="impression_estimate",
+        entity_id=str(estimate.id),
+        metadata={
+            "trip_session_id": str(trip_id),
+            "formula_version": estimate.formula_version,
+        },
     )
     await session.commit()
     return estimate_response(estimate)

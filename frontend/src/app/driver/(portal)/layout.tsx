@@ -8,7 +8,7 @@ export default async function DriverPortalLayout({ children }: { children: React
   const me = await requireRole("driver");
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col">
+    <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col">
       <ServiceWorkerRegister />
       <header
         className="border-edge bg-bg/90 sticky top-0 z-40 flex items-center justify-between border-b px-4 py-3 backdrop-blur"

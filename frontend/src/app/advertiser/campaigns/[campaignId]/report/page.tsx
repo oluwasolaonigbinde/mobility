@@ -84,16 +84,16 @@ export default async function CampaignReportPage({
           hint={`${formatCount(report.trip_summary.total)} total sessions · ${formatCount(report.assignment_summary.active)} active vehicles`}
         />
         <Stat
-          label="Spend"
+          label="Driver campaign cost"
           value={cost ? formatMoney(cost.final_payout_total, cost.currency) : "—"}
           tone="green"
-          hint={cost ? `${formatCount(cost.calculated_trip_count)} paid trips` : undefined}
+          hint={cost ? `${formatCount(cost.calculated_trip_count)} calculated driver trips` : undefined}
         />
         <Stat
           label="Open fraud flags"
           value={formatCount(report.fraud_summary.open)}
           tone={report.fraud_summary.open > 0 ? "coral" : "green"}
-          hint="Excluded from billing automatically"
+          hint="Flagged delivery quality — billing is tracked separately"
         />
       </div>
 
@@ -104,18 +104,18 @@ export default async function CampaignReportPage({
           <p className="text-faint mb-4 text-xs">GPS-verified exposure, formula {""}v1</p>
           <AreaTimeseries
             points={impressionSeries}
-            color="#ffa62b"
+            color="var(--color-amber)"
             ariaLabel="Daily estimated impressions"
           />
         </Panel>
         <Panel className="p-6">
-          <h2 className="micro text-muted mb-1">Media spend · daily</h2>
+          <h2 className="micro text-muted mb-1">Driver campaign cost · daily</h2>
           <p className="text-faint mb-4 text-xs">Driver payouts attributed to this campaign</p>
           <BarTimeseries
             points={payoutSeries}
-            color="#4ade80"
+            color="var(--color-green)"
             currency={cost?.currency ?? "NGN"}
-            ariaLabel="Daily media spend"
+            ariaLabel="Daily driver campaign cost"
           />
         </Panel>
       </div>
@@ -135,7 +135,7 @@ export default async function CampaignReportPage({
                 <th className="px-4 py-3 text-right font-normal">Impressions</th>
                 <th className="px-4 py-3 text-right font-normal">Confidence</th>
                 <th className="px-4 py-3 text-right font-normal">Quality</th>
-                <th className="px-4 py-3 text-right font-normal">Spend</th>
+                <th className="px-4 py-3 text-right font-normal">Driver cost</th>
                 <th className="px-6 py-3 text-right font-normal">Flags</th>
               </tr>
             </thead>

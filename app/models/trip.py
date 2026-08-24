@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     CheckConstraint,
     DateTime,
     Float,
@@ -39,12 +40,33 @@ def compile_sqlite_point(_: PostGISPoint, __, **___: Any) -> str:
 class TripSessionStatus(StrEnum):
     ACTIVE = "active"
     ENDED = "ended"
+    # Sealed = "all intended data received (or grace expired)"; the ONLY
+    # status the money chain may process (RM3). ended -> sealed is one-way.
+    SEALED = "sealed"
+
+
+class TripSealReason(StrEnum):
+    CLIENT_COMPLETE = "client_complete"
+    LATE_DATA_COMPLETE = "late_data_complete"
+    GRACE_EXPIRED = "grace_expired"
+    MIGRATION_BACKFILL = "migration_backfill"
 
 
 class TripSession(Base):
     __tablename__ = "trip_sessions"
     __table_args__ = (
-        CheckConstraint("status IN ('active', 'ended')", name="ck_trip_sessions_status"),
+        CheckConstraint(
+            "status IN ('active', 'ended', 'sealed')", name="ck_trip_sessions_status"
+        ),
+        CheckConstraint(
+            "(status = 'sealed') = (sealed_at IS NOT NULL AND seal_reason IS NOT NULL)",
+            name="ck_trip_sessions_sealed_fields",
+        ),
+        CheckConstraint(
+            "seal_reason IS NULL OR seal_reason IN "
+            "('client_complete', 'late_data_complete', 'grace_expired', 'migration_backfill')",
+            name="ck_trip_sessions_seal_reason",
+        ),
         Index("ix_trip_sessions_assignment_id", "assignment_id"),
         Index("ix_trip_sessions_campaign_id", "campaign_id"),
         Index("ix_trip_sessions_driver_profile_id", "driver_profile_id"),
@@ -94,6 +116,14 @@ class TripSession(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     end_reason: Mapped[str | None] = mapped_column(Text)
+    # Client finalization watermark, reported on /end (RM3). batch count is
+    # the seal predicate input; ping count and the completeness claim are
+    # diagnostic evidence only.
+    client_batch_count: Mapped[int | None] = mapped_column(Integer)
+    client_ping_count: Mapped[int | None] = mapped_column(Integer)
+    client_complete: Mapped[bool | None] = mapped_column(Boolean)
+    sealed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    seal_reason: Mapped[str | None] = mapped_column(Text)
     trip_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
         JSON,
@@ -161,6 +191,84 @@ class LocationPingBatch(Base):
     )
 
 
+class QuarantinedPingBatchStatus(StrEnum):
+    QUARANTINED = "quarantined"
+    APPLIED = "applied"
+    DISCARDED = "discarded"
+
+
+class QuarantinedPingBatch(Base):
+    """A ping batch that arrived after its trip was sealed (RM3).
+
+    Evidence-preserving: the full payload is stored, no location_pings rows
+    are written, and only an audited admin action may apply or discard it.
+    Applying never auto-recomputes money — payout_v2 is write-once and the
+    corrective path stays the admin recompute-day tool (§16.1).
+    """
+
+    __tablename__ = "quarantined_ping_batches"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('quarantined', 'applied', 'discarded')",
+            name="ck_quarantined_ping_batches_status",
+        ),
+        CheckConstraint(
+            "(status = 'quarantined') = (resolved_at IS NULL)",
+            name="ck_quarantined_ping_batches_resolution",
+        ),
+        # Resolution facts travel together: a resolved row always names its
+        # actor and note, and only applied rows carry an applied batch.
+        CheckConstraint(
+            "(status = 'quarantined') = "
+            "(resolved_by_user_id IS NULL AND resolution_note IS NULL)",
+            name="ck_quarantined_ping_batches_resolution_actor",
+        ),
+        CheckConstraint(
+            "applied_batch_id IS NULL OR status = 'applied'",
+            name="ck_quarantined_ping_batches_applied_batch",
+        ),
+        UniqueConstraint(
+            "trip_session_id",
+            "idempotency_key",
+            name="uq_quarantined_ping_batches_trip_idempotency_key",
+        ),
+        Index("ix_quarantined_ping_batches_trip_session_id", "trip_session_id"),
+        Index("ix_quarantined_ping_batches_status", "status"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        default=uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    trip_session_id: Mapped[UUID] = mapped_column(
+        ForeignKey("trip_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
+    payload_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    ping_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default=QuarantinedPingBatchStatus.QUARANTINED.value,
+        server_default=text("'quarantined'"),
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
+    resolution_note: Mapped[str | None] = mapped_column(Text)
+    applied_batch_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("location_ping_batches.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
 class LocationPing(Base):
     __tablename__ = "location_pings"
     __table_args__ = (
@@ -195,6 +303,11 @@ class LocationPing(Base):
         Index("ix_location_pings_geom", "geom", postgresql_using="gist"),
     )
 
+    # Composite PK (id, recorded_at): the table is range-partitioned by
+    # recorded_at (migration 0014) and PostgreSQL requires the partition key
+    # in every unique constraint. Partitioning itself is declared only in the
+    # migration — metadata.create_all (SQLite units, PostGIS test schemas)
+    # must keep producing a plain insertable table.
     id: Mapped[UUID] = mapped_column(
         primary_key=True,
         default=uuid4,
@@ -208,7 +321,9 @@ class LocationPing(Base):
         ForeignKey("location_ping_batches.id", ondelete="CASCADE"),
         nullable=False,
     )
-    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), primary_key=True, nullable=False
+    )
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     sequence_number: Mapped[int | None] = mapped_column(Integer)
     latitude: Mapped[float] = mapped_column(Float, nullable=False)

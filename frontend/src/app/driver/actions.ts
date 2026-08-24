@@ -74,19 +74,43 @@ export async function startTripAction(assignmentId: string): Promise<StartTripRe
   }
 }
 
-export async function endTripAction(tripId: string): Promise<DriverActionState> {
+const watermarkSchema = z.object({
+  clientBatchCount: z.number().int().nonnegative(),
+  clientPingCount: z.number().int().nonnegative(),
+  clientComplete: z.boolean(),
+});
+
+export type TripEndWatermark = z.infer<typeof watermarkSchema>;
+
+export interface EndTripResult extends DriverActionState {
+  trip?: components["schemas"]["TripRead"];
+}
+
+export async function endTripAction(
+  tripId: string,
+  watermark?: TripEndWatermark,
+): Promise<EndTripResult> {
   if (!z.string().uuid().safeParse(tripId).success) return { error: "Invalid trip" };
+  const parsedWatermark = watermark ? watermarkSchema.safeParse(watermark) : undefined;
+  if (parsedWatermark && !parsedWatermark.success) return { error: "Invalid trip end state" };
   try {
     const api = createApiClient(await getSessionToken());
-    await api.POST("/api/v1/driver/trips/{trip_id}/end", {
+    const { data } = await api.POST("/api/v1/driver/trips/{trip_id}/end", {
       params: { path: { trip_id: tripId } },
-      body: { end_reason: "driver_ended" },
+      body: {
+        end_reason: "driver_ended",
+        // Finalization watermark (RM3): lets the server seal immediately
+        // when it holds every batch this client cut.
+        client_batch_count: parsedWatermark?.data.clientBatchCount ?? null,
+        client_ping_count: parsedWatermark?.data.clientPingCount ?? null,
+        client_complete: parsedWatermark?.data.clientComplete ?? null,
+      },
     });
+    revalidateDriver();
+    return { trip: data };
   } catch (error) {
     return toState(error);
   }
-  revalidateDriver();
-  return {};
 }
 
 const pingSchema = z.object({
@@ -108,13 +132,21 @@ const pingBatchSchema = z.object({
 export interface PingBatchResult extends DriverActionState {
   acceptedCount?: number;
   duplicate?: boolean;
+  /** Trip already sealed: server preserved the batch as quarantine evidence. */
+  quarantined?: boolean;
+  /**
+   * When `error` is set: whether retrying the same batch can ever succeed.
+   * Validation/conflict rejections (400/409/422) are terminal — the client
+   * must drop the batch instead of head-of-line-blocking its queue forever.
+   */
+  retryable?: boolean;
 }
 
 export async function sendPingBatchAction(
   input: z.input<typeof pingBatchSchema>,
 ): Promise<PingBatchResult> {
   const parsed = pingBatchSchema.safeParse(input);
-  if (!parsed.success) return { error: "Invalid ping batch" };
+  if (!parsed.success) return { error: "Invalid ping batch", retryable: false };
   try {
     const api = createApiClient(await getSessionToken());
     const { data } = await api.POST("/api/v1/driver/trips/{trip_id}/pings", {
@@ -124,9 +156,17 @@ export async function sendPingBatchAction(
         pings: parsed.data.pings,
       },
     });
-    return { acceptedCount: data?.accepted_count, duplicate: data?.duplicate };
+    return {
+      acceptedCount: data?.accepted_count,
+      duplicate: data?.duplicate,
+      quarantined: data?.quarantined,
+    };
   } catch (error) {
-    return toState(error);
+    if (error instanceof ApiError) {
+      const terminal = [400, 409, 422].includes(error.status);
+      return { error: error.message, retryable: !terminal };
+    }
+    return { ...toState(error), retryable: true };
   }
 }
 

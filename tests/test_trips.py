@@ -1,5 +1,7 @@
 import asyncio
+import hashlib
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 from conftest import (
@@ -17,13 +19,25 @@ from conftest import (
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status as http_status
+from test_payouts_v2 import create_v2_rule
+from test_payouts_v3 import create_revision_row
 
+from app.models.billing import AcceptanceMethod, PaymentClass, QuoteRequestSource
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus, DriverProfile
+from app.models.payout import AssignmentRuleBinding
 from app.models.trip import TripSessionStatus
 from app.models.user import UserRole
 from app.models.vehicle import Vehicle, VehicleStatus
+from app.services.billing import (
+    accept_quotation_revision,
+    record_approved_credit_authorization,
+    record_production_start,
+    record_quotation_revision,
+    request_custom_quote,
+    reserve_assignment_liability,
+)
 
 PASSWORD = "long-secure-password"
 PAST = datetime(2020, 1, 1, tzinfo=UTC)
@@ -43,6 +57,7 @@ def create_trip_ready_graph(
     advertiser_email: str = "advertiser@example.com",
     driver_email: str = "driver@example.com",
     plate_number: str = "ABC-123",
+    with_financial_authority: bool = True,
 ):
     admin = create_test_user(db_sessionmaker, email=admin_email, password=PASSWORD)
     advertiser = create_test_user(
@@ -88,6 +103,110 @@ def create_trip_ready_graph(
         if assignment_status == CampaignAssignmentStatus.ACTIVE
         else None,
     )
+
+    async def add_financial_authority(payout_revision) -> None:
+        async with db_sessionmaker() as session:
+            empty_geometry_hash = hashlib.sha256(b"").hexdigest()
+            session.add(
+                AssignmentRuleBinding(
+                    assignment_id=assignment.id,
+                    revision_id=payout_revision.id,
+                    hourly_rate_naira=Decimal("1.00"),
+                    premium_hourly_rate_naira=None,
+                    daily_payable_hours_cap=Decimal("1.00"),
+                    eligibility_params={},
+                    resolved_eligibility_params={},
+                    formula_version="payout_v3",
+                    premium_zone_ids=[],
+                    premium_zone_geometry_hash=empty_geometry_hash,
+                    premium_zone_geometry_wkts=[],
+                    exclusion_zone_ids=[],
+                    exclusion_zone_geometry_hash=empty_geometry_hash,
+                    exclusion_zone_geometry_wkts=[],
+                    stationary_policy_marker="stationary-rd-v1",
+                    campaign_window_start_at=campaign.start_at or PAST,
+                    campaign_window_end_at=campaign.end_at or FUTURE,
+                    campaign_window_frozen=True,
+                    bound_at=datetime.now(UTC),
+                )
+            )
+            quote_request = await request_custom_quote(
+                session,
+                campaign_id=campaign.id,
+                actor_user_id=advertiser.id,
+                source=QuoteRequestSource.IN_PLATFORM,
+                request_details={"test_authority": True},
+            )
+            quote_revision = await record_quotation_revision(
+                session,
+                quote_request_id=quote_request.id,
+                actor_user_id=admin.id,
+                quote_reference=f"TRIP-{campaign.id}",
+                currency="NGN",
+                line_items=[
+                    {
+                        "code": "TEST",
+                        "description": "Synthetic trip authority",
+                        "kind": "media",
+                        "amount": "1000000.00",
+                    }
+                ],
+                production_scope={"vehicle_count": 1},
+                payment_class=PaymentClass.APPROVED_CORPORATE_CREDIT,
+                payment_terms={"test_only": True},
+                tax_rate="0",
+            )
+            await accept_quotation_revision(
+                session,
+                quotation_revision_id=quote_revision.id,
+                actor_user_id=advertiser.id,
+                acceptance_method=AcceptanceMethod.IN_PLATFORM,
+            )
+            await record_approved_credit_authorization(
+                session,
+                campaign_id=campaign.id,
+                actor_user_id=admin.id,
+                credit_limit="1000000.00",
+                max_driver_liability="1000000.00",
+                due_at=datetime(2100, 1, 1, tzinfo=UTC),
+                approved_by_user_id=admin.id,
+                credit_terms={"test_only": True},
+                reason="synthetic trip test authority",
+            )
+            await record_production_start(
+                session,
+                campaign_id=campaign.id,
+                actor_user_id=admin.id,
+            )
+            await reserve_assignment_liability(
+                session,
+                assignment_id=assignment.id,
+                actor_user_id=admin.id,
+            )
+            await session.commit()
+
+    if with_financial_authority:
+        # Trip tests exercise the trip protocol, not a funding bypass. Give
+        # their graph genuine synthetic commercial authority and a reserve so
+        # the production fail-closed gate is identical in tests and runtime.
+        rule = create_v2_rule(
+            db_sessionmaker,
+            campaign_id=campaign.id,
+            created_by_user_id=admin.id,
+            hourly_rate="1.00",
+            daily_cap_hours="1.00",
+            rule_status="inactive",
+        )
+        payout_revision = create_revision_row(
+            db_sessionmaker,
+            campaign_id=campaign.id,
+            rule_id=rule.id,
+            created_by_user_id=admin.id,
+            base="1.00",
+            premium=None,
+            cap="1.00",
+        )
+        asyncio.run(add_financial_authority(payout_revision))
     return admin, campaign, driver, profile, vehicle, assignment
 
 
@@ -574,8 +693,11 @@ def test_pings_require_active_owned_trip_and_active_assignment(db_client, db_ses
 
     assert other.status_code == http_status.HTTP_404_NOT_FOUND
     assert other.json()["error"]["code"] == "TRIP_NOT_FOUND"
-    assert ended.status_code == http_status.HTTP_400_BAD_REQUEST
-    assert ended.json()["error"]["code"] == "TRIP_NOT_ACTIVE"
+    # RM3: an ended (not yet sealed) trip is inside its recovery window —
+    # late batches are accepted as live evidence, no longer rejected 400.
+    assert ended.status_code == http_status.HTTP_200_OK
+    assert ended.json()["accepted_count"] == 1
+    assert ended.json()["quarantined"] is False
     assert inactive_assignment.status_code == http_status.HTTP_400_BAD_REQUEST
     assert inactive_assignment.json()["error"]["code"] == "CAMPAIGN_ASSIGNMENT_NOT_ACTIVE"
 
