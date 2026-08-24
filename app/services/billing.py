@@ -9,6 +9,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
+from app.adapters.payments import (
+    PaymentGatewayAdapter,
+    PaymentGatewayUnavailableError,
+    PaymentWebhookAuthenticationError,
+    PaymentWebhookPayloadError,
+)
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.billing import (
@@ -27,6 +33,8 @@ from app.models.billing import (
     InvoiceStatus,
     IssuerVerificationStatus,
     PaymentClass,
+    PaymentGatewayEvent,
+    PaymentGatewayProcessingAttempt,
     PaymentReceipt,
     ProductionAuthorityBasis,
     ProductionStart,
@@ -467,6 +475,36 @@ async def _append_receipt_event(
     return event
 
 
+async def _trusted_confirmed_gateway_event(
+    session: AsyncSession, event_id: UUID
+) -> tuple[PaymentGatewayEvent, CommercialTerms]:
+    event = await session.scalar(
+        select(PaymentGatewayEvent).where(PaymentGatewayEvent.id == event_id).with_for_update()
+    )
+    if event is None or event.event_type != "payment_confirmed":
+        raise AppError(
+            "CONFIRMED_GATEWAY_EVENT_REQUIRED",
+            "A persisted confirmed provider event is required",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+    try:
+        terms_id = UUID(event.commercial_terms_reference)
+    except ValueError as exc:
+        raise AppError(
+            "PAYMENT_EVENT_TERMS_MISMATCH",
+            "Provider event contains an invalid commercial terms reference",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from exc
+    terms = await session.get(CommercialTerms, terms_id)
+    if terms is None:
+        raise AppError(
+            "PAYMENT_EVENT_TERMS_MISMATCH",
+            "Provider event does not resolve to accepted commercial terms",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    return event, terms
+
+
 async def record_payment_receipt(
     session: AsyncSession,
     *,
@@ -480,14 +518,34 @@ async def record_payment_receipt(
     payer_name: str,
     evidence_reference: str,
     observed_at: datetime,
-    trusted_gateway: bool = False,
+    trusted_gateway_event_id: UUID | None = None,
 ) -> PaymentReceipt:
     if actor_user_id is None:
-        if method != ReceiptMethod.GATEWAY or not trusted_gateway:
+        if method != ReceiptMethod.GATEWAY or trusted_gateway_event_id is None:
             raise AppError(
                 "RECEIPT_ACTOR_REQUIRED",
                 "A trusted gateway or active administrator is required",
                 status_code=status.HTTP_403_FORBIDDEN,
+            )
+        gateway_event, gateway_terms = await _trusted_confirmed_gateway_event(
+            session, trusted_gateway_event_id
+        )
+        if not all(
+            (
+                organization_id == gateway_terms.organization_id,
+                provider.strip().lower() == gateway_event.provider,
+                external_transaction_id.strip()
+                == f"{gateway_event.provider}:{gateway_event.external_transaction_id}",
+                Decimal(str(amount)) == Decimal(gateway_event.amount),
+                currency.strip().upper() == gateway_event.currency,
+                payer_name.strip() == gateway_event.payer_name,
+                observed_at == gateway_event.occurred_at,
+            )
+        ):
+            raise AppError(
+                "GATEWAY_RECEIPT_LINEAGE_MISMATCH",
+                "Receipt facts must exactly match persisted provider evidence",
+                status_code=status.HTTP_409_CONFLICT,
             )
     else:
         await _active_admin(session, actor_user_id)
@@ -698,10 +756,28 @@ async def allocate_payment_receipt(
     *,
     receipt_id: UUID,
     commercial_terms_id: UUID,
-    actor_user_id: UUID,
+    actor_user_id: UUID | None,
     amount: Decimal | str,
+    trusted_gateway_event_id: UUID | None = None,
 ) -> ReceiptAllocation:
-    await _active_admin(session, actor_user_id)
+    if actor_user_id is None:
+        if trusted_gateway_event_id is None:
+            raise AppError(
+                "ALLOCATION_ACTOR_REQUIRED",
+                "A trusted provider event or active administrator is required",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        gateway_event, gateway_terms = await _trusted_confirmed_gateway_event(
+            session, trusted_gateway_event_id
+        )
+    else:
+        if trusted_gateway_event_id is not None:
+            raise AppError(
+                "ALLOCATION_AUTHORITY_CONFLICT",
+                "Manual and provider allocation authority cannot be combined",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        await _active_admin(session, actor_user_id)
     receipt = await session.scalar(
         select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
     )
@@ -711,6 +787,19 @@ async def allocate_payment_receipt(
     if receipt is None or terms is None or receipt.organization_id != terms.organization_id:
         raise AppError(
             "BILLING_AUTHORITY_NOT_FOUND", "Billing authority was not found", status_code=404
+        )
+    if actor_user_id is None and (
+        gateway_terms.id != terms.id
+        or gateway_event.provider != receipt.provider
+        or f"{gateway_event.provider}:{gateway_event.external_transaction_id}"
+        != receipt.external_transaction_id
+        or Decimal(gateway_event.amount) != Decimal(str(amount))
+        or gateway_event.currency != receipt.currency
+    ):
+        raise AppError(
+            "GATEWAY_ALLOCATION_LINEAGE_MISMATCH",
+            "Allocation facts must exactly match persisted provider evidence",
+            status_code=status.HTTP_409_CONFLICT,
         )
     if await _receipt_status(session, receipt.id) != ReceiptLifecycleStatus.CONFIRMED:
         raise AppError(
@@ -785,6 +874,8 @@ async def allocate_payment_receipt(
         amount=allocation_amount,
         currency=receipt.currency,
         allocated_by_user_id=actor_user_id,
+        allocation_source="provider" if trusted_gateway_event_id is not None else "manual",
+        provider_event_id=trusted_gateway_event_id,
         allocated_at=now,
     )
     session.add(allocation)
@@ -1935,3 +2026,332 @@ async def assert_new_work_authorized(
             "Production start and a funded assignment liability reserve are required",
             status_code=status.HTTP_409_CONFLICT,
         )
+
+
+async def ingest_payment_gateway_webhook(
+    session: AsyncSession,
+    *,
+    adapter: PaymentGatewayAdapter,
+    payload: bytes,
+    signature: str,
+) -> tuple[PaymentGatewayEvent, bool]:
+    try:
+        verified = await adapter.parse_webhook(payload, signature)
+    except PaymentGatewayUnavailableError as exc:
+        raise AppError(
+            "PAYMENT_PROVIDER_NOT_CONFIGURED",
+            "Payment webhook verification is not configured",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        ) from exc
+    except PaymentWebhookAuthenticationError as exc:
+        raise AppError(
+            "INVALID_PAYMENT_WEBHOOK_SIGNATURE",
+            "Payment webhook authentication or payload verification failed",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        ) from exc
+    except PaymentWebhookPayloadError as exc:
+        raise AppError(
+            "INVALID_PAYMENT_WEBHOOK_PAYLOAD",
+            "Authenticated payment webhook payload is invalid",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        ) from exc
+    provider = adapter.provider_name.strip().lower()
+    terms_reference = verified.commercial_terms_id.strip()
+    amount = _money(verified.amount, "gateway_event.amount")
+    try:
+        fingerprint_is_hex = len(verified.evidence_fingerprint) == 64 and bool(
+            int(verified.evidence_fingerprint, 16) >= 0
+        )
+    except ValueError:
+        fingerprint_is_hex = False
+    if (
+        not provider
+        or not verified.provider_event_id.strip()
+        or len(verified.provider_event_id) > 255
+        or not verified.external_transaction_id.strip()
+        or len(verified.external_transaction_id) > 255
+        or not terms_reference
+        or len(terms_reference) > 64
+        or verified.event_type not in {"payment_confirmed", "payment_failed"}
+        or amount == 0
+        or len(verified.currency) != 3
+        or not verified.currency.isalpha()
+        or not verified.payer_name.strip()
+        or verified.occurred_at.tzinfo is None
+        or verified.occurred_at.utcoffset() is None
+        or not fingerprint_is_hex
+    ):
+        raise AppError(
+            "INVALID_PAYMENT_WEBHOOK_PAYLOAD",
+            "Verified payment event is incomplete or malformed",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    existing = await session.scalar(
+        select(PaymentGatewayEvent).where(
+            PaymentGatewayEvent.provider == provider,
+            PaymentGatewayEvent.provider_event_id == verified.provider_event_id,
+        )
+    )
+
+    def exact_match(candidate: PaymentGatewayEvent) -> bool:
+        return (
+            candidate.provider == provider
+            and candidate.external_transaction_id == verified.external_transaction_id
+            and candidate.event_type == verified.event_type
+            and candidate.commercial_terms_reference == terms_reference
+            and Decimal(candidate.amount) == verified.amount
+            and candidate.currency == verified.currency
+            and candidate.payload == verified.canonical_payload
+        )
+
+    if existing is not None:
+        if exact_match(existing):
+            return existing, False
+        raise AppError(
+            "PAYMENT_EVENT_IDENTITY_CONFLICT",
+            "Provider event identity belongs to different verified evidence",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    now = await database_clock(session)
+    event = PaymentGatewayEvent(
+        provider=provider,
+        provider_event_id=verified.provider_event_id,
+        external_transaction_id=verified.external_transaction_id,
+        event_type=verified.event_type,
+        commercial_terms_reference=terms_reference,
+        amount=amount,
+        currency=verified.currency,
+        payer_name=verified.payer_name.strip(),
+        occurred_at=verified.occurred_at,
+        evidence_fingerprint=verified.evidence_fingerprint,
+        payload=deepcopy(verified.canonical_payload),
+        received_at=now,
+    )
+    try:
+        async with session.begin_nested():
+            session.add(event)
+            await session.flush()
+    except IntegrityError as exc:
+        concurrent = await session.scalar(
+            select(PaymentGatewayEvent).where(
+                PaymentGatewayEvent.provider == provider,
+                PaymentGatewayEvent.provider_event_id == verified.provider_event_id,
+            )
+        )
+        if concurrent is not None and exact_match(concurrent):
+            return concurrent, False
+        raise AppError(
+            "PAYMENT_EVENT_IDENTITY_CONFLICT",
+            "Provider event identity is already recorded",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from exc
+    return event, True
+
+
+async def _reconcile_verified_gateway_receipt(
+    session: AsyncSession,
+    *,
+    receipt: PaymentReceipt,
+    event: PaymentGatewayEvent,
+) -> None:
+    receipt = await session.scalar(
+        select(PaymentReceipt).where(PaymentReceipt.id == receipt.id).with_for_update()
+    )
+    if receipt is None:
+        raise AppError("RECEIPT_NOT_FOUND", "Receipt was not found", status_code=404)
+    reconciliation = await session.scalar(
+        select(ReceiptReconciliation).where(ReceiptReconciliation.receipt_id == receipt.id)
+    )
+    now = await database_clock(session)
+    if reconciliation is None:
+        reconciliation = ReceiptReconciliation(
+            receipt_id=receipt.id,
+            expected_amount=event.amount,
+            expected_currency=event.currency,
+            matched=True,
+            verification_source="provider",
+            provider_event_id=event.id,
+            reconciled_by_user_id=None,
+            reconciled_at=now,
+        )
+        session.add(reconciliation)
+        await session.flush()
+    elif (
+        Decimal(reconciliation.expected_amount) != Decimal(event.amount)
+        or reconciliation.expected_currency != event.currency
+        or not reconciliation.matched
+    ):
+        raise AppError(
+            "GATEWAY_RECONCILIATION_CONFLICT",
+            "Existing receipt reconciliation conflicts with verified provider evidence",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    current = await _receipt_status(session, receipt.id)
+    if current == ReceiptLifecycleStatus.OBSERVED:
+        await _append_receipt_event(
+            session,
+            receipt_id=receipt.id,
+            lifecycle_status=ReceiptLifecycleStatus.RECONCILED,
+            actor_user_id=None,
+            occurred_at=now,
+            reason=f"verified provider event {event.provider_event_id}",
+        )
+        current = ReceiptLifecycleStatus.RECONCILED
+    if current == ReceiptLifecycleStatus.RECONCILED:
+        await _append_receipt_event(
+            session,
+            receipt_id=receipt.id,
+            lifecycle_status=ReceiptLifecycleStatus.CONFIRMED,
+            actor_user_id=None,
+            occurred_at=now,
+            reason=f"verified provider event {event.provider_event_id}",
+        )
+    elif current != ReceiptLifecycleStatus.CONFIRMED:
+        raise AppError(
+            "GATEWAY_RECEIPT_NOT_CONFIRMABLE",
+            "Verified gateway receipt is not in a confirmable state",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+
+async def process_payment_gateway_event(
+    session: AsyncSession, *, event_id: UUID
+) -> PaymentGatewayProcessingAttempt:
+    event = await session.scalar(
+        select(PaymentGatewayEvent).where(PaymentGatewayEvent.id == event_id).with_for_update()
+    )
+    if event is None:
+        raise AppError("PAYMENT_EVENT_NOT_FOUND", "Payment event was not found", status_code=404)
+    completed = await session.scalar(
+        select(PaymentGatewayProcessingAttempt)
+        .where(
+            PaymentGatewayProcessingAttempt.gateway_event_id == event.id,
+            PaymentGatewayProcessingAttempt.outcome.in_(("confirmed", "ignored_failed")),
+        )
+        .order_by(PaymentGatewayProcessingAttempt.attempt_number.desc())
+        .limit(1)
+    )
+    if completed is not None:
+        return completed
+    attempt_number = (
+        int(
+            await session.scalar(
+                select(
+                    func.coalesce(func.max(PaymentGatewayProcessingAttempt.attempt_number), 0)
+                ).where(PaymentGatewayProcessingAttempt.gateway_event_id == event.id)
+            )
+            or 0
+        )
+        + 1
+    )
+    now = await database_clock(session)
+    if event.event_type == "payment_failed":
+        attempt = PaymentGatewayProcessingAttempt(
+            gateway_event_id=event.id,
+            attempt_number=attempt_number,
+            outcome="ignored_failed",
+            error_code=None,
+            receipt_id=None,
+            allocation_id=None,
+            processed_at=now,
+        )
+        session.add(attempt)
+        await session.flush()
+        return attempt
+    try:
+        terms_id = UUID(event.commercial_terms_reference)
+    except ValueError as exc:
+        raise AppError(
+            "PAYMENT_EVENT_TERMS_MISMATCH",
+            "Provider event contains an invalid commercial terms reference",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from exc
+    terms = await session.get(CommercialTerms, terms_id)
+    if terms is None or terms.currency != event.currency:
+        raise AppError(
+            "PAYMENT_EVENT_TERMS_MISMATCH",
+            "Verified payment event no longer matches accepted terms",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    receipt = await record_payment_receipt(
+        session,
+        organization_id=terms.organization_id,
+        actor_user_id=None,
+        method=ReceiptMethod.GATEWAY,
+        provider=event.provider,
+        external_transaction_id=f"{event.provider}:{event.external_transaction_id}",
+        amount=event.amount,
+        currency=event.currency,
+        payer_name=event.payer_name,
+        evidence_reference=f"gateway:{event.provider}:{event.external_transaction_id}",
+        observed_at=event.occurred_at,
+        trusted_gateway_event_id=event.id,
+    )
+    await _reconcile_verified_gateway_receipt(session, receipt=receipt, event=event)
+    allocation = await allocate_payment_receipt(
+        session,
+        receipt_id=receipt.id,
+        commercial_terms_id=terms.id,
+        actor_user_id=None,
+        amount=event.amount,
+        trusted_gateway_event_id=event.id,
+    )
+    attempt = PaymentGatewayProcessingAttempt(
+        gateway_event_id=event.id,
+        attempt_number=attempt_number,
+        outcome="confirmed",
+        error_code=None,
+        receipt_id=receipt.id,
+        allocation_id=allocation.id,
+        processed_at=now,
+    )
+    session.add(attempt)
+    await session.flush()
+    return attempt
+
+
+async def record_payment_gateway_failure(
+    session: AsyncSession, *, event_id: UUID, error_code: str
+) -> PaymentGatewayProcessingAttempt:
+    event = await session.scalar(
+        select(PaymentGatewayEvent).where(PaymentGatewayEvent.id == event_id).with_for_update()
+    )
+    if event is None:
+        raise AppError("PAYMENT_EVENT_NOT_FOUND", "Payment event was not found", status_code=404)
+    completed = await session.scalar(
+        select(PaymentGatewayProcessingAttempt)
+        .where(
+            PaymentGatewayProcessingAttempt.gateway_event_id == event.id,
+            PaymentGatewayProcessingAttempt.outcome.in_(("confirmed", "ignored_failed")),
+        )
+        .order_by(PaymentGatewayProcessingAttempt.attempt_number.desc())
+        .limit(1)
+    )
+    if completed is not None:
+        return completed
+    normalized_code = error_code.strip()[:128]
+    if not normalized_code:
+        normalized_code = "PAYMENT_GATEWAY_PROCESSING_ERROR"
+    attempt_number = (
+        int(
+            await session.scalar(
+                select(
+                    func.coalesce(func.max(PaymentGatewayProcessingAttempt.attempt_number), 0)
+                ).where(PaymentGatewayProcessingAttempt.gateway_event_id == event.id)
+            )
+            or 0
+        )
+        + 1
+    )
+    attempt = PaymentGatewayProcessingAttempt(
+        gateway_event_id=event.id,
+        attempt_number=attempt_number,
+        outcome="failed",
+        error_code=normalized_code,
+        receipt_id=None,
+        allocation_id=None,
+        processed_at=await database_clock(session),
+    )
+    session.add(attempt)
+    await session.flush()
+    return attempt

@@ -13,6 +13,7 @@ from app.jobs.data_lifecycle import (
     purge_expired_ping_partitions,
 )
 from app.jobs.earnings_release import sweep_earnings_release_reviews
+from app.jobs.payment_gateway import process_payment_gateway_event_job
 from app.jobs.trip_processing import (
     process_trip,
     process_unprocessed_trips,
@@ -63,7 +64,14 @@ class WorkerSettings:
     # and stays None otherwise (unconfigured test imports never need a broker).
     # keep_result=0: a deterministic job id must never suppress catch-up via a
     # stale result key — dedup applies only while queued/running (D4).
-    functions: list = [func(process_trip, name="process_trip", keep_result=0)]
+    functions: list = [
+        func(process_trip, name="process_trip", keep_result=0),
+        func(
+            process_payment_gateway_event_job,
+            name="process_payment_gateway_event",
+            keep_result=0,
+        ),
+    ]
     cron_jobs: list = [
         cron(
             process_unprocessed_trips,

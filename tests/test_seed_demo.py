@@ -89,7 +89,7 @@ def test_no_seed_or_demo_migrations() -> None:
 
 
 def test_demo_seed_requires_the_code_migration_head() -> None:
-    assert required_migration_head() == "0037_funded_liability_authority"
+    assert required_migration_head() == "0038_payment_gateway_events"
 
 
 def test_readme_documents_demo_seed_workflow() -> None:

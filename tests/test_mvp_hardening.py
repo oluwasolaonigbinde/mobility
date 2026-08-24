@@ -14,7 +14,7 @@ from app.main import create_app
 from app.models.user import UserRole
 
 SNAPSHOT_PATH = Path("docs/api/openapi.snapshot.json")
-EXPECTED_ALEMBIC_HEAD = "0037_funded_liability_authority"
+EXPECTED_ALEMBIC_HEAD = "0038_payment_gateway_events"
 EXPECTED_MIGRATIONS = {
     "0001_enable_extensions.py",
     "0002_identity_and_organizations.py",
@@ -53,6 +53,7 @@ EXPECTED_MIGRATIONS = {
     "0035_vat_itemised_invoices.py",
     "0036_invoice_authority_hardening.py",
     "0037_funded_liability_authority.py",
+    "0038_payment_gateway_events.py",
 }
 MAJOR_CONTRACT_PATHS = {
     "health": "/api/v1/health",

@@ -44,12 +44,16 @@ def make_ctx(sessionmaker, settings) -> dict:
 
 
 def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
-    assert len(WorkerSettings.functions) == 1
+    assert len(WorkerSettings.functions) == 2
     registered = WorkerSettings.functions[0]
     assert isinstance(registered, Function)
     assert registered.name == "process_trip"
     assert registered.keep_result_s == 0
     assert registered.coroutine is jobs.process_trip
+    gateway = WorkerSettings.functions[1]
+    assert isinstance(gateway, Function)
+    assert gateway.name == "process_payment_gateway_event"
+    assert gateway.keep_result_s == 0
 
     assert len(WorkerSettings.cron_jobs) == 6
     cron_job = WorkerSettings.cron_jobs[0]

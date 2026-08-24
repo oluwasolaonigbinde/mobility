@@ -301,7 +301,15 @@ class ReceiptReconciliation(Base):
             "length(expected_currency) = 3", name="ck_receipt_reconciliations_currency"
         ),
         CheckConstraint("expected_amount > 0", name="ck_receipt_reconciliations_amount_positive"),
+        CheckConstraint(
+            "(verification_source = 'manual' AND reconciled_by_user_id IS NOT NULL "
+            "AND provider_event_id IS NULL) OR "
+            "(verification_source = 'provider' AND reconciled_by_user_id IS NULL "
+            "AND provider_event_id IS NOT NULL)",
+            name="ck_receipt_reconciliations_verification_source",
+        ),
         UniqueConstraint("receipt_id", name="uq_receipt_reconciliations_receipt"),
+        UniqueConstraint("provider_event_id", name="uq_receipt_reconciliations_provider_event"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -313,8 +321,14 @@ class ReceiptReconciliation(Base):
     expected_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     expected_currency: Mapped[str] = mapped_column(String(3), nullable=False)
     matched: Mapped[bool] = mapped_column(nullable=False)
-    reconciled_by_user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    verification_source: Mapped[str] = mapped_column(
+        String(32), default="manual", server_default=text("'manual'"), nullable=False
+    )
+    provider_event_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("payment_gateway_events.id", ondelete="RESTRICT")
+    )
+    reconciled_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
     )
     reconciled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -356,7 +370,15 @@ class ReceiptAllocation(Base):
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_receipt_allocations_amount_positive"),
         CheckConstraint("length(currency) = 3", name="ck_receipt_allocations_currency"),
+        CheckConstraint(
+            "(allocation_source = 'manual' AND allocated_by_user_id IS NOT NULL "
+            "AND provider_event_id IS NULL) OR "
+            "(allocation_source = 'provider' AND allocated_by_user_id IS NULL "
+            "AND provider_event_id IS NOT NULL)",
+            name="ck_receipt_allocations_source",
+        ),
         UniqueConstraint("receipt_id", "commercial_terms_id", name="uq_receipt_allocations_terms"),
+        UniqueConstraint("provider_event_id", name="uq_receipt_allocations_provider_event"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -370,8 +392,14 @@ class ReceiptAllocation(Base):
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    allocated_by_user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    allocation_source: Mapped[str] = mapped_column(
+        String(32), default="manual", server_default=text("'manual'"), nullable=False
+    )
+    provider_event_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("payment_gateway_events.id", ondelete="RESTRICT")
+    )
+    allocated_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
     )
     allocated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -708,3 +736,77 @@ class ProductionStart(Base):
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PaymentGatewayEvent(Base):
+    __tablename__ = "payment_gateway_events"
+    __table_args__ = (
+        CheckConstraint(
+            "event_type IN ('payment_confirmed', 'payment_failed')",
+            name="ck_payment_gateway_events_type",
+        ),
+        CheckConstraint("amount > 0", name="ck_payment_gateway_events_amount"),
+        CheckConstraint("length(currency) = 3", name="ck_payment_gateway_events_currency"),
+        CheckConstraint(
+            "length(evidence_fingerprint) = 64", name="ck_payment_gateway_events_fingerprint"
+        ),
+        UniqueConstraint(
+            "provider", "provider_event_id", name="uq_payment_gateway_events_provider_event"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider_event_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    external_transaction_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    commercial_terms_reference: Mapped[str] = mapped_column(String(64), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    payer_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    evidence_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PaymentGatewayProcessingAttempt(Base):
+    __tablename__ = "payment_gateway_processing_attempts"
+    __table_args__ = (
+        CheckConstraint("attempt_number > 0", name="ck_payment_gateway_attempts_number"),
+        CheckConstraint(
+            "outcome IN ('confirmed', 'ignored_failed', 'failed')",
+            name="ck_payment_gateway_attempts_outcome",
+        ),
+        CheckConstraint(
+            "(outcome = 'confirmed' AND receipt_id IS NOT NULL AND allocation_id IS NOT NULL "
+            "AND error_code IS NULL) OR "
+            "(outcome = 'ignored_failed' AND receipt_id IS NULL AND allocation_id IS NULL "
+            "AND error_code IS NULL) OR "
+            "(outcome = 'failed' AND receipt_id IS NULL AND allocation_id IS NULL "
+            "AND error_code IS NOT NULL)",
+            name="ck_payment_gateway_attempts_result",
+        ),
+        UniqueConstraint(
+            "gateway_event_id", "attempt_number", name="uq_payment_gateway_attempt_sequence"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    gateway_event_id: Mapped[UUID] = mapped_column(
+        ForeignKey("payment_gateway_events.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(128))
+    receipt_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("payment_receipts.id", ondelete="RESTRICT")
+    )
+    allocation_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("receipt_allocations.id", ondelete="RESTRICT")
+    )
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
