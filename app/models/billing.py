@@ -60,6 +60,23 @@ class InvoiceStatus(StrEnum):
     VOID = "void"
 
 
+class FinancialAuthorityType(StrEnum):
+    PREPAID_CASH = "prepaid_cash"
+    APPROVED_CREDIT = "approved_credit"
+    SUBSIDY = "subsidy"
+
+
+class LiabilityReservationStatus(StrEnum):
+    PENDING_FUNDING = "pending_funding"
+    RESERVED = "reserved"
+
+
+class ProductionAuthorityBasis(StrEnum):
+    STANDARD_WINDOW_ELAPSED = "standard_window_elapsed"
+    ADVERTISER_EXPEDITED_WAIVER = "advertiser_expedited_waiver"
+    APPROVED_CREDIT = "approved_credit"
+
+
 class CommercialQuoteRequest(Base):
     __tablename__ = "commercial_quote_requests"
     __table_args__ = (
@@ -470,3 +487,224 @@ class Invoice(Base):
         ForeignKey("users.id", ondelete="RESTRICT")
     )
     issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class CampaignFinancialAuthorization(Base):
+    __tablename__ = "campaign_financial_authorizations"
+    __table_args__ = (
+        CheckConstraint(
+            "revision_number > 0", name="ck_campaign_financial_authorizations_revision"
+        ),
+        CheckConstraint(
+            "authority_type IN ('prepaid_cash', 'approved_credit', 'subsidy')",
+            name="ck_campaign_financial_authorizations_type",
+        ),
+        CheckConstraint(
+            "length(currency) = 3", name="ck_campaign_financial_authorizations_currency"
+        ),
+        CheckConstraint(
+            "authorized_amount > 0 AND max_driver_liability > 0 "
+            "AND max_driver_liability <= authorized_amount",
+            name="ck_campaign_financial_authorizations_amounts",
+        ),
+        CheckConstraint(
+            "(authority_type = 'prepaid_cash' AND funded_cash_amount = authorized_amount "
+            "AND credit_limit IS NULL AND credit_due_at IS NULL AND "
+            "credit_approved_by_user_id IS NULL AND credit_terms IS NULL "
+            "AND subsidy_reference IS NULL) OR "
+            "(authority_type = 'approved_credit' AND funded_cash_amount = 0 "
+            "AND credit_limit = authorized_amount AND credit_due_at IS NOT NULL AND "
+            "credit_approved_by_user_id IS NOT NULL AND credit_terms IS NOT NULL "
+            "AND subsidy_reference IS NULL) OR "
+            "(authority_type = 'subsidy' AND funded_cash_amount = 0 "
+            "AND credit_limit IS NULL AND credit_due_at IS NULL AND "
+            "credit_approved_by_user_id IS NULL AND credit_terms IS NULL "
+            "AND subsidy_reference IS NOT NULL)",
+            name="ck_campaign_financial_authorizations_evidence",
+        ),
+        UniqueConstraint(
+            "campaign_id", "revision_number", name="uq_campaign_financial_authorization_revision"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    campaign_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    commercial_terms_id: Mapped[UUID] = mapped_column(
+        ForeignKey("commercial_terms.id", ondelete="RESTRICT"), nullable=False
+    )
+    revision_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    authority_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    authorized_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    funded_cash_amount: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), default=Decimal("0"), server_default=text("0"), nullable=False
+    )
+    max_driver_liability: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    credit_limit: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    credit_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    credit_approved_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    credit_terms: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True))
+    subsidy_reference: Mapped[str | None] = mapped_column(Text)
+    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class FinancialAuthorizationAllocation(Base):
+    __tablename__ = "financial_authorization_allocations"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_financial_authorization_allocations_amount"),
+        UniqueConstraint(
+            "authorization_id",
+            "receipt_allocation_id",
+            name="uq_financial_authorization_allocation_source",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    authorization_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaign_financial_authorizations.id", ondelete="RESTRICT"), nullable=False
+    )
+    receipt_allocation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("receipt_allocations.id", ondelete="RESTRICT"), nullable=False
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+
+
+class CampaignLiabilityReservation(Base):
+    __tablename__ = "campaign_liability_reservations"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending_funding', 'reserved')",
+            name="ck_campaign_liability_reservations_status",
+        ),
+        CheckConstraint(
+            "covered_vehicle_days > 0 AND hourly_rate >= 0 AND daily_hours_cap > 0 "
+            "AND requested_amount > 0 AND formula_version <> ''",
+            name="ck_campaign_liability_reservations_formula",
+        ),
+        CheckConstraint(
+            "(status = 'pending_funding' AND authorization_id IS NULL "
+            "AND reserved_amount IS NULL AND reserved_at IS NULL) OR "
+            "(status = 'reserved' AND authorization_id IS NOT NULL "
+            "AND reserved_amount = requested_amount AND reserved_at IS NOT NULL)",
+            name="ck_campaign_liability_reservations_state",
+        ),
+        UniqueConstraint("assignment_id", name="uq_campaign_liability_reservations_assignment"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    campaign_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    assignment_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaign_assignments.id", ondelete="RESTRICT"), nullable=False
+    )
+    assignment_rule_binding_id: Mapped[UUID] = mapped_column(
+        ForeignKey("assignment_rule_bindings.id", ondelete="RESTRICT"), nullable=False
+    )
+    authorization_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("campaign_financial_authorizations.id", ondelete="RESTRICT")
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    covered_vehicle_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    hourly_rate: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    daily_hours_cap: Mapped[Decimal] = mapped_column(Numeric(4, 2), nullable=False)
+    requested_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    reserved_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reserved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    formula_version: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class ExpeditedProductionWaiver(Base):
+    __tablename__ = "expedited_production_waivers"
+    __table_args__ = (
+        CheckConstraint(
+            "accepted_at >= requested_at", name="ck_expedited_production_waivers_timeline"
+        ),
+        CheckConstraint(
+            "length(accepted_wording_hash) = 64 AND wording_version <> ''",
+            name="ck_expedited_production_waivers_wording",
+        ),
+        UniqueConstraint("campaign_id", name="uq_expedited_production_waivers_campaign"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    campaign_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False
+    )
+    commercial_terms_id: Mapped[UUID] = mapped_column(
+        ForeignKey("commercial_terms.id", ondelete="RESTRICT"), nullable=False
+    )
+    requested_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    accepted_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    wording_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    accepted_wording_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class ProductionStart(Base):
+    __tablename__ = "production_starts"
+    __table_args__ = (
+        CheckConstraint(
+            "authority_basis IN ('standard_window_elapsed', "
+            "'advertiser_expedited_waiver', 'approved_credit')",
+            name="ck_production_starts_authority_basis",
+        ),
+        CheckConstraint(
+            "(authority_basis = 'advertiser_expedited_waiver' AND waiver_id IS NOT NULL) OR "
+            "(authority_basis <> 'advertiser_expedited_waiver' AND waiver_id IS NULL)",
+            name="ck_production_starts_waiver_basis",
+        ),
+        CheckConstraint(
+            "(authority_basis IN ('standard_window_elapsed', 'advertiser_expedited_waiver') "
+            "AND fully_funded_at IS NOT NULL) OR "
+            "(authority_basis = 'approved_credit' AND fully_funded_at IS NULL)",
+            name="ck_production_starts_funding_basis",
+        ),
+        CheckConstraint(
+            "fully_funded_at IS NULL OR started_at >= fully_funded_at",
+            name="ck_production_starts_timeline",
+        ),
+        UniqueConstraint("campaign_id", name="uq_production_starts_campaign"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    campaign_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False
+    )
+    authorization_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaign_financial_authorizations.id", ondelete="RESTRICT"), nullable=False
+    )
+    authority_basis: Mapped[str] = mapped_column(String(40), nullable=False)
+    waiver_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("expedited_production_waivers.id", ondelete="RESTRICT")
+    )
+    fully_funded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

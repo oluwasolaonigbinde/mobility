@@ -35,6 +35,7 @@ from app.schemas.trips import (
     TripStartRequest,
 )
 from app.services.audit import create_audit_event
+from app.services.billing import assert_new_work_authorized
 from app.services.campaign_assignments import (
     as_aware_utc,
     ensure_active_driver_profile,
@@ -208,6 +209,9 @@ async def start_driver_trip(
     ensure_active_driver_profile(driver_profile)
     ensure_active_vehicle(vehicle)
     ensure_vehicle_belongs_to_driver(vehicle, driver_profile)
+    await assert_new_work_authorized(
+        session, campaign_id=campaign.id, assignment_id=assignment.id
+    )
     await ensure_no_active_trip_for_driver_or_vehicle(
         session,
         driver_profile_id=driver_profile.id,
