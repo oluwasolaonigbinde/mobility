@@ -16,6 +16,64 @@ sections of `docs/pro-review-register.md`. It is advisory revalidation context,
 never a second queue, architecture source, decision log, or implementation
 authorization.
 
+The full reading order above applies to the active controller. A delegated
+worker receives a bounded task packet and reads only the exact global sections,
+local rules, and source files named in that packet. Workers must not reread the
+entire global control documents unless the controller records why that is
+necessary for their specific task.
+
+## Delegation context and usage budget
+
+These rules are mandatory for every controller and survive chat/session
+handoffs:
+
+- Spawn every subagent with **no inherited conversation history** by default.
+  In Codex, explicitly set `fork_turns: "none"`; never rely on the tool's
+  full-history default. A bounded positive turn count is allowed only when the
+  controller records why a self-contained packet cannot carry the required
+  facts. Full-history delegation requires explicit project-owner authorization
+  for that exact delegation.
+- Give each worker one compact, self-contained task packet. It contains only:
+  task/outcome, exact base/ref, relevant decision IDs or short excerpts, allowed
+  reads, allowed writes, acceptance criteria, focused verification, stop
+  conditions, and the required result format. Link to commits and files instead
+  of pasting chats, ledgers, test logs, or prior agent reports.
+- A worker may not reconstruct, request, or receive the controller's full chat
+  or full plan-ledger. If a missing fact materially blocks the task, it returns
+  one focused question; the controller answers with only that fact.
+- The controller is the only agent that reads and maintains the complete
+  programme ledger and global delivery state. Read-only scouts get one bounded
+  question. Reviewers get the approved contract, the exact diff/commit range,
+  and the relevant evidence only.
+- Do not delegate duplicate discovery or duplicate review. Parallel agents must
+  have genuinely disjoint questions or write ownership. Parallelism is for
+  throughput, not for having several agents ingest the same repository context.
+- Default to at most two active workers: one implementation worker and one
+  disjoint scout or required reviewer. More concurrent workers require an
+  explicit, recorded justification based on disjoint work; available capacity
+  alone is not justification.
+- Use the smallest capable model: Luna for bounded searches, inventories and
+  focused checks; Terra for ordinary implementation and review; Sol/high
+  reasoning only for demonstrably difficult money, security, migration,
+  concurrency or package-boundary decisions. Pro use must be explicitly
+  justified by marginal risk/quality value.
+- Run focused tests inside slices. Run the full relevant suite once at the
+  integration/package gate unless a failure or shared-boundary change requires
+  another run. Do not have multiple agents repeat the same full suite or ingest
+  repeated CI-watch output.
+- Keep worker responses bounded: verdict, changed paths/commit, acceptance
+  evidence, concise test results, and real blockers. Store verbose evidence in
+  files and return pointers. The controller reports only material events to the
+  user.
+- Before expensive delegation, check remaining usage when the surface exposes
+  it. When capacity is low or unknown, serialize work and prefer Luna/local
+  tooling. Never trade the user's weekly allowance for speculative reviews,
+  reviewer-of-reviewer loops, or governance ceremony.
+
+Every controller handoff must restate the no-history spawning rule and the
+current worker/model/concurrency budget. A successor must apply these rules
+from repository state, not rely on remembering a previous conversation.
+
 ## The execution lock
 
 - Implement only the package marked `NEXT`, `IN PROGRESS`, or `REVIEW` in the
