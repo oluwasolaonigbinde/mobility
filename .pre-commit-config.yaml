@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: validate-delivery-control
+        name: validate delivery packages and checklist
+        entry: python3 scripts/validate_progress.py
+        language: system
+        pass_filenames: false
+        files: ^(docs/progress\.md|scripts/validate_progress\.py|tests/test_validate_progress\.py|AGENTS\.md|\.pre-commit-config\.yaml)$

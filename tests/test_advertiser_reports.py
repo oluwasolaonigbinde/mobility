@@ -187,6 +187,7 @@ def add_fraud_flag(
     flag_type: str,
     flag_status: str = FraudFlagStatus.OPEN.value,
     detected_at: datetime = DAY_1,
+    reviewed_by_user_id=None,
 ) -> None:
     async def create() -> None:
         async with db_sessionmaker() as session:
@@ -204,6 +205,13 @@ def add_fraud_flag(
                     description="reporting test flag",
                     evidence={},
                     detected_at=detected_at,
+                    reviewed_by_user_id=reviewed_by_user_id,
+                    reviewed_at=(detected_at if reviewed_by_user_id is not None else None),
+                    resolution_note=(
+                        "Dismissed for reporting fixture."
+                        if flag_status == FraudFlagStatus.DISMISSED.value
+                        else None
+                    ),
                 )
             )
             await session.commit()
@@ -354,6 +362,7 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(db_clien
         severity="low",
         flag_type="poor_accuracy",
         flag_status=FraudFlagStatus.DISMISSED.value,
+        reviewed_by_user_id=admin.id,
     )
     create_report_graph(
         db_sessionmaker,
@@ -636,6 +645,7 @@ def test_reporting_zero_state_cross_org_date_validation_and_no_auto_calculation(
     assert data["fraud_flags"] == {
         "open": 0,
         "acknowledged": 0,
+        "confirmed": 0,
         "dismissed": 0,
         "low": 0,
         "medium": 0,
@@ -658,17 +668,16 @@ def test_slice10_adds_no_migration_or_reporting_tables() -> None:
 
     versions = {path.name for path in Path("alembic/versions").glob("*.py")}
     assert "0010_payouts_and_earnings.py" in versions
-    for migration in Path("alembic/versions").glob("*.py"):
-        text = migration.read_text()
-        for forbidden_table in [
-            "campaign_daily_metrics",
-            "advertiser_reports",
-            "heatmaps",
-            "heatmap_cache",
-            "billing",
-            "invoices",
-            "settlements",
-            "withdrawals",
-            "payments",
-        ]:
-            assert f'"{forbidden_table}"' not in text
+    text = Path("alembic/versions/0010_payouts_and_earnings.py").read_text()
+    for forbidden_table in [
+        "campaign_daily_metrics",
+        "advertiser_reports",
+        "heatmaps",
+        "heatmap_cache",
+        "billing",
+        "invoices",
+        "settlements",
+        "withdrawals",
+        "payments",
+    ]:
+        assert f'"{forbidden_table}"' not in text

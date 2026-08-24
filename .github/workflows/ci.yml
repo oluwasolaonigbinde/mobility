@@ -1,8 +1,9 @@
-name: frontend
+name: ci
 
 on:
   push:
-    branches: ["master", "main", "frontend-*", "f7-*"]
+    branches:
+      - master
     paths:
       - "frontend/**"
       - "app/**"
@@ -16,7 +17,9 @@ on:
       - "staging.env.example"
       - "scripts/**"
       - "docs/**"
-      - ".github/workflows/frontend.yml"
+      - "AGENTS.md"
+      - ".pre-commit-config.yaml"
+      - ".github/workflows/ci.yml"
   pull_request:
     paths:
       - "frontend/**"
@@ -31,7 +34,13 @@ on:
       - "staging.env.example"
       - "scripts/**"
       - "docs/**"
-      - ".github/workflows/frontend.yml"
+      - "AGENTS.md"
+      - ".pre-commit-config.yaml"
+      - ".github/workflows/ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 defaults:
   run:
@@ -70,6 +79,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Validate delivery packages and checklist
+        run: python scripts/validate_progress.py
       - run: pip install -e ".[dev]"
       - run: ruff check .
       - run: pytest
@@ -119,9 +130,26 @@ jobs:
           cp .env.example .env
           sed -i 's/ALLOW_DEMO_SEED=false/ALLOW_DEMO_SEED=true/' .env
           docker compose up -d --build api db redis
-          # wait for readiness
+          # Fail-closed readiness: /health can answer before Postgres accepts
+          # connections, so migrations must wait on the database itself, and
+          # both loops must fail the job instead of falling through.
+          # pg_isready must probe TCP (-h 127.0.0.1): the unix socket answers
+          # during the image's first-boot init server while db:5432 TCP (what
+          # alembic/the API dial) is not accepting yet. Require two consecutive
+          # successes to ride out the init-phase restart window.
+          ok=0
+          for i in $(seq 1 60); do
+            if docker compose exec -T db pg_isready -h 127.0.0.1 -U mobility -d mobility; then
+              ok=$((ok + 1)); [ "$ok" = "2" ] && break
+            else
+              ok=0
+            fi
+            if [ "$i" = "60" ]; then echo "::error::Postgres never became ready"; exit 1; fi
+            sleep 2
+          done
           for i in $(seq 1 60); do
             curl -sf http://localhost:8000/api/v1/health && break
+            if [ "$i" = "60" ]; then echo "::error::API never became ready"; exit 1; fi
             sleep 2
           done
           docker compose exec -T api alembic upgrade head

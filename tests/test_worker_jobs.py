@@ -23,6 +23,9 @@ from test_trip_processing import (
 
 from app.core.config import get_settings
 from app.core.trip_enqueue import RedisTripProcessingEnqueuer
+from app.jobs import data_lifecycle as data_lifecycle_jobs
+from app.jobs import earnings_release as earnings_release_jobs
+from app.jobs import payment_gateway as payment_gateway_jobs
 from app.jobs import trip_processing as jobs
 from app.jobs.worker import WorkerSettings, sweep_cron_minutes
 from app.services.trip_processing import DueTrip, process_ended_trip
@@ -42,14 +45,18 @@ def make_ctx(sessionmaker, settings) -> dict:
 
 
 def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
-    assert len(WorkerSettings.functions) == 1
+    assert len(WorkerSettings.functions) == 2
     registered = WorkerSettings.functions[0]
     assert isinstance(registered, Function)
     assert registered.name == "process_trip"
     assert registered.keep_result_s == 0
     assert registered.coroutine is jobs.process_trip
+    gateway = WorkerSettings.functions[1]
+    assert isinstance(gateway, Function)
+    assert gateway.name == "process_payment_gateway_event"
+    assert gateway.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 1
+    assert len(WorkerSettings.cron_jobs) == 7
     cron_job = WorkerSettings.cron_jobs[0]
     assert isinstance(cron_job, CronJob)
     assert cron_job.coroutine is jobs.process_unprocessed_trips
@@ -57,6 +64,36 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert cron_job.max_tries == 1
     assert cron_job.keep_result_s == 0
     assert cron_job.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
+
+    seal_cron = WorkerSettings.cron_jobs[1]
+    assert isinstance(seal_cron, CronJob)
+    assert seal_cron.coroutine is jobs.seal_ended_trips_job
+    assert seal_cron.unique is True
+    assert seal_cron.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
+
+    release_cron = WorkerSettings.cron_jobs[2]
+    assert isinstance(release_cron, CronJob)
+    assert release_cron.coroutine is earnings_release_jobs.sweep_earnings_release_reviews
+
+    gateway_sweep = WorkerSettings.cron_jobs[3]
+    assert isinstance(gateway_sweep, CronJob)
+    assert gateway_sweep.coroutine is payment_gateway_jobs.sweep_payment_gateway_events
+    assert gateway_sweep.unique is True
+    assert release_cron.unique is True
+    assert release_cron.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
+
+    lifecycle_crons = {cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[4:]}
+    assert set(lifecycle_crons) == {
+        data_lifecycle_jobs.premake_ping_partitions,
+        data_lifecycle_jobs.check_ping_partition_coverage,
+        data_lifecycle_jobs.purge_expired_ping_partitions,
+    }
+    for cron_job in lifecycle_crons.values():
+        assert isinstance(cron_job, CronJob)
+        assert cron_job.unique is True
+        # Daily, staggered hours so lifecycle DDL never stacks.
+        assert len(cron_job.hour) == 1
+    assert len({next(iter(job.hour)) for job in lifecycle_crons.values()}) == 3
 
 
 def test_process_trip_malformed_id_fails_before_any_write(db_sessionmaker, settings) -> None:
@@ -108,8 +145,7 @@ def test_process_trip_escaped_unique_integrity_error_is_captured_and_reraised(
             "INSERT",
             {},
             Exception(
-                'duplicate key value violates unique constraint '
-                '"uq_trip_analytics_trip_session_id"'
+                'duplicate key value violates unique constraint "uq_trip_analytics_trip_session_id"'
             ),
         )
 
@@ -119,9 +155,7 @@ def test_process_trip_escaped_unique_integrity_error_is_captured_and_reraised(
 
     with caplog.at_level(logging.ERROR, logger="app.jobs.trip_processing"):
         with pytest.raises(IntegrityError) as exc_info:
-            asyncio.run(
-                jobs.process_trip(make_ctx(db_sessionmaker, settings), str(graph.trip.id))
-            )
+            asyncio.run(jobs.process_trip(make_ctx(db_sessionmaker, settings), str(graph.trip.id)))
 
     assert captured == [exc_info.value]
     assert "constraint=uq_trip_analytics_trip_session_id" in caplog.text
@@ -280,9 +314,7 @@ def test_sweep_counts_unexpected_integrity_error_as_failed(
     monkeypatch.setattr(jobs, "capture_exception", captured.append)
 
     with caplog.at_level(logging.ERROR, logger="app.jobs.trip_processing"):
-        summary = asyncio.run(
-            jobs.process_unprocessed_trips(make_ctx(db_sessionmaker, settings))
-        )
+        summary = asyncio.run(jobs.process_unprocessed_trips(make_ctx(db_sessionmaker, settings)))
 
     assert summary["selected"] == 1
     assert summary["failed"] == 1
@@ -299,8 +331,7 @@ def test_sweep_cursor_resumes_next_occurrence_and_reaches_healthy_tail(
 ) -> None:
     batch_settings = settings.model_copy(update={"worker_sweep_batch_size": 8})
     candidates = [
-        DueTrip(id=uuid4(), ended_at=datetime(2026, 1, 1, index, tzinfo=UTC))
-        for index in range(10)
+        DueTrip(id=uuid4(), ended_at=datetime(2026, 1, 1, index, tzinfo=UTC)) for index in range(10)
     ]
     poison_ids = {candidate.id for candidate in candidates[:8]}
     attempted: list = []

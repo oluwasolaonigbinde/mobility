@@ -9,6 +9,7 @@ from starlette import status
 
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
+from app.core.payment_enqueue import PaymentEventEnqueuer, build_payment_event_enqueuer
 from app.core.rate_limit import LoginRateLimiter, build_login_rate_limiter
 from app.core.security import decode_token_claims
 from app.core.trip_enqueue import TripProcessingEnqueuer, build_trip_enqueuer
@@ -34,6 +35,15 @@ def get_trip_enqueuer(settings: SettingsDependency) -> TripProcessingEnqueuer:
 
 
 TripEnqueuerDependency = Annotated[TripProcessingEnqueuer, Depends(get_trip_enqueuer)]
+
+
+def get_payment_event_enqueuer(settings: SettingsDependency) -> PaymentEventEnqueuer:
+    return build_payment_event_enqueuer(settings)
+
+
+PaymentEventEnqueuerDependency = Annotated[
+    PaymentEventEnqueuer, Depends(get_payment_event_enqueuer)
+]
 
 
 async def get_current_user(

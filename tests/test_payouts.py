@@ -35,6 +35,7 @@ from app.models.trip_analytics import FraudFlag, FraudFlagStatus, TripAnalytics
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
 from app.schemas.payouts import CampaignPayoutRuleUpdate
+from app.services.fraud_holds import fraud_hold_active_clause
 from app.services.payouts import update_campaign_payout_rule
 
 PASSWORD = "long-secure-password"
@@ -78,7 +79,7 @@ def create_payout_graph(
     campaign=None,
     organization_id=None,
     advertiser=None,
-    trip_status: TripSessionStatus = TripSessionStatus.ENDED,
+    trip_status: TripSessionStatus = TripSessionStatus.SEALED,
     analytics_status: str = "computed",
     estimate_status: str = "estimated",
     quality_score=Decimal("0.8000"),
@@ -133,7 +134,11 @@ def create_payout_graph(
         assignment_status=CampaignAssignmentStatus.ACTIVE,
         activated_at=BASE_TIME,
     )
-    ended_at = BASE_TIME + timedelta(minutes=30) if trip_status == TripSessionStatus.ENDED else None
+    ended_at = (
+        BASE_TIME + timedelta(minutes=30)
+        if trip_status != TripSessionStatus.ACTIVE
+        else None
+    )
     trip = create_test_trip_session(
         db_sessionmaker,
         assignment_id=assignment.id,
@@ -191,6 +196,7 @@ def add_fraud_flag(
     severity: str,
     flag_type: str,
     flag_status: str = FraudFlagStatus.OPEN.value,
+    reviewed_by_user_id=None,
 ) -> None:
     async def create() -> None:
         async with db_sessionmaker() as session:
@@ -208,6 +214,25 @@ def add_fraud_flag(
                     description=f"{severity} test flag",
                     evidence={},
                     detected_at=datetime.now(UTC),
+                    reviewed_by_user_id=(
+                        None
+                        if flag_status == FraudFlagStatus.OPEN.value
+                        else reviewed_by_user_id
+                    ),
+                    reviewed_at=(
+                        None
+                        if flag_status == FraudFlagStatus.OPEN.value
+                        else datetime.now(UTC)
+                    ),
+                    resolution_note=(
+                        "Test review resolution."
+                        if flag_status
+                        in {
+                            FraudFlagStatus.CONFIRMED.value,
+                            FraudFlagStatus.DISMISSED.value,
+                        }
+                        else None
+                    ),
                 )
             )
             await session.flush()
@@ -216,7 +241,7 @@ def add_fraud_flag(
                 select(FraudFlag.severity, func.count(FraudFlag.id))
                 .where(
                     FraudFlag.trip_session_id == trip.id,
-                    FraudFlag.status == FraudFlagStatus.OPEN.value,
+                    fraud_hold_active_clause(),
                 )
                 .group_by(FraudFlag.severity)
             )
@@ -783,7 +808,7 @@ def test_fraud_flags_caps_and_floor_are_applied_deterministically(
     assert zero.json()["ledger_entry"] is None
 
 
-def test_fraud_flags_ignore_closed_statuses_and_use_highest_open_severity(
+def test_fraud_flags_ignore_dismissed_and_count_acknowledged_as_active(
     db_client,
     db_sessionmaker,
 ) -> None:
@@ -812,6 +837,7 @@ def test_fraud_flags_ignore_closed_statuses_and_use_highest_open_severity(
         severity="high",
         flag_type="impossible_speed",
         flag_status=FraudFlagStatus.DISMISSED.value,
+        reviewed_by_user_id=admin.id,
     )
     add_fraud_flag(
         db_sessionmaker,
@@ -820,6 +846,7 @@ def test_fraud_flags_ignore_closed_statuses_and_use_highest_open_severity(
         severity="medium",
         flag_type="poor_accuracy",
         flag_status=FraudFlagStatus.ACKNOWLEDGED.value,
+        reviewed_by_user_id=admin.id,
     )
 
     closed_response = db_client.post(
@@ -865,16 +892,68 @@ def test_fraud_flags_ignore_closed_statuses_and_use_highest_open_severity(
     )
 
     assert closed_response.status_code == http_status.HTTP_200_OK
-    assert closed_response.json()["fraud_multiplier"] == "1.0000"
-    assert closed_response.json()["final_payout"] == "1044.00"
+    assert closed_response.json()["fraud_multiplier"] == "0.7000"
+    assert closed_response.json()["final_payout"] == "730.80"
     assert closed_response.json()["metadata"]["fraud_flag_counts"] == {
         "low": 0,
-        "medium": 0,
+        "medium": 1,
         "high": 0,
     }
     assert mixed_response.status_code == http_status.HTTP_200_OK
     assert mixed_response.json()["fraud_multiplier"] == "0.2500"
     assert mixed_response.json()["final_payout"] == "261.00"
+
+
+@pytest.mark.parametrize(
+    "flag_status",
+    [
+        FraudFlagStatus.OPEN.value,
+        FraudFlagStatus.ACKNOWLEDGED.value,
+        FraudFlagStatus.CONFIRMED.value,
+    ],
+)
+def test_v1_minimum_floor_never_restores_pay_reduced_by_active_hold(
+    db_client,
+    db_sessionmaker,
+    flag_status: str,
+) -> None:
+    admin = create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
+    _, _, campaign, _, _, _, trip, analytics, _ = create_payout_graph(
+        db_sessionmaker,
+        admin=admin,
+        advertiser_email=f"adv-floor-{flag_status}@example.com",
+        driver_email=f"driver-floor-{flag_status}@example.com",
+        plate_number=f"FLR-{flag_status[:3].upper()}",
+    )
+    create_test_payout_rule(
+        db_sessionmaker,
+        campaign_id=campaign.id,
+        created_by_user_id=admin.id,
+        base_rate_per_km=Decimal("1.00"),
+        min_payout_per_trip=Decimal("20.00"),
+        high_fraud_multiplier=Decimal("0.25"),
+    )
+    add_fraud_flag(
+        db_sessionmaker,
+        trip=trip,
+        analytics=analytics,
+        severity="high",
+        flag_type="impossible_speed",
+        flag_status=flag_status,
+        reviewed_by_user_id=admin.id,
+    )
+
+    response = db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/calculate-payout",
+        headers=admin_headers(db_client),
+        json={},
+    )
+
+    assert response.status_code == http_status.HTTP_200_OK
+    assert response.json()["gross_payout"] == "8.50"
+    assert response.json()["fraud_multiplier"] == "0.2500"
+    assert response.json()["final_payout"] == "1.70"
+    assert response.json()["final_payout"] != "20.00"
 
 
 def test_payout_calculation_statuses_and_expected_errors(db_client, db_sessionmaker) -> None:
@@ -1007,7 +1086,7 @@ def test_payout_calculation_statuses_and_expected_errors(db_client, db_sessionma
     assert inactive.status_code == http_status.HTTP_400_BAD_REQUEST
     assert inactive.json()["error"]["code"] == "PAYOUT_RULE_INACTIVE"
     assert active.status_code == http_status.HTTP_400_BAD_REQUEST
-    assert active.json()["error"]["code"] == "TRIP_NOT_ENDED"
+    assert active.json()["error"]["code"] == "TRIP_NOT_SEALED"
     assert insufficient.json()["status"] == "insufficient_data"
     assert insufficient.json()["final_payout"] == "0.00"
     assert insufficient.json()["ledger_entry"] is None
@@ -1264,8 +1343,13 @@ def test_driver_earnings_are_scoped_and_append_only(db_client, db_sessionmaker) 
             "currency": "NGN",
             "pending_amount": "1044.00",
             "available_amount": "0.00",
+            "paid_amount": "0.00",
             "voided_amount": "0.00",
             "lifetime_earned_amount": "1044.00",
+            "released_available_amount": "0.00",
+            "cash_paid_amount": "0.00",
+            "carry_forward_debt_amount": "0.00",
+            "batch_payable_amount": "0.00",
             "ledger_entry_count": 1,
         }
     ]
@@ -1397,11 +1481,13 @@ def test_advertiser_cost_summary_is_scoped_and_aggregates_stored_calculations(
     assert own.status_code == http_status.HTTP_200_OK
     own_data = own.json()
     assert own_data["formula_version"] == "payout_v1"
+    assert own_data["formula_versions"] == ["payout_v1"]
     assert own_data["totals_by_currency"] == [
         {
             "currency": "NGN",
             "final_payout_total": "1044.00",
             "gross_payout_total": "1305.00",
+            "ledger_net_total": "1044.00",
             "calculated_trip_count": 1,
             "blocked_trip_count": 1,
             "insufficient_data_trip_count": 0,
@@ -1416,6 +1502,7 @@ def test_advertiser_cost_summary_is_scoped_and_aggregates_stored_calculations(
             "currency": "NGN",
             "final_payout_total": "0.00",
             "gross_payout_total": "0.00",
+            "ledger_net_total": "0.00",
             "calculated_trip_count": 0,
             "blocked_trip_count": 0,
             "insufficient_data_trip_count": 0,

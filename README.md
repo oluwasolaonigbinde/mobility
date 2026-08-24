@@ -5,29 +5,12 @@ backend and a Next.js frontend for advertiser, driver, and operator workflows.
 
 ## Project Status
 
-- **Backend MVP:** Slices 0–13 are complete and formally closed. The frozen backend
-  contract is available at `docs/api/openapi.snapshot.json`.
-- **Frontend baseline:** F0–F6 are committed, covering the production foundation,
-  advertiser campaign workflows, zones, reporting/heatmaps, driver PWA, admin
-  console, and frontend hardening.
-- **F7 hardening:** **complete and merged to `master`**. It adds
-  authentication hardening (current-password-verified changes, forced first-login
-  password change, sliding sessions with a 12-hour absolute cap, session-version
-  revocation, Redis-backed login rate limiting), an admin audit-trail API and UI,
-  a rich deterministic demo seed, backup/restore scripts with a revision-gated
-  restore, inert-without-DSN Sentry hooks, and backend + frontend + e2e CI. It is
-  verified locally.
-- **Automated trip processing:** **complete on `master`**. An arq worker runs
-  the post-trip analytics → fraud → impressions → transitional payout pipeline,
-  with database-backed recovery sweeps and race-safe idempotency.
-- **Pre-production operations:** **complete locally on `master`**. The repository
-  includes a production Compose overlay, Caddy edge, release smoke checks, and a
-  rehearsed backup/restore procedure. Nothing is deployed yet; provider, domain,
-  budget, and operations ownership still require approval (`docs/staging-options.md`).
-
-Read `docs/project-reconciliation.md` before planning further work. It identifies
-the canonical repository, evidence baseline, delivery status, and the boundary
-between completed work and F7.
+Delivery status lives in **one place**: `docs/progress.md` — what has been
+delivered vs. the client-promised MVP scope, current roadmap wave, and what is
+outstanding. Read it (plus `docs/architecture.md`) before planning any work.
+Summary as of Aug 2026: backend slices 0–13 closed; frontend F0–F7 merged;
+worker pipeline, payout v2 (S1), and data lifecycle (S4) delivered; nothing
+deployed yet.
 
 ## Stack
 
@@ -42,7 +25,14 @@ between completed work and F7.
 - pytest and ruff
 - Docker Compose
 
-## Current Scope
+## Delivered Backend Baseline (closed slices 0–13)
+
+Full MVP scope starts with the client proposal
+(`docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx`, D11) **as
+superseded by the direct client answers and approvals recorded in decisions-log D18–D20**,
+and is designed in `docs/architecture.md`; execution order lives exclusively
+in `docs/progress.md`. The exclusions below describe only
+what the *closed backend slice loop* did not build, not the project's scope.
 
 The closed backend MVP contains Slice 13: project foundation, request IDs, expected error
 envelope, SQLAlchemy/Alembic foundation, JWT login, current-user context, RBAC, admin
@@ -68,15 +58,31 @@ architecture, local setup, and testing.
 
 ## Documentation Map
 
-- `docs/project-reconciliation.md` — current project state and evidence baseline.
-- `docs/architecture.md` — verified current state (including F7) and designed target state.
-- `docs/runbook.md` — local and pilot operational procedures: backups, restore,
-  migrations, sessions, rate limiting, seed, Sentry, secret rotation.
-- `docs/staging-options.md` — hosting research only; revalidate pricing and provider
-  capabilities before approval.
-- `docs/decisions-log.md` and `docs/Product-Direction-Questionnaire.md` — product
-  decisions and unresolved client questions.
-- `docs/build-loop/` — immutable backend-MVP slice ledger and review evidence.
+Four living authorities, one locked loop: client decisions change →
+architecture amends → `docs/progress.md` authorises one of nine packages →
+agents complete its mandatory checklist and review it once → progress records
+evidence and promotes the next dependency-safe package. The proposal is the
+scope baseline; later direct client decisions, currently D18–D20, override any
+conflict. Root `AGENTS.md` enforces this loop.
+
+1. `docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx` — **scope
+   baseline**: the client-facing MVP promise (D11), interpreted through later
+   direct client decisions, currently D18–D20. Never edited by agents.
+2. `docs/architecture.md` — **design**: verified current state and the target
+   architecture that fulfils the proposal, with the §31 wave roadmap.
+3. `docs/decisions-log.md` — **decisions**: Part 1 append-only D-row history,
+   Part 2 current Q1–Q34 statuses + divergence guards.
+4. `docs/progress.md` — **delivery control**: the intended MVP, delivered
+   evidence, nine-package remainder, 71-item acceptance checklist, and the sole
+   authorised `NEXT` package; updated
+   with every landed package.
+
+Supporting reference: `docs/runbook.md` (operations), `docs/next-steps.md`
+(historical W1 planning research — never the current queue),
+`docs/staging-options.md` (hosting research), `docs/api/openapi.snapshot.json`
+(frozen contract).
+History: `docs/build-loop/` (closed backend ledger), `docs/archive/`
+(superseded artefacts and journals).
 
 ## Local Prerequisites
 
@@ -424,6 +430,7 @@ Compose starts the API, the arq worker, PostgreSQL/PostGIS, and Redis. The
 `worker` service (no published port) automates post-trip processing — analytics,
 fraud flags, impression estimate, and payout calculation for ended trips — via an
 enqueue on trip end plus a Postgres-derived sweep; see "Post-trip processing
-worker" in `docs/runbook.md`. Its payout stage runs `payout_v1` as transitional
-infrastructure only, not the approved payment model; do not enable it against
-real driver earnings.
+worker" in `docs/runbook.md`. Its payout stage uses the approved `payout_v2`
+hourly-pay and daily-cap model. Since S4, this worker is also responsible for
+partition premaking, coverage monitoring, and retention, so it is mandatory in
+production.

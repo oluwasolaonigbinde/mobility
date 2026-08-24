@@ -20,14 +20,13 @@ from app.models.impression import (
 )
 from app.models.trip import TripSession, TripSessionStatus
 from app.models.trip_analytics import (
-    FraudFlag,
     FraudFlagSeverity,
-    FraudFlagStatus,
     TripAnalytics,
     TripAnalyticsStatus,
 )
 from app.schemas.impressions import TrafficDensityProfileCreate, TrafficDensityProfileUpdate
 from app.services.campaigns import get_advertiser_campaign
+from app.services.fraud_holds import fraud_hold_counts
 from app.services.provenance import stable_source_fingerprint
 from app.services.trip_analytics import (
     analytics_not_found,
@@ -406,7 +405,9 @@ async def get_trip_for_estimation(session: AsyncSession, trip_id: UUID) -> TripS
     trip = await session.get(TripSession, trip_id)
     if trip is None:
         raise trip_not_found()
-    if trip.status != TripSessionStatus.ENDED.value or trip.ended_at is None:
+    # Estimates are diagnostics, not money: `ended` and `sealed` both qualify.
+    finalized = (TripSessionStatus.ENDED.value, TripSessionStatus.SEALED.value)
+    if trip.status not in finalized or trip.ended_at is None:
         raise AppError(
             "TRIP_NOT_ENDED",
             "Impressions can only be estimated for ended trips",
@@ -422,21 +423,6 @@ async def get_analytics_for_trip(session: AsyncSession, trip_id: UUID) -> TripAn
     if analytics is None:
         raise analytics_not_found()
     return analytics
-
-
-async def open_fraud_counts(session: AsyncSession, trip_id: UUID) -> dict[str, int]:
-    result = await session.execute(
-        select(FraudFlag.severity, func.count(FraudFlag.id))
-        .where(
-            FraudFlag.trip_session_id == trip_id,
-            FraudFlag.status == FraudFlagStatus.OPEN.value,
-        )
-        .group_by(FraudFlag.severity)
-    )
-    counts = {severity.value: 0 for severity in FraudFlagSeverity}
-    for severity, count in result.all():
-        counts[str(severity)] = int(count)
-    return counts
 
 
 def fraud_multiplier(counts: dict[str, int], settings: Settings) -> Decimal:
@@ -664,7 +650,7 @@ async def estimate_trip_impressions(
         profile_id=traffic_density_profile_id,
         settings=settings,
     )
-    counts = await open_fraud_counts(session, trip.id)
+    counts = await fraud_hold_counts(session, trip.id)
     values = estimate_values(
         analytics=analytics,
         profile=profile,

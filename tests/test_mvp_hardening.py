@@ -14,7 +14,7 @@ from app.main import create_app
 from app.models.user import UserRole
 
 SNAPSHOT_PATH = Path("docs/api/openapi.snapshot.json")
-EXPECTED_ALEMBIC_HEAD = "0012_audit_event_indexes"
+EXPECTED_ALEMBIC_HEAD = "0040_budget_policy_blocked_state"
 EXPECTED_MIGRATIONS = {
     "0001_enable_extensions.py",
     "0002_identity_and_organizations.py",
@@ -28,6 +28,34 @@ EXPECTED_MIGRATIONS = {
     "0010_payouts_and_earnings.py",
     "0011_user_password_management.py",
     "0012_audit_event_indexes.py",
+    "0013_payout_v2_hourly_caps.py",
+    "0014_location_pings_partitioning.py",
+    "0015_payout_day_allocation.py",
+    "0016_trip_seal_protocol.py",
+    "0017_seal_review_hardening.py",
+    "0018_payout_rule_revisions.py",
+    "0019_assignment_rule_bindings.py",
+    "0020_payout_correction_orders.py",
+    "0021_frozen_payout_v3_terms.py",
+    "0022_current_fraud_assessments.py",
+    "0023_route_replay_signatures.py",
+    "0024_fraud_review_holds.py",
+    "0025_fraud_disputes_notifications.py",
+    "0026_frozen_campaign_payment_window.py",
+    "0027_earnings_release_sla.py",
+    "0028_protected_payee_accounts.py",
+    "0029_payout_batch_reservation.py",
+    "0030_provider_line_reconciliation.py",
+    "0031_carry_forward_payout_debt.py",
+    "0032_commercial_quotation_terms.py",
+    "0033_advertiser_company_profiles.py",
+    "0034_canonical_receipts_allocations.py",
+    "0035_vat_itemised_invoices.py",
+    "0036_invoice_authority_hardening.py",
+    "0037_funded_liability_authority.py",
+    "0038_payment_gateway_events.py",
+    "0039_billing_corrections_refunds.py",
+    "0040_budget_policy_blocked_state.py",
 }
 MAJOR_CONTRACT_PATHS = {
     "health": "/api/v1/health",

@@ -2,6 +2,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+import pytest
 from conftest import (
     auth_headers,
     create_test_campaign,
@@ -150,6 +151,8 @@ def add_fraud_flag(
     analytics,
     severity: str,
     flag_type: str,
+    flag_status: str = FraudFlagStatus.OPEN.value,
+    reviewed_by_user_id=None,
 ) -> None:
     async def create() -> None:
         async with db_sessionmaker() as session:
@@ -163,10 +166,29 @@ def add_fraud_flag(
                     vehicle_id=trip.vehicle_id,
                     flag_type=flag_type,
                     severity=severity,
-                    status=FraudFlagStatus.OPEN.value,
+                    status=flag_status,
                     description=f"{severity} test flag",
                     evidence={},
                     detected_at=datetime.now(UTC),
+                    reviewed_by_user_id=(
+                        None
+                        if flag_status == FraudFlagStatus.OPEN.value
+                        else reviewed_by_user_id
+                    ),
+                    reviewed_at=(
+                        None
+                        if flag_status == FraudFlagStatus.OPEN.value
+                        else datetime.now(UTC)
+                    ),
+                    resolution_note=(
+                        "Test review resolution."
+                        if flag_status
+                        in {
+                            FraudFlagStatus.CONFIRMED.value,
+                            FraudFlagStatus.DISMISSED.value,
+                        }
+                        else None
+                    ),
                 )
             )
             await session.commit()
@@ -347,6 +369,56 @@ def test_open_fraud_flags_apply_deterministic_severity_multipliers(
         assert response.status_code == http_status.HTTP_200_OK
         assert response.json()["fraud_adjustment_multiplier"] == multiplier
         assert response.json()["estimated_impressions"] == expected
+
+
+@pytest.mark.parametrize(
+    ("flag_status", "expected_multiplier", "expected_impressions"),
+    [
+        (FraudFlagStatus.OPEN.value, "0.2500", "297.50"),
+        (FraudFlagStatus.ACKNOWLEDGED.value, "0.2500", "297.50"),
+        (FraudFlagStatus.CONFIRMED.value, "0.2500", "297.50"),
+        (FraudFlagStatus.DISMISSED.value, "1.0000", "1190.00"),
+    ],
+)
+def test_impressions_use_shared_active_hold_statuses(
+    db_client,
+    db_sessionmaker,
+    flag_status: str,
+    expected_multiplier: str,
+    expected_impressions: str,
+) -> None:
+    create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
+    reviewer, _, _, _, _, _, _, trip, analytics = create_estimation_graph(
+        db_sessionmaker,
+        admin_email=f"admin-hold-{flag_status}@example.com",
+        advertiser_email=f"adv-hold-{flag_status}@example.com",
+        driver_email=f"driver-hold-{flag_status}@example.com",
+        plate_number=f"HLD-{flag_status[:3].upper()}",
+    )
+    density_profile = create_formula_profile(
+        db_sessionmaker,
+        name=f"Hold Profile {flag_status}",
+        is_default=False,
+    )
+    add_fraud_flag(
+        db_sessionmaker,
+        trip=trip,
+        analytics=analytics,
+        severity="high",
+        flag_type="impossible_speed",
+        flag_status=flag_status,
+        reviewed_by_user_id=reviewer.id,
+    )
+
+    response = db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/estimate-impressions",
+        headers=admin_headers(db_client),
+        json={"traffic_density_profile_id": str(density_profile.id)},
+    )
+
+    assert response.status_code == http_status.HTTP_200_OK
+    assert response.json()["fraud_adjustment_multiplier"] == expected_multiplier
+    assert response.json()["estimated_impressions"] == expected_impressions
 
 
 def test_estimate_rejects_missing_analytics_active_trip_and_inactive_profile(

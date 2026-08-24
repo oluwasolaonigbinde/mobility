@@ -49,26 +49,27 @@ docker run --rm -e EDGE_HOSTNAME=http://localhost \
   caddy:2.8-alpine caddy validate --config /etc/caddy/Caddyfile
 docker compose --env-file "$COMPOSE_ENV_FILE" build api frontend
 
-# Start dependencies, apply migrations as a one-shot, then start the app.
+# Start dependencies, apply migrations as a one-shot, then start the app
+# and the worker (mandatory since S4 — payouts + data lifecycle).
 docker compose --env-file "$COMPOSE_ENV_FILE" up -d db redis
 docker compose --env-file "$COMPOSE_ENV_FILE" --profile release run --rm migrate
 docker compose --env-file "$COMPOSE_ENV_FILE" up -d api frontend edge
+docker compose --env-file "$COMPOSE_ENV_FILE" --profile worker up -d worker
 docker compose --env-file "$COMPOSE_ENV_FILE" ps
 ```
 
-The default production model contains `db`, `redis`, `api`, `frontend`, and
-`edge`. Only Caddy publishes host ports (80/443); API, frontend, PostGIS, and
-Redis remain private. PostGIS and Redis attach only to the internal data
-network. API, frontend, and optional worker/migration containers also attach to
-a non-published egress bridge so runtime HTTPS integrations such as Sentry can
-reach the internet without exposing an inbound host port. The worker is
-excluded by default. Do not select its
-profile against real earnings while Q4/Q5 remain open. If separate written
-product authorization is later recorded:
-
-```bash
-docker compose --env-file "$COMPOSE_ENV_FILE" --profile worker up -d worker
-```
+The production model contains `db`, `redis`, `api`, `frontend`, `edge`, and
+`worker`. Only Caddy publishes host ports (80/443); API, frontend, PostGIS,
+and Redis remain private. PostGIS and Redis attach only to the internal data
+network. API, frontend, and worker/migration containers also attach to a
+non-published egress bridge so runtime HTTPS integrations such as Sentry can
+reach the internet without exposing an inbound host port. The worker keeps
+its compose profile purely as an operational quiescing mechanism (the
+restore script stops and conditionally restarts it) — **it is a required
+service, not an optional one**: it computes payouts (`payout_v2`, S1) and
+enforces the location-ping data lifecycle (S4). A deployment without the
+worker accrues unprocessed trips, stops premaking partitions, and stops
+enforcing retention.
 
 Run the non-destructive release smoke with a pre-existing account. The password
 is read from stdin or a protected file, never a command-line argument:
@@ -325,7 +326,7 @@ If any condition is absent, leave header trust off. The browser-to-API path is `
 
 ## Post-trip processing worker
 
-The `worker` service runs an arq worker (`arq app.jobs.worker_entry.WorkerSettings`) that completes the pipeline for ended trips: analytics and fraud flags, one current-formula impression estimate, and one current-formula payout calculation plus its ledger entry. It fills missing stages and refreshes an existing impression estimate when its analytics or open-fraud inputs are stale; it never rewrites a historical payout, and old-formula analytics must be recomputed through the admin endpoint. Work arrives two ways: a fail-open enqueue after each trip-end commit, and a periodic sweep that derives due trips from Postgres. The strict entry module rejects a missing `REDIS_URL` before arq constructs a worker or opens a socket.
+The `worker` service runs an arq worker (`arq app.jobs.worker_entry.WorkerSettings`) that completes the pipeline for **sealed** trips (D15 — a trip seals at end when the client watermark is satisfied, when a late batch completes it, or via the seal sweep after `TRIP_SEAL_GRACE_SECONDS`; the money chain never runs on merely-ended trips): analytics and fraud flags, one current-formula impression estimate, and one current-formula payout calculation plus its ledger entry. It fills missing stages and refreshes an existing impression estimate when its analytics or open-fraud inputs are stale; it never rewrites a historical payout, and old-formula analytics must be recomputed through the admin endpoint. Work arrives two ways: a fail-open enqueue after each seal commit, and a periodic sweep that derives due (sealed) trips from Postgres. A sibling seal sweep on the same cadence force-seals ended trips past the recovery grace and logs `job=seal_ended_trips sealed=... enqueued=...`. The strict entry module rejects a missing `REDIS_URL` before arq constructs a worker or opens a socket.
 
 ```bash
 docker compose up -d worker
@@ -333,7 +334,7 @@ docker compose logs -f worker
 docker compose stop worker
 ```
 
-The worker publishes no host port. Settings: `WORKER_SWEEP_INTERVAL_MINUTES` (default `5`; must be a divisor of 60 between 1 and 60 — anything else fails Settings validation at startup) and `WORKER_SWEEP_BATCH_SIZE` (default `25` trips per sweep).
+The worker publishes no host port. Settings: `WORKER_SWEEP_INTERVAL_MINUTES` (default `5`; must be a divisor of 60 between 1 and 60 — anything else fails Settings validation at startup), `WORKER_SWEEP_BATCH_SIZE` (default `25` trips per sweep), and `TRIP_SEAL_GRACE_SECONDS` (default `600` — how long an incomplete/legacy trip end waits for late GPS batches before the seal sweep finalizes it).
 
 | Failure | Effect | Recovery |
 |---|---|---|
@@ -349,7 +350,67 @@ Positive current-formula payout calculations missing ledger entries are money-in
 
 Each trip run reads one timestamp from the database clock and injects it through analytics, impression, and payout services. This keeps the worker path frozen-time testable and prevents stages in one run from acquiring unrelated application-clock timestamps.
 
-**Transitional money warning.** The automated payout stage runs the existing `payout_v1` engine solely as transitional infrastructure to prove worker orchestration. It is not the approved pilot payment model — D2 specifies hourly pay, and Q4/Q5 are still open. Do not enable this worker against production data or real driver earnings. Production enablement is a separate, explicitly approved delivery.
+**Money model.** The automated payout stage dispatches per the governing rule row's model: `payout_v2` (the approved hourly-pay engine, S1/D9 — Q4/Q5 adopted and delivered) or frozen `payout_v1` history. Since S4 the worker also owns the location-ping data lifecycle (partition premake, coverage alarm, retention purge), so running it in every deployed environment is mandatory, not optional.
+
+## Location-ping data lifecycle (S4)
+
+`location_pings` is range-partitioned by UTC month on `recorded_at`
+(migration `0014`; the pre-conversion table survives as the bounded
+partition `location_pings_legacy`). Three daily worker crons own the
+lifecycle — **running the worker is mandatory in production from S4
+onward** (`docker compose --profile worker up -d worker` in the production
+topology): retention enforcement is a legal obligation, and partition
+premake prevents a write outage on the hottest table.
+
+| Cron | What it does | Settings |
+|---|---|---|
+| `premake_ping_partitions` | Idempotently creates monthly partitions covering the current UTC month through now + `PARTITION_PREMAKE_MONTHS` (default 4). Coverage-based, so it coexists with the legacy partition. Runs the coverage check inline afterward. | `PARTITION_PREMAKE_MONTHS` |
+| `check_ping_partition_coverage` | Alarms when no partition covers now + 1 month: logs `status=uncovered`, captures to Sentry, and fails the job. | — |
+| `purge_expired_ping_partitions` | Drops partitions whose entire range is older than `PING_RETENTION_MONTHS` (default 12), with append-only evidence in `data_purge_audit`, then deletes ping batches that have zero remaining pings and are older than the window. Concurrent runs no-op via an advisory lock. | `PING_RETENTION_MONTHS` |
+
+**Monitoring (both detectors must be wired):**
+
+- Point uptime monitoring at `GET /api/v1/health/partitions` — 200 with
+  `covered_until` when a partition covers now + 1 month, 503 `degraded`
+  otherwise (also 503 if the table is not partitioned). This catches a dead
+  worker; do not fold it into `/ready` (a month-out coverage gap must not
+  drop live traffic).
+- Alert on Sentry events from `check_ping_partition_coverage` /
+  `premake_ping_partitions` failures.
+
+**Purge evidence.** Every purge writes `data_purge_audit` lifecycle rows:
+`purge_started` (with row count, range, retention config) commits **before**
+any destruction; `dropped` commits atomically with the `DROP TABLE`; a
+partial unique index allows exactly one `dropped` row per partition;
+`detach_finalized` records recovery of an interrupted concurrent detach.
+The table is append-only — never UPDATE or DELETE it. An interrupted run
+honestly shows `purge_started` without `dropped` and the next daily run
+completes it. Recovery is deliberately gated: a pending detach is FINALIZEd
+only when a matching `purge_started` row exists **and** the partition is
+still retention-expired under current settings — anything else (a manual
+detach, a widened retention window) is refused with an error log
+(`pending_detach=... outcome=refused`) plus a Sentry event, and the run
+skips all destruction (partition sweep and batch purge) until an operator
+resolves it, because a pending partition is invisible through the parent
+and purging around it could cascade-delete retained pings. Standalone
+partition tables are dropped only when the evidence trail claims them and
+no `dropped` evidence already exists for the name (a conflict fails the run
+closed with `outcome=drop_refused`); an `orphan=... outcome=unclaimed_table`
+error log means a table the job refuses to touch: investigate manually.
+
+**Backups respect retention (§24.2.5):** backup rotation must stay ≤ 35
+days so purged pings age out of backups automatically — the local
+`scripts/db_backup.sh` newest-14 rotation complies at any realistic cadence;
+keep any off-host copies on the same bounded rotation.
+
+| Failure | Effect | Recovery |
+|---|---|---|
+| Worker down for days | Coverage shrinks; `/health/partitions` 503s ~1 month before writes would fail | Start the worker; premake catches up idempotently (4-month horizon ≈ 3 months of headroom) |
+| `no partition of relation found for row` on ping insert | Coverage exhausted (both alarms ignored) | Start worker or run premake once; the insert path recovers immediately — no data was lost, the write was rejected |
+| Retention crash mid-run | `data_purge_audit` shows the interrupted state | Next daily run recovers (evidence-gated FINALIZE + evidenced-orphan drop); no manual SQL needed |
+| Purge job logs `pending_detach=... outcome=refused` | A pending detach lacks purge evidence or is no longer retention-expired | Destruction is paused (sweep + batch purge skipped). Investigate: if the detach is legitimate, `ALTER TABLE location_pings DETACH PARTITION <name> FINALIZE` manually and dispose of the table deliberately; never let a pending detach linger |
+| Purge job logs `outcome=drop_refused` (run fails) | `dropped` evidence already exists for a table that is present again | Manual investigation — the evidence cannot account for the table; the job fails closed and retries daily |
+| Purge job logs `outcome=unclaimed_table` | A standalone `location_pings_*` table exists without evidence | Investigate manually before any drop — the job will never touch it |
 
 ## Local Playwright reset and overrides
 

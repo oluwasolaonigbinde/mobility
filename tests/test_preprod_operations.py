@@ -155,6 +155,7 @@ def test_development_compose_preserves_reload_mounts_profiles_and_ports() -> Non
         "REDIS_PASSWORD",
         "REDIS_URL",
         "JWT_SECRET_KEY",
+        "PAYOUT_CRYPTO_KEYRING_B64",
     ],
 )
 def test_production_render_fails_clearly_when_required_value_is_missing(

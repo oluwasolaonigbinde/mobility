@@ -85,6 +85,12 @@ async def create_campaign(
     user_id: UUID,
     payload: CampaignCreate,
 ) -> Campaign:
+    if payload.status == "active":
+        raise AppError(
+            "CAMPAIGN_ACTIVE_CREATE_FORBIDDEN",
+            "A campaign must be funded and authorized before it can become active",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     organization, _ = await get_required_advertiser_context(
         session,
         user_id,
@@ -204,6 +210,11 @@ async def update_advertiser_campaign(
         ),
     }
     ensure_campaign_rules(**prospective)
+
+    if update_values.get("status") == "active":
+        from app.services.billing import assert_campaign_production_authorized
+
+        await assert_campaign_production_authorized(session, campaign_id=campaign.id)
 
     for field, value in update_values.items():
         setattr(campaign, field, value)

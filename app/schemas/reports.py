@@ -98,6 +98,7 @@ class CampaignCostSummary(BaseModel):
 class FraudFlagCounts(BaseModel):
     open: int = 0
     acknowledged: int = 0
+    confirmed: int = 0
     dismissed: int = 0
     low: int = 0
     medium: int = 0

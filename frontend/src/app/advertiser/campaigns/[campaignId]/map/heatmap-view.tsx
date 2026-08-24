@@ -4,7 +4,13 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { components } from "@/lib/api/schema";
-import { MAP_STYLE_URL, DEFAULT_CENTER, DEFAULT_ZOOM, ZONE_COLORS } from "@/lib/map/config";
+import {
+  activeMapStyleUrl,
+  applyThemeMapTint,
+  DEFAULT_CENTER,
+  DEFAULT_ZOOM,
+  zoneColors,
+} from "@/lib/map/config";
 import { geometryBounds, type ZoneGeometry } from "@/lib/zones/geometry";
 import { fetchHeatmapAction } from "./actions";
 import { Panel } from "@/components/ui/panel";
@@ -15,11 +21,41 @@ type Zone = components["schemas"]["CampaignZoneRead"];
 type Heatmap = components["schemas"]["HeatmapFeatureCollection"];
 type Metric = components["schemas"]["HeatmapMetric"];
 
-const METRICS: Array<{ value: Metric; label: string; hint: string }> = [
-  { value: "estimated_impressions", label: "Impressions", hint: "Estimated exposure per cell" },
-  { value: "ping_count", label: "GPS pings", hint: "Raw verified positions" },
-  { value: "trip_count", label: "Trips", hint: "Distinct trips through the cell" },
-  { value: "distance_m", label: "Distance", hint: "Metres driven in the cell" },
+const METRICS: Array<{
+  value: Metric;
+  label: string;
+  hint: string;
+  question: string;
+  meaning: string;
+}> = [
+  {
+    value: "estimated_impressions",
+    label: "Impressions",
+    hint: "Estimated exposure per area",
+    question: "Where was the campaign most likely seen?",
+    meaning: "Brighter squares represent more estimated impressions.",
+  },
+  {
+    value: "ping_count",
+    label: "GPS pings",
+    hint: "Verified vehicle-location updates",
+    question: "Where did campaign vehicles report their location?",
+    meaning: "Brighter squares represent more verified GPS updates.",
+  },
+  {
+    value: "trip_count",
+    label: "Trips",
+    hint: "Distinct journeys through each area",
+    question: "How many separate journeys passed through each area?",
+    meaning: "Brighter squares represent more distinct trips.",
+  },
+  {
+    value: "distance_m",
+    label: "Distance",
+    hint: "Distance travelled inside each area",
+    question: "Where did campaign vehicles travel the furthest?",
+    meaning: "Brighter squares represent more distance travelled.",
+  },
 ];
 
 /**
@@ -43,6 +79,26 @@ function compact(n: number): string {
   return Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 }
 
+function metricValue(metric: Metric, value: number): string {
+  if (metric === "distance_m") {
+    return value >= 1000 ? `${compact(value / 1000)} km` : `${compact(value)} m`;
+  }
+  if (metric === "ping_count") {
+    return `${compact(value)} GPS ${value === 1 ? "update" : "updates"}`;
+  }
+  if (metric === "trip_count") {
+    return `${compact(value)} ${value === 1 ? "trip" : "trips"}`;
+  }
+  return `${compact(value)} estimated impressions`;
+}
+
+function refreshTime(value: string): string {
+  return new Intl.DateTimeFormat("en-NG", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 export function HeatmapView({ campaignId, zones }: { campaignId: string; zones: Zone[] }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -61,12 +117,13 @@ export function HeatmapView({ campaignId, zones }: { campaignId: string; zones: 
     if (!containerRef.current || mapRef.current) return;
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: MAP_STYLE_URL,
+      style: activeMapStyleUrl(),
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
       attributionControl: { compact: true },
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    applyThemeMapTint(map);
     mapRef.current = map;
     map.on("load", () => setMapReady(true));
     return () => {
@@ -89,6 +146,7 @@ export function HeatmapView({ campaignId, zones }: { campaignId: string; zones: 
       })),
     };
     if (!map.getSource(ZONES_SOURCE)) {
+      const zc = zoneColors();
       map.addSource(ZONES_SOURCE, { type: "geojson", data });
       map.addLayer({
         id: `${ZONES_SOURCE}-line`,
@@ -99,12 +157,12 @@ export function HeatmapView({ campaignId, zones }: { campaignId: string; zones: 
             "match",
             ["get", "zone_type"],
             "target",
-            ZONE_COLORS.target,
+            zc.target,
             "bonus",
-            ZONE_COLORS.bonus,
+            zc.bonus,
             "exclusion",
-            ZONE_COLORS.exclusion,
-            "#8a90a0",
+            zc.exclusion,
+            zc.neutral,
           ],
           "line-width": 1.5,
           "line-dasharray": [2, 2],
@@ -167,6 +225,7 @@ export function HeatmapView({ campaignId, zones }: { campaignId: string; zones: 
         const weights = fc.features.map((f) => Number(f.properties.weight));
         const max = weights.length ? Math.max(...weights) : 0;
         const min = weights.length ? Math.min(...weights) : 0;
+        const spread = max - min;
         setMeta(fc.metadata);
         setRange(weights.length ? { min, max } : null);
         setCellCount(fc.features.length);
@@ -175,7 +234,10 @@ export function HeatmapView({ campaignId, zones }: { campaignId: string; zones: 
           type: "FeatureCollection" as const,
           features: fc.features.map((f) => ({
             ...f,
-            properties: { ...f.properties, norm: max > 0 ? Number(f.properties.weight) / max : 0 },
+            properties: {
+              ...f.properties,
+              norm: spread > 0 ? (Number(f.properties.weight) - min) / spread : 0.45,
+            },
           })),
         };
         const src = map.getSource(HEAT_SOURCE) as maplibregl.GeoJSONSource | undefined;
@@ -206,6 +268,9 @@ export function HeatmapView({ campaignId, zones }: { campaignId: string; zones: 
             if (!f) return;
             map.getCanvas().style.cursor = "crosshair";
             const p = f.properties as Record<string, string | number>;
+            const popupMetric =
+              METRICS.find((item) => item.value === p.metric)?.label.toLowerCase() ??
+              "selected metric";
             popupRef.current?.remove();
             popupRef.current = new maplibregl.Popup({
               closeButton: false,
@@ -215,7 +280,7 @@ export function HeatmapView({ campaignId, zones }: { campaignId: string; zones: 
               .setLngLat(e.lngLat)
               .setHTML(
                 `<div style="font-family:var(--font-mono);font-size:11px;line-height:1.7">` +
-                  `<strong>${compact(Number(p.weight))}</strong> ${METRICS.find((m) => m.value === metric)?.label.toLowerCase()}<br/>` +
+                  `<strong>${compact(Number(p.weight))}</strong> ${popupMetric}<br/>` +
                   `${p.ping_count} pings · ${p.trip_count} trips · ${compact(Number(p.distance_m))} m` +
                   `</div>`,
               )
@@ -238,11 +303,37 @@ export function HeatmapView({ campaignId, zones }: { campaignId: string; zones: 
     if (mapReady) scan(zonesBbox() ?? undefined);
   }, [mapReady, metric, scan, zonesBbox]);
 
+  const selectedMetric = METRICS.find((item) => item.value === metric) ?? METRICS[0]!;
+  const flatRange = range !== null && range.min === range.max;
+
   return (
     <div className="flex flex-col gap-4">
-      {/* Controls — one row above the chart per the interaction spec */}
+      <Panel className="border-edge-strong bg-raised/60 px-4 py-3" data-testid="heatmap-guide">
+        <p className="text-ink text-sm font-medium">{selectedMetric.question}</p>
+        <p className="text-muted mt-1 text-sm">
+          Each square is a 500m × 500m area. {selectedMetric.meaning}
+        </p>
+        <p
+          className="text-muted mt-2 text-xs"
+          role="status"
+          aria-live="polite"
+          data-testid="metric-summary"
+        >
+          {range && cellCount !== null
+            ? flatRange
+              ? `All ${cellCount} mapped areas have the same value: ${metricValue(metric, range.min)}. Colour cannot show a difference yet.`
+              : `${cellCount} mapped areas range from ${metricValue(metric, range.min)} to ${metricValue(metric, range.max)}.`
+            : loading
+              ? "Reading movement data…"
+              : "No movement data is available in this map view."}
+        </p>
+      </Panel>
+
       <div className="flex flex-wrap items-center gap-2">
-        <div role="radiogroup" aria-label="Heatmap metric" className="flex gap-1">
+        <div className="mr-2">
+          <p className="micro text-faint">SHOW ON MAP</p>
+        </div>
+        <div role="radiogroup" aria-label="Heatmap metric" className="flex flex-wrap gap-1">
           {METRICS.map((m) => (
             <button
               key={m.value}
@@ -276,10 +367,31 @@ export function HeatmapView({ campaignId, zones }: { campaignId: string; zones: 
             disabled={loading}
             className="!h-9 !px-4 !text-xs"
           >
-            {loading ? "Scanning…" : "⌖ Scan this view"}
+            {loading ? "Refreshing…" : "Scan visible area"}
           </Button>
         </div>
       </div>
+
+      {showZones && zones.length > 0 ? (
+        <div
+          aria-label="Zone colour key"
+          className="micro text-faint flex flex-wrap items-center gap-x-4 gap-y-2"
+        >
+          <span>Dashed outlines:</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="border-amber inline-block h-2.5 w-2.5 border border-dashed" />
+            Target area
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="border-cyan inline-block h-2.5 w-2.5 border border-dashed" />
+            Bonus area
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="border-coral inline-block h-2.5 w-2.5 border border-dashed" />
+            Excluded area
+          </span>
+        </div>
+      ) : null}
 
       {error ? (
         <p
@@ -292,28 +404,45 @@ export function HeatmapView({ campaignId, zones }: { campaignId: string; zones: 
 
       <Panel className="relative overflow-hidden">
         <div ref={containerRef} className="h-[540px] w-full" data-testid="heatmap-map" />
-        {/* Legend: honest min→max for the current view */}
-        <div className="micro bg-bg/85 absolute bottom-3 left-3 z-10 flex items-center gap-2 rounded-lg px-3 py-2 backdrop-blur">
+        <div className="micro bg-bg/90 absolute bottom-3 left-3 z-10 rounded-lg px-3 py-2 backdrop-blur">
           {range ? (
-            <>
-              <span className="text-faint">{compact(range.min)}</span>
-              <span
-                className="inline-block h-2.5 w-24 rounded-sm"
-                style={{
-                  background: `linear-gradient(90deg, ${RAMP.map(([s, c]) => `${c} ${s * 100}%`).join(", ")})`,
-                }}
-                aria-hidden
-              />
-              <span className="text-ink">{compact(range.max)}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              {flatRange ? (
+                <>
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-sm"
+                    style={{ background: RAMP[2]![1] }}
+                    aria-hidden
+                  />
+                  <span className="text-ink">Same value in every area:</span>
+                  <span className="text-muted">{metricValue(metric, range.min)}</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-faint">{metricValue(metric, range.min)}</span>
+                  <span
+                    className="inline-block h-2.5 w-24 rounded-sm"
+                    style={{
+                      background: `linear-gradient(90deg, ${RAMP.map(([s, c]) => `${c} ${s * 100}%`).join(", ")})`,
+                    }}
+                    aria-hidden
+                  />
+                  <span className="text-ink">{metricValue(metric, range.max)}</span>
+                </>
+              )}
               <span className="text-faint">
-                · {cellCount} cells · {meta?.resolution_m}m grid
+                · {cellCount} areas · {meta?.resolution_m}m grid
               </span>
-            </>
+            </div>
           ) : (
             <span className="text-faint">
-              {loading ? "Scanning…" : "No movement data in this view — pan/zoom and rescan"}
+              {loading ? "Refreshing…" : "No movement data here — move the map and scan again"}
             </span>
           )}
+          <div className="text-faint mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+            <span>Period: all recorded campaign activity</span>
+            {meta ? <span>Map refreshed {refreshTime(meta.generated_at)}</span> : null}
+          </div>
         </div>
       </Panel>
     </div>

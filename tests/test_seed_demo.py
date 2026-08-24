@@ -89,7 +89,7 @@ def test_no_seed_or_demo_migrations() -> None:
 
 
 def test_demo_seed_requires_the_code_migration_head() -> None:
-    assert required_migration_head() == "0012_audit_event_indexes"
+    assert required_migration_head() == "0040_budget_policy_blocked_state"
 
 
 def test_readme_documents_demo_seed_workflow() -> None:
@@ -185,7 +185,7 @@ def fetch_seed_counts(sessionmaker: async_sessionmaker[AsyncSession]) -> dict[st
                 "organizations": int(
                     await session.scalar(
                         select(func.count(AdvertiserOrganization.id)).where(
-                            AdvertiserOrganization.name == "Demo Mobility Advertiser"
+                            AdvertiserOrganization.name == "Demo Advertiser"
                         )
                     )
                     or 0
@@ -621,6 +621,128 @@ def fetch_lifecycle_violation_count(
     return asyncio.run(fetch())
 
 
+def fetch_palmpay_market_snapshot(
+    sessionmaker: async_sessionmaker[AsyncSession],
+) -> dict[str, object]:
+    async def fetch() -> dict[str, object]:
+        async with sessionmaker() as session:
+            campaign = await session.scalar(
+                select(Campaign).where(Campaign.name == "PalmPay Market Routes")
+            )
+            assert campaign is not None
+            assignment = await session.scalar(
+                select(CampaignAssignment).where(CampaignAssignment.campaign_id == campaign.id)
+            )
+            assert assignment is not None
+            trips = list(
+                (
+                    await session.scalars(
+                        select(TripSession)
+                        .where(TripSession.campaign_id == campaign.id)
+                        .order_by(TripSession.started_at)
+                    )
+                ).all()
+            )
+            trip_ids = [trip.id for trip in trips]
+            return {
+                "assignment_status": assignment.status,
+                "creatives": int(
+                    await session.scalar(
+                        select(func.count(CampaignCreative.id)).where(
+                            CampaignCreative.campaign_id == campaign.id
+                        )
+                    )
+                    or 0
+                ),
+                "zones": int(
+                    await session.scalar(
+                        select(func.count(CampaignZone.id)).where(
+                            CampaignZone.campaign_id == campaign.id
+                        )
+                    )
+                    or 0
+                ),
+                "trips": len(trips),
+                "trip_keys": tuple(
+                    sorted(str(trip.trip_metadata["seed_trip_key"]) for trip in trips)
+                ),
+                "batches": int(
+                    await session.scalar(
+                        select(func.count(LocationPingBatch.id)).where(
+                            LocationPingBatch.trip_session_id.in_(trip_ids)
+                        )
+                    )
+                    or 0
+                ),
+                "pings": int(
+                    await session.scalar(
+                        select(func.count(LocationPing.id)).where(
+                            LocationPing.trip_session_id.in_(trip_ids)
+                        )
+                    )
+                    or 0
+                ),
+                "analytics": int(
+                    await session.scalar(
+                        select(func.count(TripAnalytics.id)).where(
+                            TripAnalytics.trip_session_id.in_(trip_ids)
+                        )
+                    )
+                    or 0
+                ),
+                "distance_m": await session.scalar(
+                    select(func.coalesce(func.sum(TripAnalytics.distance_m), 0)).where(
+                        TripAnalytics.trip_session_id.in_(trip_ids)
+                    )
+                ),
+                "target_zone_distance_m": await session.scalar(
+                    select(
+                        func.coalesce(func.sum(TripAnalytics.target_zone_distance_m), 0)
+                    ).where(TripAnalytics.trip_session_id.in_(trip_ids))
+                ),
+                "estimates": int(
+                    await session.scalar(
+                        select(func.count(ImpressionEstimate.id)).where(
+                            ImpressionEstimate.trip_session_id.in_(trip_ids)
+                        )
+                    )
+                    or 0
+                ),
+                "impressions": await session.scalar(
+                    select(
+                        func.coalesce(func.sum(ImpressionEstimate.estimated_impressions), 0)
+                    ).where(ImpressionEstimate.trip_session_id.in_(trip_ids))
+                ),
+                "payouts": int(
+                    await session.scalar(
+                        select(func.count(PayoutCalculation.id)).where(
+                            PayoutCalculation.trip_session_id.in_(trip_ids)
+                        )
+                    )
+                    or 0
+                ),
+                "spend": await session.scalar(
+                    select(func.coalesce(func.sum(PayoutCalculation.final_payout), 0)).where(
+                        PayoutCalculation.trip_session_id.in_(trip_ids)
+                    )
+                ),
+                "ledger": int(
+                    await session.scalar(
+                        select(func.count(EarningsLedgerEntry.id)).where(
+                            EarningsLedgerEntry.trip_session_id.in_(trip_ids)
+                        )
+                    )
+                    or 0
+                ),
+                "inside_campaign_window": all(
+                    trip.started_at >= campaign.start_at and trip.ended_at <= campaign.end_at
+                    for trip in trips
+                ),
+            }
+
+    return asyncio.run(fetch())
+
+
 def test_demo_seed_is_idempotent_with_postgis(
     postgis_db_sessionmaker,
     settings: Settings,
@@ -631,33 +753,54 @@ def test_demo_seed_is_idempotent_with_postgis(
     first_counts = fetch_seed_counts(postgis_db_sessionmaker)
     first_rich = fetch_rich_snapshot(postgis_db_sessionmaker)
     first_legacy = fetch_legacy_derived_snapshot(postgis_db_sessionmaker)
+    first_palmpay_market = fetch_palmpay_market_snapshot(postgis_db_sessionmaker)
     seed_demo_graph(postgis_db_sessionmaker, settings)
     second_counts = fetch_seed_counts(postgis_db_sessionmaker)
     second_rich = fetch_rich_snapshot(postgis_db_sessionmaker)
     second_legacy = fetch_legacy_derived_snapshot(postgis_db_sessionmaker)
+    second_palmpay_market = fetch_palmpay_market_snapshot(postgis_db_sessionmaker)
 
     assert first_counts == second_counts
     assert second_counts == {
         "users": 4,
         "organizations": 1,
         "memberships": 2,
-        "driver_profiles": 10,
+        "driver_profiles": 11,
         "vehicles": 1,
         "campaigns": 1,
         "creatives": 1,
         "zones": 3,
         "assignments": 1,
         "legacy_driver_f7_assignments": 0,
-        "trips": 2,
-        "batches": 2,
-        "pings": 12,
-        "analytics": 2,
-        "estimates": 2,
-        "payouts": 2,
-        "ledger": 2,
+        "trips": 4,
+        "batches": 4,
+        "pings": 24,
+        "analytics": 4,
+        "estimates": 4,
+        "payouts": 4,
+        "ledger": 4,
     }
     assert first_rich == second_rich
     assert first_legacy == second_legacy
+    assert first_palmpay_market == second_palmpay_market
+    assert second_palmpay_market["assignment_status"] == "completed"
+    assert second_palmpay_market["creatives"] == 1
+    assert second_palmpay_market["zones"] == 2
+    assert second_palmpay_market["trips"] == 3
+    assert len(second_palmpay_market["trip_keys"]) == len(
+        set(second_palmpay_market["trip_keys"])
+    )
+    assert second_palmpay_market["batches"] == 3
+    assert second_palmpay_market["pings"] == 18
+    assert second_palmpay_market["analytics"] == 3
+    assert second_palmpay_market["distance_m"] > 0
+    assert second_palmpay_market["target_zone_distance_m"] > 0
+    assert second_palmpay_market["estimates"] == 3
+    assert second_palmpay_market["impressions"] > 0
+    assert second_palmpay_market["payouts"] == 3
+    assert second_palmpay_market["spend"] > 0
+    assert second_palmpay_market["ledger"] == 3
+    assert second_palmpay_market["inside_campaign_window"] is True
     assert all(key.startswith(f"{SEED_VERSION}:") for key in second_legacy["batch_keys"])
     assert second_rich["users"] == 9
     assert second_rich["password_flags"] == {False}
@@ -679,6 +822,66 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert second_rich["severities"] == {"low", "medium", "high"}
     assert 10 <= second_rich["fraud_flags"] <= 15
     assert fetch_lifecycle_violation_count(postgis_db_sessionmaker) == 0
+
+
+def test_demo_seed_preserves_existing_payout_metadata(
+    postgis_db_sessionmaker,
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "0")
+    seed_demo_graph(postgis_db_sessionmaker, settings)
+
+    async def replace_metadata() -> tuple[dict[object, dict[str, object]], int]:
+        async with postgis_db_sessionmaker() as session:
+            calculations = list(
+                (
+                    await session.scalars(
+                        select(PayoutCalculation)
+                        .join(TripSession, TripSession.id == PayoutCalculation.trip_session_id)
+                        .where(
+                            TripSession.trip_metadata["seed_trip_key"]
+                            .as_string()
+                            .in_(["demo-trip-1", "palmpay-wuse-trip-1"])
+                        )
+                    )
+                ).all()
+            )
+            assert len(calculations) == 2
+            expected_metadata = {}
+            for calculation in calculations:
+                calculation.payout_metadata = {
+                    "demo": True,
+                    "legacy_shape": True,
+                    "seed_version": SEED_VERSION,
+                }
+                expected_metadata[calculation.id] = calculation.payout_metadata
+            count = int(await session.scalar(select(func.count(PayoutCalculation.id))) or 0)
+            await session.commit()
+            return expected_metadata, count
+
+    expected_metadata, payout_count = asyncio.run(replace_metadata())
+    seed_demo_graph(postgis_db_sessionmaker, settings)
+
+    async def verify() -> None:
+        async with postgis_db_sessionmaker() as session:
+            calculations = list(
+                (
+                    await session.scalars(
+                        select(PayoutCalculation).where(PayoutCalculation.id.in_(expected_metadata))
+                    )
+                ).all()
+            )
+            assert len(calculations) == 2
+            assert {
+                calculation.id: calculation.payout_metadata for calculation in calculations
+            } == expected_metadata
+            assert (
+                int(await session.scalar(select(func.count(PayoutCalculation.id))) or 0)
+                == payout_count
+            )
+
+    asyncio.run(verify())
 
 
 def test_rich_seed_later_rerun_only_appends_valid_rolling_trips(

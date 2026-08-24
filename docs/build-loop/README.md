@@ -14,7 +14,7 @@ Post-closure frontend work is tracked outside this slice ledger:
 - F7 hardening is committed on `f7-hardening` as post-closure delivery work. It is
   not part of the closed backend MVP baseline this ledger records.
 
-See `../project-reconciliation.md` for the canonical repository, evidence pin, and
+See `../progress.md` for the canonical repository, evidence pin, and
 project-wide status.
 
 ## Purpose
@@ -52,9 +52,15 @@ Note: the local constraints file currently exists as `agent.md`, although its do
 - If a prompt is unsafe, ambiguous, or inconsistent with local evidence, stop and write a reconciliation report.
 - Use local git only. Do not create a GitHub repo, add remotes, push, or require GitHub unless explicitly requested.
 
-## Deferred Scope
+## Deferred Scope (historical — backend loop only, now superseded)
 
-Do not implement these unless Pro explicitly approves them for a current slice:
+This list bounded the *closed backend slice loop* (0–13). It is **not** the
+current project scope: frontend is delivered, and retargeting, the driver
+mobile app, exports, and pilot deployment are all inside the MVP per the
+binding client proposal
+(`docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx`, decisions-log
+**D11**). Current scope authority: `docs/architecture.md` §31. The list is kept
+only as a record of what the closed loop excluded:
 
 - Offline-to-online retargeting
 - Anonymous audience pooling

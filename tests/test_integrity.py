@@ -34,6 +34,28 @@ def test_expected_postgres_constraint_names_are_classified(constraint_name: str)
             "UNIQUE constraint failed: earnings_ledger_entries.payout_calculation_id",
             "uq_earnings_ledger_entries_payout_calculation_id",
         ),
+        (
+            "UNIQUE constraint failed: fraud_flags.trip_session_id, "
+            "fraud_flags.flag_type",
+            "uq_fraud_flags_trip_nonterminal_flag_type",
+        ),
+        (
+            "UNIQUE constraint failed: campaign_assignments.vehicle_id",
+            "uq_campaign_assignments_vehicle_active",
+        ),
+        (
+            "UNIQUE constraint failed: campaign_assignments.campaign_id, "
+            "campaign_assignments.vehicle_id",
+            "uq_campaign_assignments_campaign_vehicle_non_terminal",
+        ),
+        (
+            "UNIQUE constraint failed: trip_sessions.driver_profile_id",
+            "uq_trip_sessions_driver_profile_active",
+        ),
+        (
+            "UNIQUE constraint failed: trip_sessions.vehicle_id",
+            "uq_trip_sessions_vehicle_active",
+        ),
     ],
 )
 def test_expected_sqlite_unique_messages_are_classified(message: str, expected: str) -> None:

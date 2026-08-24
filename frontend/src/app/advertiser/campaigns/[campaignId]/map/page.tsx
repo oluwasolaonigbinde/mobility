@@ -47,13 +47,16 @@ export default async function CampaignMapPage({
         / <span className="text-muted">Exposure map</span>
       </nav>
 
+      <p className="micro text-amber mb-2">Exposure heatmap</p>
       <div className="mb-2 flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Exposure heatmap</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">
+          Where your campaign was seen
+        </h1>
         <StatusChip tone={statusTone[campaign.status]}>{statusLabel[campaign.status]}</StatusChip>
       </div>
       <p className="text-muted mb-6 max-w-2xl text-sm">
-        Where this campaign&apos;s verified movement earned attention. Cells aggregate GPS-verified
-        activity — pan the map and rescan to explore.
+        Compare estimated impressions and verified vehicle movement across the areas your campaign
+        reached.
       </p>
 
       <HeatmapView campaignId={campaign.id} zones={zones?.items ?? []} />

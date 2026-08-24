@@ -6,7 +6,14 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { TerraDraw, TerraDrawPolygonMode } from "terra-draw";
 import { TerraDrawMapLibreGLAdapter } from "terra-draw-maplibre-gl-adapter";
 import type { components } from "@/lib/api/schema";
-import { MAP_STYLE_URL, DEFAULT_CENTER, DEFAULT_ZOOM, ZONE_COLORS } from "@/lib/map/config";
+import {
+  activeMapStyleUrl,
+  applyThemeMapTint,
+  DEFAULT_CENTER,
+  DEFAULT_ZOOM,
+  ZONE_COLOR_VARS,
+  zoneColors,
+} from "@/lib/map/config";
 import { geometryBounds, type ZoneGeometry } from "@/lib/zones/geometry";
 import { formatCount } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
@@ -58,12 +65,13 @@ export function ZonesEditor({ campaignId, zones }: { campaignId: string; zones: 
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: MAP_STYLE_URL,
+      style: activeMapStyleUrl(),
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
       attributionControl: { compact: true },
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    applyThemeMapTint(map);
     mapRef.current = map;
 
     // Terra Draw needs the style fully loaded before it can attach layers.
@@ -109,6 +117,7 @@ export function ZonesEditor({ campaignId, zones }: { campaignId: string; zones: 
       return;
     }
 
+    const zc = zoneColors();
     map.addSource(SOURCE_ID, { type: "geojson", data });
     map.addLayer({
       id: `${SOURCE_ID}-fill`,
@@ -119,12 +128,12 @@ export function ZonesEditor({ campaignId, zones }: { campaignId: string; zones: 
           "match",
           ["get", "zone_type"],
           "target",
-          ZONE_COLORS.target,
+          zc.target,
           "bonus",
-          ZONE_COLORS.bonus,
+          zc.bonus,
           "exclusion",
-          ZONE_COLORS.exclusion,
-          "#8a90a0",
+          zc.exclusion,
+          zc.neutral,
         ],
         "fill-opacity": 0.22,
       },
@@ -138,12 +147,12 @@ export function ZonesEditor({ campaignId, zones }: { campaignId: string; zones: 
           "match",
           ["get", "zone_type"],
           "target",
-          ZONE_COLORS.target,
+          zc.target,
           "bonus",
-          ZONE_COLORS.bonus,
+          zc.bonus,
           "exclusion",
-          ZONE_COLORS.exclusion,
-          "#8a90a0",
+          zc.exclusion,
+          zc.neutral,
         ],
         "line-width": 1.5,
       },
@@ -291,7 +300,7 @@ export function ZonesEditor({ campaignId, zones }: { campaignId: string; zones: 
             <span key={t} className="flex items-center gap-1.5">
               <span
                 className="inline-block size-2.5 rounded-sm"
-                style={{ background: ZONE_COLORS[t] }}
+                style={{ background: ZONE_COLOR_VARS[t] }}
                 aria-hidden
               />
               {ZONE_TYPE_META[t].label}

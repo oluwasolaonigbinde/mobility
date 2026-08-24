@@ -17,6 +17,7 @@ import { Panel } from "@/components/ui/panel";
 import { Stat } from "@/components/ui/stat";
 import { StatusChip } from "@/components/ui/status-chip";
 import { StatusActions } from "./status-actions";
+import { CommercialPanel } from "./commercial-panel";
 
 export const metadata: Metadata = { title: "Campaign" };
 
@@ -38,15 +39,18 @@ const placementLabel: Record<string, string> = {
 
 export default async function CampaignDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ campaignId: string }>;
+  searchParams: Promise<{ commercial_error?: string }>;
 }) {
   const { campaignId } = await params;
+  const query = await searchParams;
   const api = createApiClient(await getSessionToken());
 
-  let campaign, summary, creatives;
+  let campaign, summary, creatives, commercial;
   try {
-    [{ data: campaign }, { data: summary }, { data: creatives }] = await Promise.all([
+    [{ data: campaign }, { data: summary }, { data: creatives }, { data: commercial }] = await Promise.all([
       api.GET("/api/v1/advertiser/campaigns/{campaign_id}", {
         params: { path: { campaign_id: campaignId } },
       }),
@@ -54,6 +58,9 @@ export default async function CampaignDetailPage({
         params: { path: { campaign_id: campaignId } },
       }),
       api.GET("/api/v1/advertiser/campaigns/{campaign_id}/creatives", {
+        params: { path: { campaign_id: campaignId } },
+      }),
+      api.GET("/api/v1/advertiser/campaigns/{campaign_id}/commercial", {
         params: { path: { campaign_id: campaignId } },
       }),
     ]);
@@ -89,7 +96,11 @@ export default async function CampaignDetailPage({
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <StatusActions campaignId={campaign.id} status={campaign.status} />
+          <StatusActions
+            campaignId={campaign.id}
+            status={campaign.status}
+            productionAuthorized={Boolean(commercial?.production_start)}
+          />
           <div className="flex flex-wrap justify-end gap-2">
             <Link
               href={`/advertiser/campaigns/${campaign.id}/report`}
@@ -136,14 +147,10 @@ export default async function CampaignDetailPage({
           tone="amber"
         />
         <Stat
-          label="Spend"
+          label="Driver campaign cost"
           value={cost ? formatMoney(cost.final_payout_total, cost.currency) : "—"}
           tone="green"
-          hint={
-            campaign.budget_amount
-              ? `of ${formatMoney(campaign.budget_amount, campaign.currency)} budget`
-              : undefined
-          }
+          hint="Verified driver payout projection — not advertiser spend"
         />
         <Stat
           label="Fraud flags"
@@ -152,6 +159,14 @@ export default async function CampaignDetailPage({
           hint="Open on this campaign"
         />
       </div>
+
+      {commercial ? (
+        <CommercialPanel
+          campaignId={campaign.id}
+          commercial={commercial}
+          error={query.commercial_error}
+        />
+      ) : null}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         {/* Details */}
