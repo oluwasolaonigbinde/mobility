@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
@@ -15,7 +15,13 @@ from app.models.billing import (
     CommercialQuoteRequest,
     CommercialTerms,
     PaymentClass,
+    PaymentReceipt,
     QuoteRequestSource,
+    ReceiptAllocation,
+    ReceiptLifecycleEvent,
+    ReceiptLifecycleStatus,
+    ReceiptMethod,
+    ReceiptReconciliation,
 )
 from app.models.campaign import Campaign
 from app.models.user import User, UserRole, UserStatus
@@ -24,6 +30,13 @@ from app.services.campaigns import get_required_advertiser_context
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 
 MONEY_QUANTUM = Decimal("0.01")
+
+RECEIPT_SEQUENCE = {
+    ReceiptLifecycleStatus.OBSERVED: 1,
+    ReceiptLifecycleStatus.RECONCILED: 2,
+    ReceiptLifecycleStatus.CONFIRMED: 3,
+    ReceiptLifecycleStatus.REVERSED: 4,
+}
 
 
 def _aware_utc(value: datetime) -> datetime:
@@ -390,3 +403,409 @@ async def accept_quotation_revision(
         },
     )
     return terms
+
+
+async def _receipt_status(session: AsyncSession, receipt_id: UUID) -> str | None:
+    return await session.scalar(
+        select(ReceiptLifecycleEvent.status)
+        .where(ReceiptLifecycleEvent.receipt_id == receipt_id)
+        .order_by(ReceiptLifecycleEvent.sequence_number.desc())
+        .limit(1)
+    )
+
+
+async def _append_receipt_event(
+    session: AsyncSession,
+    *,
+    receipt_id: UUID,
+    lifecycle_status: ReceiptLifecycleStatus,
+    actor_user_id: UUID | None,
+    occurred_at: datetime,
+    reason: str | None = None,
+) -> ReceiptLifecycleEvent:
+    event = ReceiptLifecycleEvent(
+        receipt_id=receipt_id,
+        status=lifecycle_status,
+        sequence_number=RECEIPT_SEQUENCE[lifecycle_status],
+        actor_user_id=actor_user_id,
+        reason=reason,
+        occurred_at=occurred_at,
+    )
+    session.add(event)
+    await session.flush()
+    return event
+
+
+async def record_payment_receipt(
+    session: AsyncSession,
+    *,
+    organization_id: UUID,
+    actor_user_id: UUID | None,
+    method: ReceiptMethod,
+    provider: str,
+    external_transaction_id: str,
+    amount: Decimal | str,
+    currency: str,
+    payer_name: str,
+    evidence_reference: str,
+    observed_at: datetime,
+    trusted_gateway: bool = False,
+) -> PaymentReceipt:
+    if actor_user_id is None:
+        if method != ReceiptMethod.GATEWAY or not trusted_gateway:
+            raise AppError(
+                "RECEIPT_ACTOR_REQUIRED",
+                "A trusted gateway or active administrator is required",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+    else:
+        await _active_admin(session, actor_user_id)
+    organization_exists = await session.scalar(
+        select(exists().where(CommercialTerms.organization_id == organization_id))
+    )
+    if not organization_exists:
+        raise AppError("ORGANIZATION_NOT_FOUND", "Organization was not found", status_code=404)
+    normalized_provider = provider.strip().lower()
+    external_id = external_transaction_id.strip()
+    normalized_currency = currency.strip().upper()
+    normalized_payer = payer_name.strip()
+    evidence = evidence_reference.strip()
+    receipt_amount = _money(amount, "amount")
+    if (
+        receipt_amount == 0
+        or len(normalized_currency) != 3
+        or not all((normalized_provider, external_id, normalized_payer, evidence))
+    ):
+        raise AppError(
+            "INVALID_PAYMENT_RECEIPT",
+            "Receipt identity, positive amount, currency, payer and evidence are required",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    observed = _aware_utc(observed_at)
+    existing = await session.scalar(
+        select(PaymentReceipt).where(PaymentReceipt.external_transaction_id == external_id)
+    )
+    if existing is not None:
+        exact = (
+            existing.organization_id == organization_id
+            and existing.method == method
+            and existing.provider == normalized_provider
+            and existing.amount == receipt_amount
+            and existing.currency == normalized_currency
+            and existing.payer_name == normalized_payer
+            and existing.evidence_reference == evidence
+            and existing.observed_at == observed
+        )
+        if exact:
+            return existing
+        raise AppError(
+            "RECEIPT_IDENTITY_CONFLICT",
+            "External transaction identity already belongs to different evidence",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    receipt = PaymentReceipt(
+        organization_id=organization_id,
+        method=method,
+        provider=normalized_provider,
+        external_transaction_id=external_id,
+        amount=receipt_amount,
+        currency=normalized_currency,
+        payer_name=normalized_payer,
+        evidence_reference=evidence,
+        observed_by_user_id=actor_user_id,
+        observed_at=observed,
+    )
+    try:
+        async with session.begin_nested():
+            session.add(receipt)
+            await session.flush()
+    except IntegrityError as exc:
+        raise AppError(
+            "RECEIPT_IDENTITY_CONFLICT",
+            "External transaction identity is already recorded",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from exc
+    await _append_receipt_event(
+        session,
+        receipt_id=receipt.id,
+        lifecycle_status=ReceiptLifecycleStatus.OBSERVED,
+        actor_user_id=actor_user_id,
+        occurred_at=observed,
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="billing.receipt.observed",
+        entity_type="payment_receipt",
+        entity_id=str(receipt.id),
+        metadata={
+            "organization_id": str(organization_id),
+            "method": method.value,
+            "provider": normalized_provider,
+            "external_transaction_id": external_id,
+            "amount": f"{receipt_amount:.2f}",
+            "currency": normalized_currency,
+        },
+    )
+    return receipt
+
+
+async def reconcile_payment_receipt(
+    session: AsyncSession,
+    *,
+    receipt_id: UUID,
+    actor_user_id: UUID,
+    expected_amount: Decimal | str,
+    expected_currency: str,
+) -> ReceiptReconciliation:
+    await _active_admin(session, actor_user_id)
+    receipt = await session.scalar(
+        select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
+    )
+    if receipt is None:
+        raise AppError("RECEIPT_NOT_FOUND", "Receipt was not found", status_code=404)
+    existing = await session.scalar(
+        select(ReceiptReconciliation).where(ReceiptReconciliation.receipt_id == receipt.id)
+    )
+    amount = _money(expected_amount, "expected_amount")
+    currency = expected_currency.strip().upper()
+    if amount == 0 or len(currency) != 3:
+        raise AppError(
+            "INVALID_RECONCILIATION_EXPECTATION",
+            "Expected amount and currency are required",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if existing is not None:
+        if existing.expected_amount == amount and existing.expected_currency == currency:
+            return existing
+        raise AppError(
+            "RECONCILIATION_ALREADY_RECORDED",
+            "Receipt reconciliation evidence is immutable",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    now = await database_clock(session)
+    matched = receipt.amount == amount and receipt.currency == currency
+    reconciliation = ReceiptReconciliation(
+        receipt_id=receipt.id,
+        expected_amount=amount,
+        expected_currency=currency,
+        matched=matched,
+        reconciled_by_user_id=actor_user_id,
+        reconciled_at=now,
+    )
+    session.add(reconciliation)
+    await session.flush()
+    if matched:
+        await _append_receipt_event(
+            session,
+            receipt_id=receipt.id,
+            lifecycle_status=ReceiptLifecycleStatus.RECONCILED,
+            actor_user_id=actor_user_id,
+            occurred_at=now,
+        )
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="billing.receipt.reconciled",
+        entity_type="payment_receipt",
+        entity_id=str(receipt.id),
+        metadata={
+            "expected_amount": f"{amount:.2f}",
+            "expected_currency": currency,
+            "matched": matched,
+        },
+    )
+    return reconciliation
+
+
+async def confirm_payment_receipt(
+    session: AsyncSession, *, receipt_id: UUID, actor_user_id: UUID
+) -> PaymentReceipt:
+    await _active_admin(session, actor_user_id)
+    receipt = await session.scalar(
+        select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
+    )
+    if receipt is None:
+        raise AppError("RECEIPT_NOT_FOUND", "Receipt was not found", status_code=404)
+    current = await _receipt_status(session, receipt.id)
+    if current == ReceiptLifecycleStatus.CONFIRMED:
+        return receipt
+    if current != ReceiptLifecycleStatus.RECONCILED:
+        raise AppError(
+            "RECEIPT_NOT_RECONCILED",
+            "Only an exactly matched reconciled receipt can be confirmed",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    now = await database_clock(session)
+    await _append_receipt_event(
+        session,
+        receipt_id=receipt.id,
+        lifecycle_status=ReceiptLifecycleStatus.CONFIRMED,
+        actor_user_id=actor_user_id,
+        occurred_at=now,
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="billing.receipt.confirmed",
+        entity_type="payment_receipt",
+        entity_id=str(receipt.id),
+    )
+    return receipt
+
+
+async def allocate_payment_receipt(
+    session: AsyncSession,
+    *,
+    receipt_id: UUID,
+    commercial_terms_id: UUID,
+    actor_user_id: UUID,
+    amount: Decimal | str,
+) -> ReceiptAllocation:
+    await _active_admin(session, actor_user_id)
+    receipt = await session.scalar(
+        select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
+    )
+    terms = await session.scalar(
+        select(CommercialTerms).where(CommercialTerms.id == commercial_terms_id).with_for_update()
+    )
+    if receipt is None or terms is None or receipt.organization_id != terms.organization_id:
+        raise AppError(
+            "BILLING_AUTHORITY_NOT_FOUND", "Billing authority was not found", status_code=404
+        )
+    if await _receipt_status(session, receipt.id) != ReceiptLifecycleStatus.CONFIRMED:
+        raise AppError(
+            "RECEIPT_NOT_CONFIRMED",
+            "Only a confirmed receipt can grant funding authority",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if receipt.currency != terms.currency:
+        raise AppError(
+            "ALLOCATION_CURRENCY_MISMATCH",
+            "Receipt and commercial terms currencies must match",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    allocation_amount = _money(amount, "allocation_amount")
+    if allocation_amount == 0:
+        raise AppError(
+            "INVALID_ALLOCATION_AMOUNT",
+            "Allocation amount must be positive",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    existing = await session.scalar(
+        select(ReceiptAllocation).where(
+            ReceiptAllocation.receipt_id == receipt.id,
+            ReceiptAllocation.commercial_terms_id == terms.id,
+        )
+    )
+    if existing is not None:
+        if existing.amount == allocation_amount:
+            return existing
+        raise AppError(
+            "ALLOCATION_ALREADY_RECORDED",
+            "Receipt allocation is immutable",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    receipt_allocated = await session.scalar(
+        select(func.coalesce(func.sum(ReceiptAllocation.amount), 0)).where(
+            ReceiptAllocation.receipt_id == receipt.id
+        )
+    )
+    active_receipt = PaymentReceipt.__table__.alias("active_receipt")
+    terms_allocated = await session.scalar(
+        select(func.coalesce(func.sum(ReceiptAllocation.amount), 0))
+        .join(active_receipt, active_receipt.c.id == ReceiptAllocation.receipt_id)
+        .where(
+            ReceiptAllocation.commercial_terms_id == terms.id,
+            exists().where(
+                ReceiptLifecycleEvent.receipt_id == active_receipt.c.id,
+                ReceiptLifecycleEvent.status == ReceiptLifecycleStatus.CONFIRMED,
+            ),
+            ~exists().where(
+                ReceiptLifecycleEvent.receipt_id == active_receipt.c.id,
+                ReceiptLifecycleEvent.status == ReceiptLifecycleStatus.REVERSED,
+            ),
+        )
+    )
+    if Decimal(receipt_allocated or 0) + allocation_amount > receipt.amount:
+        raise AppError(
+            "RECEIPT_OVERALLOCATION",
+            "Allocation would exceed the receipt amount",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if Decimal(terms_allocated or 0) + allocation_amount > terms.gross_amount:
+        raise AppError(
+            "OBLIGATION_OVERFUNDING",
+            "Allocation would exceed the accepted commercial obligation",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    now = await database_clock(session)
+    allocation = ReceiptAllocation(
+        receipt_id=receipt.id,
+        commercial_terms_id=terms.id,
+        amount=allocation_amount,
+        currency=receipt.currency,
+        allocated_by_user_id=actor_user_id,
+        allocated_at=now,
+    )
+    session.add(allocation)
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="billing.receipt.allocated",
+        entity_type="receipt_allocation",
+        entity_id=str(allocation.id),
+        metadata={
+            "receipt_id": str(receipt.id),
+            "commercial_terms_id": str(terms.id),
+            "amount": f"{allocation_amount:.2f}",
+            "currency": receipt.currency,
+        },
+    )
+    return allocation
+
+
+async def reverse_payment_receipt(
+    session: AsyncSession, *, receipt_id: UUID, actor_user_id: UUID, reason: str
+) -> PaymentReceipt:
+    await _active_admin(session, actor_user_id)
+    receipt = await session.scalar(
+        select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
+    )
+    if receipt is None:
+        raise AppError("RECEIPT_NOT_FOUND", "Receipt was not found", status_code=404)
+    current = await _receipt_status(session, receipt.id)
+    if current == ReceiptLifecycleStatus.REVERSED:
+        return receipt
+    if current != ReceiptLifecycleStatus.CONFIRMED:
+        raise AppError(
+            "RECEIPT_NOT_CONFIRMED",
+            "Only a confirmed receipt can be reversed",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    normalized_reason = reason.strip()
+    if not normalized_reason:
+        raise AppError(
+            "REVERSAL_REASON_REQUIRED",
+            "A reversal reason is required",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    now = await database_clock(session)
+    await _append_receipt_event(
+        session,
+        receipt_id=receipt.id,
+        lifecycle_status=ReceiptLifecycleStatus.REVERSED,
+        actor_user_id=actor_user_id,
+        occurred_at=now,
+        reason=normalized_reason,
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="billing.receipt.reversed",
+        entity_type="payment_receipt",
+        entity_id=str(receipt.id),
+        metadata={"reason": normalized_reason, "reversal_cutoff": now.isoformat()},
+    )
+    return receipt

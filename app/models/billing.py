@@ -37,6 +37,18 @@ class AcceptanceMethod(StrEnum):
     EXTERNAL_RECORDED = "external_recorded"
 
 
+class ReceiptMethod(StrEnum):
+    MANUAL_TRANSFER = "manual_transfer"
+    GATEWAY = "gateway"
+
+
+class ReceiptLifecycleStatus(StrEnum):
+    OBSERVED = "observed"
+    RECONCILED = "reconciled"
+    CONFIRMED = "confirmed"
+    REVERSED = "reversed"
+
+
 class CommercialQuoteRequest(Base):
     __tablename__ = "commercial_quote_requests"
     __table_args__ = (
@@ -217,3 +229,120 @@ class CommercialTerms(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class PaymentReceipt(Base):
+    __tablename__ = "payment_receipts"
+    __table_args__ = (
+        CheckConstraint(
+            "method IN ('manual_transfer', 'gateway')", name="ck_payment_receipts_method"
+        ),
+        CheckConstraint("length(currency) = 3", name="ck_payment_receipts_currency"),
+        CheckConstraint("amount > 0", name="ck_payment_receipts_amount_positive"),
+        UniqueConstraint(
+            "external_transaction_id", name="uq_payment_receipts_external_transaction"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    organization_id: Mapped[UUID] = mapped_column(
+        ForeignKey("advertiser_organizations.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    method: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    external_transaction_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    payer_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    evidence_reference: Mapped[str] = mapped_column(String(255), nullable=False)
+    observed_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ReceiptReconciliation(Base):
+    __tablename__ = "receipt_reconciliations"
+    __table_args__ = (
+        CheckConstraint(
+            "length(expected_currency) = 3", name="ck_receipt_reconciliations_currency"
+        ),
+        CheckConstraint("expected_amount > 0", name="ck_receipt_reconciliations_amount_positive"),
+        UniqueConstraint("receipt_id", name="uq_receipt_reconciliations_receipt"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    receipt_id: Mapped[UUID] = mapped_column(
+        ForeignKey("payment_receipts.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    expected_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    expected_currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    matched: Mapped[bool] = mapped_column(nullable=False)
+    reconciled_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    reconciled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ReceiptLifecycleEvent(Base):
+    __tablename__ = "receipt_lifecycle_events"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('observed', 'reconciled', 'confirmed', 'reversed')",
+            name="ck_receipt_lifecycle_events_status",
+        ),
+        CheckConstraint("sequence_number BETWEEN 1 AND 4", name="ck_receipt_lifecycle_sequence"),
+        CheckConstraint(
+            "(status = 'observed' AND sequence_number = 1) OR "
+            "(status = 'reconciled' AND sequence_number = 2) OR "
+            "(status = 'confirmed' AND sequence_number = 3) OR "
+            "(status = 'reversed' AND sequence_number = 4)",
+            name="ck_receipt_lifecycle_status_sequence",
+        ),
+        UniqueConstraint("receipt_id", "status", name="uq_receipt_lifecycle_status"),
+        UniqueConstraint("receipt_id", "sequence_number", name="uq_receipt_lifecycle_sequence"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    receipt_id: Mapped[UUID] = mapped_column(
+        ForeignKey("payment_receipts.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    actor_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    reason: Mapped[str | None] = mapped_column(Text)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ReceiptAllocation(Base):
+    __tablename__ = "receipt_allocations"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_receipt_allocations_amount_positive"),
+        CheckConstraint("length(currency) = 3", name="ck_receipt_allocations_currency"),
+        UniqueConstraint("receipt_id", "commercial_terms_id", name="uq_receipt_allocations_terms"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    receipt_id: Mapped[UUID] = mapped_column(
+        ForeignKey("payment_receipts.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    commercial_terms_id: Mapped[UUID] = mapped_column(
+        ForeignKey("commercial_terms.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    allocated_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    allocated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
