@@ -16,6 +16,39 @@ implementation reality. Read only the active package section and inherited
 seams below, revalidate every item against the active base, and adopt only the
 smallest change required by the authoritative package contract.
 
+## Reusable pre-implementation adversarial boundary review
+
+From PKG-04 onward, the active package's bounded plan must select the risk
+boundaries actually touched by its planned changes and challenge them inside
+the one independent plan review already required by `AGENTS.md`. This guidance
+is advisory: it does not create package scope, product policy, architecture,
+checklist status or an additional reviewer cycle. Every invariant must cite its
+controlling package contract, architecture section or adopted decision.
+
+For each selected boundary, record the invariant, a concrete failure ordering
+or retry, the authority/lock/idempotency mechanism that prevents it, and the
+focused regression evidence. A category considered during scoping may be
+recorded as `not applicable` with a short reason. Omit categories unrelated to
+the change rather than forcing money, security or migration ceremony onto
+ordinary low-risk work.
+
+| Boundary to consider | Adversarial question | Minimum evidence when applicable |
+|---|---|---|
+| Shared authority and concurrency | Which operations can authorize, reverse, freeze or settle the same fact, in either commit order? Is one deterministic lock order retained through the caller's state mutation? | A barrier/race test proving every allowed ordering preserves chronology and authority. |
+| Lost response and retry identity | What happens when the mutation commits but its response is lost, then the caller retries concurrently or with changed facts? | Stable idempotency identity and fingerprint tests for same-request replay, concurrent replay and conflicting reuse. |
+| Split or shared-source conservation | Can one receipt, balance, quota, evidence source or allocation serve multiple children, campaigns, currencies or periods? | Both processing orders, per-scope overrun rejection and whole-source conservation. |
+| Public identity versus storage scope | Does the visible number/key omit a field used to scope its sequence or uniqueness lock? | Sequential and concurrent tests across distinct internal records sharing the same rendered scope. |
+| Mutable parent versus frozen child | Can a mutable campaign/account/profile field diverge from accepted terms, an immutable snapshot or later authorization? | Pre-freeze change, post-freeze rejection and update-versus-acceptance race coverage. |
+| Populated migration and backfill | Does an additive authority apply honestly to valid historical rows, and can downgrade preserve populated data? | Populated upgrade/backfill fixtures, idempotent reconciliation and explicit fail-closed downgrade where lossless reversal is impossible. |
+| Changed cross-package seam | Which completed producer contract is newly consumed or changed here, and can the two sides compose under failure, correction and concurrency? | Focused producer/consumer seam tests only; do not re-audit unrelated completed packages. |
+
+The consolidated post-build or Pro review should confirm this work rather than
+discover it for the first time. When it finds a new high-confidence composition
+pattern, the controller first reproduces it on the active base and reconciles it
+with the authoritative contract. Only then may the reusable pattern be added
+here for subsequent packages; the finding does not by itself authorize
+out-of-package remediation or reopening unrelated completed work.
+
 ## Package 1 findings inherited by later packages
 
 The useful audit findings and their current dispositions are:
