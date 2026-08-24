@@ -59,18 +59,18 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 ### Current control pointer
 
 **Controller state:** `ACTIVE`
-**Control package:** `PKG-03` — see package queue row 3 and package card.
-**Current checkpoint:** `PKG-03 / W2-00A` — non-authorizing internal pointer;
-PKG-02 is closed with all nine owned checklist items done. PKG-03 is the first
-dependency-safe package and W2-00A is its first runnable checklist item.
+**Control package:** `PKG-03` — promoted after the corrected Package 2 tip
+was verified; no Package 3 implementation has started in this worktree.
+**Current checkpoint:** `PKG-03 / W2-00A` — queued commercial-contract entry
+point; its worktree remains untouched by the completed Package 2 correction.
 
 ## Executable package queue
 
 | # | Package | Status | Outcome | Package prerequisites |
 | ---: | --- | --- | --- | --- |
 | 1 | **PKG-01 — foundations and empirical risk proof** | DONE | Resolve remaining foundations, production-PWA/staging risk and correction authority. | none |
-| 2 | **PKG-02 — money integrity and payout operations** | DONE | Fraud holds, release, protected payees, payout batches and debt work end to end. | none — checklist DAG gates entry |
-| 3 | **PKG-03 — commercial contracts and billing** | **NEXT** | Accepted terms, receipts, invoices, funding, refunds and budgets form one money-safe flow. | none — checklist DAG gates entry |
+| 2 | **PKG-02 — money integrity and payout operations** | DONE | Corrected release, pre-existing-reversal backfill and debt-aware economic/settlement authority agree. | none |
+| 3 | **PKG-03 — commercial contracts and billing** | **NEXT** | Accepted terms, receipts, invoices, funding, refunds and budgets form one money-safe flow. Promoted after PKG-02 verification; not started here. | none |
 | 4 | **PKG-04 — secure evidence, activation and communications** | QUEUED | Secure files/KYC, campaign evidence/activation/cancellation and notifications integrate. | none — checklist DAG gates entry |
 | 5 | **PKG-05 — privacy, measurement and retargeting** | QUEUED | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
 | 6 | **PKG-06 — matching and driver onboarding** | QUEUED | Recommendations, offers, activity and approved driver/vehicle onboarding work together. | none — checklist DAG gates entry |
@@ -333,14 +333,36 @@ dependency-safe package and W2-00A is its first runnable checklist item.
   order plus a forced-overlap PostgreSQL regression and focused UI assertions,
   then rechecked both findings RESOLVED. No live provider, physical-device,
   real-route, external-staging, pilot or user-feedback validation is claimed.
-- **PKG-02 closure (DONE 23 Aug 2026, candidate `e3a505e`):** all checklist
+- **PKG-02 prior closure (23 Aug 2026, candidate `e3a505e`; reopened for
+  correction review 24 Aug 2026):** all checklist
   items 10–18 are done; RM8/RM10/RM11 are resolved and RM9's copied-route
   software control is delivered with its physical-proof residual preserved.
   The advisory Pro register remains revalidation input at
-  `docs/pro-review-register.md`, not a queue or adopted architecture. PKG-03 is
-  promoted to `NEXT`; its controller must consume the final D17 crypto seam and
-  this money authority without adding plaintext fallback, a second crypto
-  subsystem or a second fraud-hold predicate.
+  `docs/pro-review-register.md`, not a queue or adopted architecture. PKG-03
+  had been promoted to `NEXT`; it was paused pending the correction round.
+  Its controller must consume the corrected final D17 crypto seam and money
+  authority without adding plaintext fallback, a second crypto subsystem or a
+  second fraud-hold predicate.
+- **PKG-02 correction round (DONE 24 Aug 2026, base `e8fafb4`):** one bounded
+  money-authority correction now creates due reversal obligations after the
+  release flush and before audit/commit in deterministic driver/currency/entry
+  order; any active reservation aborts the complete release transaction.
+  Undeployed migration `0031` backfills all eligible available reversals into
+  one driver/currency account and obligation, links same-trip paid provenance,
+  conserves totals, replays idempotently and fails before unsafe active
+  reservations or populated downgrade destruction. Economic projections keep
+  non-voided sources, subtract reversals and exclude `debt_remainder`; separate
+  settlement fields expose released credit, cash paid, carried debt and
+  batch-payable amount in both driver views and the public API. Evidence:
+  focused release/idempotency/whole-entry/residual/two-trip API and PostgreSQL
+  reservation-race tests; five populated migration/backfill/downgrade tests;
+  contract baselines moved together; frontend 191 tests, typecheck, lint
+  (one pre-existing warning) and production build; full backend aggregate
+  `793 passed, 3 skipped` before 13 documentation-contract fixture failures,
+  all repaired and rechecked by `41 passed`; final clean-context
+  minimal-change review PASS (one packaging reminder satisfied). No live
+  provider, physical-device, real-route, external-staging, pilot or
+  user-feedback validation is claimed. PKG-03 is promoted but not started.
 - **Closure-CI fixture correction (24 Aug 2026):** the first closure run passed
   797 backend tests before six production-Compose missing-secret assertions all
   stopped at the newly required payout keyring. `staging.env.example` now
@@ -750,6 +772,11 @@ names never authorize work or replace the package queue.
   (§16.2/16.3, RM11, Q22/Q27). No collections or negative transfer.
 - **Acceptance:** reversal never increases balance; paid history is immutable;
   future credit clears debt before becoming batchable; currencies never mix.
+- **Projection boundary:** economic/provenance totals retain every non-voided
+  source and subtract reversals, while `debt_remainder` contributes zero.
+  Settlement totals separately report released credit, cash paid, carried debt
+  and debt-aware batch-payable amount; status changes made for allocation do
+  not rewrite economics.
 - **Verify / review:** cross-payment-boundary property and multi-period
   recompute→debt→batch e2e; independent money review.
 

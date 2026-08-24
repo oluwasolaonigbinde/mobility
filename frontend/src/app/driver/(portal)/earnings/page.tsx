@@ -56,11 +56,11 @@ export default async function DriverEarningsPage() {
       <h1 className="font-display text-2xl font-semibold tracking-tight">Earnings</h1>
 
       {totals.map((t) => (
-        <div key={t.currency} className="grid grid-cols-3 gap-3">
+        <div key={t.currency} className="grid grid-cols-2 gap-3">
           <Panel className="p-4">
-            <p className="micro text-faint">Available</p>
+            <p className="micro text-faint">Batch-payable</p>
             <p className="font-display text-green mt-1 text-lg font-semibold">
-              {formatMoney(t.available_amount, t.currency)}
+              {formatMoney(t.batch_payable_amount, t.currency)}
             </p>
           </Panel>
           <Panel className="p-4">
@@ -70,7 +70,13 @@ export default async function DriverEarningsPage() {
             </p>
           </Panel>
           <Panel className="p-4">
-            <p className="micro text-faint">Lifetime</p>
+            <p className="micro text-faint">Carried debt</p>
+            <p className="font-display mt-1 text-lg font-semibold">
+              {formatMoney(t.carry_forward_debt_amount, t.currency)}
+            </p>
+          </Panel>
+          <Panel className="p-4">
+            <p className="micro text-faint">Lifetime earned</p>
             <p className="font-display mt-1 text-lg font-semibold">
               {formatMoney(t.lifetime_earned_amount, t.currency)}
             </p>

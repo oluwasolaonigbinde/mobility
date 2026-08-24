@@ -75,6 +75,10 @@ class DecimalStringMixin(BaseModel):
         "paid_amount",
         "voided_amount",
         "lifetime_earned_amount",
+        "released_available_amount",
+        "cash_paid_amount",
+        "carry_forward_debt_amount",
+        "batch_payable_amount",
         "final_payout_total",
         "gross_payout_total",
         check_fields=False,
@@ -374,6 +378,10 @@ class DriverEarningsCurrencySummary(DecimalStringMixin):
     paid_amount: Decimal
     voided_amount: Decimal
     lifetime_earned_amount: Decimal
+    released_available_amount: Decimal
+    cash_paid_amount: Decimal
+    carry_forward_debt_amount: Decimal
+    batch_payable_amount: Decimal
     ledger_entry_count: int
 
 

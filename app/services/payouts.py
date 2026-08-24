@@ -50,7 +50,7 @@ from app.services.impressions import (
     quantize_2,
     quantize_4,
 )
-from app.services.payout_debt import record_reversal_obligation
+from app.services.payout_debt import driver_money_balance, record_reversal_obligation
 from app.services.payout_eligibility import (
     D22_ROLLING_CONFIRMATION_WINDOWS,
     D22_ROLLING_MAX_DISPLACEMENT_M,
@@ -187,6 +187,10 @@ class DriverCurrencyEarnings:
     paid_amount: Decimal
     voided_amount: Decimal
     lifetime_earned_amount: Decimal
+    released_available_amount: Decimal
+    cash_paid_amount: Decimal
+    carry_forward_debt_amount: Decimal
+    batch_payable_amount: Decimal
     ledger_entry_count: int
 
 
@@ -219,10 +223,18 @@ class CampaignCost:
 
 
 def signed_ledger_amount_expression():
-    """Ledger sign convention (architecture 16.2, next-steps ledger block):
-    every amount is stored positive; balance computations net reversal-typed
-    entries as negative; adjustments are ordinary positive earnings."""
+    """Economic/provenance sign convention.
+
+    A debt remainder is settlement provenance for an already-recorded source,
+    never a second economic earning. Reversals are negative; a non-voided
+    original remains economic even if allocation changes its settlement status
+    to ``reversed``.
+    """
     return case(
+        (
+            EarningsLedgerEntry.entry_type == EarningsLedgerEntryType.DEBT_REMAINDER.value,
+            0,
+        ),
         (
             EarningsLedgerEntry.entry_type == EarningsLedgerEntryType.REVERSAL.value,
             -EarningsLedgerEntry.amount,
@@ -2743,6 +2755,19 @@ async def driver_earnings_summary(
                 ),
                 0,
             ),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            EarningsLedgerEntry.status
+                            != EarningsLedgerEntryStatus.VOIDED.value,
+                            signed_amount,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
             func.count(EarningsLedgerEntry.id),
         )
         .where(*filters)
@@ -2754,6 +2779,11 @@ async def driver_earnings_summary(
         available = quantize_2(Decimal(str(row[2] or 0)))
         voided = quantize_2(Decimal(str(row[3] or 0)))
         paid = quantize_2(Decimal(str(row[4] or 0)))
+        balance = await driver_money_balance(
+            session,
+            driver_profile_id=profile.id,
+            currency=row[0],
+        )
         totals.append(
             DriverCurrencyEarnings(
                 currency=row[0],
@@ -2761,8 +2791,12 @@ async def driver_earnings_summary(
                 available_amount=available,
                 paid_amount=paid,
                 voided_amount=voided,
-                lifetime_earned_amount=quantize_2(pending + available + paid),
-                ledger_entry_count=int(row[5] or 0),
+                lifetime_earned_amount=quantize_2(Decimal(str(row[5] or 0))),
+                released_available_amount=balance.released_available,
+                cash_paid_amount=balance.cash_paid,
+                carry_forward_debt_amount=balance.carry_forward_debt,
+                batch_payable_amount=balance.batch_payable,
+                ledger_entry_count=int(row[6] or 0),
             )
         )
     if not totals:
@@ -2774,6 +2808,10 @@ async def driver_earnings_summary(
                 paid_amount=Decimal("0.00"),
                 voided_amount=Decimal("0.00"),
                 lifetime_earned_amount=Decimal("0.00"),
+                released_available_amount=Decimal("0.00"),
+                cash_paid_amount=Decimal("0.00"),
+                carry_forward_debt_amount=Decimal("0.00"),
+                batch_payable_amount=Decimal("0.00"),
                 ledger_entry_count=0,
             )
         )
@@ -3868,7 +3906,10 @@ async def driver_trip_earnings_breakdown(
     currency = calculation.currency if calculation is not None else entries[0].currency
     amount = Decimal("0.00")
     for entry in entries:
-        if entry.status == EarningsLedgerEntryStatus.VOIDED.value:
+        if (
+            entry.status == EarningsLedgerEntryStatus.VOIDED.value
+            or entry.entry_type == EarningsLedgerEntryType.DEBT_REMAINDER.value
+        ):
             continue
         if entry.entry_type == EarningsLedgerEntryType.REVERSAL.value:
             amount -= entry.amount

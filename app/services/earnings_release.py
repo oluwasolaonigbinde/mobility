@@ -16,6 +16,7 @@ from app.models.trip_analytics import FraudFlag, FraudFlagStatus
 from app.services.audit import create_audit_event
 from app.services.fraud_assessments import load_current_successful_assessment
 from app.services.fraud_holds import fraud_hold_active_clause, lock_fraud_hold_scope
+from app.services.payout_debt import record_reversal_obligation
 from app.services.payout_rule_serialization import database_clock
 
 
@@ -119,6 +120,19 @@ async def release_pending_earnings_for_trip(
         entry.status = EarningsLedgerEntryStatus.AVAILABLE.value
     if released:
         await session.flush()
+        # Keep the trip lock before the driver/currency debt lock, matching
+        # reservation. A released reversal is not economically available until
+        # its debt authority exists, so a reservation conflict aborts this
+        # entire transaction (including the status transition and audit).
+        for reversal in sorted(
+            (
+                entry
+                for entry in released
+                if entry.entry_type == EarningsLedgerEntryType.REVERSAL.value
+            ),
+            key=lambda entry: (str(entry.driver_profile_id), entry.currency, str(entry.id)),
+        ):
+            await record_reversal_obligation(session, reversal_entry=reversal)
         await create_audit_event(
             session,
             actor_user_id=None,

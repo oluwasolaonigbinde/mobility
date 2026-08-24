@@ -181,6 +181,119 @@ def upgrade() -> None:
             name="uq_payout_debt_allocations_settlement_obligation",
         ),
     )
+    _backfill_available_paid_reversal_debt()
+
+
+def _backfill_available_paid_reversal_debt() -> None:
+    """Bring legacy, already-available reversals into debt authority.
+
+    This exactly matches the runtime entry point: an available reversal is
+    debt, with same-trip paid sources linked when they exist. An affected
+    driver/currency with a live non-succeeded reservation is unsafe because
+    the reservation was made before debt eligibility existed, so fail before
+    inserting any authority rows.
+    """
+    bind = op.get_bind()
+    eligible = """
+        r.entry_type = 'reversal'
+        AND r.status = 'available'
+        AND r.amount > 0
+    """
+    unsafe = bind.execute(
+        sa.text(
+            f"""
+            SELECT r.id
+            FROM earnings_ledger_entries r
+            WHERE {eligible}
+              AND EXISTS (
+                SELECT 1
+                FROM payout_batch_lines line
+                JOIN earnings_ledger_entries reserved
+                  ON reserved.id = line.ledger_entry_id
+                WHERE line.reservation_active = true
+                  AND line.status <> 'succeeded'
+                  AND reserved.driver_profile_id = r.driver_profile_id
+                  AND reserved.currency = r.currency
+              )
+            LIMIT 1
+            """
+        )
+    ).scalar_one_or_none()
+    if unsafe is not None:
+        raise RuntimeError(
+            "0031 upgrade blocked: active payout reservation conflicts with eligible reversal debt"
+        )
+
+    # Every statement is conflict-safe. Alembic normally applies a revision
+    # once, but this preserves conservation if an operator replays the
+    # migration-local work after an interrupted disposable-environment run.
+    bind.execute(
+        sa.text(
+            f"""
+            INSERT INTO driver_currency_debt_accounts
+              (id, driver_profile_id, driver_user_id, currency,
+               outstanding_amount, lifetime_incurred_amount, lifetime_allocated_amount)
+            SELECT gen_random_uuid(), r.driver_profile_id, r.driver_user_id, r.currency,
+                   0, 0, 0
+            FROM earnings_ledger_entries r
+            WHERE {eligible}
+            GROUP BY r.driver_profile_id, r.driver_user_id, r.currency
+            ON CONFLICT (driver_profile_id, currency) DO NOTHING
+            """
+        )
+    )
+    bind.execute(
+        sa.text(
+            f"""
+            INSERT INTO payout_debt_obligations
+              (id, debt_account_id, source_reversal_entry_id, correction_order_id,
+               currency, original_amount, outstanding_amount)
+            SELECT gen_random_uuid(), account.id, r.id, NULL,
+                   r.currency, r.amount, r.amount
+            FROM earnings_ledger_entries r
+            JOIN driver_currency_debt_accounts account
+              ON account.driver_profile_id = r.driver_profile_id
+             AND account.currency = r.currency
+            WHERE {eligible}
+            ON CONFLICT (source_reversal_entry_id) DO NOTHING
+            """
+        )
+    )
+    bind.execute(
+        sa.text(
+            """
+            INSERT INTO payout_debt_paid_sources
+              (id, debt_obligation_id, paid_ledger_entry_id)
+            SELECT gen_random_uuid(), obligation.id, paid.id
+            FROM payout_debt_obligations obligation
+            JOIN earnings_ledger_entries reversal
+              ON reversal.id = obligation.source_reversal_entry_id
+            JOIN earnings_ledger_entries paid
+              ON paid.driver_profile_id = reversal.driver_profile_id
+             AND paid.trip_session_id = reversal.trip_session_id
+             AND paid.currency = reversal.currency
+             AND paid.status = 'paid'
+             AND paid.entry_type <> 'reversal'
+            ON CONFLICT (debt_obligation_id, paid_ledger_entry_id) DO NOTHING
+            """
+        )
+    )
+    bind.execute(
+        sa.text(
+            """
+            WITH obligation_totals AS (
+              SELECT debt_account_id, COALESCE(SUM(outstanding_amount), 0) AS outstanding
+              FROM payout_debt_obligations
+              GROUP BY debt_account_id
+            )
+            UPDATE driver_currency_debt_accounts account
+            SET outstanding_amount = totals.outstanding,
+                lifetime_incurred_amount = totals.outstanding + account.lifetime_allocated_amount
+            FROM obligation_totals totals
+            WHERE account.id = totals.debt_account_id
+            """
+        )
+    )
 
 
 def downgrade() -> None:
