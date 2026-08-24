@@ -77,6 +77,16 @@ class ProductionAuthorityBasis(StrEnum):
     APPROVED_CREDIT = "approved_credit"
 
 
+class InvoiceCorrectionType(StrEnum):
+    CREDIT_NOTE = "credit_note"
+    DEBIT_NOTE = "debit_note"
+
+
+class SettlementDisposition(StrEnum):
+    REFUND_RECORDED = "refund_recorded"
+    CREDIT_SETTLEMENT_RECORDED = "credit_settlement_recorded"
+
+
 class CommercialQuoteRequest(Base):
     __tablename__ = "commercial_quote_requests"
     __table_args__ = (
@@ -810,3 +820,99 @@ class PaymentGatewayProcessingAttempt(Base):
         ForeignKey("receipt_allocations.id", ondelete="RESTRICT")
     )
     processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class InvoiceCorrection(Base):
+    __tablename__ = "invoice_corrections"
+    __table_args__ = (
+        CheckConstraint(
+            "correction_type IN ('credit_note', 'debit_note')",
+            name="ck_invoice_corrections_type",
+        ),
+        CheckConstraint("sequence_number > 0", name="ck_invoice_corrections_sequence"),
+        CheckConstraint("length(currency) = 3", name="ck_invoice_corrections_currency"),
+        CheckConstraint(
+            "net_amount >= 0 AND tax_amount >= 0 AND gross_amount > 0 "
+            "AND gross_amount = net_amount + tax_amount",
+            name="ck_invoice_corrections_amounts",
+        ),
+        UniqueConstraint("invoice_id", "sequence_number", name="uq_invoice_corrections_sequence"),
+        UniqueConstraint("correction_number", name="uq_invoice_corrections_number"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    invoice_id: Mapped[UUID] = mapped_column(
+        ForeignKey("invoices.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    correction_number: Mapped[str] = mapped_column(String(96), nullable=False)
+    correction_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    net_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    tax_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    gross_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class RefundSettlement(Base):
+    __tablename__ = "refund_settlements"
+    __table_args__ = (
+        CheckConstraint(
+            "disposition IN ('refund_recorded', 'credit_settlement_recorded')",
+            name="ck_refund_settlements_disposition",
+        ),
+        CheckConstraint("length(currency) = 3", name="ck_refund_settlements_currency"),
+        CheckConstraint(
+            "(disposition = 'refund_recorded' AND receipt_id IS NOT NULL AND amount > 0 "
+            "AND funding_authorized_at IS NOT NULL AND eligibility_ends_at IS NOT NULL) OR "
+            "(disposition = 'credit_settlement_recorded' AND receipt_id IS NULL "
+            "AND amount = 0 AND funding_authorized_at IS NULL AND eligibility_ends_at IS NULL)",
+            name="ck_refund_settlements_authority",
+        ),
+        CheckConstraint(
+            "eligibility_ends_at IS NULL OR recorded_at < eligibility_ends_at",
+            name="ck_refund_settlements_eligibility_window",
+        ),
+        UniqueConstraint(
+            "settlement_provider",
+            "external_reference",
+            name="uq_refund_settlements_external_reference",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    commercial_terms_id: Mapped[UUID] = mapped_column(
+        ForeignKey("commercial_terms.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    campaign_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    receipt_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("payment_receipts.id", ondelete="RESTRICT")
+    )
+    production_start_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("production_starts.id", ondelete="RESTRICT")
+    )
+    waiver_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("expedited_production_waivers.id", ondelete="RESTRICT")
+    )
+    disposition: Mapped[str] = mapped_column(String(40), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    funding_authorized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    eligibility_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    settlement_provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    external_reference: Mapped[str] = mapped_column(String(255), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    recorded_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

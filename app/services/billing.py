@@ -28,6 +28,8 @@ from app.models.billing import (
     FinancialAuthorityType,
     FinancialAuthorizationAllocation,
     Invoice,
+    InvoiceCorrection,
+    InvoiceCorrectionType,
     InvoiceIssuerProfile,
     InvoiceNumberSequence,
     InvoiceStatus,
@@ -44,6 +46,8 @@ from app.models.billing import (
     ReceiptLifecycleStatus,
     ReceiptMethod,
     ReceiptReconciliation,
+    RefundSettlement,
+    SettlementDisposition,
 )
 from app.models.campaign import Campaign
 from app.models.campaign_assignment import CampaignAssignment
@@ -2355,3 +2359,366 @@ async def record_payment_gateway_failure(
     session.add(attempt)
     await session.flush()
     return attempt
+
+
+async def record_invoice_correction(
+    session: AsyncSession,
+    *,
+    invoice_id: UUID,
+    actor_user_id: UUID,
+    correction_type: InvoiceCorrectionType,
+    net_amount: Decimal | str,
+    tax_amount: Decimal | str,
+    reason: str,
+) -> InvoiceCorrection:
+    await _active_admin(session, actor_user_id)
+    invoice = await session.scalar(
+        select(Invoice).where(Invoice.id == invoice_id).with_for_update()
+    )
+    if invoice is None:
+        raise AppError("INVOICE_NOT_FOUND", "Invoice was not found", status_code=404)
+    if invoice.status not in {InvoiceStatus.ISSUED, InvoiceStatus.VOID}:
+        raise AppError(
+            "ISSUED_INVOICE_REQUIRED",
+            "Only an issued invoice can receive an immutable correction",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    normalized_reason = reason.strip()
+    net = _money(net_amount, "correction.net_amount")
+    tax = _money(tax_amount, "correction.tax_amount")
+    gross = net + tax
+    if gross <= 0 or not normalized_reason:
+        raise AppError(
+            "INVALID_INVOICE_CORRECTION",
+            "A positive itemised correction and reason are required",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    rows = list(
+        await session.scalars(
+            select(InvoiceCorrection)
+            .where(InvoiceCorrection.invoice_id == invoice.id)
+            .order_by(InvoiceCorrection.sequence_number)
+        )
+    )
+    credits = sum(
+        (
+            Decimal(row.gross_amount)
+            for row in rows
+            if row.correction_type == InvoiceCorrectionType.CREDIT_NOTE
+        ),
+        Decimal("0.00"),
+    )
+    debits = sum(
+        (
+            Decimal(row.gross_amount)
+            for row in rows
+            if row.correction_type == InvoiceCorrectionType.DEBIT_NOTE
+        ),
+        Decimal("0.00"),
+    )
+    if (
+        correction_type == InvoiceCorrectionType.CREDIT_NOTE
+        and credits + gross > Decimal(invoice.gross_amount) + debits
+    ):
+        raise AppError(
+            "INVOICE_CREDIT_EXCEEDS_OBLIGATION",
+            "Credit corrections cannot reduce the invoice obligation below zero",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    sequence = len(rows) + 1
+    now = await database_clock(session)
+    correction = InvoiceCorrection(
+        invoice_id=invoice.id,
+        sequence_number=sequence,
+        correction_number=f"COR-{invoice.invoice_number}-{sequence:03d}",
+        correction_type=correction_type,
+        currency=invoice.currency,
+        net_amount=net,
+        tax_amount=tax,
+        gross_amount=gross,
+        reason=normalized_reason,
+        created_by_user_id=actor_user_id,
+        created_at=now,
+    )
+    session.add(correction)
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="billing.invoice.corrected",
+        entity_type="invoice_correction",
+        entity_id=str(correction.id),
+        metadata={
+            "invoice_id": str(invoice.id),
+            "correction_type": correction_type.value,
+            "gross_amount": f"{gross:.2f}",
+            "currency": invoice.currency,
+        },
+    )
+    return correction
+
+
+async def adjusted_invoice_obligation(session: AsyncSession, invoice_id: UUID) -> Decimal:
+    invoice = await session.get(Invoice, invoice_id)
+    if invoice is None:
+        raise AppError("INVOICE_NOT_FOUND", "Invoice was not found", status_code=404)
+    rows = list(
+        await session.scalars(
+            select(InvoiceCorrection).where(InvoiceCorrection.invoice_id == invoice.id)
+        )
+    )
+    adjusted = Decimal(invoice.gross_amount)
+    for row in rows:
+        if row.correction_type == InvoiceCorrectionType.CREDIT_NOTE:
+            adjusted -= Decimal(row.gross_amount)
+        else:
+            adjusted += Decimal(row.gross_amount)
+    return adjusted
+
+
+async def _historical_fully_funded_at(
+    session: AsyncSession, terms: CommercialTerms
+) -> datetime | None:
+    cumulative = Decimal("0.00")
+    allocations = list(
+        await session.scalars(
+            select(ReceiptAllocation)
+            .where(ReceiptAllocation.commercial_terms_id == terms.id)
+            .order_by(ReceiptAllocation.allocated_at, ReceiptAllocation.id)
+        )
+    )
+    for allocation in allocations:
+        cumulative += Decimal(allocation.amount)
+        if cumulative >= Decimal(terms.gross_amount):
+            return allocation.allocated_at
+    return None
+
+
+async def _refund_window(
+    session: AsyncSession, terms: CommercialTerms
+) -> tuple[datetime | None, datetime | None, ProductionStart | None]:
+    if terms.payment_class == PaymentClass.APPROVED_CORPORATE_CREDIT:
+        return None, None, None
+    funded_at = await _historical_fully_funded_at(session, terms)
+    if funded_at is None:
+        return None, None, None
+    standard_end = funded_at + timedelta(hours=terms.standard_production_wait_hours)
+    production = await session.scalar(
+        select(ProductionStart).where(ProductionStart.campaign_id == terms.campaign_id)
+    )
+    if (
+        production is not None
+        and production.authority_basis == ProductionAuthorityBasis.ADVERTISER_EXPEDITED_WAIVER
+        and production.started_at < standard_end
+    ):
+        return funded_at, production.started_at, production
+    return funded_at, standard_end, production
+
+
+async def record_refund_settlement(
+    session: AsyncSession,
+    *,
+    commercial_terms_id: UUID,
+    receipt_id: UUID,
+    actor_user_id: UUID,
+    amount: Decimal | str,
+    settlement_provider: str,
+    external_reference: str,
+    reason: str,
+) -> RefundSettlement:
+    await _active_admin(session, actor_user_id)
+    terms = await session.get(CommercialTerms, commercial_terms_id)
+    if terms is None:
+        raise AppError("COMMERCIAL_TERMS_NOT_FOUND", "Commercial terms were not found", 404)
+    await acquire_campaign_terms_lock(session, terms.campaign_id)
+    await _campaign(session, terms.campaign_id, lock=True)
+    receipt = await session.scalar(
+        select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
+    )
+    terms = await session.scalar(
+        select(CommercialTerms).where(CommercialTerms.id == commercial_terms_id).with_for_update()
+    )
+    if receipt is None or terms is None or receipt.organization_id != terms.organization_id:
+        raise AppError("REFUND_AUTHORITY_NOT_FOUND", "Refund authority was not found", 404)
+    if terms.payment_class == PaymentClass.APPROVED_CORPORATE_CREDIT:
+        raise AppError(
+            "CASH_REFUND_NOT_APPLICABLE",
+            "Corporate credit without cash uses contract settlement, not a refund",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    provider = settlement_provider.strip().lower()
+    reference = external_reference.strip()
+    normalized_reason = reason.strip()
+    refund_amount = _money(amount, "refund.amount")
+    if refund_amount == 0 or not all((provider, reference, normalized_reason)):
+        raise AppError(
+            "INVALID_REFUND_SETTLEMENT",
+            "Refund amount, provider, reference and reason are required",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    existing = await session.scalar(
+        select(RefundSettlement).where(
+            RefundSettlement.settlement_provider == provider,
+            RefundSettlement.external_reference == reference,
+        )
+    )
+    if existing is not None:
+        if (
+            existing.commercial_terms_id == terms.id
+            and existing.receipt_id == receipt.id
+            and Decimal(existing.amount) == refund_amount
+        ):
+            return existing
+        raise AppError(
+            "REFUND_REFERENCE_CONFLICT",
+            "External refund reference belongs to different settlement evidence",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if await _receipt_status(session, receipt.id) != ReceiptLifecycleStatus.REVERSED:
+        raise AppError(
+            "REVERSED_RECEIPT_REQUIRED",
+            "Refund recording requires an append-only receipt reversal first",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    allocation = await session.scalar(
+        select(ReceiptAllocation).where(
+            ReceiptAllocation.receipt_id == receipt.id,
+            ReceiptAllocation.commercial_terms_id == terms.id,
+        )
+    )
+    if allocation is None:
+        raise AppError(
+            "REFUND_ALLOCATION_REQUIRED",
+            "Only allocated cash can be refunded",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    prior = Decimal(
+        await session.scalar(
+            select(func.coalesce(func.sum(RefundSettlement.amount), 0)).where(
+                RefundSettlement.receipt_id == receipt.id,
+                RefundSettlement.disposition == SettlementDisposition.REFUND_RECORDED,
+            )
+        )
+        or 0
+    )
+    if prior + refund_amount > Decimal(allocation.amount):
+        raise AppError(
+            "REFUND_EXCEEDS_CASH_AUTHORITY",
+            "Refund cannot exceed the receipt's allocated cash authority",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    funded_at, eligibility_ends_at, production = await _refund_window(session, terms)
+    now = await database_clock(session)
+    if funded_at is None or eligibility_ends_at is None or now >= eligibility_ends_at:
+        raise AppError(
+            "REFUND_WINDOW_CLOSED",
+            "Cash refund eligibility is not open at the exact evaluation time",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    settlement = RefundSettlement(
+        commercial_terms_id=terms.id,
+        campaign_id=terms.campaign_id,
+        receipt_id=receipt.id,
+        production_start_id=production.id if production is not None else None,
+        waiver_id=production.waiver_id if production is not None else None,
+        disposition=SettlementDisposition.REFUND_RECORDED,
+        amount=refund_amount,
+        currency=terms.currency,
+        funding_authorized_at=funded_at,
+        eligibility_ends_at=eligibility_ends_at,
+        settlement_provider=provider,
+        external_reference=reference,
+        reason=normalized_reason,
+        recorded_by_user_id=actor_user_id,
+        recorded_at=now,
+    )
+    session.add(settlement)
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="billing.refund.recorded",
+        entity_type="refund_settlement",
+        entity_id=str(settlement.id),
+        metadata={
+            "commercial_terms_id": str(terms.id),
+            "receipt_id": str(receipt.id),
+            "amount": f"{refund_amount:.2f}",
+            "currency": terms.currency,
+            "eligibility_ends_at": eligibility_ends_at.isoformat(),
+        },
+    )
+    return settlement
+
+
+async def record_credit_contract_settlement(
+    session: AsyncSession,
+    *,
+    commercial_terms_id: UUID,
+    actor_user_id: UUID,
+    settlement_provider: str,
+    external_reference: str,
+    reason: str,
+) -> RefundSettlement:
+    await _active_admin(session, actor_user_id)
+    terms = await session.get(CommercialTerms, commercial_terms_id)
+    if terms is not None:
+        await acquire_campaign_terms_lock(session, terms.campaign_id)
+        await _campaign(session, terms.campaign_id, lock=True)
+        terms = await session.scalar(
+            select(CommercialTerms)
+            .where(CommercialTerms.id == commercial_terms_id)
+            .with_for_update()
+        )
+    if terms is None or terms.payment_class != PaymentClass.APPROVED_CORPORATE_CREDIT:
+        raise AppError(
+            "APPROVED_CREDIT_TERMS_REQUIRED",
+            "Contract settlement requires approved corporate-credit terms",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    provider = settlement_provider.strip().lower()
+    reference = external_reference.strip()
+    normalized_reason = reason.strip()
+    if not all((provider, reference, normalized_reason)):
+        raise AppError(
+            "INVALID_CREDIT_SETTLEMENT",
+            "Settlement provider, reference and reason are required",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    existing = await session.scalar(
+        select(RefundSettlement).where(
+            RefundSettlement.settlement_provider == provider,
+            RefundSettlement.external_reference == reference,
+        )
+    )
+    if existing is not None:
+        if existing.commercial_terms_id == terms.id and existing.disposition == (
+            SettlementDisposition.CREDIT_SETTLEMENT_RECORDED
+        ):
+            return existing
+        raise AppError(
+            "SETTLEMENT_REFERENCE_CONFLICT",
+            "External settlement reference belongs to different evidence",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    now = await database_clock(session)
+    settlement = RefundSettlement(
+        commercial_terms_id=terms.id,
+        campaign_id=terms.campaign_id,
+        receipt_id=None,
+        production_start_id=None,
+        waiver_id=None,
+        disposition=SettlementDisposition.CREDIT_SETTLEMENT_RECORDED,
+        amount=Decimal("0.00"),
+        currency=terms.currency,
+        funding_authorized_at=None,
+        eligibility_ends_at=None,
+        settlement_provider=provider,
+        external_reference=reference,
+        reason=normalized_reason,
+        recorded_by_user_id=actor_user_id,
+        recorded_at=now,
+    )
+    session.add(settlement)
+    await session.flush()
+    return settlement
