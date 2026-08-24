@@ -62,9 +62,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 **Control package:** `PKG-05` — Package 4 is blocked only on its recorded
 storage/scanner/KMS/email/phone inputs and transitive checklist dependencies;
 Package 5 is the next dependency-safe package frontier.
-**Current checkpoint:** `PKG-05 / W3-00A` — W2-04A is focused-verified and
-complete. The privacy operating model is the first runnable later-package
-checkpoint; it is pointed but not started by the Package 4 controller.
+**Current checkpoint:** `PKG-05 / W3-00D` — W3-00A is focused-verified and
+complete. The measurement methodology contract is the next dependency-safe
+checkpoint under the reviewed Package 5 plan.
 
 ## Executable package queue
 
@@ -74,7 +74,7 @@ checkpoint; it is pointed but not started by the Package 4 controller.
 | 2 | **PKG-02 — money integrity and payout operations** | DONE | Corrected release, pre-existing-reversal backfill and debt-aware economic/settlement authority agree. | none — checklist DAG gates entry |
 | 3 | **PKG-03 — commercial contracts and billing** | BLOCKED | Synthetic/provider-neutral commercial flow is verified; live provider checkout and budget enforcement await their recorded external inputs. | none — checklist DAG gates entry |
 | 4 | **PKG-04 — secure evidence, activation and communications** | **BLOCKED** | Campaign review and the shared in-app notification core are complete; storage/KYC/activation/provider communications await recorded external inputs and their transitive dependencies. | none — checklist DAG gates entry |
-| 5 | **PKG-05 — privacy, measurement and retargeting** | **NEXT** | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
+| 5 | **PKG-05 — privacy, measurement and retargeting** | **IN PROGRESS** | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
 | 6 | **PKG-06 — matching and driver onboarding** | QUEUED | Recommendations, offers, activity and approved driver/vehicle onboarding work together. | none — checklist DAG gates entry |
 | 7 | **PKG-07 — production driver PWA** | QUEUED | The pilot PWA safely tracks, syncs, explains earnings and supports release across the device matrix. | none — checklist DAG gates entry |
 | 8 | **PKG-08 — governed reporting and pilot readiness** | QUEUED | Safe reports, release infrastructure and one complete pilot acceptance gate are ready. | none — checklist DAG gates entry |
@@ -475,6 +475,34 @@ checkpoint; it is pointed but not started by the Package 4 controller.
 
 - **Owns:** checklist 44–54. The privacy operating model, disclosure service,
   measurement runs, sources, segments, recommendations and scores are one chain.
+- **Package plan (activated 24 Aug 2026, canonical branch `feat/pkg-05`):**
+  the controller serializes the dependency-safe frontier W3-00A → W3-00D →
+  W3-00C → W3-01A → W3-01B and owns all authority, migration, disclosure,
+  public-contract and control-plane surfaces. W3-00B remains transitively
+  blocked by W2-02E; W3-00E by W2-03C/D; W3-01C/D and W3-02A/B therefore
+  remain transitively blocked. The client input document proves the legal,
+  report-method and ad-platform facts were requested, not supplied, so
+  `EXT-LEGAL-PRIVACY`, `EXT-REPORT-METHOD` and `EXT-AD-PLATFORM` remain
+  MISSING and live use defaults denied. One clean-context Terra plan review
+  returned FIX; its full endpoint-inventory/live-gate, atomic differencing,
+  synthetic-ROI, source/link history/concurrency and migration corrections
+  were reconciled, and the same reviewer returned PASS. The bounded plan and
+  review record live at `.codex/delivery/cardvert-pkg05/plan-ledger.md`.
+- **W3-00A checkpoint evidence (24 Aug 2026):** a machine-checkable privacy
+  register and operating model now cover nine purposes/data classes with
+  organizational ownership, explicitly unapproved candidate lawful bases,
+  retention dispositions, recipients, controller/processor allocation,
+  notice/withdrawal rules, subprocessors/regions, breach responsibilities and
+  seven DPIA risk classes. Every named owner, legal basis, notice, retention/
+  DSR decision, provider, region and notification rule remains MISSING;
+  `live_use_authorized=false`. A deterministic synthetic withdrawal and raw-
+  route-breach tabletop stops at the exact W3-00B, Package 4 and legal gates.
+  Focused evidence: 43 privacy/control tests, progress validation, JSON parse,
+  Ruff and diff checks pass. The independent privacy specialist's sole finding
+  removed staff from raw-location recipients; the corrected service-only
+  analytics/fraud/payout plus grandfathered-heatmap boundary is test-pinned and
+  rechecked PASS. No real person, GPS, KYC, provider, notification, legal
+  approval, DSR execution, advertiser output or live-use evidence is claimed.
 - **Closure:** privacy/measurement review proves suppression, reproducibility,
   provenance and safe claims before any advertiser live-use gate opens.
 
@@ -599,7 +627,7 @@ verification, gates or required specialist review.
 | 41 | **W2-04B — advertiser email delivery** | PKG-04 | BLOCKED — EXT-EMAIL-PROVIDER | Worker-dispatched email and signed receipts update one logical notification. | leaf: W2-04A; external: EXT-EMAIL-PROVIDER |
 | 42 | **W2-04C — business triggers and manual driver contact** | PKG-04 | TODO | Stable event keys notify users; driver WhatsApp remains an audited ops task. | leaf: W2-04A, W2-04B, W2-01E, W2-03F, W2-03G, MNY-10C |
 | 43 | **W2-04D — account recovery and verified contact preferences** | PKG-04 | BLOCKED — EXT-PHONE-OPERATOR | Advertiser/admin password reset and driver verified-phone/WhatsApp consent are explicit. | leaf: W2-04B, W2-04C; external: EXT-PHONE-OPERATOR |
-| 44 | **W3-00A — privacy operating model** | PKG-05 | TODO | DPIA/ROPA/roles/lawful bases/consent/vendor/breach responsibilities are explicit. | none |
+| 44 | **W3-00A — privacy operating model** | PKG-05 | DONE | DPIA/ROPA/roles/lawful bases/consent/vendor/breach responsibilities are explicit. | none |
 | 45 | **W3-00B — end-to-end retention and DSR** | PKG-05 | TODO | Synthetic DSR spans DB, objects, devices, logs, backups and processors. | leaf: W3-00A, W2-02E |
 | 46 | **W3-00C — central disclosure-control service** | PKG-05 | TODO | Every advertiser heatmap/report/audience query enforces one privacy floor. | leaf: W3-00A |
 | 47 | **W3-00D — measurement methodology contract** | PKG-05 | TODO | Product defines modelled potential contacts, provenance, uncertainty and claims; Campaign Performance Analysis is standard and true ROI requires approved inputs and method. | none |

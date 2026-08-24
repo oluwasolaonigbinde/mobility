@@ -1,0 +1,290 @@
+{
+  "schema_version": "privacy-register-v1",
+  "status": "DRAFT_BUILD_ONLY",
+  "external_gate": "EXT-LEGAL-PRIVACY",
+  "live_use_authorized": false,
+  "approval": {
+    "named_privacy_owner": "MISSING",
+    "approved_notice_wording": "MISSING",
+    "approved_lawful_bases": "MISSING",
+    "approved_retention_and_dsr_decisions": "MISSING",
+    "qualified_nigerian_legal_review": "MISSING"
+  },
+  "role_allocation": {
+    "business_controller_role": "Terrax Media business owner (organizational role; named accountable person MISSING)",
+    "privacy_approval_role": "Terrax Media legal/compliance adviser (required role; named adviser MISSING)",
+    "platform_operator_role": "Developer supporting initial pilot operations under Terrax Media instructions",
+    "processor_allocation": "External hosting, storage, messaging, monitoring, payment, disbursement and ad-platform allocations remain MISSING until vendors and contracts are approved",
+    "data_subjects": [
+      "driver applicants and drivers",
+      "advertiser users",
+      "administrative users",
+      "payees and business contacts"
+    ]
+  },
+  "purposes": [
+    {
+      "id": "P01_ACCOUNT_ACCESS",
+      "purpose": "Create and secure role-based user accounts and sessions",
+      "data_classes": ["account_identity", "authentication_security"],
+      "owner_role": "platform_operator_role",
+      "lawful_basis_candidate": "contract performance and legitimate interests in platform security; counsel confirmation required",
+      "basis_approval": "MISSING",
+      "retention_class": "R01_ACCOUNTS",
+      "recipients": ["authorized Terrax Media administrators", "the account holder"],
+      "withdrawal_or_objection_effect": "Stop optional processing; account closure and erasure remain subject to verified identity and approved legal exceptions"
+    },
+    {
+      "id": "P02_DRIVER_ONBOARDING",
+      "purpose": "Review driver, vehicle, KYC and payee eligibility before work",
+      "data_classes": ["identity_kyc", "vehicle_evidence", "financial_identifiers"],
+      "owner_role": "business_controller_role",
+      "lawful_basis_candidate": "steps toward contract, contract performance and any confirmed legal obligation; counsel confirmation required",
+      "basis_approval": "MISSING",
+      "retention_class": "R02_KYC_FINANCIAL",
+      "recipients": ["authorized Terrax Media reviewers", "approved KYC/payment processors only after contract approval"],
+      "withdrawal_or_objection_effect": "No new eligibility decision or work; preserve only facts required by an approved legal/financial exception"
+    },
+    {
+      "id": "P03_TRIP_TRACKING",
+      "purpose": "Collect trip-scoped screen-on location evidence between explicit Start and End",
+      "data_classes": ["precise_location", "trip_session", "device_queue_evidence"],
+      "owner_role": "business_controller_role",
+      "lawful_basis_candidate": "contract performance plus a separately approved tracking notice/consent posture; counsel confirmation required",
+      "basis_approval": "MISSING",
+      "retention_class": "R03_RAW_LOCATION",
+      "recipients": ["existing analytics, fraud and payout services", "the grandfathered heatmap service until W3-00C migration"],
+      "withdrawal_or_objection_effect": "Stop new tracking and live use immediately; quarantine pending data and begin the verified DSR/exception assessment"
+    },
+    {
+      "id": "P04_ANALYTICS_AND_FRAUD",
+      "purpose": "Derive route quality, copied-route signals, modelled potential contacts and fraud-review evidence",
+      "data_classes": ["derived_location_analytics", "route_replay_hashes", "fraud_evidence", "impression_estimates"],
+      "owner_role": "business_controller_role",
+      "lawful_basis_candidate": "contract performance and legitimate interests in service measurement and fraud prevention; counsel confirmation required",
+      "basis_approval": "MISSING",
+      "retention_class": "R04_DERIVED_LOCATION",
+      "recipients": ["authorized analytics/fraud services", "purpose-authorized Terrax Media reviewers"],
+      "withdrawal_or_objection_effect": "Stop optional/new derivation; review erasure or unlinking against approved fraud, dispute and financial exceptions"
+    },
+    {
+      "id": "P05_PAYMENTS_AND_BILLING",
+      "purpose": "Price accepted work, issue commercial records, reconcile receipts and transfer approved earnings",
+      "data_classes": ["commercial_terms", "invoice_receipt", "payout_ledger", "encrypted_payee_account"],
+      "owner_role": "business_controller_role",
+      "lawful_basis_candidate": "contract performance and confirmed accounting/tax/payment obligations; exact obligations and periods require adviser approval",
+      "basis_approval": "MISSING",
+      "retention_class": "R05_FINANCIAL_HISTORY",
+      "recipients": ["authorized Terrax Media finance staff", "the relevant advertiser or payee", "approved payment/disbursement processors"],
+      "withdrawal_or_objection_effect": "Stop optional contact/use; never delete immutable money facts without an approved legal disposition; prefer unlinking or pseudonymisation where approved"
+    },
+    {
+      "id": "P06_NOTIFICATIONS_SUPPORT",
+      "purpose": "Deliver mandatory in-app and approved transactional communications and resolve support incidents",
+      "data_classes": ["contact_preferences", "notification_evidence", "support_incident"],
+      "owner_role": "platform_operator_role",
+      "lawful_basis_candidate": "contract performance and legitimate interests in service operations; channel-specific consent applies where required",
+      "basis_approval": "MISSING",
+      "retention_class": "R06_COMMUNICATIONS",
+      "recipients": ["the intended user", "authorized Terrax Media operations staff", "approved messaging processors"],
+      "withdrawal_or_objection_effect": "Honor organization email opt-out and phone/WhatsApp withdrawal; mandatory in-app service notices remain subject to approved contract/legal basis"
+    },
+    {
+      "id": "P07_SECURITY_AUDIT_BREACH",
+      "purpose": "Protect the platform, preserve audit evidence and investigate security/privacy incidents",
+      "data_classes": ["audit_event", "security_log", "breach_register"],
+      "owner_role": "platform_operator_role",
+      "lawful_basis_candidate": "legitimate interests in security and confirmed legal obligations; counsel confirmation required",
+      "basis_approval": "MISSING",
+      "retention_class": "R07_SECURITY_AUDIT",
+      "recipients": ["authorized Terrax Media administrators", "privacy approval role", "approved authorities/advisers only when required"],
+      "withdrawal_or_objection_effect": "Restrict further optional use; preserve minimum incident evidence until the approved exception and retention period expire"
+    },
+    {
+      "id": "P08_ADVERTISER_MEASUREMENT",
+      "purpose": "Provide governed Campaign Performance Analysis using measured operations and modelled potential contacts",
+      "data_classes": ["measurement_aggregate", "proof_manifest", "disclosure_query_history"],
+      "owner_role": "business_controller_role",
+      "lawful_basis_candidate": "contract performance and legitimate interests in aggregate campaign analysis; adviser approval and disclosure controls required",
+      "basis_approval": "MISSING",
+      "retention_class": "R08_MEASUREMENT_OUTPUT",
+      "recipients": ["authorized users of the owning advertiser organization", "purpose-authorized Terrax Media administrators"],
+      "withdrawal_or_objection_effect": "Disable live output; recompute only from data still lawfully retained and never resurrect purged personal data"
+    },
+    {
+      "id": "P09_CONTEXTUAL_RETARGETING",
+      "purpose": "Manage aggregate planning sources and produce contextual geography/time recommendations",
+      "data_classes": ["planning_source_metadata", "governed_exposure_aggregate", "activation_audit"],
+      "owner_role": "business_controller_role",
+      "lawful_basis_candidate": "MISSING — no live ingestion, display, export or activation until legal approval",
+      "basis_approval": "MISSING",
+      "retention_class": "R09_RETARGETING",
+      "recipients": ["authorized users of the owning advertiser organization", "purpose-authorized Terrax Media administrators", "approved ad platform only after separate gate"],
+      "withdrawal_or_objection_effect": "Deactivate the source and links, block export/activation, retain only approved audit evidence, and propagate processor requests"
+    }
+  ],
+  "retention_schedule": [
+    {
+      "id": "R01_ACCOUNTS",
+      "data_classes": ["account_identity", "authentication_security"],
+      "build_disposition": "No live account processing is authorized by this artefact; final active/closed-account periods and erasure rules are MISSING",
+      "approval": "MISSING"
+    },
+    {
+      "id": "R02_KYC_FINANCIAL",
+      "data_classes": ["identity_kyc", "vehicle_evidence", "financial_identifiers"],
+      "build_disposition": "No live KYC is authorized; statutory, failed-application, replacement and processor deletion periods are MISSING",
+      "approval": "MISSING"
+    },
+    {
+      "id": "R03_RAW_LOCATION",
+      "data_classes": ["precise_location", "trip_session", "device_queue_evidence"],
+      "build_disposition": "The current synthetic build parameter is PING_RETENTION_MONTHS=12; this is not an approved live retention decision. Device, quarantine, backup and processor propagation remain W3-00B work",
+      "approval": "MISSING"
+    },
+    {
+      "id": "R04_DERIVED_LOCATION",
+      "data_classes": ["derived_location_analytics", "route_replay_hashes", "fraud_evidence", "impression_estimates"],
+      "build_disposition": "Current records follow owning trips, but no approved period exists; W3-00B must cover hashes and derived linkage explicitly",
+      "approval": "MISSING"
+    },
+    {
+      "id": "R05_FINANCIAL_HISTORY",
+      "data_classes": ["commercial_terms", "invoice_receipt", "payout_ledger", "encrypted_payee_account"],
+      "build_disposition": "Immutable facts are preserved pending approved statutory/accounting periods; erasure must not rewrite money history",
+      "approval": "MISSING"
+    },
+    {
+      "id": "R06_COMMUNICATIONS",
+      "data_classes": ["contact_preferences", "notification_evidence", "support_incident"],
+      "build_disposition": "No approved delivery-evidence, read-state, consent-history or provider retention period exists",
+      "approval": "MISSING"
+    },
+    {
+      "id": "R07_SECURITY_AUDIT",
+      "data_classes": ["audit_event", "security_log", "breach_register"],
+      "build_disposition": "Preserve minimum evidence pending approved security/legal periods. Local backup rotation must remain at or below the architecture's 35-day bound",
+      "approval": "MISSING"
+    },
+    {
+      "id": "R08_MEASUREMENT_OUTPUT",
+      "data_classes": ["measurement_aggregate", "proof_manifest", "disclosure_query_history"],
+      "build_disposition": "No live issuance is authorized; later reproducibility cannot retain or resurrect purged personal inputs. Query-history period is MISSING",
+      "approval": "MISSING"
+    },
+    {
+      "id": "R09_RETARGETING",
+      "data_classes": ["planning_source_metadata", "governed_exposure_aggregate", "activation_audit"],
+      "build_disposition": "No live ingestion/display/export/activation is authorized; source expiry, audit and processor periods require approval",
+      "approval": "MISSING"
+    }
+  ],
+  "subprocessors": [
+    {
+      "function": "application hosting, database and backups",
+      "provider": "MISSING",
+      "region": "MISSING",
+      "agreement": "MISSING",
+      "live_use": false
+    },
+    {
+      "function": "private object storage and malware scanning",
+      "provider": "MISSING",
+      "region": "MISSING",
+      "agreement": "MISSING",
+      "live_use": false
+    },
+    {
+      "function": "email, phone and WhatsApp delivery",
+      "provider": "MISSING",
+      "region": "MISSING",
+      "agreement": "MISSING",
+      "live_use": false
+    },
+    {
+      "function": "payment and automated disbursement",
+      "provider": "MISSING",
+      "region": "MISSING",
+      "agreement": "MISSING",
+      "live_use": false
+    },
+    {
+      "function": "error monitoring and operational telemetry",
+      "provider": "MISSING",
+      "region": "MISSING",
+      "agreement": "MISSING",
+      "live_use": false
+    },
+    {
+      "function": "aggregate contextual ad-platform activation",
+      "provider": "MISSING",
+      "region": "MISSING",
+      "agreement": "MISSING",
+      "live_use": false
+    }
+  ],
+  "notice_and_consent": {
+    "approved_notice_versions": [],
+    "live_tracking_notice": "MISSING",
+    "live_retargeting_notice": "MISSING",
+    "rule": "No consent or notice is treated as valid merely because a UI checkbox or draft document exists",
+    "withdrawal_procedure": [
+      "Authenticate the requester without collecting unnecessary new identity evidence",
+      "Record the notice/consent version, purpose and withdrawal timestamp; if no approved version exists, fail live use closed",
+      "Stop new consent-dependent collection, display, export, activation and optional contact for that purpose",
+      "Preserve only facts covered by an approved legal/financial/security exception and record the exception",
+      "Open the W3-00B DSR workflow for DB, objects, devices, logs, backups and processors",
+      "Confirm completion or the exact approved exception to the requester through a safe channel"
+    ]
+  },
+  "breach_responsibilities": {
+    "incident_commander_role": "platform_operator_role",
+    "privacy_decision_role": "privacy_approval_role (named adviser MISSING)",
+    "business_accountable_role": "business_controller_role (named person MISSING)",
+    "notification_deadline": "MISSING — qualified Nigerian legal advice required; do not invent a deadline",
+    "steps": [
+      "Contain affected access and disable advertiser/Module-G live output",
+      "Preserve minimum forensic and audit evidence without copying raw data into tickets or chat",
+      "Record discovery, affected systems/data/subjects, containment, decisions and actors in the breach register",
+      "Assess processor, cross-border, subject and authority notification with the privacy decision role",
+      "Track eradication, recovery, processor confirmation and lessons learned to closure"
+    ]
+  },
+  "dpia_risks": [
+    {
+      "risk": "Continuous or off-duty location surveillance",
+      "controls": "Explicit trip Start/End, screen-on posture, no background claim, real GPS blocked by G-GPS and EXT-LEGAL-PRIVACY",
+      "residual": "OPEN — legal review and physical validation missing"
+    },
+    {
+      "risk": "Re-identification or differencing of sparse exposure cells",
+      "controls": "Central disclosure service with coarse buckets, vehicle/trip/day floors, contributor caps, complementary suppression and query history in W3-00C",
+      "residual": "OPEN — W3-00C and density evidence incomplete"
+    },
+    {
+      "risk": "Function creep from routes to person-level retargeting",
+      "controls": "Typed aggregate planning fields only; no identifiers, raw routes or identity resolution; live use blocked",
+      "residual": "OPEN — legal approval and Package 5 descendants incomplete"
+    },
+    {
+      "risk": "Advertising or ROI overclaim",
+      "controls": "Modelled potential contacts label, uncertainty/provenance, Campaign Performance Analysis default, ROI omitted without inputs and approved method",
+      "residual": "OPEN — W3-00D/E and EXT-REPORT-METHOD incomplete"
+    },
+    {
+      "risk": "Over-retention or resurrection from backups/processors",
+      "controls": "Partition purge evidence and bounded backup rotation exist; W3-00B must span all stores and processors",
+      "residual": "OPEN — retention/DSR decisions and end-to-end dry run missing"
+    },
+    {
+      "risk": "KYC, financial or raw-location confidentiality breach",
+      "controls": "Existing auth/audit and crypto seam; storage/KMS/live GPS gates remain closed; breach process rehearsed synthetically",
+      "residual": "OPEN — Package 4 security dependencies and external vendors missing"
+    },
+    {
+      "risk": "Unapproved subprocessor or cross-border transfer",
+      "controls": "Provider/region/agreement register defaults MISSING and live_use=false",
+      "residual": "OPEN — every production provider and region is missing"
+    }
+  ]
+}
