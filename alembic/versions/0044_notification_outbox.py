@@ -95,7 +95,7 @@ def upgrade() -> None:
         "notifications",
         "status",
         existing_type=sa.String(32),
-        server_default=sa.text("'sent'"),
+        server_default=sa.text("'pending'"),
         nullable=False,
     )
     op.alter_column(

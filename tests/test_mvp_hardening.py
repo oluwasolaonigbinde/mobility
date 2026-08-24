@@ -14,7 +14,7 @@ from app.main import create_app
 from app.models.user import UserRole
 
 SNAPSHOT_PATH = Path("docs/api/openapi.snapshot.json")
-EXPECTED_ALEMBIC_HEAD = "0042_invoice_number_prefix_sequence"
+EXPECTED_ALEMBIC_HEAD = "0044_notification_outbox"
 EXPECTED_MIGRATIONS = {
     "0001_enable_extensions.py",
     "0002_identity_and_organizations.py",
@@ -58,6 +58,8 @@ EXPECTED_MIGRATIONS = {
     "0040_budget_policy_blocked_state.py",
     "0041_invoice_correction_retry_identity.py",
     "0042_invoice_number_prefix_sequence.py",
+    "0043_campaign_review_lifecycle.py",
+    "0044_notification_outbox.py",
 }
 MAJOR_CONTRACT_PATHS = {
     "health": "/api/v1/health",

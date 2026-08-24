@@ -468,6 +468,20 @@ checkpoint; it is pointed but not started by the Package 4 controller.
   feedback validation is claimed. Remaining Package 4 work is dependency-
   blocked, so the executable frontier advances to PKG-05/W3-00A without
   starting it in this checkpoint.
+- **Package 4 post-review correction evidence (24 Aug 2026):** Extended Pro's
+  exact-head review found three uncovered authority defects plus stale PR
+  controls. Generic campaign PATCH now treats only an identical status as a
+  no-op and rejects every lifecycle change; campaign-zone create/update/delete
+  lock the campaign before mutability checks and writes; external-channel
+  notification rows start `pending` with no sent timestamp while in-app rows
+  start `sent`. Audit, migration/seed-head and Package 3 fixtures now follow the
+  governed review path, and notification E2E creates idempotent per-role data
+  with one serialized preference mutation. Focused evidence: 83 backend passes,
+  including six PostgreSQL submission-versus-zone races; a controller rerun of
+  the affected controls passed 64 with 25 environment skips; Ruff, frontend
+  lint/type and diff checks pass; the corrected real-stack desktop/mobile
+  notification journey passes 7 with one intentional mobile preference skip.
+  External provider deferrals remain unchanged and no live delivery is claimed.
 - **Closure:** migrations/contracts integrate once; security and communications
   receive separate specialist verification before consolidated package review.
 

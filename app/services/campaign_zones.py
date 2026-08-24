@@ -15,7 +15,7 @@ from app.core.errors import AppError
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_zone import CampaignZone
 from app.schemas.campaign_zones import CampaignZoneCreate, CampaignZoneUpdate
-from app.services.campaigns import get_advertiser_campaign, get_required_advertiser_context
+from app.services.campaigns import _locked_advertiser_campaign, get_advertiser_campaign
 
 MUTABLE_CAMPAIGN_STATUSES = {
     CampaignStatus.DRAFT,
@@ -214,8 +214,9 @@ async def create_campaign_zone(
     payload: CampaignZoneCreate,
     settings: Settings,
 ) -> CampaignZoneView:
-    campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
-    await get_required_advertiser_context(session, user_id, require_write=True)
+    campaign = await _locked_advertiser_campaign(
+        session, user_id=user_id, campaign_id=campaign_id
+    )
     ensure_mutable_campaign(campaign)
     geometry = await validate_geometry_with_postgis(session, payload.geometry, settings)
 
@@ -282,8 +283,9 @@ async def update_campaign_zone(
     payload: CampaignZoneUpdate,
     settings: Settings,
 ) -> tuple[CampaignZoneView, list[str]]:
-    campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
-    await get_required_advertiser_context(session, user_id, require_write=True)
+    campaign = await _locked_advertiser_campaign(
+        session, user_id=user_id, campaign_id=campaign_id
+    )
     ensure_mutable_campaign(campaign)
     view = await get_campaign_zone_view(session, campaign_id=campaign.id, zone_id=zone_id)
     update_values = payload.model_dump(exclude_unset=True)
@@ -332,8 +334,9 @@ async def delete_campaign_zone(
     campaign_id: UUID,
     zone_id: UUID,
 ) -> CampaignZoneView:
-    campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
-    await get_required_advertiser_context(session, user_id, require_write=True)
+    campaign = await _locked_advertiser_campaign(
+        session, user_id=user_id, campaign_id=campaign_id
+    )
     ensure_mutable_campaign(campaign)
     view = await get_campaign_zone_view(session, campaign_id=campaign.id, zone_id=zone_id)
     await session.execute(delete(CampaignZone).where(CampaignZone.id == view.zone.id))

@@ -8,15 +8,16 @@ from conftest import (
     create_test_user,
     fetch_audit_events,
 )
-from sqlalchemy import select
+from sqlalchemy import func, select
 from starlette import status as http_status
 
 from app.core.errors import AppError
+from app.models.audit import AuditEvent
 from app.models.notification import Notification, NotificationChannel, NotificationType
 from app.models.organization import MembershipRole, MembershipStatus, OrganizationMembership
 from app.models.user import UserRole
 from app.services.notifications import create_notification, notification_dedupe_fingerprint
-from app.services.organizations import get_notification_preference
+from app.services.organizations import get_notification_preference, update_notification_preference
 
 PASSWORD = "long-secure-password"
 
@@ -99,6 +100,53 @@ def test_notification_creator_replays_exactly_rejects_changed_facts_and_freezes_
     asyncio.run(run())
 
 
+def test_notification_orm_defaults_are_channel_aware(db_sessionmaker) -> None:
+    recipient = create_test_user(db_sessionmaker, email="orm-notice@example.com")
+
+    async def run() -> None:
+        async with db_sessionmaker() as session:
+            in_app_payload = {"fraud_flag_id": "orm-in-app"}
+            email_payload = {"fraud_flag_id": "orm-email"}
+            in_app = Notification(
+                recipient_user_id=recipient.id,
+                type_key=NotificationType.FRAUD_HOLD_RAISED.value,
+                template_version="v1",
+                channel=NotificationChannel.IN_APP,
+                payload=in_app_payload,
+                dedupe_key="orm-in-app",
+                dedupe_fingerprint=notification_dedupe_fingerprint(
+                    recipient_user_id=recipient.id,
+                    type_key=NotificationType.FRAUD_HOLD_RAISED,
+                    template_version="v1",
+                    channel=NotificationChannel.IN_APP,
+                    payload=in_app_payload,
+                ),
+            )
+            email = Notification(
+                recipient_user_id=recipient.id,
+                type_key=NotificationType.FRAUD_HOLD_RAISED.value,
+                template_version="v1",
+                channel=NotificationChannel.TRANSACTIONAL_EMAIL,
+                payload=email_payload,
+                dedupe_key="orm-email",
+                dedupe_fingerprint=notification_dedupe_fingerprint(
+                    recipient_user_id=recipient.id,
+                    type_key=NotificationType.FRAUD_HOLD_RAISED,
+                    template_version="v1",
+                    channel=NotificationChannel.TRANSACTIONAL_EMAIL,
+                    payload=email_payload,
+                ),
+            )
+            assert in_app.status == "sent"
+            assert in_app.sent_at is not None
+            assert email.status == "pending"
+            assert email.sent_at is None
+            session.add_all([in_app, email])
+            await session.commit()
+
+    asyncio.run(run())
+
+
 def test_feed_is_recipient_scoped_ordered_sanitized_and_read_idempotent(
     db_client,
     db_sessionmaker,
@@ -140,6 +188,8 @@ def test_feed_is_recipient_scoped_ordered_sanitized_and_read_idempotent(
             return notice
 
     email_delivery = asyncio.run(insert_email_delivery())
+    assert email_delivery.status == "pending"
+    assert email_delivery.sent_at is None
     headers = auth_headers(db_client, "feed@example.com", PASSWORD)
 
     response = db_client.get("/api/v1/notifications?limit=1", headers=headers)
@@ -245,3 +295,50 @@ def test_advertiser_notification_preference_is_shared_audited_and_cross_org_hidd
             assert denied.value.status_code == http_status.HTTP_404_NOT_FOUND
 
     asyncio.run(cross_org())
+
+
+def test_notification_preference_and_audit_share_the_same_transaction(db_sessionmaker) -> None:
+    owner = create_test_user(
+        db_sessionmaker,
+        email="preference-rollback@example.com",
+        password=PASSWORD,
+        role=UserRole.ADVERTISER,
+    )
+    organization, _ = create_test_organization(db_sessionmaker, owner_user_id=owner.id)
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            preference = await update_notification_preference(
+                session,
+                actor_user_id=owner.id,
+                organization_id=None,
+                transactional_email_enabled=False,
+            )
+            assert preference.transactional_email_enabled is False
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(AuditEvent)
+                    .where(AuditEvent.action == "advertiser_notification_preferences.updated")
+                )
+                == 1
+            )
+            await session.rollback()
+
+        async with db_sessionmaker() as session:
+            persisted = await get_notification_preference(
+                session,
+                actor_user_id=owner.id,
+                organization_id=organization.id,
+            )
+            assert persisted.transactional_email_enabled is True
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(AuditEvent)
+                    .where(AuditEvent.action == "advertiser_notification_preferences.updated")
+                )
+                == 0
+            )
+
+    asyncio.run(scenario())

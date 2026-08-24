@@ -78,6 +78,7 @@ async def create_notification(
     template_version: str = "v1",
 ) -> Notification:
     """Persist one logical recipient/channel delivery in the caller's transaction."""
+    channel = NotificationChannel(channel)
     canonical_payload = _canonical_payload(payload)
     fingerprint = notification_dedupe_fingerprint(
         recipient_user_id=recipient_user_id,
@@ -100,16 +101,17 @@ async def create_notification(
             raise _dedupe_conflict()
         return existing
 
+    is_in_app = channel is NotificationChannel.IN_APP
     notice = Notification(
         recipient_user_id=recipient_user_id,
         type_key=type_key.value,
         template_version=template_version,
         channel=channel.value,
-        status=NotificationStatus.SENT.value,
+        status=(NotificationStatus.SENT if is_in_app else NotificationStatus.PENDING).value,
         payload=canonical_payload,
         dedupe_key=dedupe_key,
         dedupe_fingerprint=fingerprint,
-        sent_at=datetime.now(UTC),
+        sent_at=datetime.now(UTC) if is_in_app else None,
     )
     try:
         async with session.begin_nested():

@@ -256,14 +256,10 @@ async def update_advertiser_campaign(
 
     if "status" in update_values:
         target_status = update_values["status"]
-        if target_status in {
-            CampaignStatus.PENDING_REVIEW,
-            CampaignStatus.APPROVED,
-            CampaignStatus.REJECTED,
-            CampaignStatus.SCHEDULED,
-            CampaignStatus.ACTIVE,
-        }:
+        if target_status.value != campaign.status:
             raise review_state_conflict(campaign.status, target_status.value)
+        update_values.pop("status")
+        changed_fields.remove("status")
 
     for field, value in update_values.items():
         setattr(campaign, field, value)
