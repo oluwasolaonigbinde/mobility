@@ -435,7 +435,12 @@ def test_campaign_lifecycle_blocks_mutation_but_allows_reads(
     postgis_db_client,
     postgis_db_sessionmaker,
 ) -> None:
-    for blocked_status in [CampaignStatus.COMPLETED, CampaignStatus.CANCELLED]:
+    for blocked_status in [
+        CampaignStatus.PENDING_REVIEW,
+        CampaignStatus.APPROVED,
+        CampaignStatus.COMPLETED,
+        CampaignStatus.CANCELLED,
+    ]:
         _, _, campaign = create_advertiser_campaign(
             postgis_db_sessionmaker,
             email=f"{blocked_status}@example.com",
@@ -482,6 +487,25 @@ def test_campaign_lifecycle_blocks_mutation_but_allows_reads(
             create_blocked.json()["error"]["code"]
             == "CAMPAIGN_STATUS_FORBIDS_ZONE_MUTATION"
         )
+
+
+def test_rejected_campaign_remains_zone_mutable(
+    postgis_db_client,
+    postgis_db_sessionmaker,
+) -> None:
+    _, _, campaign = create_advertiser_campaign(
+        postgis_db_sessionmaker,
+        email="rejected-zone@example.com",
+    )
+    set_campaign_status(postgis_db_sessionmaker, campaign.id, CampaignStatus.REJECTED)
+
+    response = postgis_db_client.post(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/zones",
+        headers=auth_headers(postgis_db_client, "rejected-zone@example.com", PASSWORD),
+        json=zone_payload(name="Rejected revision zone"),
+    )
+
+    assert response.status_code == http_status.HTTP_201_CREATED
 
 
 def test_geojson_and_schema_validation_reject_invalid_zone_payloads(

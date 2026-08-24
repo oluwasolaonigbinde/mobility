@@ -43,6 +43,9 @@ class DecimalStringMixin(BaseModel):
 class CampaignStatusCounts(BaseModel):
     total: int = 0
     draft: int = 0
+    pending_review: int = 0
+    approved: int = 0
+    rejected: int = 0
     scheduled: int = 0
     active: int = 0
     paused: int = 0

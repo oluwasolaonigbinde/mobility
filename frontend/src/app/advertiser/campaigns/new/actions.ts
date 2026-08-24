@@ -36,7 +36,7 @@ export async function createCampaignAction(
       body: {
         name: basics.name,
         description: basics.description ?? null,
-        status: basics.launch,
+        status: "draft",
         start_at: toApiDatetime(basics.start_at) ?? null,
         end_at: toApiDatetime(basics.end_at) ?? null,
         budget_amount: basics.budget_amount ?? null,

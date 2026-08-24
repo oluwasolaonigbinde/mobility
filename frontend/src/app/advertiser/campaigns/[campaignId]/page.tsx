@@ -48,9 +48,15 @@ export default async function CampaignDetailPage({
   const query = await searchParams;
   const api = createApiClient(await getSessionToken());
 
-  let campaign, summary, creatives, commercial;
+  let campaign, summary, creatives, commercial, reviewHistory;
   try {
-    [{ data: campaign }, { data: summary }, { data: creatives }, { data: commercial }] = await Promise.all([
+    [
+      { data: campaign },
+      { data: summary },
+      { data: creatives },
+      { data: commercial },
+      { data: reviewHistory },
+    ] = await Promise.all([
       api.GET("/api/v1/advertiser/campaigns/{campaign_id}", {
         params: { path: { campaign_id: campaignId } },
       }),
@@ -61,6 +67,9 @@ export default async function CampaignDetailPage({
         params: { path: { campaign_id: campaignId } },
       }),
       api.GET("/api/v1/advertiser/campaigns/{campaign_id}/commercial", {
+        params: { path: { campaign_id: campaignId } },
+      }),
+      api.GET("/api/v1/advertiser/campaigns/{campaign_id}/review-history", {
         params: { path: { campaign_id: campaignId } },
       }),
     ]);
@@ -96,11 +105,7 @@ export default async function CampaignDetailPage({
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <StatusActions
-            campaignId={campaign.id}
-            status={campaign.status}
-            productionAuthorized={Boolean(commercial?.production_start)}
-          />
+          <StatusActions campaignId={campaign.id} status={campaign.status} />
           <div className="flex flex-wrap justify-end gap-2">
             <Link
               href={`/advertiser/campaigns/${campaign.id}/report`}
@@ -167,6 +172,48 @@ export default async function CampaignDetailPage({
           error={query.commercial_error}
         />
       ) : null}
+
+      <Panel className="mt-6 overflow-hidden" aria-label="Review history">
+        <div className="border-edge border-b px-6 py-4">
+          <h2 className="micro text-muted">Review history</h2>
+          <p className="text-faint mt-1 text-xs">
+            Immutable server-recorded submission and decision history.
+          </p>
+        </div>
+        {(reviewHistory?.items ?? []).length === 0 ? (
+          <p className="text-muted px-6 py-6 text-sm">
+            This campaign has not been submitted for review.
+          </p>
+        ) : (
+          <ol className="divide-edge/60 divide-y">
+            {(reviewHistory?.items ?? []).map((event) => (
+              <li key={event.id} className="px-6 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <StatusChip tone={statusTone[event.new_status]}>
+                      {statusLabel[event.new_status]}
+                    </StatusChip>
+                    <p className="text-sm">
+                      {event.prior_status === "rejected" && event.new_status === "pending_review"
+                        ? "Resubmitted for review"
+                        : `${statusLabel[event.prior_status]} → ${statusLabel[event.new_status]}`}
+                    </p>
+                  </div>
+                  <p className="micro text-faint">{formatDate(event.created_at)}</p>
+                </div>
+                {event.rejection_reason ? (
+                  <p className="text-coral mt-2 text-sm">Reason: {event.rejection_reason}</p>
+                ) : null}
+                {event.reviewed_snapshot_sha256 ? (
+                  <p className="micro text-faint mt-2 font-mono break-all">
+                    Submitted snapshot SHA-256: {event.reviewed_snapshot_sha256}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ol>
+        )}
+      </Panel>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         {/* Details */}

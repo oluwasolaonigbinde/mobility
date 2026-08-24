@@ -159,6 +159,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/campaigns/pending-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List campaigns pending admin review */
+        get: operations["admin_list_pending_campaign_reviews_api_v1_admin_campaigns_pending_review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/campaigns/{campaign_id}": {
         parameters: {
             query?: never;
@@ -170,6 +187,23 @@ export interface paths {
         get: operations["admin_get_campaign_endpoint_api_v1_admin_campaigns__campaign_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{campaign_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a pending campaign review */
+        post: operations["admin_approve_campaign_review_api_v1_admin_campaigns__campaign_id__approve_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -309,6 +343,40 @@ export interface paths {
         put?: never;
         /** Admin Record External Quote Request */
         post: operations["admin_record_external_quote_request_api_v1_admin_campaigns__campaign_id__quote_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{campaign_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a pending campaign review */
+        post: operations["admin_reject_campaign_review_api_v1_admin_campaigns__campaign_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{campaign_id}/review-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List review history across organizations */
+        get: operations["admin_list_campaign_review_history_api_v1_admin_campaigns__campaign_id__review_history_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1532,6 +1600,40 @@ export interface paths {
         get: operations["advertiser_get_campaign_report_api_v1_advertiser_campaigns__campaign_id__report_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/campaigns/{campaign_id}/review-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a campaign's review history */
+        get: operations["advertiser_list_campaign_review_history_api_v1_advertiser_campaigns__campaign_id__review_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/campaigns/{campaign_id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit a campaign for admin review */
+        post: operations["advertiser_submit_campaign_for_review_api_v1_advertiser_campaigns__campaign_id__submit_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3343,11 +3445,62 @@ export interface components {
             trip_summary: components["schemas"]["TripStatusCounts"];
             zone_summary: components["schemas"]["ZoneTypeCounts"];
         };
+        /** CampaignReviewEventListResponse */
+        CampaignReviewEventListResponse: {
+            /** Items */
+            items: components["schemas"]["CampaignReviewEventRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** CampaignReviewEventRead */
+        CampaignReviewEventRead: {
+            /**
+             * Actor User Id
+             * Format: uuid
+             */
+            actor_user_id: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            new_status: components["schemas"]["CampaignStatus"];
+            prior_status: components["schemas"]["CampaignStatus"];
+            /** Rejection Reason */
+            rejection_reason: string | null;
+            /** Reviewed Snapshot */
+            reviewed_snapshot: {
+                [key: string]: unknown;
+            } | null;
+            /** Reviewed Snapshot Sha256 */
+            reviewed_snapshot_sha256: string | null;
+            /** Submission Event Id */
+            submission_event_id: string | null;
+        };
+        /** CampaignReviewReject */
+        CampaignReviewReject: {
+            /** Reason */
+            reason: string;
+        };
         /**
          * CampaignStatus
          * @enum {string}
          */
-        CampaignStatus: "draft" | "scheduled" | "active" | "paused" | "completed" | "cancelled";
+        CampaignStatus: "draft" | "pending_review" | "approved" | "rejected" | "scheduled" | "active" | "paused" | "completed" | "cancelled";
         /** CampaignStatusCounts */
         CampaignStatusCounts: {
             /**
@@ -3355,6 +3508,11 @@ export interface components {
              * @default 0
              */
             active: number;
+            /**
+             * Approved
+             * @default 0
+             */
+            approved: number;
             /**
              * Cancelled
              * @default 0
@@ -3375,6 +3533,16 @@ export interface components {
              * @default 0
              */
             paused: number;
+            /**
+             * Pending Review
+             * @default 0
+             */
+            pending_review: number;
+            /**
+             * Rejected
+             * @default 0
+             */
+            rejected: number;
             /**
              * Scheduled
              * @default 0
@@ -7210,7 +7378,70 @@ export interface operations {
             };
         };
     };
+    admin_list_pending_campaign_reviews_api_v1_admin_campaigns_pending_review_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCampaignListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_get_campaign_endpoint_api_v1_admin_campaigns__campaign_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCampaignRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_approve_campaign_review_api_v1_admin_campaigns__campaign_id__approve_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -7604,6 +7835,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuoteRequestRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_reject_campaign_review_api_v1_admin_campaigns__campaign_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignReviewReject"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCampaignRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_list_campaign_review_history_api_v1_admin_campaigns__campaign_id__review_history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignReviewEventListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -10333,6 +10633,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignReportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advertiser_list_campaign_review_history_api_v1_advertiser_campaigns__campaign_id__review_history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignReviewEventListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advertiser_submit_campaign_for_review_api_v1_advertiser_campaigns__campaign_id__submit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignRead"];
                 };
             };
             /** @description Validation Error */

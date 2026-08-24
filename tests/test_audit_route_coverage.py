@@ -45,6 +45,11 @@ AUDITED = {
     ),
     ("POST", "/api/v1/advertiser/campaigns"): "advertiser.campaign.created",
     ("PATCH", "/api/v1/advertiser/campaigns/{campaign_id}"): "advertiser.campaign.updated",
+    ("POST", "/api/v1/advertiser/campaigns/{campaign_id}/submit"): (
+        "advertiser.campaign.submitted_for_review"
+    ),
+    ("POST", "/api/v1/admin/campaigns/{campaign_id}/approve"): "admin.campaign.approved",
+    ("POST", "/api/v1/admin/campaigns/{campaign_id}/reject"): "admin.campaign.rejected",
     ("POST", "/api/v1/advertiser/campaigns/{campaign_id}/creatives"): (
         "advertiser.campaign_creative.created"
     ),

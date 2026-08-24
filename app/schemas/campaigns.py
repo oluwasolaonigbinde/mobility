@@ -192,6 +192,39 @@ class AdminCampaignListResponse(BaseModel):
     offset: int
 
 
+class CampaignReviewReject(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1)
+
+    @field_validator("reason")
+    @classmethod
+    def trim_reason(cls, value: str) -> str:
+        return normalize_required_text(value)
+
+
+class CampaignReviewEventRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    campaign_id: UUID
+    actor_user_id: UUID
+    prior_status: CampaignStatus
+    new_status: CampaignStatus
+    rejection_reason: str | None
+    reviewed_snapshot: dict[str, Any] | None
+    reviewed_snapshot_sha256: str | None
+    submission_event_id: UUID | None
+    created_at: datetime
+
+
+class CampaignReviewEventListResponse(BaseModel):
+    items: list[CampaignReviewEventRead]
+    total: int
+    limit: int
+    offset: int
+
+
 class CreativeCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

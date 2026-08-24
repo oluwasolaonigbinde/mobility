@@ -1,3 +1,5 @@
+import hashlib
+import json
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -7,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from app.core.errors import AppError
-from app.models.campaign import Campaign, CampaignCreative
+from app.models.campaign import Campaign, CampaignCreative, CampaignReviewEvent, CampaignStatus
 from app.models.organization import (
     AdvertiserOrganization,
     MembershipRole,
@@ -15,6 +17,7 @@ from app.models.organization import (
     OrganizationMembership,
 )
 from app.schemas.campaigns import CampaignCreate, CampaignUpdate, CreativeCreate, CreativeUpdate
+from app.services.audit import create_audit_event
 from app.services.organizations import get_advertiser_organization_for_user
 
 
@@ -85,11 +88,12 @@ async def create_campaign(
     user_id: UUID,
     payload: CampaignCreate,
 ) -> Campaign:
-    if payload.status == "active":
+    if payload.status != CampaignStatus.DRAFT:
         raise AppError(
-            "CAMPAIGN_ACTIVE_CREATE_FORBIDDEN",
-            "A campaign must be funded and authorized before it can become active",
+            "CAMPAIGN_REVIEW_STATE_CONFLICT",
+            "Campaigns must be created as drafts and submitted through review",
             status_code=status.HTTP_409_CONFLICT,
+            details={"current_status": None, "target_status": payload.status.value},
         )
     organization, _ = await get_required_advertiser_context(
         session,
@@ -182,6 +186,9 @@ async def update_advertiser_campaign(
     update_values = payload.model_dump(exclude_unset=True)
     changed_fields = list(update_values)
 
+    if campaign.status not in {CampaignStatus.DRAFT.value, CampaignStatus.REJECTED.value}:
+        raise review_state_conflict(campaign.status, None)
+
     for required_field in ["name", "status", "currency"]:
         if required_field in update_values and update_values[required_field] is None:
             raise AppError(
@@ -211,10 +218,16 @@ async def update_advertiser_campaign(
     }
     ensure_campaign_rules(**prospective)
 
-    if update_values.get("status") == "active":
-        from app.services.billing import assert_campaign_production_authorized
-
-        await assert_campaign_production_authorized(session, campaign_id=campaign.id)
+    if "status" in update_values:
+        target_status = update_values["status"]
+        if target_status in {
+            CampaignStatus.PENDING_REVIEW,
+            CampaignStatus.APPROVED,
+            CampaignStatus.REJECTED,
+            CampaignStatus.SCHEDULED,
+            CampaignStatus.ACTIVE,
+        }:
+            raise review_state_conflict(campaign.status, target_status.value)
 
     for field, value in update_values.items():
         setattr(campaign, field, value)
@@ -224,6 +237,244 @@ async def update_advertiser_campaign(
     return campaign, changed_fields
 
 
+def review_state_conflict(current_status: str, target_status: str | None) -> AppError:
+    return AppError(
+        "CAMPAIGN_REVIEW_STATE_CONFLICT",
+        "Campaign review state does not allow this operation",
+        status_code=status.HTTP_409_CONFLICT,
+        details={"current_status": current_status, "target_status": target_status},
+    )
+
+
+def _snapshot_datetime(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return comparable_campaign_datetime(value).astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def campaign_review_snapshot(campaign: Campaign) -> dict[str, object]:
+    return {
+        "campaign_id": str(campaign.id),
+        "organization_id": str(campaign.organization_id),
+        "name": campaign.name,
+        "description": campaign.description,
+        "start_at": _snapshot_datetime(campaign.start_at),
+        "end_at": _snapshot_datetime(campaign.end_at),
+        "budget_amount": (
+            str(campaign.budget_amount) if campaign.budget_amount is not None else None
+        ),
+        "daily_budget_amount": (
+            str(campaign.daily_budget_amount) if campaign.daily_budget_amount is not None else None
+        ),
+        "currency": campaign.currency,
+        "metadata": campaign.campaign_metadata,
+    }
+
+
+def campaign_review_snapshot_digest(snapshot: dict[str, object]) -> str:
+    canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+async def _locked_advertiser_campaign(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    campaign_id: UUID,
+) -> Campaign:
+    organization, _ = await get_required_advertiser_context(session, user_id, require_write=True)
+    campaign = await session.scalar(
+        select(Campaign)
+        .where(Campaign.id == campaign_id, Campaign.organization_id == organization.id)
+        .with_for_update()
+    )
+    if campaign is None:
+        raise AppError(
+            "CAMPAIGN_NOT_FOUND",
+            "Campaign was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    return campaign
+
+
+async def _locked_campaign(session: AsyncSession, campaign_id: UUID) -> Campaign:
+    campaign = await session.scalar(
+        select(Campaign).where(Campaign.id == campaign_id).with_for_update()
+    )
+    if campaign is None:
+        raise AppError(
+            "CAMPAIGN_NOT_FOUND",
+            "Campaign was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    return campaign
+
+
+async def submit_campaign_for_review(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    campaign_id: UUID,
+) -> Campaign:
+    campaign = await _locked_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
+    prior_status = campaign.status
+    if prior_status not in {CampaignStatus.DRAFT.value, CampaignStatus.REJECTED.value}:
+        raise review_state_conflict(prior_status, CampaignStatus.PENDING_REVIEW.value)
+
+    snapshot = campaign_review_snapshot(campaign)
+    snapshot_digest = campaign_review_snapshot_digest(snapshot)
+    reviewed_at = datetime.now(UTC)
+    campaign.status = CampaignStatus.PENDING_REVIEW.value
+    event = CampaignReviewEvent(
+        campaign_id=campaign.id,
+        actor_user_id=user_id,
+        prior_status=prior_status,
+        new_status=CampaignStatus.PENDING_REVIEW.value,
+        reviewed_snapshot=snapshot,
+        reviewed_snapshot_sha256=snapshot_digest,
+        created_at=reviewed_at,
+    )
+    session.add(event)
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=user_id,
+        action="advertiser.campaign.submitted_for_review",
+        entity_type="campaign",
+        entity_id=str(campaign.id),
+        metadata={
+            "organization_id": str(campaign.organization_id),
+            "status_before": prior_status,
+            "status_after": campaign.status,
+            "review_event_id": str(event.id),
+            "reviewed_snapshot_sha256": snapshot_digest,
+        },
+    )
+    await session.refresh(campaign)
+    return campaign
+
+
+async def _current_submission_event(
+    session: AsyncSession,
+    campaign_id: UUID,
+) -> CampaignReviewEvent | None:
+    return await session.scalar(
+        select(CampaignReviewEvent)
+        .where(
+            CampaignReviewEvent.campaign_id == campaign_id,
+            CampaignReviewEvent.new_status == CampaignStatus.PENDING_REVIEW.value,
+        )
+        .order_by(CampaignReviewEvent.created_at.desc(), CampaignReviewEvent.id.desc())
+        .limit(1)
+        .with_for_update()
+    )
+
+
+async def decide_campaign_review(
+    session: AsyncSession,
+    *,
+    admin_user_id: UUID,
+    campaign_id: UUID,
+    target_status: CampaignStatus,
+    rejection_reason: str | None = None,
+) -> Campaign:
+    campaign = await _locked_campaign(session, campaign_id)
+    if target_status not in {CampaignStatus.APPROVED, CampaignStatus.REJECTED}:
+        raise review_state_conflict(campaign.status, target_status.value)
+    if campaign.status != CampaignStatus.PENDING_REVIEW.value:
+        raise review_state_conflict(campaign.status, target_status.value)
+
+    normalized_reason = rejection_reason.strip() if rejection_reason is not None else None
+    if target_status is CampaignStatus.REJECTED and not normalized_reason:
+        raise AppError(
+            "CAMPAIGN_REJECTION_REASON_REQUIRED",
+            "A nonblank rejection reason is required",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if target_status is CampaignStatus.APPROVED and normalized_reason is not None:
+        raise AppError(
+            "INVALID_CAMPAIGN_REVIEW_DECISION",
+            "Approval does not accept a rejection reason",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    submission_event = await _current_submission_event(session, campaign.id)
+    if submission_event is None or submission_event.reviewed_snapshot_sha256 is None:
+        raise review_state_conflict(campaign.status, target_status.value)
+
+    prior_status = campaign.status
+    reviewed_at = datetime.now(UTC)
+    campaign.status = target_status.value
+    event = CampaignReviewEvent(
+        campaign_id=campaign.id,
+        actor_user_id=admin_user_id,
+        prior_status=prior_status,
+        new_status=target_status.value,
+        rejection_reason=normalized_reason,
+        submission_event_id=submission_event.id,
+        created_at=reviewed_at,
+    )
+    session.add(event)
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=admin_user_id,
+        action=(
+            "admin.campaign.approved"
+            if target_status is CampaignStatus.APPROVED
+            else "admin.campaign.rejected"
+        ),
+        entity_type="campaign",
+        entity_id=str(campaign.id),
+        metadata={
+            "organization_id": str(campaign.organization_id),
+            "status_before": prior_status,
+            "status_after": campaign.status,
+            "review_event_id": str(event.id),
+            "submission_event_id": str(submission_event.id),
+            "reviewed_snapshot_sha256": submission_event.reviewed_snapshot_sha256,
+            "rejection_reason": normalized_reason,
+        },
+    )
+    await session.refresh(campaign)
+    return campaign
+
+
+async def list_advertiser_campaign_review_events(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    campaign_id: UUID,
+    limit: int,
+    offset: int,
+) -> tuple[list[CampaignReviewEvent], int]:
+    campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
+    return await list_campaign_review_events(
+        session, campaign_id=campaign.id, limit=limit, offset=offset
+    )
+
+
+async def list_campaign_review_events(
+    session: AsyncSession,
+    *,
+    campaign_id: UUID,
+    limit: int,
+    offset: int,
+) -> tuple[list[CampaignReviewEvent], int]:
+    filters = [CampaignReviewEvent.campaign_id == campaign_id]
+    total = await session.scalar(
+        select(func.count()).select_from(CampaignReviewEvent).where(*filters)
+    )
+    result = await session.execute(
+        select(CampaignReviewEvent)
+        .where(*filters)
+        .order_by(CampaignReviewEvent.created_at.desc(), CampaignReviewEvent.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(result.scalars().all()), int(total or 0)
+
+
 async def list_admin_campaigns(
     session: AsyncSession,
     *,
@@ -231,6 +482,7 @@ async def list_admin_campaigns(
     offset: int,
     organization_id: UUID | None,
     campaign_status: str | None,
+    lock_campaigns: bool = False,
 ) -> tuple[list[tuple[Campaign, AdvertiserOrganization]], int]:
     filters = []
     if organization_id is not None:
@@ -242,6 +494,8 @@ async def list_admin_campaigns(
         AdvertiserOrganization,
         Campaign.organization_id == AdvertiserOrganization.id,
     )
+    if lock_campaigns:
+        statement = statement.with_for_update(of=Campaign)
     count_statement = select(func.count()).select_from(Campaign)
     for filter_expression in filters:
         statement = statement.where(filter_expression)

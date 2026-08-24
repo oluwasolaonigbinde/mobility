@@ -8,6 +8,7 @@ const nav: NavItem[] = [
   { href: "/admin/drivers", label: "Drivers" },
   { href: "/admin/vehicles", label: "Vehicles" },
   { href: "/admin/assignments", label: "Assignments" },
+  { href: "/admin/approvals", label: "Approvals" },
   { href: "/admin/fraud", label: "Fraud" },
   { href: "/admin/payouts", label: "Payouts" },
   { href: "/admin/billing", label: "Billing" },

@@ -590,6 +590,17 @@ def test_reporting_zero_state_cross_org_date_validation_and_no_auto_calculation(
         created_by_user_id=advertiser.id,
         campaign_status=CampaignStatus.ACTIVE,
     )
+    for campaign_status in [
+        CampaignStatus.PENDING_REVIEW,
+        CampaignStatus.APPROVED,
+        CampaignStatus.REJECTED,
+    ]:
+        create_test_campaign(
+            db_sessionmaker,
+            organization_id=organization.id,
+            created_by_user_id=advertiser.id,
+            campaign_status=campaign_status,
+        )
     other_advertiser = create_test_user(
         db_sessionmaker,
         email="adv-zero-other@example.com",
@@ -614,6 +625,7 @@ def test_reporting_zero_state_cross_org_date_validation_and_no_auto_calculation(
         f"/api/v1/advertiser/campaigns/{empty_campaign.id}/summary",
         headers=headers,
     )
+    dashboard = db_client.get("/api/v1/advertiser/dashboard/summary", headers=headers)
     daily = db_client.get(
         f"/api/v1/advertiser/campaigns/{empty_campaign.id}/daily-metrics",
         headers=headers,
@@ -638,6 +650,19 @@ def test_reporting_zero_state_cross_org_date_validation_and_no_auto_calculation(
     )
 
     assert summary.status_code == http_status.HTTP_200_OK
+    assert dashboard.status_code == http_status.HTTP_200_OK
+    assert dashboard.json()["campaigns"] == {
+        "total": 4,
+        "draft": 0,
+        "pending_review": 1,
+        "approved": 1,
+        "rejected": 1,
+        "scheduled": 0,
+        "active": 1,
+        "paused": 0,
+        "completed": 0,
+        "cancelled": 0,
+    }
     data = summary.json()
     assert data["trips"] == {"total": 0, "ended": 0, "active": 0}
     assert data["impressions"]["estimated_impressions"] == "0.00"

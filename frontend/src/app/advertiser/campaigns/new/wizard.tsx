@@ -41,7 +41,6 @@ const stepFields: Record<number, FieldPath<CampaignWizardInput>[]> = {
     "basics.end_at",
     "basics.budget_amount",
     "basics.daily_budget_amount",
-    "basics.launch",
   ],
   1: ["creatives"],
 };
@@ -62,7 +61,6 @@ export function CampaignWizard({ currency }: { currency: string }) {
         end_at: "",
         budget_amount: "",
         daily_budget_amount: "",
-        launch: "draft",
       },
       creatives: [],
     },
@@ -218,39 +216,13 @@ export function CampaignWizard({ currency }: { currency: string }) {
               </div>
             </div>
 
-            <fieldset>
-              <legend className={labelClass}>Create as</legend>
-              <div className="mt-2 flex gap-2">
-                {(
-                  [
-                    { value: "draft", label: "Draft", hint: "Finish setup later" },
-                    { value: "scheduled", label: "Scheduled", hint: "Goes live at start date" },
-                  ] as const
-                ).map((opt) => (
-                  <label
-                    key={opt.value}
-                    className={cx(
-                      "flex-1 cursor-pointer rounded-lg border p-3.5 transition-colors",
-                      values.basics.launch === opt.value
-                        ? "border-amber/60 bg-amber/10"
-                        : "border-edge bg-raised hover:border-edge-strong",
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      value={opt.value}
-                      className="sr-only"
-                      {...form.register("basics.launch")}
-                    />
-                    <span className="block text-sm font-medium">{opt.label}</span>
-                    <span className="micro text-faint mt-0.5 block">{opt.hint}</span>
-                  </label>
-                ))}
-              </div>
-              {errors.basics?.start_at && values.basics.launch === "scheduled" ? (
-                <p className={errorClass}>{errors.basics.start_at.message}</p>
-              ) : null}
-            </fieldset>
+            <div className="border-amber/30 bg-amber/10 rounded-lg border p-3.5 text-sm">
+              <p className="font-medium">Created as a draft</p>
+              <p className="text-muted mt-1">
+                Submit the completed campaign for admin review from its detail page. Scheduling and
+                activation are not available here.
+              </p>
+            </div>
           </div>
         ) : null}
 
@@ -380,7 +352,7 @@ export function CampaignWizard({ currency }: { currency: string }) {
                     ? `${currency} ${values.basics.daily_budget_amount}`
                     : "not set",
                 ],
-                ["Create as", values.basics.launch],
+                ["Create as", "Draft"],
                 [
                   "Creatives",
                   values.creatives.length ? `${values.creatives.length} attached` : "none",

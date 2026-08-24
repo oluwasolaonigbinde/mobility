@@ -1,3 +1,7 @@
+import asyncio
+import hashlib
+import json
+
 from conftest import (
     auth_headers,
     create_test_campaign,
@@ -104,7 +108,7 @@ def test_advertiser_manager_can_create_campaign(db_client, db_sessionmaker) -> N
     assert response.json()["currency"] == "NGN"
 
 
-def test_active_campaign_creation_and_unfunded_activation_are_rejected(
+def test_campaign_creation_and_generic_lifecycle_transitions_are_rejected(
     db_client, db_sessionmaker
 ) -> None:
     advertiser, organization = create_advertiser_with_org(
@@ -130,12 +134,9 @@ def test_active_campaign_creation_and_unfunded_activation_are_rejected(
     )
 
     assert active_create.status_code == http_status.HTTP_409_CONFLICT
-    assert active_create.json()["error"]["code"] == "CAMPAIGN_ACTIVE_CREATE_FORBIDDEN"
+    assert active_create.json()["error"]["code"] == "CAMPAIGN_REVIEW_STATE_CONFLICT"
     assert activate_without_terms.status_code == http_status.HTTP_409_CONFLICT
-    assert (
-        activate_without_terms.json()["error"]["code"]
-        == "PRODUCTION_FINANCIAL_AUTHORITY_REQUIRED"
-    )
+    assert activate_without_terms.json()["error"]["code"] == "CAMPAIGN_REVIEW_STATE_CONFLICT"
 
 
 def test_advertiser_viewer_and_missing_membership_cannot_write_campaigns(
@@ -175,6 +176,10 @@ def test_advertiser_viewer_and_missing_membership_cannot_write_campaigns(
         headers=auth_headers(db_client, "viewer@example.com", PASSWORD),
         json={"name": "Updated"},
     )
+    viewer_submit = db_client.post(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/submit",
+        headers=auth_headers(db_client, "viewer@example.com", PASSWORD),
+    )
     missing_org_create = db_client.post(
         "/api/v1/advertiser/campaigns",
         headers=auth_headers(db_client, "no-org@example.com", PASSWORD),
@@ -188,8 +193,10 @@ def test_advertiser_viewer_and_missing_membership_cannot_write_campaigns(
 
     assert viewer_create.status_code == http_status.HTTP_403_FORBIDDEN
     assert viewer_update.status_code == http_status.HTTP_403_FORBIDDEN
+    assert viewer_submit.status_code == http_status.HTTP_403_FORBIDDEN
     assert viewer_create.json()["error"]["code"] == "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN"
     assert viewer_update.json()["error"]["code"] == "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN"
+    assert viewer_submit.json()["error"]["code"] == "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN"
     assert missing_org_create.status_code == http_status.HTTP_404_NOT_FOUND
     assert missing_org_create.json()["error"]["code"] == "ADVERTISER_ORGANIZATION_NOT_FOUND"
     assert invited_manager_create.status_code == http_status.HTTP_403_FORBIDDEN
@@ -245,7 +252,7 @@ def test_advertiser_campaign_list_read_and_update_are_tenant_scoped(
         db_sessionmaker,
         organization_id=organization.id,
         created_by_user_id=advertiser.id,
-        campaign_status=CampaignStatus.ACTIVE,
+        campaign_status=CampaignStatus.DRAFT,
     )
     other_campaign = create_test_campaign(
         db_sessionmaker,
@@ -257,7 +264,7 @@ def test_advertiser_campaign_list_read_and_update_are_tenant_scoped(
 
     list_response = db_client.get("/api/v1/advertiser/campaigns", headers=headers)
     filtered_response = db_client.get(
-        "/api/v1/advertiser/campaigns?status=active&limit=1&offset=0",
+        "/api/v1/advertiser/campaigns?status=draft&limit=1&offset=0",
         headers=headers,
     )
     own_response = db_client.get(f"/api/v1/advertiser/campaigns/{own_campaign.id}", headers=headers)
@@ -268,7 +275,7 @@ def test_advertiser_campaign_list_read_and_update_are_tenant_scoped(
     update_response = db_client.patch(
         f"/api/v1/advertiser/campaigns/{own_campaign.id}",
         headers=headers,
-        json={"name": " Updated Campaign ", "status": "paused", "metadata": {"phase": "hold"}},
+        json={"name": " Updated Campaign ", "metadata": {"phase": "hold"}},
     )
     other_update = db_client.patch(
         f"/api/v1/advertiser/campaigns/{other_campaign.id}",
@@ -288,7 +295,7 @@ def test_advertiser_campaign_list_read_and_update_are_tenant_scoped(
     assert other_update.status_code == http_status.HTTP_404_NOT_FOUND
     assert update_response.status_code == http_status.HTTP_200_OK
     assert update_response.json()["name"] == "Updated Campaign"
-    assert update_response.json()["status"] == "paused"
+    assert update_response.json()["status"] == "draft"
     assert update_response.json()["metadata"] == {"phase": "hold"}
 
     audit_events = fetch_audit_events(db_sessionmaker)
@@ -321,6 +328,232 @@ def test_campaign_create_validation_rejects_invalid_inputs(db_client, db_session
         for response in responses
     )
     assert {response.json()["error"]["code"] for response in responses} == {"VALIDATION_ERROR"}
+
+
+def test_campaign_review_lifecycle_binds_immutable_submission_history_and_audits(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    admin = create_test_user(db_sessionmaker, email="review-admin@example.com", password=PASSWORD)
+    advertiser, organization = create_advertiser_with_org(
+        db_sessionmaker,
+        email="review-manager@example.com",
+        role=MembershipRole.MANAGER,
+    )
+    other_advertiser, other_organization = create_advertiser_with_org(
+        db_sessionmaker,
+        email="review-other@example.com",
+    )
+    campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=advertiser.id,
+        name="Reviewable campaign",
+    )
+    other_campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=other_organization.id,
+        created_by_user_id=other_advertiser.id,
+    )
+    advertiser_headers = auth_headers(db_client, advertiser.email, PASSWORD)
+    admin_headers = auth_headers(db_client, admin.email, PASSWORD)
+
+    invalid_create = db_client.post(
+        "/api/v1/advertiser/campaigns",
+        headers=advertiser_headers,
+        json=campaign_payload(status="pending_review"),
+    )
+    submitted = db_client.post(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/submit",
+        headers=advertiser_headers,
+    )
+    frozen_update = db_client.patch(
+        f"/api/v1/advertiser/campaigns/{campaign.id}",
+        headers=advertiser_headers,
+        json={"name": "Must not change"},
+    )
+    generic_schedule = db_client.patch(
+        f"/api/v1/advertiser/campaigns/{campaign.id}",
+        headers=advertiser_headers,
+        json={"status": "scheduled"},
+    )
+    pending = db_client.get("/api/v1/admin/campaigns/pending-review", headers=admin_headers)
+    blank_rejection = db_client.post(
+        f"/api/v1/admin/campaigns/{campaign.id}/reject",
+        headers=admin_headers,
+        json={"reason": "   "},
+    )
+    rejected = db_client.post(
+        f"/api/v1/admin/campaigns/{campaign.id}/reject",
+        headers=admin_headers,
+        json={"reason": "  Provide final dates.  "},
+    )
+
+    assert invalid_create.status_code == http_status.HTTP_409_CONFLICT
+    assert invalid_create.json()["error"]["code"] == "CAMPAIGN_REVIEW_STATE_CONFLICT"
+    assert submitted.status_code == http_status.HTTP_200_OK
+    assert submitted.json()["status"] == "pending_review"
+    assert frozen_update.status_code == http_status.HTTP_409_CONFLICT
+    assert frozen_update.json()["error"]["code"] == "CAMPAIGN_REVIEW_STATE_CONFLICT"
+    assert generic_schedule.status_code == http_status.HTTP_409_CONFLICT
+    assert generic_schedule.json()["error"]["code"] == "CAMPAIGN_REVIEW_STATE_CONFLICT"
+    assert pending.status_code == http_status.HTTP_200_OK
+    assert [item["id"] for item in pending.json()["items"]] == [str(campaign.id)]
+    assert blank_rejection.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert rejected.status_code == http_status.HTTP_200_OK
+    assert rejected.json()["status"] == "rejected"
+
+    rejected_history = db_client.get(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/review-history",
+        headers=advertiser_headers,
+    )
+    assert rejected_history.status_code == http_status.HTTP_200_OK
+    rejected_items = rejected_history.json()["items"]
+    assert [item["new_status"] for item in rejected_items] == ["rejected", "pending_review"]
+    first_submission = rejected_items[1]
+    rejection = rejected_items[0]
+    canonical_snapshot = json.dumps(
+        first_submission["reviewed_snapshot"], sort_keys=True, separators=(",", ":")
+    )
+    assert first_submission["reviewed_snapshot_sha256"] == hashlib.sha256(
+        canonical_snapshot.encode("utf-8")
+    ).hexdigest()
+    assert rejection["submission_event_id"] == first_submission["id"]
+    assert rejection["rejection_reason"] == "Provide final dates."
+    assert first_submission["created_at"]
+
+    edited = db_client.patch(
+        f"/api/v1/advertiser/campaigns/{campaign.id}",
+        headers=advertiser_headers,
+        json={"name": "Reviewable campaign v2"},
+    )
+    resubmitted = db_client.post(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/submit",
+        headers=advertiser_headers,
+    )
+    approved = db_client.post(
+        f"/api/v1/admin/campaigns/{campaign.id}/approve",
+        headers=admin_headers,
+    )
+    duplicate_approval = db_client.post(
+        f"/api/v1/admin/campaigns/{campaign.id}/approve",
+        headers=admin_headers,
+    )
+    approved_update = db_client.patch(
+        f"/api/v1/advertiser/campaigns/{campaign.id}",
+        headers=advertiser_headers,
+        json={"description": "Must remain frozen"},
+    )
+    admin_history = db_client.get(
+        f"/api/v1/admin/campaigns/{campaign.id}/review-history",
+        headers=admin_headers,
+    )
+    other_history = db_client.get(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/review-history",
+        headers=auth_headers(db_client, other_advertiser.email, PASSWORD),
+    )
+    other_admin_history = db_client.get(
+        f"/api/v1/admin/campaigns/{other_campaign.id}/review-history",
+        headers=admin_headers,
+    )
+
+    assert edited.status_code == http_status.HTTP_200_OK
+    assert resubmitted.status_code == http_status.HTTP_200_OK
+    assert approved.status_code == http_status.HTTP_200_OK
+    assert approved.json()["status"] == "approved"
+    assert duplicate_approval.status_code == http_status.HTTP_409_CONFLICT
+    assert duplicate_approval.json()["error"]["code"] == "CAMPAIGN_REVIEW_STATE_CONFLICT"
+    assert approved_update.status_code == http_status.HTTP_409_CONFLICT
+    assert admin_history.status_code == http_status.HTTP_200_OK
+    history_items = admin_history.json()["items"]
+    assert [item["new_status"] for item in history_items] == [
+        "approved",
+        "pending_review",
+        "rejected",
+        "pending_review",
+    ]
+    assert history_items[0]["submission_event_id"] == history_items[1]["id"]
+    assert history_items[1]["reviewed_snapshot_sha256"] != first_submission[
+        "reviewed_snapshot_sha256"
+    ]
+    assert other_history.status_code == http_status.HTTP_404_NOT_FOUND
+    assert other_admin_history.status_code == http_status.HTTP_200_OK
+    assert other_admin_history.json()["total"] == 0
+    assert db_client.get("/api/v1/admin/campaigns/pending-review", headers=admin_headers).json()[
+        "total"
+    ] == 0
+
+    audit_events = fetch_audit_events(db_sessionmaker)
+    assert [event.action for event in audit_events] == [
+        "advertiser.campaign.submitted_for_review",
+        "admin.campaign.rejected",
+        "advertiser.campaign.updated",
+        "advertiser.campaign.submitted_for_review",
+        "admin.campaign.approved",
+    ]
+
+
+def test_campaign_review_postgres_race_has_one_decision_and_one_conflict(
+    postgis_db_sessionmaker,
+) -> None:
+    from sqlalchemy import func, select
+
+    from app.core.errors import AppError
+    from app.models.campaign import CampaignReviewEvent
+    from app.services.campaigns import decide_campaign_review, submit_campaign_for_review
+
+    admin = create_test_user(
+        postgis_db_sessionmaker,
+        email="review-race-admin@example.com",
+        password=PASSWORD,
+    )
+    advertiser, organization = create_advertiser_with_org(
+        postgis_db_sessionmaker,
+        email="review-race-advertiser@example.com",
+    )
+    campaign = create_test_campaign(
+        postgis_db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=advertiser.id,
+    )
+
+    async def scenario() -> tuple[list[str], int]:
+        async with postgis_db_sessionmaker() as session:
+            await submit_campaign_for_review(
+                session,
+                user_id=advertiser.id,
+                campaign_id=campaign.id,
+            )
+            await session.commit()
+
+        async def approve_once() -> str:
+            async with postgis_db_sessionmaker() as session:
+                try:
+                    await decide_campaign_review(
+                        session,
+                        admin_user_id=admin.id,
+                        campaign_id=campaign.id,
+                        target_status=CampaignStatus.APPROVED,
+                    )
+                    await session.commit()
+                    return "approved"
+                except AppError as exc:
+                    await session.rollback()
+                    return exc.code
+
+        outcomes = await asyncio.gather(approve_once(), approve_once())
+        async with postgis_db_sessionmaker() as session:
+            event_count = await session.scalar(
+                select(func.count())
+                .select_from(CampaignReviewEvent)
+                .where(CampaignReviewEvent.campaign_id == campaign.id)
+            )
+        return outcomes, int(event_count or 0)
+
+    outcomes, event_count = asyncio.run(scenario())
+
+    assert sorted(outcomes) == ["CAMPAIGN_REVIEW_STATE_CONFLICT", "approved"]
+    assert event_count == 2
 
 
 def test_campaign_patch_validation_rejects_invalid_combined_state(

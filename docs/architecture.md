@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.37 — 2026-08-23. Canonical source of truth: current state AND target state.**
+**Version 1.39 — 2026-08-24. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1369,17 +1369,24 @@ nothing.
 
 ## 18. Approval workflows
 
-Q6, Q15, Q17 and Q18 are client-confirmed. Implementation remains [TARGET] and must
-honour RM12/RM13's funded-liability, evidence and atomic-activation contracts.
+Q6, Q15, Q17 and Q18 are client-confirmed. Campaign review is [BUILT] through
+W2-03A; creative review, installation evidence and atomic activation remain
+[TARGET] and must honour RM12/RM13's funded-liability, evidence and
+atomic-activation contracts.
 
-- **Campaign approval:** insert `pending_review → approved` **between `draft`
-  and `scheduled`** in the existing campaign status enum
-  (`draft | scheduled | active | paused | completed | cancelled`) + transition
-  maps (backend enum & checks; frontend `src/lib/campaigns/status.ts`) — a
-  campaign is approved first, then scheduled/activated; nothing unapproved may
-  reach `scheduled`. Advertiser submits; admin approves/rejects with reason;
-  every transition audited. Extend the enum — **never** a parallel
-  `is_approved` flag.
+- **Campaign approval [BUILT — W2-03A]:** the campaign status enum and typed
+  consumers include `pending_review`, `approved` and `rejected`. Dedicated,
+  row-locked actions implement `draft | rejected → pending_review → approved |
+  rejected`; generic create/update cannot enter a review or production state,
+  and reviewed campaigns are frozen. Each submission stores an immutable
+  canonical snapshot plus SHA-256 digest in append-only
+  `campaign_review_events`; an admin decision binds the exact submission event,
+  requires a reason when rejected, and writes complete audit metadata in the
+  same transaction. Advertisers see tenant-scoped history and admins review the
+  cross-tenant queue at `/admin/approvals`. Approval deliberately does **not**
+  schedule or activate: the later `approved → scheduled` edge remains [TARGET]
+  behind W2-03B/C/D's complete launch gate. There is no parallel `is_approved`
+  flag.
 - **Creative approval:** same pattern on `campaign_creatives.status`
   (`pending_review → approved | rejected`), tied to upload (§19) — an
   unapproved creative blocks scheduling/activation per Q6/Q18 and RM13.
@@ -1965,7 +1972,7 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 | Release scheduling | §16.2 | `jobs/` + `services/payouts.py` | ledger statuses | ledger edits (append-only) | Q22 confirmed; RM8 before release |
 | Automated disbursement | §16.3 | `adapters/disbursement/`, `services/payouts.py` | payout_batches (new) | direct vendor calls from services | Q27 confirmed; RM10/RM11; `EXT-DISBURSEMENT-PROVIDER` for live submission |
 | Fraud review workflow | §17 | `services/` + `api/v1/` fraud modules | fraud_flags lifecycle | detection engine internals | Q21 confirmed; RM8 |
-| Campaign/creative approval | §18 | status enums + services | campaign/creative status | parallel approval flags | Q6/Q18 confirmed; RM13 |
+| Campaign/creative approval | §18 | campaign review: `services/campaigns.py` + campaign APIs and role surfaces [BUILT W2-03A]; creative review remains status enums + services [TARGET] | campaign/creative status and append-only review evidence | parallel approval flags; scheduling/activation from W2-03A | Campaign review [BUILT]; creative/activation Q6/Q18 + RM13 |
 | File upload (any kind) | §19 | `adapters/storage/`, `services/files.py` | stored_files (new) | container FS, DB blobs | Q18/Q26 + provider |
 | Notifications | §20 | `services/notifications.py`, `jobs/`, `adapters/messaging/` | notifications (new) | inline provider calls | Q34 confirmed; provider is parameter |
 | Billing / accepted terms / invoices / payments | §15 | `services/billing.py`, `adapters/payments/` | commercial_terms, invoices, payments (new) | report/cost-summary logic | Q1–Q3, Q14, Q28 confirmed; external provider/company facts for live use |
@@ -2157,6 +2164,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.39 | 2026-08-24 | **W2-03A governed campaign review delivered.** Dedicated row-locked submission, approval, reasoned rejection and resubmission transitions bind immutable canonical snapshots and SHA-256 digests in append-only review history; generic create/update cannot enter review or production states, reviewed fields freeze, and approval itself cannot schedule or activate. Tenant-scoped advertiser history and the typed admin approvals queue expose the same evidence. Migration `0041` and all three §9 baselines move together. Focused SQLite/PostgreSQL lifecycle, RBAC, audit, race, migration and contract checks; 18 focused frontend tests; 55 preserved R14-B fixtures; type/lint; and an isolated desktop/mobile submit→approve→history journey pass. No external provider, scheduling, activation, physical-device, real-route, staging, pilot or user-feedback validation is claimed. |
 | v1.38 | 2026-08-24 | **PKG-02 correction reconciliation.** A due reversal now enters debt authority in the same release transaction after status flush and before audit/commit, in stable driver/currency/entry order; an active reservation rolls back the entire release. Because migration `0031` has not reached a non-disposable environment, its upgrade now idempotently backfills all eligible available reversals into driver/currency debt accounts and obligations, links any same-trip paid non-reversal provenance, conserves account totals, and refuses unsafe active reservations or populated downgrades. Economic/provenance projections retain non-voided sources, subtract reversals and give `debt_remainder` zero economic value; settlement projections separately expose released credit, paid cash, debt and `max(released − debt, 0)` batch-payable value. Driver API/dashboard/earnings surfaces and all three §9 baselines moved together. Evidence: focused PostgreSQL release/reservation race, debt/residual and populated migration tests; frontend 191 tests/type/lint/build; backend aggregate 793 pass/3 skip followed by 41-pass recheck of the only 13 documentation-contract fixture failures; independent clean-context minimal-change review PASS. No live provider or real-world validation is claimed. |
 | v1.37 | 2026-08-23 | **PKG-02 money integrity and payout operations closed; RM10/RM11 resolved.** Migrations `0028`–`0031` add encrypted append-only driver payee/account versions, atomic whole-entry payout reservation with frozen instructions and maker-checker approval, verified line-level provider reconciliation before immutable paid finality, and currency-scoped carry-forward debt with paid-source provenance. Live adapters remain fail-closed behind `EXT-DISBURSEMENT-PROVIDER`. The controlled §9 baselines moved once. Aggregate Package 2 evidence covers 541 backend passes plus one intentional skip across the non-repeated integration partitions, 187 frontend tests, type/lint/build, migration/autogenerate, crypto, property, concurrency and synthetic end-to-end flows. The consolidated review's lock-order and paid-state findings were corrected once and rechecked RESOLVED; the forced-overlap provider-finality/confirmed-fraud race preserves paid history and creates exactly one obligation. No live provider, physical-device, real-route, external-staging, pilot or user-feedback validation is claimed. |
 | v1.36 | 2026-08-21 | **MNY-03A clean release and flagged-review SLA delivered; RM8 closed.** Migration `0027` adds persisted one-time escalation evidence and unique fraud-flag-linked reversal provenance. A starvation-safe DB-derived sweep uses the existing trip scope, post-wait DB clock, exact successful-current assessment and imported hold predicate before stable `pending → available` transitions; dismissal requires reassessment. Open/acknowledged reviews escalate at the configurable deadline without auto-release. Named confirmation after release posts one positive subtract-by-type available reversal, while retry/multiple flags cannot over-reverse. The typed admin queue shows deadlines, escalation history and reversal consequences; all three §9 artifacts moved together. Evidence: focused PostgreSQL currentness/time/concurrency/migration tests, worker/API/UI and contract checks, live synthetic desktop/mobile recommendation plus named one-reversal confirmation, and one money/concurrency correction round rechecked RESOLVED. No physical-device, real-route, external-staging, pilot or user-feedback validation is claimed. |

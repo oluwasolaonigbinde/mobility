@@ -59,12 +59,11 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 ### Current control pointer
 
 **Controller state:** `ACTIVE`
-**Control package:** `PKG-04` — Package 3's provider-neutral commercial flow is
-closed at its external gates; Package 4 is handed forward as NEXT but has not
-started.
-**Current checkpoint:** `PKG-04 / W2-03A` — the first dependency-satisfied
-Package 4 item is the handoff pointer only. No Package 4 implementation has
-started; W2-02A remains blocked by EXT-STORAGE-PROVIDER.
+**Control package:** `PKG-04` — Package 4 is IN PROGRESS under its reviewed
+delivery contract; Package 3 remains commercially closed at its external gates.
+**Current checkpoint:** `PKG-04 / W2-03A` — campaign submission and admin
+approval is the focused-verified candidate at the owner checkpoint. W2-02A remains blocked
+by EXT-STORAGE-PROVIDER and no later Package 4 slice is admitted yet.
 
 ## Executable package queue
 
@@ -73,7 +72,7 @@ started; W2-02A remains blocked by EXT-STORAGE-PROVIDER.
 | 1 | **PKG-01 — foundations and empirical risk proof** | DONE | Resolve remaining foundations, production-PWA/staging risk and correction authority. | none |
 | 2 | **PKG-02 — money integrity and payout operations** | DONE | Corrected release, pre-existing-reversal backfill and debt-aware economic/settlement authority agree. | none — checklist DAG gates entry |
 | 3 | **PKG-03 — commercial contracts and billing** | BLOCKED | Synthetic/provider-neutral commercial flow is verified; live provider checkout and budget enforcement await their recorded external inputs. | none — checklist DAG gates entry |
-| 4 | **PKG-04 — secure evidence, activation and communications** | **NEXT** | Secure files/KYC, campaign evidence/activation/cancellation and notifications integrate; handed forward but not started. | none — checklist DAG gates entry |
+| 4 | **PKG-04 — secure evidence, activation and communications** | **IN PROGRESS** | Secure files/KYC, campaign evidence/activation/cancellation and notifications integrate; W2-03A is the first authorized slice. | none — checklist DAG gates entry |
 | 5 | **PKG-05 — privacy, measurement and retargeting** | QUEUED | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
 | 6 | **PKG-06 — matching and driver onboarding** | QUEUED | Recommendations, offers, activity and approved driver/vehicle onboarding work together. | none — checklist DAG gates entry |
 | 7 | **PKG-07 — production driver PWA** | QUEUED | The pilot PWA safely tracks, syncs, explains earnings and supports release across the device matrix. | none — checklist DAG gates entry |
@@ -402,6 +401,30 @@ started; W2-02A remains blocked by EXT-STORAGE-PROVIDER.
 
 - **Owns:** checklist 28–43, with internal checkpoints for storage/security,
   KYC lifecycle, approvals/activation/cancellation, then communications.
+- **Package plan (activated 24 Aug 2026, canonical branch `feat/pkg-04`):**
+  adopt verified shared CI repair `a8fa4e0`, then serialize Package 4 behind one
+  controller-owned migration/contract/authority boundary. W2-03A is the sole
+  admitted first slice: dedicated submit/approve/reject/resubmit transitions
+  bind immutable reviewed campaign snapshots and cannot schedule or activate.
+  One no-history Terra worker owns bounded domain/API/UI/test implementation;
+  the controller owns migrations, all three §9 baselines and authority docs,
+  with one independent plan review PASS before implementation. Focused tests
+  only at this checkpoint; W2-04A and later work require a new controller
+  admission after the W2-03A checkpoint.
+- **W2-03A checkpoint evidence (24 Aug 2026):** migration `0041` extends the campaign
+  lifecycle and adds append-only, exact-submission-bound review evidence.
+  Dedicated row-locked advertiser/admin actions enforce submit, approve,
+  reasoned reject and resubmit; generic creation/update cannot bypass review,
+  and approval cannot schedule or activate. Advertiser detail/history and the
+  typed `/admin/approvals` queue expose the same snapshot digest and immutable
+  transition history. Focused evidence: 19 backend passes plus 13 expected
+  SQLite skips, 5 PostgreSQL lifecycle/race/migration passes, filtered
+  autogenerate-empty, 4 OpenAPI/migration-chain passes, 18 frontend tests,
+  55 R14-B fixtures, typecheck and lint (one existing compiler warning), and
+  the isolated real-stack submit→approve→history journey in desktop/mobile
+  Chromium (2 passes). All three §9 baselines moved together. No provider,
+  scheduling, activation, physical-device, real-route, staging, pilot or
+  user-feedback validation is claimed.
 - **Closure:** migrations/contracts integrate once; security and communications
   receive separate specialist verification before consolidated package review.
 

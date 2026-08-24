@@ -3415,9 +3415,148 @@
         "title": "CampaignReportResponse",
         "type": "object"
       },
+      "CampaignReviewEventListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CampaignReviewEventRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "CampaignReviewEventListResponse",
+        "type": "object"
+      },
+      "CampaignReviewEventRead": {
+        "properties": {
+          "actor_user_id": {
+            "format": "uuid",
+            "title": "Actor User Id",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "new_status": {
+            "$ref": "#/components/schemas/CampaignStatus"
+          },
+          "prior_status": {
+            "$ref": "#/components/schemas/CampaignStatus"
+          },
+          "rejection_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejection Reason"
+          },
+          "reviewed_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed Snapshot"
+          },
+          "reviewed_snapshot_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed Snapshot Sha256"
+          },
+          "submission_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submission Event Id"
+          }
+        },
+        "required": [
+          "id",
+          "campaign_id",
+          "actor_user_id",
+          "prior_status",
+          "new_status",
+          "rejection_reason",
+          "reviewed_snapshot",
+          "reviewed_snapshot_sha256",
+          "submission_event_id",
+          "created_at"
+        ],
+        "title": "CampaignReviewEventRead",
+        "type": "object"
+      },
+      "CampaignReviewReject": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "CampaignReviewReject",
+        "type": "object"
+      },
       "CampaignStatus": {
         "enum": [
           "draft",
+          "pending_review",
+          "approved",
+          "rejected",
           "scheduled",
           "active",
           "paused",
@@ -3432,6 +3571,11 @@
           "active": {
             "default": 0,
             "title": "Active",
+            "type": "integer"
+          },
+          "approved": {
+            "default": 0,
+            "title": "Approved",
             "type": "integer"
           },
           "cancelled": {
@@ -3452,6 +3596,16 @@
           "paused": {
             "default": 0,
             "title": "Paused",
+            "type": "integer"
+          },
+          "pending_review": {
+            "default": 0,
+            "title": "Pending Review",
+            "type": "integer"
+          },
+          "rejected": {
+            "default": 0,
+            "title": "Rejected",
             "type": "integer"
           },
           "scheduled": {
@@ -13750,6 +13904,67 @@
         ]
       }
     },
+    "/api/v1/admin/campaigns/pending-review": {
+      "get": {
+        "operationId": "admin_list_pending_campaign_reviews_api_v1_admin_campaigns_pending_review_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCampaignListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List campaigns pending admin review",
+        "tags": [
+          "Campaigns"
+        ]
+      }
+    },
     "/api/v1/admin/campaigns/{campaign_id}": {
       "get": {
         "operationId": "admin_get_campaign_endpoint_api_v1_admin_campaigns__campaign_id__get",
@@ -13793,6 +14008,54 @@
           }
         ],
         "summary": "Get a campaign across organizations",
+        "tags": [
+          "Campaigns"
+        ]
+      }
+    },
+    "/api/v1/admin/campaigns/{campaign_id}/approve": {
+      "post": {
+        "operationId": "admin_approve_campaign_review_api_v1_admin_campaigns__campaign_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCampaignRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Approve a pending campaign review",
         "tags": [
           "Campaigns"
         ]
@@ -14479,6 +14742,135 @@
         "summary": "Admin Record External Quote Request",
         "tags": [
           "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/campaigns/{campaign_id}/reject": {
+      "post": {
+        "operationId": "admin_reject_campaign_review_api_v1_admin_campaigns__campaign_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignReviewReject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCampaignRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Reject a pending campaign review",
+        "tags": [
+          "Campaigns"
+        ]
+      }
+    },
+    "/api/v1/admin/campaigns/{campaign_id}/review-history": {
+      "get": {
+        "operationId": "admin_list_campaign_review_history_api_v1_admin_campaigns__campaign_id__review_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignReviewEventListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List review history across organizations",
+        "tags": [
+          "Campaigns"
         ]
       }
     },
@@ -19917,6 +20309,125 @@
         "summary": "Read bundled advertiser campaign report",
         "tags": [
           "Advertiser Reports"
+        ]
+      }
+    },
+    "/api/v1/advertiser/campaigns/{campaign_id}/review-history": {
+      "get": {
+        "operationId": "advertiser_list_campaign_review_history_api_v1_advertiser_campaigns__campaign_id__review_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignReviewEventListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List a campaign's review history",
+        "tags": [
+          "Campaigns"
+        ]
+      }
+    },
+    "/api/v1/advertiser/campaigns/{campaign_id}/submit": {
+      "post": {
+        "operationId": "advertiser_submit_campaign_for_review_api_v1_advertiser_campaigns__campaign_id__submit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Submit a campaign for admin review",
+        "tags": [
+          "Campaigns"
         ]
       }
     },

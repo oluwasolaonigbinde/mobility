@@ -19,9 +19,7 @@ from app.services.campaigns import get_advertiser_campaign, get_required_adverti
 
 MUTABLE_CAMPAIGN_STATUSES = {
     CampaignStatus.DRAFT,
-    CampaignStatus.SCHEDULED,
-    CampaignStatus.ACTIVE,
-    CampaignStatus.PAUSED,
+    CampaignStatus.REJECTED,
 }
 
 
