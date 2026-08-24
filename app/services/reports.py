@@ -50,6 +50,7 @@ from app.schemas.reports import (
     ZoneTypeCounts,
 )
 from app.services.campaigns import get_advertiser_campaign, get_required_advertiser_context
+from app.services.disclosure import require_governed_advertiser_output
 from app.services.payouts import latest_payout_calculation_ids
 
 ZERO_2 = Decimal("0.00")
@@ -571,6 +572,12 @@ async def advertiser_dashboard_summary(
     end_at: datetime | None,
     settings: Settings,
 ) -> AdvertiserDashboardSummary:
+    await require_governed_advertiser_output(
+        session,
+        settings=settings,
+        route_id="advertiser.dashboard.summary",
+        user_id=user_id,
+    )
     organization, _ = await get_required_advertiser_context(session, user_id)
     return AdvertiserDashboardSummary(
         organization_id=organization.id,
@@ -618,6 +625,12 @@ async def advertiser_campaign_summary(
     end_at: datetime | None,
     settings: Settings,
 ) -> CampaignSummary:
+    await require_governed_advertiser_output(
+        session,
+        settings=settings,
+        route_id="advertiser.campaign.summary",
+        user_id=user_id,
+    )
     campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
     return CampaignSummary(
         campaign=campaign_response(campaign),
@@ -673,6 +686,12 @@ async def daily_metrics_for_campaign(
     offset: int,
     settings: Settings,
 ) -> DailyMetricsResponse:
+    await require_governed_advertiser_output(
+        session,
+        settings=settings,
+        route_id="advertiser.campaign.daily_metrics",
+        user_id=user_id,
+    )
     campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
     by_day: dict[date, dict[str, object]] = defaultdict(
         lambda: {
@@ -836,6 +855,12 @@ async def advertiser_campaign_trips(
     payout_status: str | None,
     settings: Settings,
 ) -> CampaignTripsResponse:
+    await require_governed_advertiser_output(
+        session,
+        settings=settings,
+        route_id="advertiser.campaign.trips",
+        user_id=user_id,
+    )
     campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
     filters = [TripSession.campaign_id == campaign.id]
     apply_range(filters, TripSession.started_at, start_at, end_at)
@@ -1020,6 +1045,12 @@ async def advertiser_campaign_report(
     end_at: datetime | None,
     settings: Settings,
 ) -> CampaignReportResponse:
+    await require_governed_advertiser_output(
+        session,
+        settings=settings,
+        route_id="advertiser.campaign.report",
+        user_id=user_id,
+    )
     summary = await advertiser_campaign_summary(
         session,
         user_id=user_id,

@@ -77,7 +77,7 @@ async def advertiser_get_campaign_heatmap(
     description="Return bounded aggregate GeoJSON heatmap cells across campaigns for admins.",
 )
 async def admin_get_heatmap(
-    _: AdminUserDependency,
+    current_user: AdminUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
     bbox: str | None = Query(
@@ -108,6 +108,7 @@ async def admin_get_heatmap(
     )
     return await admin_heatmap(
         session,
+        user_id=current_user.id,
         query=query,
         settings=settings,
         campaign_id=campaign_id,

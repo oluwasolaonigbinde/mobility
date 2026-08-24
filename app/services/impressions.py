@@ -26,6 +26,7 @@ from app.models.trip_analytics import (
 )
 from app.schemas.impressions import TrafficDensityProfileCreate, TrafficDensityProfileUpdate
 from app.services.campaigns import get_advertiser_campaign
+from app.services.disclosure import require_governed_advertiser_output
 from app.services.fraud_holds import fraud_hold_counts
 from app.services.provenance import stable_source_fingerprint
 from app.services.trip_analytics import (
@@ -776,6 +777,12 @@ async def advertiser_campaign_impression_summary(
     end_at: datetime | None,
     settings: Settings,
 ) -> ImpressionSummary:
+    await require_governed_advertiser_output(
+        session,
+        settings=settings,
+        route_id="advertiser.campaign.impressions_summary",
+        user_id=user_id,
+    )
     campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
     filters = [
         ImpressionEstimate.campaign_id == campaign.id,

@@ -63,6 +63,8 @@ def test_production_render_has_one_public_edge_and_no_development_mounts() -> No
     assert services["api"]["environment"]["LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER"] == "false"
     assert services["api"]["environment"]["LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS"] == ""
     assert services["api"]["environment"]["ALLOW_DEMO_SEED"] == "false"
+    assert services["api"]["environment"]["PRIVACY_DISCLOSURE_LIVE_AUTHORIZED"] == "false"
+    assert services["api"]["environment"]["PRIVACY_LEGAL_APPROVAL_REFERENCE"] == ""
     assert model["networks"]["app"]["internal"] is True
     assert model["networks"]["data"]["internal"] is True
     assert model["networks"]["edge"].get("internal", False) is False

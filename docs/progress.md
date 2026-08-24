@@ -62,9 +62,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 **Control package:** `PKG-05` — Package 4 is blocked only on its recorded
 storage/scanner/KMS/email/phone inputs and transitive checklist dependencies;
 Package 5 is the next dependency-safe package frontier.
-**Current checkpoint:** `PKG-05 / W3-00C` — W3-00A and W3-00D are focused-
-verified and complete. The central disclosure-control service is the next
-dependency-safe checkpoint under the reviewed Package 5 plan.
+**Current checkpoint:** `PKG-05 / W3-01A` — W3-00A, W3-00D and W3-00C are
+focused-verified and complete. The typed retargeting source registry is the
+next dependency-safe checkpoint under the reviewed Package 5 plan.
 
 ## Executable package queue
 
@@ -521,6 +521,30 @@ dependency-safe checkpoint under the reviewed Package 5 plan.
   unlabeled confidence diagnostic; all visible instances now disclaim
   statistical-interval meaning and the reviewer rechecked PASS. No report was
   issued and no live or client methodology fact is claimed.
+- **W3-00C checkpoint evidence (24 Aug 2026):** migration `0045` and the
+  central service boundary now cover all eight current advertiser/report/
+  heatmap outputs. The production gate runs before membership, data or history
+  reads and requires non-placeholder legal, disclosure-configuration and
+  retention references; numeric thresholds alone cannot enable it. Reports
+  remain additionally denied until W3-00E safe runs. The grandfathered
+  heatmap reader now releases only coarse cells meeting distinct vehicle,
+  trip and day floors plus a requested-metric contributor cap. Atomic history
+  binds principal, tenant, campaign, endpoint, window, filters and result
+  fingerprint; one global spatial-history lock plus hierarchical global/org/
+  campaign overlap checks prevents cross-endpoint, cross-principal,
+  complementary and changed-result differencing. A daily DB-time worker purge
+  physically enforces configured history expiry, and populated downgrade
+  refuses destructive loss. Synthetic-only settings are impossible outside
+  `environment=test`; all live flags/references remain false/blank while
+  `EXT-LEGAL-PRIVACY` is MISSING. Focused PostgreSQL evidence covers exact/
+  below thresholds, ties, empty/sticky suppression, sequential and concurrent
+  overlap in both parent/child orders, all-route no-read/no-write denial,
+  tenant/RBAC, migration round-trip/downgrade and autogenerate-empty. Existing
+  report/impression/heatmap and Compose checks pass. Independent privacy/
+  security/architecture review found and rechecked fixes for hierarchical
+  overlap and guaranteed no-traffic retention, returning PASS. No new raw-
+  ping reader, report issuance, real data, approved threshold or live output
+  is claimed.
 - **Closure:** privacy/measurement review proves suppression, reproducibility,
   provenance and safe claims before any advertiser live-use gate opens.
 
@@ -647,7 +671,7 @@ verification, gates or required specialist review.
 | 43 | **W2-04D — account recovery and verified contact preferences** | PKG-04 | BLOCKED — EXT-PHONE-OPERATOR | Advertiser/admin password reset and driver verified-phone/WhatsApp consent are explicit. | leaf: W2-04B, W2-04C; external: EXT-PHONE-OPERATOR |
 | 44 | **W3-00A — privacy operating model** | PKG-05 | DONE | DPIA/ROPA/roles/lawful bases/consent/vendor/breach responsibilities are explicit. | none |
 | 45 | **W3-00B — end-to-end retention and DSR** | PKG-05 | TODO | Synthetic DSR spans DB, objects, devices, logs, backups and processors. | leaf: W3-00A, W2-02E |
-| 46 | **W3-00C — central disclosure-control service** | PKG-05 | TODO | Every advertiser heatmap/report/audience query enforces one privacy floor. | leaf: W3-00A |
+| 46 | **W3-00C — central disclosure-control service** | PKG-05 | DONE | Every advertiser heatmap/report/audience query enforces one privacy floor. | leaf: W3-00A |
 | 47 | **W3-00D — measurement methodology contract** | PKG-05 | DONE | Product defines modelled potential contacts, provenance, uncertainty and claims; Campaign Performance Analysis is standard and true ROI requires approved inputs and method. | none |
 | 48 | **W3-00E — immutable measurement runs and proof manifests** | PKG-05 | TODO | Issued results bind frozen inputs to creative/evidence/assignment/period and reproduce whether the ROI gate passed or failed closed. | leaf: W3-00D, W2-03C, W2-03D |
 | 49 | **W3-01A — typed retargeting source registry** | PKG-05 | TODO | Advertiser/admin manage allowlisted aggregate planning sources without identifiers. | leaf: W3-00A, W3-00D |
