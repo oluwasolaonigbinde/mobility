@@ -89,7 +89,7 @@ def test_no_seed_or_demo_migrations() -> None:
 
 
 def test_demo_seed_requires_the_code_migration_head() -> None:
-    assert required_migration_head() == "0034_canonical_receipts_allocations"
+    assert required_migration_head() == "0035_vat_itemised_invoices"
 
 
 def test_readme_documents_demo_seed_workflow() -> None:

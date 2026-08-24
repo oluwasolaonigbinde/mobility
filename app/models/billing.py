@@ -49,6 +49,17 @@ class ReceiptLifecycleStatus(StrEnum):
     REVERSED = "reversed"
 
 
+class IssuerVerificationStatus(StrEnum):
+    SYNTHETIC = "synthetic"
+    VERIFIED = "verified"
+
+
+class InvoiceStatus(StrEnum):
+    DRAFT = "draft"
+    ISSUED = "issued"
+    VOID = "void"
+
+
 class CommercialQuoteRequest(Base):
     __tablename__ = "commercial_quote_requests"
     __table_args__ = (
@@ -346,3 +357,113 @@ class ReceiptAllocation(Base):
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
     allocated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class InvoiceIssuerProfile(Base):
+    __tablename__ = "invoice_issuer_profiles"
+    __table_args__ = (
+        CheckConstraint(
+            "verification_status IN ('synthetic', 'verified')",
+            name="ck_invoice_issuer_profiles_verification",
+        ),
+        CheckConstraint("length(country_code) = 2", name="ck_invoice_issuer_profiles_country"),
+        UniqueConstraint(
+            "external_input_reference", name="uq_invoice_issuer_profiles_external_ref"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    legal_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    tax_identification_number: Mapped[str] = mapped_column(String(128), nullable=False)
+    registered_address: Mapped[str] = mapped_column(Text, nullable=False)
+    country_code: Mapped[str] = mapped_column(String(2), nullable=False)
+    invoice_wording: Mapped[str] = mapped_column(Text, nullable=False)
+    numbering_prefix: Mapped[str] = mapped_column(String(32), nullable=False)
+    verification_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    external_input_reference: Mapped[str] = mapped_column(String(255), nullable=False)
+    recorded_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class InvoiceNumberSequence(Base):
+    __tablename__ = "invoice_number_sequences"
+    __table_args__ = (
+        CheckConstraint("calendar_year >= 2020", name="ck_invoice_number_sequences_year"),
+        CheckConstraint("next_number > 0", name="ck_invoice_number_sequences_next"),
+        UniqueConstraint(
+            "issuer_profile_id",
+            "calendar_year",
+            name="uq_invoice_number_sequences_scope",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    issuer_profile_id: Mapped[UUID] = mapped_column(
+        ForeignKey("invoice_issuer_profiles.id", ondelete="RESTRICT"), nullable=False
+    )
+    calendar_year: Mapped[int] = mapped_column(Integer, nullable=False)
+    next_number: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class Invoice(Base):
+    __tablename__ = "invoices"
+    __table_args__ = (
+        CheckConstraint("status IN ('draft', 'issued', 'void')", name="ck_invoices_status"),
+        CheckConstraint("length(currency) = 3", name="ck_invoices_currency"),
+        CheckConstraint(
+            "net_amount >= 0 AND tax_rate >= 0 AND tax_rate <= 1 "
+            "AND tax_amount >= 0 AND gross_amount >= 0",
+            name="ck_invoices_amounts_non_negative",
+        ),
+        CheckConstraint(
+            "gross_amount = net_amount + tax_amount", name="ck_invoices_total_conservation"
+        ),
+        CheckConstraint(
+            "(status = 'draft' AND invoice_number IS NULL AND issued_at IS NULL) OR "
+            "(status IN ('issued', 'void') AND invoice_number IS NOT NULL "
+            "AND issued_at IS NOT NULL)",
+            name="ck_invoices_issuance_state",
+        ),
+        UniqueConstraint("commercial_terms_id", name="uq_invoices_commercial_terms"),
+        UniqueConstraint("invoice_number", name="uq_invoices_number"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    commercial_terms_id: Mapped[UUID] = mapped_column(
+        ForeignKey("commercial_terms.id", ondelete="RESTRICT"), nullable=False
+    )
+    campaign_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    organization_id: Mapped[UUID] = mapped_column(
+        ForeignKey("advertiser_organizations.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    issuer_profile_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("invoice_issuer_profiles.id", ondelete="RESTRICT")
+    )
+    invoice_number: Mapped[str | None] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    customer_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    issuer_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    line_items: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    net_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    tax_rate: Mapped[Decimal] = mapped_column(Numeric(7, 6), nullable=False)
+    tax_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    gross_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    issued_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -1,3 +1,4 @@
+import hashlib
 from copy import deepcopy
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
@@ -14,6 +15,11 @@ from app.models.billing import (
     CommercialQuotationRevision,
     CommercialQuoteRequest,
     CommercialTerms,
+    Invoice,
+    InvoiceIssuerProfile,
+    InvoiceNumberSequence,
+    InvoiceStatus,
+    IssuerVerificationStatus,
     PaymentClass,
     PaymentReceipt,
     QuoteRequestSource,
@@ -24,6 +30,7 @@ from app.models.billing import (
     ReceiptReconciliation,
 )
 from app.models.campaign import Campaign
+from app.models.organization import AdvertiserOrganization
 from app.models.user import User, UserRole, UserStatus
 from app.services.audit import create_audit_event
 from app.services.campaigns import get_required_advertiser_context
@@ -809,3 +816,245 @@ async def reverse_payment_receipt(
         metadata={"reason": normalized_reason, "reversal_cutoff": now.isoformat()},
     )
     return receipt
+
+
+async def record_invoice_issuer_profile(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    legal_name: str,
+    tax_identification_number: str,
+    registered_address: str,
+    country_code: str,
+    invoice_wording: str,
+    numbering_prefix: str,
+    verification_status: IssuerVerificationStatus,
+    external_input_reference: str,
+) -> InvoiceIssuerProfile:
+    await _active_admin(session, actor_user_id)
+    values = {
+        "legal_name": legal_name.strip(),
+        "tax_identification_number": tax_identification_number.strip(),
+        "registered_address": registered_address.strip(),
+        "country_code": country_code.strip().upper(),
+        "invoice_wording": invoice_wording.strip(),
+        "numbering_prefix": numbering_prefix.strip().upper(),
+        "external_input_reference": external_input_reference.strip(),
+    }
+    if not all(values.values()) or len(values["country_code"]) != 2:
+        raise AppError(
+            "INCOMPLETE_ISSUER_FACTS",
+            "Complete issuer facts and their external provenance are required",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    existing = await session.scalar(
+        select(InvoiceIssuerProfile).where(
+            InvoiceIssuerProfile.external_input_reference == values["external_input_reference"]
+        )
+    )
+    if existing is not None:
+        return existing
+    now = await database_clock(session)
+    profile = InvoiceIssuerProfile(
+        **values,
+        verification_status=verification_status,
+        recorded_by_user_id=actor_user_id,
+        recorded_at=now,
+    )
+    session.add(profile)
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="billing.invoice_issuer_profile.recorded",
+        entity_type="invoice_issuer_profile",
+        entity_id=str(profile.id),
+        metadata={
+            "legal_name": profile.legal_name,
+            "country_code": profile.country_code,
+            "verification_status": verification_status.value,
+            "external_input_reference": profile.external_input_reference,
+        },
+    )
+    return profile
+
+
+def _customer_snapshot(organization: AdvertiserOrganization) -> dict:
+    return {
+        "organization_id": str(organization.id),
+        "name": organization.name,
+        "billing_email": organization.billing_email,
+        "billing_contact_name": organization.billing_contact_name,
+        "billing_contact_phone": organization.billing_contact_phone,
+        "address": {
+            "line_1": organization.address_line_1,
+            "line_2": organization.address_line_2,
+            "city": organization.address_city,
+            "region": organization.address_region,
+            "postal_code": organization.address_postal_code,
+            "country_code": organization.address_country_code,
+        },
+    }
+
+
+async def create_invoice_draft(
+    session: AsyncSession,
+    *,
+    commercial_terms_id: UUID,
+    actor_user_id: UUID,
+) -> Invoice:
+    await _active_admin(session, actor_user_id)
+    terms = await session.get(CommercialTerms, commercial_terms_id)
+    if terms is None:
+        raise AppError(
+            "COMMERCIAL_TERMS_NOT_FOUND", "Commercial terms were not found", status_code=404
+        )
+    existing = await session.scalar(select(Invoice).where(Invoice.commercial_terms_id == terms.id))
+    if existing is not None:
+        return existing
+    organization = await session.get(AdvertiserOrganization, terms.organization_id)
+    if organization is None:
+        raise AppError("ORGANIZATION_NOT_FOUND", "Organization was not found", status_code=404)
+    now = await database_clock(session)
+    invoice = Invoice(
+        commercial_terms_id=terms.id,
+        campaign_id=terms.campaign_id,
+        organization_id=terms.organization_id,
+        status=InvoiceStatus.DRAFT,
+        customer_snapshot=_customer_snapshot(organization),
+        issuer_snapshot=None,
+        line_items=deepcopy(terms.line_items),
+        currency=terms.currency,
+        net_amount=terms.net_amount,
+        tax_rate=terms.tax_rate,
+        tax_amount=terms.tax_amount,
+        gross_amount=terms.gross_amount,
+        created_by_user_id=actor_user_id,
+        created_at=now,
+    )
+    try:
+        async with session.begin_nested():
+            session.add(invoice)
+            await session.flush()
+    except IntegrityError as exc:
+        raise AppError(
+            "INVOICE_ALREADY_EXISTS",
+            "An invoice already exists for these accepted terms",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from exc
+    return invoice
+
+
+async def _acquire_invoice_number_lock(
+    session: AsyncSession, issuer_profile_id: UUID, calendar_year: int
+) -> None:
+    if session.get_bind().dialect.name != "postgresql":
+        return
+    digest = hashlib.sha256(f"invoice:{issuer_profile_id}:{calendar_year}".encode()).digest()
+    lock_key = int.from_bytes(digest[:8], byteorder="big", signed=True)
+    await session.execute(select(func.pg_advisory_xact_lock(lock_key)))
+
+
+async def issue_invoice(
+    session: AsyncSession,
+    *,
+    invoice_id: UUID,
+    issuer_profile_id: UUID,
+    actor_user_id: UUID,
+) -> Invoice:
+    await _active_admin(session, actor_user_id)
+    invoice = await session.scalar(
+        select(Invoice).where(Invoice.id == invoice_id).with_for_update()
+    )
+    if invoice is None:
+        raise AppError("INVOICE_NOT_FOUND", "Invoice was not found", status_code=404)
+    if invoice.status == InvoiceStatus.ISSUED:
+        return invoice
+    if invoice.status != InvoiceStatus.DRAFT:
+        raise AppError(
+            "INVOICE_NOT_ISSUABLE",
+            "Only a draft invoice can be issued",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    issuer = await session.get(InvoiceIssuerProfile, issuer_profile_id)
+    if issuer is None or issuer.verification_status != IssuerVerificationStatus.VERIFIED:
+        raise AppError(
+            "VERIFIED_ISSUER_FACTS_REQUIRED",
+            "Real invoice issuance requires externally verified statutory issuer facts",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    now = await database_clock(session)
+    year = now.year
+    await _acquire_invoice_number_lock(session, issuer.id, year)
+    sequence = await session.scalar(
+        select(InvoiceNumberSequence)
+        .where(
+            InvoiceNumberSequence.issuer_profile_id == issuer.id,
+            InvoiceNumberSequence.calendar_year == year,
+        )
+        .with_for_update()
+    )
+    if sequence is None:
+        sequence = InvoiceNumberSequence(
+            issuer_profile_id=issuer.id, calendar_year=year, next_number=1
+        )
+        session.add(sequence)
+        await session.flush()
+    number = sequence.next_number
+    sequence.next_number += 1
+    invoice.issuer_profile_id = issuer.id
+    invoice.invoice_number = f"{issuer.numbering_prefix}-{year}-{number:06d}"
+    invoice.status = InvoiceStatus.ISSUED
+    invoice.issuer_snapshot = {
+        "legal_name": issuer.legal_name,
+        "tax_identification_number": issuer.tax_identification_number,
+        "registered_address": issuer.registered_address,
+        "country_code": issuer.country_code,
+        "invoice_wording": issuer.invoice_wording,
+        "external_input_reference": issuer.external_input_reference,
+    }
+    invoice.issued_by_user_id = actor_user_id
+    invoice.issued_at = now
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="billing.invoice.issued",
+        entity_type="invoice",
+        entity_id=str(invoice.id),
+        metadata={
+            "invoice_number": invoice.invoice_number,
+            "organization_id": str(invoice.organization_id),
+            "currency": invoice.currency,
+            "net_amount": f"{invoice.net_amount:.2f}",
+            "tax_rate": str(invoice.tax_rate),
+            "tax_amount": f"{invoice.tax_amount:.2f}",
+            "gross_amount": f"{invoice.gross_amount:.2f}",
+        },
+    )
+    return invoice
+
+
+async def invoice_payment_status(session: AsyncSession, invoice: Invoice) -> tuple[str, Decimal]:
+    active_receipt = PaymentReceipt.__table__.alias("invoice_active_receipt")
+    allocated = await session.scalar(
+        select(func.coalesce(func.sum(ReceiptAllocation.amount), 0))
+        .join(active_receipt, active_receipt.c.id == ReceiptAllocation.receipt_id)
+        .where(
+            ReceiptAllocation.commercial_terms_id == invoice.commercial_terms_id,
+            exists().where(
+                ReceiptLifecycleEvent.receipt_id == active_receipt.c.id,
+                ReceiptLifecycleEvent.status == ReceiptLifecycleStatus.CONFIRMED,
+            ),
+            ~exists().where(
+                ReceiptLifecycleEvent.receipt_id == active_receipt.c.id,
+                ReceiptLifecycleEvent.status == ReceiptLifecycleStatus.REVERSED,
+            ),
+        )
+    )
+    funded = Decimal(allocated or 0)
+    if funded <= 0:
+        return "unpaid", funded
+    if funded < invoice.gross_amount:
+        return "partially_paid", funded
+    return "paid", funded

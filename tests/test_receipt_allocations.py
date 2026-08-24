@@ -27,7 +27,9 @@ from app.services.billing import (
 )
 
 
-async def _accepted_terms(session, *, campaign, admin, owner, reference, amount="100.00"):
+async def _accepted_terms(
+    session, *, campaign, admin, owner, reference, amount="100.00", tax_rate="0"
+):
     request = await request_custom_quote(
         session,
         campaign_id=campaign.id,
@@ -45,7 +47,7 @@ async def _accepted_terms(session, *, campaign, admin, owner, reference, amount=
         production_scope={"vehicle_count": 1},
         payment_class=PaymentClass.STANDARD_PREPAID,
         payment_terms={},
-        tax_rate="0",
+        tax_rate=tax_rate,
     )
     return await accept_quotation_revision(
         session,
