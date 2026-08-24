@@ -55,20 +55,15 @@ def _pkg01_active() -> str:
         count=1,
         flags=re.MULTILINE,
     )
-    text = re.sub(
-        r"^(\| 2 \| \*\*PKG-02 —.*?\| )(?:\*\*[^|]+\*\*|DONE|QUEUED|BLOCKED)( \|)",
-        r"\1QUEUED\2",
-        text,
-        count=1,
-        flags=re.MULTILINE,
-    )
-    text = re.sub(
-        r"^(\| 3 \| \*\*PKG-03 —.*?\| )(?:\*\*[^|]+\*\*|DONE|QUEUED|BLOCKED)( \|)",
-        r"\1QUEUED\2",
-        text,
-        count=1,
-        flags=re.MULTILINE,
-    )
+    for package_number in range(2, 10):
+        text = re.sub(
+            rf"^(\| {package_number} \| \*\*PKG-{package_number:02d} —.*?\| )"
+            r"(?:\*\*[^|]+\*\*|DONE|QUEUED|BLOCKED)( \|)",
+            r"\1QUEUED\2",
+            text,
+            count=1,
+            flags=re.MULTILINE,
+        )
     text = _with_control_pointer(
         text,
         state="ACTIVE",
@@ -80,8 +75,10 @@ def _pkg01_active() -> str:
         pkg01_fixture_item = re.match(
             r"\| ([1-5]) \| \*\*.*\| PKG-01 \| DONE \|", line
         )
-        pkg02_live_item = re.match(r"\| \d+ \| \*\*.*\| PKG-02 \| DONE \|", line)
-        if pkg01_fixture_item or pkg02_live_item:
+        later_live_item = re.match(
+            r"\| \d+ \| \*\*.*\| PKG-(?:0[2-9]) \| DONE \|", line
+        )
+        if pkg01_fixture_item or later_live_item:
             line = line.replace("| DONE |", "| TODO |", 1)
         lines.append(line)
     return "\n".join(lines) + "\n"
@@ -257,7 +254,8 @@ def test_done_item_requires_done_item_dependencies() -> None:
 
 def test_done_item_requires_present_external_prerequisites() -> None:
     text = _progress().replace(
-        "| 25 | **W2-01C — gateway adapter and webhook ingestion** | PKG-03 | TODO |",
+        "| 25 | **W2-01C — gateway adapter and webhook ingestion** | PKG-03 "
+        "| BLOCKED — EXT-PAYMENT-PROVIDER |",
         "| 25 | **W2-01C — gateway adapter and webhook ingestion** | PKG-03 | DONE |",
     )
     errors = _errors(text)
@@ -317,7 +315,7 @@ def test_all_done_terminal_complete_state_is_valid() -> None:
     text = _progress()
     text = re.sub(
         r"^(\| \d+ \| \*\*PKG-\d{2} —.*?\| )"
-        r"(?:\*\*NEXT\*\*|\*\*IN PROGRESS\*\*|\*\*REVIEW\*\*|QUEUED)( \|)",
+        r"(?:\*\*NEXT\*\*|\*\*IN PROGRESS\*\*|\*\*REVIEW\*\*|QUEUED|BLOCKED)( \|)",
         r"\1DONE\2",
         text,
         flags=re.MULTILINE,
@@ -554,8 +552,8 @@ def test_rejects_done_item_in_queued_package() -> None:
 
 def test_rejects_nonqueued_package_after_active_frontier() -> None:
     text = _progress().replace(
-        "| 4 | **PKG-04 — secure evidence, activation and communications** | QUEUED |",
-        "| 4 | **PKG-04 — secure evidence, activation and communications** | DONE |",
+        "| 5 | **PKG-05 — privacy, measurement and retargeting** | QUEUED |",
+        "| 5 | **PKG-05 — privacy, measurement and retargeting** | DONE |",
     )
     errors = _errors(text)
     assert any(

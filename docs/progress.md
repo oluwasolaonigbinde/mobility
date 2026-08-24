@@ -59,11 +59,12 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 ### Current control pointer
 
 **Controller state:** `ACTIVE`
-**Control package:** `PKG-03` — execution resumed after the corrected Package 2
-tip was verified and merged into the existing Package 3 branch.
-**Current checkpoint:** `PKG-03 / W2-00A` — the checklist remains open while
-the existing Package 3 implementation completes its consolidated correction,
-verification and evidence round; no checklist row is promoted from code alone.
+**Control package:** `PKG-04` — Package 3's provider-neutral commercial flow is
+closed at its external gates; Package 4 is handed forward as NEXT but has not
+started.
+**Current checkpoint:** `PKG-04 / W2-03A` — the first dependency-satisfied
+Package 4 item is the handoff pointer only. No Package 4 implementation has
+started; W2-02A remains blocked by EXT-STORAGE-PROVIDER.
 
 ## Executable package queue
 
@@ -71,8 +72,8 @@ verification and evidence round; no checklist row is promoted from code alone.
 | ---: | --- | --- | --- | --- |
 | 1 | **PKG-01 — foundations and empirical risk proof** | DONE | Resolve remaining foundations, production-PWA/staging risk and correction authority. | none |
 | 2 | **PKG-02 — money integrity and payout operations** | DONE | Corrected release, pre-existing-reversal backfill and debt-aware economic/settlement authority agree. | none — checklist DAG gates entry |
-| 3 | **PKG-03 — commercial contracts and billing** | **IN PROGRESS** | Accepted terms, receipts, invoices, funding, refunds and budgets form one money-safe flow; execution resumed after the corrected Package 2 authority landed. | none — checklist DAG gates entry |
-| 4 | **PKG-04 — secure evidence, activation and communications** | QUEUED | Secure files/KYC, campaign evidence/activation/cancellation and notifications integrate. | none — checklist DAG gates entry |
+| 3 | **PKG-03 — commercial contracts and billing** | BLOCKED | Synthetic/provider-neutral commercial flow is verified; live provider checkout and budget enforcement await their recorded external inputs. | none — checklist DAG gates entry |
+| 4 | **PKG-04 — secure evidence, activation and communications** | **NEXT** | Secure files/KYC, campaign evidence/activation/cancellation and notifications integrate; handed forward but not started. | none — checklist DAG gates entry |
 | 5 | **PKG-05 — privacy, measurement and retargeting** | QUEUED | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
 | 6 | **PKG-06 — matching and driver onboarding** | QUEUED | Recommendations, offers, activity and approved driver/vehicle onboarding work together. | none — checklist DAG gates entry |
 | 7 | **PKG-07 — production driver PWA** | QUEUED | The pilot PWA safely tracks, syncs, explains earnings and supports release across the device matrix. | none — checklist DAG gates entry |
@@ -387,11 +388,15 @@ verification and evidence round; no checklist row is promoted from code alone.
   Provider-neutral W2-01C and policy-neutral W2-01E seams may build, but the
   checklist rows remain externally blocked from `DONE` while
   `EXT-PAYMENT-PROVIDER` and `EXT-BUDGET-POLICY` are missing. The complete plan
-  received one clean-context review; all critical/high corrections are
-  reconciled in the uncommitted controller ledger at
-  `.codex/delivery/cardvert-pkg03/plan-ledger.md`.
-- **Closure:** synthetic full-flow verification passes; real issuance/provider
-  paths remain fail-closed behind their external inputs.
+  received one clean-context plan review; all material post-build corrections
+  are committed in `f347b37` and `8272b32`, with deterministic browser evidence
+  finalized in `86d9934` and a final no-history consolidated review PASS.
+- **Closure (24 Aug 2026):** migration head
+  `0040_budget_policy_blocked_state`; 874 backend tests, 193 frontend tests,
+  26 pre-production checks, contract drift/build and 8 isolated desktop/mobile
+  billing journeys pass. W2-01C remains `BLOCKED — EXT-PAYMENT-PROVIDER` and
+  W2-01E remains `BLOCKED — EXT-BUDGET-POLICY`; issuer and real commercial
+  values remain fail-closed live-use gates. Package 4 is NEXT, not started.
 
 ### PKG-04 — secure evidence, activation and communications
 
@@ -503,15 +508,15 @@ verification, gates or required specialist review.
 | 16 | **MNY-10B — batch reservation and provider submission** | PKG-02 | DONE | Available entries are atomically reserved into frozen, idempotent provider instructions and submitted only after maker-checker approval. | leaf: MNY-10A |
 | 17 | **MNY-10C — provider line reconciliation and paid finality** | PKG-02 | DONE | Each automated transfer line reconciles from signed webhook/verified poll evidence before cash-paid finality. | leaf: MNY-10B |
 | 18 | **MNY-11A — carry-forward post-payment debt** | PKG-02 | DONE | Later corrections reduce future pay without rewriting paid history. | leaf: MNY-10C, MNY-06C |
-| 19 | **W2-00A — packages, custom quotes and accepted terms** | PKG-03 | TODO | A versioned custom quotation for every campaign—including an externally prepared quote recorded afterward—creates one immutable accepted snapshot; the legacy title does not authorize a launch package catalogue. | leaf: MNY-11A |
-| 20 | **W2-00D — advertiser company profile management** | PKG-03 | TODO | Advertiser and admin manage tenant-safe company/contact details used by commercial surfaces. | none |
-| 21 | **W2-00B — canonical receipts and allocations** | PKG-03 | TODO | One immutable external receipt can fund obligations once, within its amount. | leaf: W2-00A |
-| 22 | **W2-01A — VAT-itemised invoices** | PKG-03 | TODO | Admin issues numbered immutable invoices; advertiser sees VAT-inclusive pricing with included net, VAT line and gross balance. | leaf: W2-00A, W2-00D |
-| 23 | **W2-01B — manual bank-transfer confirmation** | PKG-03 | TODO | Ops reconciles transfers into the shared receipt/allocation/payment history. | leaf: W2-00B, W2-01A |
-| 24 | **W2-00C — funded/approved-credit liability authorization** | PKG-03 | TODO | Standard work is fully prepaid and waits 24 hours before production; approved corporate credit remains bounded, while any expedited start requires an immutable advertiser waiver and audited actual start. | leaf: W2-01B, MNY-11A |
-| 25 | **W2-01C — gateway adapter and webhook ingestion** | PKG-03 | TODO | One-off Q3 checkout and signed provider events converge into canonical receipts. | leaf: W2-00B, W2-01A; external: EXT-PAYMENT-PROVIDER |
-| 26 | **W2-01D — credits, reversals and 24-hour refund registry** | PKG-03 | TODO | Standard refund eligibility lasts to the 24-hour boundary; expedited eligibility ends only when production actually begins under an immutable advertiser-requested waiver. | leaf: W2-01A, W2-01B |
-| 27 | **W2-01E — advertiser-spend budget enforcement** | PKG-03 | TODO | Spend facts drive persisted alerts/pauses without using driver payout cost as a proxy. | leaf: W2-01A, W2-01B; external: EXT-BUDGET-POLICY |
+| 19 | **W2-00A — packages, custom quotes and accepted terms** | PKG-03 | DONE | A versioned custom quotation for every campaign—including an externally prepared quote recorded afterward—creates one immutable accepted snapshot; the legacy title does not authorize a launch package catalogue. | leaf: MNY-11A |
+| 20 | **W2-00D — advertiser company profile management** | PKG-03 | DONE | Advertiser and admin manage tenant-safe company/contact details used by commercial surfaces. | none |
+| 21 | **W2-00B — canonical receipts and allocations** | PKG-03 | DONE | One immutable external receipt can fund obligations once, within its amount. | leaf: W2-00A |
+| 22 | **W2-01A — VAT-itemised invoices** | PKG-03 | DONE | Admin issues numbered immutable invoices; advertiser sees VAT-inclusive pricing with included net, VAT line and gross balance. | leaf: W2-00A, W2-00D |
+| 23 | **W2-01B — manual bank-transfer confirmation** | PKG-03 | DONE | Ops reconciles transfers into the shared receipt/allocation/payment history. | leaf: W2-00B, W2-01A |
+| 24 | **W2-00C — funded/approved-credit liability authorization** | PKG-03 | DONE | Standard work is fully prepaid and waits 24 hours before production; approved corporate credit remains bounded, while any expedited start requires an immutable advertiser waiver and audited actual start. | leaf: W2-01B, MNY-11A |
+| 25 | **W2-01C — gateway adapter and webhook ingestion** | PKG-03 | BLOCKED — EXT-PAYMENT-PROVIDER | One-off Q3 checkout and signed provider events converge into canonical receipts. | leaf: W2-00B, W2-01A; external: EXT-PAYMENT-PROVIDER |
+| 26 | **W2-01D — credits, reversals and 24-hour refund registry** | PKG-03 | DONE | Standard refund eligibility lasts to the 24-hour boundary; expedited eligibility ends only when production actually begins under an immutable advertiser-requested waiver. | leaf: W2-01A, W2-01B |
+| 27 | **W2-01E — advertiser-spend budget enforcement** | PKG-03 | BLOCKED — EXT-BUDGET-POLICY | Spend facts drive persisted alerts/pauses without using driver payout cost as a proxy. | leaf: W2-01A, W2-01B; external: EXT-BUDGET-POLICY |
 | 28 | **W2-02A — private object-storage foundation** | PKG-04 | TODO | Direct private uploads produce managed stored-file records. | external: EXT-STORAGE-PROVIDER |
 | 29 | **W2-02B — malware scanning and purpose-scoped reads** | PKG-04 | TODO | Unsafe files fail closed; privileged downloads are short-lived and audited. | leaf: W2-02A; external: EXT-MALWARE-SCANNER |
 | 30 | **W2-02C — advertiser creative upload** | PKG-04 | TODO | Campaign flows use managed scanned assets instead of arbitrary URLs. | leaf: W2-02B |
