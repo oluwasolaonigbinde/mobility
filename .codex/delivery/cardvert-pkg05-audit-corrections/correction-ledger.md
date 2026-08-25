@@ -52,10 +52,12 @@ configured-environment slice evidence remains the B regression basis.
 
 ## Delivery receipt
 
-- Parent: `a9d0eb3e9e8700892bb64353ef1bd6ff5eca19e3`; tip:
-  `1caf4a1e14fb331d39990e7cdbbf9b5c0687e353`.
+- Parent: `a9d0eb3e9e8700892bb64353ef1bd6ff5eca19e3`; final tip:
+  `c63e38d` (full SHA is on the branch receipt).
 - Ordered correction commits: `0f915d0`, `69f1402`, `d7a9337`, `5d0c27b`,
-  `1caf4a1`.
+  `1caf4a1`, `1d686a0`, `c63e38d`.
+- The final frontend copy touch `c63e38d` changes the remaining visible
+  Vantage monogram to Cardvert's `C`; frontend lint remained green.
 - `origin/feat/pkg-05-audit-corrections` matches the tip. The only remaining
   dirty path is the preserved untracked Pro artifact under
   `.codex/delivery/cardvert-pkg05/`.
