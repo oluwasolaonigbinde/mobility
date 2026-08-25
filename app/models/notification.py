@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
@@ -102,8 +102,8 @@ class Notification(Base):
     )
     status: Mapped[str] = mapped_column(
         String(32),
-        default=NotificationStatus.SENT.value,
-        server_default=text("'sent'"),
+        default=NotificationStatus.PENDING.value,
+        server_default=text("'pending'"),
         nullable=False,
     )
     attempt_count: Mapped[int] = mapped_column(
@@ -131,6 +131,22 @@ _FROZEN_EVIDENCE_FIELDS = frozenset(
         "created_at",
     }
 )
+
+
+@event.listens_for(Notification, "init", propagate=True)
+def initialize_notification_defaults(_target, _args, kwargs) -> None:
+    channel = kwargs.get("channel", NotificationChannel.IN_APP.value)
+    channel = getattr(channel, "value", channel)
+    if "status" not in kwargs:
+        kwargs["status"] = (
+            NotificationStatus.SENT.value
+            if channel == NotificationChannel.IN_APP.value
+            else NotificationStatus.PENDING.value
+        )
+    if "sent_at" not in kwargs:
+        kwargs["sent_at"] = (
+            datetime.now(UTC) if channel == NotificationChannel.IN_APP.value else None
+        )
 
 
 @event.listens_for(Notification, "before_update")

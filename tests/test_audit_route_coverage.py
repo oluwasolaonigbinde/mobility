@@ -55,6 +55,11 @@ AUDITED = {
     ),
     ("POST", "/api/v1/admin/campaigns/{campaign_id}/approve"): "admin.campaign.approved",
     ("POST", "/api/v1/admin/campaigns/{campaign_id}/reject"): "admin.campaign.rejected",
+    # The preference change is an organization-authority mutation and is
+    # audited atomically by the notification-preference service.
+    ("PATCH", "/api/v1/advertiser/notification-preferences"): (
+        "advertiser_notification_preferences.updated"
+    ),
     ("POST", "/api/v1/advertiser/campaigns/{campaign_id}/creatives"): (
         "advertiser.campaign_creative.created"
     ),
@@ -262,6 +267,22 @@ KNOWN_UNAUDITED = {
         "driver assignment deactivation writes no audit event"
     ),
 }
+
+EXEMPT.update(
+    {
+        (
+            "POST",
+            "/api/v1/notifications/{notification_id}/read",
+        ): "Recipient-local in-app read state is a UI projection and is not an authority mutation.",
+        (
+            "POST",
+            "/api/v1/notifications/read-all",
+        ): (
+            "Recipient-local in-app read-all state is a UI projection and is not "
+            "an authority mutation."
+        ),
+    }
+)
 
 
 def mutating_routes() -> set[tuple[str, str]]:

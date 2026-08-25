@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 
+import pytest
 from conftest import (
     auth_headers,
     create_test_campaign,
@@ -9,13 +10,104 @@ from conftest import (
     create_test_user,
     fetch_audit_events,
 )
+from sqlalchemy import func, select
 from starlette import status as http_status
 
-from app.models.campaign import CampaignStatus
+from app.core.errors import AppError
+from app.models.audit import AuditEvent
+from app.models.campaign import CampaignReviewEvent, CampaignStatus
 from app.models.organization import MembershipRole, MembershipStatus
 from app.models.user import UserRole
+from app.schemas.campaigns import CampaignUpdate
+from app.services.campaigns import update_advertiser_campaign
 
 PASSWORD = "long-secure-password"
+
+
+@pytest.mark.parametrize("current_status", [CampaignStatus.DRAFT, CampaignStatus.REJECTED])
+@pytest.mark.parametrize("target_status", list(CampaignStatus))
+def test_generic_campaign_status_patch_is_a_noop_only_for_same_status(
+    db_sessionmaker,
+    current_status: CampaignStatus,
+    target_status: CampaignStatus,
+) -> None:
+    advertiser, organization = create_advertiser_with_org(
+        db_sessionmaker,
+        email=f"status-{current_status.value}-{target_status.value}@example.com",
+    )
+    campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=advertiser.id,
+        campaign_status=current_status,
+    )
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            before_review_events = int(
+                await session.scalar(
+                    select(func.count())
+                    .select_from(CampaignReviewEvent)
+                    .where(CampaignReviewEvent.campaign_id == campaign.id)
+                )
+                or 0
+            )
+            before_audit_events = int(
+                await session.scalar(
+                    select(func.count())
+                    .select_from(AuditEvent)
+                    .where(
+                        AuditEvent.entity_type == "campaign",
+                        AuditEvent.entity_id == str(campaign.id),
+                    )
+                )
+                or 0
+            )
+            if target_status is current_status:
+                updated, changed_fields = await update_advertiser_campaign(
+                    session,
+                    user_id=advertiser.id,
+                    campaign_id=campaign.id,
+                    payload=CampaignUpdate(status=target_status),
+                )
+                assert updated.status == current_status.value
+                assert changed_fields == []
+                await session.commit()
+            else:
+                with pytest.raises(AppError) as error:
+                    await update_advertiser_campaign(
+                        session,
+                        user_id=advertiser.id,
+                        campaign_id=campaign.id,
+                        payload=CampaignUpdate(status=target_status),
+                    )
+                assert error.value.code == "CAMPAIGN_REVIEW_STATE_CONFLICT"
+                await session.rollback()
+
+        async with db_sessionmaker() as session:
+            current = await session.get(type(campaign), campaign.id)
+            assert current is not None and current.status == current_status.value
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(CampaignReviewEvent)
+                    .where(CampaignReviewEvent.campaign_id == campaign.id)
+                )
+                == before_review_events
+            )
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(AuditEvent)
+                    .where(
+                        AuditEvent.entity_type == "campaign",
+                        AuditEvent.entity_id == str(campaign.id),
+                    )
+                )
+                == before_audit_events
+            )
+
+    asyncio.run(scenario())
 
 
 def create_advertiser_with_org(
@@ -282,6 +374,11 @@ def test_advertiser_campaign_list_read_and_update_are_tenant_scoped(
         headers=headers,
         json={"name": "Nope"},
     )
+    same_status_update = db_client.patch(
+        f"/api/v1/advertiser/campaigns/{own_campaign.id}",
+        headers=headers,
+        json={"status": "draft"},
+    )
 
     assert list_response.status_code == http_status.HTTP_200_OK
     assert list_response.json()["total"] == 1
@@ -297,6 +394,8 @@ def test_advertiser_campaign_list_read_and_update_are_tenant_scoped(
     assert update_response.json()["name"] == "Updated Campaign"
     assert update_response.json()["status"] == "draft"
     assert update_response.json()["metadata"] == {"phase": "hold"}
+    assert same_status_update.status_code == http_status.HTTP_200_OK
+    assert same_status_update.json()["status"] == "draft"
 
     audit_events = fetch_audit_events(db_sessionmaker)
     assert [event.action for event in audit_events] == ["advertiser.campaign.updated"]

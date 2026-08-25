@@ -7,6 +7,16 @@ Base: `feat/pkg-04` / `2309947dbfe91553a5c0243f3a5091dfa9cbdd25`
 
 Delivery branch: `feat/pkg-05`
 
+Upstream dependency-hold release (25 Aug 2026): Package 4's reviewed repair
+head `2bc94356f03c76900585de71b6a0189be9e9666c` is released and adopted by a
+non-fast-forward merge into this delivery branch. The adoption preserves the
+four Package 5 commits through `a81cdf5`, the parked W3-01B candidate, both
+histories, and Package 4's fail-closed `0044` authority. Only the migration-head
+fixture overlap is resolved in favour of Package 5's later `0046` head; the
+merged Package 4 progress evidence is retained. This releases the upstream
+repair hold without changing the reviewed Package 5 slice order or external
+live-use gates.
+
 Authority: `docs/progress.md` PKG-05, checklist rows 44–54; architecture
 §1/§22/§24/§27/§30/§35; decisions D11/D18/D20/D23 and Q11/Q12/Q30/Q31.
 

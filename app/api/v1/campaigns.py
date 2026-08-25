@@ -245,14 +245,15 @@ async def advertiser_update_campaign(
         campaign_id=campaign_id,
         payload=payload,
     )
-    await create_audit_event(
-        session,
-        actor_user_id=current_user.id,
-        action="advertiser.campaign.updated",
-        entity_type="campaign",
-        entity_id=str(campaign.id),
-        metadata={"changed_fields": changed_fields},
-    )
+    if changed_fields:
+        await create_audit_event(
+            session,
+            actor_user_id=current_user.id,
+            action="advertiser.campaign.updated",
+            entity_type="campaign",
+            entity_id=str(campaign.id),
+            metadata={"changed_fields": changed_fields},
+        )
     await session.commit()
     return campaign_response(campaign)
 
