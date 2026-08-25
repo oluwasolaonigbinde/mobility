@@ -425,11 +425,50 @@ def create_test_campaign_assignment(
     completed_at=None,
     notes: str | None = None,
     metadata: dict | None = None,
+    legacy_schema: bool = False,
 ) -> CampaignAssignment:
     offered_at = offered_at or datetime.now(UTC)
 
     async def create() -> CampaignAssignment:
         async with db_sessionmaker() as session:
+            if legacy_schema:
+                assignment_id = uuid4()
+                await session.execute(
+                    text(
+                        "INSERT INTO campaign_assignments "
+                        "(id,campaign_id,driver_profile_id,vehicle_id,assigned_by_user_id,"
+                        "status,offered_at,accepted_at,activated_at,deactivated_at,cancelled_at,"
+                        "completed_at,notes,metadata) VALUES "
+                        "(:id,:campaign_id,:driver_profile_id,:vehicle_id,:assigned_by_user_id,"
+                        ":status,:offered_at,:accepted_at,:activated_at,:deactivated_at,"
+                        ":cancelled_at,:completed_at,:notes,'{}')"
+                    ),
+                    {
+                        "id": assignment_id,
+                        "campaign_id": campaign_id,
+                        "driver_profile_id": driver_profile_id,
+                        "vehicle_id": vehicle_id,
+                        "assigned_by_user_id": assigned_by_user_id,
+                        "status": assignment_status.value,
+                        "offered_at": offered_at,
+                        "accepted_at": accepted_at,
+                        "activated_at": activated_at,
+                        "deactivated_at": deactivated_at,
+                        "cancelled_at": cancelled_at,
+                        "completed_at": completed_at,
+                        "notes": notes,
+                    },
+                )
+                await session.commit()
+                return CampaignAssignment(
+                    id=assignment_id,
+                    campaign_id=campaign_id,
+                    driver_profile_id=driver_profile_id,
+                    vehicle_id=vehicle_id,
+                    assigned_by_user_id=assigned_by_user_id,
+                    status=assignment_status.value,
+                    offered_at=offered_at,
+                )
             assignment = CampaignAssignment(
                 campaign_id=campaign_id,
                 driver_profile_id=driver_profile_id,
@@ -844,9 +883,7 @@ def fetch_user_by_email(
 ) -> User | None:
     async def fetch() -> User | None:
         async with db_sessionmaker() as session:
-            result = await session.execute(
-                select(User).where(User.email == normalize_email(email))
-            )
+            result = await session.execute(select(User).where(User.email == normalize_email(email)))
             return result.scalar_one_or_none()
 
     return asyncio.run(fetch())

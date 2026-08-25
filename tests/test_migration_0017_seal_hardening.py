@@ -59,6 +59,7 @@ def seed_pre_seal_ended_trip(migration_url: str) -> SimpleNamespace:
         driver_profile_id=profile.id,
         vehicle_id=vehicle.id,
         assigned_by_user_id=admin.id,
+        legacy_schema=True,
     )
     trip_id = uuid4()
     started_at = datetime.now(UTC) - timedelta(hours=3)

@@ -6,6 +6,7 @@ const nav: NavItem[] = [
   { href: "/admin", label: "Overview", exact: true },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/drivers", label: "Drivers" },
+  { href: "/admin/driver-applications", label: "Driver applications" },
   { href: "/admin/vehicles", label: "Vehicles" },
   { href: "/admin/assignments", label: "Assignments" },
   { href: "/admin/approvals", label: "Approvals" },

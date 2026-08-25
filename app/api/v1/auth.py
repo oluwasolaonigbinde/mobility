@@ -7,12 +7,14 @@ from starlette import status
 from app.api.v1.dependencies import (
     CurrentUserDependency,
     RateLimiterDependency,
+    RegistrationRateLimiterDependency,
     SessionDependency,
     SettingsDependency,
     oauth2_scheme,
 )
+from app.core.config import Settings
 from app.core.errors import AppError
-from app.core.rate_limit import login_client_ip
+from app.core.rate_limit import login_client_ip, registration_client_ip
 from app.core.security import (
     create_access_token,
     decode_token_claims,
@@ -21,11 +23,71 @@ from app.core.security import (
 )
 from app.models.user import UserStatus
 from app.schemas.auth import ChangePasswordRequest, LoginRequest, LoginResponse, LoginUser
+from app.schemas.driver_applications import (
+    DriverApplicationCreate,
+    DriverApplicationStatusResponse,
+    DriverApplicationSubmitResponse,
+)
 from app.services.audit import create_audit_event
 from app.services.auth import authenticate_user
+from app.services.driver_applications import (
+    PUBLIC_APPLICATION_MESSAGE,
+    PUBLIC_NOT_FOUND_MESSAGE,
+    PUBLIC_STATUS_MESSAGE,
+    application_status_exists,
+    submit_driver_application,
+)
 from app.services.users import validate_password_length
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+
+def require_driver_registration_enabled(settings: Settings) -> None:
+    if not settings.driver_registration_enabled:
+        raise AppError(
+            "APPLICATION_UNAVAILABLE",
+            PUBLIC_NOT_FOUND_MESSAGE,
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+
+async def reserve_driver_registration(
+    *,
+    session: SessionDependency,
+    limiter: RegistrationRateLimiterDependency,
+    request: Request,
+    settings: Settings,
+    email: str,
+) -> None:
+    decision = await limiter.reserve(registration_client_ip(request, settings), email)
+    if decision.storage_available is False:
+        raise AppError(
+            "RATE_LIMIT_UNAVAILABLE",
+            "Application service is temporarily unavailable",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            headers={"Retry-After": str(max(decision.retry_after_seconds, 1))},
+        )
+    if not decision.allowed:
+        if decision.newly_blocked:
+            await create_audit_event(
+                session,
+                actor_user_id=None,
+                action="auth.driver_registration.rate_limited",
+                entity_type="authentication",
+                entity_id=None,
+                metadata={
+                    "bucket": decision.bucket,
+                    "retry_after_seconds": decision.retry_after_seconds,
+                },
+            )
+            await session.commit()
+        raise AppError(
+            "RATE_LIMITED",
+            "Too many applications",
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            details={"retry_after_seconds": decision.retry_after_seconds},
+            headers={"Retry-After": str(max(decision.retry_after_seconds, 1))},
+        )
 
 
 def login_response(user, settings, *, auth_time: datetime | None = None, expires_at=None):
@@ -124,6 +186,65 @@ async def login(
     )
     await session.commit()
     return login_response(user, settings)
+
+
+@router.post(
+    "/register-driver",
+    response_model=DriverApplicationSubmitResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Submit a public driver application",
+    description=(
+        "Submit the minimal contact fields for a pending driver application. "
+        "The cohort-gated response does not create a session or grant work access."
+    ),
+)
+async def register_driver(
+    payload: DriverApplicationCreate,
+    session: SessionDependency,
+    settings: SettingsDependency,
+    request: Request,
+    limiter: RegistrationRateLimiterDependency,
+) -> DriverApplicationSubmitResponse:
+    require_driver_registration_enabled(settings)
+    await reserve_driver_registration(
+        session=session,
+        limiter=limiter,
+        request=request,
+        settings=settings,
+        email=payload.email,
+    )
+    result = await submit_driver_application(session, payload)
+    if result.application is not None:
+        await create_audit_event(
+            session,
+            actor_user_id=None,
+            action="auth.driver_application.created",
+            entity_type="driver_application",
+            entity_id=str(result.application.id),
+            metadata={"status": result.application.status, "source": "public"},
+        )
+        await session.commit()
+    return DriverApplicationSubmitResponse(
+        message=PUBLIC_APPLICATION_MESSAGE,
+        application_reference=result.reference,
+    )
+
+
+@router.get(
+    "/driver-application-status/{reference}",
+    response_model=DriverApplicationStatusResponse,
+    summary="Check a driver application status",
+)
+async def driver_application_status(
+    reference: str,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> DriverApplicationStatusResponse:
+    require_driver_registration_enabled(settings)
+    await application_status_exists(session, reference)
+    # Deliberately do not branch on existence: W3-04A has one public pending
+    # state and unknown references must have the same visible envelope.
+    return DriverApplicationStatusResponse(message=PUBLIC_STATUS_MESSAGE)
 
 
 @router.post(

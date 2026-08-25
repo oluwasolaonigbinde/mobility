@@ -434,6 +434,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/driver-applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List pending public driver applications */
+        get: operations["admin_list_driver_applications_api_v1_admin_driver_applications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/drivers": {
         parameters: {
             query?: never;
@@ -2098,6 +2115,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/driver-application-status/{reference}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Check a driver application status */
+        get: operations["driver_application_status_api_v1_auth_driver_application_status__reference__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -2129,6 +2163,26 @@ export interface paths {
         put?: never;
         /** Refresh an active session */
         post: operations["refresh_session_api_v1_auth_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/register-driver": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit a public driver application
+         * @description Submit the minimal contact fields for a pending driver application. The cohort-gated response does not create a session or grant work access.
+         */
+        post: operations["register_driver_api_v1_auth_register_driver_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4792,6 +4846,98 @@ export interface components {
              * @enum {string}
              */
             source_type: "digital-campaign-audience";
+        };
+        /** DriverApplicationAdminListResponse */
+        DriverApplicationAdminListResponse: {
+            /** Items */
+            items: components["schemas"]["DriverApplicationAdminRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** DriverApplicationAdminRead */
+        DriverApplicationAdminRead: {
+            /** Country Code */
+            country_code: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /** Email */
+            email: string;
+            /** Full Name */
+            full_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Phone */
+            phone: string | null;
+            /** Service City */
+            service_city: string | null;
+            status: components["schemas"]["DriverApplicationStatus"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** DriverApplicationCreate */
+        DriverApplicationCreate: {
+            /** Country Code */
+            country_code?: string | null;
+            /** Email */
+            email: string;
+            /** Full Name */
+            full_name: string;
+            /** Phone */
+            phone?: string | null;
+            /** Service City */
+            service_city?: string | null;
+        };
+        /**
+         * DriverApplicationStatus
+         * @enum {string}
+         */
+        DriverApplicationStatus: "pending";
+        /** DriverApplicationStatusResponse */
+        DriverApplicationStatusResponse: {
+            /** Message */
+            message: string;
+            /**
+             * Status
+             * @default pending
+             * @constant
+             */
+            status: "pending";
+        };
+        /** DriverApplicationSubmitResponse */
+        DriverApplicationSubmitResponse: {
+            /** Application Reference */
+            application_reference: string;
+            /** Message */
+            message: string;
+            /**
+             * Status
+             * @default pending
+             * @constant
+             */
+            status: "pending";
         };
         /** DriverEarningsCurrencySummary */
         DriverEarningsCurrencySummary: {
@@ -9149,6 +9295,38 @@ export interface operations {
             };
         };
     };
+    admin_list_driver_applications_api_v1_admin_driver_applications_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverApplicationAdminListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_list_driver_profiles_api_v1_admin_drivers_get: {
         parameters: {
             query?: {
@@ -12843,6 +13021,37 @@ export interface operations {
             };
         };
     };
+    driver_application_status_api_v1_auth_driver_application_status__reference__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reference: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverApplicationStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     login_api_v1_auth_login_post: {
         parameters: {
             query?: never;
@@ -12892,6 +13101,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoginResponse"];
+                };
+            };
+        };
+    };
+    register_driver_api_v1_auth_register_driver_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DriverApplicationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverApplicationSubmitResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

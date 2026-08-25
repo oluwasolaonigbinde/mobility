@@ -58,12 +58,13 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 
 ### Current control pointer
 
-**Controller state:** `ACTIVE`
-**Control package:** `PKG-06` — W3-03A/B/C are verified on the adopted corrected
-Package 5 history and Package 6 remains in progress. Package 5 remains BLOCKED
-only on its registered dependency/external gates.
-**Current checkpoint:** `PKG-06 / W3-04A` — W3-03C is DONE. Dependency-free
-W3-04A is the next runnable pointer; it has not yet been admitted.
+**Controller state:** `PAUSED — EXT-KMS-CUSTODY`
+**Control package:** `PKG-06` — W3-03A/B/C and W3-04A are verified on the
+adopted corrected Package 5 history. Package 6 cannot admit its remaining KYC
+or vehicle stages until their recorded Package 4 evidence dependencies land.
+**Current checkpoint:** `PKG-06 / W3-04B` — W3-04A is DONE. W3-04B waits on
+W2-02D (`BLOCKED — EXT-KMS-CUSTODY`, transitively behind the storage/scanner
+chain); W3-04C waits on W3-04B plus W2-02B/D. Package 7 is not started.
 
 ## Executable package queue
 
@@ -74,7 +75,7 @@ W3-04A is the next runnable pointer; it has not yet been admitted.
 | 3 | **PKG-03 — commercial contracts and billing** | BLOCKED | Synthetic/provider-neutral commercial flow is verified; live provider checkout and budget enforcement await their recorded external inputs. | none — checklist DAG gates entry |
 | 4 | **PKG-04 — secure evidence, activation and communications** | **BLOCKED** | Campaign review and the shared in-app notification core are complete; storage/KYC/activation/provider communications await recorded external inputs and their transitive dependencies. | none — checklist DAG gates entry |
 | 5 | **PKG-05 — privacy, measurement and retargeting** | **BLOCKED** | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
-| 6 | **PKG-06 — matching and driver onboarding** | **IN PROGRESS** | Recommendations, offers, activity and approved driver/vehicle onboarding work together. | none — checklist DAG gates entry |
+| 6 | **PKG-06 — matching and driver onboarding** | **BLOCKED** | Recommendations, offers, activity and public application are verified; KYC/payee and vehicle approval await their recorded secure-evidence dependencies. | none — checklist DAG gates entry |
 | 7 | **PKG-07 — production driver PWA** | QUEUED | The pilot PWA safely tracks, syncs, explains earnings and supports release across the device matrix. | none — checklist DAG gates entry |
 | 8 | **PKG-08 — governed reporting and pilot readiness** | QUEUED | Safe reports, release infrastructure and one complete pilot acceptance gate are ready. | none — checklist DAG gates entry |
 | 9 | **PKG-09 — controlled pilot, training and handover** | QUEUED | Run the pilot, stabilize it, train roles and close operational handover. | none — checklist DAG gates entry |
@@ -687,8 +688,28 @@ W3-04A is the next runnable pointer; it has not yet been admitted.
   driver/PWA contract fixtures, type/lint/format, byte-stable §9 regeneration
   and consolidated Luna review PASS after the bounded-worker/head-guard
   correction. No weekly policy value, external input, live-use approval,
-  automatic termination or Package 7 work was added. W3-04A is next runnable;
-  W3-04B/C remain dependency-blocked.
+  automatic termination or Package 7 work was added.
+- **W3-04A evidence (25 Aug 2026):** migration `0050` adds a dedicated,
+  pending-only public driver application linked one-to-one with an invited
+  driver user and pending profile. The default-off cohort flag and separate
+  atomic Redis IP/email/global limiter fail closed; new, duplicate and
+  same-email-race requests return one non-enumerating pending envelope with a
+  fresh high-entropy reference, while only a real new application persists its
+  digest and one creation audit. The random unreachable credential grants no
+  session or work authority. Known and unknown references expose the same
+  limited status; the active-admin service gate protects a sanitized queue.
+  Both Compose contracts and environment examples carry the feature/limiter
+  controls. All three §9 baselines moved together. Evidence includes observed
+  red/green, 117 focused backend/PostgreSQL/real-Redis/migration/autogenerate/
+  contract/pre-production passes, 54 focused frontend and preserved R14-B
+  passes, a live isolated apply→reference→pending-status journey, and a
+  consolidated Luna review PASS after fail-closed, audit-amplification and
+  deployment corrections. The single Package 6 backend aggregate recorded
+  1,037 passes and 12 stale historical/Package-6 harness expectations; the 12
+  were corrected and all affected checks passed without repeating the full
+  suite. The frontend aggregate passed 224 tests, typecheck, lint and build.
+  No KYC, payee, vehicle, document, tracking, earnings, live applicant or
+  Package 7 authority was added. W3-04B/C remain dependency-blocked.
 - **Closure:** security/privacy/money and lifecycle races pass, including the
   complete accept/decline/expiry flow and non-work-eligible pending states.
 
@@ -820,10 +841,10 @@ verification, gates or required specialist review.
 | 55 | **W3-03A — matching recommendations** | PKG-06 | DONE | Admin receives deterministic eligible driver/vehicle rankings. | none |
 | 56 | **W3-03B — complete offer lifecycle** | PKG-06 | DONE | Terms-complete expiring offers support accept/decline and immutable evidence. | leaf: W3-03A, W2-00A, MNY-06B |
 | 57 | **W3-03C — activity floor and inactivity handling** | PKG-06 | DONE | Verified-hours/inactivity sweeps create reviewable ops flags and notices. | leaf: W3-03B, W2-04A |
-| 58 | **W3-04A — public driver application** | PKG-06 | TODO | Abuse-resistant registration creates a pending, non-work-eligible application. | none |
+| 58 | **W3-04A — public driver application** | PKG-06 | DONE | Abuse-resistant registration creates a pending, non-work-eligible application. | none |
 | 59 | **W3-04B — KYC/bank onboarding approval** | PKG-06 | TODO | Person/payee KYC is approved but remains non-work-eligible pending W3-04C vehicle approval. | leaf: W3-04A, W2-02D, MNY-10A |
 | 60 | **W3-04C — driver vehicle profile and approval** | PKG-06 | TODO | Identity/KYC-approved applicants add vehicle evidence; admin approval grants work eligibility. | leaf: W3-04B, W2-02B, W2-02D |
-| 61 | **W4-01A — PWA foundation and session security** | PKG-07 | TODO | The installable production client uses the BFF session safely and fails closed on unsupported permission/storage/lock states. | leaf: R14-A, R14-B |
+| 61 | **W4-01A — PWA foundation and session security** | PKG-07 | TODO | The installable production client uses the BFF session safely and fails closed on unsupported permission/storage/lock states. | leaf: R14-A, R14-B; external: EXT-PKG07-OWNER-RELEASE |
 | 62 | **W4-01B — screen-on tracking and durable sync** | PKG-07 | TODO | Explicit Start/End tracking survives reload/network interruption, reports visibility degradation and never claims unsupported background capture. | leaf: W4-01A, R14-B |
 | 63 | **W4-01C — PWA onboarding and campaign journey** | PKG-07 | TODO | Onboarding, vehicle, offers, activation and tracking integrate through governed BFF/API contracts. | leaf: W4-01B, W3-04C, W3-03B, W2-03D |
 | 64 | **W4-01D — PWA earnings, disputes and release rehearsal** | PKG-07 | TODO | History, earnings, disputes, notifications, installability and production-PWA release evidence are complete. | leaf: W4-01C, MNY-08C, MNY-11A, W2-04A, W2-04C |
@@ -1774,6 +1795,7 @@ otherwise synthetic/provider-neutral checklist item or its package.
 | **EXT-DISBURSEMENT-PROVIDER** | MISSING | Approved automated bank-transfer provider, account, sandbox, signing/webhook credentials and production approval | — | Provider-neutral MNY-10B/C can build/test; financially effective submission and W4-03B cannot proceed |
 | **EXT-AD-PLATFORM** | MISSING | Named ad-platform accounts, legal approval, API access/credentials and activation budget for aggregate geography/time/context activation | — | W3-01D can build/test provider-neutrally; any live aggregate contextual push remains disabled; person-level activation is outside the pilot |
 | **EXT-PILOT-PERMITS** | MISSING | Abuja permit/authority evidence for the selected vehicles/campaigns | — | D19 assigns Terrax ownership and vendor coordination; W4-03B/launch remains blocked until evidence is approved |
+| **EXT-PKG07-OWNER-RELEASE** | MISSING | Explicit project-owner release to start Package 7 after this bounded Package 6 controller assignment | Current Package 6 owner instruction: “Do not start Package 7” | W4-01A build admission only; remove no history or evidence when the owner later releases Package 7, and do not treat this as a product/live-use prerequisite |
 | **EXT-RM2-CALIBRATION-DATA** | MISSING | P1 parked-jitter and P2 Abuja-congestion field corpora (devices, participants, locations) per the owner-authorized 19 Aug 2026 Option-A collection program | — | Optional post-build calibration for a later effective revision; D22's reviewed synthetic selection is build-authoritative and this input blocks no checklist item |
 
 ### Deferred post-build validation register
@@ -1813,7 +1835,7 @@ and Git history win.
 | S1 — payout engine v2 (hourly pay + daily caps, D2/D4/D9) | Complete, merged — RM1 fixed and the original whole-trip stationary grace retained for immutable payout-v2 history | Git `f9cd8ca`; architecture v1.8/v1.15, §16.1 [BUILT] |
 | PKG-01 — foundations and empirical risk proof | Complete — RM2/RM6/RM7 closed; payout-v3 frozen parked-time behavior, PWA protocol/interrupted-flow build proof and provider-neutral release/recovery proof delivered; physical/live validation remains explicitly deferred | Git `d2cd424`…`be726a2` plus the package closure commit; architecture v1.30; D22/D23; automated/PostGIS/frontend/browser/recovery evidence |
 | PKG-02 — money integrity and payout operations | Complete — RM8/RM10/RM11 closed; copied-route control, authoritative holds, clean release, encrypted payees, frozen provider instructions, line finality and carry-forward debt delivered provider-neutrally | Git through `e3a505e`; migrations `0022`–`0031`; architecture v1.37; Postgres/frontend/contract/synthetic end-to-end evidence and consolidated review resolved |
-| PKG-06 / W3-03A–B — matching and complete offer lifecycle | Complete checkpoints — advisory cars-only ranking, explicit admin choice, immutable expiring offers, driver decision and honest admin activation gating; W3-03C–W3-04C not started | `4cf15cd` plus the W3-03B checkpoint on corrected Package 5 history; architecture v1.48–v1.49; focused PostgreSQL/backend/frontend/contract/API-journey evidence and consolidated reviews resolved |
+| PKG-06 / W3-03A–W3-04A — matching, offers, activity and public application | Complete checkpoints — advisory cars-only ranking, immutable expiring offers, reviewable activity flags and default-off non-enumerating pending driver applications; W3-04B/C are dependency-blocked | Package 6 commits through the W3-04A blocked-frontier checkpoint on corrected Package 5 history; architecture v1.48–v1.51; focused PostgreSQL/Redis/backend/frontend/contract/live-journey evidence and consolidated reviews resolved |
 | S4 — data lifecycle (ping partitions, retention purge, audit backfill, D10) | Complete, merged | Git `a879a3d`…`4f487e7`; architecture v1.9, §24.2 [BUILT] |
 | W0-F — trip finality protocol + durable client queue (RM3/RM4/RM5, D15) | Complete — sealed-only money chain, post-seal quarantine, IndexedDB queue with stable retry keys; independently reviewed and hardened (D16: apply-after-initial-payout, pre-seal analytics recompute, fail-closed client) | Migrations `0016`+`0017`; architecture v1.16/v1.17; `tests/test_trip_seal.py`; live compose e2e |
 | Pre-production ops (production Compose overlay, release smoke, backup/restore rehearsal) | Complete locally, **not deployed** | Git from `006d94e`; `docker-compose.production.yml`, `docs/runbook.md` |

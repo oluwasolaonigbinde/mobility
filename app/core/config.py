@@ -52,6 +52,18 @@ class Settings(BaseSettings):
     login_rate_limit_global_window_seconds: int = 300
     login_rate_limit_trust_client_ip_header: bool = False
     login_rate_limit_trusted_proxy_cidrs: str = ""
+    # W3-04A is a cohort-gated public surface.  Registration keeps separate
+    # buckets from login so a public applicant can never consume or refund a
+    # credential-guessing allowance.
+    driver_registration_enabled: bool = False
+    driver_registration_rate_limit_ip_max_attempts: int = 10
+    driver_registration_rate_limit_ip_window_seconds: int = 3600
+    driver_registration_rate_limit_email_max_attempts: int = 3
+    driver_registration_rate_limit_email_window_seconds: int = 3600
+    driver_registration_rate_limit_global_max_attempts: int = 100
+    driver_registration_rate_limit_global_window_seconds: int = 3600
+    driver_registration_rate_limit_trust_client_ip_header: bool = False
+    driver_registration_rate_limit_trusted_proxy_cidrs: str = ""
     backend_cors_origins: CorsOrigins = Field(default_factory=list)
     log_level: str = "INFO"
     request_id_header: str = "X-Request-ID"
@@ -178,6 +190,12 @@ class Settings(BaseSettings):
         "login_rate_limit_account_window_seconds",
         "login_rate_limit_global_max_failures",
         "login_rate_limit_global_window_seconds",
+        "driver_registration_rate_limit_ip_max_attempts",
+        "driver_registration_rate_limit_ip_window_seconds",
+        "driver_registration_rate_limit_email_max_attempts",
+        "driver_registration_rate_limit_email_window_seconds",
+        "driver_registration_rate_limit_global_max_attempts",
+        "driver_registration_rate_limit_global_window_seconds",
     )
     @classmethod
     def validate_positive_rate_limit_settings(cls, value: int) -> int:

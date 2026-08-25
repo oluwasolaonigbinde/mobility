@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser, roleHome } from "@/lib/auth/current-user";
 import { Panel } from "@/components/ui/panel";
@@ -40,6 +41,13 @@ export default async function LoginPage({
         <Panel className="p-6">
           <LoginForm demoLoginRole={demoLoginRole} />
         </Panel>
+
+        <p className="text-muted mt-5 text-center text-sm">
+          Want to drive with us?{" "}
+          <Link href="/apply" className="text-amber hover:text-amber-soft transition-colors">
+            Start an application →
+          </Link>
+        </p>
 
         <p className="micro text-faint mt-6 flex items-center gap-2">
           <span

@@ -5,9 +5,14 @@ from fastapi import APIRouter, Query, status
 
 from app.api.v1.dependencies import AdminUserDependency, SessionDependency, SettingsDependency
 from app.models.user import UserRole, UserStatus
+from app.schemas.driver_applications import (
+    DriverApplicationAdminListResponse,
+    DriverApplicationAdminRead,
+)
 from app.schemas.organizations import AdminOrganizationCreateResponse, AdvertiserOrganizationCreate
 from app.schemas.users import UserCreate, UserListResponse, UserRead, UserUpdate
 from app.services.audit import create_audit_event
+from app.services.driver_applications import list_driver_applications
 from app.services.organizations import create_advertiser_organization
 from app.services.users import create_user, list_users, update_user
 
@@ -58,6 +63,33 @@ async def admin_list_users(
     )
     return UserListResponse(
         items=[UserRead.model_validate(user) for user in users],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get(
+    "/driver-applications",
+    response_model=DriverApplicationAdminListResponse,
+    summary="List pending public driver applications",
+)
+async def admin_list_driver_applications(
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> DriverApplicationAdminListResponse:
+    applications, total = await list_driver_applications(
+        session,
+        admin_user_id=current_user.id,
+        limit=limit,
+        offset=offset,
+    )
+    return DriverApplicationAdminListResponse(
+        items=[
+            DriverApplicationAdminRead.model_validate(application) for application in applications
+        ],
         total=total,
         limit=limit,
         offset=offset,

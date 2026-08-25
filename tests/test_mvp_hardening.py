@@ -14,7 +14,7 @@ from app.main import create_app
 from app.models.user import UserRole
 
 SNAPSHOT_PATH = Path("docs/api/openapi.snapshot.json")
-EXPECTED_ALEMBIC_HEAD = "0049_assignment_activity_flags"
+EXPECTED_ALEMBIC_HEAD = "0050_driver_applications"
 EXPECTED_MIGRATIONS = {
     "0001_enable_extensions.py",
     "0002_identity_and_organizations.py",
@@ -65,6 +65,7 @@ EXPECTED_MIGRATIONS = {
     "0047_retargeting_source_links.py",
     "0048_campaign_assignment_offer_lifecycle.py",
     "0049_assignment_activity_flags.py",
+    "0050_driver_applications.py",
 }
 MAJOR_CONTRACT_PATHS = {
     "health": "/api/v1/health",

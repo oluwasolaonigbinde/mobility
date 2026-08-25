@@ -555,7 +555,7 @@ def test_rejects_done_item_in_queued_package() -> None:
 
 
 def test_rejects_nonqueued_package_after_active_frontier() -> None:
-    text = _progress().replace(
+    text = _pkg01_active().replace(
         "| 7 | **PKG-07 — production driver PWA** | QUEUED |",
         "| 7 | **PKG-07 — production driver PWA** | DONE |",
     )
@@ -636,7 +636,7 @@ def test_rejects_stale_control_package_pointer() -> None:
     text = re.sub(
         r"^\*\*Control package:\*\* `PKG-\d{2}`",
         "**Control package:** `PKG-09`",
-        _progress(),
+        _pkg01_active(),
         count=1,
         flags=re.MULTILINE,
     )

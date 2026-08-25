@@ -10,7 +10,12 @@ from starlette import status
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
 from app.core.payment_enqueue import PaymentEventEnqueuer, build_payment_event_enqueuer
-from app.core.rate_limit import LoginRateLimiter, build_login_rate_limiter
+from app.core.rate_limit import (
+    LoginRateLimiter,
+    RegistrationRateLimiter,
+    build_login_rate_limiter,
+    build_registration_rate_limiter,
+)
 from app.core.security import decode_token_claims
 from app.core.trip_enqueue import TripProcessingEnqueuer, build_trip_enqueuer
 from app.db.session import get_session
@@ -28,6 +33,15 @@ def get_login_rate_limiter(settings: SettingsDependency) -> LoginRateLimiter:
 
 
 RateLimiterDependency = Annotated[LoginRateLimiter, Depends(get_login_rate_limiter)]
+
+
+def get_registration_rate_limiter(settings: SettingsDependency) -> RegistrationRateLimiter:
+    return build_registration_rate_limiter(settings)
+
+
+RegistrationRateLimiterDependency = Annotated[
+    RegistrationRateLimiter, Depends(get_registration_rate_limiter)
+]
 
 
 def get_trip_enqueuer(settings: SettingsDependency) -> TripProcessingEnqueuer:

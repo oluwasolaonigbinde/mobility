@@ -152,9 +152,7 @@ def test_0014_migration_static_shape() -> None:
     assert "get_settings" not in migration
     assert "partition_premake_months" not in migration
     assert "os.environ" not in migration
-    assert "DEFAULT PARTITION" not in migration.upper().replace(
-        "NO DEFAULT PARTITION", ""
-    )
+    assert "DEFAULT PARTITION" not in migration.upper().replace("NO DEFAULT PARTITION", "")
     assert '"data_purge_audit"' in migration
     for name in EXPECTED_CHECKS | EXPECTED_INDEXES:
         assert name in migration
@@ -294,6 +292,7 @@ def seed_ping_graph(migration_url: str) -> dict:
         driver_profile_id=profile.id,
         vehicle_id=vehicle.id,
         assigned_by_user_id=admin.id,
+        legacy_schema=True,
     )
     # Raw SQL: this seed runs at revision 0013, before the 0016 seal columns
     # exist — the current ORM model would INSERT columns the old schema lacks.

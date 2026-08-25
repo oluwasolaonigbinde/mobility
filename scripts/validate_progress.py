@@ -79,7 +79,11 @@ CANONICAL_ITEMS = (
     ("W3-04A", "PKG-06", "none"),
     ("W3-04B", "PKG-06", "leaf: W3-04A, W2-02D, MNY-10A"),
     ("W3-04C", "PKG-06", "leaf: W3-04B, W2-02B, W2-02D"),
-    ("W4-01A", "PKG-07", "leaf: R14-A, R14-B"),
+    (
+        "W4-01A",
+        "PKG-07",
+        "leaf: R14-A, R14-B; external: EXT-PKG07-OWNER-RELEASE",
+    ),
     ("W4-01B", "PKG-07", "leaf: W4-01A, R14-B"),
     ("W4-01C", "PKG-07", "leaf: W4-01B, W3-04C, W3-03B, W2-03D"),
     (
@@ -132,6 +136,7 @@ CANONICAL_EXTERNAL_IDS = (
     "EXT-DISBURSEMENT-PROVIDER",
     "EXT-AD-PLATFORM",
     "EXT-PILOT-PERMITS",
+    "EXT-PKG07-OWNER-RELEASE",
     "EXT-RM2-CALIBRATION-DATA",
 )
 

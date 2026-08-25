@@ -298,26 +298,29 @@ def test_cancel_and_driver_deactivation_serialize_postgres(
 
     outcomes = asyncio.run(race())
     assert lock_call_count == 2
-    assert set(outcomes) == {
-        "cancelled",
-        "INVALID_ASSIGNMENT_TRANSITION",
-    } or set(outcomes) == {
-        "deactivated",
-        "INVALID_ASSIGNMENT_TRANSITION",
-    }
+    assert set(outcomes) in (
+        {"cancelled", "INVALID_ASSIGNMENT_TRANSITION"},
+        {"deactivated", "INVALID_ASSIGNMENT_TRANSITION"},
+        {"cancelled", "deactivated"},
+    )
     events = fetch_activation_events(postgis_db_sessionmaker)
-    assert len(events) == 1
-    assert events[0].event_type in {"cancelled", "deactivated"}
-    assert events[0].previous_status == CampaignAssignmentStatus.ACTIVE.value
+    if set(outcomes) == {"cancelled", "deactivated"}:
+        assert [event.event_type for event in events] == ["deactivated", "cancelled"]
+        assert [event.previous_status for event in events] == [
+            CampaignAssignmentStatus.ACTIVE.value,
+            CampaignAssignmentStatus.DEACTIVATED.value,
+        ]
+    else:
+        assert len(events) == 1
+        assert events[0].event_type in {"cancelled", "deactivated"}
+        assert events[0].previous_status == CampaignAssignmentStatus.ACTIVE.value
 
 
 def test_cancel_and_trip_start_serialize_postgres(
     postgis_db_sessionmaker,
     monkeypatch,
 ) -> None:
-    admin, campaigns, driver, profile, vehicle = build_graph(
-        postgis_db_sessionmaker, "cancel-trip"
-    )
+    admin, campaigns, driver, profile, vehicle = build_graph(postgis_db_sessionmaker, "cancel-trip")
     assignment = create_test_campaign_assignment(
         postgis_db_sessionmaker,
         campaign_id=campaigns[0].id,
@@ -474,20 +477,14 @@ def test_lost_create_race_returns_duplicate_assignment_envelope(
         "metadata": {},
     }
 
-    first = db_client.post(
-        "/api/v1/admin/campaign-assignments", headers=headers, json=payload
-    )
-    second = db_client.post(
-        "/api/v1/admin/campaign-assignments", headers=headers, json=payload
-    )
+    first = db_client.post("/api/v1/admin/campaign-assignments", headers=headers, json=payload)
+    second = db_client.post("/api/v1/admin/campaign-assignments", headers=headers, json=payload)
 
     assert first.status_code == 201
     assert_conflict_envelope(second, "DUPLICATE_CAMPAIGN_VEHICLE_ASSIGNMENT")
 
 
-def test_driver_activation_route_is_removed(
-    db_client, db_sessionmaker, monkeypatch
-) -> None:
+def test_driver_activation_route_is_removed(db_client, db_sessionmaker, monkeypatch) -> None:
     del monkeypatch
     admin, campaigns, driver, profile, vehicle = build_graph(db_sessionmaker, "activate")
     headers = auth_headers(db_client, driver.email, PASSWORD)
@@ -640,13 +637,9 @@ def _start_trip_outcome(sessionmaker, *, user_id, assignment_id):
     return run_one
 
 
-def test_concurrent_trip_starts_one_winner_postgis(
-    postgis_db_sessionmaker, monkeypatch
-) -> None:
+def test_concurrent_trip_starts_one_winner_postgis(postgis_db_sessionmaker, monkeypatch) -> None:
     monkeypatch.setattr(trips_service, "assert_new_work_authorized", _noop_precheck)
-    admin, campaigns, driver, profile, vehicle = build_graph(
-        postgis_db_sessionmaker, "pg-trip"
-    )
+    admin, campaigns, driver, profile, vehicle = build_graph(postgis_db_sessionmaker, "pg-trip")
     assignment = create_test_campaign_assignment(
         postgis_db_sessionmaker,
         campaign_id=campaigns[0].id,
@@ -712,9 +705,7 @@ def test_concurrent_admin_activations_fail_closed_postgis(postgis_db_sessionmake
 
     async def race() -> list[str]:
         return list(
-            await asyncio.gather(
-                activate_one(assignment_ids[0]), activate_one(assignment_ids[1])
-            )
+            await asyncio.gather(activate_one(assignment_ids[0]), activate_one(assignment_ids[1]))
         )
 
     outcomes = asyncio.run(race())
@@ -725,9 +716,7 @@ def test_concurrent_admin_activations_fail_closed_postgis(postgis_db_sessionmake
 def test_recommendation_create_locks_selected_facts_postgis(
     postgis_db_sessionmaker, monkeypatch
 ) -> None:
-    admin, campaigns, _, profile, vehicle = build_graph(
-        postgis_db_sessionmaker, "pg-rec-lock"
-    )
+    admin, campaigns, _, profile, vehicle = build_graph(postgis_db_sessionmaker, "pg-rec-lock")
 
     async def recommendation_payload() -> CampaignAssignmentCreate:
         async with postgis_db_sessionmaker() as session:

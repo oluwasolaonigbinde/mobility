@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.50 — 2026-08-25. Canonical source of truth: current state AND target state.**
+**Version 1.51 — 2026-08-25. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1725,12 +1725,20 @@ aggregates only, k-floor rules of §22.2 apply to any zone-level display.
 
 - **F7 is built** (§12): sliding session, `sv` revocation, forced password
   change, rate limiting. Everything below builds on it.
-- **Driver self-registration (Q13 confirmed):** public
+- **Driver self-registration (Q13 confirmed) [BUILT — W3-04A]:** public
   `POST /api/v1/auth/register-driver` gated by feature flag, creating an
   `invited/pending`-state user + driver profile that enters the existing admin
-  onboarding queue (KYC docs per Q26 through §19). The service layer already
-  separates user creation from admin UI, so this is additive. Operator-led
-  onboarding remains available; public applicants cannot work before approval.
+  onboarding queue (KYC docs per Q26 through §19). A dedicated pending-only
+  application stores an allowlisted contact snapshot and only the digest of a
+  high-entropy public status reference. New, duplicate and concurrent
+  same-email requests expose the same pending response shape; unknown status
+  references expose no existence signal. A separate atomic Redis
+  IP/email/global limiter fails closed, and only the first blocked transition
+  is audited. The generated credential is unreachable and no session, work,
+  KYC, payee, vehicle, tracking or earnings authority is granted. The queue's
+  sanitized service boundary revalidates an active admin. Operator-led
+  onboarding remains available; W3-04B/C and their Package 4 secure-evidence
+  dependencies still own approval and work eligibility.
 - **Pilot driver client (Q10/D18):** a production-hardened installable PWA with
   explicit Start/End and screen-on enforcement. It stays behind the Next.js
   BFF-cookie boundary, reuses F7's capped sliding session, and inherits the
@@ -2272,6 +2280,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.51 | 2026-08-25 | **W3-04A public driver application delivered without work or identity-approval authority.** Migration `0050` adds one pending-only application linked to an invited driver user and pending profile, with a digest-only high-entropy status reference and populated downgrade refusal. The default-off cohort flag, separate atomic Redis IP/email/global limiter and notify-once audit fail closed; new, duplicate and concurrent same-email requests share one non-enumerating response shape, and known/unknown status reads expose the same pending envelope. The generated credential is unreachable. An active-admin service gate protects a sanitized queue, while public/admin UI routes and both Compose/environment contracts expose the bounded workflow. All §9 artifacts move together. Focused backend/PostgreSQL/real-Redis/migration/autogenerate/pre-production, frontend/R14-B, isolated live apply/status, one backend aggregate with focused correction of 12 stale Package 6 harness expectations, a green frontend aggregate and consolidated Luna review pass. No KYC, payee, vehicle, document, tracking, earnings, live-use, Package 7 or external-gate claim is added; W3-04B/C remain dependency-blocked. |
 | v1.50 | 2026-08-25 | **W3-03C verified-hours and inactivity operations delivered without automatic work or money mutation.** Migration `0049` adds dedicated current activity flags and append-only opened/recovered evidence with populated downgrade refusal. A no-default positive weekly-hours setting evaluates the immediately completed UTC week from computed sealed assignment-linked analytics; missing/invalid configuration skips only that rule. The independent exact seven-day database-time rule continues from activation/latest verified activity. A configured-batch rolling cursor reaches the full active-assignment set while per-assignment transactions isolate errors and retain W3-03B campaign→assignment lock compatibility. Stable notices report open/recovery to drivers and the admin assignment surface exposes sanitized review evidence. All §9 artifacts move together and regenerate byte-stably. Focused backend/API/worker/migration, real-PostgreSQL concurrency, frontend/admin-notification, preserved driver/PWA contract fixtures and consolidated Luna review pass after bounded-worker and migration-head corrections. No threshold value, lifecycle/earnings change, external authorization, Package 7 work or unrelated Pro finding is claimed. |
 | v1.49 | 2026-08-25 | **W3-03B complete assignment-offer lifecycle delivered with honest activation gating.** Migration `0048` adds explicit expiry, canonical complete offer snapshots and hashes, accepted-binding linkage, coherent timestamps, one terminal-decision event and append-only evidence while preserving legacy hashless rows and blocking destructive downgrade. Driver accept/decline, lazy/worker expiry, admin cancel/activation and trip start share DB time plus a campaign→assignment→eligibility lock order; active-admin checks live inside create/cancel services. Admin activation composes built review/funding/liability/hold gates and then fails closed because approved-creative and installation-evidence authorities remain unavailable in Package 4. All §9 artifacts move together. Focused real-PostgreSQL decision/sweep/producer/transition/trip/migration barriers, fast API tests, append-only demo-seed reruns, frontend lifecycle tests/type/lint/format and a consolidated Luna minimal-change review pass. No external gate, live activation, KYC/work eligibility, activity-floor, Package 7 or unrelated Pro finding is claimed. |
 | v1.48 | 2026-08-25 | **W3-03A deterministic matching recommendations delivered on the corrected Package 5 base.** `matching_v1` adds an admin-only, non-persistent cars-only recommender inside the existing assignment service. Current assignment readiness requires an assignable campaign, active driver profile, normalized city, active driver-owned car and no same-campaign non-terminal vehicle assignment. Transparent lexicographic ranking uses vehicle load, driver load, computed-only activity and stable UUID ties; the UI never auto-selects. A typed fingerprint is rechecked under deterministic parent and aggregate-contributor locks before the existing create command, with real-PostgreSQL parent/load/activity interleavings and inherited exclusivity envelopes passing. Context-free manual assignment remains compatible. All three §9 baselines moved together and regenerate byte-stably; focused backend/frontend/R14-B/type/lint/build and isolated admin recommendation→offer evidence pass after consolidated review corrections. No migration, automatic assignment, person/payee/KYC eligibility, provider input or live-use authorization was added. W3-03B–W3-04C remain unstarted; Package 5's external legal, reporting-method and ad-platform gates remain unchanged. |

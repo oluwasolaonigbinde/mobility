@@ -11,6 +11,7 @@ from conftest import (
     create_test_vehicle,
 )
 from sqlalchemy import select
+from test_campaign_assignments import create_assignment_ready_graph, create_postgres_offer
 from test_payouts_v2 import create_v2_rule
 from test_payouts_v3 import create_revision_row, insert_binding
 from test_receipt_allocations import _accepted_terms
@@ -27,6 +28,7 @@ from app.models.billing import (
 )
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
+from app.models.payout import AssignmentRuleBinding
 from app.models.user import User, UserRole
 from app.models.vehicle import VehicleStatus
 from app.schemas.campaign_assignments import CampaignAssignmentTransition
@@ -264,57 +266,18 @@ def test_concurrent_liability_reservations_never_overbook(
     asyncio.run(assert_inclusive_lagos_dates())
 
 
-def test_assignment_acceptance_creates_pending_reservation_after_frozen_binding(
+def test_assignment_acceptance_creates_frozen_binding_without_reservation(
     postgis_db_sessionmaker, settings
 ) -> None:
-    admin, _, organization, _ = _fixture(postgis_db_sessionmaker, "accept-reservation")
-    campaign = create_test_campaign(
+    admin, campaign, driver, profile, vehicle = create_assignment_ready_graph(
         postgis_db_sessionmaker,
-        organization_id=organization.id,
-        created_by_user_id=admin.id,
-        start_at=datetime(2099, 1, 1, tzinfo=UTC),
-        end_at=datetime(2099, 1, 1, 23, tzinfo=UTC),
-    )
-    driver = create_test_user(
-        postgis_db_sessionmaker,
-        email="accept-reservation-driver@example.com",
-        role=UserRole.DRIVER,
-    )
-    profile = create_test_driver_profile(
-        postgis_db_sessionmaker,
-        user_id=driver.id,
-        onboarding_status=DriverOnboardingStatus.ACTIVE,
-        license_number="ACCEPT-RESERVE",
-    )
-    vehicle = create_test_vehicle(
-        postgis_db_sessionmaker,
-        driver_profile_id=profile.id,
+        admin_email="accept-reservation-admin@example.com",
+        advertiser_email="accept-reservation-owner@example.com",
+        driver_email="accept-reservation-driver@example.com",
         plate_number="ACR-001",
-        vehicle_status=VehicleStatus.ACTIVE,
     )
-    assignment = create_test_campaign_assignment(
-        postgis_db_sessionmaker,
-        campaign_id=campaign.id,
-        driver_profile_id=profile.id,
-        vehicle_id=vehicle.id,
-        assigned_by_user_id=admin.id,
-        assignment_status=CampaignAssignmentStatus.OFFERED,
-    )
-    rule = create_v2_rule(
-        postgis_db_sessionmaker,
-        campaign_id=campaign.id,
-        created_by_user_id=admin.id,
-        hourly_rate="10.00",
-        daily_cap_hours="1.00",
-    )
-    create_revision_row(
-        postgis_db_sessionmaker,
-        campaign_id=campaign.id,
-        rule_id=rule.id,
-        created_by_user_id=admin.id,
-        base="10.00",
-        premium=None,
-        cap="1.00",
+    assignment_id = create_postgres_offer(
+        postgis_db_sessionmaker, settings, admin, campaign, profile, vehicle
     )
 
     async def scenario() -> None:
@@ -322,18 +285,23 @@ def test_assignment_acceptance_creates_pending_reservation_after_frozen_binding(
             await accept_driver_assignment(
                 session,
                 user_id=driver.id,
-                assignment_id=assignment.id,
+                assignment_id=assignment_id,
                 payload=CampaignAssignmentTransition(metadata={}),
                 settings=settings,
             )
             reservation = await session.scalar(
                 select(CampaignLiabilityReservation).where(
-                    CampaignLiabilityReservation.assignment_id == assignment.id
+                    CampaignLiabilityReservation.assignment_id == assignment_id
                 )
             )
-            assert reservation is not None
-            assert reservation.status == "pending_funding"
-            assert reservation.assignment_rule_binding_id is not None
+            binding = await session.scalar(
+                select(AssignmentRuleBinding).where(
+                    AssignmentRuleBinding.assignment_id == assignment_id
+                )
+            )
+            assert binding is not None
+            assert binding.offer_terms_sha256 is not None
+            assert reservation is None
             await session.commit()
 
     asyncio.run(scenario())
@@ -376,8 +344,7 @@ def test_expedited_waiver_is_immutable_and_start_is_separate(db_sessionmaker) ->
                 waiver_id=waiver.id,
             )
             assert (
-                production.authority_basis
-                == ProductionAuthorityBasis.ADVERTISER_EXPEDITED_WAIVER
+                production.authority_basis == ProductionAuthorityBasis.ADVERTISER_EXPEDITED_WAIVER
             )
             assert production.started_at >= waiver.accepted_at
             await session.commit()
@@ -485,9 +452,7 @@ def test_new_work_revalidates_reversed_cash_and_expired_credit(
                 reason="bank reversal after production",
             )
             with pytest.raises(AppError) as reversed_error:
-                await assert_campaign_production_authorized(
-                    session, campaign_id=cash_campaign.id
-                )
+                await assert_campaign_production_authorized(session, campaign_id=cash_campaign.id)
             assert reversed_error.value.code == "NEW_WORK_NOT_FINANCIALLY_AUTHORIZED"
 
     asyncio.run(cash_scenario())
@@ -553,9 +518,7 @@ def test_new_work_revalidates_reversed_cash_and_expired_credit(
 
             monkeypatch.setattr(billing, "database_clock", after_due)
             with pytest.raises(AppError) as expired_error:
-                await assert_campaign_production_authorized(
-                    session, campaign_id=credit_campaign.id
-                )
+                await assert_campaign_production_authorized(session, campaign_id=credit_campaign.id)
             assert expired_error.value.code == "CREDIT_AUTHORITY_EXPIRED"
 
     asyncio.run(credit_scenario())

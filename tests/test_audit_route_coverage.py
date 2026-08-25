@@ -30,6 +30,7 @@ from app.services.audit import create_audit_event
 AUDITED = {
     ("POST", "/api/v1/auth/login"): "auth.login.*",
     ("POST", "/api/v1/auth/change-password"): "auth.password.*",
+    ("POST", "/api/v1/auth/register-driver"): "auth.driver_application.created",
     ("POST", "/api/v1/admin/users"): "admin.user.created",
     ("PATCH", "/api/v1/admin/users/{user_id}"): "admin.user.updated",
     ("POST", "/api/v1/admin/advertiser-organizations"): (

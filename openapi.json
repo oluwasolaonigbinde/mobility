@@ -6196,6 +6196,235 @@
         "title": "DigitalCampaignAudienceSourceCreate",
         "type": "object"
       },
+      "DriverApplicationAdminListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DriverApplicationAdminRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "DriverApplicationAdminListResponse",
+        "type": "object"
+      },
+      "DriverApplicationAdminRead": {
+        "properties": {
+          "country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "service_city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service City"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DriverApplicationStatus"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "driver_profile_id",
+          "status",
+          "email",
+          "full_name",
+          "phone",
+          "service_city",
+          "country_code",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "DriverApplicationAdminRead",
+        "type": "object"
+      },
+      "DriverApplicationCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "country_code": {
+            "anyOf": [
+              {
+                "maxLength": 2,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          },
+          "email": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Full Name",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "service_city": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service City"
+          }
+        },
+        "required": [
+          "email",
+          "full_name"
+        ],
+        "title": "DriverApplicationCreate",
+        "type": "object"
+      },
+      "DriverApplicationStatus": {
+        "enum": [
+          "pending"
+        ],
+        "title": "DriverApplicationStatus",
+        "type": "string"
+      },
+      "DriverApplicationStatusResponse": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "const": "pending",
+            "default": "pending",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "DriverApplicationStatusResponse",
+        "type": "object"
+      },
+      "DriverApplicationSubmitResponse": {
+        "properties": {
+          "application_reference": {
+            "title": "Application Reference",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "const": "pending",
+            "default": "pending",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "application_reference"
+        ],
+        "title": "DriverApplicationSubmitResponse",
+        "type": "object"
+      },
       "DriverEarningsCurrencySummary": {
         "properties": {
           "available_amount": {
@@ -16753,6 +16982,67 @@
         ]
       }
     },
+    "/api/v1/admin/driver-applications": {
+      "get": {
+        "operationId": "admin_list_driver_applications_api_v1_admin_driver_applications_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverApplicationAdminListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List pending public driver applications",
+        "tags": [
+          "Admin Users"
+        ]
+      }
+    },
     "/api/v1/admin/drivers": {
       "get": {
         "operationId": "admin_list_driver_profiles_api_v1_admin_drivers_get",
@@ -23939,6 +24229,48 @@
         ]
       }
     },
+    "/api/v1/auth/driver-application-status/{reference}": {
+      "get": {
+        "operationId": "driver_application_status_api_v1_auth_driver_application_status__reference__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reference",
+            "required": true,
+            "schema": {
+              "title": "Reference",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverApplicationStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Check a driver application status",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "description": "Exchange local demo or application credentials for a bearer access token.",
@@ -24002,6 +24334,48 @@
           }
         ],
         "summary": "Refresh an active session",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/register-driver": {
+      "post": {
+        "description": "Submit the minimal contact fields for a pending driver application. The cohort-gated response does not create a session or grant work access.",
+        "operationId": "register_driver_api_v1_auth_register_driver_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriverApplicationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverApplicationSubmitResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit a public driver application",
         "tags": [
           "Auth"
         ]
