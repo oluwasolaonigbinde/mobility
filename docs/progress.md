@@ -59,12 +59,12 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 ### Current control pointer
 
 **Controller state:** `ACTIVE`
-**Control package:** `PKG-05` — Package 4 is blocked only on its recorded
-storage/scanner/KMS/email/phone inputs and transitive checklist dependencies;
-Package 5 is the next dependency-safe package frontier.
-**Current checkpoint:** `PKG-05 / W3-01B` — W3-00A, W3-00D, W3-00C and
-W3-01A are focused-verified and complete. Source/campaign/zone/time linkage is
-the next dependency-safe checkpoint under the reviewed Package 5 plan.
+**Control package:** `PKG-06` — Package 5 completed every dependency-safe
+checkpoint and is blocked only on recorded Package 4 dependencies; Package 6
+is the first later package with a runnable checklist item.
+**Current checkpoint:** `PKG-06 / W3-03A` — Package 5's W3-01B linkage is
+focused-, aggregate- and independently reviewed. W3-03A has no checklist
+dependency and is the next authorized frontier; no Package 6 work has started.
 
 ## Executable package queue
 
@@ -74,8 +74,8 @@ the next dependency-safe checkpoint under the reviewed Package 5 plan.
 | 2 | **PKG-02 — money integrity and payout operations** | DONE | Corrected release, pre-existing-reversal backfill and debt-aware economic/settlement authority agree. | none — checklist DAG gates entry |
 | 3 | **PKG-03 — commercial contracts and billing** | BLOCKED | Synthetic/provider-neutral commercial flow is verified; live provider checkout and budget enforcement await their recorded external inputs. | none — checklist DAG gates entry |
 | 4 | **PKG-04 — secure evidence, activation and communications** | **BLOCKED** | Campaign review and the shared in-app notification core are complete; storage/KYC/activation/provider communications await recorded external inputs and their transitive dependencies. | none — checklist DAG gates entry |
-| 5 | **PKG-05 — privacy, measurement and retargeting** | **IN PROGRESS** | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
-| 6 | **PKG-06 — matching and driver onboarding** | QUEUED | Recommendations, offers, activity and approved driver/vehicle onboarding work together. | none — checklist DAG gates entry |
+| 5 | **PKG-05 — privacy, measurement and retargeting** | **BLOCKED** | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
+| 6 | **PKG-06 — matching and driver onboarding** | **NEXT** | Recommendations, offers, activity and approved driver/vehicle onboarding work together. | none — checklist DAG gates entry |
 | 7 | **PKG-07 — production driver PWA** | QUEUED | The pilot PWA safely tracks, syncs, explains earnings and supports release across the device matrix. | none — checklist DAG gates entry |
 | 8 | **PKG-08 — governed reporting and pilot readiness** | QUEUED | Safe reports, release infrastructure and one complete pilot acceptance gate are ready. | none — checklist DAG gates entry |
 | 9 | **PKG-09 — controlled pilot, training and handover** | QUEUED | Run the pilot, stabilize it, train roles and close operational handover. | none — checklist DAG gates entry |
@@ -581,6 +581,36 @@ the next dependency-safe checkpoint under the reviewed Package 5 plan.
   dictionary and missing concurrent proof; both were corrected and rechecked
   PASS. `EXT-LEGAL-PRIVACY` remains MISSING; no approved lawful basis, real
   audience, upload, identity, raw-ping join or live source use is claimed.
+- **W3-01B checkpoint evidence (25 Aug 2026):** migration `0047` adds one
+  advertiser-organization source/campaign/target-zone/time linkage projection,
+  append-only create/remove evidence and actor/operation-scoped retry records.
+  The service locks source → campaign → zone → link, rechecks active tenant,
+  source expiry, campaign bounds and zone ownership, freezes typed snapshots
+  and parent fingerprints, and reports later parent changes as stale without
+  rewriting history. The privacy gate precedes advertiser and service-enforced
+  active-admin access; cross-tenant, inactive, expired and changed-payload
+  operations fail closed. Advertiser setup/removal and read-only admin
+  monitoring move with all three §9 baselines. Focused API/RBAC/lifecycle/
+  retry/audit/migration/frontend checks pass; five real-PostgreSQL migration/
+  concurrency cases cover 0045–0047, same- and distinct-key retries plus
+  source-deactivation and campaign/zone races.
+  The independent privacy/authorization review's service-admin and parent-race
+  findings were corrected and rechecked PASS. Aggregate evidence: 722 backend
+  passes with 244 environment skips after three stale Package 5 expectations
+  were corrected and focused-rechecked; 212 frontend tests, typecheck, lint
+  (one pre-existing warning) and a successful webpack production build.
+  `EXT-LEGAL-PRIVACY`, `EXT-REPORT-METHOD` and
+  `EXT-AD-PLATFORM` remain MISSING; no raw-ping join, person-level audience,
+  report issuance, export, live source use or platform activation is claimed.
+- **Package 5 frontier closure (25 Aug 2026):** the consolidated privacy,
+  authorization and minimal-change review returned PASS after real-PostgreSQL
+  evidence, control-state timing and unrelated formatting were reconciled.
+  W3-00A/D/C and W3-01A/B are complete. W3-00B remains transitively blocked by
+  W2-02E through `EXT-STORAGE-PROVIDER`, `EXT-MALWARE-SCANNER` and
+  `EXT-KMS-CUSTODY`; W3-00E remains blocked by W2-03C/D and their evidence/
+  creative/activation chain. W3-01C/D and W3-02A/B therefore remain dependency-
+  blocked. Package 5 is BLOCKED, not DONE; the controller advances to
+  dependency-free PKG-06/W3-03A without starting it.
 - **Closure:** privacy/measurement review proves suppression, reproducibility,
   provenance and safe claims before any advertiser live-use gate opens.
 
@@ -711,7 +741,7 @@ verification, gates or required specialist review.
 | 47 | **W3-00D — measurement methodology contract** | PKG-05 | DONE | Product defines modelled potential contacts, provenance, uncertainty and claims; Campaign Performance Analysis is standard and true ROI requires approved inputs and method. | none |
 | 48 | **W3-00E — immutable measurement runs and proof manifests** | PKG-05 | TODO | Issued results bind frozen inputs to creative/evidence/assignment/period and reproduce whether the ROI gate passed or failed closed. | leaf: W3-00D, W2-03C, W2-03D |
 | 49 | **W3-01A — typed retargeting source registry** | PKG-05 | DONE | Advertiser/admin manage allowlisted aggregate planning sources without identifiers. | leaf: W3-00A, W3-00D |
-| 50 | **W3-01B — source/campaign/zone linkage** | PKG-05 | TODO | Owned sources link safely to campaigns, zones and time windows. | leaf: W3-01A |
+| 50 | **W3-01B — source/campaign/zone linkage** | PKG-05 | DONE | Owned sources link safely to campaigns, zones and time windows. | leaf: W3-01A |
 | 51 | **W3-01C — governed exposure segments** | PKG-05 | TODO | Worker materializes versioned, suppressed coverage-cell/time aggregates. | leaf: W3-00C, W3-00D, W3-00E, W3-01B |
 | 52 | **W3-01D — recommendations, export and gated activation** | PKG-05 | TODO | Safe geography/time/context recommendations, controlled export and activation use one governed aggregate; identifiers/person-level payloads reject and live push fails closed without EXT-AD-PLATFORM. | leaf: W3-01C, W3-00D, W3-00E |
 | 53 | **W3-02A — exposure score v1** | PKG-05 | TODO | Formula-versioned score is reproducible and distinct from impressions. | leaf: W3-00D, W3-00E |

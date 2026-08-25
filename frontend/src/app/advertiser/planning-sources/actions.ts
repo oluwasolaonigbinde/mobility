@@ -93,3 +93,48 @@ export async function deactivateSourceAction(sourceId: string): Promise<void> {
   revalidatePath("/advertiser/planning-sources");
   revalidatePath("/admin/planning-sources");
 }
+
+export async function createSourceLinkAction(
+  _previous: SourceActionState,
+  formData: FormData,
+): Promise<SourceActionState> {
+  const startAt = new Date(text(formData, "start_at"));
+  const endAt = new Date(text(formData, "end_at"));
+  if (
+    !Number.isFinite(startAt.getTime()) ||
+    !Number.isFinite(endAt.getTime()) ||
+    startAt >= endAt
+  ) {
+    return { error: "Choose a valid linkage window with the start before the end." };
+  }
+  try {
+    const api = createApiClient(await getSessionToken());
+    await api.POST("/api/v1/advertiser/retargeting-source-links", {
+      params: { header: { "Idempotency-Key": randomUUID() } },
+      body: {
+        source_id: text(formData, "source_id"),
+        campaign_id: text(formData, "campaign_id"),
+        zone_id: text(formData, "zone_id"),
+        start_at: startAt.toISOString(),
+        end_at: endAt.toISOString(),
+      },
+    });
+  } catch (error) {
+    return { error: error instanceof ApiError ? error.message : "Could not reach the server." };
+  }
+  revalidatePath("/advertiser/planning-sources");
+  revalidatePath("/admin/planning-sources");
+  return { success: "Planning source linked to the target zone." };
+}
+
+export async function removeSourceLinkAction(linkId: string): Promise<void> {
+  const api = createApiClient(await getSessionToken());
+  await api.POST("/api/v1/advertiser/retargeting-source-links/{link_id}/remove", {
+    params: {
+      path: { link_id: linkId },
+      header: { "Idempotency-Key": randomUUID() },
+    },
+  });
+  revalidatePath("/advertiser/planning-sources");
+  revalidatePath("/admin/planning-sources");
+}

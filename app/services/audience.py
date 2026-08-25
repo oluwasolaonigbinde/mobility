@@ -11,6 +11,8 @@ from starlette import status
 
 from app.core.config import Settings
 from app.core.errors import AppError
+from app.models.campaign import Campaign
+from app.models.campaign_zone import CampaignZone
 from app.models.organization import (
     AdvertiserOrganization,
     MembershipRole,
@@ -23,6 +25,13 @@ from app.models.retargeting_source import (
     RetargetingSourceEvent,
     RetargetingSourceIdempotency,
 )
+from app.models.retargeting_source_link import (
+    RetargetingSourceLink,
+    RetargetingSourceLinkEvent,
+    RetargetingSourceLinkIdempotency,
+)
+from app.models.user import User, UserRole, UserStatus
+from app.schemas.retargeting_source_links import RetargetingSourceLinkCreate
 from app.schemas.retargeting_sources import RetargetingSourceCreate
 from app.services.audit import create_audit_event
 from app.services.disclosure import ensure_disclosure_live_gate
@@ -42,6 +51,16 @@ def _source_status(source: RetargetingSource, now: datetime) -> str:
     if expires_at.tzinfo is None or expires_at.tzinfo.utcoffset(expires_at) is None:
         expires_at = expires_at.replace(tzinfo=UTC)
     return "expired" if expires_at <= now else "active"
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _iso_utc(value: datetime | None) -> str | None:
+    return _as_utc(value).isoformat() if value is not None else None
 
 
 def _source_not_found() -> AppError:
@@ -84,6 +103,22 @@ async def _advertiser_membership(
             "ORGANIZATION_WRITE_FORBIDDEN", "Owner or manager access is required", status_code=403
         )
     return membership
+
+
+async def _active_admin(session: AsyncSession, actor_user_id: UUID) -> None:
+    admin_id = await session.scalar(
+        select(User.id).where(
+            User.id == actor_user_id,
+            User.role == UserRole.ADMIN,
+            User.status == UserStatus.ACTIVE,
+        )
+    )
+    if admin_id is None:
+        raise AppError(
+            "FORBIDDEN_ROLE",
+            "Admin role is required",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
 
 
 async def _idempotency_lock(
@@ -346,3 +381,382 @@ async def get_admin_retargeting_source(
 
 async def source_effective_status(session: AsyncSession, source: RetargetingSource) -> str:
     return _source_status(source, await database_clock(session))
+
+
+def _parent_fingerprint(value: dict) -> str:
+    return _canonical_hash(value)
+
+
+def _source_fingerprint(source: RetargetingSource) -> str:
+    return _parent_fingerprint(
+        {
+            "snapshot": source.snapshot_sha256,
+            "status": source.status,
+            "expires_at": _iso_utc(source.expires_at),
+        }
+    )
+
+
+def _campaign_fingerprint(campaign: Campaign) -> str:
+    return _parent_fingerprint(
+        {
+            "id": str(campaign.id),
+            "organization_id": str(campaign.organization_id),
+            "status": campaign.status,
+            "start_at": _iso_utc(campaign.start_at),
+            "end_at": _iso_utc(campaign.end_at),
+        }
+    )
+
+
+def _zone_fingerprint(zone: CampaignZone) -> str:
+    return _parent_fingerprint(
+        {
+            "id": str(zone.id),
+            "campaign_id": str(zone.campaign_id),
+            "zone_type": zone.zone_type,
+            "updated_at": _iso_utc(zone.updated_at),
+        }
+    )
+
+
+async def _link_idempotency_lock(
+    session: AsyncSession, actor_user_id: UUID, operation: str, key: str
+) -> None:
+    if session.get_bind().dialect.name != "postgresql":
+        return
+    digest = hashlib.sha256(
+        f"retargeting-link-v1:{actor_user_id}:{operation}:{key}".encode()
+    ).digest()[:8]
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(:key)"),
+        {"key": int.from_bytes(digest, "big", signed=True)},
+    )
+
+
+async def _link_replay(
+    session: AsyncSession, actor_user_id: UUID, operation: str, key: str, fingerprint: str
+) -> RetargetingSourceLink | None:
+    row = await session.scalar(
+        select(RetargetingSourceLinkIdempotency).where(
+            RetargetingSourceLinkIdempotency.actor_user_id == actor_user_id,
+            RetargetingSourceLinkIdempotency.operation == operation,
+            RetargetingSourceLinkIdempotency.idempotency_key == key,
+        )
+    )
+    if row is None:
+        return None
+    if row.request_fingerprint != fingerprint:
+        raise AppError(
+            "RETARGETING_SOURCE_LINK_IDEMPOTENCY_CONFLICT",
+            "Idempotency key was reused with a different request",
+            status_code=409,
+        )
+    link = await session.get(RetargetingSourceLink, row.link_id)
+    if link is None:
+        raise RuntimeError("Retargeting link idempotency row has no link")
+    return link
+
+
+async def create_retargeting_source_link(
+    session: AsyncSession,
+    *,
+    settings: Settings,
+    actor_user_id: UUID,
+    payload: RetargetingSourceLinkCreate,
+    idempotency_key: str,
+) -> RetargetingSourceLink:
+    await _privacy_gate(settings)
+    membership = await _advertiser_membership(session, actor_user_id=actor_user_id, write=True)
+    request = payload.model_dump(mode="json")
+    fingerprint = _canonical_hash(request)
+    await _link_idempotency_lock(session, actor_user_id, "create", idempotency_key)
+    replay = await _link_replay(session, actor_user_id, "create", idempotency_key, fingerprint)
+    if replay is not None:
+        return replay
+    source = await session.scalar(
+        select(RetargetingSource)
+        .where(
+            RetargetingSource.id == payload.source_id,
+            RetargetingSource.organization_id == membership.organization_id,
+        )
+        .with_for_update()
+    )
+    if source is None:
+        raise _source_not_found()
+    campaign = await session.scalar(
+        select(Campaign)
+        .where(
+            Campaign.id == payload.campaign_id,
+            Campaign.organization_id == membership.organization_id,
+        )
+        .with_for_update()
+    )
+    if campaign is None:
+        raise AppError(
+            "RETARGETING_LINK_CAMPAIGN_NOT_FOUND", "Campaign was not found", status_code=404
+        )
+    zone = await session.scalar(
+        select(CampaignZone).where(CampaignZone.id == payload.zone_id).with_for_update()
+    )
+    if zone is None or zone.campaign_id != campaign.id or zone.zone_type != "target":
+        raise AppError(
+            "RETARGETING_LINK_TARGET_ZONE_REQUIRED",
+            "A target zone for the selected campaign is required",
+            status_code=409,
+        )
+    now = await database_clock(session)
+    if source.status != "active" or _source_status(source, now) != "active":
+        raise AppError(
+            "RETARGETING_LINK_SOURCE_INACTIVE",
+            "An active unexpired source is required",
+            status_code=409,
+        )
+    if (
+        (campaign.start_at and payload.start_at < _as_utc(campaign.start_at))
+        or (campaign.end_at and payload.end_at > _as_utc(campaign.end_at))
+        or payload.end_at > _as_utc(source.expires_at)
+    ):
+        raise AppError(
+            "RETARGETING_LINK_WINDOW_INVALID",
+            "Link window is outside campaign or source bounds",
+            status_code=409,
+        )
+    source_fp, campaign_fp, zone_fp = (
+        _source_fingerprint(source),
+        _campaign_fingerprint(campaign),
+        _zone_fingerprint(zone),
+    )
+    snapshot = {
+        "organization_id": str(membership.organization_id),
+        "source_id": str(source.id),
+        "campaign_id": str(campaign.id),
+        "zone_id": str(zone.id),
+        "start_at": payload.start_at.isoformat(),
+        "end_at": payload.end_at.isoformat(),
+        "source_fingerprint": source_fp,
+        "campaign_fingerprint": campaign_fp,
+        "zone_fingerprint": zone_fp,
+    }
+    snapshot_hash = _canonical_hash(snapshot)
+    existing = await session.scalar(
+        select(RetargetingSourceLink)
+        .where(
+            RetargetingSourceLink.source_id == source.id,
+            RetargetingSourceLink.campaign_id == campaign.id,
+            RetargetingSourceLink.zone_id == zone.id,
+            RetargetingSourceLink.start_at == payload.start_at,
+            RetargetingSourceLink.end_at == payload.end_at,
+            RetargetingSourceLink.status == "active",
+        )
+        .with_for_update()
+    )
+    if existing is not None:
+        raise AppError(
+            "RETARGETING_SOURCE_LINK_ALREADY_ACTIVE",
+            "An identical active link already exists",
+            status_code=409,
+        )
+    link = RetargetingSourceLink(
+        organization_id=membership.organization_id,
+        source_id=source.id,
+        campaign_id=campaign.id,
+        zone_id=zone.id,
+        start_at=payload.start_at,
+        end_at=payload.end_at,
+        source_fingerprint=source_fp,
+        campaign_fingerprint=campaign_fp,
+        zone_fingerprint=zone_fp,
+        snapshot=snapshot,
+        snapshot_sha256=snapshot_hash,
+        created_at=now,
+    )
+    session.add(link)
+    await session.flush()
+    session.add(
+        RetargetingSourceLinkEvent(
+            link_id=link.id,
+            sequence_number=1,
+            event_type="created",
+            snapshot=snapshot,
+            snapshot_sha256=snapshot_hash,
+            created_at=now,
+        )
+    )
+    session.add(
+        RetargetingSourceLinkIdempotency(
+            actor_user_id=actor_user_id,
+            operation="create",
+            idempotency_key=idempotency_key,
+            request_fingerprint=fingerprint,
+            link_id=link.id,
+            created_at=now,
+        )
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="retargeting_source_link.created",
+        entity_type="retargeting_source_link",
+        entity_id=str(link.id),
+        metadata={
+            "organization_id": str(link.organization_id),
+            "source_id": str(link.source_id),
+            "campaign_id": str(link.campaign_id),
+            "zone_id": str(link.zone_id),
+        },
+    )
+    await session.flush()
+    return link
+
+
+async def _link_access(
+    session: AsyncSession,
+    *,
+    settings: Settings,
+    actor_user_id: UUID,
+    link_id: UUID,
+    write: bool,
+    admin: bool = False,
+) -> RetargetingSourceLink:
+    await _privacy_gate(settings)
+    organization_id: UUID | None = None
+    if admin:
+        await _active_admin(session, actor_user_id)
+    else:
+        organization_id = (
+            await _advertiser_membership(session, actor_user_id=actor_user_id, write=write)
+        ).organization_id
+    statement = select(RetargetingSourceLink).where(RetargetingSourceLink.id == link_id)
+    if organization_id is not None:
+        statement = statement.where(RetargetingSourceLink.organization_id == organization_id)
+    if write:
+        statement = statement.with_for_update()
+    link = await session.scalar(statement)
+    if link is None:
+        raise AppError(
+            "RETARGETING_SOURCE_LINK_NOT_FOUND",
+            "Retargeting source link was not found",
+            status_code=404,
+        )
+    return link
+
+
+async def list_retargeting_source_links(
+    session: AsyncSession,
+    *,
+    settings: Settings,
+    actor_user_id: UUID,
+    admin: bool = False,
+) -> list[RetargetingSourceLink]:
+    await _privacy_gate(settings)
+    statement = select(RetargetingSourceLink).order_by(RetargetingSourceLink.created_at.desc())
+    if admin:
+        await _active_admin(session, actor_user_id)
+    else:
+        membership = await _advertiser_membership(session, actor_user_id=actor_user_id, write=False)
+        statement = statement.where(
+            RetargetingSourceLink.organization_id == membership.organization_id
+        )
+    return list(await session.scalars(statement))
+
+
+async def retargeting_source_link_history(
+    session: AsyncSession, *, link: RetargetingSourceLink
+) -> list[RetargetingSourceLinkEvent]:
+    return list(
+        await session.scalars(
+            select(RetargetingSourceLinkEvent)
+            .where(RetargetingSourceLinkEvent.link_id == link.id)
+            .order_by(RetargetingSourceLinkEvent.sequence_number)
+        )
+    )
+
+
+async def remove_retargeting_source_link(
+    session: AsyncSession,
+    *,
+    settings: Settings,
+    actor_user_id: UUID,
+    link_id: UUID,
+    idempotency_key: str,
+) -> RetargetingSourceLink:
+    await _privacy_gate(settings)
+    membership = await _advertiser_membership(session, actor_user_id=actor_user_id, write=True)
+    fingerprint = _canonical_hash({"link_id": str(link_id)})
+    await _link_idempotency_lock(session, actor_user_id, "remove", idempotency_key)
+    replay = await _link_replay(session, actor_user_id, "remove", idempotency_key, fingerprint)
+    if replay is not None:
+        return replay
+    source = await session.scalar(
+        select(RetargetingSource)
+        .join(RetargetingSourceLink, RetargetingSourceLink.source_id == RetargetingSource.id)
+        .where(
+            RetargetingSourceLink.id == link_id,
+            RetargetingSourceLink.organization_id == membership.organization_id,
+        )
+        .with_for_update(of=RetargetingSource)
+    )
+    link = await _link_access(
+        session, settings=settings, actor_user_id=actor_user_id, link_id=link_id, write=True
+    )
+    if source is None:
+        raise AppError(
+            "RETARGETING_SOURCE_LINK_NOT_FOUND",
+            "Retargeting source link was not found",
+            status_code=404,
+        )
+    if link.status != "active":
+        raise AppError(
+            "RETARGETING_SOURCE_LINK_NOT_ACTIVE",
+            "Retargeting source link is already removed",
+            status_code=409,
+        )
+    now = await database_clock(session)
+    link.status, link.removed_at = "removed", now
+    session.add(
+        RetargetingSourceLinkEvent(
+            link_id=link.id,
+            sequence_number=2,
+            event_type="removed",
+            snapshot=link.snapshot,
+            snapshot_sha256=link.snapshot_sha256,
+            created_at=now,
+        )
+    )
+    session.add(
+        RetargetingSourceLinkIdempotency(
+            actor_user_id=actor_user_id,
+            operation="remove",
+            idempotency_key=idempotency_key,
+            request_fingerprint=fingerprint,
+            link_id=link.id,
+            created_at=now,
+        )
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="retargeting_source_link.removed",
+        entity_type="retargeting_source_link",
+        entity_id=str(link.id),
+        metadata={"organization_id": str(link.organization_id), "source_id": str(link.source_id)},
+    )
+    await session.flush()
+    return link
+
+
+async def link_is_stale(session: AsyncSession, link: RetargetingSourceLink) -> bool:
+    source = await session.get(RetargetingSource, link.source_id)
+    campaign = await session.get(Campaign, link.campaign_id)
+    zone = await session.get(CampaignZone, link.zone_id)
+    now = await database_clock(session)
+    return (
+        source is None
+        or campaign is None
+        or zone is None
+        or _source_status(source, now) != "active"
+        or _source_fingerprint(source) != link.source_fingerprint
+        or _campaign_fingerprint(campaign) != link.campaign_fingerprint
+        or _zone_fingerprint(zone) != link.zone_fingerprint
+    )

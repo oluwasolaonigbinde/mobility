@@ -1,7 +1,7 @@
 # PKG-05 delivery contract and plan
 
-Status: REVIEWED — PASS. Product and authority-document implementation may
-proceed within this contract.
+Status: FRONTIER CLOSED — PASS. W3-00A/D/C and W3-01A/B are complete;
+remaining checkpoints are dependency-blocked and PKG-06/W3-03A is NEXT.
 
 Base: `feat/pkg-04` / `2309947dbfe91553a5c0243f3a5091dfa9cbdd25`
 
@@ -113,7 +113,8 @@ Integration order is strictly S1 → S2 → S3 → S4 → S5. Migrations, public
 contracts, shared disclosure configuration, API baselines, and authority docs
 are controller-owned and serialized. After S5, if all remaining items are
 blocked/transitively blocked, mark PKG-05 BLOCKED with the concrete dependency
-and external state; do not promote or close it.
+and external state. Repository control then promotes the first later runnable
+package without claiming Package 5 DONE or starting that later package.
 
 ## Adversarial-boundary matrix
 
@@ -186,3 +187,28 @@ inside PKG-05 authority.
   handling.
 - Reconciliation: all six corrections are incorporated above.
 - Recheck verdict: PASS. No material scope or authority conflict remains.
+
+## Integration evidence (25 Aug 2026)
+
+- Package 4 repair head `2bc94356f03c76900585de71b6a0189be9e9666c`
+  is an ancestor through merge commit `d52b0dd`; the post-adoption seam set
+  passed 28 with 10 environment skips and the chain is 0044 → 0045 → 0046 →
+  0047 with one head.
+- W3-01B focused backend/API/contract checks passed. Five real-PostgreSQL
+  checks passed against the local isolated-schema/throwaway-database harness:
+  the 0045–0047 migration chain plus source/link retry and parent-lock races.
+  Frontend link actions passed 2/2, typecheck and lint passed, and
+  the production webpack build passed. The default Turbopack build cannot
+  traverse this worktree's external `node_modules` symlink.
+- Aggregate backend: 722 passed, 244 environment-only skips, two deprecation
+  warnings. Aggregate frontend: 40 files / 212 tests passed. Progress validator,
+  95 control/migration/measurement fixtures, Ruff and diff checks pass.
+- The synthetic API/service lifecycle covers advertiser source creation,
+  campaign/zone/time linkage, history/removal, tenant denial, active-admin
+  monitoring and fail-closed production gates. No browser/live-stack linkage
+  journey exists in the current suite; none is claimed.
+- The single consolidated privacy/authorization/minimal-change review returned
+  FIX for premature promotion, skipped PostgreSQL evidence and unrelated test
+  formatting. Promotion was deferred, five real-PostgreSQL cases passed, the
+  formatting hunk was removed, and the same reviewer rechecked PASS before the
+  control-plane transition.

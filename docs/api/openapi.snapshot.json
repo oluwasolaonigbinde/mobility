@@ -11144,6 +11144,291 @@
         "title": "RetargetingSourceHistoryRead",
         "type": "object"
       },
+      "RetargetingSourceLinkCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "end_at": {
+            "format": "date-time",
+            "title": "End At",
+            "type": "string"
+          },
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          },
+          "start_at": {
+            "format": "date-time",
+            "title": "Start At",
+            "type": "string"
+          },
+          "zone_id": {
+            "format": "uuid",
+            "title": "Zone Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "campaign_id",
+          "zone_id",
+          "start_at",
+          "end_at"
+        ],
+        "title": "RetargetingSourceLinkCreate",
+        "type": "object"
+      },
+      "RetargetingSourceLinkEventRead": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "event_type": {
+            "enum": [
+              "created",
+              "removed"
+            ],
+            "title": "Event Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "sequence_number": {
+            "title": "Sequence Number",
+            "type": "integer"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/RetargetingSourceLinkSnapshot"
+          },
+          "snapshot_sha256": {
+            "title": "Snapshot Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sequence_number",
+          "event_type",
+          "snapshot",
+          "snapshot_sha256",
+          "created_at"
+        ],
+        "title": "RetargetingSourceLinkEventRead",
+        "type": "object"
+      },
+      "RetargetingSourceLinkHistoryRead": {
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/RetargetingSourceLinkEventRead"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "link": {
+            "$ref": "#/components/schemas/RetargetingSourceLinkRead"
+          }
+        },
+        "required": [
+          "link",
+          "events"
+        ],
+        "title": "RetargetingSourceLinkHistoryRead",
+        "type": "object"
+      },
+      "RetargetingSourceLinkListRead": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RetargetingSourceLinkRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "RetargetingSourceLinkListRead",
+        "type": "object"
+      },
+      "RetargetingSourceLinkRead": {
+        "additionalProperties": false,
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "end_at": {
+            "format": "date-time",
+            "title": "End At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "removed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Removed At"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/RetargetingSourceLinkSnapshot"
+          },
+          "snapshot_sha256": {
+            "title": "Snapshot Sha256",
+            "type": "string"
+          },
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "start_at": {
+            "format": "date-time",
+            "title": "Start At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "removed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "zone_id": {
+            "format": "uuid",
+            "title": "Zone Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "organization_id",
+          "source_id",
+          "campaign_id",
+          "zone_id",
+          "start_at",
+          "end_at",
+          "status",
+          "stale",
+          "snapshot",
+          "snapshot_sha256",
+          "created_at",
+          "removed_at"
+        ],
+        "title": "RetargetingSourceLinkRead",
+        "type": "object"
+      },
+      "RetargetingSourceLinkSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "campaign_fingerprint": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Campaign Fingerprint",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "end_at": {
+            "format": "date-time",
+            "title": "End At",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "source_fingerprint": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Source Fingerprint",
+            "type": "string"
+          },
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          },
+          "start_at": {
+            "format": "date-time",
+            "title": "Start At",
+            "type": "string"
+          },
+          "zone_fingerprint": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Zone Fingerprint",
+            "type": "string"
+          },
+          "zone_id": {
+            "format": "uuid",
+            "title": "Zone Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "organization_id",
+          "source_id",
+          "campaign_id",
+          "zone_id",
+          "start_at",
+          "end_at",
+          "source_fingerprint",
+          "campaign_fingerprint",
+          "zone_fingerprint"
+        ],
+        "title": "RetargetingSourceLinkSnapshot",
+        "type": "object"
+      },
       "RetargetingSourceListRead": {
         "additionalProperties": false,
         "properties": {
@@ -18722,6 +19007,128 @@
         ]
       }
     },
+    "/api/v1/admin/retargeting-source-links": {
+      "get": {
+        "operationId": "admin_list_links_api_v1_admin_retargeting_source_links_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceLinkListRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin List Links",
+        "tags": [
+          "Retargeting Source Links"
+        ]
+      }
+    },
+    "/api/v1/admin/retargeting-source-links/{link_id}": {
+      "get": {
+        "operationId": "admin_get_link_api_v1_admin_retargeting_source_links__link_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceLinkRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Get Link",
+        "tags": [
+          "Retargeting Source Links"
+        ]
+      }
+    },
+    "/api/v1/admin/retargeting-source-links/{link_id}/history": {
+      "get": {
+        "operationId": "admin_link_history_api_v1_admin_retargeting_source_links__link_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceLinkHistoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Link History",
+        "tags": [
+          "Retargeting Source Links"
+        ]
+      }
+    },
     "/api/v1/admin/retargeting-sources": {
       "get": {
         "operationId": "list_admin_sources_api_v1_admin_retargeting_sources_get",
@@ -22236,6 +22643,244 @@
         "summary": "Advertiser Accept Quote",
         "tags": [
           "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/advertiser/retargeting-source-links": {
+      "get": {
+        "operationId": "list_links_api_v1_advertiser_retargeting_source_links_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceLinkListRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Links",
+        "tags": [
+          "Retargeting Source Links"
+        ]
+      },
+      "post": {
+        "operationId": "create_link_api_v1_advertiser_retargeting_source_links_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetargetingSourceLinkCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceLinkRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Link",
+        "tags": [
+          "Retargeting Source Links"
+        ]
+      }
+    },
+    "/api/v1/advertiser/retargeting-source-links/{link_id}": {
+      "get": {
+        "operationId": "get_link_api_v1_advertiser_retargeting_source_links__link_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceLinkRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Link",
+        "tags": [
+          "Retargeting Source Links"
+        ]
+      }
+    },
+    "/api/v1/advertiser/retargeting-source-links/{link_id}/history": {
+      "get": {
+        "operationId": "link_history_api_v1_advertiser_retargeting_source_links__link_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceLinkHistoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Link History",
+        "tags": [
+          "Retargeting Source Links"
+        ]
+      }
+    },
+    "/api/v1/advertiser/retargeting-source-links/{link_id}/remove": {
+      "post": {
+        "operationId": "remove_link_api_v1_advertiser_retargeting_source_links__link_id__remove_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Link Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceLinkRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Remove Link",
+        "tags": [
+          "Retargeting Source Links"
         ]
       }
     },

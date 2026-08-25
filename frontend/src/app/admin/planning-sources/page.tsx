@@ -11,8 +11,12 @@ export const metadata: Metadata = { title: "Planning source monitoring" };
 
 export default async function AdminPlanningSourcesPage() {
   const api = createApiClient(await getSessionToken());
-  const { data } = await api.GET("/api/v1/admin/retargeting-sources");
+  const [{ data }, { data: linkData }] = await Promise.all([
+    api.GET("/api/v1/admin/retargeting-sources"),
+    api.GET("/api/v1/admin/retargeting-source-links"),
+  ]);
   const items = data?.items ?? [];
+  const links = linkData?.items ?? [];
   return (
     <div className="animate-rise mx-auto max-w-6xl">
       <PageHeader
@@ -64,6 +68,52 @@ export default async function AdminPlanningSourcesPage() {
           </div>
         </Panel>
       )}
+      <section className="mt-6" aria-labelledby="admin-source-links-heading">
+        <h2 id="admin-source-links-heading" className="mb-3 font-medium">
+          Campaign and target-zone links
+        </h2>
+        {links.length === 0 ? (
+          <EmptyState title="No source links" body="Advertiser source linkages will appear here." />
+        ) : (
+          <Panel className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] text-sm">
+                <thead>
+                  <tr className="border-edge text-muted border-b text-left">
+                    <th className="px-5 py-3 font-normal">Organization</th>
+                    <th className="px-5 py-3 font-normal">Campaign</th>
+                    <th className="px-5 py-3 font-normal">Target zone</th>
+                    <th className="px-5 py-3 font-normal">Status</th>
+                    <th className="px-5 py-3 font-normal">Window</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {links.map((link) => (
+                    <tr key={link.id} className="border-edge/60 border-b last:border-0">
+                      <td className="px-5 py-4 font-mono text-xs">{link.organization_id}</td>
+                      <td className="px-5 py-4 font-mono text-xs">{link.campaign_id}</td>
+                      <td className="px-5 py-4 font-mono text-xs">{link.zone_id}</td>
+                      <td className="px-5 py-4">
+                        <StatusChip tone={link.status === "active" ? "green" : "default"}>
+                          {link.status}
+                        </StatusChip>
+                        {link.stale ? (
+                          <StatusChip tone="coral" className="ml-2">
+                            stale
+                          </StatusChip>
+                        ) : null}
+                      </td>
+                      <td className="px-5 py-4 text-xs">
+                        {formatDate(link.start_at)} → {formatDate(link.end_at)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        )}
+      </section>
       <p className="micro text-faint mt-5">
         Monitoring is read-only. Live use remains unavailable until legal/privacy approval evidence
         is recorded.

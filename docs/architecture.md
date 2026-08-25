@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.45 — 2026-08-24. Canonical source of truth: current state AND target state.**
+**Version 1.46 — 2026-08-25. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1656,7 +1656,7 @@ allowlists aggregate geography/cell, time-window and contextual campaign
 fields and rejects identity fields, free-form person-level data and raw route
 coordinates. Export ships disabled until Q31 legal sign-off.
 
-### 22.4 Retargeting sources & follow-up insights (D11) [PARTIAL — W3-01A BUILT]
+### 22.4 Retargeting sources & follow-up insights (D11) [PARTIAL — W3-01A/B BUILT]
 
 The inbound half of Module G: a `retargeting_sources` table (advertiser-scoped;
 type ∈ website-traffic / digital-campaign-audience / CRM-upload-reference /
@@ -1676,8 +1676,14 @@ discriminated aggregate-only shapes, candidate/unapproved legal state, expiry,
 DSR fields, immutable create/deactivate history and actor-scoped retry identity
 share one closed API contract. The central §22.2 gate precedes every read and
 mutation, so live use remains denied while `EXT-LEGAL-PRIVACY` is missing.
-Campaign/zone/time linkage and all downstream insight/activation behavior in
-this section remain target work owned by W3-01B onward.
+W3-01B's migration `0047` adds the aggregate-only campaign/target-zone/time
+link projection, immutable create/remove history and retry evidence. The
+service takes source → campaign → zone → link locks, rechecks organization,
+lifecycle, expiry and date compatibility, and freezes typed source/campaign/
+zone fingerprints; later parent changes make the projection stale rather than
+rewriting its evidence. Advertiser management and active-admin monitoring are
+service-authorized behind the same privacy gate. Downstream segment, insight,
+export and activation behavior remains target work owned by W3-01C onward.
 
 Two proposal-promised metrics are the named product faces of these same
 aggregates (they are analytics surfaces, not new data): **high-exposure zone
@@ -2239,6 +2245,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.46 | 2026-08-25 | **W3-01B governed source/campaign/zone/time linkage delivered behind the privacy gate.** Migration `0047` adds tenant-scoped link projections, append-only create/remove evidence, actor/operation retry authority, parent fingerprints and populated-downgrade refusal. Source → campaign → zone → link ordering, active-tenant/admin service checks, window/ownership compatibility and stale projection semantics preserve concurrency, isolation and immutable history without raw-ping access. Advertiser setup/removal and read-only admin monitoring move with all three §9 baselines. Focused API/RBAC/lifecycle/retry/audit/migration/frontend and PostgreSQL parent-race evidence pass after independent review corrected service-admin and race coverage. `EXT-LEGAL-PRIVACY`, `EXT-REPORT-METHOD` and `EXT-AD-PLATFORM` remain MISSING; no live source use, person-level audience, report issuance, export or activation is authorized. Package 5's remaining checklist items stay dependency-blocked. |
 | v1.45 | 2026-08-24 | **W3-01A typed planning-source registry delivered behind the privacy gate.** Migration `0046` adds advertiser-organization projections, append-only create/deactivate evidence and actor/operation-scoped retry authority for exactly five discriminated aggregate-only D11 source shapes. Candidate provenance, explicitly unapproved basis/notice state, expiry and DSR fields move through one closed public contract; identifiers, URLs, uploads, notes and opaque metadata reject. Active-tenant/RBAC checks, DB-time expiry, populated downgrade refusal and PostgreSQL same-key concurrency proof preserve isolation and history. Advertiser management and read-only admin monitoring move with all three §9 baselines. Independent privacy/security review's open response-contract and concurrent-proof findings were corrected and rechecked PASS. `EXT-LEGAL-PRIVACY` remains MISSING; no live ingestion, approved basis, identity, upload, source linkage or raw-ping reader is authorized. |
 | v1.44 | 2026-08-24 | **W3-00C central disclosure control delivered; RM15 narrowed, not closed.** Migration `0045`, one service boundary and fail-closed Compose settings cover all eight current advertiser/report/heatmap outputs. Production denies before reads/history unless non-placeholder legal, threshold and retention references exist; report surfaces remain denied pending W3-00E. The sole grandfathered heatmap reader filters fixed/coarse cells by distinct vehicles, trips and days and requested-metric contributor share. Atomic served/suppressed history binds request and result identity, serializes global/organization/campaign overlap and blocks complementary/cross-principal/cross-endpoint/changed-result differencing; a daily DB-time worker purge enforces physical expiry and populated downgrade refuses loss. Focused PostgreSQL threshold, suppression, hierarchical sequential/concurrent, tenant/RBAC, migration/autogenerate and no-read/no-write gate evidence passes. Independent privacy/security/architecture review's parent/child-overlap and no-traffic-retention findings were corrected and rechecked PASS. Thresholds remain synthetic/unapproved, `EXT-LEGAL-PRIVACY` remains MISSING, and no live output or new raw-ping reader is authorized. |
 | v1.43 | 2026-08-24 | **W3-00D measurement methodology and claims contract delivered; RM16 narrowed, not closed.** A machine-checkable hierarchy now defines measured operational facts, modelled potential contacts, synthetic-only target-area coverage, driver campaign cost and conditional true ROI with units, provenance/vintage, missing-data and uncertainty rules. Current advertiser copy uses Campaign Performance Analysis and safe modelled-contact/model-diagnostic language. Performance-only and explicitly test-only ROI goldens prove omission and gate arithmetic without supplying approval. Production ROI and live issuance remain disabled; `EXT-REPORT-METHOD` remains MISSING. Four focused contract/copy tests, frontend typecheck, 210 frontend tests, formatting/diff checks and independent measurement/legal/commercial review pass after the model-confidence disclaimer was made explicit. W3-00E run/proof manifests and W3-01 Module G controls remain outstanding. |

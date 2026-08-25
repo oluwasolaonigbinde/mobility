@@ -1147,6 +1147,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/retargeting-source-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin List Links */
+        get: operations["admin_list_links_api_v1_admin_retargeting_source_links_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retargeting-source-links/{link_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Get Link */
+        get: operations["admin_get_link_api_v1_admin_retargeting_source_links__link_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retargeting-source-links/{link_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Link History */
+        get: operations["admin_link_history_api_v1_admin_retargeting_source_links__link_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/retargeting-sources": {
         parameters: {
             query?: never;
@@ -1852,6 +1903,75 @@ export interface paths {
         put?: never;
         /** Advertiser Accept Quote */
         post: operations["advertiser_accept_quote_api_v1_advertiser_quotations__revision_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/retargeting-source-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Links */
+        get: operations["list_links_api_v1_advertiser_retargeting_source_links_get"];
+        put?: never;
+        /** Create Link */
+        post: operations["create_link_api_v1_advertiser_retargeting_source_links_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/retargeting-source-links/{link_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Link */
+        get: operations["get_link_api_v1_advertiser_retargeting_source_links__link_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/retargeting-source-links/{link_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Link History */
+        get: operations["link_history_api_v1_advertiser_retargeting_source_links__link_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/retargeting-source-links/{link_id}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Remove Link */
+        post: operations["remove_link_api_v1_advertiser_retargeting_source_links__link_id__remove_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6623,6 +6743,164 @@ export interface components {
             events: components["schemas"]["RetargetingSourceEventRead"][];
             source: components["schemas"]["RetargetingSourceRead"];
         };
+        /** RetargetingSourceLinkCreate */
+        RetargetingSourceLinkCreate: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Source Id
+             * Format: uuid
+             */
+            source_id: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * Zone Id
+             * Format: uuid
+             */
+            zone_id: string;
+        };
+        /** RetargetingSourceLinkEventRead */
+        RetargetingSourceLinkEventRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Event Type
+             * @enum {string}
+             */
+            event_type: "created" | "removed";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Sequence Number */
+            sequence_number: number;
+            snapshot: components["schemas"]["RetargetingSourceLinkSnapshot"];
+            /** Snapshot Sha256 */
+            snapshot_sha256: string;
+        };
+        /** RetargetingSourceLinkHistoryRead */
+        RetargetingSourceLinkHistoryRead: {
+            /** Events */
+            events: components["schemas"]["RetargetingSourceLinkEventRead"][];
+            link: components["schemas"]["RetargetingSourceLinkRead"];
+        };
+        /** RetargetingSourceLinkListRead */
+        RetargetingSourceLinkListRead: {
+            /** Items */
+            items: components["schemas"]["RetargetingSourceLinkRead"][];
+            /** Total */
+            total: number;
+        };
+        /** RetargetingSourceLinkRead */
+        RetargetingSourceLinkRead: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Removed At */
+            removed_at: string | null;
+            snapshot: components["schemas"]["RetargetingSourceLinkSnapshot"];
+            /** Snapshot Sha256 */
+            snapshot_sha256: string;
+            /**
+             * Source Id
+             * Format: uuid
+             */
+            source_id: string;
+            /** Stale */
+            stale: boolean;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "removed";
+            /**
+             * Zone Id
+             * Format: uuid
+             */
+            zone_id: string;
+        };
+        /** RetargetingSourceLinkSnapshot */
+        RetargetingSourceLinkSnapshot: {
+            /** Campaign Fingerprint */
+            campaign_fingerprint: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Source Fingerprint */
+            source_fingerprint: string;
+            /**
+             * Source Id
+             * Format: uuid
+             */
+            source_id: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+            /** Zone Fingerprint */
+            zone_fingerprint: string;
+            /**
+             * Zone Id
+             * Format: uuid
+             */
+            zone_id: string;
+        };
         /** RetargetingSourceListRead */
         RetargetingSourceListRead: {
             /** Items */
@@ -10097,6 +10375,88 @@ export interface operations {
             };
         };
     };
+    admin_list_links_api_v1_admin_retargeting_source_links_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetargetingSourceLinkListRead"];
+                };
+            };
+        };
+    };
+    admin_get_link_api_v1_admin_retargeting_source_links__link_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetargetingSourceLinkRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_link_history_api_v1_admin_retargeting_source_links__link_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetargetingSourceLinkHistoryRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_admin_sources_api_v1_admin_retargeting_sources_get: {
         parameters: {
             query?: never;
@@ -11820,6 +12180,156 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommercialTermsRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_links_api_v1_advertiser_retargeting_source_links_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetargetingSourceLinkListRead"];
+                };
+            };
+        };
+    };
+    create_link_api_v1_advertiser_retargeting_source_links_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetargetingSourceLinkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetargetingSourceLinkRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_link_api_v1_advertiser_retargeting_source_links__link_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetargetingSourceLinkRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    link_history_api_v1_advertiser_retargeting_source_links__link_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetargetingSourceLinkHistoryRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_link_api_v1_advertiser_retargeting_source_links__link_id__remove_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetargetingSourceLinkRead"];
                 };
             };
             /** @description Validation Error */
