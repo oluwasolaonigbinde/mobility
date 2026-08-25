@@ -11,7 +11,7 @@ import { Stat } from "@/components/ui/stat";
 import { StatusChip } from "@/components/ui/status-chip";
 import { AreaTimeseries, BarTimeseries, type SeriesPoint } from "@/components/charts/timeseries";
 
-export const metadata: Metadata = { title: "Campaign report" };
+export const metadata: Metadata = { title: "Campaign Performance Analysis" };
 
 const shortDate = new Intl.DateTimeFormat("en-NG", { day: "numeric", month: "short" });
 
@@ -61,7 +61,9 @@ export default async function CampaignReportPage({
       </nav>
 
       <div className="mb-8 flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Attribution report</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">
+          Campaign Performance Analysis
+        </h1>
         <StatusChip tone={statusTone[c.status]}>{statusLabel[c.status]}</StatusChip>
         <span className="micro text-faint">
           {report.start_at || report.end_at
@@ -73,9 +75,9 @@ export default async function CampaignReportPage({
       {/* Headline numbers */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat
-          label="Est. impressions"
+          label="Modelled potential contacts"
           value={formatCount(report.impression_summary.estimated_impressions)}
-          hint={`${formatCount(report.impression_summary.estimated_trip_count)} estimated trips · ${formatScore(report.impression_summary.average_confidence_score)} confidence`}
+          hint={`${formatCount(report.impression_summary.estimated_trip_count)} estimated trips · ${formatScore(report.impression_summary.average_confidence_score)} model diagnostic (not a statistical confidence interval)`}
         />
         <Stat
           label="Trips analyzed"
@@ -87,7 +89,9 @@ export default async function CampaignReportPage({
           label="Driver campaign cost"
           value={cost ? formatMoney(cost.final_payout_total, cost.currency) : "—"}
           tone="green"
-          hint={cost ? `${formatCount(cost.calculated_trip_count)} calculated driver trips` : undefined}
+          hint={
+            cost ? `${formatCount(cost.calculated_trip_count)} calculated driver trips` : undefined
+          }
         />
         <Stat
           label="Open fraud flags"
@@ -100,12 +104,14 @@ export default async function CampaignReportPage({
       {/* Charts */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <Panel className="p-6">
-          <h2 className="micro text-muted mb-1">Estimated impressions · daily</h2>
-          <p className="text-faint mb-4 text-xs">GPS-verified exposure, formula {""}v1</p>
+          <h2 className="micro text-muted mb-1">Modelled potential contacts · daily</h2>
+          <p className="text-faint mb-4 text-xs">
+            Modelled from verified vehicle movement · impressions_v1
+          </p>
           <AreaTimeseries
             points={impressionSeries}
             color="var(--color-amber)"
-            ariaLabel="Daily estimated impressions"
+            ariaLabel="Daily modelled potential contacts"
           />
         </Panel>
         <Panel className="p-6">
@@ -132,8 +138,8 @@ export default async function CampaignReportPage({
                 <th className="px-6 py-3 font-normal">Date</th>
                 <th className="px-4 py-3 text-right font-normal">Trips</th>
                 <th className="px-4 py-3 text-right font-normal">Distance</th>
-                <th className="px-4 py-3 text-right font-normal">Impressions</th>
-                <th className="px-4 py-3 text-right font-normal">Confidence</th>
+                <th className="px-4 py-3 text-right font-normal">Modelled contacts</th>
+                <th className="px-4 py-3 text-right font-normal">Model diagnostic</th>
                 <th className="px-4 py-3 text-right font-normal">Quality</th>
                 <th className="px-4 py-3 text-right font-normal">Driver cost</th>
                 <th className="px-6 py-3 text-right font-normal">Flags</th>

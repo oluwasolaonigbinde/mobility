@@ -122,6 +122,17 @@ class Settings(BaseSettings):
     heatmap_max_date_range_days: int = 90
     heatmap_max_cells: int = 5000
     heatmap_min_trips_per_cell: int = 1
+    privacy_disclosure_live_authorized: bool = False
+    privacy_disclosure_synthetic_test_mode: bool = False
+    privacy_legal_approval_reference: str = ""
+    privacy_disclosure_config_reference: str = ""
+    privacy_query_history_retention_reference: str = ""
+    privacy_query_history_retention_days: int = 30
+    privacy_min_vehicles_per_cell: int = 3
+    privacy_min_trips_per_cell: int = 5
+    privacy_min_days_per_cell: int = 2
+    privacy_max_contributor_share: float = 0.5
+    privacy_min_resolution_m: int = 500
     allow_demo_seed: bool = False
     # RM3 seal protocol: recovery window after an incomplete/legacy trip end
     # before the sweep force-seals; and how far past ended_at a late ping's
@@ -358,6 +369,26 @@ class Settings(BaseSettings):
             raise ValueError("HEATMAP_MIN_TRIPS_PER_CELL must be at least 1")
         return value
 
+    @field_validator(
+        "privacy_query_history_retention_days",
+        "privacy_min_vehicles_per_cell",
+        "privacy_min_trips_per_cell",
+        "privacy_min_days_per_cell",
+        "privacy_min_resolution_m",
+    )
+    @classmethod
+    def validate_positive_privacy_settings(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("Privacy disclosure settings must be positive")
+        return value
+
+    @field_validator("privacy_max_contributor_share")
+    @classmethod
+    def validate_privacy_contributor_share(cls, value: float) -> float:
+        if value <= 0 or value > 1:
+            raise ValueError("PRIVACY_MAX_CONTRIBUTOR_SHARE must be in (0, 1]")
+        return value
+
     @field_validator("worker_sweep_interval_minutes")
     @classmethod
     def validate_worker_sweep_interval_minutes(cls, value: int) -> int:
@@ -446,6 +477,8 @@ class Settings(BaseSettings):
             raise ValueError("PAYOUT_CRYPTO_KEY_VERSION must exist in PAYOUT_CRYPTO_KEYRING_B64")
         if self.impression_min_confidence > self.impression_max_confidence:
             raise ValueError("IMPRESSION_MIN_CONFIDENCE must not exceed IMPRESSION_MAX_CONFIDENCE")
+        if self.privacy_disclosure_synthetic_test_mode and self.environment.lower() != "test":
+            raise ValueError("PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE requires environment=test")
         if (
             self.payout_default_max_payout_per_trip is not None
             and self.payout_default_max_payout_per_trip < self.payout_default_min_payout_per_trip

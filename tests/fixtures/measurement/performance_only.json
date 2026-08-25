@@ -1,0 +1,19 @@
+{
+  "fixture": "performance_only",
+  "test_only": true,
+  "title": "Campaign Performance Analysis",
+  "mode": "performance_only",
+  "metrics": [
+    "verified_vehicle_movement",
+    "modelled_potential_contacts",
+    "target_area_coverage",
+    "driver_campaign_cost"
+  ],
+  "roi": null,
+  "roi_gate": {
+    "conversion_input": "MISSING",
+    "revenue_input": "MISSING",
+    "approved_method": "MISSING",
+    "decision": "OMIT"
+  }
+}

@@ -246,6 +246,9 @@ def test_live_use_gate_does_not_block_provider_neutral_item() -> None:
 
 def test_done_item_requires_done_item_dependencies() -> None:
     text = _progress().replace(
+        "| 49 | **W3-01A — typed retargeting source registry** | PKG-05 | DONE |",
+        "| 49 | **W3-01A — typed retargeting source registry** | PKG-05 | TODO |",
+    ).replace(
         "| 50 | **W3-01B — source/campaign/zone linkage** | PKG-05 | TODO |",
         "| 50 | **W3-01B — source/campaign/zone linkage** | PKG-05 | DONE |",
     )
@@ -553,8 +556,8 @@ def test_rejects_done_item_in_queued_package() -> None:
 
 def test_rejects_nonqueued_package_after_active_frontier() -> None:
     text = _progress().replace(
-        "| 6 | **PKG-06 — matching and driver onboarding** | QUEUED |",
-        "| 6 | **PKG-06 — matching and driver onboarding** | DONE |",
+        "| 7 | **PKG-07 — production driver PWA** | QUEUED |",
+        "| 7 | **PKG-07 — production driver PWA** | DONE |",
     )
     errors = _errors(text)
     assert any(

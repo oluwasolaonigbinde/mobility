@@ -44,6 +44,19 @@ AUDITED = {
         "admin.campaign_assignment.cancelled"
     ),
     ("POST", "/api/v1/advertiser/campaigns"): "advertiser.campaign.created",
+    ("POST", "/api/v1/advertiser/retargeting-sources"): "retargeting_source.created",
+    (
+        "POST",
+        "/api/v1/advertiser/retargeting-sources/{source_id}/deactivate",
+    ): "retargeting_source.deactivated",
+    (
+        "POST",
+        "/api/v1/advertiser/retargeting-source-links",
+    ): "retargeting_source_link.created",
+    (
+        "POST",
+        "/api/v1/advertiser/retargeting-source-links/{link_id}/remove",
+    ): "retargeting_source_link.removed",
     ("PATCH", "/api/v1/advertiser/campaigns/{campaign_id}"): "advertiser.campaign.updated",
     ("POST", "/api/v1/advertiser/campaigns/{campaign_id}/submit"): (
         "advertiser.campaign.submitted_for_review"

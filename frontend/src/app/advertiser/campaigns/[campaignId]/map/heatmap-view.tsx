@@ -30,10 +30,10 @@ const METRICS: Array<{
 }> = [
   {
     value: "estimated_impressions",
-    label: "Impressions",
-    hint: "Estimated exposure per area",
-    question: "Where was the campaign most likely seen?",
-    meaning: "Brighter squares represent more estimated impressions.",
+    label: "Modelled contacts",
+    hint: "Modelled potential contacts per area",
+    question: "Where does the model estimate more potential contacts?",
+    meaning: "Brighter squares represent more modelled potential contacts.",
   },
   {
     value: "ping_count",
@@ -89,7 +89,7 @@ function metricValue(metric: Metric, value: number): string {
   if (metric === "trip_count") {
     return `${compact(value)} ${value === 1 ? "trip" : "trips"}`;
   }
-  return `${compact(value)} estimated impressions`;
+  return `${compact(value)} modelled potential contacts`;
 }
 
 function refreshTime(value: string): string {

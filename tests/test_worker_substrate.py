@@ -117,7 +117,7 @@ def test_on_shutdown_tolerates_missing_engine() -> None:
 
 def test_worker_settings_importable_without_broker_or_database() -> None:
     assert len(WorkerSettings.functions) == 2
-    assert len(WorkerSettings.cron_jobs) == 7
+    assert len(WorkerSettings.cron_jobs) == 8
     assert WorkerSettings.keep_result == 0
     assert WorkerSettings.on_startup is worker.on_startup
     assert WorkerSettings.on_shutdown is worker.on_shutdown

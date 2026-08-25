@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.41 — 2026-08-24. Canonical source of truth: current state AND target state.**
+**Version 1.47 — 2026-08-25. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1626,6 +1626,25 @@ estimated impressions). Under Q11/D20, the platform's audience product is
 4. Retention rules (§24) apply upstream: purged pings are simply gone; audience
    aggregates (which carry no personal data) persist.
 
+**[BUILT W3-00C — software disclosure boundary; live approval OPEN]** Every
+current advertiser dashboard/report/metric route and both heatmap routes now
+enters `app/services/disclosure.py` at the service boundary. Production
+defaults denied before membership, data, or history reads unless legal,
+threshold-configuration and history-retention references are complete and
+non-placeholder; report routes remain separately denied pending W3-00E safe
+runs. The existing heatmap is still the only grandfathered raw-ping reader and
+now filters fixed/coarse cells by distinct vehicles, trips and days plus a
+requested-metric contributor-share cap. Served and suppressed decisions bind
+principal, tenant, campaign, endpoint, window, filters and result fingerprint.
+A single spatial-history transaction lock plus global/organization/campaign
+overlap comparison prevents complementary, cross-principal, cross-endpoint and
+changed-result differencing; exact unchanged retries converge. Migration
+`0045` creates the history authority with populated-downgrade refusal, and a
+daily DB-time worker purge enforces bounded expiry without depending on later
+query traffic. Numeric defaults are synthetic build parameters, not approved
+pilot thresholds. `EXT-LEGAL-PRIVACY` remains MISSING and no live output is
+authorized.
+
 ### 22.3 Shape (Q11 confirmed by D18/D20; scope per D11)
 
 New domain `app/services/audience.py` + `audience_segments` table (segment
@@ -1637,7 +1656,7 @@ allowlists aggregate geography/cell, time-window and contextual campaign
 fields and rejects identity fields, free-form person-level data and raw route
 coordinates. Export ships disabled until Q31 legal sign-off.
 
-### 22.4 Retargeting sources & follow-up insights (D11) [TARGET]
+### 22.4 Retargeting sources & follow-up insights (D11) [PARTIAL — W3-01A/B BUILT]
 
 The inbound half of Module G: a `retargeting_sources` table (advertiser-scoped;
 type ∈ website-traffic / digital-campaign-audience / CRM-upload-reference /
@@ -1651,6 +1670,20 @@ metadata, never identity data, and never join to raw pings. Admin gets a
 retargeting source/insight monitoring view. Placement: same audience domain
 (`services/audience.py`), advertiser + admin API surfaces, frontend under the
 existing role IA.
+
+W3-01A's inbound registry is built through migration `0046`: its five
+discriminated aggregate-only shapes, candidate/unapproved legal state, expiry,
+DSR fields, immutable create/deactivate history and actor-scoped retry identity
+share one closed API contract. The central §22.2 gate precedes every read and
+mutation, so live use remains denied while `EXT-LEGAL-PRIVACY` is missing.
+W3-01B's migration `0047` adds the aggregate-only campaign/target-zone/time
+link projection, immutable create/remove history and retry evidence. The
+service takes source → campaign → zone → link locks, rechecks organization,
+lifecycle, expiry and date compatibility, and freezes typed source/campaign/
+zone fingerprints; later parent changes make the projection stale rather than
+rewriting its evidence. Advertiser management and active-admin monitoring are
+service-authorized behind the same privacy gate. Downstream segment, insight,
+export and activation behavior remains target work owned by W3-01C onward.
 
 Two proposal-promised metrics are the named product faces of these same
 aggregates (they are analytics surfaces, not new data): **high-exposure zone
@@ -1758,10 +1791,18 @@ still Postgres territory with partitions + retention, not a new datastore.
    `recorded_at` filters prune); if it degrades, the sanctioned fix remains
    **precomputed heatmap cells materialised by a worker job**, not caching
    hacks.
-3. **Consent & policy (NDPR):** trip-scoped tracking is already the built
-   posture (tracking only between explicit start/end — Q10-area, keep it);
-   consent wording + privacy policy are client deliverables ([OPEN] Q31); the
-   driver app surfaces consent at onboarding (§19.3 agreement flow).
+3. **Privacy operating model [BUILT W3-00A; live approval OPEN]:** trip-scoped
+   tracking remains the built posture (tracking only between explicit
+   start/end — Q10-area). `docs/privacy-register.json` and
+   `docs/privacy-operating-model.md` now record DPIA/ROPA purposes and data
+   classes, organizational roles, candidate bases, retention dispositions,
+   recipients, processors/regions, notice/withdrawal and breach
+   responsibilities. Every legal basis, named privacy owner, approved wording,
+   final retention/DSR decision, provider and region remains explicitly
+   MISSING and `live_use_authorized=false`; the synthetic tabletop authorizes
+   no real data use. W3-00B still owns the end-to-end DSR/retention execution,
+   and `EXT-LEGAL-PRIVACY` still gates real GPS, KYC and advertiser/Module-G
+   live use.
 4. **Purge evidence** **[BUILT]** — *amendment (S4): a dedicated
    `data_purge_audit` table supersedes the earlier "an audit event records
    the purge run" sketch* (the compliance artifact must not couple to the
@@ -1905,6 +1946,20 @@ the report remains Campaign Performance Analysis and omits the ROI metric and
 ROI claim rather than estimating or relabelling one. CSV/PDF issuance, the UI
 and the pilot acceptance suite must reproduce that same choice from the frozen
 run and input manifest.
+
+**[BUILT W3-00D — build contract only; live method OPEN]**
+`docs/measurement-methodology.json` now fixes the metric class, unit,
+provenance, vintage, missing-data and uncertainty contract for current
+advertiser measures. Product copy presents the existing internal
+`estimated_impressions` output as **Modelled potential contacts**, names model
+confidence as a diagnostic rather than a statistical interval, and uses the
+standard deliverable title without attribution/view/reach/exposure claims. A
+synthetic-only candidate defines target-area coverage as disclosure-cleared
+qualifying fixed-cell area divided by immutable approved target-zone area; its
+live qualifying rule remains MISSING. Production ROI defaults omitted and the
+only enabled fixture is explicitly `test_only`; `EXT-REPORT-METHOD` remains
+MISSING. W3-00E still owns immutable run/proof-manifest persistence and is not
+claimed by this contract.
 
 ## 28. Testing strategy — target
 
@@ -2161,8 +2216,8 @@ the reviewer described.
 | **RM12** | G5/F08 | DESIGN-GAP | Nothing bounds driver liability by confirmed funding: invoice status proves an advertiser price was paid, §15.5 separates spend from driver cost, D4 caps per driver-day but not per campaign, and Q9 expansions apply immediately. Commercial terms are also not effective-dated, so recompute can price past work under never-accepted terms (compounding RM6). | Immutable campaign financial authorization (funded amount, approved subsidy, max driver liability); reserve `rate × cap × covered vehicle-days` at offer/assignment activation; Q9 expansions apply immediately only inside pre-funded headroom, else `pending_funding`; block new sessions past the reserve while honouring hours already validly performed. Add effective-dated snapshots for offers, payout rules, zones, eligibility params, and tax/billing config; each eligible interval resolves the revision then in force. Keep the liability reserve distinct from advertiser budget/spend. | §15/§16.1/§21, **W2 entry** |
 | **RM13** | G6, G7/F07, F06 | DESIGN-GAP | Three commercial-lifecycle contracts are missing: (a) **receipt identity** — no canonical external cash-receipt uniqueness, currency/amount match, or reconciled state, so one transfer can fund two obligations; (b) **cancellation** — no `financial_cutoff_at` that ingestion/classification/recompute/release all honour, and no settlement entity; (c) **activation** — campaign/assignment/installation/trip gates are described separately, not as one atomic invariant. | (a) One receipt = one immutable row (unique bank/provider transaction id, amount, currency, payer, evidence) with separate allocation rows; `observed → reconciled → confirmed | reversed`; activation counts only confirmed allocations; a reversal withdraws funding authority at a recorded cutoff. (b) One idempotent cancellation command under a campaign lock setting an immutable cutoff; clip payable intervals at it; append-only settlement revisions with unique external refund reference. (c) One atomic activation service that locks and re-reads every prerequisite and stores an activation snapshot; trip start rechecks campaign + assignment + approved evidence. | §15/§18/§21, **W2** |
 | **RM14** | F16 | **SCOPE SUPERSEDED / DEFERRED BY D18** | This row was raised against D11's former native-in-MVP promise. D18 now makes the production screen-on PWA the pilot client and moves native background execution, native credentials/storage, OS termination, push and store-review evidence to Phase 2. The risk is deferred, not falsely closed. | Preserve RM14 as the Phase 2 native acceptance contract. Pilot readiness instead proves the D15/D16 PWA queue/seal, explicit Start/End and screen-on fail-closed behaviour across the §23 Android/iOS browser/device matrix, including permission/revocation, reload/offline/retry, storage/lock failure, visibility degradation, battery, accuracy, completeness and sync latency. | §23; D18; R14/W4 IDs repurposed to production-PWA proof |
-| **RM15** | F09/F10/F11 | DESIGN-GAP | Privacy is treated as consent wording, not an operating model: no DPIA, ROPA, controller/processor allocation, or purpose-by-purpose lawful-basis matrix; **`k` counts distinct vehicles, which is not a valid anonymity claim** (a vehicle is a proxy for an owner-driver, not a data subject); the existing advertiser heatmap is exempt from the floor until a later release; retention beyond ping partitions is unscheduled and DSR/vendor/cross-border handling is incomplete. | Before any real-driver GPS: name controller/processor/privacy owner, complete a DPIA + ROPA, assign lawful basis per purpose, record notice/consent version + withdrawal. Before any advertiser heatmap: one central disclosure-control service on every query — coarse fixed cells/buckets, minimum vehicles **and** trips **and** days, contributor caps, complementary suppression, restricted filters, query-history limits, differencing tests; thresholds chosen from real pilot density; treat outputs as personal until a documented re-identification test says otherwise. Add a retention schedule per data class and a tested manual DSR runbook spanning DB, object store, device, logs, backups, and processors; keep a subprocessor/region register. | §22.2/§24, **before real GPS / before heatmap** |
-| **RM16** | F12/F14/F15 | DESIGN-GAP | The sellable metric has a `formula_version` but no metric class, methodology, provenance, uncertainty, or reproducibility contract, and no proof-of-performance binding creative + installation + assignment + measured period. Module G's free-form source metadata would admit personal identifiers, and "audience/attribution" overclaims what route aggregates establish. | Publish a Measurement Methodology Contract: label MVP output **modelled potential contacts** (not verified views, reach, audience, or attribution); define the metric hierarchy, units, source provenance and vintage, missing-data rules, uncertainty, and correction/reissue policy; immutable `measurement_run` per issued report; proof-of-performance manifest. The default deliverable is **Campaign Performance Analysis**. A true ROI section fails closed unless advertiser conversion/revenue inputs and an approved reproducible ROI method are both present; otherwise omit ROI entirely. Constrain Module G to typed allowlisted aggregate planning fields with provenance/basis/expiry/DSR metadata; reject identifiers and free text; rename outputs to planning source / coverage cell / contextual follow-up recommendation. | §22.4/§27, D20, **before first issued report** |
+| **RM15** | F09/F10/F11 | PARTIAL — W3-00A/C build controls delivered; legal approval and W3-00B remain | W3-00A supplies the draft build-only DPIA/ROPA, role, purpose/basis/retention/recipient, processor/region, withdrawal, breach and tabletop controls. W3-00C now puts one default-deny service boundary on all eight current advertiser/report/heatmap outputs and adds the heatmap's distinct-vehicle/trip/day floor, requested-metric contributor cap, complementary suppression, hierarchical atomic query history, changed-result retry defense and physical expiry job. Threshold values remain synthetic/unapproved, outputs remain personal, named legal approvals and final retention decisions remain MISSING, and live use stays false. Remaining software gap is W3-00B retention/DSR execution across every store and processor. | Before real GPS or advertiser output, qualified counsel must approve the operating artefacts, owner/bases/notices, live disclosure thresholds and history retention. W3-00B must execute the per-class retention and manual DSR contract across DB, objects, devices, logs, backups and processors. No distinct-vehicle threshold is described as anonymity. | §22.2/§24, **before real GPS / before heatmap** |
+| **RM16** | F12/F14/F15 | PARTIAL — W3-00D measurement/claims contract delivered; runs, proof manifests and Module G controls remain | W3-00D now defines metric classes, units, provenance/vintage, missing-data, uncertainty, immutable correction/reissue semantics, safe current advertiser copy, the Campaign Performance Analysis title, a synthetic-only target-coverage candidate and a fail-closed conditional ROI gate. `EXT-REPORT-METHOD` remains MISSING and no live methodology or issuance is approved. Remaining gaps are immutable `measurement_run`/proof manifests and typed identifier-free Module G sources, linkage, aggregates and outputs. | W3-00E must bind each issued result to immutable inputs, formula, creative/evidence/assignment/period and correction lineage. W3-01A/B/C/D must enforce allowlisted aggregate planning sources and governed outputs. Live reports still require the approved report method and the G-advertiser disclosure chain. | §22.4/§27, D20, **before first issued report** |
 | **RM17** | F18 | DESIGN-GAP — build foundation delivered; real-world validation deferred by D23 | W4 would otherwise defer the first production-like environment and physical-device PWA proof until the end, leaving no stabilisation runway. Store-review/background-native discovery is no longer a pilot risk. | PKG-01 verifies the provider-neutral edge/API/frontend/PostGIS/Redis/worker topology, release smoke, migrations and recovery contracts with synthetic data, and freezes the PWA ping/auth/seal/capability contract across deterministic desktop/mobile browser profiles. D23 keeps external staging deployment/restore and the representative Android/iPhone route/battery matrix explicitly NOT RUN until access exists; both still gate W4 release/pilot and real GPS. W4 becomes integration, physical validation, hardening, training and pilot, not first system build. Neither lane authorises real-data collection. | §23/§25/§31, D23; build now, physical/external validation before W4 pilot |
 | **RM18** | F17 | DESIGN-GAP | KYC/financial/location controls are incomplete: malware scanning optional, NIN/BVN/bank fields unencrypted at field level with no key governance, raw-route/KYC reads unaudited, no breach workflow, and known audit gaps (auth.refresh, driver profile/assignment routes) remain open from D10(g). | Managed KMS + field encryption or vaulting for national/financial identifiers; mandatory type/size/malware checks on driver uploads; short-lived purpose-scoped GETs with privileged-read audit for raw routes and KYC; encrypted browser/PWA storage where sensitive state exists; log/notification redaction; close the D10(g) audit gaps; add incident contacts, breach register, and one tabletop drill. Native secure-store/push-specific controls remain Phase 2. | §12/§19/§23, **before KYC/PWA pilot** |
 
@@ -2190,6 +2245,12 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.47 | 2026-08-25 | **Package 5 Extended Pro correction pass.** Migration `0047`'s active-link PostgreSQL partial unique index is declared in ORM metadata with a SQLite partial predicate and an autogenerate regression. Heatmap disclosure now applies the contributor cap across every serialized ping/trip/distance/impression metric. Source monitoring and admin heatmap service boundaries verify an active admin before domain reads, preserving router checks; governed advertiser output selects the newest active organization membership deterministically after the default-deny live gate. Focused red/green regressions and the impacted Package 5 backend/migration subset pass. No external legal/provider gate is changed and Package 6 remains untouched. |
+| v1.46 | 2026-08-25 | **W3-01B governed source/campaign/zone/time linkage delivered behind the privacy gate.** Migration `0047` adds tenant-scoped link projections, append-only create/remove evidence, actor/operation retry authority, parent fingerprints and populated-downgrade refusal. Source → campaign → zone → link ordering, active-tenant/admin service checks, window/ownership compatibility and stale projection semantics preserve concurrency, isolation and immutable history without raw-ping access. Advertiser setup/removal and read-only admin monitoring move with all three §9 baselines. Focused API/RBAC/lifecycle/retry/audit/migration/frontend and PostgreSQL parent-race evidence pass after independent review corrected service-admin and race coverage. `EXT-LEGAL-PRIVACY`, `EXT-REPORT-METHOD` and `EXT-AD-PLATFORM` remain MISSING; no live source use, person-level audience, report issuance, export or activation is authorized. Package 5's remaining checklist items stay dependency-blocked. |
+| v1.45 | 2026-08-24 | **W3-01A typed planning-source registry delivered behind the privacy gate.** Migration `0046` adds advertiser-organization projections, append-only create/deactivate evidence and actor/operation-scoped retry authority for exactly five discriminated aggregate-only D11 source shapes. Candidate provenance, explicitly unapproved basis/notice state, expiry and DSR fields move through one closed public contract; identifiers, URLs, uploads, notes and opaque metadata reject. Active-tenant/RBAC checks, DB-time expiry, populated downgrade refusal and PostgreSQL same-key concurrency proof preserve isolation and history. Advertiser management and read-only admin monitoring move with all three §9 baselines. Independent privacy/security review's open response-contract and concurrent-proof findings were corrected and rechecked PASS. `EXT-LEGAL-PRIVACY` remains MISSING; no live ingestion, approved basis, identity, upload, source linkage or raw-ping reader is authorized. |
+| v1.44 | 2026-08-24 | **W3-00C central disclosure control delivered; RM15 narrowed, not closed.** Migration `0045`, one service boundary and fail-closed Compose settings cover all eight current advertiser/report/heatmap outputs. Production denies before reads/history unless non-placeholder legal, threshold and retention references exist; report surfaces remain denied pending W3-00E. The sole grandfathered heatmap reader filters fixed/coarse cells by distinct vehicles, trips and days and requested-metric contributor share. Atomic served/suppressed history binds request and result identity, serializes global/organization/campaign overlap and blocks complementary/cross-principal/cross-endpoint/changed-result differencing; a daily DB-time worker purge enforces physical expiry and populated downgrade refuses loss. Focused PostgreSQL threshold, suppression, hierarchical sequential/concurrent, tenant/RBAC, migration/autogenerate and no-read/no-write gate evidence passes. Independent privacy/security/architecture review's parent/child-overlap and no-traffic-retention findings were corrected and rechecked PASS. Thresholds remain synthetic/unapproved, `EXT-LEGAL-PRIVACY` remains MISSING, and no live output or new raw-ping reader is authorized. |
+| v1.43 | 2026-08-24 | **W3-00D measurement methodology and claims contract delivered; RM16 narrowed, not closed.** A machine-checkable hierarchy now defines measured operational facts, modelled potential contacts, synthetic-only target-area coverage, driver campaign cost and conditional true ROI with units, provenance/vintage, missing-data and uncertainty rules. Current advertiser copy uses Campaign Performance Analysis and safe modelled-contact/model-diagnostic language. Performance-only and explicitly test-only ROI goldens prove omission and gate arithmetic without supplying approval. Production ROI and live issuance remain disabled; `EXT-REPORT-METHOD` remains MISSING. Four focused contract/copy tests, frontend typecheck, 210 frontend tests, formatting/diff checks and independent measurement/legal/commercial review pass after the model-confidence disclaimer was made explicit. W3-00E run/proof manifests and W3-01 Module G controls remain outstanding. |
+| v1.42 | 2026-08-24 | **W3-00A privacy operating model delivered as synthetic build control; RM15 narrowed, not closed.** A machine-checkable nine-purpose DPIA/ROPA register and operator guide now record organizational controller/processor roles, candidate bases explicitly marked unapproved, retention dispositions, recipients, processor/region gaps, notice/withdrawal and breach responsibilities. A deterministic withdrawal/raw-route-breach tabletop stops at legal, Package 4 and W3-00B gates. `live_use_authorized=false`; every named owner, wording, legal basis, retention/DSR decision, provider, region and notification rule remains MISSING. Focused privacy/control tests, progress validation, JSON/style/diff checks and independent privacy review pass after removing staff from raw-location recipients. No real person/data, legal approval, DSR execution, provider or live-use claim. |
 | v1.41 | 2026-08-24 | **W2-04A shared notification core and role surfaces delivered (D24/Q34).** Migration `0044` upgrades the fraud-notice foundation to a recipient/channel-scoped outbox with canonical retry fingerprints, unique provider receipt identity, immutable evidence, delivery/read state and lossless legacy backfill; one advertiser-organization preference defaults transactional email on, permits audited manager changes and never suppresses in-app. Typed current-user APIs and same-origin BFF routes provide sanitized list/unread/read operations. One root TanStack Query provider mounts the shared visible-only polled centre in admin, advertiser and driver shells. All three §9 baselines move together. Focused backend/PostgreSQL migration, concurrency, RBAC, audit, OpenAPI, frontend, preserved R14-B and desktop/mobile three-role synthetic evidence plus consolidated independent review pass. Email/provider delivery, driver WhatsApp/SMS, push, external/live-provider, physical-device, staging, pilot and user-feedback validation remain unclaimed. |
 | v1.40 | 2026-08-24 | **W2-03A governed campaign review delivered and rebased after the corrected Package 3 migration head.** Dedicated row-locked submission, approval, reasoned rejection and resubmission transitions bind immutable canonical snapshots and SHA-256 digests in append-only review history; generic create/update cannot enter review or production states, reviewed fields freeze, and approval itself cannot schedule or activate. Tenant-scoped advertiser history and the typed admin approvals queue expose the same evidence. Migration `0043` descends from corrected Package 3 revision `0042`, and all three §9 baselines move together. Focused SQLite/PostgreSQL lifecycle, RBAC, audit, race, migration, corrected commercial-authority seam and contract checks; 18 focused frontend tests; 55 preserved R14-B fixtures; type/lint; and an isolated desktop/mobile submit→approve→history journey pass. No external provider, scheduling, activation, physical-device, real-route, staging, pilot or user-feedback validation is claimed. |
 | v1.39 | 2026-08-24 | **PKG-03 money-authority correction.** Receipt reversal/refund and production/activation/trip start now share a deadlock-safe receipt-then-campaign lock order and database chronology; refund conservation is allocation-scoped plus receipt-wide; accepted terms and campaign currency serialize and remain equal. Additive migration `0041` gives invoice corrections immutable caller retry identity and a canonical payload fingerprint with populated legacy backfill, restored append-only trigger and fail-closed downgrade. Additive migration `0042` scopes invoice numbering by full rendered prefix/year and backfills above immutable issued suffixes without rewriting invoices. The synchronized §9 artifacts expose correction references. Focused PostgreSQL barriers, retry/refund/currency/sequence and populated-migration tests, frontend lint/type/unit/build, aggregate compatibility correction, and isolated desktop/mobile billing evidence pass. Live provider and budget-policy gates remain unchanged. |

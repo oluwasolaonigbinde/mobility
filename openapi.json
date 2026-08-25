@@ -5208,6 +5208,91 @@
         "title": "CreditSettlementCreate",
         "type": "object"
       },
+      "CrmUploadReferenceSourceCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "consent_disclaimer_status": {
+            "const": "not-reviewed",
+            "title": "Consent Disclaimer Status",
+            "type": "string"
+          },
+          "dsr_owner_role": {
+            "enum": [
+              "privacy-officer",
+              "compliance-owner"
+            ],
+            "title": "Dsr Owner Role",
+            "type": "string"
+          },
+          "dsr_status": {
+            "enum": [
+              "pending",
+              "not-applicable"
+            ],
+            "title": "Dsr Status",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "lawful_basis_reference": {
+            "enum": [
+              "candidate-legitimate-interest",
+              "candidate-consent"
+            ],
+            "title": "Lawful Basis Reference",
+            "type": "string"
+          },
+          "lawful_basis_status": {
+            "const": "unapproved",
+            "title": "Lawful Basis Status",
+            "type": "string"
+          },
+          "provenance": {
+            "enum": [
+              "advertiser-declared",
+              "third-party-aggregate"
+            ],
+            "title": "Provenance",
+            "type": "string"
+          },
+          "record_count_band": {
+            "enum": [
+              "0-99",
+              "100-999",
+              "1000-plus"
+            ],
+            "title": "Record Count Band",
+            "type": "string"
+          },
+          "reference_mode": {
+            "const": "aggregate-availability-only",
+            "title": "Reference Mode",
+            "type": "string"
+          },
+          "source_type": {
+            "const": "CRM-upload-reference",
+            "title": "Source Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provenance",
+          "lawful_basis_reference",
+          "lawful_basis_status",
+          "consent_disclaimer_status",
+          "expires_at",
+          "dsr_owner_role",
+          "dsr_status",
+          "source_type",
+          "reference_mode",
+          "record_count_band"
+        ],
+        "title": "CrmUploadReferenceSourceCreate",
+        "type": "object"
+      },
       "CurrentTripResponse": {
         "properties": {
           "trip": {
@@ -5447,6 +5532,102 @@
           "totals_by_currency"
         ],
         "title": "DashboardCostSummary",
+        "type": "object"
+      },
+      "DigitalCampaignAudienceSourceCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregation_window_days": {
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Aggregation Window Days",
+            "type": "integer"
+          },
+          "audience_stage": {
+            "enum": [
+              "awareness",
+              "consideration",
+              "conversion-intent"
+            ],
+            "title": "Audience Stage",
+            "type": "string"
+          },
+          "channel": {
+            "enum": [
+              "search",
+              "social",
+              "display"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "consent_disclaimer_status": {
+            "const": "not-reviewed",
+            "title": "Consent Disclaimer Status",
+            "type": "string"
+          },
+          "dsr_owner_role": {
+            "enum": [
+              "privacy-officer",
+              "compliance-owner"
+            ],
+            "title": "Dsr Owner Role",
+            "type": "string"
+          },
+          "dsr_status": {
+            "enum": [
+              "pending",
+              "not-applicable"
+            ],
+            "title": "Dsr Status",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "lawful_basis_reference": {
+            "enum": [
+              "candidate-legitimate-interest",
+              "candidate-consent"
+            ],
+            "title": "Lawful Basis Reference",
+            "type": "string"
+          },
+          "lawful_basis_status": {
+            "const": "unapproved",
+            "title": "Lawful Basis Status",
+            "type": "string"
+          },
+          "provenance": {
+            "enum": [
+              "advertiser-declared",
+              "third-party-aggregate"
+            ],
+            "title": "Provenance",
+            "type": "string"
+          },
+          "source_type": {
+            "const": "digital-campaign-audience",
+            "title": "Source Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provenance",
+          "lawful_basis_reference",
+          "lawful_basis_status",
+          "consent_disclaimer_status",
+          "expires_at",
+          "dsr_owner_role",
+          "dsr_status",
+          "source_type",
+          "channel",
+          "audience_stage",
+          "aggregation_window_days"
+        ],
+        "title": "DigitalCampaignAudienceSourceCreate",
         "type": "object"
       },
       "DriverEarningsCurrencySummary": {
@@ -8453,6 +8634,95 @@
         "title": "LoginUser",
         "type": "object"
       },
+      "ManualInsightSourceCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence_band": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Confidence Band",
+            "type": "string"
+          },
+          "consent_disclaimer_status": {
+            "const": "not-reviewed",
+            "title": "Consent Disclaimer Status",
+            "type": "string"
+          },
+          "dsr_owner_role": {
+            "enum": [
+              "privacy-officer",
+              "compliance-owner"
+            ],
+            "title": "Dsr Owner Role",
+            "type": "string"
+          },
+          "dsr_status": {
+            "enum": [
+              "pending",
+              "not-applicable"
+            ],
+            "title": "Dsr Status",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "insight_category": {
+            "enum": [
+              "area-demand",
+              "time-pattern",
+              "contextual-affinity"
+            ],
+            "title": "Insight Category",
+            "type": "string"
+          },
+          "lawful_basis_reference": {
+            "enum": [
+              "candidate-legitimate-interest",
+              "candidate-consent"
+            ],
+            "title": "Lawful Basis Reference",
+            "type": "string"
+          },
+          "lawful_basis_status": {
+            "const": "unapproved",
+            "title": "Lawful Basis Status",
+            "type": "string"
+          },
+          "provenance": {
+            "enum": [
+              "advertiser-declared",
+              "third-party-aggregate"
+            ],
+            "title": "Provenance",
+            "type": "string"
+          },
+          "source_type": {
+            "const": "manual-insight",
+            "title": "Source Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provenance",
+          "lawful_basis_reference",
+          "lawful_basis_status",
+          "consent_disclaimer_status",
+          "expires_at",
+          "dsr_owner_role",
+          "dsr_status",
+          "source_type",
+          "insight_category",
+          "confidence_band"
+        ],
+        "title": "ManualInsightSourceCreate",
+        "type": "object"
+      },
       "ManualTransferCreate": {
         "additionalProperties": false,
         "properties": {
@@ -10782,6 +11052,502 @@
         "title": "RefundCreate",
         "type": "object"
       },
+      "RetargetingSourceEventRead": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "event_type": {
+            "enum": [
+              "created",
+              "deactivated"
+            ],
+            "title": "Event Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "sequence_number": {
+            "title": "Sequence Number",
+            "type": "integer"
+          },
+          "snapshot": {
+            "discriminator": {
+              "mapping": {
+                "CRM-upload-reference": "#/components/schemas/CrmUploadReferenceSourceCreate",
+                "UTM-source": "#/components/schemas/UtmSourceCreate",
+                "digital-campaign-audience": "#/components/schemas/DigitalCampaignAudienceSourceCreate",
+                "manual-insight": "#/components/schemas/ManualInsightSourceCreate",
+                "website-traffic": "#/components/schemas/WebsiteTrafficSourceCreate"
+              },
+              "propertyName": "source_type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WebsiteTrafficSourceCreate"
+              },
+              {
+                "$ref": "#/components/schemas/DigitalCampaignAudienceSourceCreate"
+              },
+              {
+                "$ref": "#/components/schemas/CrmUploadReferenceSourceCreate"
+              },
+              {
+                "$ref": "#/components/schemas/UtmSourceCreate"
+              },
+              {
+                "$ref": "#/components/schemas/ManualInsightSourceCreate"
+              }
+            ],
+            "title": "Snapshot"
+          },
+          "snapshot_sha256": {
+            "title": "Snapshot Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sequence_number",
+          "event_type",
+          "snapshot",
+          "snapshot_sha256",
+          "created_at"
+        ],
+        "title": "RetargetingSourceEventRead",
+        "type": "object"
+      },
+      "RetargetingSourceHistoryRead": {
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/RetargetingSourceEventRead"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "source": {
+            "$ref": "#/components/schemas/RetargetingSourceRead"
+          }
+        },
+        "required": [
+          "source",
+          "events"
+        ],
+        "title": "RetargetingSourceHistoryRead",
+        "type": "object"
+      },
+      "RetargetingSourceLinkCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "end_at": {
+            "format": "date-time",
+            "title": "End At",
+            "type": "string"
+          },
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          },
+          "start_at": {
+            "format": "date-time",
+            "title": "Start At",
+            "type": "string"
+          },
+          "zone_id": {
+            "format": "uuid",
+            "title": "Zone Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "campaign_id",
+          "zone_id",
+          "start_at",
+          "end_at"
+        ],
+        "title": "RetargetingSourceLinkCreate",
+        "type": "object"
+      },
+      "RetargetingSourceLinkEventRead": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "event_type": {
+            "enum": [
+              "created",
+              "removed"
+            ],
+            "title": "Event Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "sequence_number": {
+            "title": "Sequence Number",
+            "type": "integer"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/RetargetingSourceLinkSnapshot"
+          },
+          "snapshot_sha256": {
+            "title": "Snapshot Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sequence_number",
+          "event_type",
+          "snapshot",
+          "snapshot_sha256",
+          "created_at"
+        ],
+        "title": "RetargetingSourceLinkEventRead",
+        "type": "object"
+      },
+      "RetargetingSourceLinkHistoryRead": {
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/RetargetingSourceLinkEventRead"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "link": {
+            "$ref": "#/components/schemas/RetargetingSourceLinkRead"
+          }
+        },
+        "required": [
+          "link",
+          "events"
+        ],
+        "title": "RetargetingSourceLinkHistoryRead",
+        "type": "object"
+      },
+      "RetargetingSourceLinkListRead": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RetargetingSourceLinkRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "RetargetingSourceLinkListRead",
+        "type": "object"
+      },
+      "RetargetingSourceLinkRead": {
+        "additionalProperties": false,
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "end_at": {
+            "format": "date-time",
+            "title": "End At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "removed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Removed At"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/RetargetingSourceLinkSnapshot"
+          },
+          "snapshot_sha256": {
+            "title": "Snapshot Sha256",
+            "type": "string"
+          },
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "start_at": {
+            "format": "date-time",
+            "title": "Start At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "removed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "zone_id": {
+            "format": "uuid",
+            "title": "Zone Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "organization_id",
+          "source_id",
+          "campaign_id",
+          "zone_id",
+          "start_at",
+          "end_at",
+          "status",
+          "stale",
+          "snapshot",
+          "snapshot_sha256",
+          "created_at",
+          "removed_at"
+        ],
+        "title": "RetargetingSourceLinkRead",
+        "type": "object"
+      },
+      "RetargetingSourceLinkSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "campaign_fingerprint": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Campaign Fingerprint",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "end_at": {
+            "format": "date-time",
+            "title": "End At",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "source_fingerprint": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Source Fingerprint",
+            "type": "string"
+          },
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          },
+          "start_at": {
+            "format": "date-time",
+            "title": "Start At",
+            "type": "string"
+          },
+          "zone_fingerprint": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Zone Fingerprint",
+            "type": "string"
+          },
+          "zone_id": {
+            "format": "uuid",
+            "title": "Zone Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "organization_id",
+          "source_id",
+          "campaign_id",
+          "zone_id",
+          "start_at",
+          "end_at",
+          "source_fingerprint",
+          "campaign_fingerprint",
+          "zone_fingerprint"
+        ],
+        "title": "RetargetingSourceLinkSnapshot",
+        "type": "object"
+      },
+      "RetargetingSourceListRead": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RetargetingSourceRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "RetargetingSourceListRead",
+        "type": "object"
+      },
+      "RetargetingSourceRead": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "deactivated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deactivated At"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "snapshot": {
+            "discriminator": {
+              "mapping": {
+                "CRM-upload-reference": "#/components/schemas/CrmUploadReferenceSourceCreate",
+                "UTM-source": "#/components/schemas/UtmSourceCreate",
+                "digital-campaign-audience": "#/components/schemas/DigitalCampaignAudienceSourceCreate",
+                "manual-insight": "#/components/schemas/ManualInsightSourceCreate",
+                "website-traffic": "#/components/schemas/WebsiteTrafficSourceCreate"
+              },
+              "propertyName": "source_type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WebsiteTrafficSourceCreate"
+              },
+              {
+                "$ref": "#/components/schemas/DigitalCampaignAudienceSourceCreate"
+              },
+              {
+                "$ref": "#/components/schemas/CrmUploadReferenceSourceCreate"
+              },
+              {
+                "$ref": "#/components/schemas/UtmSourceCreate"
+              },
+              {
+                "$ref": "#/components/schemas/ManualInsightSourceCreate"
+              }
+            ],
+            "title": "Snapshot"
+          },
+          "snapshot_sha256": {
+            "title": "Snapshot Sha256",
+            "type": "string"
+          },
+          "source_type": {
+            "title": "Source Type",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "expired",
+              "deactivated"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "organization_id",
+          "source_type",
+          "snapshot",
+          "snapshot_sha256",
+          "status",
+          "expires_at",
+          "created_at",
+          "deactivated_at"
+        ],
+        "title": "RetargetingSourceRead",
+        "type": "object"
+      },
       "RouteAnalyticsSummary": {
         "properties": {
           "analyzed_trip_count": {
@@ -12493,6 +13259,96 @@
         "title": "UserUpdate",
         "type": "object"
       },
+      "UtmSourceCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "campaign_stage": {
+            "enum": [
+              "awareness",
+              "consideration",
+              "conversion-intent"
+            ],
+            "title": "Campaign Stage",
+            "type": "string"
+          },
+          "channel": {
+            "enum": [
+              "search",
+              "social",
+              "display",
+              "email"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "consent_disclaimer_status": {
+            "const": "not-reviewed",
+            "title": "Consent Disclaimer Status",
+            "type": "string"
+          },
+          "dsr_owner_role": {
+            "enum": [
+              "privacy-officer",
+              "compliance-owner"
+            ],
+            "title": "Dsr Owner Role",
+            "type": "string"
+          },
+          "dsr_status": {
+            "enum": [
+              "pending",
+              "not-applicable"
+            ],
+            "title": "Dsr Status",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "lawful_basis_reference": {
+            "enum": [
+              "candidate-legitimate-interest",
+              "candidate-consent"
+            ],
+            "title": "Lawful Basis Reference",
+            "type": "string"
+          },
+          "lawful_basis_status": {
+            "const": "unapproved",
+            "title": "Lawful Basis Status",
+            "type": "string"
+          },
+          "provenance": {
+            "enum": [
+              "advertiser-declared",
+              "third-party-aggregate"
+            ],
+            "title": "Provenance",
+            "type": "string"
+          },
+          "source_type": {
+            "const": "UTM-source",
+            "title": "Source Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provenance",
+          "lawful_basis_reference",
+          "lawful_basis_status",
+          "consent_disclaimer_status",
+          "expires_at",
+          "dsr_owner_role",
+          "dsr_status",
+          "source_type",
+          "channel",
+          "campaign_stage"
+        ],
+        "title": "UtmSourceCreate",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -13021,6 +13877,92 @@
           "accepted_at"
         ],
         "title": "WaiverRead",
+        "type": "object"
+      },
+      "WebsiteTrafficSourceCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "aggregation_window_days": {
+            "maximum": 365.0,
+            "minimum": 1.0,
+            "title": "Aggregation Window Days",
+            "type": "integer"
+          },
+          "audience_category": {
+            "enum": [
+              "site-visitor",
+              "content-interest",
+              "conversion-intent"
+            ],
+            "title": "Audience Category",
+            "type": "string"
+          },
+          "consent_disclaimer_status": {
+            "const": "not-reviewed",
+            "title": "Consent Disclaimer Status",
+            "type": "string"
+          },
+          "dsr_owner_role": {
+            "enum": [
+              "privacy-officer",
+              "compliance-owner"
+            ],
+            "title": "Dsr Owner Role",
+            "type": "string"
+          },
+          "dsr_status": {
+            "enum": [
+              "pending",
+              "not-applicable"
+            ],
+            "title": "Dsr Status",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "lawful_basis_reference": {
+            "enum": [
+              "candidate-legitimate-interest",
+              "candidate-consent"
+            ],
+            "title": "Lawful Basis Reference",
+            "type": "string"
+          },
+          "lawful_basis_status": {
+            "const": "unapproved",
+            "title": "Lawful Basis Status",
+            "type": "string"
+          },
+          "provenance": {
+            "enum": [
+              "advertiser-declared",
+              "third-party-aggregate"
+            ],
+            "title": "Provenance",
+            "type": "string"
+          },
+          "source_type": {
+            "const": "website-traffic",
+            "title": "Source Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provenance",
+          "lawful_basis_reference",
+          "lawful_basis_status",
+          "consent_disclaimer_status",
+          "expires_at",
+          "dsr_owner_role",
+          "dsr_status",
+          "source_type",
+          "audience_category",
+          "aggregation_window_days"
+        ],
+        "title": "WebsiteTrafficSourceCreate",
         "type": "object"
       },
       "ZoneTypeCounts": {
@@ -18065,6 +19007,250 @@
         ]
       }
     },
+    "/api/v1/admin/retargeting-source-links": {
+      "get": {
+        "operationId": "admin_list_links_api_v1_admin_retargeting_source_links_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceLinkListRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin List Links",
+        "tags": [
+          "Retargeting Source Links"
+        ]
+      }
+    },
+    "/api/v1/admin/retargeting-source-links/{link_id}": {
+      "get": {
+        "operationId": "admin_get_link_api_v1_admin_retargeting_source_links__link_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceLinkRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Get Link",
+        "tags": [
+          "Retargeting Source Links"
+        ]
+      }
+    },
+    "/api/v1/admin/retargeting-source-links/{link_id}/history": {
+      "get": {
+        "operationId": "admin_link_history_api_v1_admin_retargeting_source_links__link_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceLinkHistoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Link History",
+        "tags": [
+          "Retargeting Source Links"
+        ]
+      }
+    },
+    "/api/v1/admin/retargeting-sources": {
+      "get": {
+        "operationId": "list_admin_sources_api_v1_admin_retargeting_sources_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceListRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Admin Sources",
+        "tags": [
+          "Retargeting Sources"
+        ]
+      }
+    },
+    "/api/v1/admin/retargeting-sources/{source_id}": {
+      "get": {
+        "operationId": "get_admin_source_api_v1_admin_retargeting_sources__source_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Admin Source",
+        "tags": [
+          "Retargeting Sources"
+        ]
+      }
+    },
+    "/api/v1/admin/retargeting-sources/{source_id}/history": {
+      "get": {
+        "operationId": "admin_source_history_api_v1_admin_retargeting_sources__source_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceHistoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Source History",
+        "tags": [
+          "Retargeting Sources"
+        ]
+      }
+    },
     "/api/v1/admin/traffic-density-profiles": {
       "get": {
         "operationId": "admin_list_traffic_density_profiles_api_v1_admin_traffic_density_profiles_get",
@@ -21457,6 +22643,509 @@
         "summary": "Advertiser Accept Quote",
         "tags": [
           "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/advertiser/retargeting-source-links": {
+      "get": {
+        "operationId": "list_links_api_v1_advertiser_retargeting_source_links_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceLinkListRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Links",
+        "tags": [
+          "Retargeting Source Links"
+        ]
+      },
+      "post": {
+        "operationId": "create_link_api_v1_advertiser_retargeting_source_links_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetargetingSourceLinkCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceLinkRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Link",
+        "tags": [
+          "Retargeting Source Links"
+        ]
+      }
+    },
+    "/api/v1/advertiser/retargeting-source-links/{link_id}": {
+      "get": {
+        "operationId": "get_link_api_v1_advertiser_retargeting_source_links__link_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceLinkRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Link",
+        "tags": [
+          "Retargeting Source Links"
+        ]
+      }
+    },
+    "/api/v1/advertiser/retargeting-source-links/{link_id}/history": {
+      "get": {
+        "operationId": "link_history_api_v1_advertiser_retargeting_source_links__link_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceLinkHistoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Link History",
+        "tags": [
+          "Retargeting Source Links"
+        ]
+      }
+    },
+    "/api/v1/advertiser/retargeting-source-links/{link_id}/remove": {
+      "post": {
+        "operationId": "remove_link_api_v1_advertiser_retargeting_source_links__link_id__remove_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Link Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceLinkRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Remove Link",
+        "tags": [
+          "Retargeting Source Links"
+        ]
+      }
+    },
+    "/api/v1/advertiser/retargeting-sources": {
+      "get": {
+        "operationId": "list_advertiser_sources_api_v1_advertiser_retargeting_sources_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceListRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Advertiser Sources",
+        "tags": [
+          "Retargeting Sources"
+        ]
+      },
+      "post": {
+        "operationId": "create_advertiser_retargeting_source_api_v1_advertiser_retargeting_sources_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "discriminator": {
+                  "mapping": {
+                    "CRM-upload-reference": "#/components/schemas/CrmUploadReferenceSourceCreate",
+                    "UTM-source": "#/components/schemas/UtmSourceCreate",
+                    "digital-campaign-audience": "#/components/schemas/DigitalCampaignAudienceSourceCreate",
+                    "manual-insight": "#/components/schemas/ManualInsightSourceCreate",
+                    "website-traffic": "#/components/schemas/WebsiteTrafficSourceCreate"
+                  },
+                  "propertyName": "source_type"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/WebsiteTrafficSourceCreate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DigitalCampaignAudienceSourceCreate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CrmUploadReferenceSourceCreate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UtmSourceCreate"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ManualInsightSourceCreate"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Advertiser Retargeting Source",
+        "tags": [
+          "Retargeting Sources"
+        ]
+      }
+    },
+    "/api/v1/advertiser/retargeting-sources/{source_id}": {
+      "get": {
+        "operationId": "get_advertiser_source_api_v1_advertiser_retargeting_sources__source_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Advertiser Source",
+        "tags": [
+          "Retargeting Sources"
+        ]
+      }
+    },
+    "/api/v1/advertiser/retargeting-sources/{source_id}/deactivate": {
+      "post": {
+        "operationId": "deactivate_advertiser_source_api_v1_advertiser_retargeting_sources__source_id__deactivate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Deactivate Advertiser Source",
+        "tags": [
+          "Retargeting Sources"
+        ]
+      }
+    },
+    "/api/v1/advertiser/retargeting-sources/{source_id}/history": {
+      "get": {
+        "operationId": "advertiser_source_history_api_v1_advertiser_retargeting_sources__source_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetargetingSourceHistoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Source History",
+        "tags": [
+          "Retargeting Sources"
         ]
       }
     },

@@ -1,0 +1,159 @@
+import type { Metadata } from "next";
+import { createApiClient } from "@/lib/api/client";
+import { getSessionToken } from "@/lib/auth/session";
+import { formatDate } from "@/lib/format";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { Panel } from "@/components/ui/panel";
+import { StatusChip } from "@/components/ui/status-chip";
+import { deactivateSourceAction, removeSourceLinkAction } from "./actions";
+import { LinkForm } from "./link-form";
+import { SourceForm } from "./source-form";
+
+export const metadata: Metadata = { title: "Planning sources" };
+
+export default async function PlanningSourcesPage() {
+  const api = createApiClient(await getSessionToken());
+  const [{ data }, { data: linkData }, { data: campaignData }] = await Promise.all([
+    api.GET("/api/v1/advertiser/retargeting-sources"),
+    api.GET("/api/v1/advertiser/retargeting-source-links"),
+    api.GET("/api/v1/advertiser/campaigns", {
+      params: { query: { limit: 100, offset: 0 } },
+    }),
+  ]);
+  const items = data?.items ?? [];
+  const links = linkData?.items ?? [];
+  const campaigns = campaignData?.items ?? [];
+  const zoneGroups = await Promise.all(
+    campaigns.map(async (campaign) => {
+      const { data: zones } = await api.GET("/api/v1/advertiser/campaigns/{campaign_id}/zones", {
+        params: {
+          path: { campaign_id: campaign.id },
+          query: { limit: 100, offset: 0, zone_type: "target" },
+        },
+      });
+      return (zones?.items ?? []).map((zone) => ({
+        id: zone.id,
+        campaignId: campaign.id,
+        label: zone.name,
+      }));
+    }),
+  );
+  return (
+    <div className="animate-rise mx-auto max-w-6xl">
+      <PageHeader title="Planning sources" eyebrow="Aggregate-only retargeting inputs" />
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div>
+          {items.length === 0 ? (
+            <EmptyState
+              title="No planning sources"
+              body="Record an allowlisted aggregate source to begin planning."
+            />
+          ) : (
+            <Panel className="overflow-hidden">
+              <div className="divide-edge divide-y">
+                {items.map((source) => (
+                  <article key={source.id} className="p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="font-medium">{source.source_type}</h2>
+                          <StatusChip
+                            tone={
+                              source.status === "active"
+                                ? "green"
+                                : source.status === "expired"
+                                  ? "amber"
+                                  : "default"
+                            }
+                          >
+                            {source.status}
+                          </StatusChip>
+                        </div>
+                        <p className="micro text-faint mt-2">
+                          Expires {formatDate(source.expires_at)}
+                        </p>
+                        <p className="micro text-faint mt-1 font-mono">
+                          Evidence {source.snapshot_sha256}
+                        </p>
+                      </div>
+                      {source.status === "active" ? (
+                        <form action={deactivateSourceAction.bind(null, source.id)}>
+                          <button className="border-edge hover:border-coral rounded-lg border px-3 py-2 text-sm">
+                            Deactivate
+                          </button>
+                        </form>
+                      ) : null}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </Panel>
+          )}
+          <section className="mt-5" aria-labelledby="source-links-heading">
+            <h2 id="source-links-heading" className="mb-3 font-medium">
+              Campaign and target-zone links
+            </h2>
+            {links.length === 0 ? (
+              <EmptyState
+                title="No source links"
+                body="Link an active source to an owned campaign target zone and bounded time window."
+              />
+            ) : (
+              <Panel className="divide-edge divide-y overflow-hidden">
+                {links.map((link) => (
+                  <article key={link.id} className="p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <StatusChip tone={link.status === "active" ? "green" : "default"}>
+                            {link.status}
+                          </StatusChip>
+                          {link.stale ? (
+                            <StatusChip tone="coral">stale parent state</StatusChip>
+                          ) : null}
+                        </div>
+                        <p className="micro text-faint mt-2 font-mono">
+                          Campaign {link.campaign_id}
+                        </p>
+                        <p className="micro text-faint mt-1 font-mono">
+                          Target zone {link.zone_id}
+                        </p>
+                        <p className="micro text-faint mt-1">
+                          {formatDate(link.start_at)} → {formatDate(link.end_at)}
+                        </p>
+                      </div>
+                      {link.status === "active" ? (
+                        <form action={removeSourceLinkAction.bind(null, link.id)}>
+                          <button className="border-edge hover:border-coral rounded-lg border px-3 py-2 text-sm">
+                            Remove link
+                          </button>
+                        </form>
+                      ) : null}
+                    </div>
+                  </article>
+                ))}
+              </Panel>
+            )}
+          </section>
+        </div>
+        <div className="grid h-fit gap-5">
+          <Panel className="p-5">
+            <h2 className="mb-4 font-medium">Record aggregate source</h2>
+            <SourceForm />
+          </Panel>
+          <Panel className="p-5">
+            <h2 className="mb-4 font-medium">Link source to campaign</h2>
+            <LinkForm
+              sources={items
+                .filter((source) => source.status === "active")
+                .map((source) => ({ id: source.id, label: source.source_type }))}
+              campaigns={campaigns.map((campaign) => ({ id: campaign.id, label: campaign.name }))}
+              zones={zoneGroups.flat()}
+            />
+          </Panel>
+        </div>
+      </div>
+    </div>
+  );
+}

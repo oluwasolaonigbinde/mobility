@@ -1,3 +1,4 @@
+import hashlib
 import json
 import math
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ from starlette import status
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.campaign import Campaign
+from app.models.user import User, UserRole, UserStatus
 from app.schemas.heatmaps import (
     HeatmapFeature,
     HeatmapFeatureCollection,
@@ -20,6 +22,12 @@ from app.schemas.heatmaps import (
     HeatmapMetric,
 )
 from app.services.campaigns import get_advertiser_campaign
+from app.services.disclosure import (
+    DisclosureQuery,
+    ensure_disclosure_live_gate,
+    record_heatmap_disclosure,
+    require_governed_advertiser_output,
+)
 
 DECIMAL_2 = Decimal("0.01")
 DECIMAL_4 = Decimal("0.0001")
@@ -115,8 +123,12 @@ def parse_heatmap_query(
     resolution = (
         settings.heatmap_default_resolution_m if resolution_m is None else resolution_m
     )
+    minimum_resolution = max(
+        settings.heatmap_min_resolution_m,
+        settings.privacy_min_resolution_m,
+    )
     if (
-        resolution < settings.heatmap_min_resolution_m
+        resolution < minimum_resolution
         or resolution > settings.heatmap_max_resolution_m
     ):
         raise AppError(
@@ -124,7 +136,7 @@ def parse_heatmap_query(
             "resolution_m is outside the configured heatmap bounds",
             status_code=status.HTTP_400_BAD_REQUEST,
             details={
-                "min_resolution_m": settings.heatmap_min_resolution_m,
+                "min_resolution_m": minimum_resolution,
                 "max_resolution_m": settings.heatmap_max_resolution_m,
             },
         )
@@ -198,17 +210,40 @@ async def ensure_admin_filter_consistency(
     *,
     campaign_id: UUID | None,
     organization_id: UUID | None,
-) -> None:
-    if campaign_id is None or organization_id is None:
-        return
+) -> UUID | None:
+    if campaign_id is None:
+        return organization_id
     campaign_org_id = await session.scalar(
         select(Campaign.organization_id).where(Campaign.id == campaign_id)
     )
-    if campaign_org_id is not None and campaign_org_id != organization_id:
+    if campaign_org_id is None:
+        raise AppError(
+            "CAMPAIGN_NOT_FOUND",
+            "Campaign was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    if organization_id is not None and campaign_org_id != organization_id:
         raise AppError(
             "INVALID_HEATMAP_FILTERS",
             "campaign_id does not belong to organization_id",
             status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    return campaign_org_id
+
+
+async def _active_admin(session: AsyncSession, actor_user_id: UUID) -> None:
+    admin_id = await session.scalar(
+        select(User.id).where(
+            User.id == actor_user_id,
+            User.role == UserRole.ADMIN,
+            User.status == UserStatus.ACTIVE,
+        )
+    )
+    if admin_id is None:
+        raise AppError(
+            "FORBIDDEN_ROLE",
+            "Admin role is required",
+            status_code=status.HTTP_403_FORBIDDEN,
         )
 
 
@@ -220,8 +255,15 @@ async def advertiser_campaign_heatmap(
     query: HeatmapQuery,
     settings: Settings,
 ) -> HeatmapFeatureCollection:
+    await require_governed_advertiser_output(
+        session,
+        settings=settings,
+        route_id="advertiser.campaign.heatmap",
+        user_id=user_id,
+        requires_measurement_run=False,
+    )
     campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
-    return await build_heatmap(
+    result = await build_heatmap(
         session,
         query=query,
         settings=settings,
@@ -231,23 +273,46 @@ async def advertiser_campaign_heatmap(
         metadata_campaign_id=campaign.id,
         metadata_organization_id=None,
     )
+    await record_heatmap_disclosure(
+        session,
+        query=DisclosureQuery(
+            route_id="advertiser.campaign.heatmap",
+            principal_id=user_id,
+            tenant_id=campaign.organization_id,
+            campaign_id=campaign.id,
+            start_at=query.start_at,
+            end_at=query.end_at,
+            filters={
+                "bbox": query.bbox,
+                "resolution_m": query.resolution_m,
+                "metric": query.metric.value,
+            },
+        ),
+        settings=settings,
+        has_releasable_cells=bool(result.features),
+        result_hash=heatmap_result_hash(result),
+    )
+    return result
 
 
 async def admin_heatmap(
     session: AsyncSession,
     *,
+    user_id: UUID,
     query: HeatmapQuery,
     settings: Settings,
     campaign_id: UUID | None,
     organization_id: UUID | None,
     vehicle_type: str | None,
 ) -> HeatmapFeatureCollection:
-    await ensure_admin_filter_consistency(
+    ensure_disclosure_live_gate(settings, requires_measurement_run=False)
+    await _active_admin(session, user_id)
+    disclosure_tenant_id = await ensure_admin_filter_consistency(
         session,
         campaign_id=campaign_id,
         organization_id=organization_id,
     )
-    return await build_heatmap(
+    result = await build_heatmap(
         session,
         query=query,
         settings=settings,
@@ -257,6 +322,34 @@ async def admin_heatmap(
         metadata_campaign_id=campaign_id,
         metadata_organization_id=organization_id,
     )
+    await record_heatmap_disclosure(
+        session,
+        query=DisclosureQuery(
+            route_id="admin.heatmap",
+            principal_id=user_id,
+            tenant_id=disclosure_tenant_id,
+            campaign_id=campaign_id,
+            start_at=query.start_at,
+            end_at=query.end_at,
+            filters={
+                "bbox": query.bbox,
+                "resolution_m": query.resolution_m,
+                "metric": query.metric.value,
+                "vehicle_type": vehicle_type,
+            },
+        ),
+        settings=settings,
+        has_releasable_cells=bool(result.features),
+        result_hash=heatmap_result_hash(result),
+    )
+    return result
+
+
+def heatmap_result_hash(result: HeatmapFeatureCollection) -> str:
+    payload = [feature.model_dump(mode="json") for feature in result.features]
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
 
 async def build_heatmap(
@@ -280,6 +373,10 @@ async def build_heatmap(
         "route_analytics_formula_version": settings.route_analytics_formula_version,
         "impression_formula_version": settings.impression_formula_version,
         "min_trips_per_cell": settings.heatmap_min_trips_per_cell,
+        "privacy_min_vehicles_per_cell": settings.privacy_min_vehicles_per_cell,
+        "privacy_min_trips_per_cell": settings.privacy_min_trips_per_cell,
+        "privacy_min_days_per_cell": settings.privacy_min_days_per_cell,
+        "privacy_max_contributor_share": settings.privacy_max_contributor_share,
         "max_cells": settings.heatmap_max_cells,
     }
     filters = [
@@ -335,6 +432,8 @@ def aggregation_sql(filters: list[str]) -> str:
         eligible_pings AS (
             SELECT
                 lp.trip_session_id,
+                ts.vehicle_id,
+                date_trunc('day', lp.recorded_at) AS recorded_day,
                 floor(ST_X(ST_Transform(lp.geom, 3857)) / :resolution_m) * :resolution_m AS grid_x,
                 floor(ST_Y(ST_Transform(lp.geom, 3857)) / :resolution_m) * :resolution_m AS grid_y
             FROM location_pings lp
@@ -347,11 +446,23 @@ def aggregation_sql(filters: list[str]) -> str:
         trip_cell_counts AS (
             SELECT
                 trip_session_id,
+                vehicle_id,
                 grid_x,
                 grid_y,
                 count(*)::integer AS cell_ping_count
             FROM eligible_pings
-            GROUP BY trip_session_id, grid_x, grid_y
+            GROUP BY trip_session_id, vehicle_id, grid_x, grid_y
+        ),
+        cell_privacy_counts AS (
+            SELECT
+                grid_x,
+                grid_y,
+                count(DISTINCT vehicle_id)::integer AS vehicle_count,
+                count(DISTINCT trip_session_id)::integer AS privacy_trip_count,
+                count(DISTINCT recorded_day)::integer AS day_count,
+                count(*)::numeric AS total_ping_count
+            FROM eligible_pings
+            GROUP BY grid_x, grid_y
         ),
         trip_window_counts AS (
             SELECT trip_session_id, count(*)::integer AS total_ping_count
@@ -365,6 +476,52 @@ def aggregation_sql(filters: list[str]) -> str:
             FROM impression_estimates
             WHERE formula_version = :impression_formula_version
             ORDER BY trip_session_id, estimated_at DESC, id DESC
+        ),
+        vehicle_cell_metrics AS (
+            SELECT
+                tcc.grid_x,
+                tcc.grid_y,
+                tcc.vehicle_id,
+                sum(tcc.cell_ping_count)::numeric AS ping_count,
+                count(DISTINCT tcc.trip_session_id)::numeric AS trip_count,
+                coalesce(
+                    sum(
+                        coalesce(ta.distance_m, 0)
+                        * (tcc.cell_ping_count::numeric / nullif(twc.total_ping_count, 0))
+                    ),
+                    0
+                ) AS distance_m,
+                coalesce(
+                    sum(
+                        coalesce(le.estimated_impressions, 0)
+                        * (tcc.cell_ping_count::numeric / nullif(twc.total_ping_count, 0))
+                    ),
+                    0
+                ) AS estimated_impressions
+            FROM trip_cell_counts tcc
+            JOIN trip_window_counts twc ON twc.trip_session_id = tcc.trip_session_id
+            LEFT JOIN trip_analytics ta
+                ON ta.trip_session_id = tcc.trip_session_id
+                AND ta.formula_version = :route_analytics_formula_version
+            LEFT JOIN latest_estimates le ON le.trip_session_id = tcc.trip_session_id
+            GROUP BY tcc.grid_x, tcc.grid_y, tcc.vehicle_id
+        ),
+        cell_contributor_caps AS (
+            SELECT
+                grid_x,
+                grid_y,
+                greatest(
+                    coalesce(max(ping_count) / nullif(sum(ping_count), 0), 0),
+                    coalesce(max(trip_count) / nullif(sum(trip_count), 0), 0),
+                    coalesce(max(distance_m) / nullif(sum(distance_m), 0), 0),
+                    coalesce(
+                        max(estimated_impressions)
+                        / nullif(sum(estimated_impressions), 0),
+                        0
+                    )
+                ) AS max_share
+            FROM vehicle_cell_metrics
+            GROUP BY grid_x, grid_y
         ),
         cell_metrics AS (
             SELECT
@@ -415,7 +572,13 @@ def aggregation_sql(filters: list[str]) -> str:
             distance_m,
             estimated_impressions,
             average_quality_score
-        FROM cell_metrics
+        FROM cell_metrics cm
+        JOIN cell_privacy_counts pc USING (grid_x, grid_y)
+        JOIN cell_contributor_caps cc USING (grid_x, grid_y)
+        WHERE pc.vehicle_count >= :privacy_min_vehicles_per_cell
+          AND pc.privacy_trip_count >= :privacy_min_trips_per_cell
+          AND pc.day_count >= :privacy_min_days_per_cell
+          AND cc.max_share <= :privacy_max_contributor_share
         ORDER BY grid_y, grid_x
         LIMIT :max_cells
     """

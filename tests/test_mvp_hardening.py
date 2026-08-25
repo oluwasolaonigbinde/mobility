@@ -14,7 +14,7 @@ from app.main import create_app
 from app.models.user import UserRole
 
 SNAPSHOT_PATH = Path("docs/api/openapi.snapshot.json")
-EXPECTED_ALEMBIC_HEAD = "0044_notification_outbox"
+EXPECTED_ALEMBIC_HEAD = "0047_retargeting_source_links"
 EXPECTED_MIGRATIONS = {
     "0001_enable_extensions.py",
     "0002_identity_and_organizations.py",
@@ -60,6 +60,9 @@ EXPECTED_MIGRATIONS = {
     "0042_invoice_number_prefix_sequence.py",
     "0043_campaign_review_lifecycle.py",
     "0044_notification_outbox.py",
+    "0045_disclosure_query_history.py",
+    "0046_retargeting_sources.py",
+    "0047_retargeting_source_links.py",
 }
 MAJOR_CONTRACT_PATHS = {
     "health": "/api/v1/health",
@@ -82,6 +85,8 @@ MAJOR_CONTRACT_PATHS = {
     "earnings": "/api/v1/driver/earnings/ledger",
     "advertiser reports": "/api/v1/advertiser/campaigns/{campaign_id}/report",
     "heatmaps": "/api/v1/advertiser/campaigns/{campaign_id}/heatmap",
+    "planning sources": "/api/v1/advertiser/retargeting-sources",
+    "planning source links": "/api/v1/advertiser/retargeting-source-links",
 }
 PROTECTED_GET_PATHS = [
     "/api/v1/me",

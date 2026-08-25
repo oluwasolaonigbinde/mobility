@@ -29,9 +29,9 @@ const ZONE_TYPE_META: Record<
   ZoneType,
   { label: string; tone: "amber" | "cyan" | "coral"; hint: string }
 > = {
-  target: { label: "Target", tone: "amber", hint: "Pay premium for attention here" },
+  target: { label: "Target", tone: "amber", hint: "Pay premium driver time here" },
   bonus: { label: "Bonus", tone: "cyan", hint: "Extra driver incentive" },
-  exclusion: { label: "Exclusion", tone: "coral", hint: "Never bill impressions here" },
+  exclusion: { label: "Exclusion", tone: "coral", hint: "Never count modelled contacts here" },
 };
 
 const SOURCE_ID = "campaign-zones";
