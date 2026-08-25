@@ -62,9 +62,10 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 **Control package:** `PKG-07` — the owner’s 25 Aug 2026 standing instruction
 authorizes automatic advance to the next dependency-safe package. PKG-06 stays
 BLOCKED: W3-04B/C still require their recorded Package 4 secure-evidence chain.
-**Current checkpoint:** `PKG-07 / W4-01A` — the owner-release build-admission
-gate is PRESENT and R14-A/R14-B are DONE; W4-01A is the earliest runnable
-Package 7 checklist item.
+**Current checkpoint:** `PKG-07 / W4-01B` — W4-01A and PKG02-C2 are DONE;
+W4-01B is the next dependency-safe Package 7 checklist item. Physical-device,
+real-route/battery, external-staging and live-GPS evidence remains unrun and
+authorizes no real tracking or pilot use.
 
 ## Executable package queue
 
@@ -76,7 +77,7 @@ Package 7 checklist item.
 | 4 | **PKG-04 — secure evidence, activation and communications** | **BLOCKED** | Campaign review and the shared in-app notification core are complete; storage/KYC/activation/provider communications await recorded external inputs and their transitive dependencies. | none — checklist DAG gates entry |
 | 5 | **PKG-05 — privacy, measurement and retargeting** | **BLOCKED** | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
 | 6 | **PKG-06 — matching and driver onboarding** | **BLOCKED** | Recommendations, offers, activity and public application are verified; KYC/payee and vehicle approval await their recorded secure-evidence dependencies. | none — checklist DAG gates entry |
-| 7 | **PKG-07 — production driver PWA** | NEXT | The pilot PWA safely tracks, syncs, explains earnings and supports release across the device matrix. | none — checklist DAG gates entry |
+| 7 | **PKG-07 — production driver PWA** | IN PROGRESS | The pilot PWA safely tracks, syncs, explains earnings and supports release across the device matrix. | none — checklist DAG gates entry |
 | 8 | **PKG-08 — governed reporting and pilot readiness** | QUEUED | Safe reports, release infrastructure and one complete pilot acceptance gate are ready. | none — checklist DAG gates entry |
 | 9 | **PKG-09 — controlled pilot, training and handover** | QUEUED | Run the pilot, stabilize it, train roles and close operational handover. | none — checklist DAG gates entry |
 
@@ -732,10 +733,35 @@ Package 7 checklist item.
 - **Owns:** checklist 61–64. Installability/session safety, screen-on tracking,
   durable sync, onboarding/campaign use, earnings/disputes and release evidence
   ship together.
+- **Package plan (activated 25 Aug 2026, canonical branch `feat/pkg-07`):**
+  W4-01A hardens the installable shell, same-origin BFF session and live-held
+  ADR 014 runtime/storage/writer gates before W4-01B composes the complete
+  screen-on Start/capture/flush/End flow. A focused PWA/security/data-loss gate
+  follows W4-01B. W4-01C remains dependency-blocked by W3-04C and W2-03D; no
+  KYC/vehicle evidence is invented and Package 8 is not admitted by this plan.
 - **Entry correction:** PKG02-C2 is mandatory before W4-01A becomes
   authoritative or any real GPS is collected: the tracker enforces ADR 014
   capability/session gates, stale writer-lock state is recoverable, and
   terminal ping failures remain as dead-letter evidence.
+- **W4-01A evidence (DONE 25 Aug 2026):** commit `a1afde1` keeps the existing
+  D15/D16 protocol and BFF-cookie boundary while making Start acquire the
+  exclusive writer before the server call, retaining the lock through unknown
+  Start reconciliation, and deriving `active | degraded | stopped` only from
+  currently held visibility, wake, location, session, storage and writer
+  guarantees. The Cardvert manifest/service worker is installable and
+  auth-safe; keepalive, renewal, revocation and logout are server-validated.
+  Location-bearing IndexedDB records and terminal dead letters are encrypted,
+  driver-bound and migrated in place from the shipped v1 database; terminal
+  failures remain local diagnostic evidence and force an incomplete client
+  watermark. Six unchanged-code break cases failed before the implementation.
+  Focused frontend evidence passed (112 worker tests; controller high-risk
+  recheck 51 tests), with typecheck, scoped lint/format, production build, eight
+  desktop/mobile browser checks, an authenticated live fail-closed Start check,
+  and byte-stable §9 artifacts. Independent review found two data-loss defects
+  (the historical database-name discontinuity and concurrent queue mutation);
+  both gained deterministic red/green regressions and the recheck passed. No
+  physical-device, native/background, real-GPS, route/battery, staging, pilot,
+  KYC/vehicle or Package 8 evidence is claimed.
 - **Closure:** Android/iOS browser/device matrix, permission/visibility,
   battery/data-loss/security and full journey tests pass against the frozen
   backend contracts.
@@ -858,7 +884,7 @@ verification, gates or required specialist review.
 | 58 | **W3-04A — public driver application** | PKG-06 | DONE | Abuse-resistant registration creates a pending, non-work-eligible application. | none |
 | 59 | **W3-04B — KYC/bank onboarding approval** | PKG-06 | TODO | Person/payee KYC is approved but remains non-work-eligible pending W3-04C vehicle approval. | leaf: W3-04A, W2-02D, MNY-10A |
 | 60 | **W3-04C — driver vehicle profile and approval** | PKG-06 | TODO | Identity/KYC-approved applicants add vehicle evidence; admin approval grants work eligibility. | leaf: W3-04B, W2-02B, W2-02D |
-| 61 | **W4-01A — PWA foundation and session security** | PKG-07 | TODO | The installable production client uses the BFF session safely and fails closed on unsupported permission/storage/lock states. | leaf: R14-A, R14-B; external: EXT-PKG07-OWNER-RELEASE |
+| 61 | **W4-01A — PWA foundation and session security** | PKG-07 | DONE | The installable production client uses the BFF session safely and fails closed on unsupported permission/storage/lock states. | leaf: R14-A, R14-B; external: EXT-PKG07-OWNER-RELEASE |
 | 62 | **W4-01B — screen-on tracking and durable sync** | PKG-07 | TODO | Explicit Start/End tracking survives reload/network interruption, reports visibility degradation and never claims unsupported background capture. | leaf: W4-01A, R14-B |
 | 63 | **W4-01C — PWA onboarding and campaign journey** | PKG-07 | TODO | Onboarding, vehicle, offers, activation and tracking integrate through governed BFF/API contracts. | leaf: W4-01B, W3-04C, W3-03B, W2-03D |
 | 64 | **W4-01D — PWA earnings, disputes and release rehearsal** | PKG-07 | TODO | History, earnings, disputes, notifications, installability and production-PWA release evidence are complete. | leaf: W4-01C, MNY-08C, MNY-11A, W2-04A, W2-04C |
