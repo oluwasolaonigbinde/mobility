@@ -152,4 +152,67 @@ describe("NotificationCenter", () => {
       ),
     );
   });
+
+  it("surfaces failed mutations with accessible retry actions", async () => {
+    let readAttempts = 0;
+    let preferenceAttempts = 0;
+    const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+      if (input === "/api/notifications/unread-count") return response({ unread_count: 1 });
+      if (input === "/api/notifications") {
+        return response({
+          items: [
+            {
+              id: "notice-retry",
+              title: "Trip verified",
+              body: "Your trip was verified.",
+              channel: "in_app",
+              type_key: "trip_verified",
+              created_at: "2026-08-24T12:00:00Z",
+              read_at: null,
+            },
+          ],
+          total: 1,
+          limit: 50,
+          offset: 0,
+        });
+      }
+      if (input === "/api/notifications/notice-retry/read") {
+        readAttempts += 1;
+        return readAttempts === 1
+          ? Promise.resolve(
+              new Response(JSON.stringify({ error: { message: "Read request failed" } }), {
+                status: 503,
+              }),
+            )
+          : response({ id: "notice-retry", read_at: "2026-08-24T12:00:01Z" });
+      }
+      if (input === "/api/advertiser/notification-preferences" && init?.method === "PATCH") {
+        preferenceAttempts += 1;
+        return preferenceAttempts === 1
+          ? Promise.resolve(
+              new Response(JSON.stringify({ error: { message: "Preference request failed" } }), {
+                status: 503,
+              }),
+            )
+          : response({ in_app_enabled: true, transactional_email_enabled: false });
+      }
+      return response({ in_app_enabled: true, transactional_email_enabled: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    renderCentre(true);
+
+    fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
+    await screen.findByText("Trip verified");
+    fireEvent.click(screen.getByRole("button", { name: "Mark read" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Read request failed");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(readAttempts).toBe(2));
+
+    const email = screen.getByLabelText("Transactional email");
+    fireEvent.click(email);
+    await waitFor(() => expect(preferenceAttempts).toBe(1));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Preference request failed");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(preferenceAttempts).toBe(2));
+  });
 });

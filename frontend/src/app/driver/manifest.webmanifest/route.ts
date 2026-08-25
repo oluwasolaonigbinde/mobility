@@ -2,15 +2,15 @@ import { NextResponse } from "next/server";
 
 /**
  * Scoped web-app manifest: the driver surface installs as its own app
- * ("Vantage Driver"), standalone display, scoped to /driver — while the
+ * ("Cardvert Driver"), standalone display, scoped to /driver — while the
  * advertiser/admin portal remains a regular web app on the same origin.
  */
 export function GET() {
   return NextResponse.json(
     {
-      name: "Vantage Driver",
-      short_name: "Vantage",
-      description: "Drive, get seen, get paid — campaign tracking and earnings for drivers.",
+      name: "Cardvert Driver",
+      short_name: "Cardvert",
+      description: "Track campaigns and review hourly earnings backed by aggregate measurement.",
       id: "/driver",
       start_url: "/driver",
       scope: "/driver",

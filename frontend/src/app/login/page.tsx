@@ -26,15 +26,15 @@ export default async function LoginPage({
       <div className="bg-grid pointer-events-none absolute inset-0" aria-hidden />
 
       <div className="animate-rise relative w-full max-w-sm">
-        <p className="micro text-amber mb-3">Vantage // urban attention network</p>
+        <p className="micro text-amber mb-3">Cardvert // aggregate mobility measurement</p>
         <h1 className="font-display text-4xl font-semibold tracking-tight">
-          Urban attention,
+          Mobility,
           <br />
           measured.
         </h1>
         <p className="text-muted mt-3 mb-8 text-sm">
-          Sign in to your command center — campaigns, live analytics, earnings and fleet trust in
-          one place.
+          Sign in to your command center — campaigns, aggregate measurement, hourly earnings and
+          fleet trust in one place.
         </p>
 
         <Panel className="p-6">
@@ -42,11 +42,7 @@ export default async function LoginPage({
         </Panel>
 
         <p className="micro text-faint mt-6 flex items-center gap-2">
-          <span
-            className="animate-pulse-dot bg-green inline-block size-1.5 rounded-full"
-            aria-hidden
-          />
-          Network live · Abuja · Lagos · Port Harcourt · Kano
+          Terrax measurement · Abuja · Lagos · Port Harcourt · Kano
         </p>
       </div>
     </main>

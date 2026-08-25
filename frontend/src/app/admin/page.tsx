@@ -25,7 +25,7 @@ export default async function AdminOperationsPage() {
       <h1 className="font-display text-3xl font-semibold tracking-tight">
         Fleet &amp; Trust Operations
       </h1>
-      <p className="micro text-muted mt-1 mb-8">Network-wide · live</p>
+      <p className="micro text-muted mt-1 mb-8">Operations · aggregate measurement</p>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat label="Users" value={formatCount(users.data?.total)} />

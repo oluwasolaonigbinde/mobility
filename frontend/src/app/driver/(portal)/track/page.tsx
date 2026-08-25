@@ -63,7 +63,8 @@ export default async function DriverTrackPage() {
           ))}
         </div>
         <p className="text-muted mt-4 text-xs leading-5">
-          Tracking only runs after you start a trip and while Vantage Driver stays open on screen.
+          Tracking only runs after you start a trip and while Cardvert Driver stays open on
+          screen.
         </p>
       </Panel>
 

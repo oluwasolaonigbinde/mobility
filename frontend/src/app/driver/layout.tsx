@@ -2,18 +2,18 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
 /**
- * Vantage Driver — an installable PWA, not a portal. Standalone app chrome:
+ * Cardvert Driver — an installable PWA, not a portal. Standalone app chrome:
  * slim top bar, content well, bottom tab bar. Advertiser/admin keep the
  * desktop shell; this surface is phone-first end to end.
  */
 
 export const metadata: Metadata = {
-  title: { default: "Vantage Driver", template: "%s · Vantage Driver" },
+  title: { default: "Cardvert Driver", template: "%s · Cardvert Driver" },
   manifest: "/driver/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Vantage Driver",
+    title: "Cardvert Driver",
   },
   icons: {
     apple: "/icons/driver-180.png",

@@ -15,11 +15,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Vantage — Urban Attention, Measured",
-    template: "%s · Vantage",
+    default: "Cardvert — Aggregate Mobility Measurement",
+    template: "%s · Cardvert",
   },
   description:
-    "The measurable mobility advertising & attribution network. Campaigns, live analytics, driver earnings and fraud control in one command center.",
+    "Cardvert campaigns with Terrax aggregate measurement, hourly driver earnings, and fleet trust in one command center.",
 };
 
 export default function RootLayout({
