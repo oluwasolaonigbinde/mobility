@@ -49,3 +49,13 @@ configured-environment slice evidence remains the B regression basis.
   targeted rerun. A full 989-node backend run was started once but was
   terminated by the local runner at 65% (SIGTERM); it was not claimed as a
   pass.
+
+## Delivery receipt
+
+- Parent: `a9d0eb3e9e8700892bb64353ef1bd6ff5eca19e3`; tip:
+  `1caf4a1e14fb331d39990e7cdbbf9b5c0687e353`.
+- Ordered correction commits: `0f915d0`, `69f1402`, `d7a9337`, `5d0c27b`,
+  `1caf4a1`.
+- `origin/feat/pkg-05-audit-corrections` matches the tip. The only remaining
+  dirty path is the preserved untracked Pro artifact under
+  `.codex/delivery/cardvert-pkg05/`.
