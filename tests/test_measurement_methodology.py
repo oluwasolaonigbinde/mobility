@@ -34,7 +34,15 @@ def test_contract_is_complete_and_live_use_fails_closed() -> None:
         "driver_campaign_cost",
         "true_roi",
     }
-    required = {"display_label", "class", "unit", "source", "vintage", "uncertainty", "missing_data"}
+    required = {
+        "display_label",
+        "class",
+        "unit",
+        "source",
+        "vintage",
+        "uncertainty",
+        "missing_data",
+    }
     assert all(required <= row.keys() for row in metrics.values())
     contacts = metrics["modelled_potential_contacts"]
     assert contacts["storage_field"] == "estimated_impressions"
@@ -76,9 +84,9 @@ def test_roi_fixture_is_complete_synthetic_evidence_only() -> None:
     ):
         assert fixture["method"][field]
     inputs = fixture["inputs"]
-    calculated = (Decimal(inputs["attributed_revenue"]) - Decimal(inputs["approved_cost_basis"])) / Decimal(
-        inputs["approved_cost_basis"]
-    )
+    calculated = (
+        Decimal(inputs["attributed_revenue"]) - Decimal(inputs["approved_cost_basis"])
+    ) / Decimal(inputs["approved_cost_basis"])
     assert calculated == Decimal(fixture["roi"]["ratio"])
     assert calculated * 100 == Decimal(fixture["roi"]["percent"])
     assert fixture["roi_gate"]["decision"] == "INCLUDE_FOR_SYNTHETIC_TEST_ONLY"
