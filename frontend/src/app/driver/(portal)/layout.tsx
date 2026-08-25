@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import { TabBar } from "@/components/driver/tab-bar";
 import { ServiceWorkerRegister } from "@/components/driver/sw-register";
-import { signOutAction } from "@/lib/auth/actions";
 import { requireRole } from "@/lib/auth/current-user";
 import { NotificationCenter } from "@/components/notifications/notification-center";
+import { DriverLogoutButton } from "@/components/driver/logout-button";
 
 export default async function DriverPortalLayout({ children }: { children: ReactNode }) {
   const me = await requireRole("driver");
@@ -28,11 +28,7 @@ export default async function DriverPortalLayout({ children }: { children: React
             />
             {me.user.full_name.split(" ")[0]}
           </span>
-          <form action={signOutAction}>
-            <button type="submit" className="micro text-faint hover:text-coral transition-colors">
-              Exit
-            </button>
-          </form>
+          <DriverLogoutButton />
         </div>
       </header>
 

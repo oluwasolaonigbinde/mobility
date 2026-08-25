@@ -24,6 +24,11 @@ export function GET() {
         { src: "/icons/driver-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
       ],
     },
-    { headers: { "content-type": "application/manifest+json" } },
+    {
+      headers: {
+        "content-type": "application/manifest+json",
+        "cache-control": "public, max-age=3600",
+      },
+    },
   );
 }

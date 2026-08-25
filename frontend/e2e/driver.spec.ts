@@ -1,9 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /**
- * Vantage Driver PWA smoke against the seeded stack. Read-only: trip
- * start/end with live GPS was verified manually (geolocation stubbing);
- * these prove the app chrome, real data on every tab, and installability.
+ * Cardvert Driver PWA smoke against the seeded stack. These read-only checks
+ * prove app chrome, seeded data on every tab, and the install manifest only.
  */
 
 async function loginAsDriver(page: Page) {
@@ -16,7 +15,7 @@ async function loginAsDriver(page: Page) {
 
 test("driver home shows earnings and the active campaign with app chrome", async ({ page }) => {
   await loginAsDriver(page);
-  await expect(page.getByText("Vantage. DRIVER")).toBeVisible();
+  await expect(page.getByText("Cardvert. DRIVER")).toBeVisible();
   await expect(page.getByText("Batch-payable earnings", { exact: true })).toBeVisible();
   // Active-campaign card names the campaign; recent activity lists whichever
   // campaigns the enriched seed wrote most recently — so assert presence, not
@@ -94,7 +93,7 @@ test("PWA manifest is public and correctly scoped", async ({ request }) => {
   const res = await request.get("/driver/manifest.webmanifest");
   expect(res.status()).toBe(200);
   const manifest = await res.json();
-  expect(manifest.name).toBe("Vantage Driver");
+  expect(manifest.name).toBe("Cardvert Driver");
   expect(manifest.scope).toBe("/driver");
   expect(manifest.display).toBe("standalone");
   expect(manifest.icons.length).toBeGreaterThanOrEqual(2);

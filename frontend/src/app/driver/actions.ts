@@ -54,11 +54,12 @@ export async function assignmentAction(
 
 export interface StartTripResult extends DriverActionState {
   trip?: components["schemas"]["TripRead"];
+  outcome?: "started" | "failed" | "unknown";
 }
 
 export async function startTripAction(assignmentId: string): Promise<StartTripResult> {
   if (!z.string().uuid().safeParse(assignmentId).success) {
-    return { error: "Invalid assignment" };
+    return { error: "Invalid assignment", outcome: "failed" };
   }
   try {
     const api = createApiClient(await getSessionToken());
@@ -66,9 +67,36 @@ export async function startTripAction(assignmentId: string): Promise<StartTripRe
       body: { assignment_id: assignmentId },
     });
     revalidateDriver();
-    return { trip: data };
+    return { trip: data, outcome: data ? "started" : "unknown" };
   } catch (error) {
-    return toState(error);
+    if (error instanceof ApiError && [400, 403, 404, 422].includes(error.status)) {
+      return { error: error.message, outcome: "failed" };
+    }
+    return { ...toState(error), outcome: "unknown" };
+  }
+}
+
+export async function getCurrentTripAction(): Promise<StartTripResult> {
+  try {
+    const api = createApiClient(await getSessionToken());
+    const { data } = await api.GET("/api/v1/driver/trips/current");
+    return { trip: data?.trip ?? undefined, outcome: data?.trip ? "started" : "failed" };
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return { outcome: "failed" };
+    return { ...toState(error), outcome: "unknown" };
+  }
+}
+
+export async function verifyDriverTripOwnershipAction(tripId: string): Promise<boolean> {
+  if (!z.string().uuid().safeParse(tripId).success) return false;
+  try {
+    const api = createApiClient(await getSessionToken());
+    const { data } = await api.GET("/api/v1/driver/trips/{trip_id}", {
+      params: { path: { trip_id: tripId } },
+    });
+    return data?.id === tripId;
+  } catch {
+    return false;
   }
 }
 
@@ -138,6 +166,8 @@ export interface PingBatchResult extends DriverActionState {
    * must drop the batch instead of head-of-line-blocking its queue forever.
    */
   retryable?: boolean;
+  terminalStatus?: number;
+  terminalCode?: string;
 }
 
 export async function sendPingBatchAction(
@@ -162,7 +192,12 @@ export async function sendPingBatchAction(
   } catch (error) {
     if (error instanceof ApiError) {
       const terminal = [400, 409, 422].includes(error.status);
-      return { error: error.message, retryable: !terminal };
+      return {
+        error: error.message,
+        retryable: !terminal,
+        terminalStatus: terminal ? error.status : undefined,
+        terminalCode: terminal ? error.code : undefined,
+      };
     }
     return { ...toState(error), retryable: true };
   }

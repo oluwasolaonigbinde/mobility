@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/current-user";
 import { ApiError } from "@/lib/api/errors";
 import { formatDate, formatMoney } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
@@ -9,6 +10,7 @@ import { TripTracker } from "./trip-tracker";
 export const metadata: Metadata = { title: "Track" };
 
 export default async function DriverTrackPage() {
+  const me = await requireRole("driver");
   const api = createApiClient(await getSessionToken());
 
   const [active, current, assignments, ledger] = await Promise.all([
@@ -43,6 +45,7 @@ export default async function DriverTrackPage() {
       <TripTracker
         assignment={active.data?.assignment ?? null}
         initialTrip={current.data?.trip ?? null}
+        driverId={me.user.id}
       />
 
       <Panel className="p-5">

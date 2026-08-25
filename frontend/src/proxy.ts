@@ -31,11 +31,17 @@ async function responseWithRefresh(request: NextRequest, response: NextResponse)
         cache: "no-store",
       },
     );
-    if (!refreshed.ok) return response;
+    if (!refreshed.ok) {
+      if (refreshed.status === 401 || refreshed.status === 403) {
+        response.cookies.delete(SESSION_COOKIE);
+      }
+      return response;
+    }
     const data = (await refreshed.json()) as RefreshResponse;
     response.cookies.set(SESSION_COOKIE, data.access_token, sessionCookieOptions(data.expires_in));
   } catch {
-    // Refresh is deliberately fail-open. The normal auth guard handles expiry.
+    // A provider/network loss keeps the still-valid cookie. Backend guards
+    // remain authoritative and the tracker treats keepalive loss as degraded.
   }
   return response;
 }

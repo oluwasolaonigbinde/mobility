@@ -8,7 +8,8 @@
  * - Offline navigation gets a tiny inline fallback telling the driver
  *   tracking needs a connection.
  */
-const STATIC_CACHE = "vantage-driver-static-v1";
+const CACHE_PREFIX = "cardvert-driver-";
+const STATIC_CACHE = `${CACHE_PREFIX}static-v2`;
 
 self.addEventListener("install", () => self.skipWaiting());
 
@@ -17,7 +18,11 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((k) => k !== STATIC_CACHE).map((k) => caches.delete(k))),
+        Promise.all(
+          keys
+            .filter((key) => key.startsWith(CACHE_PREFIX) && key !== STATIC_CACHE)
+            .map((key) => caches.delete(key)),
+        ),
       )
       .then(() => self.clients.claim()),
   );
@@ -30,7 +35,7 @@ const OFFLINE_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"
 h1{font-size:20px;margin:0 0 8px}p{color:#8a90a0;font-size:14px;max-width:280px;line-height:1.6}
 b{color:#ffa62b}</style></head><body><div>
 <h1><b>C</b> You're offline</h1>
-<p>Cardvert Driver needs a connection to track trips and sync hourly earnings. Reconnect and pull to refresh.</p>
+<p>Reconnect to reopen Cardvert Driver. This offline page is not tracking your location.</p>
 </div></body></html>`;
 
 self.addEventListener("fetch", (event) => {

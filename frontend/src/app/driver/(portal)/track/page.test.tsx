@@ -6,6 +6,9 @@ const get = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 vi.mock("./trip-tracker", () => ({ TripTracker: () => <div>Trip tracker</div> }));
+vi.mock("@/lib/auth/current-user", () => ({
+  requireRole: vi.fn(async () => ({ user: { id: "driver-id", role: "driver" } })),
+}));
 
 import DriverTrackPage from "./page";
 

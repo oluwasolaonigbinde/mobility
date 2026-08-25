@@ -1,87 +1,331 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { components } from "@/lib/api/schema";
-import { startTripAction, endTripAction, sendPingBatchAction } from "@/app/driver/actions";
+import {
+  endTripAction,
+  getCurrentTripAction,
+  sendPingBatchAction,
+  startTripAction,
+  verifyDriverTripOwnershipAction,
+} from "@/app/driver/actions";
 import { openPingQueue, type PingQueue } from "@/lib/trips/ping-queue";
+import {
+  EMPTY_CAPABILITY_SNAPSHOT,
+  assessPilotPwa,
+  type CapabilitySnapshot,
+} from "@/lib/pwa/capability-contract";
+import { DRIVER_SESSION_CHANNEL } from "@/components/driver/logout-button";
 import { Panel } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 
 type Assignment = components["schemas"]["CampaignAssignmentRead"];
 type Trip = components["schemas"]["TripRead"];
+type GpsState = "idle" | "granted" | "denied" | "unavailable";
+type WakeSentinel = EventTarget & { release(): Promise<void>; released?: boolean };
+type NavigatorWithRuntime = Navigator & {
+  wakeLock?: { request(type: "screen"): Promise<WakeSentinel> };
+};
 
 const FLUSH_INTERVAL_MS = 15_000;
 const FLUSH_AT_COUNT = 20;
 const MAX_BATCH_PINGS = 40;
 const KEEPALIVE_INTERVAL_MS = 10 * 60_000;
-/** How often stranded (previous-session) data is re-attempted. */
 const RECOVERY_INTERVAL_MS = 60_000;
-/** Web Locks single-writer guard: two tabs must never both cut batches. */
-const TRACKING_LOCK = "vantage-trip-tracking";
+const TRACKING_LOCK = "cardvert-driver-trip-writer-v2";
 
-type GpsState = "idle" | "granted" | "denied" | "unavailable";
+function passiveSnapshot(activeTrip: boolean): CapabilitySnapshot {
+  if (typeof window === "undefined") return { ...EMPTY_CAPABILITY_SNAPSHOT, activeTrip };
+  const visibility =
+    document.visibilityState === "visible"
+      ? "visible"
+      : document.visibilityState === "hidden"
+        ? "hidden"
+        : "unknown";
+  return {
+    ...EMPTY_CAPABILITY_SNAPSHOT,
+    secureContext: window.isSecureContext,
+    manifestLinked: [...document.querySelectorAll<HTMLLinkElement>('link[rel="manifest"]')].some(
+      (link) => new URL(link.href, location.href).pathname === "/driver/manifest.webmanifest",
+    ),
+    displayMode: window.matchMedia?.("(display-mode: standalone)").matches
+      ? "standalone"
+      : "browser",
+    visibility,
+    online: navigator.onLine,
+    session: "valid",
+    activeTrip,
+  };
+}
 
-/**
- * Foreground trip tracking via the Geolocation API.
- *
- * Honest limitation, documented for the client: a web app (even installed
- * as a PWA) can only track while it is open and on-screen. Background GPS
- * is the future native app's job — the backend contract is identical.
- *
- * Durability (RM4/RM5): every GPS fix is persisted to IndexedDB the moment
- * it is recorded, batches carry an idempotency key minted once at cut time
- * and reused across every retry, and unsent data survives reloads — it
- * drains on the next mount, into the trip's post-end recovery window if the
- * trip has meanwhile ended (or to server-side quarantine after sealing).
- */
 export function TripTracker({
   assignment,
   initialTrip,
+  driverId,
 }: {
   assignment: Assignment | null;
   initialTrip: Trip | null;
+  /** Server-verified user id from the guarded driver page. */
+  driverId: string;
 }) {
   const router = useRouter();
   const [trip, setTrip] = useState<Trip | null>(initialTrip);
   const [gps, setGps] = useState<GpsState>("idle");
   const [syncedCount, setSyncedCount] = useState(0);
   const [bufferedCount, setBufferedCount] = useState(0);
+  const [deadLetterCount, setDeadLetterCount] = useState(0);
   const [lastFix, setLastFix] = useState<GeolocationPosition | null>(null);
-  const [error, setError] = useState<string | undefined>();
-  // null = still acquiring; false = fail closed (no tracking, no ending).
-  const [lockHeld, setLockHeld] = useState<boolean | null>(null);
-  // Storage is a precondition for tracking (RM5): null = still opening,
-  // false = unavailable/broken — tracking must not start or claim complete.
+  const [error, setError] = useState<string>();
   const [storageReady, setStorageReady] = useState<boolean | null>(null);
-  const [busy, startTransition] = useTransition();
+  const [runtime, setRuntime] = useState<CapabilitySnapshot>(() => passiveSnapshot(false));
+  const [serverTripVerified, setServerTripVerified] = useState(false);
+  const [startUncertain, setStartUncertain] = useState(false);
+  const [busy, setBusy] = useState(false);
 
+  const runtimeRef = useRef(runtime);
   const queueRef = useRef<PingQueue | null>(null);
   const watchRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const keepaliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recoveryRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const flushingRef = useRef(false);
-  const releaseLockRef = useRef<(() => void) | null>(null);
+  const releaseWriterRef = useRef<(() => void) | null>(null);
+  const writerAcquireRef = useRef<Promise<boolean> | null>(null);
+  const wakeRef = useRef<WakeSentinel | null>(null);
   const storageBrokenRef = useRef(false);
+  const identityValidRef = useRef(true);
+  const startUncertainRef = useRef(false);
+  const tripRef = useRef<Trip | null>(initialTrip);
+  const reconciledTripRef = useRef<string | null>(null);
+
+  const patchRuntime = useCallback((patch: Partial<CapabilitySnapshot>) => {
+    runtimeRef.current = { ...runtimeRef.current, ...patch };
+    setRuntime(runtimeRef.current);
+    return runtimeRef.current;
+  }, []);
+  const assessment = useMemo(() => assessPilotPwa(runtime), [runtime]);
+
+  const stopWatch = useCallback(() => {
+    if (watchRef.current !== null) {
+      navigator.geolocation?.clearWatch(watchRef.current);
+      watchRef.current = null;
+    }
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
+    if (keepaliveRef.current) clearInterval(keepaliveRef.current);
+    keepaliveRef.current = null;
+  }, []);
+
+  const releaseWake = useCallback(async () => {
+    const sentinel = wakeRef.current;
+    wakeRef.current = null;
+    if (sentinel && !sentinel.released) await sentinel.release().catch(() => undefined);
+    patchRuntime({ wakeLock: "released" });
+  }, [patchRuntime]);
+
+  const releaseWriter = useCallback(() => {
+    releaseWriterRef.current?.();
+    releaseWriterRef.current = null;
+    patchRuntime({ webLocks: "contended" });
+  }, [patchRuntime]);
+
+  const invalidateIdentity = useCallback(
+    (message: string) => {
+      identityValidRef.current = false;
+      stopWatch();
+      void releaseWake();
+      releaseWriter();
+      queueRef.current?.close();
+      queueRef.current = null;
+      setStorageReady(false);
+      patchRuntime({ session: "invalid", indexedDb: "failed", durableQueue: "failed" });
+      setError(message);
+    },
+    [patchRuntime, releaseWake, releaseWriter, stopWatch],
+  );
+
+  const validateSession = useCallback(async () => {
+    if (!navigator.onLine) {
+      patchRuntime({ online: false, session: "offline" });
+      return "offline" as const;
+    }
+    try {
+      const response = await fetch("/driver/keepalive", {
+        cache: "no-store",
+        credentials: "same-origin",
+        redirect: "manual",
+      });
+      if (response.ok) {
+        const body = (await response.json()) as { status?: string; driverId?: string };
+        if (body.status === "valid" && body.driverId === driverId) {
+          identityValidRef.current = true;
+          patchRuntime({ online: true, session: "valid" });
+          return "valid" as const;
+        }
+      }
+      if (
+        response.status === 401 ||
+        response.status === 403 ||
+        response.type === "opaqueredirect"
+      ) {
+        invalidateIdentity("Your driver session ended. Sign in again to resume safely.");
+        return "invalid" as const;
+      }
+      patchRuntime({ online: true, session: "unavailable" });
+      return "unavailable" as const;
+    } catch {
+      patchRuntime({
+        online: navigator.onLine,
+        session: navigator.onLine ? "unavailable" : "offline",
+      });
+      return navigator.onLine ? ("unavailable" as const) : ("offline" as const);
+    }
+  }, [driverId, invalidateIdentity, patchRuntime]);
+
+  const observeInstallability = useCallback(async () => {
+    let serviceWorker: CapabilitySnapshot["serviceWorker"] = "unavailable";
+    if ("serviceWorker" in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.getRegistration("/driver");
+        serviceWorker = registration ? "registered" : "not-registered";
+      } catch {
+        serviceWorker = "not-registered";
+      }
+    }
+    const observed = passiveSnapshot(Boolean(tripRef.current));
+    return patchRuntime({
+      secureContext: observed.secureContext,
+      manifestLinked: observed.manifestLinked,
+      displayMode: observed.displayMode,
+      visibility: observed.visibility,
+      online: observed.online,
+      activeTrip: observed.activeTrip,
+      serviceWorker,
+    });
+  }, [patchRuntime]);
+
+  const acquireWriter = useCallback(async (): Promise<boolean> => {
+    if (releaseWriterRef.current) return true;
+    if (writerAcquireRef.current) return writerAcquireRef.current;
+    if (!("locks" in navigator)) {
+      patchRuntime({ webLocks: "unavailable" });
+      setError("This browser cannot provide the exclusive tracking lock Cardvert requires.");
+      return false;
+    }
+    let resolveAcquisition!: (held: boolean) => void;
+    const acquisition = new Promise<boolean>((resolve) => {
+      resolveAcquisition = resolve;
+    });
+    writerAcquireRef.current = acquisition;
+    let resolved = false;
+    void navigator.locks
+      .request(TRACKING_LOCK, { ifAvailable: true }, async (lock) => {
+        writerAcquireRef.current = null;
+        if (!lock) {
+          patchRuntime({ webLocks: "contended" });
+          setError("This trip is controlled by another Cardvert tab or window.");
+          resolved = true;
+          resolveAcquisition(false);
+          return;
+        }
+        if (!identityValidRef.current) {
+          resolved = true;
+          resolveAcquisition(false);
+          return;
+        }
+        patchRuntime({ webLocks: "pass" });
+        resolved = true;
+        resolveAcquisition(true);
+        await new Promise<void>((release) => {
+          releaseWriterRef.current = release;
+        });
+      })
+      .catch(() => {
+        writerAcquireRef.current = null;
+        patchRuntime({ webLocks: "denied" });
+        setError("Cardvert could not acquire the exclusive tracking lock.");
+        if (!resolved) resolveAcquisition(false);
+      });
+    return acquisition;
+  }, [patchRuntime]);
+
+  const acquireWake = useCallback(async (): Promise<boolean> => {
+    if (wakeRef.current && !wakeRef.current.released) {
+      patchRuntime({ wakeLock: "pass" });
+      return true;
+    }
+    const wake = (navigator as NavigatorWithRuntime).wakeLock;
+    if (!wake) {
+      patchRuntime({ wakeLock: "unavailable" });
+      return false;
+    }
+    try {
+      const sentinel = await wake.request("screen");
+      wakeRef.current = sentinel;
+      sentinel.addEventListener(
+        "release",
+        () => {
+          // Ignore our own release during hide, End, or failed preparation.
+          // Only an externally lost currently-held sentinel is a runtime fault.
+          if (wakeRef.current !== sentinel) return;
+          wakeRef.current = null;
+          stopWatch();
+          patchRuntime({ wakeLock: "released" });
+          setError("The screen wake lock was released, so GPS capture paused.");
+        },
+        { once: true },
+      );
+      patchRuntime({ wakeLock: "pass" });
+      return true;
+    } catch {
+      patchRuntime({ wakeLock: "denied" });
+      return false;
+    }
+  }, [patchRuntime, stopWatch]);
+
+  const probeLocation = useCallback(async (): Promise<boolean> => {
+    if (!("geolocation" in navigator)) {
+      setGps("unavailable");
+      patchRuntime({ location: "unavailable" });
+      return false;
+    }
+    return new Promise<boolean>((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        () => {
+          setGps("granted");
+          patchRuntime({ location: "granted" });
+          resolve(true);
+        },
+        (positionError) => {
+          const denied = positionError.code === positionError.PERMISSION_DENIED;
+          setGps(denied ? "denied" : "unavailable");
+          patchRuntime({ location: denied ? "denied" : "unavailable" });
+          resolve(false);
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 20_000 },
+      );
+    });
+  }, [patchRuntime]);
 
   const refreshCounts = useCallback(async (tripId: string) => {
     const queue = queueRef.current;
-    if (!queue) return;
-    const [meta, unsynced] = await Promise.all([queue.meta(tripId), queue.unsyncedCount(tripId)]);
-    setSyncedCount(Math.max(0, meta.pingsRecorded - unsynced));
+    if (!queue || !identityValidRef.current) return;
+    const [meta, unsynced, deadLetters] = await Promise.all([
+      queue.meta(tripId),
+      queue.unsyncedCount(tripId),
+      queue.listDeadLetters(tripId),
+    ]);
+    const rejectedPings = deadLetters.reduce((sum, deadLetter) => sum + deadLetter.pings.length, 0);
+    setSyncedCount(Math.max(0, meta.pingsRecorded - unsynced - rejectedPings));
     setBufferedCount(unsynced);
+    setDeadLetterCount(deadLetters.length);
   }, []);
 
-  /**
-   * Drain: retry previously cut batches (stable keys) in cut order, then cut
-   * remaining pending pings into new batches. Terminal rejections drop the
-   * batch (dead letter) so one bad batch can never jam the queue.
-   */
   const flush = useCallback(
     async (tripId: string) => {
       const queue = queueRef.current;
-      if (flushingRef.current || !queue) return;
+      if (flushingRef.current || !queue || !identityValidRef.current) return;
       flushingRef.current = true;
       try {
         const backlog = await queue.listBatches(tripId);
@@ -96,272 +340,372 @@ export function TripTracker({
           });
           if (result.error) {
             if (result.retryable === false) {
-              // The server will never accept this exact batch — keep going.
-              await queue.dropBatch(batch.key);
-              setError(`Some GPS points were rejected: ${result.error}`);
+              await queue.dropBatch(batch.key, {
+                status: result.terminalStatus,
+                code: result.terminalCode,
+              });
+              setError("Some GPS evidence was rejected and retained locally for diagnosis.");
               continue;
             }
             setError(result.error);
-            break; // network/server trouble: retry the same key next flush
+            break;
           }
           await queue.ackBatch(batch.key);
           setError(undefined);
         }
+      } catch {
+        storageBrokenRef.current = true;
+        setStorageReady(false);
+        stopWatch();
+        patchRuntime({ indexedDb: "failed", durableQueue: "failed" });
+        setError("Encrypted GPS storage failed, so tracking stopped without discarding evidence.");
       } finally {
         flushingRef.current = false;
       }
-      await refreshCounts(tripId);
+      await refreshCounts(tripId).catch(() => undefined);
     },
-    [refreshCounts],
+    [patchRuntime, refreshCounts, stopWatch],
   );
 
-  const stopTracking = useCallback(() => {
-    if (watchRef.current !== null) {
-      navigator.geolocation?.clearWatch(watchRef.current);
-      watchRef.current = null;
-    }
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    if (keepaliveRef.current) {
-      clearInterval(keepaliveRef.current);
-      keepaliveRef.current = null;
-    }
-  }, []);
-
-  const beginTracking = useCallback(
+  const beginWatch = useCallback(
     (tripId: string) => {
-      if (!("geolocation" in navigator)) {
-        setGps("unavailable");
-        return;
-      }
+      if (watchRef.current !== null || !assessPilotPwa(runtimeRef.current).actions.capture) return;
+      if (!("geolocation" in navigator)) return;
       watchRef.current = navigator.geolocation.watchPosition(
-        (pos) => {
+        (position) => {
+          if (!assessPilotPwa(runtimeRef.current).actions.capture) {
+            stopWatch();
+            return;
+          }
           setGps("granted");
-          setLastFix(pos);
+          setLastFix(position);
           const queue = queueRef.current;
-          if (!queue) return;
+          if (!queue || !identityValidRef.current) return;
           void queue
             .addPing(tripId, {
-              recorded_at: new Date(pos.timestamp).toISOString(),
-              lat: pos.coords.latitude,
-              lon: pos.coords.longitude,
-              accuracy_m: pos.coords.accuracy ?? null,
-              speed_mps: pos.coords.speed ?? null,
+              recorded_at: new Date(position.timestamp).toISOString(),
+              lat: position.coords.latitude,
+              lon: position.coords.longitude,
+              accuracy_m: position.coords.accuracy ?? null,
+              speed_mps: position.coords.speed ?? null,
               heading_degrees:
-                pos.coords.heading !== null && !Number.isNaN(pos.coords.heading)
-                  ? pos.coords.heading
+                position.coords.heading !== null && !Number.isNaN(position.coords.heading)
+                  ? position.coords.heading
                   : null,
             })
             .then(async () => {
               const pending = await queue.pendingCount(tripId);
-              setBufferedCount((count) => Math.max(count, pending));
-              if (pending >= FLUSH_AT_COUNT) void flush(tripId);
-              else void refreshCounts(tripId);
+              if (pending >= FLUSH_AT_COUNT) await flush(tripId);
+              else await refreshCounts(tripId);
             })
             .catch(() => {
-              // Fail closed: a queue that cannot persist means points would
-              // silently vanish — stop tracking and record incompleteness so
-              // the end watermark never claims a complete trip.
               storageBrokenRef.current = true;
               setStorageReady(false);
-              stopTracking();
-              setError(
-                "This device stopped storing GPS points — tracking paused. " +
-                  "Free up storage or restart the app; the trip stays open.",
-              );
+              stopWatch();
+              patchRuntime({ indexedDb: "failed", durableQueue: "failed" });
+              setError("This device stopped storing encrypted GPS evidence; capture is stopped.");
             });
         },
-        (err) => setGps(err.code === err.PERMISSION_DENIED ? "denied" : "unavailable"),
+        (positionError) => {
+          const denied = positionError.code === positionError.PERMISSION_DENIED;
+          setGps(denied ? "denied" : "unavailable");
+          stopWatch();
+          patchRuntime({ location: denied ? "revoked" : "unavailable" });
+        },
         { enableHighAccuracy: true, maximumAge: 5_000, timeout: 20_000 },
       );
       timerRef.current = setInterval(() => void flush(tripId), FLUSH_INTERVAL_MS);
-      keepaliveRef.current = setInterval(() => {
-        void fetch("/driver/keepalive", {
-          cache: "no-store",
-          credentials: "same-origin",
-        }).catch(() => undefined);
-      }, KEEPALIVE_INTERVAL_MS);
+      keepaliveRef.current = setInterval(() => void validateSession(), KEEPALIVE_INTERVAL_MS);
     },
-
-    [flush, refreshCounts, stopTracking],
+    [flush, patchRuntime, refreshCounts, stopWatch, validateSession],
   );
 
-  /** Drain leftovers from earlier sessions/trips until ACKed or terminal. */
+  const prepareCapture = useCallback(
+    async (validate: boolean) => {
+      await observeInstallability();
+      const installability = assessPilotPwa(runtimeRef.current).results.find(
+        (result) => result.id === "installability",
+      );
+      if (installability?.status !== "supported") return false;
+      if (document.visibilityState !== "visible") {
+        patchRuntime({ visibility: document.visibilityState === "hidden" ? "hidden" : "unknown" });
+        return false;
+      }
+      const [locationReady, wakeReady] = await Promise.all([probeLocation(), acquireWake()]);
+      if (validate) await validateSession();
+      return locationReady && wakeReady && assessPilotPwa(runtimeRef.current).actions.capture;
+    },
+    [acquireWake, observeInstallability, patchRuntime, probeLocation, validateSession],
+  );
+
   const drainLeftovers = useCallback(
     async (currentTripId: string | null) => {
       const queue = queueRef.current;
-      if (!queue) return;
-      for (const tripId of await queue.tripsWithLeftovers()) {
-        if (tripId === currentTripId) continue;
-        await flush(tripId);
-        if ((await queue.unsyncedCount(tripId)) === 0) await queue.forgetTrip(tripId);
+      if (!queue || !identityValidRef.current) return;
+      for (const leftoverTripId of await queue.tripsWithLeftovers()) {
+        if (leftoverTripId === currentTripId) continue;
+        await flush(leftoverTripId);
+        if ((await queue.unsyncedCount(leftoverTripId)) === 0) {
+          await queue.forgetTrip(leftoverTripId);
+        }
       }
     },
     [flush],
   );
 
-  // Open the durable queue once; drain leftovers from previous sessions
-  // (their trips are in the post-end recovery window, or quarantine ACKs
-  // them). Recovery keeps retrying — on a timer and on reconnect — so
-  // stranded data gets more than one chance per mount (review finding 7).
+  const recoverWithWriter = useCallback(async () => {
+    const queue = queueRef.current;
+    if (!queue || !identityValidRef.current) return;
+    const currentTripId = tripRef.current?.id ?? null;
+    const leftovers = await queue.tripsWithLeftovers();
+    if (!leftovers.some((tripId) => tripId !== currentTripId)) return;
+    if (!(await acquireWriter())) return;
+    try {
+      await drainLeftovers(currentTripId);
+    } finally {
+      if (!tripRef.current) releaseWriter();
+    }
+  }, [acquireWriter, drainLeftovers, releaseWriter]);
+
   useEffect(() => {
     let cancelled = false;
     const currentTripId = initialTrip?.id ?? null;
-    const recover = () => void drainLeftovers(currentTripId);
-    void openPingQueue()
+    const recover = () => void recoverWithWriter();
+    void openPingQueue({ driverId, verifyTripOwner: verifyDriverTripOwnershipAction })
       .then(async (queue) => {
-        if (cancelled) {
-          queue.close();
-          return;
-        }
+        if (cancelled) return queue.close();
         queueRef.current = queue;
         setStorageReady(true);
+        patchRuntime({ indexedDb: "pass", durableQueue: "pass" });
         if (currentTripId) await refreshCounts(currentTripId);
-        await drainLeftovers(currentTripId);
+        await recoverWithWriter();
         recoveryRef.current = setInterval(recover, RECOVERY_INTERVAL_MS);
         window.addEventListener("online", recover);
       })
       .catch(() => {
-        // Fail closed (RM5): without durable storage, tracking would lose
-        // points on the first reload — refuse to start rather than pretend.
         setStorageReady(false);
-        setError(
-          "Offline storage is unavailable on this device — tracking can't " +
-            "start. Check private-browsing mode or free up storage.",
-        );
+        patchRuntime({ indexedDb: "failed", durableQueue: "failed" });
+        setError("Encrypted offline storage is unavailable, blocked, or could not be verified.");
       });
     return () => {
       cancelled = true;
       if (recoveryRef.current) clearInterval(recoveryRef.current);
       recoveryRef.current = null;
       window.removeEventListener("online", recover);
+      stopWatch();
+      void releaseWake();
+      releaseWriter();
       queueRef.current?.close();
       queueRef.current = null;
     };
+    // Driver identity is immutable for this guarded page instance.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [driverId]);
 
-  // Resume tracking if the app reopens onto an already-active trip; hold the
-  // cross-tab lock for the tracking lifetime (single writer, RM review #6).
-  // Fail closed: no Web Locks support, a rejected request, or a lock held
-  // elsewhere all mean this tab must not track OR end the trip — two writers
-  // would double-cut the same pings into differently-keyed batches.
   useEffect(() => {
-    if (!trip || storageReady !== true) return stopTracking;
-    const tripId = trip.id;
+    if (!trip || storageReady !== true) return;
     let cancelled = false;
-    const acquire = async () => {
-      if (typeof navigator === "undefined" || !("locks" in navigator)) {
-        setLockHeld(false);
-        setError(
-          "This browser can't guarantee single-tab tracking — please update " +
-            "your browser to track trips.",
-        );
-        return;
-      }
-      const held = await new Promise<boolean>((resolve) => {
-        void navigator.locks
-          .request(TRACKING_LOCK, { ifAvailable: true }, (lock) => {
-            if (!lock) {
-              resolve(false);
-              return;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      void acquireWriter().then(async (held) => {
+        if (!held || cancelled) return;
+        if (reconciledTripRef.current !== trip.id) {
+          const current = await getCurrentTripAction();
+          if (cancelled) return;
+          if (!current.trip) {
+            stopWatch();
+            setServerTripVerified(false);
+            patchRuntime({ activeTrip: false });
+            if (current.outcome === "failed") {
+              tripRef.current = null;
+              setTrip(null);
+              releaseWriter();
+            } else {
+              setError(
+                "Cardvert could not reconcile the current trip; the writer remains reserved.",
+              );
             }
-            resolve(true);
-            return new Promise<void>((release) => {
-              releaseLockRef.current = release;
-            });
-          })
-          .catch(() => resolve(false));
+            return;
+          }
+          reconciledTripRef.current = current.trip.id;
+          tripRef.current = current.trip;
+          setServerTripVerified(true);
+          patchRuntime({ activeTrip: true });
+          if (current.trip.id !== trip.id) setTrip(current.trip);
+        }
+        await drainLeftovers(tripRef.current?.id ?? null);
+        const ready = await prepareCapture(false);
+        if (ready && !cancelled && tripRef.current) beginWatch(tripRef.current.id);
       });
-      if (!held || cancelled) {
-        setLockHeld(false);
-        return;
-      }
-      setLockHeld(true);
-      if (watchRef.current === null) beginTracking(tripId);
-    };
-    void acquire();
+    });
     return () => {
       cancelled = true;
-      stopTracking();
-      releaseLockRef.current?.();
-      releaseLockRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trip?.id, storageReady]);
+  }, [
+    acquireWriter,
+    beginWatch,
+    drainLeftovers,
+    patchRuntime,
+    prepareCapture,
+    releaseWriter,
+    stopWatch,
+    storageReady,
+    trip,
+  ]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      const visibility =
+        document.visibilityState === "visible"
+          ? "visible"
+          : document.visibilityState === "hidden"
+            ? "hidden"
+            : "unknown";
+      patchRuntime({ visibility });
+      if (visibility !== "visible") {
+        stopWatch();
+        void releaseWake();
+      } else if (tripRef.current && releaseWriterRef.current && storageReady === true) {
+        void prepareCapture(true).then((ready) => {
+          if (ready && tripRef.current) beginWatch(tripRef.current.id);
+        });
+      }
+    };
+    const onOnline = () => {
+      patchRuntime({ online: navigator.onLine });
+      void validateSession();
+    };
+    const onLogout = () =>
+      invalidateIdentity("You signed out. Encrypted trip evidence was retained.");
+    const channel =
+      "BroadcastChannel" in window ? new BroadcastChannel(DRIVER_SESSION_CHANNEL) : null;
+    if (channel)
+      channel.onmessage = (event) => {
+        if ((event.data as { type?: string })?.type === "logout") onLogout();
+      };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOnline);
+    window.addEventListener("cardvert-driver-logout", onLogout);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOnline);
+      window.removeEventListener("cardvert-driver-logout", onLogout);
+      channel?.close();
+    };
+  }, [
+    beginWatch,
+    invalidateIdentity,
+    patchRuntime,
+    prepareCapture,
+    releaseWake,
+    stopWatch,
+    storageReady,
+    validateSession,
+  ]);
 
   function start() {
-    if (!assignment) return;
-    if (storageReady !== true) {
-      setError(
-        "Offline storage isn't ready — tracking can't start until this " +
-          "device can durably store GPS points.",
-      );
-      return;
-    }
+    if (!assignment || storageReady !== true || busy) return;
     setError(undefined);
-    startTransition(async () => {
-      const result = await startTripAction(assignment.id);
-      if (result.error || !result.trip) {
-        setError(result.error ?? "Could not start the trip.");
+    setBusy(true);
+    void (async () => {
+      if (!(await acquireWriter())) return;
+      let result;
+      let captureReady = false;
+      if (startUncertainRef.current) {
+        result = await getCurrentTripAction();
+      } else {
+        captureReady = await prepareCapture(true);
+        if (!captureReady) {
+          stopWatch();
+          await releaseWake();
+          releaseWriter();
+          setError("Start is blocked until every live Cardvert capability is held.");
+          return;
+        }
+        result = await startTripAction(assignment.id);
+        if (result.outcome === "unknown") result = await getCurrentTripAction();
+      }
+      if (!result.trip) {
+        setError(result.error ?? "Cardvert could not prove whether the trip started.");
+        if (result.outcome === "failed") {
+          startUncertainRef.current = false;
+          setStartUncertain(false);
+          await releaseWake();
+          releaseWriter();
+        } else {
+          startUncertainRef.current = true;
+          setStartUncertain(true);
+        }
         return;
       }
+      startUncertainRef.current = false;
+      setStartUncertain(false);
+      tripRef.current = result.trip;
+      reconciledTripRef.current = result.trip.id;
+      setServerTripVerified(true);
+      setTrip(result.trip);
+      patchRuntime({ activeTrip: true });
       setSyncedCount(0);
       setBufferedCount(0);
-      setTrip(result.trip);
-    });
+      setDeadLetterCount(0);
+      if (captureReady || (await prepareCapture(true))) beginWatch(result.trip.id);
+    })().finally(() => setBusy(false));
   }
 
   function end() {
-    if (!trip) return;
-    // A tab that doesn't own the tracking lock must not end the trip: the
-    // owning tab may still hold undelivered batches this tab can't see.
-    if (lockHeld !== true) return;
-    const tripId = trip.id;
-    setError(undefined);
-    startTransition(async () => {
-      stopTracking();
+    const activeTrip = tripRef.current;
+    if (
+      !activeTrip ||
+      !serverTripVerified ||
+      !assessment.actions.end ||
+      busy ||
+      !identityValidRef.current
+    )
+      return;
+    setBusy(true);
+    void (async () => {
+      stopWatch();
       const queue = queueRef.current;
-      await flush(tripId); // cut everything pending, drain what we can
-      const unsynced = queue ? await queue.unsyncedCount(tripId) : 0;
-      // Never claim completeness without a healthy queue: a missing or broken
-      // store means we cannot know what was lost (review finding 5).
-      const complete = queue !== null && !storageBrokenRef.current && unsynced === 0;
+      if (!queue) return;
+      await flush(activeTrip.id);
+      const [unsynced, deadLetters, meta] = await Promise.all([
+        queue.unsyncedCount(activeTrip.id),
+        queue.deadLetterCount(activeTrip.id),
+        queue.meta(activeTrip.id),
+      ]);
+      const complete = !storageBrokenRef.current && unsynced === 0 && deadLetters === 0;
       const message = complete
         ? "End this trip? Tracking stops and the trip is sent for analysis."
-        : `${unsynced || "Some"} GPS point${unsynced === 1 ? "" : "s"} may not be synced. ` +
-          "End anyway? Anything stored on your phone keeps retrying — the trip " +
-          "is finalized after a short grace period.";
+        : "Some GPS evidence is unsynced or diagnostically retained. End with an incomplete client watermark?";
       if (!window.confirm(message)) {
-        beginTracking(tripId); // driver chose to keep tracking
+        const ready = await prepareCapture(true);
+        if (ready) beginWatch(activeTrip.id);
         return;
       }
-      const meta = queue ? await queue.meta(tripId) : null;
-      const result = await endTripAction(
-        tripId,
-        meta
-          ? {
-              clientBatchCount: meta.batchesCut,
-              clientPingCount: meta.pingsRecorded,
-              clientComplete: complete,
-            }
-          : undefined,
-      );
+      const result = await endTripAction(activeTrip.id, {
+        clientBatchCount: meta.batchesCut,
+        clientPingCount: meta.pingsRecorded,
+        clientComplete: complete,
+      });
       if (result.error) {
         setError(result.error);
-        beginTracking(tripId); // trip is still open — resume
+        const ready = await prepareCapture(true);
+        if (ready) beginWatch(activeTrip.id);
         return;
       }
-      if (complete && queue) await queue.forgetTrip(tripId);
+      if (complete) await queue.forgetTrip(activeTrip.id);
+      tripRef.current = null;
+      setServerTripVerified(false);
       setTrip(null);
       setGps("idle");
+      patchRuntime({ activeTrip: false });
+      await releaseWake();
+      releaseWriter();
       router.refresh();
-    });
+    })().finally(() => setBusy(false));
   }
-
-  // --- render ---------------------------------------------------------------
 
   if (!assignment && !trip) {
     return (
@@ -378,17 +722,12 @@ export function TripTracker({
     <div className="flex flex-col gap-4">
       {trip ? (
         <>
-          {lockHeld === false ? (
-            <p className="border-amber/40 bg-amber/10 text-amber-soft rounded-lg border px-3.5 py-2.5 text-xs">
-              This trip is being tracked in another tab or window. Close it or switch there —
-              tracking in two places would double-count, so this tab can neither track nor end the
-              trip.
-            </p>
-          ) : null}
-          <Panel className="border-green/40 p-5">
-            <p className="micro text-green flex items-center gap-1.5">
-              <span className="animate-pulse-dot bg-green inline-block size-1.5 rounded-full" />
-              Tracking live
+          <Panel className={assessment.health === "active" ? "border-green/40 p-5" : "p-5"}>
+            <p className="micro flex items-center gap-1.5" data-testid="tracking-health">
+              <span
+                className={`inline-block size-1.5 rounded-full ${assessment.health === "active" ? "bg-green animate-pulse-dot" : assessment.health === "degraded" ? "bg-amber" : "bg-coral"}`}
+              />
+              {assessment.health}
             </p>
             <div className="mt-4 grid grid-cols-2 gap-4">
               <div>
@@ -414,29 +753,16 @@ export function TripTracker({
                 </p>
               </div>
               <div>
-                <p className="micro text-faint">Started</p>
-                <p className="text-sm">
-                  {new Date(trip.started_at).toLocaleTimeString("en-NG", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
+                <p className="micro text-faint">Diagnostics</p>
+                <p className="text-sm">{deadLetterCount} retained</p>
               </div>
             </div>
           </Panel>
-
-          {gps === "denied" ? (
-            <p className="border-amber/40 bg-amber/10 text-amber-soft rounded-lg border px-3.5 py-2.5 text-xs">
-              Location permission is blocked. Enable it in your browser/app settings — without it
-              this trip records no movement and won&apos;t earn.
-            </p>
-          ) : null}
-
           <Button
             type="button"
             variant="danger"
             onClick={end}
-            disabled={busy || lockHeld !== true}
+            disabled={busy || !serverTripVerified || !assessment.actions.end}
             className="h-14 w-full text-base"
           >
             {busy ? "Ending…" : "■ End trip"}
@@ -457,15 +783,22 @@ export function TripTracker({
             disabled={busy || storageReady !== true}
             className="h-14 w-full text-base"
           >
-            {busy ? "Starting…" : storageReady === null ? "Preparing…" : "▶ Start trip"}
+            {busy
+              ? startUncertain
+                ? "Reconciling…"
+                : "Starting…"
+              : storageReady === null
+                ? "Preparing…"
+                : startUncertain
+                  ? "Reconcile trip"
+                  : "▶ Start trip"}
           </Button>
           <p className="text-faint text-center text-xs">
-            Keep the app open while driving — tracking runs while Cardvert Driver is on screen.
-            Unsent points are stored on your phone and retried automatically.
+            Cardvert captures only while the installed app is visible and every live safety check
+            remains held.
           </p>
         </>
       )}
-
       {error ? (
         <p
           role="alert"
