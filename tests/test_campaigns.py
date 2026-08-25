@@ -17,7 +17,7 @@ from app.core.errors import AppError
 from app.models.audit import AuditEvent
 from app.models.campaign import CampaignReviewEvent, CampaignStatus
 from app.models.organization import MembershipRole, MembershipStatus
-from app.models.user import UserRole
+from app.models.user import UserRole, UserStatus
 from app.schemas.campaigns import CampaignUpdate
 from app.services.campaigns import update_advertiser_campaign
 
@@ -653,6 +653,69 @@ def test_campaign_review_postgres_race_has_one_decision_and_one_conflict(
 
     assert sorted(outcomes) == ["CAMPAIGN_REVIEW_STATE_CONFLICT", "approved"]
     assert event_count == 2
+
+
+def test_campaign_review_service_requires_active_admin_before_campaign_read(
+    db_sessionmaker,
+) -> None:
+    from app.services.campaigns import decide_campaign_review, submit_campaign_for_review
+
+    admin = create_test_user(
+        db_sessionmaker,
+        email="campaign-auth-admin@example.com",
+    )
+    disabled_admin = create_test_user(
+        db_sessionmaker,
+        email="campaign-auth-disabled@example.com",
+        user_status=UserStatus.DISABLED,
+    )
+    driver = create_test_user(
+        db_sessionmaker,
+        email="campaign-auth-driver@example.com",
+        role=UserRole.DRIVER,
+    )
+    advertiser, organization = create_advertiser_with_org(
+        db_sessionmaker,
+        email="campaign-auth-advertiser@example.com",
+    )
+    campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=advertiser.id,
+    )
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            await submit_campaign_for_review(
+                session,
+                user_id=advertiser.id,
+                campaign_id=campaign.id,
+            )
+            await session.commit()
+
+        for actor_user_id in (driver.id, advertiser.id, disabled_admin.id):
+            async with db_sessionmaker() as session:
+                with pytest.raises(AppError) as error:
+                    await decide_campaign_review(
+                        session,
+                        admin_user_id=actor_user_id,
+                        campaign_id=campaign.id,
+                        target_status=CampaignStatus.APPROVED,
+                    )
+                assert error.value.code == "FORBIDDEN_ROLE"
+                await session.rollback()
+
+        async with db_sessionmaker() as session:
+            approved = await decide_campaign_review(
+                session,
+                admin_user_id=admin.id,
+                campaign_id=campaign.id,
+                target_status=CampaignStatus.APPROVED,
+            )
+            assert approved.status == CampaignStatus.APPROVED.value
+            await session.commit()
+
+    asyncio.run(scenario())
 
 
 def test_campaign_patch_validation_rejects_invalid_combined_state(

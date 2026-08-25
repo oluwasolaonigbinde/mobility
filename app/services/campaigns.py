@@ -17,6 +17,7 @@ from app.models.organization import (
     OrganizationMembership,
 )
 from app.schemas.campaigns import CampaignCreate, CampaignUpdate, CreativeCreate, CreativeUpdate
+from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.organizations import get_advertiser_organization_for_user
 
@@ -410,6 +411,7 @@ async def decide_campaign_review(
     target_status: CampaignStatus,
     rejection_reason: str | None = None,
 ) -> Campaign:
+    await require_active_admin(session, admin_user_id)
     campaign = await _locked_campaign(session, campaign_id)
     if target_status not in {CampaignStatus.APPROVED, CampaignStatus.REJECTED}:
         raise review_state_conflict(campaign.status, target_status.value)
