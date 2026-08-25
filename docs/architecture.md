@@ -237,7 +237,7 @@ to conflict, the earlier-numbered principle wins.
 
 ```
         ┌─────────────────────────── Browser ───────────────────────────┐
-        │  Advertiser portal      Admin console      Vantage Driver PWA │
+        │  Advertiser portal      Admin console      Cardvert Driver PWA │
         │  /advertiser/*          /admin/*           /driver/* (install-│
         │                                            able, GPS tracking)│
         └───────────────┬────────────────────────────────────────────---┘
@@ -585,10 +585,15 @@ equal to the JWT's `expires_in`. No localStorage, no client-readable token.
 **Sliding session (F7):** the middleware rotates a near-expiry cookie on GET
 navigation via `POST /api/v1/auth/refresh` (non-verifying JWT peek in
 `src/lib/auth/token.ts`); the driver tracker pings `/driver/keepalive` every
-10 minutes while tracking (fail-open). The 12-hour absolute cap is enforced by
-the backend; when it lapses, the next `/me` call 401s and the user lands on
-`/login` with no redirect loop. Forced password change (`must_change_password`)
-is enforced per-request by `requireRole` in every protected server layout.
+10 minutes while tracking. That route revalidates `/me`, driver role and any
+near-expiry refresh on the server: revoked/missing/wrong-role sessions clear
+the cookie and stop capture, while a provider/network outage degrades the
+tracker without pretending the session was renewed. Logout broadcasts the
+same-origin stop signal and retains encrypted local trip evidence. The 12-hour
+absolute cap is enforced by the backend; when it lapses, the next validation
+401s and the user lands on `/login` with no redirect loop. Forced password
+change (`must_change_password`) is enforced per-request by `requireRole` in
+every protected server layout.
 
 Rules for agents:
 - Backend truth is authoritative: `proxy.ts` and `requireRole` are UX
@@ -613,7 +618,7 @@ frontend/src/
 │   ├── admin/                  # console: layout (requireRole("admin")), users, drivers,
 │   │                           # vehicles, assignments, fraud, payouts(+rules), traffic,
 │   │                           # audit (F7 audit-trail viewer)
-│   └── driver/                 # Vantage Driver PWA
+│   └── driver/                 # Cardvert Driver PWA
 │       ├── (portal)/           # guarded route group: layout (requireRole("driver")),
 │       │                       # home, assignments, track (GPS tracker), earnings, profile
 │       ├── change-password/    # forced driver password change, inside PWA scope (F7)
@@ -643,21 +648,31 @@ regenerates. See §9 for the drift gate.
   (UI/body) self-hosted as woff2 in `src/fonts/`; **IBM Plex Mono**
   (data/telemetry) loaded via `next/font/google` — not self-hosted.
 
-### 8.6 Vantage Driver PWA **[BUILT]**
+### 8.6 Cardvert Driver PWA **[BUILT]**
 
-- Installable **scoped** to `/driver`: manifest route handler (name "Vantage
+- Installable **scoped** to `/driver`: manifest route handler (name "Cardvert
   Driver", `standalone`, portrait, `scope: /driver`) so the driver surface
   installs as its own app while advertiser/admin stay regular web.
 - Service worker `public/driver-sw.js`, registered production-only with scope
   `/driver`: cache-first for hashed `/_next/static/` assets, **network-only for
   all navigations and API calls** (authenticated data must never be SW-cached),
-  inline offline fallback page. Keep the SW auth-safe — never add API caching.
-- Trip tracking (`app/driver/track/trip-tracker.tsx`): geolocation watch buffers
-  pings client-side and flushes **idempotent batches** (fresh
-  `crypto.randomUUID()` key per batch, every 15s or 20 pings) through a server
-  action to `POST /driver/trips/{id}/pings`; failed flushes are re-buffered.
-  Screen-on tracking posture per D3/D18 (no native app or background tracking
-  in the pilot MVP).
+  truthful inline offline fallback page. Activation removes only older
+  Cardvert-owned caches. Keep the SW auth-safe — never add API caching.
+- Trip tracking (`app/driver/(portal)/track/trip-tracker.tsx`) acquires one Web
+  Locks writer before Start and holds it through visible capture, final drain,
+  End and uncertain-response reconciliation. Current visibility, wake lock,
+  location permission, server-validated session and durable storage derive the
+  `active | degraded | stopped` state; loss stops capture and resume revalidates
+  authority. This is foreground/screen-on only per D18—no background claim.
+- Location-bearing pings, batches, metadata and terminal dead letters are
+  driver-bound AES-GCM records in IndexedDB. The shipped v1 database upgrades
+  in place under a migration lock; unresolved ownership or crypto/storage
+  failure keeps the queue unavailable. In-tab mutations serialize, each cut
+  mints one stable idempotency key, retry keeps the identical payload, and only
+  a complete accepted/duplicate/quarantined acknowledgement removes a batch.
+  End waits for the current drain, derives its watermark from durable counters
+  and dead letters, and reconciles ambiguous server authority before resuming
+  or releasing the writer.
 
 ## 9. API contract discipline
 
@@ -1774,9 +1789,21 @@ aggregates only, k-floor rules of §22.2 apply to any zone-level display.
   cannot overwrite. Terminal rejections remain encrypted local diagnostic
   evidence and force `client_complete=false`. The service worker caches no
   authenticated navigation or API response and deletes only Cardvert-owned
-  caches. W4-01B still owns complete screen-on Start/End sync proof; physical
-  Android/iPhone, real-route/battery, staging and live-GPS validation remains
-  explicitly unrun under D23.
+  caches. W4-01B's automated screen-on Start/End build proof is recorded below;
+  physical Android/iPhone, real-route/battery, staging and live-GPS validation
+  remains explicitly unrun under D23.
+  **[BUILT — W4-01B screen-on sync]:** End serializes behind the active drain,
+  cuts remaining evidence, rechecks current storage/identity/writer/runtime
+  guarantees and derives the D15 watermark from durable counters and dead
+  letters before the server call. Only a complete accepted, duplicate or
+  quarantined acknowledgement removes a stable batch; malformed/lost responses
+  keep the same key and payload. Cancelled or ambiguous End reconciles current
+  server authority under the held writer so a committed lost response cannot
+  restart capture. Legacy ownership verification is tri-state: only exact
+  `404/TRIP_NOT_FOUND` proves non-ownership; auth, profile, provider, protocol
+  and other failures keep migration in `binding` and the queue unavailable.
+  This completes automated/synthetic build behavior only; the D23 physical
+  device, route, battery, measured SLO, staging and pilot gates remain unrun.
   W4 must prove standalone
   Android and iOS browser/device behaviour: permission grant/denial/revocation,
   visibility/background degradation, reload, offline/retry, IndexedDB and Web
@@ -2305,6 +2332,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.54 | 2026-08-25 | **W4-01B screen-on tracking and durable sync delivered to the dependency-blocked Package 7 frontier.** The client now joins the active drain before End, accepts only complete positive ACK envelopes, preserves stable batches across malformed/lost responses, rejects a watermark after runtime authority loss, and reconciles cancelled/ambiguous End under the writer before resume or release. Seven observed red cases preceded 277 green frontend tests, type/lint/format/build and 14 desktop/mobile browser checks; the P7-K1 focused controller gate passed 107 tests with byte-stable §9 artifacts. The combined independent review found migration-owner availability was treated as non-ownership and §8 retained obsolete Vantage/fail-open/buffering text. Tri-state authority now keeps migration fail closed unless exact `404/TRIP_NOT_FOUND` proves non-ownership, rightful-owner recovery conserves sequence/watermark state, §8 matches the built Cardvert behavior, and the final bounded recheck passes. W4-01C remains blocked by W3-04C/W2-03D and their storage/scanner/KMS chain; W4-01D is transitively blocked. No physical-device, native/background, real-GPS, route/battery, staging, pilot, KYC/vehicle, API-contract or Package 8 authority is claimed. |
 | v1.53 | 2026-08-25 | **W4-01A production driver PWA foundation and session security delivered without live-use authority.** The Cardvert manifest/service worker, same-origin BFF renewal/revocation/logout, live-held ADR 014 capability state and writer-before-Start reconciliation now fail closed. Driver-bound AES-GCM IndexedDB queue/dead-letter storage upgrades the shipped v1 database in place and serializes in-tab mutations; terminal rejection evidence remains local and forces an incomplete watermark. Six unchanged-code failures preceded the implementation. Focused unit/component, type/lint/format/build, desktop/mobile browser, authenticated live entry-path and byte-stable §9 evidence pass. Independent review found and reproduced the database-continuity and concurrent-mutation data-loss defects; both were corrected with deterministic regressions and rechecked PASS. W4-01B–D remain open; no physical-device, native/background, real-GPS, route/battery, staging, pilot, KYC/vehicle, API-contract or Package 8 authority is claimed. |
 | v1.52 | 2026-08-25 | **Package 5 audit corrections adopted onto the Package 6 line without receipt history.** Migration `0051` follows published Package 6 migration `0050`, backfills and partial-index-pins one canonical impression authority per trip/formula, and preserves other density-profile estimates as scenarios. Processing workers, reports, payouts and heatmaps now reject scenario-only or stale authority; full-slice heatmap conservation and transactional active-admin checks close the associated measurement and authorization seams. Truthful notification retry/status handling and Cardvert branding corrections move with their frontend regressions and regenerated §9 contracts. Focused correction checks, the combined backend gate (1,058 passed, 4 skipped), frontend gate (225 tests plus typecheck/lint/build), and isolated migration/seed/live-stack evidence pass. The sole bounded review found one worker predicate gap; its observed red/green regression and adjacent checks pass after correction. No receipt commits, KYC/vehicle/Package 7 authority or external-gate claim is added; Package 6 remains blocked at W3-04B. |
 | v1.51 | 2026-08-25 | **W3-04A public driver application delivered without work or identity-approval authority.** Migration `0050` adds one pending-only application linked to an invited driver user and pending profile, with a digest-only high-entropy status reference and populated downgrade refusal. The default-off cohort flag, separate atomic Redis IP/email/global limiter and notify-once audit fail closed; new, duplicate and concurrent same-email requests share one non-enumerating response shape, and known/unknown status reads expose the same pending envelope. The generated credential is unreachable. An active-admin service gate protects a sanitized queue, while public/admin UI routes and both Compose/environment contracts expose the bounded workflow. All §9 artifacts move together. Focused backend/PostgreSQL/real-Redis/migration/autogenerate/pre-production, frontend/R14-B, isolated live apply/status, one backend aggregate with focused correction of 12 stale Package 6 harness expectations, a green frontend aggregate and consolidated Luna review pass. No KYC, payee, vehicle, document, tracking, earnings, live-use, Package 7 or external-gate claim is added; W3-04B/C remain dependency-blocked. |
