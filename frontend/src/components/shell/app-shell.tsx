@@ -44,7 +44,7 @@ export function AppShell({
       <aside className="border-edge bg-panel sticky top-0 hidden h-dvh w-52 shrink-0 flex-col border-r md:flex">
         <Link href="/" className="flex items-center gap-2 px-5 pt-5 pb-6">
           <span className="font-display text-amber text-lg font-bold" aria-hidden>
-            V
+            C
           </span>
           <span className="font-display text-lg font-semibold tracking-tight">
             Cardvert<span className="text-amber">.</span>

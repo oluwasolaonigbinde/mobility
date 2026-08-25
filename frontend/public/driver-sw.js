@@ -29,7 +29,7 @@ const OFFLINE_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"
 <style>body{margin:0;min-height:100dvh;display:grid;place-items:center;background:#0a0b0e;color:#eaedf2;font-family:system-ui,sans-serif;text-align:center;padding:24px}
 h1{font-size:20px;margin:0 0 8px}p{color:#8a90a0;font-size:14px;max-width:280px;line-height:1.6}
 b{color:#ffa62b}</style></head><body><div>
-<h1><b>V</b> You're offline</h1>
+<h1><b>C</b> You're offline</h1>
 <p>Cardvert Driver needs a connection to track trips and sync hourly earnings. Reconnect and pull to refresh.</p>
 </div></body></html>`;
 
