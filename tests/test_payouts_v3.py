@@ -1,7 +1,7 @@
 """MNY-06B: acceptance-time freeze + payout_v3 engine (D18, PR2/PR4/PR5/PR10/PR11/PR14).
 
 Covers the accept-path binding (frozen values incl. the premium zone
-snapshot; campaigns without revisions stay payout_v2), the PR2 concurrent
+snapshot; offers without complete revisions fail closed), the PR2 concurrent
 accept race and the PR10 accept-vs-supersede determinism, and the v3 engine:
 tier pricing from the BINDING only (base-only / premium-only / mixed with a
 zone transition mid-trip), the no-repricing core guarantee after a
@@ -22,19 +22,20 @@ import pytest
 from conftest import (
     create_test_campaign,
     create_test_campaign_assignment,
+    create_test_campaign_creative,
+    create_test_campaign_zone,
     create_test_driver_profile,
     create_test_organization,
     create_test_trip_session,
     create_test_user,
     create_test_vehicle,
+    fetch_activation_events,
     fetch_earnings_ledger_entries,
     fetch_payout_calculations,
 )
 from sqlalchemy import delete, func, select, update
-from starlette import status as http_status
 from test_payout_rule_revisions import service_create_revision
 from test_payouts_v2 import (
-    TRIP_END,
     TRIP_START,
     build_v2_graph,
     calculate,
@@ -45,10 +46,10 @@ from test_payouts_v2 import (
 from test_trip_processing import FUTURE, PASSWORD, PAST, add_pings, run_pipeline
 
 from app.core.errors import AppError
-from app.models.campaign import Campaign, CampaignStatus
-from app.models.campaign_assignment import CampaignAssignmentStatus
+from app.models.campaign import Campaign, CampaignStatus, CreativeStatus
+from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.campaign_zone import CampaignZone, CampaignZoneType
-from app.models.driver import DriverOnboardingStatus
+from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.payout import (
     AssignmentRuleBinding,
     CampaignPayoutRuleRevision,
@@ -61,11 +62,13 @@ from app.models.payout import (
 from app.models.trip import TripSessionStatus
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
-from app.schemas.campaign_assignments import CampaignAssignmentTransition
+from app.schemas.campaign_assignments import CampaignAssignmentCreate, CampaignAssignmentTransition
 from app.schemas.payouts import CampaignPayoutRuleRevisionCreate
 from app.services import payouts
 from app.services.campaign_assignments import (
     accept_driver_assignment,
+    build_offer_terms,
+    create_campaign_assignment,
     premium_zone_geometry_hash,
     resolved_eligibility_snapshot,
 )
@@ -117,6 +120,16 @@ def build_offered_graph(db_sessionmaker, tag: str) -> SimpleNamespace:
         start_at=PAST,
         end_at=FUTURE,
     )
+    creative = create_test_campaign_creative(
+        db_sessionmaker,
+        campaign_id=campaign.id,
+        creative_status=CreativeStatus.READY,
+    )
+    target_zone = create_test_campaign_zone(
+        db_sessionmaker,
+        campaign_id=campaign.id,
+        created_by_user_id=admin.id,
+    )
     driver = create_test_user(
         db_sessionmaker, email=f"driver-{tag}@example.com", password=PASSWORD, role=UserRole.DRIVER
     )
@@ -147,6 +160,8 @@ def build_offered_graph(db_sessionmaker, tag: str) -> SimpleNamespace:
         profile=profile,
         vehicle=vehicle,
         assignment=assignment,
+        creative=creative,
+        target_zone=target_zone,
     )
 
 
@@ -323,6 +338,31 @@ def accept_assignment(db_sessionmaker, settings, *, user_id, assignment_id):
     return asyncio.run(run())
 
 
+def materialize_offer(db_sessionmaker, settings, graph) -> None:
+    """Populate the new immutable offer snapshot after test revisions exist."""
+
+    async def run() -> None:
+        async with db_sessionmaker() as session:
+            assignment = await session.get(CampaignAssignment, graph.assignment.id)
+            campaign = await session.get(Campaign, graph.campaign.id)
+            profile = await session.get(DriverProfile, graph.profile.id)
+            now = await database_clock(session)
+            terms, fingerprint = await build_offer_terms(
+                session,
+                campaign=campaign,
+                driver_profile=profile,
+                now=now,
+                creative_id=graph.creative.id,
+                settings=settings,
+            )
+            assignment.offer_terms = terms
+            assignment.offer_terms_sha256 = fingerprint
+            assignment.expires_at = FUTURE - timedelta(days=1)
+            await session.commit()
+
+    asyncio.run(run())
+
+
 def delete_money_rows(db_sessionmaker, trip_id) -> None:
     """Test-only reset so the deterministic v3 computation can be re-run
     (calculations are write-once in production)."""
@@ -408,6 +448,7 @@ def test_accept_freezes_effective_revision_with_zone_snapshot(
         lat_min=6.40,
         lat_max=6.52,
     )
+    materialize_offer(postgis_db_sessionmaker, settings, graph)
 
     accepted = accept_assignment(
         postgis_db_sessionmaker,
@@ -427,7 +468,7 @@ def test_accept_freezes_effective_revision_with_zone_snapshot(
     assert binding.daily_payable_hours_cap == Decimal("6.00")
     assert binding.eligibility_params == {"stationary_grace_min": 5}
     assert binding.formula_version == PAYOUT_V3
-    assert binding.premium_zone_ids == [str(zone.id)]
+    assert set(binding.premium_zone_ids) == {str(zone.id), str(graph.target_zone.id)}
     assert binding.stationary_policy_marker == STATIONARY_POLICY_V1
     assert binding.campaign_window_start_at == graph.campaign.start_at
     assert binding.campaign_window_end_at == graph.campaign.end_at
@@ -513,7 +554,7 @@ def test_rolling_policy_changes_only_through_revision_overlay(settings) -> None:
     }
 
 
-def test_accept_without_revisions_creates_no_binding_and_trip_stays_v2(
+def test_offer_without_frozen_terms_rejects_acceptance_without_binding(
     postgis_db_sessionmaker, settings
 ) -> None:
     graph = build_offered_graph(postgis_db_sessionmaker, "v3-none")
@@ -523,37 +564,15 @@ def test_accept_without_revisions_creates_no_binding_and_trip_stays_v2(
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
     )
-    accept_assignment(
-        postgis_db_sessionmaker,
-        settings,
-        user_id=graph.driver.id,
-        assignment_id=graph.assignment.id,
-    )
+    with pytest.raises(AppError) as exc_info:
+        accept_assignment(
+            postgis_db_sessionmaker,
+            settings,
+            user_id=graph.driver.id,
+            assignment_id=graph.assignment.id,
+        )
+    assert exc_info.value.code == "FROZEN_OFFER_TERMS_REQUIRED"
     assert fetch_bindings(postgis_db_sessionmaker) == []
-
-    trip = create_test_trip_session(
-        postgis_db_sessionmaker,
-        assignment_id=graph.assignment.id,
-        campaign_id=graph.campaign.id,
-        driver_profile_id=graph.profile.id,
-        vehicle_id=graph.vehicle.id,
-        started_by_user_id=graph.driver.id,
-        trip_status=TripSessionStatus.SEALED,
-        started_at=TRIP_START,
-        ended_at=TRIP_END,
-    )
-    add_pings(
-        postgis_db_sessionmaker,
-        trip_id=trip.id,
-        points=moving_points(TRIP_START),
-        idempotency_key="v3-none-batch",
-    )
-    result = run_pipeline(postgis_db_sessionmaker, trip.id, settings)
-    assert result.overall == "completed"
-    calculations = fetch_payout_calculations(postgis_db_sessionmaker)
-    assert len(calculations) == 1
-    assert calculations[0].formula_version == PAYOUT_V2
-    assert calculations[0].final_payout == Decimal("600.00")
 
 
 # --- PR2 / PR10 races (PostGIS) ----------------------------------------------
@@ -572,6 +591,7 @@ def test_concurrent_accepts_yield_exactly_one_binding(postgis_db_sessionmaker, s
         rule_id=rule.id,
         created_by_user_id=graph.admin.id,
     )
+    materialize_offer(postgis_db_sessionmaker, settings, graph)
 
     async def attempt():
         async with postgis_db_sessionmaker() as session:
@@ -593,15 +613,11 @@ def test_concurrent_accepts_yield_exactly_one_binding(postgis_db_sessionmaker, s
         return await asyncio.gather(attempt(), attempt())
 
     outcomes = asyncio.run(race())
-    winners = [o for o in outcomes if o == "accepted"]
-    losers = [o for o in outcomes if isinstance(o, AppError)]
-    assert len(winners) == 1, outcomes
-    assert len(losers) == 1, outcomes
-    # The loser re-reads ACCEPTED under the PR2 row lock and gets the
-    # existing deterministic envelope — never a 500, never a duplicate row.
-    assert losers[0].code == "INVALID_ASSIGNMENT_TRANSITION"
-    assert losers[0].status_code == http_status.HTTP_400_BAD_REQUEST
+    assert outcomes == ["accepted", "accepted"]
     assert len(fetch_bindings(postgis_db_sessionmaker)) == 1
+    assert [event.event_type for event in fetch_activation_events(postgis_db_sessionmaker)] == [
+        "accepted"
+    ]
 
 
 def test_revision_publication_before_accept_binds_from_shared_lock_and_db_clock(
@@ -614,12 +630,13 @@ def test_revision_publication_before_accept_binds_from_shared_lock_and_db_clock(
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
     )
-    create_revision_row(
+    revision1 = create_revision_row(
         postgis_db_sessionmaker,
         campaign_id=graph.campaign.id,
         rule_id=rule.id,
         created_by_user_id=graph.admin.id,
     )
+    materialize_offer(postgis_db_sessionmaker, settings, graph)
 
     revision_has_lock = asyncio.Event()
 
@@ -650,6 +667,7 @@ def test_revision_publication_before_accept_binds_from_shared_lock_and_db_clock(
                 payload=CampaignPayoutRuleRevisionCreate(
                     effective_from=effective_from,
                     hourly_rate_naira=Decimal("9999.00"),
+                    premium_hourly_rate_naira=Decimal("10999.00"),
                     daily_payable_hours_cap=Decimal("8.00"),
                     reason="publication wins shared serialization",
                 ),
@@ -672,12 +690,94 @@ def test_revision_publication_before_accept_binds_from_shared_lock_and_db_clock(
 
     bindings = fetch_bindings(postgis_db_sessionmaker)
     assert len(bindings) == 1
-    # Publication committed before acceptance acquired the shared lock. The
-    # acceptance DB clock is after rev2's boundary, so the binding is wholly
-    # rev2—not rev1 and never a torn mix of revision values.
-    assert bindings[0].revision_id == rev2.id
-    assert bindings[0].hourly_rate_naira == rev2.hourly_rate_naira
-    assert bindings[0].bound_at >= effective_from
+    # The offer was materialized from rev1 before publication.  Acceptance
+    # must therefore bind that immutable displayed snapshot, even when rev2
+    # publishes before the decision commits; mutable producer edits never
+    # reprice an already-offered assignment.
+    assert bindings[0].revision_id == revision1.id
+    assert bindings[0].hourly_rate_naira == revision1.hourly_rate_naira
+    assert bindings[0].daily_payable_hours_cap == revision1.daily_payable_hours_cap
+    assert bindings[0].bound_at is not None
+
+
+def test_offer_creation_after_revision_publication_freezes_new_revision_postgres(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_offered_graph(postgis_db_sessionmaker, "v3-offer-pub-race")
+    rule = create_v2_rule(
+        postgis_db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        created_by_user_id=graph.admin.id,
+    )
+    revision1 = create_revision_row(
+        postgis_db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        rule_id=rule.id,
+        created_by_user_id=graph.admin.id,
+    )
+
+    async def remove_fixture_offer() -> None:
+        async with postgis_db_sessionmaker() as session:
+            await session.execute(
+                delete(CampaignAssignment).where(CampaignAssignment.id == graph.assignment.id)
+            )
+            await session.commit()
+
+    asyncio.run(remove_fixture_offer())
+    publication_has_lock = asyncio.Event()
+
+    async def publish():
+        async with postgis_db_sessionmaker() as session:
+            await acquire_campaign_terms_lock(session, graph.campaign.id)
+            effective_from = await database_clock(session) + timedelta(seconds=2)
+            publication_has_lock.set()
+            revision2, _ = await payouts.create_payout_rule_revision(
+                session,
+                campaign_id=graph.campaign.id,
+                rule_id=rule.id,
+                payload=CampaignPayoutRuleRevisionCreate(
+                    effective_from=effective_from,
+                    hourly_rate_naira=Decimal("9999.00"),
+                    premium_hourly_rate_naira=Decimal("10999.00"),
+                    daily_payable_hours_cap=Decimal("8.00"),
+                    reason="offer publication race",
+                ),
+                actor_user_id=graph.admin.id,
+            )
+            await asyncio.sleep(2.1)
+            await session.commit()
+            return revision2
+
+    async def offer():
+        await publication_has_lock.wait()
+        async with postgis_db_sessionmaker() as session:
+            assignment = await create_campaign_assignment(
+                session,
+                admin_user_id=graph.admin.id,
+                payload=CampaignAssignmentCreate(
+                    campaign_id=graph.campaign.id,
+                    driver_profile_id=graph.profile.id,
+                    vehicle_id=graph.vehicle.id,
+                    creative_id=graph.creative.id,
+                    expires_at=FUTURE - timedelta(days=1),
+                ),
+                settings=settings,
+            )
+            await session.commit()
+            return assignment
+
+    async def race():
+        return await asyncio.wait_for(asyncio.gather(publish(), offer()), timeout=10)
+
+    revision2, offered = asyncio.run(race())
+    assert revision1.id != revision2.id
+    assert offered.offer_terms is not None
+    assert offered.offer_terms["payout"]["revision_id"] == str(revision2.id)
+    assert offered.offer_terms["payout"]["hourly_rate_naira"] == str(revision2.hourly_rate_naira)
+    assert offered.offer_terms["payout"]["daily_payable_hours_cap"] == str(
+        revision2.daily_payable_hours_cap
+    )
 
 
 # --- payout_v3 engine --------------------------------------------------------

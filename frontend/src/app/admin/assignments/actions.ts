@@ -40,6 +40,8 @@ const createSchema = z.object({
   campaign_id: z.string().uuid("Pick a campaign"),
   driver_profile_id: z.string().uuid("Pick a driver"),
   vehicle_id: z.string().uuid("Pick a vehicle"),
+  creative_id: z.string().uuid("Select a ready creative"),
+  expires_at: z.string().datetime({ offset: true }),
   notes: z
     .string()
     .trim()
@@ -59,6 +61,12 @@ const recommendationSchema = z.object({
   campaign_id: z.string().uuid("Pick a campaign"),
   service_city: z.string().trim().min(1, "Enter a service city").max(128),
 });
+
+function normalizeExpiry(value: FormDataEntryValue | null): FormDataEntryValue | null {
+  if (typeof value !== "string" || !value) return value;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+}
 
 export async function listAssignmentRecommendationsAction(
   values: unknown,
@@ -93,6 +101,8 @@ export async function createAssignmentAction(
     campaign_id: formData.get("campaign_id"),
     driver_profile_id: formData.get("driver_profile_id"),
     vehicle_id: formData.get("vehicle_id"),
+    creative_id: formData.get("creative_id"),
+    expires_at: normalizeExpiry(formData.get("expires_at")),
     notes: formData.get("notes") ?? "",
     recommendation_context: hasRecommendationPart ? recommendationParts : undefined,
   });
@@ -113,6 +123,22 @@ export async function cancelAssignmentAction(assignmentId: string): Promise<Admi
   try {
     const api = createApiClient(await getSessionToken());
     await api.POST("/api/v1/admin/campaign-assignments/{assignment_id}/cancel", {
+      params: { path: { assignment_id: assignmentId } },
+      body: {},
+    });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    return { error: "Could not reach the server." };
+  }
+  revalidatePath("/admin/assignments");
+  return {};
+}
+
+export async function activateAssignmentAction(assignmentId: string): Promise<AdminActionState> {
+  if (!z.string().uuid().safeParse(assignmentId).success) return { error: "Invalid assignment" };
+  try {
+    const api = createApiClient(await getSessionToken());
+    await api.POST("/api/v1/admin/campaign-assignments/{assignment_id}/activate", {
       params: { path: { assignment_id: assignmentId } },
       body: {},
     });

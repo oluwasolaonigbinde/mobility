@@ -59,10 +59,10 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 ### Current control pointer
 
 **Controller state:** `ACTIVE`
-**Control package:** `PKG-06` — W3-03A is verified on the adopted corrected
+**Control package:** `PKG-06` — W3-03A/B are verified on the adopted corrected
 Package 5 history and Package 6 remains in progress. Package 5 remains BLOCKED
 only on its registered dependency/external gates.
-**Current checkpoint:** `PKG-06 / W3-03B` — W3-03A is DONE. W3-03B is the next
+**Current checkpoint:** `PKG-06 / W3-03C` — W3-03B is DONE. W3-03C is the next
 dependency-safe pointer; it has not been admitted or started in this checkpoint.
 
 ## Executable package queue
@@ -651,6 +651,23 @@ dependency-safe pointer; it has not been admitted or started in this checkpoint.
   input or live-use authorization was added. W3-03B–W3-04C were not started;
   the corrected Package 5 history is adopted beneath this checkpoint and its
   external legal/reporting/ad-platform gates remain unchanged.
+- **W3-03B evidence (25 Aug 2026):** migration `0048` adds canonical,
+  explicitly expiring assignment offers whose complete payout-v3, campaign
+  window, service-area, zone and selected-creative evidence is fingerprinted
+  and shown to the driver. Accept/decline/expiry decisions use database time,
+  one campaign→assignment→eligibility lock order and append-only evidence;
+  acceptance binds only the frozen offer snapshot. An idempotent worker and
+  lazy reads materialize expiry. Final activation is admin-only and composes
+  every built review/funding/hold gate, then fails closed because Package 4's
+  approved-creative and installation-evidence authorities are not yet built.
+  Create/cancel services require an active admin, while terminal assignment
+  transitions and trip start serialize without resurrecting work or forking
+  event history. Evidence includes 86 focused real-PostgreSQL passes plus the
+  funded deactivation/trip barrier, 69 fast backend/API passes, populated
+  migration and append-only demo-seed roundtrips, 213 frontend tests plus 11
+  focused lifecycle UI tests, type/lint/format, byte-stable §9 artifacts, and
+  one consolidated Luna review PASS after seed/UI corrections. W3-03C–W3-04C
+  remain unstarted; external Package 4/5 gates remain unchanged.
 - **Closure:** security/privacy/money and lifecycle races pass, including the
   complete accept/decline/expiry flow and non-work-eligible pending states.
 
@@ -780,7 +797,7 @@ verification, gates or required specialist review.
 | 53 | **W3-02A — exposure score v1** | PKG-05 | TODO | Formula-versioned score is reproducible and distinct from impressions. | leaf: W3-00D, W3-00E |
 | 54 | **W3-02B — high-exposure zone insights** | PKG-05 | TODO | Governed ranked zones appear in admin/advertiser maps and reports. | leaf: W3-00C, W3-00E |
 | 55 | **W3-03A — matching recommendations** | PKG-06 | DONE | Admin receives deterministic eligible driver/vehicle rankings. | none |
-| 56 | **W3-03B — complete offer lifecycle** | PKG-06 | TODO | Terms-complete expiring offers support accept/decline and immutable evidence. | leaf: W3-03A, W2-00A, MNY-06B |
+| 56 | **W3-03B — complete offer lifecycle** | PKG-06 | DONE | Terms-complete expiring offers support accept/decline and immutable evidence. | leaf: W3-03A, W2-00A, MNY-06B |
 | 57 | **W3-03C — activity floor and inactivity handling** | PKG-06 | TODO | Verified-hours/inactivity sweeps create reviewable ops flags and notices. | leaf: W3-03B, W2-04A |
 | 58 | **W3-04A — public driver application** | PKG-06 | TODO | Abuse-resistant registration creates a pending, non-work-eligible application. | none |
 | 59 | **W3-04B — KYC/bank onboarding approval** | PKG-06 | TODO | Person/payee KYC is approved but remains non-work-eligible pending W3-04C vehicle approval. | leaf: W3-04A, W2-02D, MNY-10A |
@@ -1775,7 +1792,7 @@ and Git history win.
 | S1 — payout engine v2 (hourly pay + daily caps, D2/D4/D9) | Complete, merged — RM1 fixed and the original whole-trip stationary grace retained for immutable payout-v2 history | Git `f9cd8ca`; architecture v1.8/v1.15, §16.1 [BUILT] |
 | PKG-01 — foundations and empirical risk proof | Complete — RM2/RM6/RM7 closed; payout-v3 frozen parked-time behavior, PWA protocol/interrupted-flow build proof and provider-neutral release/recovery proof delivered; physical/live validation remains explicitly deferred | Git `d2cd424`…`be726a2` plus the package closure commit; architecture v1.30; D22/D23; automated/PostGIS/frontend/browser/recovery evidence |
 | PKG-02 — money integrity and payout operations | Complete — RM8/RM10/RM11 closed; copied-route control, authoritative holds, clean release, encrypted payees, frozen provider instructions, line finality and carry-forward debt delivered provider-neutrally | Git through `e3a505e`; migrations `0022`–`0031`; architecture v1.37; Postgres/frontend/contract/synthetic end-to-end evidence and consolidated review resolved |
-| PKG-06 / W3-03A — matching recommendations | Complete checkpoint — advisory cars-only ranking, explicit admin choice and concurrency-safe stale selection; later Package 6 items not started | `4cf15cd` plus corrected Package 5 adoption merge; architecture v1.48; focused PostgreSQL/backend/frontend/contract/live-stack evidence and consolidated review resolved |
+| PKG-06 / W3-03A–B — matching and complete offer lifecycle | Complete checkpoints — advisory cars-only ranking, explicit admin choice, immutable expiring offers, driver decision and honest admin activation gating; W3-03C–W3-04C not started | `4cf15cd` plus the W3-03B checkpoint on corrected Package 5 history; architecture v1.48–v1.49; focused PostgreSQL/backend/frontend/contract/API-journey evidence and consolidated reviews resolved |
 | S4 — data lifecycle (ping partitions, retention purge, audit backfill, D10) | Complete, merged | Git `a879a3d`…`4f487e7`; architecture v1.9, §24.2 [BUILT] |
 | W0-F — trip finality protocol + durable client queue (RM3/RM4/RM5, D15) | Complete — sealed-only money chain, post-seal quarantine, IndexedDB queue with stable retry keys; independently reviewed and hardened (D16: apply-after-initial-payout, pre-seal analytics recompute, fail-closed client) | Migrations `0016`+`0017`; architecture v1.16/v1.17; `tests/test_trip_seal.py`; live compose e2e |
 | Pre-production ops (production Compose overlay, release smoke, backup/restore rehearsal) | Complete locally, **not deployed** | Git from `006d94e`; `docker-compose.production.yml`, `docs/runbook.md` |

@@ -1,11 +1,16 @@
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
+from uuid import UUID
 
 import pytest
 from conftest import (
     auth_headers,
     create_test_campaign,
     create_test_campaign_assignment,
+    create_test_campaign_creative,
+    create_test_campaign_payout_revision,
+    create_test_campaign_zone,
     create_test_driver_profile,
     create_test_organization,
     create_test_trip_analytics,
@@ -14,17 +19,28 @@ from conftest import (
     create_test_vehicle,
     fetch_activation_events,
     fetch_audit_events,
+    fetch_user_by_email,
 )
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status as http_status
 
-from app.models.campaign import Campaign, CampaignStatus
+import app.services.campaign_assignments as assignments_service
+from app.core.errors import AppError
+from app.models.billing import CampaignLiabilityReservation
+from app.models.campaign import Campaign, CampaignCreative, CampaignStatus, CreativeStatus
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
+from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.driver import DriverOnboardingStatus, DriverProfile
+from app.models.payout import AssignmentRuleBinding
 from app.models.trip import TripSessionStatus
-from app.models.user import UserRole
+from app.models.user import UserRole, UserStatus
 from app.models.vehicle import Vehicle, VehicleStatus, VehicleType
+from app.schemas.campaign_assignments import (
+    CampaignAssignmentCancel,
+    CampaignAssignmentCreate,
+    CampaignAssignmentTransition,
+)
 
 PASSWORD = "long-secure-password"
 PAST = datetime(2020, 1, 1, tzinfo=UTC)
@@ -37,7 +53,7 @@ def create_assignment_ready_graph(
     campaign_status: CampaignStatus = CampaignStatus.SCHEDULED,
     driver_status: DriverOnboardingStatus = DriverOnboardingStatus.ACTIVE,
     vehicle_status: VehicleStatus = VehicleStatus.ACTIVE,
-    start_at=None,
+    start_at=PAST,
     end_at=FUTURE,
     admin_email: str = "admin@example.com",
     advertiser_email: str = "advertiser@example.com",
@@ -60,6 +76,23 @@ def create_assignment_ready_graph(
         start_at=start_at,
         end_at=end_at,
     )
+    creative = create_test_campaign_creative(
+        db_sessionmaker,
+        campaign_id=campaign.id,
+        creative_status=CreativeStatus.READY,
+    )
+    create_test_campaign_payout_revision(
+        db_sessionmaker,
+        campaign_id=campaign.id,
+        created_by_user_id=admin.id,
+        effective_from=PAST,
+    )
+    create_test_campaign_zone(
+        db_sessionmaker,
+        campaign_id=campaign.id,
+        created_by_user_id=admin.id,
+    )
+    campaign.campaign_metadata["_test_creative_id"] = str(creative.id)
     driver = create_test_user(
         db_sessionmaker,
         email=driver_email,
@@ -85,6 +118,8 @@ def assignment_payload(campaign: Campaign, profile: DriverProfile, vehicle: Vehi
         "campaign_id": str(campaign.id),
         "driver_profile_id": str(profile.id),
         "vehicle_id": str(vehicle.id),
+        "creative_id": campaign.campaign_metadata["_test_creative_id"],
+        "expires_at": (datetime.now(UTC) + timedelta(days=1)).isoformat(),
         "notes": " Driver accepted wrap kit ",
         "metadata": {"source": "ops"},
     }
@@ -106,6 +141,40 @@ def post_assignment(db_client, campaign, profile, vehicle):
         headers=admin_headers(db_client),
         json=assignment_payload(campaign, profile, vehicle),
     )
+
+
+def create_postgres_offer(sessionmaker, settings, admin, campaign, profile, vehicle):
+    async def create():
+        async with sessionmaker() as session:
+            assignment = await assignments_service.create_campaign_assignment(
+                session,
+                admin_user_id=admin.id,
+                payload=CampaignAssignmentCreate(
+                    campaign_id=campaign.id,
+                    driver_profile_id=profile.id,
+                    vehicle_id=vehicle.id,
+                    creative_id=UUID(campaign.campaign_metadata["_test_creative_id"]),
+                    expires_at=datetime.now(UTC) + timedelta(days=1),
+                ),
+                settings=settings,
+            )
+            await session.commit()
+            return assignment.id
+
+    return asyncio.run(create())
+
+
+def set_offer_due(sessionmaker, assignment_id) -> None:
+    async def update_expiry() -> None:
+        async with sessionmaker() as session:
+            await session.execute(
+                update(CampaignAssignment)
+                .where(CampaignAssignment.id == assignment_id)
+                .values(expires_at=datetime.now(UTC) - timedelta(seconds=1))
+            )
+            await session.commit()
+
+    asyncio.run(update_expiry())
 
 
 def update_campaign_status(
@@ -150,6 +219,29 @@ def update_vehicle_status(
     asyncio.run(update())
 
 
+def update_creative_status(db_sessionmaker, creative_id, creative_status: CreativeStatus) -> None:
+    async def update() -> None:
+        async with db_sessionmaker() as session:
+            creative = await session.get(CampaignCreative, creative_id)
+            creative.status = creative_status
+            await session.commit()
+
+    asyncio.run(update())
+
+
+def delete_assignment_binding(db_sessionmaker, assignment_id) -> None:
+    async def delete_binding() -> None:
+        async with db_sessionmaker() as session:
+            await session.execute(
+                delete(AssignmentRuleBinding).where(
+                    AssignmentRuleBinding.assignment_id == assignment_id
+                )
+            )
+            await session.commit()
+
+    asyncio.run(delete_binding())
+
+
 def update_driver_city(db_sessionmaker, profile_id, service_city: str) -> None:
     async def update() -> None:
         async with db_sessionmaker() as session:
@@ -175,6 +267,277 @@ def fetch_assignments(db_sessionmaker) -> list[CampaignAssignment]:
         async with db_sessionmaker() as session:
             result = await session.execute(select(CampaignAssignment))
             return list(result.scalars().all())
+
+    return asyncio.run(fetch())
+
+
+@pytest.mark.parametrize("actor_kind", ["driver", "advertiser", "disabled_admin", "unknown"])
+def test_direct_assignment_services_require_active_admin_before_mutation(
+    db_sessionmaker,
+    settings,
+    actor_kind,
+) -> None:
+    admin, campaign, driver, profile, vehicle = create_assignment_ready_graph(
+        db_sessionmaker,
+        admin_email=f"authority-admin-{actor_kind}@example.com",
+        advertiser_email=f"authority-advertiser-{actor_kind}@example.com",
+        driver_email=f"authority-driver-{actor_kind}@example.com",
+        plate_number=f"AUTH-{actor_kind[:3].upper()}-1",
+    )
+    disabled_admin = create_test_user(
+        db_sessionmaker,
+        email=f"authority-disabled-{actor_kind}@example.com",
+        password=PASSWORD,
+        role=UserRole.ADMIN,
+        user_status=UserStatus.DISABLED,
+    )
+    actor_id = {
+        "driver": driver.id,
+        "advertiser": fetch_user_by_email(
+            db_sessionmaker, f"authority-advertiser-{actor_kind}@example.com"
+        ).id,
+        "disabled_admin": disabled_admin.id,
+        "unknown": UUID(int=0),
+    }[actor_kind]
+
+    before = (
+        len(fetch_assignments(db_sessionmaker)),
+        len(fetch_activation_events(db_sessionmaker)),
+        len(fetch_audit_events(db_sessionmaker)),
+    )
+
+    async def attempt_create() -> None:
+        async with db_sessionmaker() as session:
+            with pytest.raises(AppError) as exc_info:
+                await assignments_service.create_campaign_assignment(
+                    session,
+                    admin_user_id=actor_id,
+                    payload=CampaignAssignmentCreate(
+                        campaign_id=campaign.id,
+                        driver_profile_id=profile.id,
+                        vehicle_id=vehicle.id,
+                        creative_id=UUID(campaign.campaign_metadata["_test_creative_id"]),
+                        expires_at=datetime.now(UTC) + timedelta(days=1),
+                    ),
+                    settings=settings,
+                )
+            assert exc_info.value.code == "ADMIN_REQUIRED"
+            await session.rollback()
+
+    asyncio.run(attempt_create())
+    assert (
+        len(fetch_assignments(db_sessionmaker)),
+        len(fetch_activation_events(db_sessionmaker)),
+        len(fetch_audit_events(db_sessionmaker)),
+    ) == before
+
+    async def create_valid() -> UUID:
+        async with db_sessionmaker() as session:
+            assignment = await assignments_service.create_campaign_assignment(
+                session,
+                admin_user_id=admin.id,
+                payload=CampaignAssignmentCreate(
+                    campaign_id=campaign.id,
+                    driver_profile_id=profile.id,
+                    vehicle_id=vehicle.id,
+                    creative_id=UUID(campaign.campaign_metadata["_test_creative_id"]),
+                    expires_at=datetime.now(UTC) + timedelta(days=1),
+                ),
+                settings=settings,
+            )
+            await session.commit()
+            return assignment.id
+
+    assignment_id = asyncio.run(create_valid())
+    baseline = (
+        len(fetch_assignments(db_sessionmaker)),
+        len(fetch_activation_events(db_sessionmaker)),
+        len(fetch_audit_events(db_sessionmaker)),
+    )
+
+    async def attempt_cancel() -> None:
+        async with db_sessionmaker() as session:
+            with pytest.raises(AppError) as exc_info:
+                await assignments_service.cancel_admin_assignment(
+                    session,
+                    admin_user_id=actor_id,
+                    assignment_id=assignment_id,
+                    payload=CampaignAssignmentCancel(reason="unauthorized"),
+                )
+            assert exc_info.value.code == "ADMIN_REQUIRED"
+            await session.rollback()
+
+    asyncio.run(attempt_cancel())
+    assert (
+        len(fetch_assignments(db_sessionmaker)),
+        len(fetch_activation_events(db_sessionmaker)),
+        len(fetch_audit_events(db_sessionmaker)),
+    ) == baseline
+    assert fetch_assignments(db_sessionmaker)[0].status == CampaignAssignmentStatus.OFFERED.value
+
+
+@pytest.mark.parametrize("producer_kind", ["campaign_window", "zone"])
+def test_offer_creation_observes_campaign_or_zone_edit_after_pg_lock(
+    postgis_db_sessionmaker,
+    settings,
+    producer_kind,
+) -> None:
+    admin, campaign, _, profile, vehicle = create_assignment_ready_graph(
+        postgis_db_sessionmaker,
+        campaign_status=CampaignStatus.ACTIVE,
+        start_at=PAST,
+        end_at=FUTURE,
+        admin_email=f"offer-producer-{producer_kind}@example.com",
+        advertiser_email=f"offer-producer-advertiser-{producer_kind}@example.com",
+        driver_email=f"offer-producer-driver-{producer_kind}@example.com",
+        plate_number=f"OP-{producer_kind[:8].upper()}"[:15],
+    )
+    producer_ready = asyncio.Event()
+
+    async def producer() -> None:
+        async with postgis_db_sessionmaker() as session:
+            locked_campaign = await session.scalar(
+                select(Campaign).where(Campaign.id == campaign.id).with_for_update()
+            )
+            assert locked_campaign is not None
+            if producer_kind == "campaign_window":
+                locked_campaign.end_at = FUTURE + timedelta(days=1)
+            else:
+                zone = await session.scalar(
+                    select(CampaignZone)
+                    .where(
+                        CampaignZone.campaign_id == campaign.id,
+                        CampaignZone.zone_type == CampaignZoneType.TARGET.value,
+                    )
+                    .order_by(CampaignZone.id)
+                    .limit(1)
+                    .with_for_update()
+                )
+                assert zone is not None
+                zone.name = "Producer-updated target"
+            producer_ready.set()
+            await asyncio.sleep(0.2)
+            await session.commit()
+
+    async def offer():
+        await producer_ready.wait()
+        async with postgis_db_sessionmaker() as session:
+            assignment = await assignments_service.create_campaign_assignment(
+                session,
+                admin_user_id=admin.id,
+                payload=CampaignAssignmentCreate(
+                    campaign_id=campaign.id,
+                    driver_profile_id=profile.id,
+                    vehicle_id=vehicle.id,
+                    creative_id=UUID(campaign.campaign_metadata["_test_creative_id"]),
+                    expires_at=FUTURE - timedelta(days=1),
+                ),
+                settings=settings,
+            )
+            await session.commit()
+            return assignment
+
+    async def race():
+        return await asyncio.wait_for(asyncio.gather(producer(), offer()), timeout=10)
+
+    _, assignment = asyncio.run(race())
+    assert assignment.offer_terms is not None
+    if producer_kind == "campaign_window":
+        assert assignment.offer_terms["campaign_window_end_at"] == (
+            FUTURE + timedelta(days=1)
+        ).isoformat()
+    else:
+        assert assignment.offer_terms["zones"]["target"][0]["name"] == "Producer-updated target"
+
+
+def test_offer_creation_fails_closed_after_creative_archive_pg_lock(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    admin, campaign, _, profile, vehicle = create_assignment_ready_graph(
+        postgis_db_sessionmaker,
+        campaign_status=CampaignStatus.ACTIVE,
+        start_at=PAST,
+        end_at=FUTURE,
+        admin_email="offer-creative-admin@example.com",
+        advertiser_email="offer-creative-advertiser@example.com",
+        driver_email="offer-creative-driver@example.com",
+        plate_number="OFC-001",
+    )
+    creative_id = UUID(campaign.campaign_metadata["_test_creative_id"])
+    producer_ready = asyncio.Event()
+
+    async def producer() -> None:
+        async with postgis_db_sessionmaker() as session:
+            creative = await session.scalar(
+                select(CampaignCreative)
+                .where(CampaignCreative.id == creative_id)
+                .with_for_update()
+            )
+            assert creative is not None
+            creative.status = CreativeStatus.ARCHIVED.value
+            producer_ready.set()
+            await asyncio.sleep(0.2)
+            await session.commit()
+
+    async def offer() -> str:
+        await producer_ready.wait()
+        async with postgis_db_sessionmaker() as session:
+            try:
+                await assignments_service.create_campaign_assignment(
+                    session,
+                    admin_user_id=admin.id,
+                    payload=CampaignAssignmentCreate(
+                        campaign_id=campaign.id,
+                        driver_profile_id=profile.id,
+                        vehicle_id=vehicle.id,
+                        creative_id=creative_id,
+                        expires_at=FUTURE - timedelta(days=1),
+                    ),
+                    settings=settings,
+                )
+                await session.commit()
+            except AppError as exc:
+                await session.rollback()
+                return exc.code
+        return "offered"
+
+    async def race():
+        return await asyncio.wait_for(asyncio.gather(producer(), offer()), timeout=10)
+
+    _, outcome = asyncio.run(race())
+    assert outcome == "READY_CAMPAIGN_CREATIVE_REQUIRED"
+    assert fetch_assignments(postgis_db_sessionmaker) == []
+
+
+def fetch_bindings_for_assignment(db_sessionmaker, assignment_id):
+    async def fetch():
+        async with db_sessionmaker() as session:
+            return list(
+                (
+                    await session.scalars(
+                        select(AssignmentRuleBinding).where(
+                            AssignmentRuleBinding.assignment_id == assignment_id
+                        )
+                    )
+                ).all()
+            )
+
+    return asyncio.run(fetch())
+
+
+def fetch_reservations_for_assignment(db_sessionmaker, assignment_id):
+    async def fetch():
+        async with db_sessionmaker() as session:
+            return list(
+                (
+                    await session.scalars(
+                        select(CampaignLiabilityReservation).where(
+                            CampaignLiabilityReservation.assignment_id == assignment_id
+                        )
+                    )
+                ).all()
+            )
 
     return asyncio.run(fetch())
 
@@ -573,6 +936,11 @@ def test_admin_can_create_list_read_and_cancel_assignment_with_events_and_audit(
         f"/api/v1/admin/campaign-assignments/{assignment_id}",
         headers=admin_headers(db_client),
     )
+    accept_response = db_client.post(
+        f"/api/v1/driver/campaign-assignments/{assignment_id}/accept",
+        headers=driver_headers(db_client),
+        json={"metadata": {"accepted": True}},
+    )
     cancel_response = db_client.post(
         f"/api/v1/admin/campaign-assignments/{assignment_id}/cancel",
         headers=admin_headers(db_client),
@@ -589,6 +957,15 @@ def test_admin_can_create_list_read_and_cancel_assignment_with_events_and_audit(
     assert created["status"] == "offered"
     assert created["notes"] == "Driver accepted wrap kit"
     assert created["metadata"] == {"source": "ops"}
+    assert created["expires_at"] is not None
+    assert len(created["offer_terms_sha256"]) == 64
+    assert created["offer_terms"]["offer_terms_version"] == "campaign-assignment-offer-v1"
+    assert created["offer_terms"]["payout"]["formula_version"] == "payout_v3"
+    assert created["offer_terms"]["zones"]["target"]
+    assert created["offer_terms"]["zones"]["premium"]
+    assert created["offer_terms"]["creative"]["id"] == campaign.campaign_metadata[
+        "_test_creative_id"
+    ]
     assert created["campaign"]["id"] == str(campaign.id)
     assert created["driver_profile"]["id"] == str(profile.id)
     assert created["vehicle"]["id"] == str(vehicle.id)
@@ -598,18 +975,25 @@ def test_admin_can_create_list_read_and_cancel_assignment_with_events_and_audit(
     assert list_response.json()["items"][0]["id"] == assignment_id
     assert read_response.status_code == http_status.HTTP_200_OK
     assert [event["event_type"] for event in read_response.json()["events"]] == ["assigned"]
+    assert accept_response.status_code == http_status.HTTP_200_OK
+    assert accept_response.json()["status"] == "accepted"
     assert cancel_response.status_code == http_status.HTTP_200_OK
     assert cancel_response.json()["status"] == "cancelled"
     assert cancel_response.json()["cancelled_at"] is not None
     assert [event["event_type"] for event in cancel_response.json()["events"]] == [
         "assigned",
+        "accepted",
         "cancelled",
     ]
     assert cancel_again.status_code == http_status.HTTP_400_BAD_REQUEST
     assert cancel_again.json()["error"]["code"] == "INVALID_ASSIGNMENT_TRANSITION"
 
     activation_events = fetch_activation_events(db_sessionmaker)
-    assert [event.event_type for event in activation_events] == ["assigned", "cancelled"]
+    assert [event.event_type for event in activation_events] == [
+        "assigned",
+        "accepted",
+        "cancelled",
+    ]
     assert activation_events[-1].event_metadata == {"ticket": "OPS-7", "reason": "reassigned"}
     audit_events = fetch_audit_events(db_sessionmaker)
     assert [event.action for event in audit_events] == [
@@ -625,11 +1009,25 @@ def test_admin_assignment_creation_validates_eligibility_and_duplicates(
     _, campaign, _, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
     post_assignment(db_client, campaign, profile, vehicle)
 
+    missing_offer_inputs = assignment_payload(campaign, profile, vehicle)
+    del missing_offer_inputs["creative_id"]
+    del missing_offer_inputs["expires_at"]
+    missing_offer_response = db_client.post(
+        "/api/v1/admin/campaign-assignments",
+        headers=admin_headers(db_client),
+        json=missing_offer_inputs,
+    )
+
     duplicate = post_assignment(db_client, campaign, profile, vehicle)
     invalid_metadata = db_client.post(
         "/api/v1/admin/campaign-assignments",
         headers=admin_headers(db_client),
         json=assignment_payload(campaign, profile, vehicle, metadata=["bad"]),
+    )
+    accepted = db_client.post(
+        f"/api/v1/driver/campaign-assignments/{fetch_assignments(db_sessionmaker)[0].id}/accept",
+        headers=driver_headers(db_client),
+        json={"metadata": {}},
     )
     db_client.post(
         f"/api/v1/admin/campaign-assignments/{fetch_assignments(db_sessionmaker)[0].id}/cancel",
@@ -640,7 +1038,9 @@ def test_admin_assignment_creation_validates_eligibility_and_duplicates(
 
     assert duplicate.status_code == http_status.HTTP_409_CONFLICT
     assert duplicate.json()["error"]["code"] == "DUPLICATE_CAMPAIGN_VEHICLE_ASSIGNMENT"
+    assert missing_offer_response.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
     assert invalid_metadata.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert accepted.status_code == http_status.HTTP_200_OK
     assert allowed_after_cancel.status_code == http_status.HTTP_201_CREATED
 
     for rejected_status in [
@@ -666,6 +1066,7 @@ def test_admin_assignment_creation_validates_eligibility_and_duplicates(
 
     _, expired_campaign, _, expired_profile, expired_vehicle = create_assignment_ready_graph(
         db_sessionmaker,
+        start_at=PAST - timedelta(days=1),
         end_at=PAST,
         admin_email="admin-expired@example.com",
         advertiser_email="advertiser-expired@example.com",
@@ -818,7 +1219,7 @@ def test_assignment_endpoints_enforce_rbac_and_driver_ownership(
     assert unauthenticated_driver.status_code == http_status.HTTP_401_UNAUTHORIZED
 
 
-def test_driver_can_accept_activate_deactivate_and_read_current_active(
+def test_driver_decides_offer_and_admin_activation_is_fail_closed(
     db_client,
     db_sessionmaker,
 ) -> None:
@@ -829,67 +1230,285 @@ def test_driver_can_accept_activate_deactivate_and_read_current_active(
         end_at=FUTURE,
     )
     assignment_id = post_assignment(db_client, campaign, profile, vehicle).json()["id"]
-    headers = driver_headers(db_client)
+    driver = driver_headers(db_client)
 
-    no_active = db_client.get("/api/v1/driver/campaign-assignments/active", headers=headers)
     accept = db_client.post(
         f"/api/v1/driver/campaign-assignments/{assignment_id}/accept",
-        headers=headers,
+        headers=driver,
         json={"metadata": {"accepted": True}},
     )
     accept_again = db_client.post(
         f"/api/v1/driver/campaign-assignments/{assignment_id}/accept",
-        headers=headers,
+        headers=driver,
         json={"metadata": {}},
     )
-    activate = db_client.post(
+    stale_driver_activate = db_client.post(
         f"/api/v1/driver/campaign-assignments/{assignment_id}/activate",
-        headers=headers,
-        json={"metadata": {"odometer": "100"}},
+        headers=driver,
+        json={"metadata": {}},
     )
-    active = db_client.get("/api/v1/driver/campaign-assignments/active", headers=headers)
-    deactivate = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{assignment_id}/deactivate",
-        headers=headers,
-        json={"metadata": {"break": "fuel"}},
-    )
-    reactivate = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{assignment_id}/activate",
-        headers=headers,
+    admin_activate = db_client.post(
+        f"/api/v1/admin/campaign-assignments/{assignment_id}/activate",
+        headers=admin_headers(db_client),
         json={"metadata": {}},
     )
 
-    assert no_active.status_code == http_status.HTTP_200_OK
-    assert no_active.json() == {"assignment": None}
     assert accept.status_code == http_status.HTTP_200_OK
     assert accept.json()["status"] == "accepted"
-    assert accept.json()["accepted_at"] is not None
-    assert accept_again.status_code == http_status.HTTP_400_BAD_REQUEST
-    assert activate.status_code == http_status.HTTP_200_OK
-    assert activate.json()["status"] == "active"
-    assert activate.json()["activated_at"] is not None
-    assert active.status_code == http_status.HTTP_200_OK
-    assert active.json()["assignment"]["id"] == assignment_id
-    assert deactivate.status_code == http_status.HTTP_200_OK
-    assert deactivate.json()["status"] == "deactivated"
-    assert deactivate.json()["deactivated_at"] is not None
-    assert reactivate.status_code == http_status.HTTP_200_OK
-    assert reactivate.json()["status"] == "active"
-
-    activation_events = fetch_activation_events(db_sessionmaker)
-    assert [event.event_type for event in activation_events] == [
+    assert accept_again.status_code == http_status.HTTP_200_OK
+    assert accept_again.json()["status"] == "accepted"
+    assert stale_driver_activate.status_code == http_status.HTTP_404_NOT_FOUND
+    assert admin_activate.status_code == http_status.HTTP_409_CONFLICT
+    assert admin_activate.json()["error"]["code"] == "CAMPAIGN_REVIEW_APPROVAL_REQUIRED"
+    assert [event.event_type for event in fetch_activation_events(db_sessionmaker)] == [
         "assigned",
         "accepted",
-        "activated",
-        "deactivated",
-        "activated",
-    ]
-    assert [event.action for event in fetch_audit_events(db_sessionmaker)] == [
-        "admin.campaign_assignment.created"
     ]
 
 
-def test_driver_lifecycle_rejects_invalid_states_and_campaign_windows(
+def test_driver_decline_is_idempotent_and_opposite_accept_conflicts(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    _, campaign, _, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
+    assignment_id = post_assignment(db_client, campaign, profile, vehicle).json()["id"]
+    headers = driver_headers(db_client)
+
+    decline = db_client.post(
+        f"/api/v1/driver/campaign-assignments/{assignment_id}/decline",
+        headers=headers,
+        json={"metadata": {"reason": "not available"}},
+    )
+    decline_again = db_client.post(
+        f"/api/v1/driver/campaign-assignments/{assignment_id}/decline",
+        headers=headers,
+        json={"metadata": {}},
+    )
+    accept = db_client.post(
+        f"/api/v1/driver/campaign-assignments/{assignment_id}/accept",
+        headers=headers,
+        json={"metadata": {}},
+    )
+
+    assert decline.status_code == http_status.HTTP_200_OK
+    assert decline.json()["status"] == "declined"
+    assert decline.json()["declined_at"] is not None
+    assert decline_again.status_code == http_status.HTTP_200_OK
+    assert accept.status_code == http_status.HTTP_409_CONFLICT
+    assert accept.json()["error"]["code"] == "ASSIGNMENT_DECISION_CONFLICT"
+    events = fetch_activation_events(db_sessionmaker)
+    assert [event.event_type for event in events] == ["assigned", "declined"]
+
+
+def test_offer_expiry_materializes_before_post_expiry_decision(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    _, campaign, _, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
+    assignment_id = post_assignment(db_client, campaign, profile, vehicle).json()["id"]
+
+    async def expire() -> None:
+        async with db_sessionmaker() as session:
+            assignment = await session.get(CampaignAssignment, UUID(assignment_id))
+            assignment.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+            await session.commit()
+
+    asyncio.run(expire())
+    expired_read = db_client.get(
+        f"/api/v1/driver/campaign-assignments/{assignment_id}",
+        headers=driver_headers(db_client),
+    )
+    accept = db_client.post(
+        f"/api/v1/driver/campaign-assignments/{assignment_id}/accept",
+        headers=driver_headers(db_client),
+        json={"metadata": {}},
+    )
+
+    assert expired_read.status_code == http_status.HTTP_200_OK
+    assert expired_read.json()["status"] == "expired"
+    assert expired_read.json()["expired_at"] is not None
+    assert [event["event_type"] for event in expired_read.json()["events"]] == [
+        "assigned",
+        "expired",
+    ]
+    assert accept.status_code == http_status.HTTP_409_CONFLICT
+    assert accept.json()["error"]["code"] == "ASSIGNMENT_DECISION_CONFLICT"
+    assert len(fetch_activation_events(db_sessionmaker)) == 2
+
+
+def test_admin_cannot_cancel_a_complete_offered_assignment(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    _, campaign, _, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
+    assignment_id = post_assignment(db_client, campaign, profile, vehicle).json()["id"]
+
+    response = db_client.post(
+        f"/api/v1/admin/campaign-assignments/{assignment_id}/cancel",
+        headers=admin_headers(db_client),
+        json={"reason": "operator correction"},
+    )
+
+    assert response.status_code == http_status.HTTP_409_CONFLICT
+    assert response.json()["error"]["code"] == "OFFER_DECISION_REQUIRED"
+    assert fetch_assignments(db_sessionmaker)[0].status == CampaignAssignmentStatus.OFFERED.value
+    assert [event.event_type for event in fetch_activation_events(db_sessionmaker)] == [
+        "assigned"
+    ]
+
+
+def test_concurrent_accept_decline_has_one_terminal_decision_postgres(
+    postgis_db_sessionmaker,
+    settings,
+    monkeypatch,
+) -> None:
+    admin, campaign, driver, profile, vehicle = create_assignment_ready_graph(
+        postgis_db_sessionmaker,
+        campaign_status=CampaignStatus.ACTIVE,
+        start_at=PAST,
+        end_at=FUTURE,
+        admin_email="race-admin@example.com",
+        advertiser_email="race-advertiser@example.com",
+        driver_email="race-driver@example.com",
+        plate_number="RACE-001",
+    )
+    assignment_id = create_postgres_offer(
+        postgis_db_sessionmaker,
+        settings,
+        admin,
+        campaign,
+        profile,
+        vehicle,
+    )
+    original_lock = assignments_service.acquire_campaign_terms_lock
+    both_at_lock = asyncio.Event()
+    lock_call_count = 0
+
+    async def barrier_lock(session, campaign_id):
+        nonlocal lock_call_count
+        lock_call_count += 1
+        if lock_call_count == 2:
+            both_at_lock.set()
+        await both_at_lock.wait()
+        await original_lock(session, campaign_id)
+
+    monkeypatch.setattr(assignments_service, "acquire_campaign_terms_lock", barrier_lock)
+
+    async def accept() -> str:
+        async with postgis_db_sessionmaker() as session:
+            try:
+                await assignments_service.accept_driver_assignment(
+                    session,
+                    user_id=driver.id,
+                    assignment_id=assignment_id,
+                    payload=CampaignAssignmentTransition(),
+                    settings=settings,
+                )
+                await session.commit()
+                return "accepted"
+            except AppError as exc:
+                await session.rollback()
+                return exc.code
+
+    async def decline() -> str:
+        async with postgis_db_sessionmaker() as session:
+            try:
+                await assignments_service.decline_driver_assignment(
+                    session,
+                    user_id=driver.id,
+                    assignment_id=assignment_id,
+                    payload=CampaignAssignmentTransition(),
+                )
+                await session.commit()
+                return "declined"
+            except AppError as exc:
+                await session.rollback()
+                return exc.code
+
+    async def race():
+        return await asyncio.wait_for(asyncio.gather(accept(), decline()), timeout=10)
+
+    outcomes = asyncio.run(race())
+
+    assert lock_call_count == 2
+    assert sorted(outcomes) == ["ASSIGNMENT_DECISION_CONFLICT", "accepted"] or sorted(
+        outcomes
+    ) == ["ASSIGNMENT_DECISION_CONFLICT", "declined"]
+    terminal_events = [
+        event
+        for event in fetch_activation_events(postgis_db_sessionmaker)
+        if event.event_type in {"accepted", "declined", "expired"}
+    ]
+    assert len(terminal_events) == 1
+    assert len(
+        fetch_bindings_for_assignment(postgis_db_sessionmaker, assignment_id)
+    ) <= 1
+    assert len(fetch_reservations_for_assignment(postgis_db_sessionmaker, assignment_id)) <= 1
+
+
+def test_duplicate_expiry_sweeps_have_one_terminal_event_postgres(
+    postgis_db_sessionmaker,
+    settings,
+    monkeypatch,
+) -> None:
+    admin, campaign, _, profile, vehicle = create_assignment_ready_graph(
+        postgis_db_sessionmaker,
+        campaign_status=CampaignStatus.ACTIVE,
+        start_at=PAST,
+        end_at=FUTURE,
+        admin_email="sweep-admin@example.com",
+        advertiser_email="sweep-advertiser@example.com",
+        driver_email="sweep-driver@example.com",
+        plate_number="SWEEP-001",
+    )
+    assignment_id = create_postgres_offer(
+        postgis_db_sessionmaker,
+        settings,
+        admin,
+        campaign,
+        profile,
+        vehicle,
+    )
+    set_offer_due(postgis_db_sessionmaker, assignment_id)
+    original_lock = assignments_service.acquire_campaign_terms_lock
+    both_at_lock = asyncio.Event()
+    lock_call_count = 0
+
+    async def barrier_lock(session, campaign_id):
+        nonlocal lock_call_count
+        lock_call_count += 1
+        if lock_call_count == 2:
+            both_at_lock.set()
+        await both_at_lock.wait()
+        await original_lock(session, campaign_id)
+
+    monkeypatch.setattr(assignments_service, "acquire_campaign_terms_lock", barrier_lock)
+
+    async def sweep() -> int:
+        async with postgis_db_sessionmaker() as session:
+            expired = await assignments_service.expire_due_assignment_offers(session)
+            await session.commit()
+            return expired
+
+    async def race():
+        return await asyncio.wait_for(asyncio.gather(sweep(), sweep()), timeout=10)
+
+    outcomes = asyncio.run(race())
+
+    assert lock_call_count == 2
+    assert sorted(outcomes) == [0, 1]
+    terminal_events = [
+        event
+        for event in fetch_activation_events(postgis_db_sessionmaker)
+        if event.event_type in {"accepted", "declined", "expired"}
+    ]
+    assert len(terminal_events) == 1
+    assert terminal_events[0].event_type == "expired"
+    assert len(fetch_bindings_for_assignment(postgis_db_sessionmaker, assignment_id)) == 0
+    assert len(fetch_reservations_for_assignment(postgis_db_sessionmaker, assignment_id)) == 0
+
+
+def test_admin_activation_checks_campaign_and_driver_gates(
     db_client,
     db_sessionmaker,
 ) -> None:
@@ -908,8 +1527,8 @@ def test_driver_lifecycle_rejects_invalid_states_and_campaign_windows(
     headers = driver_headers(db_client)
 
     offered_activate = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{scheduled_assignment_id}/activate",
-        headers=headers,
+        f"/api/v1/admin/campaign-assignments/{scheduled_assignment_id}/activate",
+        headers=admin_headers(db_client),
         json={"metadata": {}},
     )
     db_client.post(
@@ -918,14 +1537,14 @@ def test_driver_lifecycle_rejects_invalid_states_and_campaign_windows(
         json={"metadata": {}},
     )
     scheduled_activate = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{scheduled_assignment_id}/activate",
-        headers=headers,
+        f"/api/v1/admin/campaign-assignments/{scheduled_assignment_id}/activate",
+        headers=admin_headers(db_client),
         json={"metadata": {}},
     )
     update_campaign_status(db_sessionmaker, scheduled_campaign.id, CampaignStatus.PAUSED)
     paused_activate = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{scheduled_assignment_id}/activate",
-        headers=headers,
+        f"/api/v1/admin/campaign-assignments/{scheduled_assignment_id}/activate",
+        headers=admin_headers(db_client),
         json={"metadata": {}},
     )
 
@@ -933,7 +1552,7 @@ def test_driver_lifecycle_rejects_invalid_states_and_campaign_windows(
         db_sessionmaker,
         campaign_status=CampaignStatus.ACTIVE,
         start_at=FUTURE,
-        end_at=None,
+        end_at=FUTURE + timedelta(days=1),
         admin_email="admin-future@example.com",
         advertiser_email="advertiser-future@example.com",
         driver_email="future-driver@example.com",
@@ -952,8 +1571,8 @@ def test_driver_lifecycle_rejects_invalid_states_and_campaign_windows(
         json={"metadata": {}},
     )
     future_activate = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{future_assignment_id}/activate",
-        headers=future_headers,
+        f"/api/v1/admin/campaign-assignments/{future_assignment_id}/activate",
+        headers=admin_headers(db_client),
         json={"metadata": {}},
     )
 
@@ -981,15 +1600,15 @@ def test_driver_lifecycle_rejects_invalid_states_and_campaign_windows(
     )
     update_driver_status(db_sessionmaker, active_profile.id, DriverOnboardingStatus.SUSPENDED)
     inactive_driver_activate = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{active_assignment_id}/activate",
-        headers=eligibility_headers,
+        f"/api/v1/admin/campaign-assignments/{active_assignment_id}/activate",
+        headers=admin_headers(db_client),
         json={"metadata": {}},
     )
     update_driver_status(db_sessionmaker, active_profile.id, DriverOnboardingStatus.ACTIVE)
     update_vehicle_status(db_sessionmaker, active_vehicle.id, VehicleStatus.SUSPENDED)
     inactive_vehicle_activate = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{active_assignment_id}/activate",
-        headers=eligibility_headers,
+        f"/api/v1/admin/campaign-assignments/{active_assignment_id}/activate",
+        headers=admin_headers(db_client),
         json={"metadata": {}},
     )
 
@@ -1005,6 +1624,124 @@ def test_driver_lifecycle_rejects_invalid_states_and_campaign_windows(
     assert inactive_driver_activate.json()["error"]["code"] == "DRIVER_PROFILE_NOT_ACTIVE"
     assert inactive_vehicle_activate.status_code == http_status.HTTP_400_BAD_REQUEST
     assert inactive_vehicle_activate.json()["error"]["code"] == "VEHICLE_NOT_ACTIVE"
+
+
+@pytest.mark.parametrize(
+    ("gate", "expected_code"),
+    [
+        ("creative", "READY_CAMPAIGN_CREATIVE_REQUIRED"),
+        ("binding", "FROZEN_PAYOUT_BINDING_REQUIRED"),
+        ("funding", "ASSIGNMENT_FUNDING_REQUIRED"),
+        ("production", "PRODUCTION_FINANCIAL_AUTHORITY_REQUIRED"),
+        ("new_work", "NEW_WORK_NOT_FINANCIALLY_AUTHORIZED"),
+        ("unavailable", "ACTIVATION_APPROVAL_GATES_UNAVAILABLE"),
+    ],
+)
+def test_admin_activation_rejects_each_built_and_unavailable_gate(
+    db_client,
+    db_sessionmaker,
+    monkeypatch,
+    gate,
+    expected_code,
+) -> None:
+    suffix = gate.replace("_", "-")
+    _, campaign, _, profile, vehicle = create_assignment_ready_graph(
+        db_sessionmaker,
+        campaign_status=CampaignStatus.ACTIVE,
+        start_at=PAST,
+        end_at=FUTURE,
+        admin_email=f"gate-admin-{suffix}@example.com",
+        advertiser_email=f"gate-advertiser-{suffix}@example.com",
+        driver_email=f"gate-driver-{suffix}@example.com",
+        plate_number=f"GAT-{suffix[:11]}",
+    )
+    created = db_client.post(
+        "/api/v1/admin/campaign-assignments",
+        headers=auth_headers(db_client, f"gate-admin-{suffix}@example.com", PASSWORD),
+        json=assignment_payload(campaign, profile, vehicle),
+    )
+    assert created.status_code == http_status.HTTP_201_CREATED
+    assignment_id = created.json()["id"]
+    accepted = db_client.post(
+        f"/api/v1/driver/campaign-assignments/{assignment_id}/accept",
+        headers=driver_headers(db_client, f"gate-driver-{suffix}@example.com"),
+        json={"metadata": {}},
+    )
+    assert accepted.status_code == http_status.HTTP_200_OK
+
+    async def review_passes(*args, **kwargs) -> None:
+        return None
+
+    async def reserve_pending(*args, **kwargs):
+        return SimpleNamespace(status="pending_funding")
+
+    async def reserve_success(*args, **kwargs):
+        return SimpleNamespace(status="reserved")
+
+    async def production_fails(*args, **kwargs):
+        raise AppError(
+            "PRODUCTION_FINANCIAL_AUTHORITY_REQUIRED",
+            "production gate test",
+            status_code=http_status.HTTP_409_CONFLICT,
+        )
+
+    async def production_passes(*args, **kwargs):
+        return None
+
+    async def new_work_fails(*args, **kwargs):
+        raise AppError(
+            "NEW_WORK_NOT_FINANCIALLY_AUTHORIZED",
+            "new-work gate test",
+            status_code=http_status.HTTP_409_CONFLICT,
+        )
+
+    monkeypatch.setattr(assignments_service, "ensure_campaign_review_approved", review_passes)
+    if gate == "creative":
+        update_creative_status(
+            db_sessionmaker,
+            UUID(campaign.campaign_metadata["_test_creative_id"]),
+            CreativeStatus.ARCHIVED,
+        )
+    elif gate == "binding":
+        delete_assignment_binding(db_sessionmaker, UUID(assignment_id))
+    elif gate == "funding":
+        monkeypatch.setattr(assignments_service, "reserve_assignment_liability", reserve_pending)
+    else:
+        monkeypatch.setattr(assignments_service, "reserve_assignment_liability", reserve_success)
+        if gate == "production":
+            monkeypatch.setattr(
+                assignments_service,
+                "assert_campaign_production_authorized",
+                production_fails,
+            )
+        elif gate == "new_work":
+            monkeypatch.setattr(
+                assignments_service,
+                "assert_campaign_production_authorized",
+                production_passes,
+            )
+            monkeypatch.setattr(assignments_service, "assert_new_work_authorized", new_work_fails)
+        else:
+            monkeypatch.setattr(
+                assignments_service,
+                "assert_campaign_production_authorized",
+                production_passes,
+            )
+            monkeypatch.setattr(
+                assignments_service,
+                "assert_new_work_authorized",
+                production_passes,
+            )
+
+    response = db_client.post(
+        f"/api/v1/admin/campaign-assignments/{assignment_id}/activate",
+        headers=auth_headers(db_client, f"gate-admin-{suffix}@example.com", PASSWORD),
+        json={"metadata": {}},
+    )
+
+    assert response.status_code == http_status.HTTP_409_CONFLICT
+    assert response.json()["error"]["code"] == expected_code
+    assert fetch_assignments(db_sessionmaker)[0].status == CampaignAssignmentStatus.ACCEPTED.value
 
 
 def test_accept_rejects_cancelled_completed_and_expired_campaigns(
@@ -1077,7 +1814,7 @@ def test_accept_rejects_cancelled_completed_and_expired_campaigns(
     assert expired_accept.json()["error"]["code"] == "CAMPAIGN_EXPIRED"
 
 
-def test_one_active_assignment_per_vehicle_is_enforced(
+def test_admin_activation_owns_final_transition(
     db_client,
     db_sessionmaker,
 ) -> None:
@@ -1103,6 +1840,23 @@ def test_one_active_assignment_per_vehicle_is_enforced(
         end_at=FUTURE,
         name="Second Campaign",
     )
+    second_creative = create_test_campaign_creative(
+        db_sessionmaker,
+        campaign_id=second_campaign.id,
+        creative_status=CreativeStatus.READY,
+    )
+    create_test_campaign_payout_revision(
+        db_sessionmaker,
+        campaign_id=second_campaign.id,
+        created_by_user_id=advertiser.id,
+        effective_from=PAST,
+    )
+    create_test_campaign_zone(
+        db_sessionmaker,
+        campaign_id=second_campaign.id,
+        created_by_user_id=advertiser.id,
+    )
+    second_campaign.campaign_metadata["_test_creative_id"] = str(second_creative.id)
     first_assignment_id = post_assignment(db_client, first_campaign, profile, vehicle).json()["id"]
     second_assignment_id = db_client.post(
         "/api/v1/admin/campaign-assignments",
@@ -1110,27 +1864,28 @@ def test_one_active_assignment_per_vehicle_is_enforced(
         json=assignment_payload(second_campaign, profile, vehicle),
     ).json()["id"]
     headers = driver_headers(db_client)
-
     for assignment_id in [first_assignment_id, second_assignment_id]:
-        db_client.post(
+        accepted = db_client.post(
             f"/api/v1/driver/campaign-assignments/{assignment_id}/accept",
             headers=headers,
             json={"metadata": {}},
         )
+        assert accepted.status_code == http_status.HTTP_200_OK
     first_activate = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{first_assignment_id}/activate",
-        headers=headers,
+        f"/api/v1/admin/campaign-assignments/{first_assignment_id}/activate",
+        headers=admin_headers(db_client),
         json={"metadata": {}},
     )
     second_activate = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{second_assignment_id}/activate",
-        headers=headers,
+        f"/api/v1/admin/campaign-assignments/{second_assignment_id}/activate",
+        headers=admin_headers(db_client),
         json={"metadata": {}},
     )
 
-    assert first_activate.status_code == http_status.HTTP_200_OK
+    assert first_activate.status_code == http_status.HTTP_409_CONFLICT
     assert second_activate.status_code == http_status.HTTP_409_CONFLICT
-    assert second_activate.json()["error"]["code"] == "ACTIVE_ASSIGNMENT_EXISTS_FOR_VEHICLE"
+    assert first_activate.json()["error"]["code"] == "CAMPAIGN_REVIEW_APPROVAL_REQUIRED"
+    assert second_activate.json()["error"]["code"] == "CAMPAIGN_REVIEW_APPROVAL_REQUIRED"
 
 
 def test_driver_cannot_accept_activate_or_deactivate_another_drivers_assignment(
@@ -1176,6 +1931,5 @@ def test_driver_cannot_accept_activate_or_deactivate_another_drivers_assignment(
     assert accept.status_code == http_status.HTTP_404_NOT_FOUND
     assert activate.status_code == http_status.HTTP_404_NOT_FOUND
     assert deactivate.status_code == http_status.HTTP_404_NOT_FOUND
-    assert {response.json()["error"]["code"] for response in [accept, activate, deactivate]} == {
-        "CAMPAIGN_ASSIGNMENT_NOT_FOUND"
-    }
+    assert accept.json()["error"]["code"] == "CAMPAIGN_ASSIGNMENT_NOT_FOUND"
+    assert deactivate.json()["error"]["code"] == "CAMPAIGN_ASSIGNMENT_NOT_FOUND"

@@ -1559,6 +1559,17 @@
             "title": "Occurred At",
             "type": "string"
           },
+          "offer_terms_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Terms Sha256"
+          },
           "previous_status": {
             "anyOf": [
               {
@@ -1587,6 +1598,8 @@
         "enum": [
           "assigned",
           "accepted",
+          "declined",
+          "expired",
           "activated",
           "deactivated",
           "cancelled",
@@ -1626,9 +1639,19 @@
             "title": "Campaign Id",
             "type": "string"
           },
+          "creative_id": {
+            "format": "uuid",
+            "title": "Creative Id",
+            "type": "string"
+          },
           "driver_profile_id": {
             "format": "uuid",
             "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
             "type": "string"
           },
           "metadata": {
@@ -1666,7 +1689,9 @@
         "required": [
           "campaign_id",
           "driver_profile_id",
-          "vehicle_id"
+          "vehicle_id",
+          "creative_id",
+          "expires_at"
         ],
         "title": "CampaignAssignmentCreate",
         "type": "object"
@@ -1700,6 +1725,131 @@
           "offset"
         ],
         "title": "CampaignAssignmentListResponse",
+        "type": "object"
+      },
+      "CampaignAssignmentOfferTerms": {
+        "additionalProperties": true,
+        "properties": {
+          "branding": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branding"
+          },
+          "campaign_window_end_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Window End At"
+          },
+          "campaign_window_start_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Window Start At"
+          },
+          "creative": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Creative"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "eligibility": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eligibility"
+          },
+          "offer_terms_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Terms Version"
+          },
+          "payout": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payout"
+          },
+          "service_area": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Area"
+          },
+          "zones": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zones"
+          }
+        },
+        "title": "CampaignAssignmentOfferTerms",
         "type": "object"
       },
       "CampaignAssignmentRead": {
@@ -1789,6 +1939,18 @@
             ],
             "title": "Deactivated At"
           },
+          "declined_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Declined At"
+          },
           "driver_profile": {
             "anyOf": [
               {
@@ -1818,6 +1980,30 @@
             ],
             "title": "Events"
           },
+          "expired_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expired At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -1838,6 +2024,27 @@
               }
             ],
             "title": "Notes"
+          },
+          "offer_terms": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CampaignAssignmentOfferTerms"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "offer_terms_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Terms Sha256"
           },
           "offered_at": {
             "format": "date-time",
@@ -1876,12 +2083,16 @@
           "assigned_by_user_id",
           "status",
           "offered_at",
+          "expires_at",
           "accepted_at",
+          "declined_at",
+          "expired_at",
           "activated_at",
           "deactivated_at",
           "cancelled_at",
           "completed_at",
           "notes",
+          "offer_terms_sha256",
           "created_at",
           "updated_at"
         ],
@@ -2081,6 +2292,8 @@
         "enum": [
           "offered",
           "accepted",
+          "declined",
+          "expired",
           "active",
           "deactivated",
           "cancelled",
@@ -15120,6 +15333,64 @@
         ]
       }
     },
+    "/api/v1/admin/campaign-assignments/{assignment_id}/activate": {
+      "post": {
+        "operationId": "admin_activate_campaign_assignment_api_v1_admin_campaign_assignments__assignment_id__activate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignAssignmentTransition"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignAssignmentRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Activate an accepted campaign assignment",
+        "tags": [
+          "Campaign Assignments"
+        ]
+      }
+    },
     "/api/v1/admin/campaign-assignments/{assignment_id}/cancel": {
       "post": {
         "operationId": "admin_cancel_campaign_assignment_api_v1_admin_campaign_assignments__assignment_id__cancel_post",
@@ -23751,64 +24022,6 @@
         ]
       }
     },
-    "/api/v1/driver/campaign-assignments/{assignment_id}/activate": {
-      "post": {
-        "operationId": "driver_activate_campaign_assignment_api_v1_driver_campaign_assignments__assignment_id__activate_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "assignment_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Assignment Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CampaignAssignmentTransition"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CampaignAssignmentRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Activate a campaign assignment",
-        "tags": [
-          "Campaign Assignments"
-        ]
-      }
-    },
     "/api/v1/driver/campaign-assignments/{assignment_id}/deactivate": {
       "post": {
         "operationId": "driver_deactivate_campaign_assignment_api_v1_driver_campaign_assignments__assignment_id__deactivate_post",
@@ -23862,6 +24075,64 @@
           }
         ],
         "summary": "Deactivate a campaign assignment",
+        "tags": [
+          "Campaign Assignments"
+        ]
+      }
+    },
+    "/api/v1/driver/campaign-assignments/{assignment_id}/decline": {
+      "post": {
+        "operationId": "driver_decline_campaign_assignment_api_v1_driver_campaign_assignments__assignment_id__decline_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignAssignmentTransition"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignAssignmentRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Decline a campaign assignment offer",
         "tags": [
           "Campaign Assignments"
         ]

@@ -548,6 +548,8 @@ async def upsert_assignment(
         assignment=assignment,
         actor_user_id=admin.id,
         event_type=CampaignActivationEventType.ASSIGNED,
+        previous_status=None,
+        new_status=CampaignAssignmentStatus.OFFERED.value,
         occurred_at=assignment.offered_at,
     )
     await ensure_activation_event(
@@ -555,6 +557,8 @@ async def upsert_assignment(
         assignment=assignment,
         actor_user_id=driver.id,
         event_type=CampaignActivationEventType.ACCEPTED,
+        previous_status=CampaignAssignmentStatus.OFFERED.value,
+        new_status=CampaignAssignmentStatus.ACCEPTED.value,
         occurred_at=assignment.accepted_at or assignment.offered_at,
     )
     await ensure_activation_event(
@@ -562,6 +566,8 @@ async def upsert_assignment(
         assignment=assignment,
         actor_user_id=driver.id,
         event_type=CampaignActivationEventType.ACTIVATED,
+        previous_status=CampaignAssignmentStatus.ACCEPTED.value,
+        new_status=CampaignAssignmentStatus.ACTIVE.value,
         occurred_at=assignment.activated_at or assignment.offered_at,
     )
     await session.refresh(assignment)
@@ -574,6 +580,8 @@ async def ensure_activation_event(
     assignment: CampaignAssignment,
     actor_user_id: UUID,
     event_type: CampaignActivationEventType,
+    previous_status: str | None,
+    new_status: str,
     occurred_at: datetime | None,
 ) -> None:
     existing = await session.scalar(
@@ -583,18 +591,16 @@ async def ensure_activation_event(
         )
     )
     if existing is not None:
-        existing.actor_user_id = actor_user_id
-        existing.occurred_at = occurred_at or utc_now()
-        existing.new_status = assignment.status
-        existing.event_metadata = demo_metadata()
+        # Lifecycle evidence is append-only after migration 0048. A seed rerun
+        # recognizes the existing deterministic event and never rewrites it.
         return
     session.add(
         CampaignActivationEvent(
             assignment_id=assignment.id,
             actor_user_id=actor_user_id,
             event_type=event_type.value,
-            previous_status=None,
-            new_status=assignment.status,
+            previous_status=previous_status,
+            new_status=new_status,
             occurred_at=occurred_at or utc_now(),
             event_metadata=demo_metadata(),
         )

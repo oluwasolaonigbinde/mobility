@@ -23,6 +23,7 @@ from test_trip_processing import (
 
 from app.core.config import get_settings
 from app.core.trip_enqueue import RedisTripProcessingEnqueuer
+from app.jobs import campaign_assignments as campaign_assignment_jobs
 from app.jobs import data_lifecycle as data_lifecycle_jobs
 from app.jobs import disclosure_retention as disclosure_retention_jobs
 from app.jobs import earnings_release as earnings_release_jobs
@@ -57,7 +58,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert gateway.name == "process_payment_gateway_event"
     assert gateway.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 8
+    assert len(WorkerSettings.cron_jobs) == 9
     cron_job = WorkerSettings.cron_jobs[0]
     assert isinstance(cron_job, CronJob)
     assert cron_job.coroutine is jobs.process_unprocessed_trips
@@ -83,7 +84,20 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert release_cron.unique is True
     assert release_cron.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
-    lifecycle_crons = {cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[4:]}
+    assignment_expiry = WorkerSettings.cron_jobs[4]
+    assert isinstance(assignment_expiry, CronJob)
+    assert (
+        assignment_expiry.coroutine
+        is campaign_assignment_jobs.sweep_campaign_assignment_expiries
+    )
+    assert assignment_expiry.unique is True
+    assert assignment_expiry.minute == sweep_cron_minutes(
+        get_settings().worker_sweep_interval_minutes
+    )
+
+    lifecycle_crons = {
+        cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[5:]
+    }
     assert set(lifecycle_crons) == {
         data_lifecycle_jobs.premake_ping_partitions,
         data_lifecycle_jobs.check_ping_partition_coverage,
@@ -96,6 +110,29 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
         # Daily, staggered hours so lifecycle DDL never stacks.
         assert len(cron_job.hour) == 1
     assert len({next(iter(job.hour)) for job in lifecycle_crons.values()}) == 4
+
+
+def test_assignment_expiry_worker_commits_bounded_sweep(
+    db_sessionmaker, settings, monkeypatch
+) -> None:
+    calls = 0
+
+    async def fake_sweep(session):
+        nonlocal calls
+        calls += 1
+        assert session is not None
+        return 3
+
+    monkeypatch.setattr(campaign_assignment_jobs, "expire_due_assignment_offers", fake_sweep)
+    result = asyncio.run(
+        campaign_assignment_jobs.sweep_campaign_assignment_expiries(
+            make_ctx(db_sessionmaker, settings)
+        )
+    )
+
+    assert calls == 1
+    assert result["expired"] == 3
+    assert result["duration_seconds"] >= 0
 
 
 def test_process_trip_malformed_id_fails_before_any_write(db_sessionmaker, settings) -> None:

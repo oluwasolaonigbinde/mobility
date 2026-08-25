@@ -36,6 +36,8 @@ class CampaignAssignmentCreate(BaseModel):
     campaign_id: UUID
     driver_profile_id: UUID
     vehicle_id: UUID
+    creative_id: UUID
+    expires_at: datetime
     notes: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     recommendation_context: CampaignAssignmentRecommendationContext | None = None
@@ -50,6 +52,26 @@ class CampaignAssignmentTransition(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class CampaignAssignmentOfferTerms(BaseModel):
+    # Preserve unknown historical keys without treating them as authoritative;
+    # service-layer completeness checks still fail closed for activation.
+    model_config = ConfigDict(extra="allow")
+
+    # Legacy rows may contain a partial historical snapshot. New offers are
+    # complete by service-layer validation; nullable read fields preserve the
+    # ability to identify those rows without fabricating terms.
+    offer_terms_version: str | None = None
+    currency: str | None = None
+    campaign_window_start_at: datetime | None = None
+    campaign_window_end_at: datetime | None = None
+    service_area: dict[str, Any] | None = None
+    branding: dict[str, Any] | None = None
+    creative: dict[str, Any] | None = None
+    payout: dict[str, Any] | None = None
+    zones: dict[str, Any] | None = None
+    eligibility: dict[str, Any] | None = None
 
 
 class CampaignAssignmentCancel(BaseModel):
@@ -95,6 +117,7 @@ class CampaignActivationEventRead(BaseModel):
     new_status: str
     occurred_at: datetime
     metadata: dict[str, Any] = Field(default_factory=dict)
+    offer_terms_sha256: str | None = None
 
 
 class CampaignAssignmentRead(BaseModel):
@@ -105,13 +128,18 @@ class CampaignAssignmentRead(BaseModel):
     assigned_by_user_id: UUID
     status: CampaignAssignmentStatus
     offered_at: datetime
+    expires_at: datetime | None
     accepted_at: datetime | None
+    declined_at: datetime | None
+    expired_at: datetime | None
     activated_at: datetime | None
     deactivated_at: datetime | None
     cancelled_at: datetime | None
     completed_at: datetime | None
     notes: str | None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    offer_terms: CampaignAssignmentOfferTerms | None = None
+    offer_terms_sha256: str | None
     created_at: datetime
     updated_at: datetime
     campaign: AssignmentCampaignSummary | None = None

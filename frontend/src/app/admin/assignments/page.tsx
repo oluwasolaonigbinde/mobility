@@ -8,6 +8,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Pagination } from "@/components/ui/pagination";
 import { CancelAssignmentButton } from "./cancel-button";
+import { ActivateAssignmentButton } from "./activate-button";
 import type { components } from "@/lib/api/schema";
 
 export const metadata: Metadata = { title: "Assignments" };
@@ -18,6 +19,8 @@ type AStatus = components["schemas"]["CampaignAssignmentStatus"];
 const tone: Record<AStatus, "green" | "amber" | "cyan" | "coral" | "default"> = {
   offered: "cyan",
   accepted: "amber",
+  declined: "coral",
+  expired: "default",
   active: "green",
   deactivated: "default",
   cancelled: "coral",
@@ -83,10 +86,32 @@ export default async function AdminAssignmentsPage({
                   </td>
                   <td className="text-muted px-5 py-3.5 font-mono text-xs">
                     {formatDate(a.offered_at)}
+                    {a.expires_at ? <div>Expires {formatDate(a.expires_at)}</div> : null}
                   </td>
                   <td className="px-5 py-3.5 text-right">
-                    {["offered", "accepted", "active"].includes(a.status) ? (
+                    {a.status === "accepted" || a.status === "deactivated" ? (
+                      <ActivateAssignmentButton assignmentId={a.id} />
+                    ) : null}
+                    {["offered", "accepted", "active", "deactivated"].includes(a.status) ? (
                       <CancelAssignmentButton assignmentId={a.id} />
+                    ) : null}
+                    {a.offer_terms_sha256 ? (
+                      <p
+                        className="text-faint mt-1 max-w-36 truncate font-mono text-[10px]"
+                        title={a.offer_terms_sha256}
+                      >
+                        Evidence {a.offer_terms_sha256.slice(0, 12)}…
+                      </p>
+                    ) : null}
+                    {a.offer_terms ? (
+                      <details className="mt-1 text-left">
+                        <summary className="text-muted cursor-pointer text-[11px]">
+                          Frozen terms
+                        </summary>
+                        <pre className="border-edge/60 bg-bg/50 mt-1 max-h-48 max-w-64 overflow-auto rounded border p-2 font-mono text-[10px] leading-4 whitespace-pre-wrap">
+                          {JSON.stringify(a.offer_terms, null, 2)}
+                        </pre>
+                      </details>
                     ) : null}
                   </td>
                 </tr>

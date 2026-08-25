@@ -172,6 +172,11 @@ dependency or resolved external provider decision.
 - Derive eligibility from approved driver/person, payee, and vehicle state.
 - Freeze all money-bearing and operational terms at offer acceptance.
 - Reuse Package 2 payee/account versions and hold boundaries.
+- When assignment transitions, trip start and funding authority touch the same
+  work fact, acquire campaign/funding authority before the assignment row,
+  then lock eligibility producers in stable order. Retain those locks through
+  DB-time revalidation and the state/event write; prove terminal-vs-start
+  orderings and the linear `previous_status` chain with PostgreSQL barriers.
 
 ## Package 7 tracking and disputes
 

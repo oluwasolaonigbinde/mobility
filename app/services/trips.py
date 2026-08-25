@@ -43,6 +43,7 @@ from app.services.campaign_assignments import (
     ensure_vehicle_belongs_to_driver,
     get_driver_profile_for_user,
 )
+from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 
 # FND-07 (RM7): a lost race on either trip-exclusivity index returns the same
 # stable 409 code as the pre-check that guards it, never a 500.
@@ -189,20 +190,57 @@ async def start_driver_trip(
     user_id: UUID,
     payload: TripStartRequest,
 ) -> TripSession:
-    now = utc_now()
-    driver_profile, assignment = await get_driver_assignment_for_trip_start(
-        session,
-        user_id=user_id,
-        assignment_id=payload.assignment_id,
+    # The profile lookup establishes ownership without locking it.  The
+    # mutation path below then takes the shared terms authority, campaign,
+    # assignment, profile, and vehicle locks in that single deterministic
+    # order.  Terminal assignment transitions use the same order.
+    driver_profile = await get_driver_profile_for_user(session, user_id)
+    campaign_id = await session.scalar(
+        select(CampaignAssignment.campaign_id).where(
+            CampaignAssignment.id == payload.assignment_id,
+            CampaignAssignment.driver_profile_id == driver_profile.id,
+        )
     )
-    campaign = await session.get(Campaign, assignment.campaign_id)
-    vehicle = await session.get(Vehicle, assignment.vehicle_id)
-    if campaign is None or vehicle is None:
+    if campaign_id is None:
         raise AppError(
             "CAMPAIGN_ASSIGNMENT_NOT_FOUND",
             "Campaign assignment was not found",
             status_code=status.HTTP_404_NOT_FOUND,
         )
+
+    await acquire_campaign_terms_lock(session, campaign_id)
+    campaign = await session.scalar(
+        select(Campaign).where(Campaign.id == campaign_id).with_for_update()
+    )
+    assignment = await session.scalar(
+        select(CampaignAssignment)
+        .where(
+            CampaignAssignment.id == payload.assignment_id,
+            CampaignAssignment.driver_profile_id == driver_profile.id,
+        )
+        .with_for_update()
+    )
+    if campaign is None or assignment is None:
+        raise AppError(
+            "CAMPAIGN_ASSIGNMENT_NOT_FOUND",
+            "Campaign assignment was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    driver_profile = await session.scalar(
+        select(DriverProfile)
+        .where(DriverProfile.id == assignment.driver_profile_id)
+        .with_for_update()
+    )
+    vehicle = await session.scalar(
+        select(Vehicle).where(Vehicle.id == assignment.vehicle_id).with_for_update()
+    )
+    if driver_profile is None or vehicle is None:
+        raise AppError(
+            "CAMPAIGN_ASSIGNMENT_NOT_FOUND",
+            "Campaign assignment was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    now = await database_clock(session)
 
     ensure_assignment_active(assignment)
     ensure_campaign_active_for_trip(campaign, now)

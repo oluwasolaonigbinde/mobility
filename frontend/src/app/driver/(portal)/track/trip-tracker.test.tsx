@@ -79,6 +79,16 @@ afterEach(() => {
   delete (navigator as { locks?: unknown }).locks;
 });
 
+describe("assignment activation authority", () => {
+  it("tells the driver to wait for admin activation", () => {
+    pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
+    render(<TripTracker assignment={null} initialTrip={null} />);
+
+    expect(screen.getByText(/wait for admin activation/i)).toBeInTheDocument();
+    expect(screen.queryByText(/accept and activate/i)).not.toBeInTheDocument();
+  });
+});
+
 describe("storage fail-closed (finding 5)", () => {
   it("blocks starting a trip when IndexedDB cannot open", async () => {
     pingQueue.openPingQueue.mockRejectedValue(new Error("idb unavailable"));
@@ -127,9 +137,7 @@ describe("single-writer lock fail-closed (finding 6)", () => {
     });
     render(<TripTracker assignment={null} initialTrip={TRIP} />);
 
-    await waitFor(() =>
-      expect(screen.getByText(/tracked in another tab/)).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText(/tracked in another tab/)).toBeInTheDocument());
     expect(screen.getByRole("button", { name: /End trip/ })).toBeDisabled();
   });
 });

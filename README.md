@@ -178,8 +178,9 @@ Slice 5 campaign assignment endpoints:
 - `GET /api/v1/driver/campaign-assignments/active`
 - `GET /api/v1/driver/campaign-assignments/{assignment_id}`
 - `POST /api/v1/driver/campaign-assignments/{assignment_id}/accept`
-- `POST /api/v1/driver/campaign-assignments/{assignment_id}/activate`
+- `POST /api/v1/driver/campaign-assignments/{assignment_id}/decline`
 - `POST /api/v1/driver/campaign-assignments/{assignment_id}/deactivate`
+- `POST /api/v1/admin/campaign-assignments/{assignment_id}/activate`
 
 Slice 6 driver trip tracking endpoints:
 

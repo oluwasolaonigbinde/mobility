@@ -9,33 +9,43 @@ transactions and skip without TEST_DATABASE_URL (CI runs them on Postgres).
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 import pytest
 from conftest import (
     auth_headers,
     create_test_campaign,
     create_test_campaign_assignment,
+    create_test_campaign_creative,
+    create_test_campaign_payout_revision,
+    create_test_campaign_zone,
     create_test_driver_profile,
     create_test_organization,
     create_test_trip_analytics,
     create_test_trip_session,
     create_test_user,
     create_test_vehicle,
+    fetch_activation_events,
 )
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
+from test_trips import create_trip_ready_graph
 
 import app.services.campaign_assignments as assignments_service
 import app.services.trips as trips_service
 from app.core.errors import AppError
-from app.models.campaign import CampaignStatus
+from app.models.campaign import CampaignStatus, CreativeStatus
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
 from app.models.trip import TripSessionStatus
 from app.models.trip_analytics import TripAnalytics
 from app.models.user import UserRole
 from app.models.vehicle import Vehicle, VehicleStatus
-from app.schemas.campaign_assignments import CampaignAssignmentCreate
+from app.schemas.campaign_assignments import (
+    CampaignAssignmentCancel,
+    CampaignAssignmentCreate,
+    CampaignAssignmentTransition,
+)
 from app.schemas.trips import TripStartRequest
 
 PASSWORD = "long-secure-password"
@@ -64,6 +74,24 @@ def build_graph(db_sessionmaker, suffix: str, campaign_count: int = 1):
         )
         for index in range(campaign_count)
     ]
+    for campaign in campaigns:
+        creative = create_test_campaign_creative(
+            db_sessionmaker,
+            campaign_id=campaign.id,
+            creative_status=CreativeStatus.READY,
+        )
+        create_test_campaign_payout_revision(
+            db_sessionmaker,
+            campaign_id=campaign.id,
+            created_by_user_id=admin.id,
+            effective_from=PAST,
+        )
+        create_test_campaign_zone(
+            db_sessionmaker,
+            campaign_id=campaign.id,
+            created_by_user_id=admin.id,
+        )
+        campaign.campaign_metadata["_test_creative_id"] = str(creative.id)
     driver = create_test_user(
         db_sessionmaker,
         email=f"driver-{suffix}@example.com",
@@ -92,6 +120,341 @@ def assert_conflict_envelope(response, code: str) -> None:
     assert body["error"]["request_id"]
 
 
+def create_offered_assignment(sessionmaker, settings, admin, campaign, profile, vehicle):
+    async def create():
+        async with sessionmaker() as session:
+            assignment = await assignments_service.create_campaign_assignment(
+                session,
+                admin_user_id=admin.id,
+                payload=CampaignAssignmentCreate(
+                    campaign_id=campaign.id,
+                    driver_profile_id=profile.id,
+                    vehicle_id=vehicle.id,
+                    creative_id=UUID(campaign.campaign_metadata["_test_creative_id"]),
+                    expires_at=datetime.now(UTC) + timedelta(days=1),
+                ),
+                settings=settings,
+            )
+            await session.commit()
+            return assignment.id
+
+    return asyncio.run(create())
+
+
+def accept_offered_assignment(sessionmaker, settings, driver_id, assignment_id):
+    async def accept():
+        async with sessionmaker() as session:
+            assignment = await assignments_service.accept_driver_assignment(
+                session,
+                user_id=driver_id,
+                assignment_id=assignment_id,
+                payload=CampaignAssignmentTransition(),
+                settings=settings,
+            )
+            await session.commit()
+            return assignment
+
+    return asyncio.run(accept())
+
+
+def test_cancel_and_admin_activation_serialize_postgres(
+    postgis_db_sessionmaker,
+    settings,
+    monkeypatch,
+) -> None:
+    admin, campaigns, driver, profile, vehicle = build_graph(
+        postgis_db_sessionmaker, "cancel-activate"
+    )
+    assignment_id = create_offered_assignment(
+        postgis_db_sessionmaker, settings, admin, campaigns[0], profile, vehicle
+    )
+    accepted = accept_offered_assignment(
+        postgis_db_sessionmaker, settings, driver.id, assignment_id
+    )
+    assert accepted.status == CampaignAssignmentStatus.ACCEPTED.value
+
+    original_lock = assignments_service.acquire_campaign_terms_lock
+    both_at_lock = asyncio.Event()
+    lock_call_count = 0
+
+    async def barrier_lock(session, campaign_id):
+        nonlocal lock_call_count
+        lock_call_count += 1
+        if lock_call_count == 2:
+            both_at_lock.set()
+        await both_at_lock.wait()
+        await original_lock(session, campaign_id)
+
+    monkeypatch.setattr(assignments_service, "acquire_campaign_terms_lock", barrier_lock)
+
+    async def cancel() -> str:
+        async with postgis_db_sessionmaker() as session:
+            try:
+                await assignments_service.cancel_admin_assignment(
+                    session,
+                    admin_user_id=admin.id,
+                    assignment_id=assignment_id,
+                    payload=CampaignAssignmentCancel(reason="reassigned"),
+                )
+                await session.commit()
+                return "cancelled"
+            except AppError as exc:
+                await session.rollback()
+                return exc.code
+
+    async def activate() -> str:
+        async with postgis_db_sessionmaker() as session:
+            try:
+                await assignments_service.activate_admin_assignment(
+                    session,
+                    admin_user_id=admin.id,
+                    assignment_id=assignment_id,
+                    payload=CampaignAssignmentTransition(),
+                )
+                await session.commit()
+                return "activated"
+            except AppError as exc:
+                await session.rollback()
+                return exc.code
+
+    async def race():
+        return await asyncio.wait_for(asyncio.gather(cancel(), activate()), timeout=10)
+
+    outcomes = asyncio.run(race())
+    assert lock_call_count == 2
+    assert "cancelled" in outcomes
+    assert any(
+        outcome in {"CAMPAIGN_REVIEW_APPROVAL_REQUIRED", "INVALID_ASSIGNMENT_TRANSITION"}
+        for outcome in outcomes
+    )
+    events = fetch_activation_events(postgis_db_sessionmaker)
+    assert [event.event_type for event in events] == ["assigned", "accepted", "cancelled"]
+    assert events[-1].previous_status == CampaignAssignmentStatus.ACCEPTED.value
+
+
+def test_cancel_and_driver_deactivation_serialize_postgres(
+    postgis_db_sessionmaker,
+    monkeypatch,
+) -> None:
+    admin, campaigns, driver, profile, vehicle = build_graph(
+        postgis_db_sessionmaker, "cancel-deactivate"
+    )
+    assignment = create_test_campaign_assignment(
+        postgis_db_sessionmaker,
+        campaign_id=campaigns[0].id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        assigned_by_user_id=admin.id,
+        assignment_status=CampaignAssignmentStatus.ACTIVE,
+        accepted_at=datetime.now(UTC),
+        activated_at=datetime.now(UTC),
+    )
+    original_lock = assignments_service.acquire_campaign_terms_lock
+    both_at_lock = asyncio.Event()
+    lock_call_count = 0
+
+    async def barrier_lock(session, campaign_id):
+        nonlocal lock_call_count
+        lock_call_count += 1
+        if lock_call_count == 2:
+            both_at_lock.set()
+        await both_at_lock.wait()
+        await original_lock(session, campaign_id)
+
+    monkeypatch.setattr(assignments_service, "acquire_campaign_terms_lock", barrier_lock)
+
+    async def cancel() -> str:
+        async with postgis_db_sessionmaker() as session:
+            try:
+                await assignments_service.cancel_admin_assignment(
+                    session,
+                    admin_user_id=admin.id,
+                    assignment_id=assignment.id,
+                    payload=CampaignAssignmentCancel(reason="reassigned"),
+                )
+                await session.commit()
+                return "cancelled"
+            except AppError as exc:
+                await session.rollback()
+                return exc.code
+
+    async def deactivate() -> str:
+        async with postgis_db_sessionmaker() as session:
+            try:
+                await assignments_service.deactivate_driver_assignment(
+                    session,
+                    user_id=driver.id,
+                    assignment_id=assignment.id,
+                    payload=CampaignAssignmentTransition(),
+                )
+                await session.commit()
+                return "deactivated"
+            except AppError as exc:
+                await session.rollback()
+                return exc.code
+
+    async def race():
+        return await asyncio.wait_for(asyncio.gather(cancel(), deactivate()), timeout=10)
+
+    outcomes = asyncio.run(race())
+    assert lock_call_count == 2
+    assert set(outcomes) == {
+        "cancelled",
+        "INVALID_ASSIGNMENT_TRANSITION",
+    } or set(outcomes) == {
+        "deactivated",
+        "INVALID_ASSIGNMENT_TRANSITION",
+    }
+    events = fetch_activation_events(postgis_db_sessionmaker)
+    assert len(events) == 1
+    assert events[0].event_type in {"cancelled", "deactivated"}
+    assert events[0].previous_status == CampaignAssignmentStatus.ACTIVE.value
+
+
+def test_cancel_and_trip_start_serialize_postgres(
+    postgis_db_sessionmaker,
+    monkeypatch,
+) -> None:
+    admin, campaigns, driver, profile, vehicle = build_graph(
+        postgis_db_sessionmaker, "cancel-trip"
+    )
+    assignment = create_test_campaign_assignment(
+        postgis_db_sessionmaker,
+        campaign_id=campaigns[0].id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        assigned_by_user_id=admin.id,
+        assignment_status=CampaignAssignmentStatus.ACTIVE,
+        accepted_at=datetime.now(UTC),
+        activated_at=datetime.now(UTC),
+    )
+    monkeypatch.setattr(trips_service, "assert_new_work_authorized", _noop_precheck)
+    original_lock = assignments_service.acquire_campaign_terms_lock
+    both_at_lock = asyncio.Event()
+    lock_call_count = 0
+
+    async def barrier_lock(session, campaign_id):
+        nonlocal lock_call_count
+        lock_call_count += 1
+        if lock_call_count == 2:
+            both_at_lock.set()
+        await both_at_lock.wait()
+        await original_lock(session, campaign_id)
+
+    monkeypatch.setattr(assignments_service, "acquire_campaign_terms_lock", barrier_lock)
+    monkeypatch.setattr(trips_service, "acquire_campaign_terms_lock", barrier_lock)
+
+    async def cancel() -> str:
+        async with postgis_db_sessionmaker() as session:
+            try:
+                await assignments_service.cancel_admin_assignment(
+                    session,
+                    admin_user_id=admin.id,
+                    assignment_id=assignment.id,
+                    payload=CampaignAssignmentCancel(reason="reassigned"),
+                )
+                await session.commit()
+                return "cancelled"
+            except AppError as exc:
+                await session.rollback()
+                return exc.code
+
+    async def start() -> str:
+        async with postgis_db_sessionmaker() as session:
+            try:
+                await trips_service.start_driver_trip(
+                    session,
+                    user_id=driver.id,
+                    payload=TripStartRequest(assignment_id=assignment.id, metadata={}),
+                )
+                await session.commit()
+                return "started"
+            except AppError as exc:
+                await session.rollback()
+                return exc.code
+
+    async def race():
+        return await asyncio.wait_for(asyncio.gather(cancel(), start()), timeout=10)
+
+    outcomes = asyncio.run(race())
+    assert lock_call_count == 2
+    assert "cancelled" in outcomes
+    assert "started" in outcomes or "CAMPAIGN_ASSIGNMENT_NOT_ACTIVE" in outcomes
+    events = fetch_activation_events(postgis_db_sessionmaker)
+    assert len(events) == 1
+    assert events[0].event_type == "cancelled"
+    assert events[0].previous_status == CampaignAssignmentStatus.ACTIVE.value
+
+
+def test_deactivation_and_funded_trip_start_serialize_postgres(
+    postgis_db_sessionmaker,
+    monkeypatch,
+) -> None:
+    admin, _campaign, driver, _profile, _vehicle, assignment = create_trip_ready_graph(
+        postgis_db_sessionmaker,
+        admin_email="admin-deactivate-trip@example.com",
+        advertiser_email="advertiser-deactivate-trip@example.com",
+        driver_email="driver-deactivate-trip@example.com",
+        plate_number="DCT-TRIP",
+    )
+    del admin
+    original_lock = assignments_service.acquire_campaign_terms_lock
+    both_at_lock = asyncio.Event()
+    lock_call_count = 0
+
+    async def barrier_lock(session, campaign_id):
+        nonlocal lock_call_count
+        lock_call_count += 1
+        if lock_call_count == 2:
+            both_at_lock.set()
+        await both_at_lock.wait()
+        await original_lock(session, campaign_id)
+
+    monkeypatch.setattr(assignments_service, "acquire_campaign_terms_lock", barrier_lock)
+    monkeypatch.setattr(trips_service, "acquire_campaign_terms_lock", barrier_lock)
+
+    async def deactivate() -> str:
+        async with postgis_db_sessionmaker() as session:
+            try:
+                await assignments_service.deactivate_driver_assignment(
+                    session,
+                    user_id=driver.id,
+                    assignment_id=assignment.id,
+                    payload=CampaignAssignmentTransition(),
+                )
+                await session.commit()
+                return "deactivated"
+            except AppError as exc:
+                await session.rollback()
+                return exc.code
+
+    async def start() -> str:
+        async with postgis_db_sessionmaker() as session:
+            try:
+                await trips_service.start_driver_trip(
+                    session,
+                    user_id=driver.id,
+                    payload=TripStartRequest(assignment_id=assignment.id, metadata={}),
+                )
+                await session.commit()
+                return "started"
+            except AppError as exc:
+                await session.rollback()
+                return exc.code
+
+    async def race():
+        return await asyncio.wait_for(asyncio.gather(deactivate(), start()), timeout=10)
+
+    outcomes = asyncio.run(race())
+    assert lock_call_count == 2
+    assert "deactivated" in outcomes
+    assert "started" in outcomes or "CAMPAIGN_ASSIGNMENT_NOT_ACTIVE" in outcomes
+    events = fetch_activation_events(postgis_db_sessionmaker)
+    assert len(events) == 1
+    assert events[0].event_type == "deactivated"
+    assert events[0].previous_status == CampaignAssignmentStatus.ACTIVE.value
+
+
 def test_lost_create_race_returns_duplicate_assignment_envelope(
     db_client, db_sessionmaker, monkeypatch
 ) -> None:
@@ -106,6 +469,8 @@ def test_lost_create_race_returns_duplicate_assignment_envelope(
         "campaign_id": str(campaigns[0].id),
         "driver_profile_id": str(profile.id),
         "vehicle_id": str(vehicle.id),
+        "creative_id": campaigns[0].campaign_metadata["_test_creative_id"],
+        "expires_at": (datetime.now(UTC) + timedelta(days=1)).isoformat(),
         "metadata": {},
     }
 
@@ -120,37 +485,32 @@ def test_lost_create_race_returns_duplicate_assignment_envelope(
     assert_conflict_envelope(second, "DUPLICATE_CAMPAIGN_VEHICLE_ASSIGNMENT")
 
 
-def test_lost_activate_race_returns_active_vehicle_envelope(
+def test_driver_activation_route_is_removed(
     db_client, db_sessionmaker, monkeypatch
 ) -> None:
-    admin, campaigns, driver, profile, vehicle = build_graph(
-        db_sessionmaker, "activate", campaign_count=2
-    )
-    for campaign, already_active in ((campaigns[0], True), (campaigns[1], False)):
-        create_test_campaign_assignment(
-            db_sessionmaker,
-            campaign_id=campaign.id,
-            driver_profile_id=profile.id,
-            vehicle_id=vehicle.id,
-            assigned_by_user_id=admin.id,
-            assignment_status=(
-                CampaignAssignmentStatus.ACTIVE
-                if already_active
-                else CampaignAssignmentStatus.ACCEPTED
-            ),
-            activated_at=datetime.now(UTC) if already_active else None,
-            accepted_at=datetime.now(UTC),
-        )
-    monkeypatch.setattr(
-        assignments_service,
-        "ensure_no_other_active_assignment_for_vehicle",
-        _noop_precheck,
-    )
+    del monkeypatch
+    admin, campaigns, driver, profile, vehicle = build_graph(db_sessionmaker, "activate")
     headers = auth_headers(db_client, driver.email, PASSWORD)
-    listed = db_client.get("/api/v1/driver/campaign-assignments", headers=headers).json()
-    accepted_id = next(
-        item["id"] for item in listed["items"] if item["status"] == "accepted"
+    created = db_client.post(
+        "/api/v1/admin/campaign-assignments",
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+        json={
+            "campaign_id": str(campaigns[0].id),
+            "driver_profile_id": str(profile.id),
+            "vehicle_id": str(vehicle.id),
+            "creative_id": campaigns[0].campaign_metadata["_test_creative_id"],
+            "expires_at": (datetime.now(UTC) + timedelta(days=1)).isoformat(),
+            "metadata": {},
+        },
     )
+    assert created.status_code == 201
+    accepted_id = created.json()["id"]
+    accepted = db_client.post(
+        f"/api/v1/driver/campaign-assignments/{accepted_id}/accept",
+        headers=headers,
+        json={"metadata": {}},
+    )
+    assert accepted.status_code == 200
 
     response = db_client.post(
         f"/api/v1/driver/campaign-assignments/{accepted_id}/activate",
@@ -158,7 +518,7 @@ def test_lost_activate_race_returns_active_vehicle_envelope(
         json={"metadata": {}},
     )
 
-    assert_conflict_envelope(response, "ACTIVE_ASSIGNMENT_EXISTS_FOR_VEHICLE")
+    assert response.status_code == 404
 
 
 @pytest.mark.parametrize(
@@ -318,7 +678,7 @@ def test_concurrent_trip_starts_one_winner_postgis(
     }
 
 
-def test_concurrent_activations_one_winner_postgis(postgis_db_sessionmaker) -> None:
+def test_concurrent_admin_activations_fail_closed_postgis(postgis_db_sessionmaker) -> None:
     admin, campaigns, driver, profile, vehicle = build_graph(
         postgis_db_sessionmaker, "pg-act", campaign_count=2
     )
@@ -338,9 +698,9 @@ def test_concurrent_activations_one_winner_postgis(postgis_db_sessionmaker) -> N
     async def activate_one(assignment_id) -> str:
         async with postgis_db_sessionmaker() as session:
             try:
-                await assignments_service.activate_driver_assignment(
+                await assignments_service.activate_admin_assignment(
                     session,
-                    user_id=driver.id,
+                    admin_user_id=admin.id,
                     assignment_id=assignment_id,
                     payload=assignments_service.CampaignAssignmentTransition(metadata={}),
                 )
@@ -359,9 +719,7 @@ def test_concurrent_activations_one_winner_postgis(postgis_db_sessionmaker) -> N
 
     outcomes = asyncio.run(race())
 
-    assert outcomes.count("activated") == 1
-    losers = [outcome for outcome in outcomes if outcome != "activated"]
-    assert losers == ["ACTIVE_ASSIGNMENT_EXISTS_FOR_VEHICLE"]
+    assert outcomes == ["CAMPAIGN_REVIEW_APPROVAL_REQUIRED"] * 2
 
 
 def test_recommendation_create_locks_selected_facts_postgis(
@@ -385,6 +743,8 @@ def test_recommendation_create_locks_selected_facts_postgis(
             campaign_id=campaigns[0].id,
             driver_profile_id=profile.id,
             vehicle_id=vehicle.id,
+            creative_id=UUID(campaigns[0].campaign_metadata["_test_creative_id"]),
+            expires_at=datetime.now(UTC) + timedelta(days=1),
             recommendation_context={
                 "service_city": candidate.service_city,
                 "vehicle_type": candidate.vehicle_type,
@@ -487,6 +847,8 @@ def test_recommendation_create_locks_aggregate_inputs_postgis(
             campaign_id=campaigns[0].id,
             driver_profile_id=profile.id,
             vehicle_id=vehicle.id,
+            creative_id=UUID(campaigns[0].campaign_metadata["_test_creative_id"]),
+            expires_at=datetime.now(UTC) + timedelta(days=1),
             recommendation_context={
                 "service_city": candidate.service_city,
                 "vehicle_type": candidate.vehicle_type,

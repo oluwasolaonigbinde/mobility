@@ -18,6 +18,8 @@ const statusMeta: Record<
 > = {
   offered: { label: "Offered", tone: "cyan" },
   accepted: { label: "Accepted", tone: "amber" },
+  declined: { label: "Declined", tone: "coral" },
+  expired: { label: "Expired", tone: "default" },
   active: { label: "Active", tone: "green" },
   deactivated: { label: "Deactivated", tone: "default" },
   cancelled: { label: "Cancelled", tone: "coral" },
@@ -87,19 +89,103 @@ export default async function DriverAssignmentsPage() {
               </div>
               <div>
                 <p className="micro text-faint">
-                  {a.status === "completed" ? "Completed" : "Campaign window"}
+                  {a.status === "completed"
+                    ? "Completed"
+                    : a.expires_at
+                      ? "Offer expires"
+                      : "Campaign window"}
                 </p>
                 <p className="mt-1 text-xs">
                   {a.status === "completed"
                     ? formatDate(a.completed_at)
-                    : formatDate(a.campaign?.end_at)}
+                    : a.expires_at
+                      ? formatDate(a.expires_at)
+                      : formatDate(a.campaign?.end_at)}
                 </p>
               </div>
             </div>
+            {a.offer_terms ? (
+              <div className="bg-raised border-edge mt-4 rounded-lg border p-3">
+                <p className="micro text-faint">Frozen offer terms</p>
+                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                  <p>Currency: {String(a.offer_terms.currency ?? "—")}</p>
+                  <p>
+                    Base:{" "}
+                    {String(
+                      (a.offer_terms.payout as Record<string, unknown> | null | undefined)
+                        ?.hourly_rate_naira ?? "—",
+                    )}
+                    /hr
+                  </p>
+                  <p>
+                    Premium:{" "}
+                    {String(
+                      (a.offer_terms.payout as Record<string, unknown> | null | undefined)
+                        ?.premium_hourly_rate_naira ?? "—",
+                    )}
+                    /hr
+                  </p>
+                  <p>
+                    Daily cap:{" "}
+                    {String(
+                      (a.offer_terms.payout as Record<string, unknown> | null | undefined)
+                        ?.daily_payable_hours_cap ?? "—",
+                    )}
+                    h
+                  </p>
+                  <p>
+                    Window: {formatDate(a.offer_terms.campaign_window_start_at ?? null)} –{" "}
+                    {formatDate(a.offer_terms.campaign_window_end_at ?? null)}
+                  </p>
+                  <p>
+                    Area:{" "}
+                    {String(
+                      (a.offer_terms.service_area as Record<string, unknown> | null | undefined)
+                        ?.city ?? "—",
+                    )}
+                  </p>
+                  <p className="col-span-2">
+                    Creative:{" "}
+                    {String(
+                      (a.offer_terms.creative as Record<string, unknown> | null | undefined)
+                        ?.name ?? "—",
+                    )}{" "}
+                    ·{" "}
+                    {String(
+                      (a.offer_terms.creative as Record<string, unknown> | null | undefined)
+                        ?.checksum ?? "no checksum",
+                    )}
+                  </p>
+                  <p className="col-span-2">
+                    Zones:{" "}
+                    {Array.isArray(
+                      (a.offer_terms.zones as Record<string, unknown> | null | undefined)?.target,
+                    )
+                      ? `${((a.offer_terms.zones as Record<string, unknown>).target as unknown[]).length} target · ${Array.isArray((a.offer_terms.zones as Record<string, unknown>).exclusion) ? ((a.offer_terms.zones as Record<string, unknown>).exclusion as unknown[]).length : 0} exclusion`
+                      : "—"}
+                  </p>
+                </div>
+                {a.offer_terms_sha256 ? (
+                  <p className="text-faint mt-2 truncate font-mono text-[10px]">
+                    Evidence {a.offer_terms_sha256}
+                  </p>
+                ) : null}
+                <details className="mt-3">
+                  <summary className="text-muted cursor-pointer text-[11px]">
+                    View complete frozen snapshot
+                  </summary>
+                  <pre className="border-edge/60 bg-bg/50 mt-2 max-h-64 overflow-auto rounded border p-2 font-mono text-[10px] leading-4 whitespace-pre-wrap">
+                    {JSON.stringify(a.offer_terms, null, 2)}
+                  </pre>
+                </details>
+              </div>
+            ) : null}
             {a.notes ? <p className="text-muted mt-3 text-xs leading-5">{a.notes}</p> : null}
-            <p className="text-faint mt-3 text-[11px]">
-              Earnings terms are controlled by the campaign payout rule and verified trip time.
-            </p>
+            {!a.offer_terms ? (
+              <p className="text-faint mt-3 text-[11px]">
+                This legacy assignment has no complete frozen offer terms.
+              </p>
+            ) : null}
             <AssignmentActions assignmentId={a.id} status={a.status} />
           </Panel>
         ))

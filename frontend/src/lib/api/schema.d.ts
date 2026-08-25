@@ -142,6 +142,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/campaign-assignments/{assignment_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Activate an accepted campaign assignment */
+        post: operations["admin_activate_campaign_assignment_api_v1_admin_campaign_assignments__assignment_id__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/campaign-assignments/{assignment_id}/cancel": {
         parameters: {
             query?: never;
@@ -2186,23 +2203,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/driver/campaign-assignments/{assignment_id}/activate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Activate a campaign assignment */
-        post: operations["driver_activate_campaign_assignment_api_v1_driver_campaign_assignments__assignment_id__activate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/driver/campaign-assignments/{assignment_id}/deactivate": {
         parameters: {
             query?: never;
@@ -2214,6 +2214,23 @@ export interface paths {
         put?: never;
         /** Deactivate a campaign assignment */
         post: operations["driver_deactivate_campaign_assignment_api_v1_driver_campaign_assignments__assignment_id__deactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/campaign-assignments/{assignment_id}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decline a campaign assignment offer */
+        post: operations["driver_decline_campaign_assignment_api_v1_driver_campaign_assignments__assignment_id__decline_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3271,6 +3288,8 @@ export interface components {
              * Format: date-time
              */
             occurred_at: string;
+            /** Offer Terms Sha256 */
+            offer_terms_sha256?: string | null;
             /** Previous Status */
             previous_status: string | null;
         };
@@ -3278,7 +3297,7 @@ export interface components {
          * CampaignActivationEventType
          * @enum {string}
          */
-        CampaignActivationEventType: "assigned" | "accepted" | "activated" | "deactivated" | "cancelled" | "completed";
+        CampaignActivationEventType: "assigned" | "accepted" | "declined" | "expired" | "activated" | "deactivated" | "cancelled" | "completed";
         /** CampaignAssignmentCancel */
         CampaignAssignmentCancel: {
             /** Metadata */
@@ -3296,10 +3315,20 @@ export interface components {
              */
             campaign_id: string;
             /**
+             * Creative Id
+             * Format: uuid
+             */
+            creative_id: string;
+            /**
              * Driver Profile Id
              * Format: uuid
              */
             driver_profile_id: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
             /** Metadata */
             metadata?: {
                 [key: string]: unknown;
@@ -3323,6 +3352,43 @@ export interface components {
             offset: number;
             /** Total */
             total: number;
+        };
+        /** CampaignAssignmentOfferTerms */
+        CampaignAssignmentOfferTerms: {
+            /** Branding */
+            branding?: {
+                [key: string]: unknown;
+            } | null;
+            /** Campaign Window End At */
+            campaign_window_end_at?: string | null;
+            /** Campaign Window Start At */
+            campaign_window_start_at?: string | null;
+            /** Creative */
+            creative?: {
+                [key: string]: unknown;
+            } | null;
+            /** Currency */
+            currency?: string | null;
+            /** Eligibility */
+            eligibility?: {
+                [key: string]: unknown;
+            } | null;
+            /** Offer Terms Version */
+            offer_terms_version?: string | null;
+            /** Payout */
+            payout?: {
+                [key: string]: unknown;
+            } | null;
+            /** Service Area */
+            service_area?: {
+                [key: string]: unknown;
+            } | null;
+            /** Zones */
+            zones?: {
+                [key: string]: unknown;
+            } | null;
+        } & {
+            [key: string]: unknown;
         };
         /** CampaignAssignmentRead */
         CampaignAssignmentRead: {
@@ -3352,6 +3418,8 @@ export interface components {
             created_at: string;
             /** Deactivated At */
             deactivated_at: string | null;
+            /** Declined At */
+            declined_at: string | null;
             driver_profile?: components["schemas"]["AssignmentDriverProfileSummary"] | null;
             /**
              * Driver Profile Id
@@ -3360,6 +3428,10 @@ export interface components {
             driver_profile_id: string;
             /** Events */
             events?: components["schemas"]["CampaignActivationEventRead"][] | null;
+            /** Expired At */
+            expired_at: string | null;
+            /** Expires At */
+            expires_at: string | null;
             /**
              * Id
              * Format: uuid
@@ -3371,6 +3443,9 @@ export interface components {
             };
             /** Notes */
             notes: string | null;
+            offer_terms?: components["schemas"]["CampaignAssignmentOfferTerms"] | null;
+            /** Offer Terms Sha256 */
+            offer_terms_sha256: string | null;
             /**
              * Offered At
              * Format: date-time
@@ -3473,7 +3548,7 @@ export interface components {
          * CampaignAssignmentStatus
          * @enum {string}
          */
-        CampaignAssignmentStatus: "offered" | "accepted" | "active" | "deactivated" | "cancelled" | "completed";
+        CampaignAssignmentStatus: "offered" | "accepted" | "declined" | "expired" | "active" | "deactivated" | "cancelled" | "completed";
         /** CampaignAssignmentTransition */
         CampaignAssignmentTransition: {
             /** Metadata */
@@ -8323,6 +8398,41 @@ export interface operations {
             };
         };
     };
+    admin_activate_campaign_assignment_api_v1_admin_campaign_assignments__assignment_id__activate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignAssignmentTransition"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignAssignmentRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_cancel_campaign_assignment_api_v1_admin_campaign_assignments__assignment_id__cancel_post: {
         parameters: {
             query?: never;
@@ -12830,7 +12940,7 @@ export interface operations {
             };
         };
     };
-    driver_activate_campaign_assignment_api_v1_driver_campaign_assignments__assignment_id__activate_post: {
+    driver_deactivate_campaign_assignment_api_v1_driver_campaign_assignments__assignment_id__deactivate_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -12865,7 +12975,7 @@ export interface operations {
             };
         };
     };
-    driver_deactivate_campaign_assignment_api_v1_driver_campaign_assignments__assignment_id__deactivate_post: {
+    driver_decline_campaign_assignment_api_v1_driver_campaign_assignments__assignment_id__decline_post: {
         parameters: {
             query?: never;
             header?: never;

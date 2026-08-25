@@ -1,6 +1,7 @@
 import hashlib
 import json
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -8,10 +9,16 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
 from app.core.errors import AppError
 from app.db.integrity import integrity_constraint_name
-from app.models.campaign import Campaign, CampaignStatus
+from app.models.campaign import (
+    Campaign,
+    CampaignCreative,
+    CampaignReviewEvent,
+    CampaignStatus,
+    CreativeStatus,
+)
 from app.models.campaign_assignment import (
     CampaignActivationEvent,
     CampaignActivationEventType,
@@ -32,7 +39,12 @@ from app.schemas.campaign_assignments import (
     CampaignAssignmentTransition,
 )
 from app.schemas.drivers import normalize_optional_text
-from app.services.billing import reserve_assignment_liability
+from app.services.billing import (
+    _active_admin,
+    assert_campaign_production_authorized,
+    assert_new_work_authorized,
+    reserve_assignment_liability,
+)
 from app.services.campaigns import comparable_campaign_datetime
 from app.services.drivers import get_driver_profile_by_user_id
 from app.services.payout_eligibility import (
@@ -67,6 +79,15 @@ NON_TERMINAL_ASSIGNMENT_STATUSES = {
     CampaignAssignmentStatus.ACTIVE.value,
     CampaignAssignmentStatus.DEACTIVATED.value,
 }
+
+TERMINAL_DECISION_STATUSES = {
+    CampaignAssignmentStatus.ACCEPTED.value,
+    CampaignAssignmentStatus.DECLINED.value,
+    CampaignAssignmentStatus.EXPIRED.value,
+}
+
+OFFER_TERMS_VERSION = "campaign-assignment-offer-v1"
+PAYOUT_V3 = "payout_v3"
 
 MATCHING_VERSION = "matching_v1"
 
@@ -204,6 +225,29 @@ def ensure_campaign_acceptable(campaign: Campaign, now: datetime) -> None:
     ensure_not_expired(campaign, now, code="CAMPAIGN_EXPIRED")
 
 
+async def ensure_campaign_review_approved(
+    session: AsyncSession,
+    campaign_id: UUID,
+) -> None:
+    """Require the built admin campaign-review authority before activation."""
+    approved = await session.scalar(
+        select(CampaignReviewEvent)
+        .where(
+            CampaignReviewEvent.campaign_id == campaign_id,
+            CampaignReviewEvent.new_status == CampaignStatus.APPROVED.value,
+        )
+        .order_by(CampaignReviewEvent.created_at.desc(), CampaignReviewEvent.id.desc())
+        .limit(1)
+        .with_for_update()
+    )
+    if approved is None:
+        raise AppError(
+            "CAMPAIGN_REVIEW_APPROVAL_REQUIRED",
+            "An approved campaign review is required before assignment activation",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+
 def ensure_campaign_activatable(campaign: Campaign, now: datetime) -> None:
     if campaign.status != CampaignStatus.ACTIVE.value:
         raise AppError(
@@ -257,6 +301,17 @@ async def create_activation_event(
     metadata: dict | None,
     occurred_at: datetime,
 ) -> CampaignActivationEvent:
+    event_metadata = dict(metadata or {})
+    evidence_sha256 = None
+    if event_type in {
+        CampaignActivationEventType.ASSIGNED,
+        CampaignActivationEventType.ACCEPTED,
+        CampaignActivationEventType.DECLINED,
+        CampaignActivationEventType.EXPIRED,
+    }:
+        evidence_sha256 = assignment.offer_terms_sha256
+        if evidence_sha256 is not None:
+            event_metadata.setdefault("offer_terms_sha256", evidence_sha256)
     event = CampaignActivationEvent(
         assignment_id=assignment.id,
         actor_user_id=actor_user_id,
@@ -264,7 +319,8 @@ async def create_activation_event(
         previous_status=previous_status,
         new_status=assignment.status,
         occurred_at=occurred_at,
-        event_metadata=metadata or {},
+        event_metadata=event_metadata,
+        offer_terms_sha256=evidence_sha256,
     )
     session.add(event)
     await session.flush()
@@ -276,14 +332,61 @@ async def create_campaign_assignment(
     *,
     admin_user_id: UUID,
     payload: CampaignAssignmentCreate,
+    settings: Settings | None = None,
 ) -> CampaignAssignment:
-    now = utc_now()
+    settings = settings or get_settings()
+    # Direct service callers must satisfy the same active-admin authority as
+    # the router before any campaign lock or privileged mutation is reached.
+    await _active_admin(session, admin_user_id)
+    await acquire_campaign_terms_lock(session, payload.campaign_id)
+    campaign = await session.scalar(
+        select(Campaign)
+        .where(Campaign.id == payload.campaign_id)
+        .with_for_update()
+    )
+    if campaign is None:
+        raise AppError(
+            "CAMPAIGN_NOT_FOUND",
+            "Campaign was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    now = await database_clock(session)
     if payload.recommendation_context is not None:
         await ensure_recommendation_context_current(session, payload=payload, now=now)
-    campaign = await get_campaign(session, payload.campaign_id)
-    driver_profile = await get_driver_profile(session, payload.driver_profile_id)
-    vehicle = await get_vehicle(session, payload.vehicle_id)
+    driver_profile = await session.scalar(
+        select(DriverProfile)
+        .where(DriverProfile.id == payload.driver_profile_id)
+        .with_for_update()
+    )
+    if driver_profile is None:
+        raise AppError(
+            "DRIVER_PROFILE_NOT_FOUND",
+            "Driver profile was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    vehicle = await session.scalar(
+        select(Vehicle).where(Vehicle.id == payload.vehicle_id).with_for_update()
+    )
+    if vehicle is None:
+        raise AppError(
+            "VEHICLE_NOT_FOUND",
+            "Vehicle was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
     ensure_campaign_assignable(campaign, now)
+    if campaign.start_at is None or campaign.end_at is None:
+        raise AppError(
+            "COMPLETE_CAMPAIGN_WINDOW_REQUIRED",
+            "A campaign start and end are required before offering an assignment",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    expires_at = as_aware_utc(payload.expires_at)
+    if expires_at <= now or expires_at > as_aware_utc(campaign.end_at):
+        raise AppError(
+            "INVALID_OFFER_EXPIRY",
+            "Offer expiry must be after the current database time and within the campaign window",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
     ensure_active_driver_profile(driver_profile)
     ensure_active_vehicle(vehicle)
     ensure_vehicle_belongs_to_driver(vehicle, driver_profile)
@@ -291,6 +394,14 @@ async def create_campaign_assignment(
         session,
         campaign_id=campaign.id,
         vehicle_id=vehicle.id,
+    )
+    terms, terms_sha256 = await build_offer_terms(
+        session,
+        campaign=campaign,
+        driver_profile=driver_profile,
+        now=now,
+        creative_id=payload.creative_id,
+        settings=settings,
     )
 
     assignment = CampaignAssignment(
@@ -300,8 +411,11 @@ async def create_campaign_assignment(
         assigned_by_user_id=admin_user_id,
         status=CampaignAssignmentStatus.OFFERED.value,
         offered_at=now,
+        expires_at=expires_at,
         notes=payload.notes,
         assignment_metadata=payload.metadata,
+        offer_terms=terms,
+        offer_terms_sha256=terms_sha256,
     )
     session.add(assignment)
     await flush_translating_exclusivity_conflict(session)
@@ -455,9 +569,7 @@ async def list_assignment_recommendations(
         .outerjoin(activity, activity.c.driver_profile_id == DriverProfile.id)
         .where(*filters)
     )
-    total = int(
-        await session.scalar(select(func.count()).select_from(statement.subquery())) or 0
-    )
+    total = int(await session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
     rows = (
         await session.execute(
             statement.order_by(
@@ -533,9 +645,7 @@ async def ensure_recommendation_context_current(
         (DriverProfile, payload.driver_profile_id),
         (Vehicle, payload.vehicle_id),
     ):
-        locked = await session.scalar(
-            select(model).where(model.id == identifier).with_for_update()
-        )
+        locked = await session.scalar(select(model).where(model.id == identifier).with_for_update())
         if locked is None:
             raise stale_recommendation_error()
     # Lock every existing row that can enter, leave, or change either aggregate.
@@ -638,6 +748,7 @@ async def list_admin_assignments(
     driver_profile_id: UUID | None,
     vehicle_id: UUID | None,
 ) -> tuple[list[CampaignAssignment], int]:
+    await expire_due_assignment_offers(session)
     filters = []
     if assignment_status is not None:
         filters.append(CampaignAssignment.status == assignment_status)
@@ -671,6 +782,7 @@ async def list_driver_assignments(
     offset: int,
     assignment_status: str | None,
 ) -> tuple[list[CampaignAssignment], int]:
+    await expire_due_assignment_offers(session)
     driver_profile = await get_driver_profile_for_user(session, user_id)
     filters = [CampaignAssignment.driver_profile_id == driver_profile.id]
     if assignment_status is not None:
@@ -703,9 +815,406 @@ async def list_assignment_events(
     return list(result.scalars().all())
 
 
+async def expire_assignment_if_due(
+    session: AsyncSession,
+    assignment: CampaignAssignment,
+    *,
+    now: datetime,
+) -> bool:
+    """Materialize one offer expiry after its campaign/row locks are held."""
+    if (
+        assignment.status != CampaignAssignmentStatus.OFFERED.value
+        or assignment.expires_at is None
+        or as_aware_utc(assignment.expires_at) > now
+    ):
+        return False
+    previous_status = assignment.status
+    assignment.status = CampaignAssignmentStatus.EXPIRED.value
+    assignment.expired_at = now
+    await session.flush()
+    await create_activation_event(
+        session,
+        assignment=assignment,
+        actor_user_id=None,
+        event_type=CampaignActivationEventType.EXPIRED,
+        previous_status=previous_status,
+        metadata={"reason": "offer_expired"},
+        occurred_at=now,
+    )
+    return True
+
+
+async def expire_assignment_offer(
+    session: AsyncSession,
+    assignment_id: UUID,
+) -> bool:
+    """Lock and lazily expire one offer using the shared campaign authority."""
+    campaign_id = await session.scalar(
+        select(CampaignAssignment.campaign_id).where(CampaignAssignment.id == assignment_id)
+    )
+    if campaign_id is None:
+        return False
+    await acquire_campaign_terms_lock(session, campaign_id)
+    campaign = await session.scalar(
+        select(Campaign).where(Campaign.id == campaign_id).with_for_update()
+    )
+    if campaign is None:
+        return False
+    assignment = await session.scalar(
+        select(CampaignAssignment)
+        .where(CampaignAssignment.id == assignment_id)
+        .with_for_update()
+    )
+    if assignment is None:
+        return False
+    now = await database_clock(session)
+    return await expire_assignment_if_due(session, assignment, now=now)
+
+
+async def expire_due_assignment_offers(
+    session: AsyncSession,
+    *,
+    limit: int = 100,
+) -> int:
+    """Idempotently sweep due offers in deterministic campaign/assignment order."""
+    now = await database_clock(session)
+    ids = (
+        await session.execute(
+            select(CampaignAssignment.id)
+            .where(
+                CampaignAssignment.status == CampaignAssignmentStatus.OFFERED.value,
+                CampaignAssignment.expires_at.is_not(None),
+                CampaignAssignment.expires_at <= now,
+            )
+            .order_by(CampaignAssignment.campaign_id, CampaignAssignment.id)
+            .limit(limit)
+        )
+    ).scalars().all()
+    expired = 0
+    for assignment_id in ids:
+        if await expire_assignment_offer(session, assignment_id):
+            expired += 1
+    return expired
+
+
 def frozen_zone_geometry_hash(rows: list[tuple]) -> str:
     """Deterministic hash of a frozen zone set's sorted (id, geometry) pairs."""
-    return hashlib.sha256("\n".join(f"{row[0]}:{row[1]}" for row in rows).encode()).hexdigest()
+    canonical_rows = sorted((str(row[0]), str(row[1])) for row in rows)
+    return hashlib.sha256(
+        json.dumps(canonical_rows, separators=(",", ":"), ensure_ascii=True).encode()
+    ).hexdigest()
+
+
+def canonical_offer_terms_sha256(terms: dict) -> str:
+    encoded = json.dumps(
+        terms,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
+    return hashlib.sha256(encoded.encode()).hexdigest()
+
+
+def _creative_content_identity(creative: CampaignCreative) -> dict[str, object]:
+    if not creative.checksum or not creative.checksum.strip():
+        raise AppError(
+            "CREATIVE_CONTENT_IDENTITY_REQUIRED",
+            "A ready creative must include a content checksum before offering",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if creative.updated_at is None:
+        raise AppError(
+            "CREATIVE_VERSION_REQUIRED",
+            "A ready creative must include a persisted version before offering",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    content = {
+        "checksum": creative.checksum.strip(),
+        "asset_url": creative.asset_url,
+        "mime_type": creative.mime_type,
+        "width_px": creative.width_px,
+        "height_px": creative.height_px,
+        "duration_seconds": creative.duration_seconds,
+    }
+    content["content_sha256"] = canonical_offer_terms_sha256(content)
+    return content
+
+
+def _creative_snapshot(creative: CampaignCreative) -> dict[str, object]:
+    content = _creative_content_identity(creative)
+    return {
+        "id": str(creative.id),
+        "name": creative.name,
+        "creative_type": creative.creative_type,
+        "placement": creative.placement,
+        "checksum": creative.checksum.strip() if creative.checksum else None,
+        "version": as_aware_utc(creative.updated_at).isoformat()
+        if creative.updated_at is not None
+        else None,
+        "content_identity": content,
+        "metadata": creative.creative_metadata or {},
+    }
+
+
+def _offer_terms_complete(terms: dict | None, terms_sha256: str | None) -> bool:
+    if terms is None or terms_sha256 is None:
+        return False
+    required = {
+        "offer_terms_version",
+        "currency",
+        "campaign_window_start_at",
+        "campaign_window_end_at",
+        "service_area",
+        "branding",
+        "creative",
+        "payout",
+        "zones",
+        "eligibility",
+    }
+    if not isinstance(terms, dict) or not required.issubset(terms):
+        return False
+    if canonical_offer_terms_sha256(terms) != terms_sha256:
+        return False
+    if terms.get("offer_terms_version") != OFFER_TERMS_VERSION:
+        return False
+    currency = terms.get("currency")
+    if not isinstance(currency, str) or len(currency) != 3:
+        return False
+    service_area = terms.get("service_area")
+    branding = terms.get("branding")
+    if (
+        not isinstance(service_area, dict)
+        or not str(service_area.get("city", "")).strip()
+        or not isinstance(branding, dict)
+        or not branding.get("campaign_id")
+        or not branding.get("organization_id")
+        or not branding.get("version")
+    ):
+        return False
+    try:
+        window_start = datetime.fromisoformat(str(terms["campaign_window_start_at"]))
+        window_end = datetime.fromisoformat(str(terms["campaign_window_end_at"]))
+        if as_aware_utc(window_start) >= as_aware_utc(window_end):
+            return False
+    except (TypeError, ValueError):
+        return False
+    payout = terms.get("payout")
+    if not isinstance(payout, dict):
+        return False
+    if (
+        payout.get("formula_version") != PAYOUT_V3
+        or not payout.get("revision_id")
+        or not payout.get("payout_rule_id")
+        or not payout.get("effective_from")
+        or not isinstance(payout.get("eligibility_params"), dict)
+    ):
+        return False
+    try:
+        UUID(str(payout["revision_id"]))
+        UUID(str(payout["payout_rule_id"]))
+        rates = [
+            Decimal(str(payout["hourly_rate_naira"])),
+            Decimal(str(payout["premium_hourly_rate_naira"])),
+            Decimal(str(payout["daily_payable_hours_cap"])),
+        ]
+    except (KeyError, TypeError, ValueError, ArithmeticError):
+        return False
+    if (
+        not all(rate.is_finite() and rate >= 0 for rate in rates[:2])
+        or not rates[2].is_finite()
+        or rates[2] <= 0
+    ):
+        return False
+    zones = terms.get("zones")
+    if not isinstance(zones, dict) or zones.get("semantics") != (
+        "target_zones_are_premium; exclusions_are_unpaid"
+    ):
+        return False
+
+    def valid_zone_rows(value: object, *, required_rows: bool) -> bool:
+        if not isinstance(value, list) or (required_rows and not value):
+            return False
+        return all(
+            isinstance(row, dict)
+            and str(row.get("id", "")).strip()
+            and str(row.get("wkt", "")).strip()
+            and str(row.get("wkt")) != "None"
+            for row in value
+        )
+
+    if not valid_zone_rows(zones.get("target"), required_rows=True):
+        return False
+    if not valid_zone_rows(zones.get("premium"), required_rows=True):
+        return False
+    if not valid_zone_rows(zones.get("exclusion"), required_rows=False):
+        return False
+    creative = terms.get("creative")
+    if not isinstance(creative, dict):
+        return False
+    content_identity = creative.get("content_identity")
+    if (
+        not creative.get("id")
+        or not creative.get("checksum")
+        or not creative.get("version")
+        or not isinstance(content_identity, dict)
+        or content_identity.get("checksum") != creative.get("checksum")
+        or not content_identity.get("content_sha256")
+    ):
+        return False
+    eligibility = terms.get("eligibility")
+    return bool(
+        isinstance(eligibility, dict)
+        and eligibility.get("stationary_policy_marker") == STATIONARY_POLICY_V1
+    )
+
+
+async def build_offer_terms(
+    session: AsyncSession,
+    *,
+    campaign: Campaign,
+    driver_profile: DriverProfile,
+    now: datetime,
+    creative_id: UUID,
+    settings: Settings,
+) -> tuple[dict, str]:
+    """Freeze the exact terms displayed to the driver before an offer exists."""
+    creative = await session.scalar(
+        select(CampaignCreative)
+        .where(CampaignCreative.id == creative_id, CampaignCreative.campaign_id == campaign.id)
+        .with_for_update()
+    )
+    if creative is None or creative.status != CreativeStatus.READY.value:
+        raise AppError(
+            "READY_CAMPAIGN_CREATIVE_REQUIRED",
+            "A currently ready campaign creative must be selected for an offer",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if campaign.start_at is None or campaign.end_at is None:
+        raise AppError(
+            "COMPLETE_CAMPAIGN_WINDOW_REQUIRED",
+            "A complete campaign window is required before offering",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    try:
+        normalized_city = normalized_service_city(driver_profile.service_city or "")
+    except ValueError as exc:
+        raise AppError(
+            "SERVICE_AREA_REQUIRED",
+            "A normalized driver service area is required before offering",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from exc
+    creative_snapshot = _creative_snapshot(creative)
+    revision = await session.scalar(
+        select(CampaignPayoutRuleRevision)
+        .where(
+            CampaignPayoutRuleRevision.campaign_id == campaign.id,
+            CampaignPayoutRuleRevision.effective_from <= now,
+        )
+        .order_by(CampaignPayoutRuleRevision.effective_from.desc())
+        .limit(1)
+        .with_for_update()
+    )
+    if (
+        revision is None
+        or revision.formula_version != PAYOUT_V3
+        or revision.hourly_rate_naira is None
+        or revision.premium_hourly_rate_naira is None
+        or revision.daily_payable_hours_cap is None
+    ):
+        raise AppError(
+            "FROZEN_PAYOUT_TERMS_REQUIRED",
+            "An effective payout-v3 base/premium rate and daily cap are required before offering",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    bind = session.get_bind()
+    geom = CampaignZone.geom if bind.dialect.name == "sqlite" else func.ST_AsText(CampaignZone.geom)
+    rows = (
+        await session.execute(
+            select(CampaignZone.id, CampaignZone.zone_type, CampaignZone.name, geom)
+            .where(CampaignZone.campaign_id == campaign.id)
+            .order_by(CampaignZone.zone_type, CampaignZone.id)
+            .with_for_update()
+        )
+    ).all()
+    targets = [row for row in rows if row[1] == CampaignZoneType.TARGET.value]
+    exclusions = [row for row in rows if row[1] == CampaignZoneType.EXCLUSION.value]
+    if not targets:
+        raise AppError(
+            "TARGET_AREA_REQUIRED",
+            "A target service area is required before offering",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    target_rows = [
+        {"id": str(row[0]), "name": row[2], "wkt": str(row[3])} for row in targets
+    ]
+    exclusion_rows = [
+        {"id": str(row[0]), "name": row[2], "wkt": str(row[3])} for row in exclusions
+    ]
+    if any(not row["wkt"] or row["wkt"] == "None" for row in target_rows + exclusion_rows):
+        raise AppError(
+            "CAMPAIGN_ZONE_GEOMETRY_REQUIRED",
+            "All offered service-area zones must have geometry",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    terms = {
+        "offer_terms_version": OFFER_TERMS_VERSION,
+        "currency": campaign.currency,
+        "campaign_window_start_at": as_aware_utc(campaign.start_at).isoformat(),
+        "campaign_window_end_at": as_aware_utc(campaign.end_at).isoformat(),
+        "service_area": {
+            "city": normalized_city,
+            "country_code": driver_profile.country_code.upper()
+            if driver_profile.country_code
+            else None,
+        },
+        "branding": {
+            "campaign_id": str(campaign.id),
+            "organization_id": str(campaign.organization_id),
+            "campaign_name": campaign.name,
+            "brand_name": (campaign.campaign_metadata or {}).get("brand_name")
+            or (campaign.campaign_metadata or {}).get("brand"),
+            "version": as_aware_utc(campaign.updated_at).isoformat()
+            if campaign.updated_at is not None
+            else None,
+        },
+        "creative": creative_snapshot,
+        "payout": {
+            "revision_id": str(revision.id),
+            "payout_rule_id": str(revision.payout_rule_id),
+            "revision_number": revision.revision_number,
+            "effective_from": as_aware_utc(revision.effective_from).isoformat(),
+            "formula_version": revision.formula_version,
+            "hourly_rate_naira": str(revision.hourly_rate_naira),
+            "premium_hourly_rate_naira": str(revision.premium_hourly_rate_naira),
+            "daily_payable_hours_cap": str(revision.daily_payable_hours_cap),
+            "eligibility_params": revision.eligibility_params or {},
+        },
+        "zones": {
+            "semantics": "target_zones_are_premium; exclusions_are_unpaid",
+            "target": target_rows,
+            "premium": target_rows,
+            "exclusion": exclusion_rows,
+            "bonus": [
+                {"id": str(row[0]), "name": row[2], "wkt": str(row[3])}
+                for row in rows
+                if row[1] == CampaignZoneType.BONUS.value
+            ],
+        },
+        # The detector policy marker is part of the offer evidence, while the
+        # numeric classifier snapshot remains exactly the payout_v3 binding
+        # shape.  The binding carries the same marker in its dedicated column.
+        "eligibility": {
+            **resolved_eligibility_snapshot(settings, revision.eligibility_params),
+            "stationary_policy_marker": STATIONARY_POLICY_V1,
+        },
+    }
+    if not terms["branding"]["version"]:
+        raise AppError(
+            "CAMPAIGN_VERSION_REQUIRED",
+            "A campaign version is required before offering",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    return terms, canonical_offer_terms_sha256(terms)
 
 
 # Backwards-compatible name retained for the B2 tests/imports.
@@ -786,54 +1295,62 @@ async def create_rule_binding_for_accept(
     *,
     assignment: CampaignAssignment,
     now: datetime,
-    campaign: Campaign,
-    settings: Settings,
+    campaign: Campaign | None = None,
+    settings: Settings | None = None,
 ) -> AssignmentRuleBinding | None:
-    """Freeze the campaign's effective revision onto the accepted assignment
-    (MNY-06B). Resolved at the accept transaction's snapshot read (PR10): the
-    revision with the greatest effective_from <= now. A campaign without an
-    effective revision gets NO binding — the assignment stays payout_v2."""
-    revision = await session.scalar(
-        select(CampaignPayoutRuleRevision)
-        .where(
-            CampaignPayoutRuleRevision.campaign_id == assignment.campaign_id,
-            CampaignPayoutRuleRevision.effective_from <= now,
+    """Materialize a binding solely from the accepted offer snapshot.
+
+    ``campaign`` and ``settings`` are retained in the signature for callers
+    from the prior MNY-06 seam, but mutable campaign/rule/zone rows are never
+    consulted here. The offer is the only authority after the driver decides.
+    """
+    terms = assignment.offer_terms
+    if not _offer_terms_complete(terms, assignment.offer_terms_sha256):
+        raise AppError(
+            "FROZEN_OFFER_TERMS_REQUIRED",
+            "A complete frozen offer is required before acceptance",
+            status_code=status.HTTP_409_CONFLICT,
         )
-        .order_by(CampaignPayoutRuleRevision.effective_from.desc())
-        .limit(1)
-    )
-    if revision is None:
-        return None
-    premium_zone_rows = (
-        await session.execute(
-            select(CampaignZone.id, func.ST_AsText(CampaignZone.geom))
-            .where(
-                CampaignZone.campaign_id == assignment.campaign_id,
-                CampaignZone.zone_type == CampaignZoneType.TARGET.value,
-            )
-            .order_by(CampaignZone.id)
+    payout = terms["payout"]
+    zones = terms["zones"]
+    premium_zone_rows = [(row["id"], row["wkt"]) for row in zones["premium"]]
+    exclusion_zone_rows = [(row["id"], row["wkt"]) for row in zones["exclusion"]]
+    try:
+        window_start = datetime.fromisoformat(terms["campaign_window_start_at"])
+        window_end = datetime.fromisoformat(terms["campaign_window_end_at"])
+        revision_id = UUID(payout["revision_id"])
+        hourly_rate = Decimal(payout["hourly_rate_naira"])
+        premium_rate = Decimal(payout["premium_hourly_rate_naira"])
+        daily_cap = Decimal(payout["daily_payable_hours_cap"])
+    except (KeyError, TypeError, ValueError, ArithmeticError) as exc:
+        raise AppError(
+            "FROZEN_OFFER_TERMS_REQUIRED",
+            "The accepted offer snapshot is malformed",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from exc
+    if as_aware_utc(window_start) >= as_aware_utc(window_end):
+        raise AppError(
+            "FROZEN_OFFER_TERMS_REQUIRED",
+            "The accepted offer has an invalid campaign window",
+            status_code=status.HTTP_409_CONFLICT,
         )
-    ).all()
-    exclusion_zone_rows = (
-        await session.execute(
-            select(CampaignZone.id, func.ST_AsText(CampaignZone.geom))
-            .where(
-                CampaignZone.campaign_id == assignment.campaign_id,
-                CampaignZone.zone_type == CampaignZoneType.EXCLUSION.value,
-            )
-            .order_by(CampaignZone.id)
+    if not premium_zone_rows:
+        raise AppError(
+            "FROZEN_OFFER_TERMS_REQUIRED",
+            "The accepted offer has no premium service area",
+            status_code=status.HTTP_409_CONFLICT,
         )
-    ).all()
-    resolved_params = resolved_eligibility_snapshot(settings, revision.eligibility_params)
+    resolved_eligibility = dict(terms["eligibility"])
+    resolved_eligibility.pop("stationary_policy_marker", None)
     binding = AssignmentRuleBinding(
         assignment_id=assignment.id,
-        revision_id=revision.id,
-        hourly_rate_naira=revision.hourly_rate_naira,
-        premium_hourly_rate_naira=revision.premium_hourly_rate_naira,
-        daily_payable_hours_cap=revision.daily_payable_hours_cap,
-        eligibility_params=revision.eligibility_params or {},
-        resolved_eligibility_params=resolved_params,
-        formula_version=revision.formula_version,
+        revision_id=revision_id,
+        hourly_rate_naira=hourly_rate,
+        premium_hourly_rate_naira=premium_rate,
+        daily_payable_hours_cap=daily_cap,
+        eligibility_params=payout["eligibility_params"],
+        resolved_eligibility_params=resolved_eligibility,
+        formula_version=payout["formula_version"],
         premium_zone_ids=[str(row[0]) for row in premium_zone_rows],
         premium_zone_geometry_hash=frozen_zone_geometry_hash(premium_zone_rows),
         premium_zone_geometry_wkts=[str(row[1]) for row in premium_zone_rows],
@@ -841,9 +1358,10 @@ async def create_rule_binding_for_accept(
         exclusion_zone_geometry_hash=frozen_zone_geometry_hash(exclusion_zone_rows),
         exclusion_zone_geometry_wkts=[str(row[1]) for row in exclusion_zone_rows],
         stationary_policy_marker=STATIONARY_POLICY_V1,
-        campaign_window_start_at=campaign.start_at,
-        campaign_window_end_at=campaign.end_at,
+        campaign_window_start_at=window_start,
+        campaign_window_end_at=window_end,
         campaign_window_frozen=True,
+        offer_terms_sha256=assignment.offer_terms_sha256,
         bound_at=now,
     )
     session.add(binding)
@@ -871,7 +1389,11 @@ async def accept_driver_assignment(
     # One campaign-scoped authority boundary: publication and acceptance
     # cannot observe different clocks or interleave their revision reads.
     await acquire_campaign_terms_lock(session, campaign_id)
-    now = await database_clock(session)
+    campaign = await session.scalar(
+        select(Campaign).where(Campaign.id == campaign_id).with_for_update()
+    )
+    if campaign is None:
+        raise assignment_not_found()
     # PR2: lock the assignment row BEFORE the status check so a concurrent
     # accept serializes here — the loser re-reads ACCEPTED and gets the
     # existing deterministic 400, and the binding insert below can never hit
@@ -886,14 +1408,32 @@ async def accept_driver_assignment(
     )
     if assignment is None:
         raise assignment_not_found()
+    now = await database_clock(session)
+    if assignment.status == CampaignAssignmentStatus.ACCEPTED.value:
+        return assignment
+    if assignment.status in {
+        CampaignAssignmentStatus.DECLINED.value,
+        CampaignAssignmentStatus.EXPIRED.value,
+    }:
+        raise AppError(
+            "ASSIGNMENT_DECISION_CONFLICT",
+            "This assignment already has a different terminal decision",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if assignment.status == CampaignAssignmentStatus.OFFERED.value:
+        ensure_campaign_acceptable(campaign, now)
+    if await expire_assignment_if_due(session, assignment, now=now):
+        raise AppError(
+            "OFFER_EXPIRED",
+            "The assignment offer expired before it could be accepted",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     if assignment.status != CampaignAssignmentStatus.OFFERED.value:
         raise AppError(
             "INVALID_ASSIGNMENT_TRANSITION",
             "Only offered assignments can be accepted",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
-    campaign = await get_campaign(session, assignment.campaign_id)
-    ensure_campaign_acceptable(campaign, now)
     previous_status = assignment.status
     assignment.status = CampaignAssignmentStatus.ACCEPTED.value
     assignment.accepted_at = now
@@ -903,18 +1443,12 @@ async def accept_driver_assignment(
         assignment=assignment,
         now=now,
         campaign=campaign,
-        settings=settings,
     )
-    if (
-        binding is not None
-        and binding.campaign_window_start_at is not None
-        and binding.campaign_window_end_at is not None
-    ):
-        await reserve_assignment_liability(
-            session,
-            assignment_id=assignment.id,
-            actor_user_id=user_id,
-            require_admin=False,
+    if binding is None:
+        raise AppError(
+            "FROZEN_PAYOUT_BINDING_REQUIRED",
+            "Accepted frozen payout terms are required before acceptance",
+            status_code=status.HTTP_409_CONFLICT,
         )
     await create_activation_event(
         session,
@@ -929,15 +1463,101 @@ async def accept_driver_assignment(
     return assignment
 
 
-async def activate_driver_assignment(
+async def decline_driver_assignment(
     session: AsyncSession,
     *,
     user_id: UUID,
     assignment_id: UUID,
     payload: CampaignAssignmentTransition,
 ) -> CampaignAssignment:
-    now = utc_now()
-    assignment = await get_driver_assignment(session, user_id=user_id, assignment_id=assignment_id)
+    driver_profile = await get_driver_profile_for_user(session, user_id)
+    campaign_id = await session.scalar(
+        select(CampaignAssignment.campaign_id).where(
+            CampaignAssignment.id == assignment_id,
+            CampaignAssignment.driver_profile_id == driver_profile.id,
+        )
+    )
+    if campaign_id is None:
+        raise assignment_not_found()
+    await acquire_campaign_terms_lock(session, campaign_id)
+    campaign = await session.scalar(
+        select(Campaign).where(Campaign.id == campaign_id).with_for_update()
+    )
+    if campaign is None:
+        raise assignment_not_found()
+    assignment = await session.scalar(
+        select(CampaignAssignment)
+        .where(
+            CampaignAssignment.id == assignment_id,
+            CampaignAssignment.driver_profile_id == driver_profile.id,
+        )
+        .with_for_update()
+    )
+    if assignment is None:
+        raise assignment_not_found()
+    now = await database_clock(session)
+    if assignment.status == CampaignAssignmentStatus.DECLINED.value:
+        return assignment
+    if assignment.status in {
+        CampaignAssignmentStatus.ACCEPTED.value,
+        CampaignAssignmentStatus.EXPIRED.value,
+    }:
+        raise AppError(
+            "ASSIGNMENT_DECISION_CONFLICT",
+            "This assignment already has a different terminal decision",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if assignment.status != CampaignAssignmentStatus.OFFERED.value:
+        raise AppError(
+            "INVALID_ASSIGNMENT_TRANSITION",
+            "Only offered assignments can be declined",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    ensure_campaign_acceptable(campaign, now)
+    if await expire_assignment_if_due(session, assignment, now=now):
+        raise AppError(
+            "OFFER_EXPIRED",
+            "The assignment offer expired before it could be declined",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    assignment.status = CampaignAssignmentStatus.DECLINED.value
+    assignment.declined_at = now
+    await create_activation_event(
+        session,
+        assignment=assignment,
+        actor_user_id=user_id,
+        event_type=CampaignActivationEventType.DECLINED,
+        previous_status=CampaignAssignmentStatus.OFFERED.value,
+        metadata=payload.metadata,
+        occurred_at=now,
+    )
+    await session.refresh(assignment)
+    return assignment
+
+
+async def activate_admin_assignment(
+    session: AsyncSession,
+    *,
+    admin_user_id: UUID,
+    assignment_id: UUID,
+    payload: CampaignAssignmentTransition,
+) -> CampaignAssignment:
+    await _active_admin(session, admin_user_id)
+    campaign_id = await session.scalar(
+        select(CampaignAssignment.campaign_id).where(CampaignAssignment.id == assignment_id)
+    )
+    if campaign_id is None:
+        raise assignment_not_found()
+    await acquire_campaign_terms_lock(session, campaign_id)
+    campaign = await session.scalar(
+        select(Campaign).where(Campaign.id == campaign_id).with_for_update()
+    )
+    if campaign is None:
+        raise assignment_not_found()
+    assignment = await session.scalar(
+        select(CampaignAssignment).where(CampaignAssignment.id == assignment_id).with_for_update()
+    )
+    assert assignment is not None
     if assignment.status not in {
         CampaignAssignmentStatus.ACCEPTED.value,
         CampaignAssignmentStatus.DEACTIVATED.value,
@@ -947,34 +1567,117 @@ async def activate_driver_assignment(
             "Only accepted or deactivated assignments can be activated",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
-    campaign = await get_campaign(session, assignment.campaign_id)
-    driver_profile = await get_driver_profile(session, assignment.driver_profile_id)
-    vehicle = await get_vehicle(session, assignment.vehicle_id)
+    driver_profile = await session.scalar(
+        select(DriverProfile)
+        .where(DriverProfile.id == assignment.driver_profile_id)
+        .with_for_update()
+    )
+    vehicle = await session.scalar(
+        select(Vehicle).where(Vehicle.id == assignment.vehicle_id).with_for_update()
+    )
+    if driver_profile is None:
+        raise AppError(
+            "DRIVER_PROFILE_NOT_FOUND",
+            "Driver profile was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    if vehicle is None:
+        raise AppError(
+            "VEHICLE_NOT_FOUND",
+            "Vehicle was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    now = await database_clock(session)
     ensure_campaign_activatable(campaign, now)
     ensure_active_driver_profile(driver_profile)
     ensure_active_vehicle(vehicle)
     ensure_vehicle_belongs_to_driver(vehicle, driver_profile)
-    await ensure_no_other_active_assignment_for_vehicle(
-        session,
-        vehicle_id=vehicle.id,
-        assignment_id=assignment.id,
+    await ensure_campaign_review_approved(session, campaign.id)
+    if not _offer_terms_complete(assignment.offer_terms, assignment.offer_terms_sha256):
+        raise AppError(
+            "FROZEN_OFFER_TERMS_REQUIRED",
+            "A complete frozen offer is required before activation",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    assert assignment.offer_terms is not None
+    creative_data = assignment.offer_terms["creative"]
+    try:
+        creative_id = UUID(str(creative_data["id"]))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise AppError(
+            "FROZEN_OFFER_TERMS_REQUIRED",
+            "The accepted offer does not identify a creative",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from exc
+    creative = await session.scalar(
+        select(CampaignCreative)
+        .where(CampaignCreative.id == creative_id, CampaignCreative.campaign_id == campaign.id)
+        .with_for_update()
     )
-
-    previous_status = assignment.status
-    assignment.status = CampaignAssignmentStatus.ACTIVE.value
-    assignment.activated_at = now
-    await flush_translating_exclusivity_conflict(session)
-    await create_activation_event(
-        session,
-        assignment=assignment,
-        actor_user_id=user_id,
-        event_type=CampaignActivationEventType.ACTIVATED,
-        previous_status=previous_status,
-        metadata=payload.metadata,
-        occurred_at=now,
+    if creative is None or creative.status != CreativeStatus.READY.value:
+        raise AppError(
+            "READY_CAMPAIGN_CREATIVE_REQUIRED",
+            "The selected campaign creative is no longer ready",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    try:
+        current_creative = _creative_snapshot(creative)
+    except AppError as exc:
+        raise AppError(
+            "READY_CAMPAIGN_CREATIVE_REQUIRED",
+            "The selected campaign creative has incomplete content identity",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from exc
+    if current_creative != creative_data:
+        raise AppError(
+            "OFFER_CREATIVE_CHANGED",
+            "The selected campaign creative changed after the offer was accepted",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    binding = await session.scalar(
+        select(AssignmentRuleBinding)
+        .where(AssignmentRuleBinding.assignment_id == assignment.id)
+        .with_for_update()
     )
-    await session.refresh(assignment)
-    return assignment
+    if binding is None:
+        raise AppError(
+            "FROZEN_PAYOUT_BINDING_REQUIRED",
+            "Accepted frozen payout terms are required before activation",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if (
+        binding.offer_terms_sha256 != assignment.offer_terms_sha256
+        or not binding.campaign_window_frozen
+        or binding.campaign_window_start_at is None
+        or binding.campaign_window_end_at is None
+    ):
+        raise AppError(
+            "FROZEN_PAYOUT_BINDING_REQUIRED",
+            "The payout binding is not linked to the accepted offer evidence",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    reservation = await reserve_assignment_liability(
+        session, assignment_id=assignment.id, actor_user_id=admin_user_id
+    )
+    if reservation.status != "reserved":
+        raise AppError(
+            "ASSIGNMENT_FUNDING_REQUIRED",
+            "Campaign funding must reserve this assignment before activation",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    await assert_campaign_production_authorized(session, campaign_id=campaign.id)
+    await assert_new_work_authorized(
+        session, campaign_id=campaign.id, assignment_id=assignment.id
+    )
+    # The Package 4 approved-creative and installation-evidence authorities
+    # are not present in this repository. READY is advertiser-controlled and
+    # cannot stand in for those approval gates; fail closed atomically.
+    raise AppError(
+        "ACTIVATION_APPROVAL_GATES_UNAVAILABLE",
+        "Activation is unavailable until approved-creative and "
+        "installation-evidence authorities are installed",
+        status_code=status.HTTP_409_CONFLICT,
+    )
 
 
 async def deactivate_driver_assignment(
@@ -984,8 +1687,42 @@ async def deactivate_driver_assignment(
     assignment_id: UUID,
     payload: CampaignAssignmentTransition,
 ) -> CampaignAssignment:
-    now = utc_now()
-    assignment = await get_driver_assignment(session, user_id=user_id, assignment_id=assignment_id)
+    driver_profile = await get_driver_profile_for_user(session, user_id)
+    campaign_id = await session.scalar(
+        select(CampaignAssignment.campaign_id).where(
+            CampaignAssignment.id == assignment_id,
+            CampaignAssignment.driver_profile_id == driver_profile.id,
+        )
+    )
+    if campaign_id is None:
+        raise assignment_not_found()
+    await acquire_campaign_terms_lock(session, campaign_id)
+    campaign = await session.scalar(
+        select(Campaign).where(Campaign.id == campaign_id).with_for_update()
+    )
+    if campaign is None:
+        raise assignment_not_found()
+    assignment = await session.scalar(
+        select(CampaignAssignment)
+        .where(
+            CampaignAssignment.id == assignment_id,
+            CampaignAssignment.driver_profile_id == driver_profile.id,
+        )
+        .with_for_update()
+    )
+    if assignment is None:
+        raise assignment_not_found()
+    driver_profile = await session.scalar(
+        select(DriverProfile)
+        .where(DriverProfile.id == assignment.driver_profile_id)
+        .with_for_update()
+    )
+    vehicle = await session.scalar(
+        select(Vehicle).where(Vehicle.id == assignment.vehicle_id).with_for_update()
+    )
+    if driver_profile is None or vehicle is None:
+        raise assignment_not_found()
+    now = await database_clock(session)
     if assignment.status != CampaignAssignmentStatus.ACTIVE.value:
         raise AppError(
             "INVALID_ASSIGNMENT_TRANSITION",
@@ -1016,15 +1753,62 @@ async def cancel_admin_assignment(
     assignment_id: UUID,
     payload: CampaignAssignmentCancel,
 ) -> CampaignAssignment:
-    now = utc_now()
-    assignment = await get_admin_assignment(session, assignment_id)
+    await _active_admin(session, admin_user_id)
+    campaign_id = await session.scalar(
+        select(CampaignAssignment.campaign_id).where(CampaignAssignment.id == assignment_id)
+    )
+    if campaign_id is None:
+        raise assignment_not_found()
+    await acquire_campaign_terms_lock(session, campaign_id)
+    campaign = await session.scalar(
+        select(Campaign).where(Campaign.id == campaign_id).with_for_update()
+    )
+    if campaign is None:
+        raise assignment_not_found()
+    assignment = await session.scalar(
+        select(CampaignAssignment).where(CampaignAssignment.id == assignment_id).with_for_update()
+    )
+    if assignment is None:
+        raise assignment_not_found()
+    # Keep the producer rows behind the assignment lock in the same order as
+    # activation and trip start.  This closes the terminal-transition race
+    # without taking a reverse profile/vehicle -> assignment path.
+    locked_driver_profile = await session.scalar(
+        select(DriverProfile)
+        .where(DriverProfile.id == assignment.driver_profile_id)
+        .with_for_update()
+    )
+    locked_vehicle = await session.scalar(
+        select(Vehicle).where(Vehicle.id == assignment.vehicle_id).with_for_update()
+    )
+    if locked_driver_profile is None or locked_vehicle is None:
+        raise assignment_not_found()
+    now = await database_clock(session)
+    if await expire_assignment_if_due(session, assignment, now=now):
+        if _offer_terms_complete(assignment.offer_terms, assignment.offer_terms_sha256):
+            raise AppError(
+                "OFFER_DECISION_REQUIRED",
+                "A complete offer may only be accepted, declined, or expired",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+    if (
+        assignment.status == CampaignAssignmentStatus.OFFERED.value
+        and _offer_terms_complete(assignment.offer_terms, assignment.offer_terms_sha256)
+    ):
+        raise AppError(
+            "OFFER_DECISION_REQUIRED",
+            "A complete offer may only be accepted, declined, or expired",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     if assignment.status in {
         CampaignAssignmentStatus.CANCELLED.value,
         CampaignAssignmentStatus.COMPLETED.value,
+        CampaignAssignmentStatus.DECLINED.value,
+        CampaignAssignmentStatus.EXPIRED.value,
     }:
         raise AppError(
             "INVALID_ASSIGNMENT_TRANSITION",
-            "Cancelled or completed assignments cannot be cancelled",
+            "Terminal decision assignments cannot be cancelled",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     previous_status = assignment.status

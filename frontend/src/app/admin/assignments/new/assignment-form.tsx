@@ -253,6 +253,17 @@ export function AssignmentForm({
         </>
       ) : null}
 
+      <Field
+        label="Ready creative ID"
+        name="creative_id"
+        placeholder="UUID of the ready campaign creative"
+        required
+      />
+      <Field label="Offer expires" name="expires_at" type="datetime-local" required />
+      <p className="text-muted -mt-3 text-xs">
+        Choose the exact ready creative and expiry shown to the driver. Expiry must be in the future
+        and no later than the campaign end.
+      </p>
       <Field label="Notes" name="notes" placeholder="Optional context for the driver" />
 
       {state.error ? (

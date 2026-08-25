@@ -26,7 +26,7 @@ function revalidateDriver() {
 
 const assignmentSchema = z.object({
   assignmentId: z.string().uuid(),
-  action: z.enum(["accept", "activate", "deactivate"]),
+  action: z.enum(["accept", "deactivate"]),
 });
 
 export async function assignmentAction(
@@ -40,8 +40,6 @@ export async function assignmentAction(
     const request = { params: { path: { assignment_id: assignmentId } }, body: {} };
     if (action === "accept") {
       await api.POST("/api/v1/driver/campaign-assignments/{assignment_id}/accept", request);
-    } else if (action === "activate") {
-      await api.POST("/api/v1/driver/campaign-assignments/{assignment_id}/activate", request);
     } else {
       await api.POST("/api/v1/driver/campaign-assignments/{assignment_id}/deactivate", request);
     }

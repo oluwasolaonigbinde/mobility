@@ -1,8 +1,9 @@
 # ruff: noqa: E402
 import asyncio
+import json
 import os
 from collections.abc import Generator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -36,6 +37,7 @@ from app.models.campaign_assignment import (
     CampaignAssignment,
     CampaignAssignmentStatus,
 )
+from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.impression import ImpressionEstimate, TrafficDensityProfile
 from app.models.organization import (
@@ -45,7 +47,12 @@ from app.models.organization import (
     OrganizationMembership,
     OrganizationStatus,
 )
-from app.models.payout import CampaignPayoutRule, EarningsLedgerEntry, PayoutCalculation
+from app.models.payout import (
+    CampaignPayoutRule,
+    CampaignPayoutRuleRevision,
+    EarningsLedgerEntry,
+    PayoutCalculation,
+)
 from app.models.trip import (
     LocationPing,
     LocationPingBatch,
@@ -56,6 +63,7 @@ from app.models.trip import (
 from app.models.trip_analytics import TripAnalytics
 from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle, VehicleStatus, VehicleType
+from app.services.campaign_zones import geometry_expression
 from app.services.users import normalize_email
 from app.services.vehicles import normalize_plate_number
 
@@ -664,6 +672,81 @@ def create_test_payout_rule(
             await session.commit()
             await session.refresh(rule)
             return rule
+
+    return asyncio.run(create())
+
+
+def create_test_campaign_payout_revision(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    campaign_id: UUID,
+    created_by_user_id: UUID,
+    effective_from: datetime | None = None,
+    hourly_rate_naira=1000,
+    premium_hourly_rate_naira=1500,
+    daily_payable_hours_cap=8,
+) -> CampaignPayoutRuleRevision:
+    rule = create_test_payout_rule(
+        db_sessionmaker,
+        campaign_id=campaign_id,
+        created_by_user_id=created_by_user_id,
+    )
+
+    async def create() -> CampaignPayoutRuleRevision:
+        async with db_sessionmaker() as session:
+            revision = CampaignPayoutRuleRevision(
+                campaign_id=campaign_id,
+                payout_rule_id=rule.id,
+                revision_number=1,
+                effective_from=effective_from or datetime.now(UTC) - timedelta(days=1),
+                hourly_rate_naira=hourly_rate_naira,
+                premium_hourly_rate_naira=premium_hourly_rate_naira,
+                daily_payable_hours_cap=daily_payable_hours_cap,
+                eligibility_params={},
+                formula_version="payout_v3",
+                reason="test offer terms",
+                created_by_user_id=created_by_user_id,
+            )
+            session.add(revision)
+            await session.commit()
+            await session.refresh(revision)
+            return revision
+
+    return asyncio.run(create())
+
+
+def create_test_campaign_zone(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    campaign_id: UUID,
+    created_by_user_id: UUID,
+    zone_type: CampaignZoneType = CampaignZoneType.TARGET,
+) -> CampaignZone:
+    async def create() -> CampaignZone:
+        async with db_sessionmaker() as session:
+            geojson = {
+                "type": "MultiPolygon",
+                "coordinates": [
+                    [[[3.30, 6.40], [3.50, 6.40], [3.50, 6.60], [3.30, 6.60], [3.30, 6.40]]]
+                ],
+            }
+            geom = (
+                geometry_expression(json.dumps(geojson, separators=(",", ":")))
+                if session.get_bind().dialect.name == "postgresql"
+                else "MULTIPOLYGON(((3.3 6.4,3.5 6.4,3.5 6.6,3.3 6.6,3.3 6.4)))"
+            )
+            zone = CampaignZone(
+                campaign_id=campaign_id,
+                created_by_user_id=created_by_user_id,
+                name=f"{zone_type.value.title()} test area",
+                zone_type=zone_type.value,
+                geom=geom,
+                zone_metadata={},
+            )
+            session.add(zone)
+            await session.commit()
+            await session.refresh(zone)
+            return zone
 
     return asyncio.run(create())
 

@@ -43,6 +43,9 @@ AUDITED = {
     ("POST", "/api/v1/admin/campaign-assignments/{assignment_id}/cancel"): (
         "admin.campaign_assignment.cancelled"
     ),
+    ("POST", "/api/v1/admin/campaign-assignments/{assignment_id}/activate"): (
+        "admin.campaign_assignment.activated"
+    ),
     ("POST", "/api/v1/advertiser/campaigns"): "advertiser.campaign.created",
     ("POST", "/api/v1/advertiser/retargeting-sources"): "retargeting_source.created",
     (
@@ -268,8 +271,8 @@ KNOWN_UNAUDITED = {
     ("POST", "/api/v1/driver/campaign-assignments/{assignment_id}/accept"): (
         "driver assignment acceptance writes no audit event"
     ),
-    ("POST", "/api/v1/driver/campaign-assignments/{assignment_id}/activate"): (
-        "driver assignment activation writes no audit event"
+    ("POST", "/api/v1/driver/campaign-assignments/{assignment_id}/decline"): (
+        "driver assignment decline writes no audit event"
     ),
     ("POST", "/api/v1/driver/campaign-assignments/{assignment_id}/deactivate"): (
         "driver assignment deactivation writes no audit event"

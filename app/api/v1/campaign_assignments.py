@@ -33,10 +33,13 @@ from app.schemas.campaign_assignments import (
 from app.services.audit import create_audit_event
 from app.services.campaign_assignments import (
     accept_driver_assignment,
-    activate_driver_assignment,
+    activate_admin_assignment,
     cancel_admin_assignment,
     create_campaign_assignment,
     deactivate_driver_assignment,
+    decline_driver_assignment,
+    expire_assignment_offer,
+    expire_due_assignment_offers,
     get_admin_assignment,
     get_assignment_context,
     get_current_active_driver_assignment,
@@ -96,6 +99,7 @@ def event_response(event: CampaignActivationEvent) -> CampaignActivationEventRea
         new_status=event.new_status,
         occurred_at=event.occurred_at,
         metadata=event.event_metadata,
+        offer_terms_sha256=event.offer_terms_sha256,
     )
 
 
@@ -118,13 +122,18 @@ async def assignment_response(
         assigned_by_user_id=assignment.assigned_by_user_id,
         status=assignment.status,
         offered_at=assignment.offered_at,
+        expires_at=assignment.expires_at,
         accepted_at=assignment.accepted_at,
+        declined_at=assignment.declined_at,
+        expired_at=assignment.expired_at,
         activated_at=assignment.activated_at,
         deactivated_at=assignment.deactivated_at,
         cancelled_at=assignment.cancelled_at,
         completed_at=assignment.completed_at,
         notes=assignment.notes,
         metadata=assignment.assignment_metadata,
+        offer_terms=assignment.offer_terms,
+        offer_terms_sha256=assignment.offer_terms_sha256,
         created_at=assignment.created_at,
         updated_at=assignment.updated_at,
         campaign=campaign_summary(campaign),
@@ -144,11 +153,13 @@ async def admin_create_campaign_assignment(
     payload: CampaignAssignmentCreate,
     current_user: AdminUserDependency,
     session: SessionDependency,
+    settings: SettingsDependency,
 ) -> CampaignAssignmentRead:
     assignment = await create_campaign_assignment(
         session,
         admin_user_id=current_user.id,
         payload=payload,
+        settings=settings,
     )
     await create_audit_event(
         session,
@@ -182,6 +193,8 @@ async def admin_list_campaign_assignments(
     vehicle_id: UUID | None = None,
 ) -> CampaignAssignmentListResponse:
     del current_user
+    await expire_due_assignment_offers(session)
+    await session.commit()
     assignments, total = await list_admin_assignments(
         session,
         limit=limit,
@@ -192,7 +205,10 @@ async def admin_list_campaign_assignments(
         vehicle_id=vehicle_id,
     )
     return CampaignAssignmentListResponse(
-        items=[await assignment_response(session, assignment) for assignment in assignments],
+        items=[
+            await assignment_response(session, assignment, include_events=True)
+            for assignment in assignments
+        ],
         total=total,
         limit=limit,
         offset=offset,
@@ -239,6 +255,8 @@ async def admin_get_campaign_assignment(
     session: SessionDependency,
 ) -> CampaignAssignmentRead:
     del current_user
+    await expire_assignment_offer(session, assignment_id)
+    await session.commit()
     assignment = await get_admin_assignment(session, assignment_id)
     return await assignment_response(session, assignment, include_events=True)
 
@@ -288,6 +306,8 @@ async def driver_list_campaign_assignments(
     offset: Annotated[int, Query(ge=0)] = 0,
     status: CampaignAssignmentStatus | None = None,
 ) -> CampaignAssignmentListResponse:
+    await expire_due_assignment_offers(session)
+    await session.commit()
     assignments, total = await list_driver_assignments(
         session,
         user_id=current_user.id,
@@ -296,7 +316,10 @@ async def driver_list_campaign_assignments(
         assignment_status=status,
     )
     return CampaignAssignmentListResponse(
-        items=[await assignment_response(session, assignment) for assignment in assignments],
+        items=[
+            await assignment_response(session, assignment, include_events=True)
+            for assignment in assignments
+        ],
         total=total,
         limit=limit,
         offset=offset,
@@ -312,6 +335,8 @@ async def driver_get_active_campaign_assignment(
     current_user: DriverUserDependency,
     session: SessionDependency,
 ) -> ActiveCampaignAssignmentResponse:
+    await expire_due_assignment_offers(session)
+    await session.commit()
     assignment = await get_current_active_driver_assignment(session, user_id=current_user.id)
     if assignment is None:
         return ActiveCampaignAssignmentResponse(assignment=None)
@@ -330,6 +355,13 @@ async def driver_get_campaign_assignment(
     current_user: DriverUserDependency,
     session: SessionDependency,
 ) -> CampaignAssignmentRead:
+    await get_driver_assignment(
+        session,
+        user_id=current_user.id,
+        assignment_id=assignment_id,
+    )
+    await expire_assignment_offer(session, assignment_id)
+    await session.commit()
     assignment = await get_driver_assignment(
         session,
         user_id=current_user.id,
@@ -350,6 +382,13 @@ async def driver_accept_campaign_assignment(
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> CampaignAssignmentRead:
+    await get_driver_assignment(
+        session,
+        user_id=current_user.id,
+        assignment_id=assignment_id,
+    )
+    await expire_assignment_offer(session, assignment_id)
+    await session.commit()
     assignment = await accept_driver_assignment(
         session,
         user_id=current_user.id,
@@ -362,21 +401,54 @@ async def driver_accept_campaign_assignment(
 
 
 @router.post(
-    "/driver/campaign-assignments/{assignment_id}/activate",
+    "/driver/campaign-assignments/{assignment_id}/decline",
     response_model=CampaignAssignmentRead,
-    summary="Activate a campaign assignment",
+    summary="Decline a campaign assignment offer",
 )
-async def driver_activate_campaign_assignment(
+async def driver_decline_campaign_assignment(
     assignment_id: UUID,
     payload: CampaignAssignmentTransition,
     current_user: DriverUserDependency,
     session: SessionDependency,
 ) -> CampaignAssignmentRead:
-    assignment = await activate_driver_assignment(
+    await get_driver_assignment(
         session,
         user_id=current_user.id,
         assignment_id=assignment_id,
+    )
+    await expire_assignment_offer(session, assignment_id)
+    await session.commit()
+    assignment = await decline_driver_assignment(
+        session, user_id=current_user.id, assignment_id=assignment_id, payload=payload
+    )
+    await session.commit()
+    return await assignment_response(session, assignment, include_events=True)
+
+
+@router.post(
+    "/admin/campaign-assignments/{assignment_id}/activate",
+    response_model=CampaignAssignmentRead,
+    summary="Activate an accepted campaign assignment",
+)
+async def admin_activate_campaign_assignment(
+    assignment_id: UUID,
+    payload: CampaignAssignmentTransition,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+) -> CampaignAssignmentRead:
+    assignment = await activate_admin_assignment(
+        session,
+        admin_user_id=current_user.id,
+        assignment_id=assignment_id,
         payload=payload,
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=current_user.id,
+        action="admin.campaign_assignment.activated",
+        entity_type="campaign_assignment",
+        entity_id=str(assignment.id),
+        metadata={"campaign_id": str(assignment.campaign_id)},
     )
     await session.commit()
     return await assignment_response(session, assignment, include_events=True)

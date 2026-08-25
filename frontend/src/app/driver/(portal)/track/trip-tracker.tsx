@@ -68,10 +68,7 @@ export function TripTracker({
   const refreshCounts = useCallback(async (tripId: string) => {
     const queue = queueRef.current;
     if (!queue) return;
-    const [meta, unsynced] = await Promise.all([
-      queue.meta(tripId),
-      queue.unsyncedCount(tripId),
-    ]);
+    const [meta, unsynced] = await Promise.all([queue.meta(tripId), queue.unsyncedCount(tripId)]);
     setSyncedCount(Math.max(0, meta.pingsRecorded - unsynced));
     setBufferedCount(unsynced);
   }, []);
@@ -187,7 +184,7 @@ export function TripTracker({
         }).catch(() => undefined);
       }, KEEPALIVE_INTERVAL_MS);
     },
-     
+
     [flush, refreshCounts, stopTracking],
   );
 
@@ -371,7 +368,7 @@ export function TripTracker({
       <Panel className="p-6 text-center">
         <p className="text-sm font-medium">No active campaign</p>
         <p className="text-muted mt-1 text-xs">
-          Accept and activate a job first — then your trips earn.
+          Accept an offer and wait for admin activation — then your trips earn.
         </p>
       </Panel>
     );
@@ -383,9 +380,9 @@ export function TripTracker({
         <>
           {lockHeld === false ? (
             <p className="border-amber/40 bg-amber/10 text-amber-soft rounded-lg border px-3.5 py-2.5 text-xs">
-              This trip is being tracked in another tab or window. Close it or
-              switch there — tracking in two places would double-count, so this
-              tab can neither track nor end the trip.
+              This trip is being tracked in another tab or window. Close it or switch there —
+              tracking in two places would double-count, so this tab can neither track nor end the
+              trip.
             </p>
           ) : null}
           <Panel className="border-green/40 p-5">

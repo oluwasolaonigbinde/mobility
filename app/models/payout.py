@@ -384,6 +384,9 @@ class AssignmentRuleBinding(Base):
         server_default=text("false"),
         nullable=False,
     )
+    # Nullable for pre-W3-03B bindings; new accepted offers must bind the
+    # exact offer fingerprint so activation cannot detach decision evidence.
+    offer_terms_sha256: Mapped[str | None] = mapped_column(String(64))
     bound_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
