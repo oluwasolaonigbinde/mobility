@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -9,6 +9,25 @@ from app.models.campaign_assignment import CampaignActivationEventType, Campaign
 from app.models.driver import DriverOnboardingStatus
 from app.models.vehicle import VehicleStatus, VehicleType
 from app.schemas.drivers import normalize_optional_text
+from app.schemas.vehicles import normalize_required_text
+
+MATCHING_V1 = "matching_v1"
+
+
+class CampaignAssignmentRecommendationContext(BaseModel):
+    """The advisory candidate snapshot an admin explicitly selected."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    service_city: str = Field(min_length=1, max_length=128)
+    vehicle_type: Literal["car"]
+    matching_version: Literal["matching_v1"]
+    fingerprint: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+
+    @field_validator("service_city")
+    @classmethod
+    def normalize_service_city(cls, value: str) -> str:
+        return normalize_required_text(value)
 
 
 class CampaignAssignmentCreate(BaseModel):
@@ -19,6 +38,7 @@ class CampaignAssignmentCreate(BaseModel):
     vehicle_id: UUID
     notes: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    recommendation_context: CampaignAssignmentRecommendationContext | None = None
 
     @field_validator("notes")
     @classmethod
@@ -102,6 +122,35 @@ class CampaignAssignmentRead(BaseModel):
 
 class CampaignAssignmentListResponse(BaseModel):
     items: list[CampaignAssignmentRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class CampaignAssignmentRecommendationComponents(BaseModel):
+    vehicle_load: int
+    driver_load: int
+    active_tracking_seconds: int
+    latest_computed_at: datetime | None
+
+
+class CampaignAssignmentRecommendation(BaseModel):
+    rank: int
+    driver_profile_id: UUID
+    driver_name: str
+    vehicle_id: UUID
+    vehicle_plate_number: str
+    vehicle_make: str | None
+    vehicle_model: str | None
+    service_city: str
+    vehicle_type: Literal["car"]
+    matching_version: Literal["matching_v1"]
+    fingerprint: str
+    components: CampaignAssignmentRecommendationComponents
+
+
+class CampaignAssignmentRecommendationListResponse(BaseModel):
+    items: list[CampaignAssignmentRecommendation]
     total: int
     limit: int
     offset: int

@@ -27,6 +27,7 @@ from app.schemas.campaign_assignments import (
     CampaignAssignmentCreate,
     CampaignAssignmentListResponse,
     CampaignAssignmentRead,
+    CampaignAssignmentRecommendationListResponse,
     CampaignAssignmentTransition,
 )
 from app.services.audit import create_audit_event
@@ -42,6 +43,7 @@ from app.services.campaign_assignments import (
     get_driver_assignment,
     list_admin_assignments,
     list_assignment_events,
+    list_assignment_recommendations,
     list_driver_assignments,
 )
 
@@ -191,6 +193,35 @@ async def admin_list_campaign_assignments(
     )
     return CampaignAssignmentListResponse(
         items=[await assignment_response(session, assignment) for assignment in assignments],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get(
+    "/admin/campaign-assignments/recommendations",
+    response_model=CampaignAssignmentRecommendationListResponse,
+    summary="List ranked car assignment recommendations",
+)
+async def admin_list_assignment_recommendations(
+    campaign_id: UUID,
+    service_city: str,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> CampaignAssignmentRecommendationListResponse:
+    del current_user
+    candidates, total = await list_assignment_recommendations(
+        session,
+        campaign_id=campaign_id,
+        service_city=service_city,
+        limit=limit,
+        offset=offset,
+    )
+    return CampaignAssignmentRecommendationListResponse(
+        items=candidates,
         total=total,
         limit=limit,
         offset=offset,

@@ -17,10 +17,12 @@ from conftest import (
     create_test_campaign_assignment,
     create_test_driver_profile,
     create_test_organization,
+    create_test_trip_analytics,
     create_test_trip_session,
     create_test_user,
     create_test_vehicle,
 )
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 
 import app.services.campaign_assignments as assignments_service
@@ -30,8 +32,10 @@ from app.models.campaign import CampaignStatus
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
 from app.models.trip import TripSessionStatus
+from app.models.trip_analytics import TripAnalytics
 from app.models.user import UserRole
-from app.models.vehicle import VehicleStatus
+from app.models.vehicle import Vehicle, VehicleStatus
+from app.schemas.campaign_assignments import CampaignAssignmentCreate
 from app.schemas.trips import TripStartRequest
 
 PASSWORD = "long-secure-password"
@@ -358,3 +362,193 @@ def test_concurrent_activations_one_winner_postgis(postgis_db_sessionmaker) -> N
     assert outcomes.count("activated") == 1
     losers = [outcome for outcome in outcomes if outcome != "activated"]
     assert losers == ["ACTIVE_ASSIGNMENT_EXISTS_FOR_VEHICLE"]
+
+
+def test_recommendation_create_locks_selected_facts_postgis(
+    postgis_db_sessionmaker, monkeypatch
+) -> None:
+    admin, campaigns, _, profile, vehicle = build_graph(
+        postgis_db_sessionmaker, "pg-rec-lock"
+    )
+
+    async def recommendation_payload() -> CampaignAssignmentCreate:
+        async with postgis_db_sessionmaker() as session:
+            candidates, _ = await assignments_service.list_assignment_recommendations(
+                session,
+                campaign_id=campaigns[0].id,
+                service_city="Lagos",
+                limit=1,
+                offset=0,
+            )
+        candidate = candidates[0]
+        return CampaignAssignmentCreate(
+            campaign_id=campaigns[0].id,
+            driver_profile_id=profile.id,
+            vehicle_id=vehicle.id,
+            recommendation_context={
+                "service_city": candidate.service_city,
+                "vehicle_type": candidate.vehicle_type,
+                "matching_version": candidate.matching_version,
+                "fingerprint": candidate.fingerprint,
+            },
+        )
+
+    payload = asyncio.run(recommendation_payload())
+    original_ensure = assignments_service.ensure_recommendation_context_current
+    facts_locked = asyncio.Event()
+    allow_create = asyncio.Event()
+
+    async def pause_after_locked_recheck(*args, **kwargs) -> None:
+        await original_ensure(*args, **kwargs)
+        facts_locked.set()
+        await allow_create.wait()
+
+    monkeypatch.setattr(
+        assignments_service,
+        "ensure_recommendation_context_current",
+        pause_after_locked_recheck,
+    )
+
+    async def create_assignment() -> None:
+        async with postgis_db_sessionmaker() as session:
+            await assignments_service.create_campaign_assignment(
+                session,
+                admin_user_id=admin.id,
+                payload=payload,
+            )
+            await session.commit()
+
+    async def deactivate_vehicle() -> None:
+        await facts_locked.wait()
+        async with postgis_db_sessionmaker() as session:
+            await session.execute(
+                update(Vehicle)
+                .where(Vehicle.id == vehicle.id)
+                .values(status=VehicleStatus.INACTIVE.value)
+            )
+            await session.commit()
+
+    async def force_interleaving() -> None:
+        create_task = asyncio.create_task(create_assignment())
+        await facts_locked.wait()
+        update_task = asyncio.create_task(deactivate_vehicle())
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(asyncio.shield(update_task), timeout=0.2)
+        allow_create.set()
+        await create_task
+        await update_task
+
+    asyncio.run(force_interleaving())
+
+
+@pytest.mark.parametrize("changed_aggregate", ["load", "activity"])
+def test_recommendation_create_locks_aggregate_inputs_postgis(
+    postgis_db_sessionmaker, monkeypatch, changed_aggregate
+) -> None:
+    admin, campaigns, driver, profile, vehicle = build_graph(
+        postgis_db_sessionmaker, f"pg-rec-{changed_aggregate}", campaign_count=2
+    )
+    historical_assignment = create_test_campaign_assignment(
+        postgis_db_sessionmaker,
+        campaign_id=campaigns[1].id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        assigned_by_user_id=admin.id,
+    )
+    trip = create_test_trip_session(
+        postgis_db_sessionmaker,
+        assignment_id=historical_assignment.id,
+        campaign_id=campaigns[1].id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        started_by_user_id=driver.id,
+    )
+    analytics = create_test_trip_analytics(
+        postgis_db_sessionmaker,
+        trip_session_id=trip.id,
+        assignment_id=historical_assignment.id,
+        campaign_id=campaigns[1].id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        active_tracking_seconds=120,
+    )
+
+    async def recommendation_payload() -> CampaignAssignmentCreate:
+        async with postgis_db_sessionmaker() as session:
+            candidates, _ = await assignments_service.list_assignment_recommendations(
+                session,
+                campaign_id=campaigns[0].id,
+                service_city="Lagos",
+                limit=1,
+                offset=0,
+            )
+        candidate = candidates[0]
+        return CampaignAssignmentCreate(
+            campaign_id=campaigns[0].id,
+            driver_profile_id=profile.id,
+            vehicle_id=vehicle.id,
+            recommendation_context={
+                "service_city": candidate.service_city,
+                "vehicle_type": candidate.vehicle_type,
+                "matching_version": candidate.matching_version,
+                "fingerprint": candidate.fingerprint,
+            },
+        )
+
+    payload = asyncio.run(recommendation_payload())
+    original_ensure = assignments_service.ensure_recommendation_context_current
+    aggregates_locked = asyncio.Event()
+    allow_create = asyncio.Event()
+
+    async def pause_after_locked_recheck(*args, **kwargs) -> None:
+        await original_ensure(*args, **kwargs)
+        aggregates_locked.set()
+        await allow_create.wait()
+
+    monkeypatch.setattr(
+        assignments_service,
+        "ensure_recommendation_context_current",
+        pause_after_locked_recheck,
+    )
+
+    async def create_assignment() -> None:
+        async with postgis_db_sessionmaker() as session:
+            await assignments_service.create_campaign_assignment(
+                session,
+                admin_user_id=admin.id,
+                payload=payload,
+            )
+            await session.commit()
+
+    async def change_aggregate() -> None:
+        await aggregates_locked.wait()
+        async with postgis_db_sessionmaker() as session:
+            if changed_aggregate == "load":
+                statement = (
+                    update(CampaignAssignment)
+                    .where(CampaignAssignment.id == historical_assignment.id)
+                    .values(
+                        status=CampaignAssignmentStatus.CANCELLED.value,
+                        cancelled_at=datetime.now(UTC),
+                    )
+                )
+            else:
+                statement = (
+                    update(TripAnalytics)
+                    .where(TripAnalytics.id == analytics.id)
+                    .values(active_tracking_seconds=121)
+                )
+            await session.execute(statement)
+            await session.commit()
+
+    async def force_interleaving() -> None:
+        create_task = asyncio.create_task(create_assignment())
+        await aggregates_locked.wait()
+        update_task = asyncio.create_task(change_aggregate())
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(asyncio.shield(update_task), timeout=0.2)
+        allow_create.set()
+        await create_task
+        await update_task
+
+    asyncio.run(force_interleaving())

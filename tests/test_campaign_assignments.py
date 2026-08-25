@@ -1,12 +1,15 @@
 import asyncio
 from datetime import UTC, datetime
 
+import pytest
 from conftest import (
     auth_headers,
     create_test_campaign,
     create_test_campaign_assignment,
     create_test_driver_profile,
     create_test_organization,
+    create_test_trip_analytics,
+    create_test_trip_session,
     create_test_user,
     create_test_vehicle,
     fetch_activation_events,
@@ -17,10 +20,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status as http_status
 
 from app.models.campaign import Campaign, CampaignStatus
-from app.models.campaign_assignment import CampaignAssignment
+from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus, DriverProfile
+from app.models.trip import TripSessionStatus
 from app.models.user import UserRole
-from app.models.vehicle import Vehicle, VehicleStatus
+from app.models.vehicle import Vehicle, VehicleStatus, VehicleType
 
 PASSWORD = "long-secure-password"
 PAST = datetime(2020, 1, 1, tzinfo=UTC)
@@ -146,6 +150,26 @@ def update_vehicle_status(
     asyncio.run(update())
 
 
+def update_driver_city(db_sessionmaker, profile_id, service_city: str) -> None:
+    async def update() -> None:
+        async with db_sessionmaker() as session:
+            profile = await session.get(DriverProfile, profile_id)
+            profile.service_city = service_city
+            await session.commit()
+
+    asyncio.run(update())
+
+
+def update_vehicle_type(db_sessionmaker, vehicle_id, vehicle_type: VehicleType) -> None:
+    async def update() -> None:
+        async with db_sessionmaker() as session:
+            vehicle = await session.get(Vehicle, vehicle_id)
+            vehicle.vehicle_type = vehicle_type
+            await session.commit()
+
+    asyncio.run(update())
+
+
 def fetch_assignments(db_sessionmaker) -> list[CampaignAssignment]:
     async def fetch() -> list[CampaignAssignment]:
         async with db_sessionmaker() as session:
@@ -153,6 +177,384 @@ def fetch_assignments(db_sessionmaker) -> list[CampaignAssignment]:
             return list(result.scalars().all())
 
     return asyncio.run(fetch())
+
+
+def test_admin_can_list_ranked_car_recommendations(db_client, db_sessionmaker) -> None:
+    _, campaign, _, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
+    response = db_client.get(
+        "/api/v1/admin/campaign-assignments/recommendations",
+        headers=admin_headers(db_client),
+        params={"campaign_id": str(campaign.id), "service_city": " Lagos "},
+    )
+
+    assert response.status_code == http_status.HTTP_200_OK
+    body = response.json()
+    assert body["total"] == 1
+    candidate = body["items"][0]
+    assert candidate["rank"] == 1
+    assert candidate["driver_profile_id"] == str(profile.id)
+    assert candidate["driver_name"]
+    assert candidate["vehicle_id"] == str(vehicle.id)
+    assert candidate["vehicle_plate_number"] == vehicle.plate_number
+    assert candidate["service_city"] == "Lagos"
+    assert candidate["vehicle_type"] == "car"
+    assert candidate["matching_version"] == "matching_v1"
+    assert candidate["fingerprint"]
+    assert candidate["components"] == {
+        "vehicle_load": 0,
+        "driver_load": 0,
+        "active_tracking_seconds": 0,
+        "latest_computed_at": None,
+    }
+
+
+def test_recommendations_rank_current_car_candidates_and_enforce_rbac(
+    db_client, db_sessionmaker
+) -> None:
+    admin, campaign, _, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
+    activity_driver = create_test_user(
+        db_sessionmaker,
+        email="activity-driver@example.com",
+        password=PASSWORD,
+        role=UserRole.DRIVER,
+    )
+    activity_profile = create_test_driver_profile(
+        db_sessionmaker,
+        user_id=activity_driver.id,
+        onboarding_status=DriverOnboardingStatus.ACTIVE,
+        service_city="lagos",
+    )
+    activity_vehicle = create_test_vehicle(
+        db_sessionmaker,
+        driver_profile_id=activity_profile.id,
+        plate_number="ACT-123",
+        vehicle_status=VehicleStatus.ACTIVE,
+    )
+    inactive_analytics_driver = create_test_user(
+        db_sessionmaker,
+        email="inactive-analytics-driver@example.com",
+        password=PASSWORD,
+        role=UserRole.DRIVER,
+    )
+    inactive_analytics_profile = create_test_driver_profile(
+        db_sessionmaker,
+        user_id=inactive_analytics_driver.id,
+        onboarding_status=DriverOnboardingStatus.ACTIVE,
+    )
+    inactive_analytics_vehicle = create_test_vehicle(
+        db_sessionmaker,
+        driver_profile_id=inactive_analytics_profile.id,
+        plate_number="INA-123",
+        vehicle_status=VehicleStatus.ACTIVE,
+    )
+    create_test_vehicle(
+        db_sessionmaker,
+        driver_profile_id=activity_profile.id,
+        plate_number="VAN-123",
+        vehicle_status=VehicleStatus.ACTIVE,
+        vehicle_type=VehicleType.VAN,
+    )
+    historical_campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=campaign.organization_id,
+        created_by_user_id=admin.id,
+        campaign_status=CampaignStatus.SCHEDULED,
+        end_at=FUTURE,
+    )
+    historical_assignment = create_test_campaign_assignment(
+        db_sessionmaker,
+        campaign_id=historical_campaign.id,
+        driver_profile_id=activity_profile.id,
+        vehicle_id=activity_vehicle.id,
+        assigned_by_user_id=admin.id,
+        assignment_status=CampaignAssignmentStatus.CANCELLED,
+        cancelled_at=datetime.now(UTC),
+    )
+    trip = create_test_trip_session(
+        db_sessionmaker,
+        assignment_id=historical_assignment.id,
+        campaign_id=historical_campaign.id,
+        driver_profile_id=activity_profile.id,
+        vehicle_id=activity_vehicle.id,
+        started_by_user_id=activity_driver.id,
+    )
+    create_test_trip_analytics(
+        db_sessionmaker,
+        trip_session_id=trip.id,
+        assignment_id=historical_assignment.id,
+        campaign_id=historical_campaign.id,
+        driver_profile_id=activity_profile.id,
+        vehicle_id=activity_vehicle.id,
+        active_tracking_seconds=120,
+    )
+    insufficient_assignment = create_test_campaign_assignment(
+        db_sessionmaker,
+        campaign_id=historical_campaign.id,
+        driver_profile_id=inactive_analytics_profile.id,
+        vehicle_id=inactive_analytics_vehicle.id,
+        assigned_by_user_id=admin.id,
+        assignment_status=CampaignAssignmentStatus.CANCELLED,
+        cancelled_at=datetime.now(UTC),
+    )
+    insufficient_trip = create_test_trip_session(
+        db_sessionmaker,
+        assignment_id=insufficient_assignment.id,
+        campaign_id=historical_campaign.id,
+        driver_profile_id=inactive_analytics_profile.id,
+        vehicle_id=inactive_analytics_vehicle.id,
+        started_by_user_id=inactive_analytics_driver.id,
+    )
+    create_test_trip_analytics(
+        db_sessionmaker,
+        trip_session_id=insufficient_trip.id,
+        assignment_id=insufficient_assignment.id,
+        campaign_id=historical_campaign.id,
+        driver_profile_id=inactive_analytics_profile.id,
+        vehicle_id=inactive_analytics_vehicle.id,
+        status="insufficient_data",
+        active_tracking_seconds=999,
+    )
+    blocked_trip = create_test_trip_session(
+        db_sessionmaker,
+        assignment_id=insufficient_assignment.id,
+        campaign_id=historical_campaign.id,
+        driver_profile_id=inactive_analytics_profile.id,
+        vehicle_id=inactive_analytics_vehicle.id,
+        started_by_user_id=inactive_analytics_driver.id,
+        trip_status=TripSessionStatus.SEALED,
+    )
+    create_test_trip_analytics(
+        db_sessionmaker,
+        trip_session_id=blocked_trip.id,
+        assignment_id=insufficient_assignment.id,
+        campaign_id=historical_campaign.id,
+        driver_profile_id=inactive_analytics_profile.id,
+        vehicle_id=inactive_analytics_vehicle.id,
+        status="blocked",
+        active_tracking_seconds=999,
+    )
+
+    response = db_client.get(
+        "/api/v1/admin/campaign-assignments/recommendations",
+        headers=admin_headers(db_client),
+        params={"campaign_id": str(campaign.id), "service_city": "Lagos", "limit": 3},
+    )
+    forbidden = db_client.get(
+        "/api/v1/admin/campaign-assignments/recommendations",
+        headers=driver_headers(db_client),
+        params={"campaign_id": str(campaign.id), "service_city": "Lagos"},
+    )
+
+    assert response.status_code == http_status.HTTP_200_OK
+    assert response.json()["total"] == 3
+    assert response.json()["items"][0]["driver_profile_id"] == str(activity_profile.id)
+    assert {item["driver_profile_id"] for item in response.json()["items"][1:]} == {
+        str(profile.id),
+        str(inactive_analytics_profile.id),
+    }
+    assert response.json()["items"][0]["components"]["active_tracking_seconds"] == 120
+    assert response.json()["items"][0]["components"]["latest_computed_at"] is not None
+    paginated = db_client.get(
+        "/api/v1/admin/campaign-assignments/recommendations",
+        headers=admin_headers(db_client),
+        params={"campaign_id": str(campaign.id), "service_city": "Lagos", "limit": 1, "offset": 2},
+    )
+    assert paginated.status_code == http_status.HTTP_200_OK
+    assert paginated.json()["items"][0]["rank"] == 3
+    assert paginated.json()["items"][0]["components"] == {
+        "vehicle_load": 0,
+        "driver_load": 0,
+        "active_tracking_seconds": 0,
+        "latest_computed_at": None,
+    }
+    assert forbidden.status_code == http_status.HTTP_403_FORBIDDEN
+
+
+def test_recommendations_exclude_ineligible_and_already_assigned_candidates(
+    db_client, db_sessionmaker
+) -> None:
+    admin, campaign, _, eligible_profile, eligible_vehicle = create_assignment_ready_graph(
+        db_sessionmaker
+    )
+
+    def add_candidate(
+        suffix: str,
+        *,
+        plate_number: str,
+        driver_status: DriverOnboardingStatus = DriverOnboardingStatus.ACTIVE,
+        service_city: str = "Lagos",
+        vehicle_status: VehicleStatus = VehicleStatus.ACTIVE,
+        vehicle_type: VehicleType = VehicleType.CAR,
+    ):
+        user = create_test_user(
+            db_sessionmaker,
+            email=f"{suffix}@example.com",
+            password=PASSWORD,
+            role=UserRole.DRIVER,
+        )
+        profile = create_test_driver_profile(
+            db_sessionmaker,
+            user_id=user.id,
+            onboarding_status=driver_status,
+            service_city=service_city,
+        )
+        vehicle = create_test_vehicle(
+            db_sessionmaker,
+            driver_profile_id=profile.id,
+            plate_number=plate_number,
+            vehicle_status=vehicle_status,
+            vehicle_type=vehicle_type,
+        )
+        return profile, vehicle
+
+    add_candidate(
+        "inactive-driver",
+        plate_number="IDR-123",
+        driver_status=DriverOnboardingStatus.SUSPENDED,
+    )
+    add_candidate(
+        "inactive-vehicle", plate_number="IVE-123", vehicle_status=VehicleStatus.INACTIVE
+    )
+    add_candidate("wrong-city", plate_number="WCT-123", service_city="Abuja")
+    add_candidate("non-car", plate_number="NCR-123", vehicle_type=VehicleType.VAN)
+    assigned_profile, assigned_vehicle = add_candidate(
+        "already-assigned", plate_number="AAS-123"
+    )
+    create_test_campaign_assignment(
+        db_sessionmaker,
+        campaign_id=campaign.id,
+        driver_profile_id=assigned_profile.id,
+        vehicle_id=assigned_vehicle.id,
+        assigned_by_user_id=admin.id,
+    )
+
+    response = db_client.get(
+        "/api/v1/admin/campaign-assignments/recommendations",
+        headers=admin_headers(db_client),
+        params={"campaign_id": str(campaign.id), "service_city": "Lagos"},
+    )
+
+    assert response.status_code == http_status.HTTP_200_OK
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["driver_profile_id"] == str(eligible_profile.id)
+    assert response.json()["items"][0]["vehicle_id"] == str(eligible_vehicle.id)
+
+
+@pytest.mark.parametrize(
+    "changed_fact",
+    ["driver_status", "service_city", "vehicle_status", "vehicle_type", "activity"],
+)
+def test_assignment_rejects_each_stale_recommendation_fact(
+    db_client, db_sessionmaker, changed_fact
+) -> None:
+    admin, campaign, driver, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
+    listed = db_client.get(
+        "/api/v1/admin/campaign-assignments/recommendations",
+        headers=admin_headers(db_client),
+        params={"campaign_id": str(campaign.id), "service_city": "Lagos"},
+    )
+    context = {
+        key: listed.json()["items"][0][key]
+        for key in ("service_city", "vehicle_type", "matching_version", "fingerprint")
+    }
+
+    if changed_fact == "driver_status":
+        update_driver_status(db_sessionmaker, profile.id, DriverOnboardingStatus.SUSPENDED)
+    elif changed_fact == "service_city":
+        update_driver_city(db_sessionmaker, profile.id, "Abuja")
+    elif changed_fact == "vehicle_status":
+        update_vehicle_status(db_sessionmaker, vehicle.id, VehicleStatus.INACTIVE)
+    elif changed_fact == "vehicle_type":
+        update_vehicle_type(db_sessionmaker, vehicle.id, VehicleType.VAN)
+    else:
+        history = create_test_campaign(
+            db_sessionmaker,
+            organization_id=campaign.organization_id,
+            created_by_user_id=admin.id,
+            campaign_status=CampaignStatus.SCHEDULED,
+            end_at=FUTURE,
+        )
+        assignment = create_test_campaign_assignment(
+            db_sessionmaker,
+            campaign_id=history.id,
+            driver_profile_id=profile.id,
+            vehicle_id=vehicle.id,
+            assigned_by_user_id=admin.id,
+            assignment_status=CampaignAssignmentStatus.CANCELLED,
+            cancelled_at=datetime.now(UTC),
+        )
+        trip = create_test_trip_session(
+            db_sessionmaker,
+            assignment_id=assignment.id,
+            campaign_id=history.id,
+            driver_profile_id=profile.id,
+            vehicle_id=vehicle.id,
+            started_by_user_id=driver.id,
+        )
+        create_test_trip_analytics(
+            db_sessionmaker,
+            trip_session_id=trip.id,
+            assignment_id=assignment.id,
+            campaign_id=history.id,
+            driver_profile_id=profile.id,
+            vehicle_id=vehicle.id,
+            active_tracking_seconds=1,
+        )
+
+    response = db_client.post(
+        "/api/v1/admin/campaign-assignments",
+        headers=admin_headers(db_client),
+        json=assignment_payload(campaign, profile, vehicle, recommendation_context=context),
+    )
+
+    assert listed.status_code == http_status.HTTP_200_OK
+    assert response.status_code == http_status.HTTP_409_CONFLICT
+    assert response.json()["error"]["code"] == "STALE_RECOMMENDATION"
+
+
+def test_assignment_rejects_stale_recommendation_but_manual_payload_stays_compatible(
+    db_client, db_sessionmaker
+) -> None:
+    admin, campaign, _, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
+    listed = db_client.get(
+        "/api/v1/admin/campaign-assignments/recommendations",
+        headers=admin_headers(db_client),
+        params={"campaign_id": str(campaign.id), "service_city": "Lagos"},
+    )
+    context = {
+        key: listed.json()["items"][0][key]
+        for key in ("service_city", "vehicle_type", "matching_version", "fingerprint")
+    }
+    other_campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=campaign.organization_id,
+        created_by_user_id=admin.id,
+        campaign_status=CampaignStatus.SCHEDULED,
+        end_at=FUTURE,
+    )
+    create_test_campaign_assignment(
+        db_sessionmaker,
+        campaign_id=other_campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        assigned_by_user_id=admin.id,
+    )
+
+    stale = db_client.post(
+        "/api/v1/admin/campaign-assignments",
+        headers=admin_headers(db_client),
+        json=assignment_payload(campaign, profile, vehicle, recommendation_context=context),
+    )
+    manual = db_client.post(
+        "/api/v1/admin/campaign-assignments",
+        headers=admin_headers(db_client),
+        json=assignment_payload(campaign, profile, vehicle),
+    )
+
+    assert listed.status_code == http_status.HTTP_200_OK
+    assert stale.status_code == http_status.HTTP_409_CONFLICT
+    assert stale.json()["error"]["code"] == "STALE_RECOMMENDATION"
+    assert manual.status_code == http_status.HTTP_201_CREATED
 
 
 def test_admin_can_create_list_read_and_cancel_assignment_with_events_and_audit(

@@ -59,12 +59,11 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 ### Current control pointer
 
 **Controller state:** `ACTIVE`
-**Control package:** `PKG-06` — Package 5 completed every dependency-safe
-checkpoint and is blocked only on recorded Package 4 dependencies; Package 6
-is the first later package with a runnable checklist item.
-**Current checkpoint:** `PKG-06 / W3-03A` — Package 5's W3-01B linkage is
-focused-, aggregate- and independently reviewed. W3-03A has no checklist
-dependency and is the next authorized frontier; no Package 6 work has started.
+**Control package:** `PKG-06` — W3-03A is verified and Package 6 remains in
+progress. The unresolved Package 5 Extended Pro verdict prevents final Package
+6 closure/publication but does not invalidate this dependency-free checkpoint.
+**Current checkpoint:** `PKG-06 / W3-03B` — W3-03A is DONE. W3-03B is the next
+dependency-safe pointer; it has not been admitted or started in this checkpoint.
 
 ## Executable package queue
 
@@ -75,7 +74,7 @@ dependency and is the next authorized frontier; no Package 6 work has started.
 | 3 | **PKG-03 — commercial contracts and billing** | BLOCKED | Synthetic/provider-neutral commercial flow is verified; live provider checkout and budget enforcement await their recorded external inputs. | none — checklist DAG gates entry |
 | 4 | **PKG-04 — secure evidence, activation and communications** | **BLOCKED** | Campaign review and the shared in-app notification core are complete; storage/KYC/activation/provider communications await recorded external inputs and their transitive dependencies. | none — checklist DAG gates entry |
 | 5 | **PKG-05 — privacy, measurement and retargeting** | **BLOCKED** | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
-| 6 | **PKG-06 — matching and driver onboarding** | **NEXT** | Recommendations, offers, activity and approved driver/vehicle onboarding work together. | none — checklist DAG gates entry |
+| 6 | **PKG-06 — matching and driver onboarding** | **IN PROGRESS** | Recommendations, offers, activity and approved driver/vehicle onboarding work together. | none — checklist DAG gates entry |
 | 7 | **PKG-07 — production driver PWA** | QUEUED | The pilot PWA safely tracks, syncs, explains earnings and supports release across the device matrix. | none — checklist DAG gates entry |
 | 8 | **PKG-08 — governed reporting and pilot readiness** | QUEUED | Safe reports, release infrastructure and one complete pilot acceptance gate are ready. | none — checklist DAG gates entry |
 | 9 | **PKG-09 — controlled pilot, training and handover** | QUEUED | Run the pilot, stabilize it, train roles and close operational handover. | none — checklist DAG gates entry |
@@ -618,6 +617,20 @@ dependency and is the next authorized frontier; no Package 6 work has started.
 
 - **Owns:** checklist 55–60. Matching/offers/activity and public application,
   KYC/payee and vehicle approval become one governed eligibility journey.
+- **W3-03A evidence (25 Aug 2026):** `matching_v1` adds an admin-only,
+  non-persistent cars-only recommender over current assignment readiness. It
+  ranks lower vehicle/driver load, then computed-only activity and stable UUID
+  ties; the admin must explicitly select a candidate. A typed fingerprint is
+  rechecked under stable parent and aggregate-contributor row locks before the
+  existing assignment command writes, while context-free manual clients remain
+  compatible. Evidence includes observed red/green, 35 focused backend passes
+  plus 10 real-PostgreSQL concurrency/exclusivity passes, 56 frontend/R14-B
+  passes, type/lint/build, byte-stable regenerated §9 artifacts, an isolated
+  admin recommendation→offer journey, and consolidated review RESOLVED. No
+  migration, automatic assignment, person/payee/KYC eligibility claim, provider
+  input or live-use authorization was added. W3-03B–W3-04C were not started;
+  final Package 6 closure/publication remains held by the unresolved Package 5
+  Extended Pro verdict.
 - **Closure:** security/privacy/money and lifecycle races pass, including the
   complete accept/decline/expiry flow and non-work-eligible pending states.
 
@@ -746,7 +759,7 @@ verification, gates or required specialist review.
 | 52 | **W3-01D — recommendations, export and gated activation** | PKG-05 | TODO | Safe geography/time/context recommendations, controlled export and activation use one governed aggregate; identifiers/person-level payloads reject and live push fails closed without EXT-AD-PLATFORM. | leaf: W3-01C, W3-00D, W3-00E |
 | 53 | **W3-02A — exposure score v1** | PKG-05 | TODO | Formula-versioned score is reproducible and distinct from impressions. | leaf: W3-00D, W3-00E |
 | 54 | **W3-02B — high-exposure zone insights** | PKG-05 | TODO | Governed ranked zones appear in admin/advertiser maps and reports. | leaf: W3-00C, W3-00E |
-| 55 | **W3-03A — matching recommendations** | PKG-06 | TODO | Admin receives deterministic eligible driver/vehicle rankings. | none |
+| 55 | **W3-03A — matching recommendations** | PKG-06 | DONE | Admin receives deterministic eligible driver/vehicle rankings. | none |
 | 56 | **W3-03B — complete offer lifecycle** | PKG-06 | TODO | Terms-complete expiring offers support accept/decline and immutable evidence. | leaf: W3-03A, W2-00A, MNY-06B |
 | 57 | **W3-03C — activity floor and inactivity handling** | PKG-06 | TODO | Verified-hours/inactivity sweeps create reviewable ops flags and notices. | leaf: W3-03B, W2-04A |
 | 58 | **W3-04A — public driver application** | PKG-06 | TODO | Abuse-resistant registration creates a pending, non-work-eligible application. | none |
@@ -1742,6 +1755,7 @@ and Git history win.
 | S1 — payout engine v2 (hourly pay + daily caps, D2/D4/D9) | Complete, merged — RM1 fixed and the original whole-trip stationary grace retained for immutable payout-v2 history | Git `f9cd8ca`; architecture v1.8/v1.15, §16.1 [BUILT] |
 | PKG-01 — foundations and empirical risk proof | Complete — RM2/RM6/RM7 closed; payout-v3 frozen parked-time behavior, PWA protocol/interrupted-flow build proof and provider-neutral release/recovery proof delivered; physical/live validation remains explicitly deferred | Git `d2cd424`…`be726a2` plus the package closure commit; architecture v1.30; D22/D23; automated/PostGIS/frontend/browser/recovery evidence |
 | PKG-02 — money integrity and payout operations | Complete — RM8/RM10/RM11 closed; copied-route control, authoritative holds, clean release, encrypted payees, frozen provider instructions, line finality and carry-forward debt delivered provider-neutrally | Git through `e3a505e`; migrations `0022`–`0031`; architecture v1.37; Postgres/frontend/contract/synthetic end-to-end evidence and consolidated review resolved |
+| PKG-06 / W3-03A — matching recommendations | Complete checkpoint — advisory cars-only ranking, explicit admin choice and concurrency-safe stale selection; later Package 6 items not started | Working candidate on `feat/pkg-06`; architecture v1.47; focused PostgreSQL/backend/frontend/contract/live-stack evidence and consolidated review resolved |
 | S4 — data lifecycle (ping partitions, retention purge, audit backfill, D10) | Complete, merged | Git `a879a3d`…`4f487e7`; architecture v1.9, §24.2 [BUILT] |
 | W0-F — trip finality protocol + durable client queue (RM3/RM4/RM5, D15) | Complete — sealed-only money chain, post-seal quarantine, IndexedDB queue with stable retry keys; independently reviewed and hardened (D16: apply-after-initial-payout, pre-seal analytics recompute, fail-closed client) | Migrations `0016`+`0017`; architecture v1.16/v1.17; `tests/test_trip_seal.py`; live compose e2e |
 | Pre-production ops (production Compose overlay, release smoke, backup/restore rehearsal) | Complete locally, **not deployed** | Git from `006d94e`; `docker-compose.production.yml`, `docs/runbook.md` |

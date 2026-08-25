@@ -1,8 +1,9 @@
 import hashlib
+import json
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
@@ -20,13 +21,17 @@ from app.models.campaign_assignment import (
 from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.payout import AssignmentRuleBinding, CampaignPayoutRuleRevision
+from app.models.trip_analytics import TripAnalytics, TripAnalyticsStatus
 from app.models.user import User
-from app.models.vehicle import Vehicle, VehicleStatus
+from app.models.vehicle import Vehicle, VehicleStatus, VehicleType
 from app.schemas.campaign_assignments import (
     CampaignAssignmentCancel,
     CampaignAssignmentCreate,
+    CampaignAssignmentRecommendation,
+    CampaignAssignmentRecommendationComponents,
     CampaignAssignmentTransition,
 )
+from app.schemas.drivers import normalize_optional_text
 from app.services.billing import reserve_assignment_liability
 from app.services.campaigns import comparable_campaign_datetime
 from app.services.drivers import get_driver_profile_by_user_id
@@ -62,6 +67,8 @@ NON_TERMINAL_ASSIGNMENT_STATUSES = {
     CampaignAssignmentStatus.ACTIVE.value,
     CampaignAssignmentStatus.DEACTIVATED.value,
 }
+
+MATCHING_VERSION = "matching_v1"
 
 
 def utc_now() -> datetime:
@@ -271,6 +278,8 @@ async def create_campaign_assignment(
     payload: CampaignAssignmentCreate,
 ) -> CampaignAssignment:
     now = utc_now()
+    if payload.recommendation_context is not None:
+        await ensure_recommendation_context_current(session, payload=payload, now=now)
     campaign = await get_campaign(session, payload.campaign_id)
     driver_profile = await get_driver_profile(session, payload.driver_profile_id)
     vehicle = await get_vehicle(session, payload.vehicle_id)
@@ -307,6 +316,268 @@ async def create_campaign_assignment(
     )
     await session.refresh(assignment)
     return assignment
+
+
+def normalized_service_city(value: str) -> str:
+    """Compare city values case-insensitively after the public trim normalization."""
+    normalized = normalize_optional_text(value)
+    if normalized is None:
+        raise ValueError("service city must be non-empty")
+    return normalized.casefold()
+
+
+def recommendation_fingerprint(
+    *,
+    campaign: Campaign,
+    driver_profile: DriverProfile,
+    vehicle: Vehicle,
+    service_city: str,
+    vehicle_load: int,
+    driver_load: int,
+    active_tracking_seconds: int,
+    latest_computed_at: datetime | None,
+) -> str:
+    facts = {
+        "matching_version": MATCHING_VERSION,
+        "campaign_id": str(campaign.id),
+        "campaign_status": campaign.status,
+        "driver_profile_id": str(driver_profile.id),
+        "driver_onboarding_status": driver_profile.onboarding_status,
+        "service_city": service_city,
+        "vehicle_id": str(vehicle.id),
+        "vehicle_status": vehicle.status,
+        "vehicle_type": vehicle.vehicle_type,
+        "same_campaign_vehicle_non_terminal": False,
+        "vehicle_load": vehicle_load,
+        "driver_load": driver_load,
+        "active_tracking_seconds": active_tracking_seconds,
+        "latest_computed_at": latest_computed_at.isoformat() if latest_computed_at else None,
+    }
+    return hashlib.sha256(
+        json.dumps(facts, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+async def list_assignment_recommendations(
+    session: AsyncSession,
+    *,
+    campaign_id: UUID,
+    service_city: str,
+    limit: int,
+    offset: int,
+    driver_profile_id: UUID | None = None,
+    vehicle_id: UUID | None = None,
+    now: datetime | None = None,
+) -> tuple[list[CampaignAssignmentRecommendation], int]:
+    """Read-only, deterministic current-assignment candidates for an admin choice."""
+    now = now or utc_now()
+    city = normalized_service_city(service_city)
+    vehicle_loads = (
+        select(
+            CampaignAssignment.vehicle_id.label("vehicle_id"),
+            func.count().label("vehicle_load"),
+        )
+        .where(CampaignAssignment.status.in_(NON_TERMINAL_ASSIGNMENT_STATUSES))
+        .group_by(CampaignAssignment.vehicle_id)
+        .subquery()
+    )
+    driver_loads = (
+        select(
+            CampaignAssignment.driver_profile_id.label("driver_profile_id"),
+            func.count().label("driver_load"),
+        )
+        .where(CampaignAssignment.status.in_(NON_TERMINAL_ASSIGNMENT_STATUSES))
+        .group_by(CampaignAssignment.driver_profile_id)
+        .subquery()
+    )
+    activity = (
+        select(
+            TripAnalytics.driver_profile_id.label("driver_profile_id"),
+            func.coalesce(func.sum(TripAnalytics.active_tracking_seconds), 0).label(
+                "active_tracking_seconds"
+            ),
+            func.max(TripAnalytics.computed_at).label("latest_computed_at"),
+        )
+        .where(TripAnalytics.status == TripAnalyticsStatus.COMPUTED.value)
+        .group_by(TripAnalytics.driver_profile_id)
+        .subquery()
+    )
+    same_campaign_vehicle_assignment = (
+        select(CampaignAssignment.id)
+        .where(
+            CampaignAssignment.campaign_id == campaign_id,
+            CampaignAssignment.vehicle_id == Vehicle.id,
+            CampaignAssignment.status.in_(NON_TERMINAL_ASSIGNMENT_STATUSES),
+        )
+        .exists()
+    )
+    filters = [
+        Campaign.id == campaign_id,
+        Campaign.status.in_(
+            {
+                CampaignStatus.SCHEDULED.value,
+                CampaignStatus.ACTIVE.value,
+                CampaignStatus.PAUSED.value,
+            }
+        ),
+        (Campaign.end_at.is_(None)) | (Campaign.end_at >= now),
+        DriverProfile.onboarding_status == DriverOnboardingStatus.ACTIVE.value,
+        func.lower(func.trim(DriverProfile.service_city)) == city,
+        Vehicle.status == VehicleStatus.ACTIVE.value,
+        Vehicle.vehicle_type == VehicleType.CAR.value,
+        ~same_campaign_vehicle_assignment,
+    ]
+    if driver_profile_id is not None:
+        filters.append(DriverProfile.id == driver_profile_id)
+    if vehicle_id is not None:
+        filters.append(Vehicle.id == vehicle_id)
+
+    vehicle_load = func.coalesce(vehicle_loads.c.vehicle_load, 0)
+    driver_load = func.coalesce(driver_loads.c.driver_load, 0)
+    active_tracking_seconds = func.coalesce(activity.c.active_tracking_seconds, 0)
+    statement = (
+        select(
+            Campaign,
+            DriverProfile,
+            User,
+            Vehicle,
+            vehicle_load.label("vehicle_load"),
+            driver_load.label("driver_load"),
+            active_tracking_seconds.label("active_tracking_seconds"),
+            activity.c.latest_computed_at,
+        )
+        .select_from(Vehicle)
+        .join(DriverProfile, DriverProfile.id == Vehicle.driver_profile_id)
+        .join(User, User.id == DriverProfile.user_id)
+        .join(Campaign, Campaign.id == campaign_id)
+        .outerjoin(vehicle_loads, vehicle_loads.c.vehicle_id == Vehicle.id)
+        .outerjoin(driver_loads, driver_loads.c.driver_profile_id == DriverProfile.id)
+        .outerjoin(activity, activity.c.driver_profile_id == DriverProfile.id)
+        .where(*filters)
+    )
+    total = int(
+        await session.scalar(select(func.count()).select_from(statement.subquery())) or 0
+    )
+    rows = (
+        await session.execute(
+            statement.order_by(
+                vehicle_load,
+                driver_load,
+                active_tracking_seconds.desc(),
+                activity.c.latest_computed_at.desc().nulls_last(),
+                DriverProfile.id,
+                Vehicle.id,
+            )
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+    candidates = []
+    for index, row in enumerate(rows, start=offset + 1):
+        (
+            candidate_campaign,
+            driver_profile,
+            driver_user,
+            vehicle,
+            vehicle_count,
+            driver_count,
+            signal,
+            latest,
+        ) = row
+        candidates.append(
+            CampaignAssignmentRecommendation(
+                rank=index,
+                driver_profile_id=driver_profile.id,
+                driver_name=driver_user.full_name,
+                vehicle_id=vehicle.id,
+                vehicle_plate_number=vehicle.plate_number,
+                vehicle_make=vehicle.make,
+                vehicle_model=vehicle.model,
+                service_city=service_city.strip(),
+                vehicle_type=VehicleType.CAR.value,
+                matching_version=MATCHING_VERSION,
+                fingerprint=recommendation_fingerprint(
+                    campaign=candidate_campaign,
+                    driver_profile=driver_profile,
+                    vehicle=vehicle,
+                    service_city=city,
+                    vehicle_load=int(vehicle_count),
+                    driver_load=int(driver_count),
+                    active_tracking_seconds=int(signal),
+                    latest_computed_at=latest,
+                ),
+                components=CampaignAssignmentRecommendationComponents(
+                    vehicle_load=int(vehicle_count),
+                    driver_load=int(driver_count),
+                    active_tracking_seconds=int(signal),
+                    latest_computed_at=latest,
+                ),
+            )
+        )
+    return candidates, total
+
+
+async def ensure_recommendation_context_current(
+    session: AsyncSession,
+    *,
+    payload: CampaignAssignmentCreate,
+    now: datetime,
+) -> None:
+    context = payload.recommendation_context
+    assert context is not None
+    # Serialize the selected facts in the same stable order as the write path.
+    # In PostgreSQL, FOR UPDATE also makes concurrent FK-backed assignment or
+    # analytics inserts wait, closing the recommendation-check/create window.
+    for model, identifier in (
+        (Campaign, payload.campaign_id),
+        (DriverProfile, payload.driver_profile_id),
+        (Vehicle, payload.vehicle_id),
+    ):
+        locked = await session.scalar(
+            select(model).where(model.id == identifier).with_for_update()
+        )
+        if locked is None:
+            raise stale_recommendation_error()
+    # Lock every existing row that can enter, leave, or change either aggregate.
+    # The parent locks above make concurrent inserts targeting this candidate
+    # wait on their foreign-key checks; these row locks cover existing updates.
+    await session.execute(
+        select(CampaignAssignment.id)
+        .where(
+            or_(
+                CampaignAssignment.driver_profile_id == payload.driver_profile_id,
+                CampaignAssignment.vehicle_id == payload.vehicle_id,
+            )
+        )
+        .order_by(CampaignAssignment.id)
+        .with_for_update()
+    )
+    await session.execute(
+        select(TripAnalytics.id)
+        .where(TripAnalytics.driver_profile_id == payload.driver_profile_id)
+        .order_by(TripAnalytics.id)
+        .with_for_update()
+    )
+    candidates, _ = await list_assignment_recommendations(
+        session,
+        campaign_id=payload.campaign_id,
+        service_city=context.service_city,
+        limit=1,
+        offset=0,
+        driver_profile_id=payload.driver_profile_id,
+        vehicle_id=payload.vehicle_id,
+        now=now,
+    )
+    if len(candidates) != 1 or candidates[0].fingerprint != context.fingerprint:
+        raise stale_recommendation_error()
+
+
+def stale_recommendation_error() -> AppError:
+    return AppError(
+        "STALE_RECOMMENDATION",
+        "The selected recommendation has changed; refresh ranked candidates before offering.",
+        status_code=status.HTTP_409_CONFLICT,
+    )
 
 
 def assignment_not_found() -> AppError:

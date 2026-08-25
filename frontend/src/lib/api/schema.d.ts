@@ -108,6 +108,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/campaign-assignments/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List ranked car assignment recommendations */
+        get: operations["admin_list_assignment_recommendations_api_v1_admin_campaign_assignments_recommendations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/campaign-assignments/{assignment_id}": {
         parameters: {
             query?: never;
@@ -3289,6 +3306,7 @@ export interface components {
             };
             /** Notes */
             notes?: string | null;
+            recommendation_context?: components["schemas"]["CampaignAssignmentRecommendationContext"] | null;
             /**
              * Vehicle Id
              * Format: uuid
@@ -3370,6 +3388,86 @@ export interface components {
              * Format: uuid
              */
             vehicle_id: string;
+        };
+        /** CampaignAssignmentRecommendation */
+        CampaignAssignmentRecommendation: {
+            components: components["schemas"]["CampaignAssignmentRecommendationComponents"];
+            /** Driver Name */
+            driver_name: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /** Fingerprint */
+            fingerprint: string;
+            /**
+             * Matching Version
+             * @constant
+             */
+            matching_version: "matching_v1";
+            /** Rank */
+            rank: number;
+            /** Service City */
+            service_city: string;
+            /**
+             * Vehicle Id
+             * Format: uuid
+             */
+            vehicle_id: string;
+            /** Vehicle Make */
+            vehicle_make: string | null;
+            /** Vehicle Model */
+            vehicle_model: string | null;
+            /** Vehicle Plate Number */
+            vehicle_plate_number: string;
+            /**
+             * Vehicle Type
+             * @constant
+             */
+            vehicle_type: "car";
+        };
+        /** CampaignAssignmentRecommendationComponents */
+        CampaignAssignmentRecommendationComponents: {
+            /** Active Tracking Seconds */
+            active_tracking_seconds: number;
+            /** Driver Load */
+            driver_load: number;
+            /** Latest Computed At */
+            latest_computed_at: string | null;
+            /** Vehicle Load */
+            vehicle_load: number;
+        };
+        /**
+         * CampaignAssignmentRecommendationContext
+         * @description The advisory candidate snapshot an admin explicitly selected.
+         */
+        CampaignAssignmentRecommendationContext: {
+            /** Fingerprint */
+            fingerprint: string;
+            /**
+             * Matching Version
+             * @constant
+             */
+            matching_version: "matching_v1";
+            /** Service City */
+            service_city: string;
+            /**
+             * Vehicle Type
+             * @constant
+             */
+            vehicle_type: "car";
+        };
+        /** CampaignAssignmentRecommendationListResponse */
+        CampaignAssignmentRecommendationListResponse: {
+            /** Items */
+            items: components["schemas"]["CampaignAssignmentRecommendation"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
         };
         /**
          * CampaignAssignmentStatus
@@ -8147,6 +8245,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignAssignmentRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_list_assignment_recommendations_api_v1_admin_campaign_assignments_recommendations_get: {
+        parameters: {
+            query: {
+                campaign_id: string;
+                service_city: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignAssignmentRecommendationListResponse"];
                 };
             };
             /** @description Validation Error */

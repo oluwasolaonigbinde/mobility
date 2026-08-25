@@ -1647,6 +1647,16 @@
             ],
             "title": "Notes"
           },
+          "recommendation_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CampaignAssignmentRecommendationContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "vehicle_id": {
             "format": "uuid",
             "title": "Vehicle Id",
@@ -1876,6 +1886,195 @@
           "updated_at"
         ],
         "title": "CampaignAssignmentRead",
+        "type": "object"
+      },
+      "CampaignAssignmentRecommendation": {
+        "properties": {
+          "components": {
+            "$ref": "#/components/schemas/CampaignAssignmentRecommendationComponents"
+          },
+          "driver_name": {
+            "title": "Driver Name",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "fingerprint": {
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "matching_version": {
+            "const": "matching_v1",
+            "title": "Matching Version",
+            "type": "string"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "service_city": {
+            "title": "Service City",
+            "type": "string"
+          },
+          "vehicle_id": {
+            "format": "uuid",
+            "title": "Vehicle Id",
+            "type": "string"
+          },
+          "vehicle_make": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Make"
+          },
+          "vehicle_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Model"
+          },
+          "vehicle_plate_number": {
+            "title": "Vehicle Plate Number",
+            "type": "string"
+          },
+          "vehicle_type": {
+            "const": "car",
+            "title": "Vehicle Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rank",
+          "driver_profile_id",
+          "driver_name",
+          "vehicle_id",
+          "vehicle_plate_number",
+          "vehicle_make",
+          "vehicle_model",
+          "service_city",
+          "vehicle_type",
+          "matching_version",
+          "fingerprint",
+          "components"
+        ],
+        "title": "CampaignAssignmentRecommendation",
+        "type": "object"
+      },
+      "CampaignAssignmentRecommendationComponents": {
+        "properties": {
+          "active_tracking_seconds": {
+            "title": "Active Tracking Seconds",
+            "type": "integer"
+          },
+          "driver_load": {
+            "title": "Driver Load",
+            "type": "integer"
+          },
+          "latest_computed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Computed At"
+          },
+          "vehicle_load": {
+            "title": "Vehicle Load",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "vehicle_load",
+          "driver_load",
+          "active_tracking_seconds",
+          "latest_computed_at"
+        ],
+        "title": "CampaignAssignmentRecommendationComponents",
+        "type": "object"
+      },
+      "CampaignAssignmentRecommendationContext": {
+        "additionalProperties": false,
+        "description": "The advisory candidate snapshot an admin explicitly selected.",
+        "properties": {
+          "fingerprint": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "matching_version": {
+            "const": "matching_v1",
+            "title": "Matching Version",
+            "type": "string"
+          },
+          "service_city": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Service City",
+            "type": "string"
+          },
+          "vehicle_type": {
+            "const": "car",
+            "title": "Vehicle Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service_city",
+          "vehicle_type",
+          "matching_version",
+          "fingerprint"
+        ],
+        "title": "CampaignAssignmentRecommendationContext",
+        "type": "object"
+      },
+      "CampaignAssignmentRecommendationListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CampaignAssignmentRecommendation"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "CampaignAssignmentRecommendationListResponse",
         "type": "object"
       },
       "CampaignAssignmentStatus": {
@@ -14788,6 +14987,86 @@
           }
         ],
         "summary": "Create a campaign assignment",
+        "tags": [
+          "Campaign Assignments"
+        ]
+      }
+    },
+    "/api/v1/admin/campaign-assignments/recommendations": {
+      "get": {
+        "operationId": "admin_list_assignment_recommendations_api_v1_admin_campaign_assignments_recommendations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "service_city",
+            "required": true,
+            "schema": {
+              "title": "Service City",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignAssignmentRecommendationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List ranked car assignment recommendations",
         "tags": [
           "Campaign Assignments"
         ]
