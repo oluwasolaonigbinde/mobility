@@ -12,6 +12,7 @@ from conftest import (
     create_test_campaign_assignment,
     create_test_driver_profile,
     create_test_impression_estimate,
+    create_test_organization,
     create_test_traffic_density_profile,
     create_test_trip_analytics,
     create_test_trip_session,
@@ -28,6 +29,7 @@ from app.jobs.disclosure_retention import purge_expired_disclosure_query_history
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.disclosure import DisclosureQueryDecision
 from app.models.driver import DriverOnboardingStatus
+from app.models.organization import MembershipRole, MembershipStatus, OrganizationMembership
 from app.models.trip import TripSessionStatus
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
@@ -148,6 +150,66 @@ def test_live_gate_runs_before_advertiser_membership_read() -> None:
                 user_id=uuid4(),
             )
         assert blocked.value.code == "PRIVACY_LIVE_USE_BLOCKED"
+
+    asyncio.run(run())
+
+
+def test_governed_output_selects_latest_active_membership_deterministically(
+    db_sessionmaker,
+) -> None:
+    advertiser = create_test_user(
+        db_sessionmaker,
+        email="disclosure-multi-membership@example.com",
+        role=UserRole.ADVERTISER,
+    )
+    first_org, _ = create_test_organization(
+        db_sessionmaker,
+        name="First disclosure org",
+        owner_user_id=advertiser.id,
+    )
+    second_org, _ = create_test_organization(
+        db_sessionmaker,
+        name="Second disclosure org",
+        owner_user_id=advertiser.id,
+    )
+
+    async def run() -> None:
+        async with db_sessionmaker() as session:
+            # Make the adopted deterministic rule explicit when timestamps tie.
+            memberships = list(
+                await session.scalars(
+                    select(OrganizationMembership)
+                    .where(OrganizationMembership.user_id == advertiser.id)
+                    .order_by(OrganizationMembership.created_at, OrganizationMembership.id)
+                )
+            )
+            assert {membership.organization_id for membership in memberships} == {
+                first_org.id,
+                second_org.id,
+            }
+            membership_by_org = {
+                membership.organization_id: membership for membership in memberships
+            }
+            tied_created_at = datetime(2026, 1, 1, tzinfo=UTC)
+            for membership in memberships:
+                membership.created_at = tied_created_at
+            expected_organization_id = max(
+                memberships, key=lambda membership: membership.id
+            ).organization_id
+            for membership in memberships:
+                membership.status = MembershipStatus.ACTIVE
+                membership.role = MembershipRole.OWNER
+            await session.commit()
+
+        async with db_sessionmaker() as session:
+            selected = await require_governed_advertiser_output(
+                session,
+                settings=live_test_settings(),
+                route_id="advertiser.dashboard.summary",
+                user_id=advertiser.id,
+                requires_measurement_run=False,
+            )
+            assert selected == expected_organization_id
 
     asyncio.run(run())
 
@@ -585,3 +647,119 @@ def test_heatmap_floor_enforces_exact_vehicle_trip_day_and_metric_contributor_ed
 
     assert exact == 1
     assert (below_vehicle, below_trip, below_day, over_cap) == (0, 0, 0, 0)
+
+
+def test_heatmap_suppresses_when_an_unselected_serialized_metric_is_dominated(
+    postgis_db_sessionmaker,
+) -> None:
+    admin, _, _, campaign, *_ = create_heatmap_graph(
+        postgis_db_sessionmaker,
+        advertiser_email="disclosure-cross-metric-advertiser@example.com",
+        driver_email="disclosure-cross-metric-driver@example.com",
+        plate_number="DISC-CROSS-1",
+    )
+    driver = create_test_user(
+        postgis_db_sessionmaker,
+        email="disclosure-cross-metric-second-driver@example.com",
+        password=PASSWORD,
+        role=UserRole.DRIVER,
+    )
+    profile = create_test_driver_profile(
+        postgis_db_sessionmaker,
+        user_id=driver.id,
+        onboarding_status=DriverOnboardingStatus.ACTIVE,
+    )
+    vehicle = create_test_vehicle(
+        postgis_db_sessionmaker,
+        driver_profile_id=profile.id,
+        plate_number="DISC-CROSS-2",
+        vehicle_status=VehicleStatus.ACTIVE,
+    )
+    assignment = create_test_campaign_assignment(
+        postgis_db_sessionmaker,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        assigned_by_user_id=admin.id,
+        assignment_status=CampaignAssignmentStatus.ACTIVE,
+        activated_at=RECORDED_AT,
+    )
+    trip = create_test_trip_session(
+        postgis_db_sessionmaker,
+        assignment_id=assignment.id,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        started_by_user_id=driver.id,
+        trip_status=TripSessionStatus.ENDED,
+        started_at=RECORDED_AT,
+        ended_at=RECORDED_AT.replace(hour=11),
+    )
+    analytics = create_test_trip_analytics(
+        postgis_db_sessionmaker,
+        trip_session_id=trip.id,
+        assignment_id=assignment.id,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        started_at=RECORDED_AT,
+        ended_at=RECORDED_AT.replace(hour=11),
+        first_ping_at=RECORDED_AT,
+        last_ping_at=RECORDED_AT.replace(minute=5),
+        distance_m=Decimal("1000.00"),
+    )
+    density = create_test_traffic_density_profile(
+        postgis_db_sessionmaker,
+        name="Cross-metric disclosure density",
+    )
+    create_test_impression_estimate(
+        postgis_db_sessionmaker,
+        trip_session_id=trip.id,
+        trip_analytics_id=analytics.id,
+        assignment_id=assignment.id,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        traffic_density_profile_id=density.id,
+        estimated_impressions=Decimal("10000.00"),
+    )
+    add_ping_batch(
+        postgis_db_sessionmaker,
+        trip_id=trip.id,
+        idempotency_key="disclosure-cross-metric-second",
+        points=[
+            (RECORDED_AT, 6.45, 3.39),
+            (RECORDED_AT.replace(minute=5), 6.45, 3.39),
+        ],
+    )
+    query = heatmaps.parse_heatmap_query(
+        bbox=BBOX,
+        resolution_m=500,
+        metric="ping_count",
+        start_at=None,
+        end_at=None,
+        settings=live_test_settings(),
+    )
+
+    async def run() -> int:
+        async with postgis_db_sessionmaker() as session:
+            result = await heatmaps.build_heatmap(
+                session,
+                query=query,
+                settings=live_test_settings(
+                    privacy_min_vehicles_per_cell=2,
+                    privacy_min_trips_per_cell=2,
+                    privacy_min_days_per_cell=1,
+                    privacy_max_contributor_share=0.75,
+                ),
+                campaign_id=campaign.id,
+                organization_id=None,
+                vehicle_type=None,
+                metadata_campaign_id=campaign.id,
+                metadata_organization_id=None,
+            )
+            return len(result.features)
+
+    # ping_count is balanced at 50/50, but estimated_impressions is dominated
+    # by the second vehicle and is serialized in the same feature.
+    assert asyncio.run(run()) == 0

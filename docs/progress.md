@@ -59,9 +59,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 ### Current control pointer
 
 **Controller state:** `ACTIVE`
-**Control package:** `PKG-06` — W3-03A is verified and Package 6 remains in
-progress. The unresolved Package 5 Extended Pro verdict prevents final Package
-6 closure/publication but does not invalidate this dependency-free checkpoint.
+**Control package:** `PKG-06` — W3-03A is verified on the adopted corrected
+Package 5 history and Package 6 remains in progress. Package 5 remains BLOCKED
+only on its registered dependency/external gates.
 **Current checkpoint:** `PKG-06 / W3-03B` — W3-03A is DONE. W3-03B is the next
 dependency-safe pointer; it has not been admitted or started in this checkpoint.
 
@@ -541,7 +541,8 @@ dependency-safe pointer; it has not been admitted or started in this checkpoint.
   retention references; numeric thresholds alone cannot enable it. Reports
   remain additionally denied until W3-00E safe runs. The grandfathered
   heatmap reader now releases only coarse cells meeting distinct vehicle,
-  trip and day floors plus a requested-metric contributor cap. Atomic history
+  trip and day floors plus one contributor cap applied to every serialized
+  ping, trip, distance and impression metric. Atomic history
   binds principal, tenant, campaign, endpoint, window, filters and result
   fingerprint; one global spatial-history lock plus hierarchical global/org/
   campaign overlap checks prevents cross-endpoint, cross-principal,
@@ -589,7 +590,8 @@ dependency-safe pointer; it has not been admitted or started in this checkpoint.
   rewriting history. The privacy gate precedes advertiser and service-enforced
   active-admin access; cross-tenant, inactive, expired and changed-payload
   operations fail closed. Advertiser setup/removal and read-only admin
-  monitoring move with all three §9 baselines. Focused API/RBAC/lifecycle/
+  monitoring is service-authorized for active admins and moves with all three
+  §9 baselines. Focused API/RBAC/lifecycle/
   retry/audit/migration/frontend checks pass; five real-PostgreSQL migration/
   concurrency cases cover 0045–0047, same- and distinct-key retries plus
   source-deactivation and campaign/zone races.
@@ -610,6 +612,24 @@ dependency-safe pointer; it has not been admitted or started in this checkpoint.
   creative/activation chain. W3-01C/D and W3-02A/B therefore remain dependency-
   blocked. Package 5 is BLOCKED, not DONE; the controller advances to
   dependency-free PKG-06/W3-03A without starting it.
+- **Extended Pro correction pass (25 Aug 2026):** four validated defects were
+  repaired on the published Package 5 head without reopening Packages 1–4:
+  migration `0047`'s PostgreSQL partial active-link index is now declared in
+  ORM metadata with a SQLite partial predicate and an autogenerate regression;
+  heatmap contributor suppression now covers every serialized metric rather
+  than only the selected weight; source monitoring and admin heatmap services
+  now require an active admin before domain reads; and governed advertiser
+  output deterministically selects the newest active organization membership
+  after the live gate. Focused red/green regressions pass, followed by the
+  impacted Package 5 backend/migration subset (42 passed, 2 warnings). The
+  post-repair aggregate backend gate is 968 passed, 3 skipped; frontend lint,
+  typecheck, 212 unit tests, contract drift and the webpack build pass, and
+  pre-production verification is 26 passed. The local Playwright attempt
+  reached 63 passed and 6 skipped but had 9 environment-only failures because
+  the running API is mounted from another worktree with stale seeded state and
+  the cleanup path lacked `PAYOUT_CRYPTO_KEYRING_B64`; it is not attributed to
+  these repairs and was not rerun. No external gate changed, and Package 6's
+  separate W3-03A checkpoint was not touched.
 - **Closure:** privacy/measurement review proves suppression, reproducibility,
   provenance and safe claims before any advertiser live-use gate opens.
 
@@ -629,8 +649,8 @@ dependency-safe pointer; it has not been admitted or started in this checkpoint.
   admin recommendation→offer journey, and consolidated review RESOLVED. No
   migration, automatic assignment, person/payee/KYC eligibility claim, provider
   input or live-use authorization was added. W3-03B–W3-04C were not started;
-  final Package 6 closure/publication remains held by the unresolved Package 5
-  Extended Pro verdict.
+  the corrected Package 5 history is adopted beneath this checkpoint and its
+  external legal/reporting/ad-platform gates remain unchanged.
 - **Closure:** security/privacy/money and lifecycle races pass, including the
   complete accept/decline/expiry flow and non-work-eligible pending states.
 
@@ -1755,7 +1775,7 @@ and Git history win.
 | S1 — payout engine v2 (hourly pay + daily caps, D2/D4/D9) | Complete, merged — RM1 fixed and the original whole-trip stationary grace retained for immutable payout-v2 history | Git `f9cd8ca`; architecture v1.8/v1.15, §16.1 [BUILT] |
 | PKG-01 — foundations and empirical risk proof | Complete — RM2/RM6/RM7 closed; payout-v3 frozen parked-time behavior, PWA protocol/interrupted-flow build proof and provider-neutral release/recovery proof delivered; physical/live validation remains explicitly deferred | Git `d2cd424`…`be726a2` plus the package closure commit; architecture v1.30; D22/D23; automated/PostGIS/frontend/browser/recovery evidence |
 | PKG-02 — money integrity and payout operations | Complete — RM8/RM10/RM11 closed; copied-route control, authoritative holds, clean release, encrypted payees, frozen provider instructions, line finality and carry-forward debt delivered provider-neutrally | Git through `e3a505e`; migrations `0022`–`0031`; architecture v1.37; Postgres/frontend/contract/synthetic end-to-end evidence and consolidated review resolved |
-| PKG-06 / W3-03A — matching recommendations | Complete checkpoint — advisory cars-only ranking, explicit admin choice and concurrency-safe stale selection; later Package 6 items not started | Working candidate on `feat/pkg-06`; architecture v1.47; focused PostgreSQL/backend/frontend/contract/live-stack evidence and consolidated review resolved |
+| PKG-06 / W3-03A — matching recommendations | Complete checkpoint — advisory cars-only ranking, explicit admin choice and concurrency-safe stale selection; later Package 6 items not started | `4cf15cd` plus corrected Package 5 adoption merge; architecture v1.48; focused PostgreSQL/backend/frontend/contract/live-stack evidence and consolidated review resolved |
 | S4 — data lifecycle (ping partitions, retention purge, audit backfill, D10) | Complete, merged | Git `a879a3d`…`4f487e7`; architecture v1.9, §24.2 [BUILT] |
 | W0-F — trip finality protocol + durable client queue (RM3/RM4/RM5, D15) | Complete — sealed-only money chain, post-seal quarantine, IndexedDB queue with stable retry keys; independently reviewed and hardened (D16: apply-after-initial-payout, pre-seal analytics recompute, fail-closed client) | Migrations `0016`+`0017`; architecture v1.16/v1.17; `tests/test_trip_seal.py`; live compose e2e |
 | Pre-production ops (production Compose overlay, release smoke, backup/restore rehearsal) | Complete locally, **not deployed** | Git from `006d94e`; `docker-compose.production.yml`, `docs/runbook.md` |

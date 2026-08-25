@@ -26,14 +26,16 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status as http_status
 
 from app.core.config import Settings
+from app.core.errors import AppError
 from app.models.campaign import CampaignStatus
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
 from app.models.impression import ImpressionEstimate
 from app.models.payout import PayoutCalculation
 from app.models.trip import LocationPing, LocationPingBatch, TripSessionStatus
-from app.models.user import UserRole
+from app.models.user import UserRole, UserStatus
 from app.models.vehicle import VehicleStatus, VehicleType
+from app.services import heatmaps
 from app.services.trips import point_value
 
 PASSWORD = "long-secure-password"
@@ -535,6 +537,74 @@ def test_admin_heatmap_filters_global_campaign_org_and_vehicle_type(
     assert invalid_vehicle_type.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
     assert invalid_vehicle_type.json()["error"]["code"] == "VALIDATION_ERROR"
     assert advertiser.role == UserRole.ADVERTISER
+
+
+def test_admin_heatmap_service_requires_active_admin_and_allows_one(
+    db_sessionmaker,
+    monkeypatch,
+) -> None:
+    advertiser = create_test_user(
+        db_sessionmaker,
+        email="admin-heatmap-service-advertiser@example.com",
+        role=UserRole.ADVERTISER,
+    )
+    admin = create_test_user(
+        db_sessionmaker,
+        email="admin-heatmap-service-admin@example.com",
+        role=UserRole.ADMIN,
+    )
+    disabled_admin = create_test_user(
+        db_sessionmaker,
+        email="admin-heatmap-service-disabled@example.com",
+        role=UserRole.ADMIN,
+        user_status=UserStatus.DISABLED,
+    )
+    settings = Settings(environment="test", privacy_disclosure_synthetic_test_mode=True)
+    query = heatmaps.HeatmapQuery(
+        bbox=[3.30, 6.40, 3.55, 6.60],
+        resolution_m=500,
+        metric=heatmaps.HeatmapMetric.PING_COUNT,
+        start_at=None,
+        end_at=None,
+    )
+
+    async def fake_build(*_args, **_kwargs):
+        return type("Result", (), {"features": []})()
+
+    async def fake_record(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(heatmaps, "build_heatmap", fake_build)
+    monkeypatch.setattr(heatmaps, "record_heatmap_disclosure", fake_record)
+
+    async def run() -> None:
+        for actor_user_id in (advertiser.id, disabled_admin.id):
+            async with db_sessionmaker() as session:
+                with pytest.raises(AppError) as denied:
+                    await heatmaps.admin_heatmap(
+                        session,
+                        user_id=actor_user_id,
+                        query=query,
+                        settings=settings,
+                        campaign_id=None,
+                        organization_id=None,
+                        vehicle_type=None,
+                    )
+                assert denied.value.code == "FORBIDDEN_ROLE"
+
+        async with db_sessionmaker() as session:
+            result = await heatmaps.admin_heatmap(
+                session,
+                user_id=admin.id,
+                query=query,
+                settings=settings,
+                campaign_id=None,
+                organization_id=None,
+                vehicle_type=None,
+            )
+            assert result.features == []
+
+    asyncio.run(run())
 
 
 def test_heatmap_empty_feature_collection(

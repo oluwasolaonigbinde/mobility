@@ -24,6 +24,17 @@ class RetargetingSourceLink(Base):
             "status IN ('active', 'removed')", name="ck_retargeting_source_links_status"
         ),
         Index("ix_retargeting_source_links_source_created", "source_id", "created_at"),
+        Index(
+            "uq_retargeting_source_links_active_identity",
+            "source_id",
+            "campaign_id",
+            "zone_id",
+            "start_at",
+            "end_at",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
+            sqlite_where=text("status = 'active'"),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(

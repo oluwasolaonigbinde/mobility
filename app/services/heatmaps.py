@@ -13,6 +13,7 @@ from starlette import status
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.campaign import Campaign
+from app.models.user import User, UserRole, UserStatus
 from app.schemas.heatmaps import (
     HeatmapFeature,
     HeatmapFeatureCollection,
@@ -230,6 +231,22 @@ async def ensure_admin_filter_consistency(
     return campaign_org_id
 
 
+async def _active_admin(session: AsyncSession, actor_user_id: UUID) -> None:
+    admin_id = await session.scalar(
+        select(User.id).where(
+            User.id == actor_user_id,
+            User.role == UserRole.ADMIN,
+            User.status == UserStatus.ACTIVE,
+        )
+    )
+    if admin_id is None:
+        raise AppError(
+            "FORBIDDEN_ROLE",
+            "Admin role is required",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+
+
 async def advertiser_campaign_heatmap(
     session: AsyncSession,
     *,
@@ -289,6 +306,7 @@ async def admin_heatmap(
     vehicle_type: str | None,
 ) -> HeatmapFeatureCollection:
     ensure_disclosure_live_gate(settings, requires_measurement_run=False)
+    await _active_admin(session, user_id)
     disclosure_tenant_id = await ensure_admin_filter_consistency(
         session,
         campaign_id=campaign_id,
@@ -359,7 +377,6 @@ async def build_heatmap(
         "privacy_min_trips_per_cell": settings.privacy_min_trips_per_cell,
         "privacy_min_days_per_cell": settings.privacy_min_days_per_cell,
         "privacy_max_contributor_share": settings.privacy_max_contributor_share,
-        "privacy_metric": query.metric.value,
         "max_cells": settings.heatmap_max_cells,
     }
     filters = [
@@ -493,23 +510,15 @@ def aggregation_sql(filters: list[str]) -> str:
             SELECT
                 grid_x,
                 grid_y,
-                max(
-                    CASE :privacy_metric
-                        WHEN 'ping_count' THEN ping_count
-                        WHEN 'trip_count' THEN trip_count
-                        WHEN 'distance_m' THEN distance_m
-                        WHEN 'estimated_impressions' THEN estimated_impressions
-                    END
-                ) / nullif(
-                    sum(
-                        CASE :privacy_metric
-                            WHEN 'ping_count' THEN ping_count
-                            WHEN 'trip_count' THEN trip_count
-                            WHEN 'distance_m' THEN distance_m
-                            WHEN 'estimated_impressions' THEN estimated_impressions
-                        END
-                    ),
-                    0
+                greatest(
+                    coalesce(max(ping_count) / nullif(sum(ping_count), 0), 0),
+                    coalesce(max(trip_count) / nullif(sum(trip_count), 0), 0),
+                    coalesce(max(distance_m) / nullif(sum(distance_m), 0), 0),
+                    coalesce(
+                        max(estimated_impressions)
+                        / nullif(sum(estimated_impressions), 0),
+                        0
+                    )
                 ) AS max_share
             FROM vehicle_cell_metrics
             GROUP BY grid_x, grid_y

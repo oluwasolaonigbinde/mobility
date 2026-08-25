@@ -146,9 +146,11 @@ async def deactivate_advertiser_source(
 
 @router.get("/admin/retargeting-sources", response_model=RetargetingSourceListRead)
 async def list_admin_sources(
-    _: AdminUserDependency, session: SessionDependency, settings: SettingsDependency
+    user: AdminUserDependency, session: SessionDependency, settings: SettingsDependency
 ) -> RetargetingSourceListRead:
-    sources = await list_admin_retargeting_sources(session, settings=settings)
+    sources = await list_admin_retargeting_sources(
+        session, settings=settings, actor_user_id=user.id
+    )
     return RetargetingSourceListRead(
         items=[await source_response(session, source) for source in sources], total=len(sources)
     )
@@ -157,12 +159,15 @@ async def list_admin_sources(
 @router.get("/admin/retargeting-sources/{source_id}", response_model=RetargetingSourceRead)
 async def get_admin_source(
     source_id: UUID,
-    _: AdminUserDependency,
+    user: AdminUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> RetargetingSourceRead:
     return await source_response(
-        session, await get_admin_retargeting_source(session, settings=settings, source_id=source_id)
+        session,
+        await get_admin_retargeting_source(
+            session, settings=settings, actor_user_id=user.id, source_id=source_id
+        ),
     )
 
 
@@ -171,10 +176,13 @@ async def get_admin_source(
 )
 async def admin_source_history(
     source_id: UUID,
-    _: AdminUserDependency,
+    user: AdminUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> RetargetingSourceHistoryRead:
     return await history_response(
-        session, await get_admin_retargeting_source(session, settings=settings, source_id=source_id)
+        session,
+        await get_admin_retargeting_source(
+            session, settings=settings, actor_user_id=user.id, source_id=source_id
+        ),
     )
