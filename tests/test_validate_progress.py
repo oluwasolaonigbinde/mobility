@@ -49,7 +49,7 @@ def _with_control_pointer(text: str, *, state: str, package: str, checkpoint: st
 def _pkg01_active() -> str:
     """Reconstruct the immediately preceding valid frontier for transition tests."""
     text = re.sub(
-        r"^(\| 1 \| \*\*PKG-01 —.*?\| )(?:\*\*[^|]+\*\*|DONE|QUEUED|BLOCKED)( \|)",
+        r"^(\| 1 \| \*\*PKG-01 —.*?\| )(?:\*\*[^|]+\*\*|DONE|QUEUED|BLOCKED|NEXT|IN PROGRESS|REVIEW)( \|)",
         r"\1**IN PROGRESS**\2",
         _progress(),
         count=1,
@@ -58,7 +58,7 @@ def _pkg01_active() -> str:
     for package_number in range(2, 10):
         text = re.sub(
             rf"^(\| {package_number} \| \*\*PKG-{package_number:02d} —.*?\| )"
-            r"(?:\*\*[^|]+\*\*|DONE|QUEUED|BLOCKED)( \|)",
+            r"(?:\*\*[^|]+\*\*|DONE|QUEUED|BLOCKED|NEXT|IN PROGRESS|REVIEW)( \|)",
             r"\1QUEUED\2",
             text,
             count=1,
@@ -99,7 +99,7 @@ def _paused_at_final_gate() -> str:
             replacement = "DONE" if number < 8 else "BLOCKED" if number == 8 else "QUEUED"
             line = re.sub(
                 r"\| (?:\*\*NEXT\*\*|\*\*IN PROGRESS\*\*|\*\*REVIEW\*\*|"
-                r"\*\*BLOCKED\*\*|QUEUED|DONE|BLOCKED) \|",
+                r"\*\*BLOCKED\*\*|QUEUED|DONE|BLOCKED|NEXT|IN PROGRESS|REVIEW) \|",
                 f"| {replacement} |",
                 line,
                 count=1,
@@ -319,7 +319,7 @@ def test_all_done_terminal_complete_state_is_valid() -> None:
     text = _progress()
     text = re.sub(
         r"^(\| \d+ \| \*\*PKG-\d{2} —.*?\| )"
-        r"(?:\*\*NEXT\*\*|\*\*IN PROGRESS\*\*|\*\*REVIEW\*\*|\*\*BLOCKED\*\*|QUEUED|BLOCKED)( \|)",
+        r"(?:\*\*NEXT\*\*|\*\*IN PROGRESS\*\*|\*\*REVIEW\*\*|\*\*BLOCKED\*\*|QUEUED|BLOCKED|NEXT|IN PROGRESS|REVIEW)( \|)",
         r"\1DONE\2",
         text,
         flags=re.MULTILINE,

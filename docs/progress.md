@@ -58,13 +58,13 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 
 ### Current control pointer
 
-**Controller state:** `PAUSED — EXT-KMS-CUSTODY`
-**Control package:** `PKG-06` — W3-03A/B/C and W3-04A are verified on the
-adopted corrected Package 5 history. Package 6 cannot admit its remaining KYC
-or vehicle stages until their recorded Package 4 evidence dependencies land.
-**Current checkpoint:** `PKG-06 / W3-04B` — W3-04A is DONE. W3-04B waits on
-W2-02D (`BLOCKED — EXT-KMS-CUSTODY`, transitively behind the storage/scanner
-chain); W3-04C waits on W3-04B plus W2-02B/D. Package 7 is not started.
+**Controller state:** `ACTIVE`
+**Control package:** `PKG-07` — the owner’s 25 Aug 2026 standing instruction
+authorizes automatic advance to the next dependency-safe package. PKG-06 stays
+BLOCKED: W3-04B/C still require their recorded Package 4 secure-evidence chain.
+**Current checkpoint:** `PKG-07 / W4-01A` — the owner-release build-admission
+gate is PRESENT and R14-A/R14-B are DONE; W4-01A is the earliest runnable
+Package 7 checklist item.
 
 ## Executable package queue
 
@@ -76,7 +76,7 @@ chain); W3-04C waits on W3-04B plus W2-02B/D. Package 7 is not started.
 | 4 | **PKG-04 — secure evidence, activation and communications** | **BLOCKED** | Campaign review and the shared in-app notification core are complete; storage/KYC/activation/provider communications await recorded external inputs and their transitive dependencies. | none — checklist DAG gates entry |
 | 5 | **PKG-05 — privacy, measurement and retargeting** | **BLOCKED** | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
 | 6 | **PKG-06 — matching and driver onboarding** | **BLOCKED** | Recommendations, offers, activity and public application are verified; KYC/payee and vehicle approval await their recorded secure-evidence dependencies. | none — checklist DAG gates entry |
-| 7 | **PKG-07 — production driver PWA** | QUEUED | The pilot PWA safely tracks, syncs, explains earnings and supports release across the device matrix. | none — checklist DAG gates entry |
+| 7 | **PKG-07 — production driver PWA** | NEXT | The pilot PWA safely tracks, syncs, explains earnings and supports release across the device matrix. | none — checklist DAG gates entry |
 | 8 | **PKG-08 — governed reporting and pilot readiness** | QUEUED | Safe reports, release infrastructure and one complete pilot acceptance gate are ready. | none — checklist DAG gates entry |
 | 9 | **PKG-09 — controlled pilot, training and handover** | QUEUED | Run the pilot, stabilize it, train roles and close operational handover. | none — checklist DAG gates entry |
 
@@ -1809,7 +1809,7 @@ otherwise synthetic/provider-neutral checklist item or its package.
 | **EXT-DISBURSEMENT-PROVIDER** | MISSING | Approved automated bank-transfer provider, account, sandbox, signing/webhook credentials and production approval | — | Provider-neutral MNY-10B/C can build/test; financially effective submission and W4-03B cannot proceed |
 | **EXT-AD-PLATFORM** | MISSING | Named ad-platform accounts, legal approval, API access/credentials and activation budget for aggregate geography/time/context activation | — | W3-01D can build/test provider-neutrally; any live aggregate contextual push remains disabled; person-level activation is outside the pilot |
 | **EXT-PILOT-PERMITS** | MISSING | Abuja permit/authority evidence for the selected vehicles/campaigns | — | D19 assigns Terrax ownership and vendor coordination; W4-03B/launch remains blocked until evidence is approved |
-| **EXT-PKG07-OWNER-RELEASE** | MISSING | Explicit project-owner release to start Package 7 after this bounded Package 6 controller assignment | Current Package 6 owner instruction: “Do not start Package 7” | W4-01A build admission only; remove no history or evidence when the owner later releases Package 7, and do not treat this as a product/live-use prerequisite |
+| **EXT-PKG07-OWNER-RELEASE** | PRESENT | Explicit project-owner release to start Package 7 after this bounded Package 6 controller assignment | Project owner’s 25 Aug 2026 standing instruction to advance the next dependency-safe package automatically | W4-01A build admission is authorized; this is not a product or live-use prerequisite |
 | **EXT-RM2-CALIBRATION-DATA** | MISSING | P1 parked-jitter and P2 Abuja-congestion field corpora (devices, participants, locations) per the owner-authorized 19 Aug 2026 Option-A collection program | — | Optional post-build calibration for a later effective revision; D22's reviewed synthetic selection is build-authoritative and this input blocks no checklist item |
 
 ### Deferred post-build validation register
