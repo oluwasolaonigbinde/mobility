@@ -106,6 +106,7 @@ def estimate_response(estimate: ImpressionEstimate) -> ImpressionEstimateRead:
         vehicle_id=estimate.vehicle_id,
         traffic_density_profile_id=estimate.traffic_density_profile_id,
         formula_version=estimate.formula_version,
+        is_authoritative=estimate.is_authoritative,
         status=estimate.status,
         estimated_impressions=estimate.estimated_impressions,
         base_distance_impressions=estimate.base_distance_impressions,

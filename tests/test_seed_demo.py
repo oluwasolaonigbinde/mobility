@@ -89,7 +89,7 @@ def test_no_seed_or_demo_migrations() -> None:
 
 
 def test_demo_seed_requires_the_code_migration_head() -> None:
-    assert required_migration_head() == "0047_retargeting_source_links"
+    assert required_migration_head() == "0048_canonical_impression_authority"
 
 
 def test_readme_documents_demo_seed_workflow() -> None:

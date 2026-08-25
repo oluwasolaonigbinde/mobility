@@ -51,6 +51,7 @@ from app.schemas.reports import (
 )
 from app.services.campaigns import get_advertiser_campaign, get_required_advertiser_context
 from app.services.disclosure import require_governed_advertiser_output
+from app.services.impressions import current_authoritative_estimates
 from app.services.payouts import latest_payout_calculation_ids
 
 ZERO_2 = Decimal("0.00")
@@ -226,9 +227,12 @@ async def impression_summary_for_org(
     filters = [
         Campaign.organization_id == organization_id,
         ImpressionEstimate.formula_version == settings.impression_formula_version,
+        ImpressionEstimate.is_authoritative.is_(True),
     ]
     apply_range(filters, ImpressionEstimate.estimated_at, start_at, end_at)
-    return await impression_summary_query(session, filters, join_campaign=True)
+    return await impression_summary_query(
+        session, filters, join_campaign=True, settings=settings
+    )
 
 
 async def impression_summary_for_campaign(
@@ -242,9 +246,12 @@ async def impression_summary_for_campaign(
     filters = [
         ImpressionEstimate.campaign_id == campaign_id,
         ImpressionEstimate.formula_version == settings.impression_formula_version,
+        ImpressionEstimate.is_authoritative.is_(True),
     ]
     apply_range(filters, ImpressionEstimate.estimated_at, start_at, end_at)
-    return await impression_summary_query(session, filters, join_campaign=False)
+    return await impression_summary_query(
+        session, filters, join_campaign=False, settings=settings
+    )
 
 
 async def impression_summary_query(
@@ -252,51 +259,39 @@ async def impression_summary_query(
     filters: list,
     *,
     join_campaign: bool,
+    settings: Settings,
 ) -> ImpressionSummary:
-    statement = select(
-        func.coalesce(func.sum(ImpressionEstimate.estimated_impressions), 0),
-        func.coalesce(
-            func.sum(
-                case(
-                    (ImpressionEstimate.status == ImpressionEstimateStatus.ESTIMATED.value, 1),
-                    else_=0,
-                )
-            ),
-            0,
-        ),
-        func.coalesce(
-            func.sum(
-                case(
-                    (
-                        ImpressionEstimate.status
-                        == ImpressionEstimateStatus.INSUFFICIENT_DATA.value,
-                        1,
-                    ),
-                    else_=0,
-                )
-            ),
-            0,
-        ),
-        func.coalesce(
-            func.sum(
-                case(
-                    (ImpressionEstimate.status == ImpressionEstimateStatus.EXCLUDED.value, 1),
-                    else_=0,
-                )
-            ),
-            0,
-        ),
-        func.coalesce(func.avg(ImpressionEstimate.confidence_score), 0),
-    ).select_from(ImpressionEstimate)
+    statement = select(ImpressionEstimate).select_from(ImpressionEstimate)
     if join_campaign:
         statement = statement.join(Campaign, Campaign.id == ImpressionEstimate.campaign_id)
-    row = (await session.execute(statement.where(*filters))).one()
+    estimates = list((await session.scalars(statement.where(*filters))).all())
+    estimates = await current_authoritative_estimates(session, estimates, settings=settings)
+    estimated_impressions = sum(
+        (Decimal(estimate.estimated_impressions or 0) for estimate in estimates),
+        Decimal("0"),
+    )
+    estimated_count = sum(
+        estimate.status == ImpressionEstimateStatus.ESTIMATED.value for estimate in estimates
+    )
+    insufficient_count = sum(
+        estimate.status == ImpressionEstimateStatus.INSUFFICIENT_DATA.value
+        for estimate in estimates
+    )
+    excluded_count = sum(
+        estimate.status == ImpressionEstimateStatus.EXCLUDED.value for estimate in estimates
+    )
+    confidence_total = sum(
+        (Decimal(estimate.confidence_score or 0) for estimate in estimates),
+        Decimal("0"),
+    )
     return ImpressionSummary(
-        estimated_impressions=decimal_2(row[0]),
-        estimated_trip_count=int(row[1] or 0),
-        insufficient_data_trip_count=int(row[2] or 0),
-        excluded_trip_count=int(row[3] or 0),
-        average_confidence_score=decimal_4(row[4]),
+        estimated_impressions=decimal_2(estimated_impressions),
+        estimated_trip_count=estimated_count,
+        insufficient_data_trip_count=insufficient_count,
+        excluded_trip_count=excluded_count,
+        average_confidence_score=decimal_4(
+            confidence_total / len(estimates) if estimates else Decimal("0")
+        ),
     )
 
 
@@ -740,26 +735,27 @@ async def daily_metrics_for_campaign(
             )
             by_day[day]["quality_count"] = int(by_day[day]["quality_count"]) + 1
 
-        estimate_rows = (
-            await session.execute(
-                select(
-                    ImpressionEstimate.trip_session_id,
-                    ImpressionEstimate.estimated_impressions,
-                    ImpressionEstimate.confidence_score,
-                ).where(
-                    ImpressionEstimate.trip_session_id.in_(trip_ids),
-                    ImpressionEstimate.formula_version == settings.impression_formula_version,
+        estimate_rows = list(
+            (
+                await session.scalars(
+                    select(ImpressionEstimate).where(
+                        ImpressionEstimate.trip_session_id.in_(trip_ids),
+                        ImpressionEstimate.formula_version == settings.impression_formula_version,
+                        ImpressionEstimate.is_authoritative.is_(True),
+                    )
                 )
-            )
-        ).all()
-        for trip_id, estimated_impressions, confidence_score in estimate_rows:
-            day = trip_days[trip_id]
+            ).all()
+        )
+        for estimate in await current_authoritative_estimates(
+            session, estimate_rows, settings=settings
+        ):
+            day = trip_days[estimate.trip_session_id]
             by_day[day]["estimated_impressions"] = decimal_2(
                 by_day[day]["estimated_impressions"]
-            ) + decimal_2(estimated_impressions)
+            ) + decimal_2(estimate.estimated_impressions)
             by_day[day]["confidence_total"] = decimal_4(
                 by_day[day]["confidence_total"]
-            ) + decimal_4(confidence_score)
+            ) + decimal_4(estimate.confidence_score)
             by_day[day]["confidence_count"] = int(by_day[day]["confidence_count"]) + 1
 
         payout_rows = (
@@ -884,12 +880,27 @@ async def advertiser_campaign_trips(
             )
         )
     if impression_status is not None:
+        candidate_estimates = list(
+            (
+                await session.scalars(
+                    select(ImpressionEstimate).where(
+                        ImpressionEstimate.campaign_id == campaign.id,
+                        ImpressionEstimate.status == impression_status,
+                        ImpressionEstimate.formula_version
+                        == settings.impression_formula_version,
+                        ImpressionEstimate.is_authoritative.is_(True),
+                    )
+                )
+            ).all()
+        )
+        current_estimates = await current_authoritative_estimates(
+            session,
+            candidate_estimates,
+            settings=settings,
+        )
         filters.append(
             TripSession.id.in_(
-                select(ImpressionEstimate.trip_session_id).where(
-                    ImpressionEstimate.status == impression_status,
-                    ImpressionEstimate.formula_version == settings.impression_formula_version,
-                )
+                [estimate.trip_session_id for estimate in current_estimates]
             )
         )
     if payout_status is not None:
@@ -940,17 +951,25 @@ async def advertiser_campaign_trips(
             .scalars()
             .all()
         }
-        for estimate in (
-            await session.execute(
-                select(ImpressionEstimate)
-                .where(
-                    ImpressionEstimate.trip_session_id.in_(trip_ids),
-                    ImpressionEstimate.formula_version == settings.impression_formula_version,
+        estimate_rows = list(
+            (
+                await session.scalars(
+                    select(ImpressionEstimate)
+                    .where(
+                        ImpressionEstimate.trip_session_id.in_(trip_ids),
+                        ImpressionEstimate.formula_version == settings.impression_formula_version,
+                        ImpressionEstimate.is_authoritative.is_(True),
+                    )
+                    .order_by(ImpressionEstimate.id)
                 )
-                .order_by(ImpressionEstimate.estimated_at.desc(), ImpressionEstimate.id)
+            ).all()
+        )
+        estimates_by_trip = {
+            estimate.trip_session_id: estimate
+            for estimate in await current_authoritative_estimates(
+                session, estimate_rows, settings=settings
             )
-        ).scalars():
-            estimates_by_trip.setdefault(estimate.trip_session_id, estimate)
+        }
         for payout in (
             await session.execute(
                 select(PayoutCalculation)

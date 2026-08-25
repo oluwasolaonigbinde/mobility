@@ -42,6 +42,9 @@ DEFAULT_PROFILE_CONSTRAINTS = frozenset({"uq_traffic_density_profiles_active_def
 IMPRESSION_ESTIMATE_CONSTRAINTS = frozenset(
     {"uq_impression_estimates_trip_formula_profile"}
 )
+AUTHORITATIVE_ESTIMATE_CONSTRAINTS = frozenset(
+    {"uq_impression_estimates_authoritative_trip_formula"}
+)
 IMPRESSION_FINGERPRINT_FIELDS = (
     "trip_analytics_id",
     "assignment_id",
@@ -216,6 +219,151 @@ def ensure_current_estimate_source(
         fraud_counts=fraud_counts,
     ):
         raise impression_estimate_stale()
+
+
+def _authoritative_profile_order():
+    return (
+        case(
+            (
+                TrafficDensityProfile.is_default.is_(True)
+                & (TrafficDensityProfile.status == TrafficDensityProfileStatus.ACTIVE.value),
+                0,
+            ),
+            else_=1,
+        ),
+        TrafficDensityProfile.id.asc(),
+        ImpressionEstimate.id.asc(),
+    )
+
+
+async def pin_authoritative_estimate(
+    session: AsyncSession,
+    *,
+    trip_id: UUID,
+    formula_version: str,
+) -> ImpressionEstimate | None:
+    """Choose one deterministic economic estimate and mark other profiles scenarios."""
+    await session.execute(
+        select(TripSession.id).where(TripSession.id == trip_id).with_for_update()
+    )
+    estimates = list(
+        (
+            await session.scalars(
+                select(ImpressionEstimate)
+                .join(
+                    TrafficDensityProfile,
+                    TrafficDensityProfile.id == ImpressionEstimate.traffic_density_profile_id,
+                )
+                .where(
+                    ImpressionEstimate.trip_session_id == trip_id,
+                    ImpressionEstimate.formula_version == formula_version,
+                )
+                .order_by(*_authoritative_profile_order())
+                .with_for_update()
+            )
+        ).all()
+    )
+    if not estimates:
+        return None
+    authoritative = estimates[0]
+    await session.execute(
+        update(ImpressionEstimate)
+        .where(
+            ImpressionEstimate.trip_session_id == trip_id,
+            ImpressionEstimate.formula_version == formula_version,
+        )
+        .values(is_authoritative=False)
+    )
+    for estimate in estimates:
+        estimate.is_authoritative = estimate.id == authoritative.id
+        metadata = dict(estimate.estimate_metadata or {})
+        metadata["authority"] = (
+            "authoritative" if estimate.id == authoritative.id else "scenario"
+        )
+        estimate.estimate_metadata = metadata
+    await session.flush()
+    return authoritative
+
+
+async def get_authoritative_estimate_for_trip(
+    session: AsyncSession,
+    *,
+    trip_id: UUID,
+    settings: Settings,
+    fraud_counts: dict[str, int] | None = None,
+    validate_source: bool = True,
+) -> ImpressionEstimate | None:
+    estimate = await session.scalar(
+        select(ImpressionEstimate)
+        .where(
+            ImpressionEstimate.trip_session_id == trip_id,
+            ImpressionEstimate.formula_version == settings.impression_formula_version,
+            ImpressionEstimate.is_authoritative.is_(True),
+        )
+        .order_by(ImpressionEstimate.id)
+        .limit(1)
+    )
+    if estimate is None or not validate_source:
+        return estimate
+    analytics = await session.scalar(
+        select(TripAnalytics).where(TripAnalytics.trip_session_id == trip_id)
+    )
+    if analytics is None or analytics.formula_version != settings.route_analytics_formula_version:
+        return None
+    active_fraud_counts = (
+        fraud_counts if fraud_counts is not None else await fraud_hold_counts(session, trip_id)
+    )
+    return (
+        estimate
+        if is_current_estimate_for_analytics(
+            estimate,
+            analytics,
+            settings,
+            fraud_counts=active_fraud_counts,
+        )
+        else None
+    )
+
+
+async def current_authoritative_estimates(
+    session: AsyncSession,
+    estimates: list[ImpressionEstimate],
+    *,
+    settings: Settings,
+) -> list[ImpressionEstimate]:
+    """Filter pinned rows whose analytics or active fraud fingerprint is stale."""
+    if not estimates:
+        return []
+    trip_ids = {estimate.trip_session_id for estimate in estimates}
+    analytics_by_trip = {
+        analytics.trip_session_id: analytics
+        for analytics in (
+            await session.scalars(
+                select(TripAnalytics).where(TripAnalytics.trip_session_id.in_(trip_ids))
+            )
+        ).all()
+    }
+    valid: list[ImpressionEstimate] = []
+    counts_by_trip: dict[UUID, dict[str, int]] = {}
+    for estimate in estimates:
+        analytics = analytics_by_trip.get(estimate.trip_session_id)
+        if (
+            analytics is None
+            or analytics.formula_version != settings.route_analytics_formula_version
+        ):
+            continue
+        counts_by_trip.setdefault(
+            estimate.trip_session_id,
+            await fraud_hold_counts(session, estimate.trip_session_id),
+        )
+        if is_current_estimate_for_analytics(
+            estimate,
+            analytics,
+            settings,
+            fraud_counts=counts_by_trip[estimate.trip_session_id],
+        ):
+            valid.append(estimate)
+    return valid
 
 
 async def clear_other_active_defaults(
@@ -723,6 +871,11 @@ async def estimate_trip_impressions(
     for field, value in values.items():
         setattr(estimate, field, value)
     await session.flush()
+    await pin_authoritative_estimate(
+        session,
+        trip_id=trip.id,
+        formula_version=settings.impression_formula_version,
+    )
     await session.refresh(estimate)
     return estimate
 
@@ -787,60 +940,50 @@ async def advertiser_campaign_impression_summary(
     filters = [
         ImpressionEstimate.campaign_id == campaign.id,
         ImpressionEstimate.formula_version == settings.impression_formula_version,
+        ImpressionEstimate.is_authoritative.is_(True),
     ]
     if start_at is not None:
         filters.append(ImpressionEstimate.estimated_at >= start_at)
     if end_at is not None:
         filters.append(ImpressionEstimate.estimated_at <= end_at)
 
-    result = await session.execute(
-        select(
-            func.coalesce(func.sum(ImpressionEstimate.estimated_impressions), 0),
-            func.count(ImpressionEstimate.id),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (ImpressionEstimate.status == ImpressionEstimateStatus.ESTIMATED.value, 1),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (
-                            ImpressionEstimate.status
-                            == ImpressionEstimateStatus.INSUFFICIENT_DATA.value,
-                            1,
-                        ),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (ImpressionEstimate.status == ImpressionEstimateStatus.EXCLUDED.value, 1),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
-            func.coalesce(func.avg(ImpressionEstimate.confidence_score), 0),
-        ).where(*filters)
+    estimates = list(
+        (
+            await session.scalars(
+                select(ImpressionEstimate).where(*filters).order_by(ImpressionEstimate.id)
+            )
+        ).all()
     )
-    row = result.one()
+    estimates = await current_authoritative_estimates(session, estimates, settings=settings)
+    estimated_impressions = sum(
+        (Decimal(estimate.estimated_impressions or 0) for estimate in estimates),
+        Decimal("0"),
+    )
+    estimated_count = sum(
+        estimate.status == ImpressionEstimateStatus.ESTIMATED.value for estimate in estimates
+    )
+    insufficient_count = sum(
+        estimate.status == ImpressionEstimateStatus.INSUFFICIENT_DATA.value
+        for estimate in estimates
+    )
+    excluded_count = sum(
+        estimate.status == ImpressionEstimateStatus.EXCLUDED.value for estimate in estimates
+    )
+    confidence_total = sum(
+        (Decimal(estimate.confidence_score or 0) for estimate in estimates),
+        Decimal("0"),
+    )
     return ImpressionSummary(
         campaign_id=campaign.id,
         formula_version=settings.impression_formula_version,
-        estimated_impressions=quantize_2(Decimal(str(row[0] or 0))),
-        trip_count=int(row[1] or 0),
-        estimated_trip_count=int(row[2] or 0),
-        insufficient_data_trip_count=int(row[3] or 0),
-        excluded_trip_count=int(row[4] or 0),
-        average_confidence_score=quantize_4(Decimal(str(row[5] or 0))),
+        estimated_impressions=quantize_2(estimated_impressions),
+        trip_count=len(estimates),
+        estimated_trip_count=estimated_count,
+        insufficient_data_trip_count=insufficient_count,
+        excluded_trip_count=excluded_count,
+        average_confidence_score=quantize_4(
+            confidence_total / len(estimates) if estimates else Decimal("0")
+        ),
         start_at=start_at,
         end_at=end_at,
     )
