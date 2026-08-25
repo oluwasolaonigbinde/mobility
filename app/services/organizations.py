@@ -9,6 +9,7 @@ from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.organization import (
     AdvertiserOrganization,
+    AdvertiserOrganizationNotificationPreference,
     MembershipRole,
     MembershipStatus,
     OrganizationMembership,
@@ -257,3 +258,87 @@ async def get_advertiser_organization_for_user(
     if row is None:
         return None
     return row[0], row[1]
+
+
+async def _notification_preference_for_organization(
+    session: AsyncSession, *, organization_id: UUID, for_update: bool = False
+) -> AdvertiserOrganizationNotificationPreference:
+    statement = select(AdvertiserOrganizationNotificationPreference).where(
+        AdvertiserOrganizationNotificationPreference.advertiser_organization_id
+        == organization_id
+    )
+    if for_update:
+        statement = statement.with_for_update()
+    preference = await session.scalar(statement)
+    if preference is not None:
+        return preference
+    preference = AdvertiserOrganizationNotificationPreference(
+        advertiser_organization_id=organization_id,
+        transactional_email_enabled=True,
+    )
+    try:
+        async with session.begin_nested():
+            session.add(preference)
+            await session.flush()
+    except IntegrityError:
+        preference = await session.scalar(
+            select(AdvertiserOrganizationNotificationPreference).where(
+                AdvertiserOrganizationNotificationPreference.advertiser_organization_id
+                == organization_id
+            )
+        )
+        if preference is None:
+            raise
+    return preference
+
+
+async def get_notification_preference(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    organization_id: UUID | None = None,
+) -> AdvertiserOrganizationNotificationPreference:
+    organization, _ = await _profile_access(
+        session,
+        actor_user_id=actor_user_id,
+        organization_id=organization_id,
+        write=False,
+    )
+    return await _notification_preference_for_organization(session, organization_id=organization.id)
+
+
+async def update_notification_preference(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    organization_id: UUID | None,
+    transactional_email_enabled: bool,
+) -> AdvertiserOrganizationNotificationPreference:
+    organization, is_admin = await _profile_access(
+        session,
+        actor_user_id=actor_user_id,
+        organization_id=organization_id,
+        write=True,
+    )
+    preference = await _notification_preference_for_organization(
+        session, organization_id=organization.id, for_update=True
+    )
+    if preference.transactional_email_enabled == transactional_email_enabled:
+        return preference
+    before = {"transactional_email_enabled": preference.transactional_email_enabled}
+    preference.transactional_email_enabled = transactional_email_enabled
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="advertiser_notification_preferences.updated",
+        entity_type="advertiser_organization_notification_preference",
+        entity_id=str(preference.id),
+        metadata={
+            "advertiser_organization_id": str(organization.id),
+            "before": before,
+            "after": {"transactional_email_enabled": transactional_email_enabled},
+            "actor_scope": "admin" if is_admin else "advertiser",
+        },
+    )
+    return preference

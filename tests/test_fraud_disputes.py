@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import auth_headers
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from test_fraud_assessments import build_graph, create_flag
 
 from app.models.audit import AuditEvent
@@ -69,7 +69,14 @@ def test_driver_projection_is_sanitized_and_dispute_reply_is_exactly_idempotent(
     async def add_legacy_secret() -> None:
         async with db_sessionmaker() as session:
             notice = await session.scalar(select(Notification))
-            notice.payload = {**notice.payload, "internal_secret": "must not escape"}
+            assert notice is not None
+            # Model-level immutability applies to contemporary writes. This is
+            # a pre-existing malformed row fixture, inserted below that guard.
+            await session.execute(
+                update(Notification)
+                .where(Notification.id == notice.id)
+                .values(payload={**notice.payload, "internal_secret": "must not escape"})
+            )
             await session.commit()
 
     asyncio.run(add_legacy_secret())

@@ -1,7 +1,34 @@
-"""Notification persistence is intentionally API-private until W2-04A."""
+from typing import Annotated
+from uuid import UUID
 
-from app.models.notification import Notification
-from app.schemas.notifications import DriverNotificationRead
+from fastapi import APIRouter, Query
+
+from app.api.v1.dependencies import (
+    AdvertiserUserDependency,
+    CurrentUserDependency,
+    SessionDependency,
+)
+from app.models.notification import Notification, NotificationType
+from app.schemas.notifications import (
+    AdvertiserNotificationPreferenceRead,
+    AdvertiserNotificationPreferenceUpdate,
+    DriverNotificationRead,
+    NotificationFeedItemRead,
+    NotificationFeedListRead,
+    NotificationUnreadCountRead,
+)
+from app.services.notifications import (
+    list_current_user_notifications,
+    mark_all_notifications_read,
+    mark_notification_read,
+    unread_notification_count,
+)
+from app.services.organizations import (
+    get_notification_preference,
+    update_notification_preference,
+)
+
+router = APIRouter(tags=["Notifications"])
 
 
 def driver_notification_response(notice: Notification) -> DriverNotificationRead:
@@ -21,3 +48,120 @@ def driver_notification_response(notice: Notification) -> DriverNotificationRead
         fraud_dispute_id=notice.payload.get("fraud_dispute_id"),
         created_at=notice.created_at,
     )
+
+
+def notification_feed_response(notice: Notification) -> NotificationFeedItemRead:
+    """Render from the small approved type allowlist, never from JSON payload."""
+    rendered = {
+        NotificationType.FRAUD_HOLD_RAISED.value: (
+            "Trip payment on hold",
+            "A trip payment is on hold while it is reviewed.",
+        ),
+        NotificationType.FRAUD_REVIEW_RESOLVED.value: (
+            "Fraud review resolved",
+            "Your fraud review has been resolved.",
+        ),
+        NotificationType.FRAUD_DISPUTE_REPLIED.value: (
+            "Fraud dispute update",
+            "Your fraud dispute has received a reply.",
+        ),
+    }
+    title, body = rendered.get(
+        notice.type_key,
+        ("Account notification", "You have a new account notification."),
+    )
+    return NotificationFeedItemRead(
+        id=notice.id,
+        type_key=notice.type_key,
+        channel=notice.channel,
+        title=title,
+        body=body,
+        created_at=notice.created_at,
+        read_at=notice.read_at,
+    )
+
+
+@router.get("/notifications", response_model=NotificationFeedListRead)
+async def current_user_notifications(
+    user: CurrentUserDependency,
+    session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> NotificationFeedListRead:
+    notices, total = await list_current_user_notifications(
+        session,
+        recipient_user_id=user.id,
+        limit=limit,
+        offset=offset,
+    )
+    return NotificationFeedListRead(
+        items=[notification_feed_response(notice) for notice in notices],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/notifications/unread-count", response_model=NotificationUnreadCountRead)
+async def current_user_unread_notification_count(
+    user: CurrentUserDependency, session: SessionDependency
+) -> NotificationUnreadCountRead:
+    return NotificationUnreadCountRead(
+        unread_count=await unread_notification_count(session, recipient_user_id=user.id)
+    )
+
+
+@router.post("/notifications/{notification_id}/read", response_model=NotificationFeedItemRead)
+async def read_notification(
+    notification_id: UUID,
+    user: CurrentUserDependency,
+    session: SessionDependency,
+) -> NotificationFeedItemRead:
+    notice = await mark_notification_read(
+        session,
+        recipient_user_id=user.id,
+        notification_id=notification_id,
+    )
+    await session.commit()
+    return notification_feed_response(notice)
+
+
+@router.post("/notifications/read-all", response_model=NotificationUnreadCountRead)
+async def read_all_notifications(
+    user: CurrentUserDependency, session: SessionDependency
+) -> NotificationUnreadCountRead:
+    await mark_all_notifications_read(session, recipient_user_id=user.id)
+    remaining = await unread_notification_count(session, recipient_user_id=user.id)
+    await session.commit()
+    return NotificationUnreadCountRead(unread_count=remaining)
+
+
+@router.get(
+    "/advertiser/notification-preferences",
+    response_model=AdvertiserNotificationPreferenceRead,
+)
+async def advertiser_notification_preferences(
+    user: AdvertiserUserDependency, session: SessionDependency
+) -> AdvertiserNotificationPreferenceRead:
+    preference = await get_notification_preference(session, actor_user_id=user.id)
+    await session.commit()
+    return AdvertiserNotificationPreferenceRead.model_validate(preference)
+
+
+@router.patch(
+    "/advertiser/notification-preferences",
+    response_model=AdvertiserNotificationPreferenceRead,
+)
+async def advertiser_update_notification_preferences(
+    payload: AdvertiserNotificationPreferenceUpdate,
+    user: AdvertiserUserDependency,
+    session: SessionDependency,
+) -> AdvertiserNotificationPreferenceRead:
+    preference = await update_notification_preference(
+        session,
+        actor_user_id=user.id,
+        organization_id=None,
+        transactional_email_enabled=payload.transactional_email_enabled,
+    )
+    await session.commit()
+    return AdvertiserNotificationPreferenceRead.model_validate(preference)

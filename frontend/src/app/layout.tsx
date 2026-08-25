@@ -10,6 +10,7 @@ import {
 } from "@/lib/fonts";
 import { THEME_BOOT_SCRIPT } from "@/lib/themes";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
+import { Providers } from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -34,7 +35,7 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col">
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
-        {children}
+        <Providers>{children}</Providers>
         <ThemeSwitcher />
       </body>
     </html>

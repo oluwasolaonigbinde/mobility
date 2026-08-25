@@ -1,0 +1,59 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api/errors";
+
+const mocks = vi.hoisted(() => ({
+  post: vi.fn(),
+  revalidatePath: vi.fn(),
+}));
+
+vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
+vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
+vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ POST: mocks.post }) }));
+
+import { submitCampaignForReviewAction } from "./actions";
+
+const CAMPAIGN_ID = "00000000-0000-4000-8000-00000000000a";
+
+function submitForm(campaignId = CAMPAIGN_ID): FormData {
+  const form = new FormData();
+  form.set("campaign_id", campaignId);
+  return form;
+}
+
+describe("submitCampaignForReviewAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.post.mockResolvedValue({ data: {} });
+  });
+
+  it("uses the dedicated advertiser submit endpoint and refreshes campaign views", async () => {
+    await expect(submitCampaignForReviewAction({}, submitForm())).resolves.toEqual({
+      done: "Campaign submitted for admin review.",
+    });
+    expect(mocks.post).toHaveBeenCalledWith("/api/v1/advertiser/campaigns/{campaign_id}/submit", {
+      params: { path: { campaign_id: CAMPAIGN_ID } },
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/advertiser/campaigns/${CAMPAIGN_ID}`);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/advertiser/campaigns");
+  });
+
+  it("does not submit malformed campaign identifiers", async () => {
+    await expect(submitCampaignForReviewAction({}, submitForm("not-a-uuid"))).resolves.toEqual({
+      error: "Invalid campaign review request.",
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it("shows the stable review conflict returned by the API", async () => {
+    mocks.post.mockRejectedValue(
+      new ApiError(409, {
+        code: "CAMPAIGN_REVIEW_STATE_CONFLICT",
+        message: "Campaign review state changed. Refresh and try again.",
+      }),
+    );
+
+    await expect(submitCampaignForReviewAction({}, submitForm())).resolves.toEqual({
+      error: "Campaign review state changed. Refresh and try again.",
+    });
+  });
+});

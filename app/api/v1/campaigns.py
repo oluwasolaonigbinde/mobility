@@ -9,6 +9,7 @@ from app.core.errors import AppError
 from app.models.campaign import (
     Campaign,
     CampaignCreative,
+    CampaignReviewEvent,
     CampaignStatus,
     CreativeStatus,
     CreativeType,
@@ -21,6 +22,9 @@ from app.schemas.campaigns import (
     CampaignCreate,
     CampaignListResponse,
     CampaignRead,
+    CampaignReviewEventListResponse,
+    CampaignReviewEventRead,
+    CampaignReviewReject,
     CampaignUpdate,
     CreativeCreate,
     CreativeListResponse,
@@ -32,12 +36,16 @@ from app.services.audit import create_audit_event
 from app.services.campaigns import (
     create_campaign,
     create_campaign_creative,
+    decide_campaign_review,
     get_admin_campaign,
     get_advertiser_campaign,
     get_campaign_creative,
     list_admin_campaigns,
+    list_advertiser_campaign_review_events,
     list_advertiser_campaigns,
     list_campaign_creatives,
+    list_campaign_review_events,
+    submit_campaign_for_review,
     update_advertiser_campaign,
     update_campaign_creative,
 )
@@ -128,6 +136,21 @@ def creative_response(creative: CampaignCreative) -> CreativeRead:
         metadata=creative.creative_metadata,
         created_at=creative.created_at,
         updated_at=creative.updated_at,
+    )
+
+
+def campaign_review_event_response(event: CampaignReviewEvent) -> CampaignReviewEventRead:
+    return CampaignReviewEventRead(
+        id=event.id,
+        campaign_id=event.campaign_id,
+        actor_user_id=event.actor_user_id,
+        prior_status=event.prior_status,
+        new_status=event.new_status,
+        rejection_reason=event.rejection_reason,
+        reviewed_snapshot=event.reviewed_snapshot,
+        reviewed_snapshot_sha256=event.reviewed_snapshot_sha256,
+        submission_event_id=event.submission_event_id,
+        created_at=event.created_at,
     )
 
 
@@ -222,16 +245,63 @@ async def advertiser_update_campaign(
         campaign_id=campaign_id,
         payload=payload,
     )
-    await create_audit_event(
+    if changed_fields:
+        await create_audit_event(
+            session,
+            actor_user_id=current_user.id,
+            action="advertiser.campaign.updated",
+            entity_type="campaign",
+            entity_id=str(campaign.id),
+            metadata={"changed_fields": changed_fields},
+        )
+    await session.commit()
+    return campaign_response(campaign)
+
+
+@router.post(
+    "/advertiser/campaigns/{campaign_id}/submit",
+    response_model=CampaignRead,
+    summary="Submit a campaign for admin review",
+)
+async def advertiser_submit_campaign_for_review(
+    campaign_id: UUID,
+    current_user: AdvertiserUserDependency,
+    session: SessionDependency,
+) -> CampaignRead:
+    campaign = await submit_campaign_for_review(
         session,
-        actor_user_id=current_user.id,
-        action="advertiser.campaign.updated",
-        entity_type="campaign",
-        entity_id=str(campaign.id),
-        metadata={"changed_fields": changed_fields},
+        user_id=current_user.id,
+        campaign_id=campaign_id,
     )
     await session.commit()
     return campaign_response(campaign)
+
+
+@router.get(
+    "/advertiser/campaigns/{campaign_id}/review-history",
+    response_model=CampaignReviewEventListResponse,
+    summary="List a campaign's review history",
+)
+async def advertiser_list_campaign_review_history(
+    campaign_id: UUID,
+    current_user: AdvertiserUserDependency,
+    session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> CampaignReviewEventListResponse:
+    events, total = await list_advertiser_campaign_review_events(
+        session,
+        user_id=current_user.id,
+        campaign_id=campaign_id,
+        limit=limit,
+        offset=offset,
+    )
+    return CampaignReviewEventListResponse(
+        items=[campaign_review_event_response(event) for event in events],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.post(
@@ -378,6 +448,114 @@ async def admin_list_campaigns_endpoint(
     )
 
 
+@router.get(
+    "/admin/campaigns/pending-review",
+    response_model=AdminCampaignListResponse,
+    summary="List campaigns pending admin review",
+)
+async def admin_list_pending_campaign_reviews(
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> AdminCampaignListResponse:
+    del current_user
+    campaigns, total = await list_admin_campaigns(
+        session,
+        limit=limit,
+        offset=offset,
+        organization_id=None,
+        campaign_status=CampaignStatus.PENDING_REVIEW.value,
+        lock_campaigns=True,
+    )
+    return AdminCampaignListResponse(
+        items=[
+            admin_campaign_response(campaign, organization)
+            for campaign, organization in campaigns
+        ],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.post(
+    "/admin/campaigns/{campaign_id}/approve",
+    response_model=AdminCampaignRead,
+    summary="Approve a pending campaign review",
+)
+async def admin_approve_campaign_review(
+    campaign_id: UUID,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+) -> AdminCampaignRead:
+    campaign = await decide_campaign_review(
+        session,
+        admin_user_id=current_user.id,
+        campaign_id=campaign_id,
+        target_status=CampaignStatus.APPROVED,
+    )
+    organization = await session.get(AdvertiserOrganization, campaign.organization_id)
+    assert organization is not None
+    await session.commit()
+    return admin_campaign_response(campaign, organization)
+
+
+@router.post(
+    "/admin/campaigns/{campaign_id}/reject",
+    response_model=AdminCampaignRead,
+    summary="Reject a pending campaign review",
+)
+async def admin_reject_campaign_review(
+    campaign_id: UUID,
+    payload: CampaignReviewReject,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+) -> AdminCampaignRead:
+    campaign = await decide_campaign_review(
+        session,
+        admin_user_id=current_user.id,
+        campaign_id=campaign_id,
+        target_status=CampaignStatus.REJECTED,
+        rejection_reason=payload.reason,
+    )
+    organization = await session.get(AdvertiserOrganization, campaign.organization_id)
+    assert organization is not None
+    await session.commit()
+    return admin_campaign_response(campaign, organization)
+
+
+@router.get(
+    "/admin/campaigns/{campaign_id}/review-history",
+    response_model=CampaignReviewEventListResponse,
+    summary="List review history across organizations",
+)
+async def admin_list_campaign_review_history(
+    campaign_id: UUID,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> CampaignReviewEventListResponse:
+    del current_user
+    if await get_admin_campaign(session, campaign_id) is None:
+        raise AppError(
+            "CAMPAIGN_NOT_FOUND",
+            "Campaign was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    events, total = await list_campaign_review_events(
+        session,
+        campaign_id=campaign_id,
+        limit=limit,
+        offset=offset,
+    )
+    return CampaignReviewEventListResponse(
+        items=[campaign_review_event_response(event) for event in events],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 @router.get(
     "/admin/campaigns/{campaign_id}",
     response_model=AdminCampaignRead,

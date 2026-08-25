@@ -1,6 +1,7 @@
 import asyncio
-from uuid import uuid4
+from uuid import UUID, uuid4
 
+import pytest
 from conftest import (
     auth_headers,
     create_test_campaign,
@@ -8,12 +9,24 @@ from conftest import (
     create_test_user,
     fetch_audit_events,
 )
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status as http_status
 
+from app.core.errors import AppError
 from app.models.campaign import Campaign, CampaignStatus
+from app.models.campaign_zone import CampaignZone
 from app.models.organization import MembershipRole, MembershipStatus, OrganizationMembership
 from app.models.user import UserRole
+from app.schemas.campaign_zones import CampaignZoneCreate, CampaignZoneUpdate
+from app.services import campaign_zones as campaign_zones_service
+from app.services import campaigns as campaigns_service
+from app.services.campaign_zones import (
+    create_campaign_zone,
+    delete_campaign_zone,
+    update_campaign_zone,
+)
+from app.services.campaigns import submit_campaign_for_review
 
 PASSWORD = "long-secure-password"
 
@@ -435,7 +448,12 @@ def test_campaign_lifecycle_blocks_mutation_but_allows_reads(
     postgis_db_client,
     postgis_db_sessionmaker,
 ) -> None:
-    for blocked_status in [CampaignStatus.COMPLETED, CampaignStatus.CANCELLED]:
+    for blocked_status in [
+        CampaignStatus.PENDING_REVIEW,
+        CampaignStatus.APPROVED,
+        CampaignStatus.COMPLETED,
+        CampaignStatus.CANCELLED,
+    ]:
         _, _, campaign = create_advertiser_campaign(
             postgis_db_sessionmaker,
             email=f"{blocked_status}@example.com",
@@ -482,6 +500,25 @@ def test_campaign_lifecycle_blocks_mutation_but_allows_reads(
             create_blocked.json()["error"]["code"]
             == "CAMPAIGN_STATUS_FORBIDS_ZONE_MUTATION"
         )
+
+
+def test_rejected_campaign_remains_zone_mutable(
+    postgis_db_client,
+    postgis_db_sessionmaker,
+) -> None:
+    _, _, campaign = create_advertiser_campaign(
+        postgis_db_sessionmaker,
+        email="rejected-zone@example.com",
+    )
+    set_campaign_status(postgis_db_sessionmaker, campaign.id, CampaignStatus.REJECTED)
+
+    response = postgis_db_client.post(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/zones",
+        headers=auth_headers(postgis_db_client, "rejected-zone@example.com", PASSWORD),
+        json=zone_payload(name="Rejected revision zone"),
+    )
+
+    assert response.status_code == http_status.HTTP_201_CREATED
 
 
 def test_geojson_and_schema_validation_reject_invalid_zone_payloads(
@@ -642,3 +679,215 @@ def test_postgis_invalidity_area_cap_and_patch_integrity(
     assert read_after_invalid_patch.json()["name"] == original_name
     assert area_update.status_code == http_status.HTTP_200_OK
     assert area_update.json()["area_sq_m"] != create_response.json()["area_sq_m"]
+
+
+@pytest.mark.parametrize("operation", ["create", "update", "delete"])
+def test_zone_mutation_lock_precedes_submission_snapshot(
+    postgis_db_sessionmaker,
+    settings,
+    monkeypatch,
+    operation: str,
+) -> None:
+    advertiser, _, campaign = create_advertiser_campaign(
+        postgis_db_sessionmaker,
+        email=f"zone-lock-{operation}@example.com",
+    )
+
+    async def seed_zone() -> UUID | None:
+        if operation == "create":
+            return None
+        async with postgis_db_sessionmaker() as session:
+            view = await create_campaign_zone(
+                session,
+                user_id=advertiser.id,
+                campaign_id=campaign.id,
+                payload=CampaignZoneCreate.model_validate(zone_payload()),
+                settings=settings,
+            )
+            await session.commit()
+            return view.zone.id
+
+    zone_id = asyncio.run(seed_zone())
+    sequence: list[str] = []
+
+    async def scenario() -> None:
+        original_zone_lock = campaign_zones_service._locked_advertiser_campaign
+        original_submission_lock = campaigns_service._locked_advertiser_campaign
+        lock_acquired = asyncio.Event()
+        release_mutation = asyncio.Event()
+        submission_attempted = asyncio.Event()
+
+        async def gated_zone_lock(session, **kwargs):
+            campaign_row = await original_zone_lock(session, **kwargs)
+            lock_acquired.set()
+            await release_mutation.wait()
+            return campaign_row
+
+        async def observed_submission_lock(session, **kwargs):
+            submission_attempted.set()
+            return await original_submission_lock(session, **kwargs)
+
+        monkeypatch.setattr(
+            campaign_zones_service, "_locked_advertiser_campaign", gated_zone_lock
+        )
+        monkeypatch.setattr(
+            campaigns_service, "_locked_advertiser_campaign", observed_submission_lock
+        )
+
+        async def mutate() -> None:
+            async with postgis_db_sessionmaker() as session:
+                if operation == "create":
+                    await create_campaign_zone(
+                        session,
+                        user_id=advertiser.id,
+                        campaign_id=campaign.id,
+                        payload=CampaignZoneCreate.model_validate(
+                            zone_payload(name="Admitted create")
+                        ),
+                        settings=settings,
+                    )
+                elif operation == "update":
+                    assert zone_id is not None
+                    await update_campaign_zone(
+                        session,
+                        user_id=advertiser.id,
+                        campaign_id=campaign.id,
+                        zone_id=zone_id,
+                        payload=CampaignZoneUpdate(name="Admitted update"),
+                        settings=settings,
+                    )
+                else:
+                    assert zone_id is not None
+                    await delete_campaign_zone(
+                        session,
+                        user_id=advertiser.id,
+                        campaign_id=campaign.id,
+                        zone_id=zone_id,
+                    )
+                await session.commit()
+                sequence.append("mutation")
+
+        async def submit() -> None:
+            async with postgis_db_sessionmaker() as session:
+                await submit_campaign_for_review(
+                    session,
+                    user_id=advertiser.id,
+                    campaign_id=campaign.id,
+                )
+                await session.commit()
+                sequence.append("submission")
+
+        mutation_task = asyncio.create_task(mutate())
+        await asyncio.wait_for(lock_acquired.wait(), timeout=5)
+        submission_task = asyncio.create_task(submit())
+        await asyncio.wait_for(submission_attempted.wait(), timeout=5)
+        assert not submission_task.done()
+        release_mutation.set()
+        await asyncio.gather(mutation_task, submission_task)
+
+    asyncio.run(scenario())
+    assert sequence == ["mutation", "submission"]
+
+    async def verify() -> None:
+        async with postgis_db_sessionmaker() as session:
+            persisted_campaign = await session.get(Campaign, campaign.id)
+            assert persisted_campaign is not None
+            assert persisted_campaign.status == CampaignStatus.PENDING_REVIEW.value
+            zone_count = await session.scalar(
+                select(func.count()).select_from(CampaignZone).where(
+                    CampaignZone.campaign_id == campaign.id
+                )
+            )
+            assert zone_count == (1 if operation in {"create", "update"} else 0)
+            if operation == "update":
+                updated = await session.get(CampaignZone, zone_id)
+                assert updated is not None and updated.name == "Admitted update"
+
+    asyncio.run(verify())
+
+
+@pytest.mark.parametrize("operation", ["create", "update", "delete"])
+def test_submission_winner_freezes_zone_mutation_without_zone_change(
+    postgis_db_sessionmaker,
+    settings,
+    operation: str,
+) -> None:
+    advertiser, _, campaign = create_advertiser_campaign(
+        postgis_db_sessionmaker,
+        email=f"zone-frozen-{operation}@example.com",
+    )
+
+    async def scenario() -> UUID | None:
+        zone_id: UUID | None = None
+        async with postgis_db_sessionmaker() as session:
+            if operation != "create":
+                view = await create_campaign_zone(
+                    session,
+                    user_id=advertiser.id,
+                    campaign_id=campaign.id,
+                    payload=CampaignZoneCreate.model_validate(zone_payload()),
+                    settings=settings,
+                )
+                zone_id = view.zone.id
+                await session.flush()
+            await submit_campaign_for_review(
+                session,
+                user_id=advertiser.id,
+                campaign_id=campaign.id,
+            )
+            await session.commit()
+
+        async with postgis_db_sessionmaker() as session:
+            with pytest.raises(AppError) as error:
+                if operation == "create":
+                    await create_campaign_zone(
+                        session,
+                        user_id=advertiser.id,
+                        campaign_id=campaign.id,
+                        payload=CampaignZoneCreate.model_validate(
+                            zone_payload(name="Rejected create")
+                        ),
+                        settings=settings,
+                    )
+                elif operation == "update":
+                    assert zone_id is not None
+                    await update_campaign_zone(
+                        session,
+                        user_id=advertiser.id,
+                        campaign_id=campaign.id,
+                        zone_id=zone_id,
+                        payload=CampaignZoneUpdate(name="Rejected update"),
+                        settings=settings,
+                    )
+                else:
+                    assert zone_id is not None
+                    await delete_campaign_zone(
+                        session,
+                        user_id=advertiser.id,
+                        campaign_id=campaign.id,
+                        zone_id=zone_id,
+                    )
+            assert error.value.code == "CAMPAIGN_STATUS_FORBIDS_ZONE_MUTATION"
+            await session.rollback()
+        return zone_id
+
+    zone_id = asyncio.run(scenario())
+
+    async def verify() -> None:
+        async with postgis_db_sessionmaker() as session:
+            persisted_campaign = await session.get(Campaign, campaign.id)
+            assert persisted_campaign is not None
+            assert persisted_campaign.status == CampaignStatus.PENDING_REVIEW.value
+            zones = list(
+                (
+                    await session.scalars(
+                        select(CampaignZone).where(CampaignZone.campaign_id == campaign.id)
+                    )
+                ).all()
+            )
+            assert len(zones) == (0 if operation == "create" else 1)
+            if operation != "create":
+                assert zone_id is not None and zones[0].id == zone_id
+                assert zones[0].name == "Lagos Island Target Zone"
+
+    asyncio.run(verify())

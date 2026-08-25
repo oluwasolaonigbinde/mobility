@@ -17,10 +17,30 @@ const ADVERTISER = {
   password: "DemoAdvertiser12345!",
 };
 
+const ADMIN = {
+  email: "admin@demo.mobility.local",
+  password: "DemoAdmin12345!",
+};
+
 const COMPOSE_FILE = resolve(__dirname, "../../docker-compose.yml");
 
 function cleanupE2ECampaign(campaignId: string | undefined, campaignName: string) {
+  const databaseContainer = process.env.E2E_DATABASE_CONTAINER;
+  const databaseName = process.env.E2E_DATABASE_NAME ?? "mobility";
   const sql = `
+SET session_replication_role = replica;
+DELETE FROM campaign_review_events
+WHERE campaign_id IN (
+  SELECT c.id
+  FROM campaigns c
+  JOIN advertiser_organizations o ON o.id = c.organization_id
+  WHERE o.billing_email = 'billing@demo.mobility.local'
+    AND c.name = :'campaign_name'
+    AND (
+      NULLIF(:'campaign_id', '') IS NULL
+      OR c.id = NULLIF(:'campaign_id', '')::uuid
+    )
+);
 DELETE FROM campaigns c
 USING advertiser_organizations o
 WHERE c.organization_id = o.id
@@ -30,6 +50,7 @@ WHERE c.organization_id = o.id
     NULLIF(:'campaign_id', '') IS NULL
     OR c.id = NULLIF(:'campaign_id', '')::uuid
   );
+RESET session_replication_role;
 
 SELECT 1 / CASE WHEN count(*) = 0 THEN 1 ELSE 0 END
 FROM campaigns c
@@ -39,35 +60,62 @@ WHERE o.billing_email = 'billing@demo.mobility.local'
 `;
   execFileSync(
     "docker",
-    [
-      "compose",
-      "-f",
-      COMPOSE_FILE,
-      "exec",
-      "-T",
-      "db",
-      "psql",
-      "-v",
-      "ON_ERROR_STOP=1",
-      "-v",
-      `campaign_id=${campaignId ?? ""}`,
-      "-v",
-      `campaign_name=${campaignName}`,
-      "-U",
-      "mobility",
-      "-d",
-      "mobility",
-    ],
+    databaseContainer
+      ? [
+          "exec",
+          "-i",
+          databaseContainer,
+          "psql",
+          "-v",
+          "ON_ERROR_STOP=1",
+          "-v",
+          `campaign_id=${campaignId ?? ""}`,
+          "-v",
+          `campaign_name=${campaignName}`,
+          "-U",
+          "mobility",
+          "-d",
+          databaseName,
+        ]
+      : [
+          "compose",
+          "-f",
+          COMPOSE_FILE,
+          "exec",
+          "-T",
+          "db",
+          "psql",
+          "-v",
+          "ON_ERROR_STOP=1",
+          "-v",
+          `campaign_id=${campaignId ?? ""}`,
+          "-v",
+          `campaign_name=${campaignName}`,
+          "-U",
+          "mobility",
+          "-d",
+          databaseName,
+        ],
     { input: sql, stdio: ["pipe", "pipe", "pipe"] },
   );
 }
 
 async function loginAsAdvertiser(page: Page) {
+  await page.context().clearCookies();
   await page.goto("/login");
   await page.getByLabel("Email").fill(ADVERTISER.email);
   await page.getByLabel("Password").fill(ADVERTISER.password);
   await page.getByRole("button", { name: "Enter the network" }).click();
   await page.waitForURL("**/advertiser");
+}
+
+async function loginAsAdmin(page: Page) {
+  await page.context().clearCookies();
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(ADMIN.email);
+  await page.getByLabel("Password").fill(ADMIN.password);
+  await page.getByRole("button", { name: "Enter the network" }).click();
+  await page.waitForURL("**/admin");
 }
 
 test("advertiser can sign in and see the dashboard", async ({ page }) => {
@@ -94,7 +142,8 @@ test("login rejects bad credentials without leaking detail", async ({ page }) =>
   expect(page.url()).toContain("/login");
 });
 
-test("campaign creation stays draft until commercial authority exists", async ({ page }) => {
+test("campaign submission and admin approval preserve immutable review history", async ({ page }) => {
+  test.setTimeout(60_000);
   const name = `E2E Campaign ${randomUUID()}`;
   let campaignId: string | undefined;
   try {
@@ -139,15 +188,30 @@ test("campaign creation stays draft until commercial authority exists", async ({
     await expect(page.getByText("Draft", { exact: true })).toBeVisible();
     await expect(page.getByText("E2E door panel")).toBeVisible();
 
-    // No direct draft → live bypass: commercial terms, funding, and a recorded
-    // production start must exist before the launch action is exposed.
-    await expect(page.getByRole("button", { name: "Launch now" })).not.toBeVisible();
-    await expect(page.getByText(/Launch and resume unlock after funding/i)).toBeVisible();
+    // A draft can only enter the review lifecycle through its dedicated action.
+    await expect(page.getByRole("button", { name: "Submit for review" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /launch|schedule|activate/i })).not.toBeVisible();
     await expect(page.getByRole("button", { name: "Request custom quotation" })).toBeVisible();
 
-    // The list reflects the new campaign
-    await page.goto("/advertiser/campaigns?status=draft");
-    await expect(page.getByRole("link", { name })).toBeVisible();
+    await page.getByRole("button", { name: "Submit for review" }).click();
+    await expect(page.getByText("Under admin review")).toBeVisible();
+    await expect(page.getByText("Submitted snapshot SHA-256:")).toBeVisible();
+
+    await loginAsAdmin(page);
+    await page.goto("/admin/approvals");
+    const approval = page.getByTestId(`campaign-approval-${campaignId}`);
+    await expect(approval.getByRole("heading", { name })).toBeVisible();
+    await expect(approval.getByText("Snapshot SHA-256:")).toBeVisible();
+    await approval.getByRole("button", { name: "Approve" }).click();
+    await page.reload();
+    await expect(page.getByTestId(`campaign-approval-${campaignId}`)).not.toBeVisible();
+
+    await loginAsAdvertiser(page);
+    await page.goto(`/advertiser/campaigns/${campaignId}`);
+    await expect(page.getByText("Approved", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Draft → Pending review")).toBeVisible();
+    await expect(page.getByText("Pending review → Approved")).toBeVisible();
+    await expect(page.getByRole("button", { name: /launch|schedule|activate/i })).not.toBeVisible();
   } finally {
     cleanupE2ECampaign(campaignId, name);
   }

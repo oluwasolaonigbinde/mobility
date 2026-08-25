@@ -159,6 +159,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/campaigns/pending-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List campaigns pending admin review */
+        get: operations["admin_list_pending_campaign_reviews_api_v1_admin_campaigns_pending_review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/campaigns/{campaign_id}": {
         parameters: {
             query?: never;
@@ -170,6 +187,23 @@ export interface paths {
         get: operations["admin_get_campaign_endpoint_api_v1_admin_campaigns__campaign_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{campaign_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a pending campaign review */
+        post: operations["admin_approve_campaign_review_api_v1_admin_campaigns__campaign_id__approve_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -309,6 +343,40 @@ export interface paths {
         put?: never;
         /** Admin Record External Quote Request */
         post: operations["admin_record_external_quote_request_api_v1_admin_campaigns__campaign_id__quote_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{campaign_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a pending campaign review */
+        post: operations["admin_reject_campaign_review_api_v1_admin_campaigns__campaign_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{campaign_id}/review-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List review history across organizations */
+        get: operations["admin_list_campaign_review_history_api_v1_admin_campaigns__campaign_id__review_history_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1538,6 +1606,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/advertiser/campaigns/{campaign_id}/review-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a campaign's review history */
+        get: operations["advertiser_list_campaign_review_history_api_v1_advertiser_campaigns__campaign_id__review_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/campaigns/{campaign_id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit a campaign for admin review */
+        post: operations["advertiser_submit_campaign_for_review_api_v1_advertiser_campaigns__campaign_id__submit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/advertiser/campaigns/{campaign_id}/summary": {
         parameters: {
             query?: never;
@@ -1651,6 +1753,24 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/notification-preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Advertiser Notification Preferences */
+        get: operations["advertiser_notification_preferences_api_v1_advertiser_notification_preferences_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Advertiser Update Notification Preferences */
+        patch: operations["advertiser_update_notification_preferences_api_v1_advertiser_notification_preferences_patch"];
         trace?: never;
     };
     "/api/v1/advertiser/organization": {
@@ -2159,6 +2279,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current User Notifications */
+        get: operations["current_user_notifications_api_v1_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read All Notifications */
+        post: operations["read_all_notifications_api_v1_notifications_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current User Unread Notification Count */
+        get: operations["current_user_unread_notification_count_api_v1_notifications_unread_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read Notification */
+        post: operations["read_notification_api_v1_notifications__notification_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/webhooks/payments": {
         parameters: {
             query?: never;
@@ -2518,6 +2706,21 @@ export interface components {
             /** Start At */
             start_at: string | null;
             trips: components["schemas"]["TripStatusCounts"];
+        };
+        /** AdvertiserNotificationPreferenceRead */
+        AdvertiserNotificationPreferenceRead: {
+            /**
+             * In App Enabled
+             * @default true
+             */
+            in_app_enabled: boolean;
+            /** Transactional Email Enabled */
+            transactional_email_enabled: boolean;
+        };
+        /** AdvertiserNotificationPreferenceUpdate */
+        AdvertiserNotificationPreferenceUpdate: {
+            /** Transactional Email Enabled */
+            transactional_email_enabled: boolean;
         };
         /** AdvertiserOrganizationContextResponse */
         AdvertiserOrganizationContextResponse: {
@@ -3343,11 +3546,62 @@ export interface components {
             trip_summary: components["schemas"]["TripStatusCounts"];
             zone_summary: components["schemas"]["ZoneTypeCounts"];
         };
+        /** CampaignReviewEventListResponse */
+        CampaignReviewEventListResponse: {
+            /** Items */
+            items: components["schemas"]["CampaignReviewEventRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** CampaignReviewEventRead */
+        CampaignReviewEventRead: {
+            /**
+             * Actor User Id
+             * Format: uuid
+             */
+            actor_user_id: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            new_status: components["schemas"]["CampaignStatus"];
+            prior_status: components["schemas"]["CampaignStatus"];
+            /** Rejection Reason */
+            rejection_reason: string | null;
+            /** Reviewed Snapshot */
+            reviewed_snapshot: {
+                [key: string]: unknown;
+            } | null;
+            /** Reviewed Snapshot Sha256 */
+            reviewed_snapshot_sha256: string | null;
+            /** Submission Event Id */
+            submission_event_id: string | null;
+        };
+        /** CampaignReviewReject */
+        CampaignReviewReject: {
+            /** Reason */
+            reason: string;
+        };
         /**
          * CampaignStatus
          * @enum {string}
          */
-        CampaignStatus: "draft" | "scheduled" | "active" | "paused" | "completed" | "cancelled";
+        CampaignStatus: "draft" | "pending_review" | "approved" | "rejected" | "scheduled" | "active" | "paused" | "completed" | "cancelled";
         /** CampaignStatusCounts */
         CampaignStatusCounts: {
             /**
@@ -3355,6 +3609,11 @@ export interface components {
              * @default 0
              */
             active: number;
+            /**
+             * Approved
+             * @default 0
+             */
+            approved: number;
             /**
              * Cancelled
              * @default 0
@@ -3375,6 +3634,16 @@ export interface components {
              * @default 0
              */
             paused: number;
+            /**
+             * Pending Review
+             * @default 0
+             */
+            pending_review: number;
+            /**
+             * Rejected
+             * @default 0
+             */
+            rejected: number;
             /**
              * Scheduled
              * @default 0
@@ -5140,10 +5409,52 @@ export interface components {
          */
         MembershipStatus: "active" | "invited" | "disabled";
         /**
+         * NotificationChannel
+         * @enum {string}
+         */
+        NotificationChannel: "in_app" | "transactional_email";
+        /** NotificationFeedItemRead */
+        NotificationFeedItemRead: {
+            /** Body */
+            body: string;
+            channel: components["schemas"]["NotificationChannel"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Read At */
+            read_at: string | null;
+            /** Title */
+            title: string;
+            type_key: components["schemas"]["NotificationType"];
+        };
+        /** NotificationFeedListRead */
+        NotificationFeedListRead: {
+            /** Items */
+            items: components["schemas"]["NotificationFeedItemRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /**
          * NotificationType
          * @enum {string}
          */
         NotificationType: "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied";
+        /** NotificationUnreadCountRead */
+        NotificationUnreadCountRead: {
+            /** Unread Count */
+            unread_count: number;
+        };
         /** OrganizationMembershipRead */
         OrganizationMembershipRead: {
             role: components["schemas"]["MembershipRole"];
@@ -7214,7 +7525,70 @@ export interface operations {
             };
         };
     };
+    admin_list_pending_campaign_reviews_api_v1_admin_campaigns_pending_review_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCampaignListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_get_campaign_endpoint_api_v1_admin_campaigns__campaign_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCampaignRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_approve_campaign_review_api_v1_admin_campaigns__campaign_id__approve_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -7608,6 +7982,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuoteRequestRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_reject_campaign_review_api_v1_admin_campaigns__campaign_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignReviewReject"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCampaignRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_list_campaign_review_history_api_v1_admin_campaigns__campaign_id__review_history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignReviewEventListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -10350,6 +10793,71 @@ export interface operations {
             };
         };
     };
+    advertiser_list_campaign_review_history_api_v1_advertiser_campaigns__campaign_id__review_history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignReviewEventListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advertiser_submit_campaign_for_review_api_v1_advertiser_campaigns__campaign_id__submit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     advertiser_get_campaign_summary_api_v1_advertiser_campaigns__campaign_id__summary_get: {
         parameters: {
             query?: {
@@ -10665,6 +11173,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdvertiserDashboardSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advertiser_notification_preferences_api_v1_advertiser_notification_preferences_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdvertiserNotificationPreferenceRead"];
+                };
+            };
+        };
+    };
+    advertiser_update_notification_preferences_api_v1_advertiser_notification_preferences_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdvertiserNotificationPreferenceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdvertiserNotificationPreferenceRead"];
                 };
             };
             /** @description Validation Error */
@@ -11551,6 +12112,109 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    current_user_notifications_api_v1_notifications_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationFeedListRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_all_notifications_api_v1_notifications_read_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationUnreadCountRead"];
+                };
+            };
+        };
+    };
+    current_user_unread_notification_count_api_v1_notifications_unread_count_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationUnreadCountRead"];
+                };
+            };
+        };
+    };
+    read_notification_api_v1_notifications__notification_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notification_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationFeedItemRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

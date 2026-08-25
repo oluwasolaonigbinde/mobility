@@ -23,6 +23,9 @@ from app.db.base import Base
 
 class CampaignStatus(StrEnum):
     DRAFT = "draft"
+    PENDING_REVIEW = "pending_review"
+    APPROVED = "approved"
+    REJECTED = "rejected"
     SCHEDULED = "scheduled"
     ACTIVE = "active"
     PAUSED = "paused"
@@ -56,7 +59,8 @@ class Campaign(Base):
     __tablename__ = "campaigns"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('draft', 'scheduled', 'active', 'paused', 'completed', 'cancelled')",
+            "status IN ('draft', 'pending_review', 'approved', 'rejected', "
+            "'scheduled', 'active', 'paused', 'completed', 'cancelled')",
             name="ck_campaigns_status",
         ),
         CheckConstraint(
@@ -123,6 +127,59 @@ class Campaign(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         onupdate=func.now(),
+        nullable=False,
+    )
+
+
+class CampaignReviewEvent(Base):
+    __tablename__ = "campaign_review_events"
+    __table_args__ = (
+        CheckConstraint(
+            "prior_status IN ('draft', 'pending_review', 'approved', 'rejected', "
+            "'scheduled', 'active', 'paused', 'completed', 'cancelled')",
+            name="ck_campaign_review_events_prior_status",
+        ),
+        CheckConstraint(
+            "new_status IN ('pending_review', 'approved', 'rejected')",
+            name="ck_campaign_review_events_new_status",
+        ),
+        CheckConstraint(
+            "(new_status = 'rejected' AND rejection_reason IS NOT NULL "
+            "AND length(trim(rejection_reason)) > 0) OR "
+            "(new_status != 'rejected' AND rejection_reason IS NULL)",
+            name="ck_campaign_review_events_rejection_reason",
+        ),
+        CheckConstraint(
+            "(new_status = 'pending_review' AND reviewed_snapshot IS NOT NULL "
+            "AND reviewed_snapshot_sha256 IS NOT NULL AND submission_event_id IS NULL) OR "
+            "(new_status IN ('approved', 'rejected') AND reviewed_snapshot IS NULL "
+            "AND reviewed_snapshot_sha256 IS NULL AND submission_event_id IS NOT NULL)",
+            name="ck_campaign_review_events_submission_binding",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        default=uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    campaign_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    actor_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    prior_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    new_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+    reviewed_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    reviewed_snapshot_sha256: Mapped[str | None] = mapped_column(String(64))
+    submission_event_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("campaign_review_events.id", ondelete="RESTRICT"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
         nullable=False,
     )
 

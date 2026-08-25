@@ -8,7 +8,6 @@ const validBasics = {
   end_at: "2026-09-30T20:00",
   budget_amount: "5000000",
   daily_budget_amount: "",
-  launch: "draft" as const,
 };
 
 describe("campaignBasicsSchema", () => {
@@ -34,15 +33,6 @@ describe("campaignBasicsSchema", () => {
     if (!result.success) {
       expect(result.error.issues.some((i) => i.path.join(".") === "end_at")).toBe(true);
     }
-  });
-
-  it("requires a start date for scheduled campaigns", () => {
-    const result = campaignBasicsSchema.safeParse({
-      ...validBasics,
-      launch: "scheduled",
-      start_at: "",
-    });
-    expect(result.success).toBe(false);
   });
 
   it("rejects negative and malformed money", () => {

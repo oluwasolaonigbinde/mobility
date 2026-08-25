@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.39 — 2026-08-24. Canonical source of truth: current state AND target state.**
+**Version 1.41 — 2026-08-24. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1382,17 +1382,24 @@ nothing.
 
 ## 18. Approval workflows
 
-Q6, Q15, Q17 and Q18 are client-confirmed. Implementation remains [TARGET] and must
-honour RM12/RM13's funded-liability, evidence and atomic-activation contracts.
+Q6, Q15, Q17 and Q18 are client-confirmed. Campaign review is [BUILT] through
+W2-03A; creative review, installation evidence and atomic activation remain
+[TARGET] and must honour RM12/RM13's funded-liability, evidence and
+atomic-activation contracts.
 
-- **Campaign approval:** insert `pending_review → approved` **between `draft`
-  and `scheduled`** in the existing campaign status enum
-  (`draft | scheduled | active | paused | completed | cancelled`) + transition
-  maps (backend enum & checks; frontend `src/lib/campaigns/status.ts`) — a
-  campaign is approved first, then scheduled/activated; nothing unapproved may
-  reach `scheduled`. Advertiser submits; admin approves/rejects with reason;
-  every transition audited. Extend the enum — **never** a parallel
-  `is_approved` flag.
+- **Campaign approval [BUILT — W2-03A]:** the campaign status enum and typed
+  consumers include `pending_review`, `approved` and `rejected`. Dedicated,
+  row-locked actions implement `draft | rejected → pending_review → approved |
+  rejected`; generic create/update cannot enter a review or production state,
+  and reviewed campaigns are frozen. Each submission stores an immutable
+  canonical snapshot plus SHA-256 digest in append-only
+  `campaign_review_events`; an admin decision binds the exact submission event,
+  requires a reason when rejected, and writes complete audit metadata in the
+  same transaction. Advertisers see tenant-scoped history and admins review the
+  cross-tenant queue at `/admin/approvals`. Approval deliberately does **not**
+  schedule or activate: the later `approved → scheduled` edge remains [TARGET]
+  behind W2-03B/C/D's complete launch gate. There is no parallel `is_approved`
+  flag.
 - **Creative approval:** same pattern on `campaign_creatives.status`
   (`pending_review → approved | rejected`), tied to upload (§19) — an
   unapproved creative blocks scheduling/activation per Q6/Q18 and RM13.
@@ -1465,27 +1472,35 @@ audited rewrap/re-encryption path while preserving that schema.
 ## 20. Notifications
 
 Q34 is client-confirmed by D18: launch = in-app + **automated email for advertisers** +
-ops-run WhatsApp for drivers; automated WhatsApp/SMS is post-MVP. Email is a
-first-class transactional channel adapter; its concrete provider/account
-remains an external parameter.
+ops-run WhatsApp for drivers; automated WhatsApp/SMS is post-MVP. D24 makes
+advertiser transactional email default-on with one audited organization-wide
+opt-out while in-app remains mandatory. Email is a first-class transactional
+channel adapter; its concrete provider/account remains an external parameter.
 
-### 20.1 Outbox pattern
+### 20.1 Outbox pattern — in-app core [BUILT], provider dispatch [TARGET]
 
 - `notifications` table: recipient user, type/template key, payload (JSONB),
-  channel (`in_app | whatsapp | sms | email`), status
-  (`pending → sent → delivered | failed` — `delivered` set only by provider
-  receipts), attempts, `created_at/sent_at`, a **`dedupe_key`** (unique,
-  nullable) so retried triggers can't double-notify, and a
+  channel (currently `in_app | transactional_email`; later adapters do not
+  reuse in-app rows), status (`pending → sent → delivered | failed` — an
+  in-app row becomes `sent` when inserted, while provider `delivered` is set
+  only by a receipt), attempts, `created_at/sent_at/read_at`, a nullable
+  **`dedupe_key`** unique within recipient + channel, and a canonical SHA-256
+  fingerprint so exact retries converge while changed-fact key reuse fails, and a
   **`provider_message_id`** (nullable, unique when present) so §15.4 delivery
   receipts can idempotently key back to the row.
+- Recipient, type/template, channel, payload, dedupe identity/fingerprint and
+  creation time are immutable at both ORM and database boundaries. Only named
+  delivery-attempt/status/receipt timestamps and in-app read state may change.
 - **Created transactionally** with the business mutation that triggers them
   (same DB transaction — a payout release that commits also commits its
   notification row; no lost or phantom sends).
-- A worker job (§14) dispatches pending rows through channel adapters
+- A worker job (§14) will dispatch pending provider rows through channel adapters
   (`app/adapters/messaging/` — provider [OPEN]; in-app "dispatch" is a no-op,
   the row itself is the notification).
 - In-app UI: notification list + unread badge, **polled** (P8) via TanStack
-  Query (§27.2). Web surfaces stay poll-only (no WebSockets/SSE); mobile-app
+  Query (§27.2), with recipient-scoped read/read-all and sanitized allowlisted
+  rendering shared by admin, advertiser and driver shells. Web surfaces stay
+  poll-only (no WebSockets/SSE); mobile-app
   push (FCM) is a post-pilot native-client channel adapter (§23, D18) and does
   not change the schema.
 
@@ -1495,6 +1510,11 @@ remains an external parameter.
   rows. Only the worker talks to providers.
 - Templates are code (typed builders per notification type), not a CMS — at
   this scale a template table is over-engineering (P10).
+- Advertiser transactional-email preference is one row per advertiser
+  organization, defaults on, is visible consistently to active members and is
+  writable only through existing organization-management authority. Effective
+  changes are audited with actor and before/after state; in-app cannot be
+  disabled. W2-04B consults this preference before email delivery.
 - First triggers (when built): assignment offered/accepted, payout released,
   fraud flag raised/resolved, campaign approved/paused, budget alerts.
 
@@ -1978,7 +1998,7 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 | Release scheduling | §16.2 | `jobs/` + `services/payouts.py` | ledger statuses | ledger edits (append-only) | Q22 confirmed; RM8 before release |
 | Automated disbursement | §16.3 | `adapters/disbursement/`, `services/payouts.py` | payout_batches (new) | direct vendor calls from services | Q27 confirmed; RM10/RM11; `EXT-DISBURSEMENT-PROVIDER` for live submission |
 | Fraud review workflow | §17 | `services/` + `api/v1/` fraud modules | fraud_flags lifecycle | detection engine internals | Q21 confirmed; RM8 |
-| Campaign/creative approval | §18 | status enums + services | campaign/creative status | parallel approval flags | Q6/Q18 confirmed; RM13 |
+| Campaign/creative approval | §18 | campaign review: `services/campaigns.py` + campaign APIs and role surfaces [BUILT W2-03A]; creative review remains status enums + services [TARGET] | campaign/creative status and append-only review evidence | parallel approval flags; scheduling/activation from W2-03A | Campaign review [BUILT]; creative/activation Q6/Q18 + RM13 |
 | File upload (any kind) | §19 | `adapters/storage/`, `services/files.py` | stored_files (new) | container FS, DB blobs | Q18/Q26 + provider |
 | Notifications | §20 | `services/notifications.py`, `jobs/`, `adapters/messaging/` | notifications (new) | inline provider calls | Q34 confirmed; provider is parameter |
 | Billing / accepted terms / invoices / payments | §15 | `services/billing.py`, `adapters/payments/` | commercial_terms, invoices, payments (new) | report/cost-summary logic | Q1–Q3, Q14, Q28 confirmed; external provider/company facts for live use |
@@ -2170,6 +2190,8 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.41 | 2026-08-24 | **W2-04A shared notification core and role surfaces delivered (D24/Q34).** Migration `0044` upgrades the fraud-notice foundation to a recipient/channel-scoped outbox with canonical retry fingerprints, unique provider receipt identity, immutable evidence, delivery/read state and lossless legacy backfill; one advertiser-organization preference defaults transactional email on, permits audited manager changes and never suppresses in-app. Typed current-user APIs and same-origin BFF routes provide sanitized list/unread/read operations. One root TanStack Query provider mounts the shared visible-only polled centre in admin, advertiser and driver shells. All three §9 baselines move together. Focused backend/PostgreSQL migration, concurrency, RBAC, audit, OpenAPI, frontend, preserved R14-B and desktop/mobile three-role synthetic evidence plus consolidated independent review pass. Email/provider delivery, driver WhatsApp/SMS, push, external/live-provider, physical-device, staging, pilot and user-feedback validation remain unclaimed. |
+| v1.40 | 2026-08-24 | **W2-03A governed campaign review delivered and rebased after the corrected Package 3 migration head.** Dedicated row-locked submission, approval, reasoned rejection and resubmission transitions bind immutable canonical snapshots and SHA-256 digests in append-only review history; generic create/update cannot enter review or production states, reviewed fields freeze, and approval itself cannot schedule or activate. Tenant-scoped advertiser history and the typed admin approvals queue expose the same evidence. Migration `0043` descends from corrected Package 3 revision `0042`, and all three §9 baselines move together. Focused SQLite/PostgreSQL lifecycle, RBAC, audit, race, migration, corrected commercial-authority seam and contract checks; 18 focused frontend tests; 55 preserved R14-B fixtures; type/lint; and an isolated desktop/mobile submit→approve→history journey pass. No external provider, scheduling, activation, physical-device, real-route, staging, pilot or user-feedback validation is claimed. |
 | v1.39 | 2026-08-24 | **PKG-03 money-authority correction.** Receipt reversal/refund and production/activation/trip start now share a deadlock-safe receipt-then-campaign lock order and database chronology; refund conservation is allocation-scoped plus receipt-wide; accepted terms and campaign currency serialize and remain equal. Additive migration `0041` gives invoice corrections immutable caller retry identity and a canonical payload fingerprint with populated legacy backfill, restored append-only trigger and fail-closed downgrade. Additive migration `0042` scopes invoice numbering by full rendered prefix/year and backfills above immutable issued suffixes without rewriting invoices. The synchronized §9 artifacts expose correction references. Focused PostgreSQL barriers, retry/refund/currency/sequence and populated-migration tests, frontend lint/type/unit/build, aggregate compatibility correction, and isolated desktop/mobile billing evidence pass. Live provider and budget-policy gates remain unchanged. |
 | v1.38 | 2026-08-24 | **PKG-02 correction reconciliation.** A due reversal now enters debt authority in the same release transaction after status flush and before audit/commit, in stable driver/currency/entry order; an active reservation rolls back the entire release. Because migration `0031` has not reached a non-disposable environment, its upgrade now idempotently backfills all eligible available reversals into driver/currency debt accounts and obligations, links any same-trip paid non-reversal provenance, conserves account totals, and refuses unsafe active reservations or populated downgrades. Economic/provenance projections retain non-voided sources, subtract reversals and give `debt_remainder` zero economic value; settlement projections separately expose released credit, paid cash, debt and `max(released − debt, 0)` batch-payable value. Driver API/dashboard/earnings surfaces and all three §9 baselines moved together. Evidence: focused PostgreSQL release/reservation race, debt/residual and populated migration tests; frontend 191 tests/type/lint/build; backend aggregate 793 pass/3 skip followed by 41-pass recheck of the only 13 documentation-contract fixture failures; independent clean-context minimal-change review PASS. No live provider or real-world validation is claimed. |
 | v1.37 | 2026-08-23 | **PKG-02 money integrity and payout operations closed; RM10/RM11 resolved.** Migrations `0028`–`0031` add encrypted append-only driver payee/account versions, atomic whole-entry payout reservation with frozen instructions and maker-checker approval, verified line-level provider reconciliation before immutable paid finality, and currency-scoped carry-forward debt with paid-source provenance. Live adapters remain fail-closed behind `EXT-DISBURSEMENT-PROVIDER`. The controlled §9 baselines moved once. Aggregate Package 2 evidence covers 541 backend passes plus one intentional skip across the non-repeated integration partitions, 187 frontend tests, type/lint/build, migration/autogenerate, crypto, property, concurrency and synthetic end-to-end flows. The consolidated review's lock-order and paid-state findings were corrected once and rechecked RESOLVED; the forced-overlap provider-finality/confirmed-fraud race preserves paid history and creates exactly one obligation. No live provider, physical-device, real-route, external-staging, pilot or user-feedback validation is claimed. |

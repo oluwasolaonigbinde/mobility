@@ -100,10 +100,21 @@ def test_commercial_api_journey_is_tenant_scoped_and_uses_canonical_cash(
     assert accepted.status_code == 200, accepted.text
     terms_id = accepted.json()["id"]
 
-    premature = db_client.patch(
-        f"/api/v1/advertiser/campaigns/{campaign.id}",
+    submitted = db_client.post(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/submit",
         headers=owner_headers,
-        json={"status": "active"},
+    )
+    assert submitted.status_code == 200, submitted.text
+    approved = db_client.post(
+        f"/api/v1/admin/campaigns/{campaign.id}/approve",
+        headers=admin_headers,
+    )
+    assert approved.status_code == 200, approved.text
+
+    premature = db_client.post(
+        f"/api/v1/admin/campaigns/{campaign.id}/production-start",
+        headers=admin_headers,
+        json={},
     )
     assert premature.status_code == 409
     assert premature.json()["error"]["code"] == "PRODUCTION_FINANCIAL_AUTHORITY_REQUIRED"

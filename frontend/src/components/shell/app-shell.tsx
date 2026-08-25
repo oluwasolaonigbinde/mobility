@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { MeResponse } from "@/lib/auth/current-user";
 import { signOutAction } from "@/lib/auth/actions";
+import { NotificationCenter } from "@/components/notifications/notification-center";
 import { SidebarNav, type NavItem } from "./sidebar-nav";
 
 export type { NavItem };
@@ -26,6 +27,9 @@ export function AppShell({
   children: ReactNode;
 }) {
   const org = me.advertiser_organization;
+  const canManageAdvertiserPreferences =
+    me.user.role === "advertiser" &&
+    (org?.membership_role === "owner" || org?.membership_role === "manager");
 
   return (
     <div className="flex min-h-dvh flex-1">
@@ -76,6 +80,7 @@ export function AppShell({
             )}
           </div>
           <div className="micro text-muted flex items-center gap-2">
+            <NotificationCenter canManageAdvertiserPreferences={canManageAdvertiserPreferences} />
             <span
               className="animate-pulse-dot bg-green inline-block size-1.5 rounded-full"
               aria-hidden

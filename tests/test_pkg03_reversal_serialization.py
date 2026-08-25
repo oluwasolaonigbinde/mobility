@@ -12,7 +12,6 @@ from test_trips import create_trip_ready_graph
 from app.models.billing import PaymentReceipt, ReceiptLifecycleEvent, ReceiptLifecycleStatus
 from app.models.campaign import CampaignStatus
 from app.models.trip import TripSession
-from app.schemas.campaigns import CampaignUpdate
 from app.schemas.trips import TripStartRequest
 from app.services.billing import (
     record_expedited_production_waiver,
@@ -20,7 +19,7 @@ from app.services.billing import (
     reserve_assignment_liability,
     reverse_payment_receipt,
 )
-from app.services.campaigns import update_advertiser_campaign
+from app.services.campaigns import decide_campaign_review, submit_campaign_for_review
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 from app.services.trips import start_driver_trip
 
@@ -157,11 +156,16 @@ def test_campaign_activation_commits_before_waiting_reversal_cutoff(
                 )
             )
             await receipt_locked.wait()
-            activated, _ = await update_advertiser_campaign(
+            await submit_campaign_for_review(
                 activation_session,
                 user_id=owner.id,
                 campaign_id=campaign.id,
-                payload=CampaignUpdate(status=CampaignStatus.ACTIVE),
+            )
+            activated = await decide_campaign_review(
+                activation_session,
+                admin_user_id=admin.id,
+                campaign_id=campaign.id,
+                target_status=CampaignStatus.APPROVED,
             )
             await activation_session.commit()
             await reversal

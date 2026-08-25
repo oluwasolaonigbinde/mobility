@@ -18,6 +18,7 @@ from app.models.billing import (
     QuoteRequestSource,
     ReceiptMethod,
 )
+from app.models.campaign import CampaignReviewEvent, CampaignStatus
 from app.models.user import UserRole
 from app.schemas.campaigns import CampaignUpdate
 from app.services.billing import (
@@ -35,7 +36,7 @@ from app.services.billing import (
     request_custom_quote,
     reverse_payment_receipt,
 )
-from app.services.campaigns import update_advertiser_campaign
+from app.services.campaigns import submit_campaign_for_review, update_advertiser_campaign
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 
 
@@ -809,3 +810,79 @@ def test_stale_same_currency_update_cannot_overwrite_accepted_currency(
         return result
 
     assert asyncio.run(race()) == "CAMPAIGN_CURRENCY_IMMUTABLE"
+
+
+def test_stale_currency_update_cannot_mutate_submitted_review_snapshot(
+    postgis_db_sessionmaker,
+    monkeypatch,
+) -> None:
+    admin, owner, organization = _fixture(postgis_db_sessionmaker, "currency-review-race")
+    campaign = create_test_campaign(
+        postgis_db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=admin.id,
+    )
+
+    async def race() -> tuple[str, str, str]:
+        stale_read = asyncio.Event()
+        release_stale = asyncio.Event()
+        original_get = campaign_services.get_advertiser_campaign
+
+        async def paused_get(*args, **kwargs):
+            current = await original_get(*args, **kwargs)
+            if asyncio.current_task().get_name() == "stale-review-currency-update":
+                stale_read.set()
+                await release_stale.wait()
+            return current
+
+        monkeypatch.setattr(campaign_services, "get_advertiser_campaign", paused_get)
+
+        async def stale_currency_update() -> str:
+            async with postgis_db_sessionmaker() as session:
+                try:
+                    await update_advertiser_campaign(
+                        session,
+                        user_id=owner.id,
+                        campaign_id=campaign.id,
+                        payload=CampaignUpdate(currency="USD"),
+                    )
+                    await session.commit()
+                except AppError as exc:
+                    await session.rollback()
+                    return exc.code
+                return "updated"
+
+        stale_task = asyncio.create_task(
+            stale_currency_update(),
+            name="stale-review-currency-update",
+        )
+        await stale_read.wait()
+
+        async with postgis_db_sessionmaker() as session:
+            submitted = await submit_campaign_for_review(
+                session,
+                user_id=owner.id,
+                campaign_id=campaign.id,
+            )
+            assert submitted.status == CampaignStatus.PENDING_REVIEW.value
+            await session.commit()
+
+        release_stale.set()
+        outcome = await stale_task
+
+        async with postgis_db_sessionmaker() as session:
+            current = await session.get(type(campaign), campaign.id)
+            submission = await session.scalar(
+                select(CampaignReviewEvent).where(
+                    CampaignReviewEvent.campaign_id == campaign.id,
+                    CampaignReviewEvent.new_status == CampaignStatus.PENDING_REVIEW.value,
+                )
+            )
+            assert current is not None and submission is not None
+            return outcome, current.currency, str(submission.reviewed_snapshot["currency"])
+
+    assert asyncio.run(race()) == (
+        "CAMPAIGN_REVIEW_STATE_CONFLICT",
+        "NGN",
+        "NGN",
+    )

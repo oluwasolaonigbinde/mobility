@@ -59,12 +59,12 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 ### Current control pointer
 
 **Controller state:** `ACTIVE`
-**Control package:** `PKG-04` — Package 3's provider-neutral commercial flow is
-closed at its external gates; Package 4 is handed forward as NEXT but has not
-started.
-**Current checkpoint:** `PKG-04 / W2-03A` — the first dependency-satisfied
-Package 4 item is the handoff pointer only. No Package 4 implementation has
-started; W2-02A remains blocked by EXT-STORAGE-PROVIDER.
+**Control package:** `PKG-05` — Package 4 is blocked only on its recorded
+storage/scanner/KMS/email/phone inputs and transitive checklist dependencies;
+Package 5 is the next dependency-safe package frontier.
+**Current checkpoint:** `PKG-05 / W3-00A` — W2-04A is focused-verified and
+complete. The privacy operating model is the first runnable later-package
+checkpoint; it is pointed but not started by the Package 4 controller.
 
 ## Executable package queue
 
@@ -73,8 +73,8 @@ started; W2-02A remains blocked by EXT-STORAGE-PROVIDER.
 | 1 | **PKG-01 — foundations and empirical risk proof** | DONE | Resolve remaining foundations, production-PWA/staging risk and correction authority. | none |
 | 2 | **PKG-02 — money integrity and payout operations** | DONE | Corrected release, pre-existing-reversal backfill and debt-aware economic/settlement authority agree. | none — checklist DAG gates entry |
 | 3 | **PKG-03 — commercial contracts and billing** | BLOCKED | Synthetic/provider-neutral commercial flow is verified; live provider checkout and budget enforcement await their recorded external inputs. | none — checklist DAG gates entry |
-| 4 | **PKG-04 — secure evidence, activation and communications** | **NEXT** | Secure files/KYC, campaign evidence/activation/cancellation and notifications integrate; handed forward but not started. | none — checklist DAG gates entry |
-| 5 | **PKG-05 — privacy, measurement and retargeting** | QUEUED | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
+| 4 | **PKG-04 — secure evidence, activation and communications** | **BLOCKED** | Campaign review and the shared in-app notification core are complete; storage/KYC/activation/provider communications await recorded external inputs and their transitive dependencies. | none — checklist DAG gates entry |
+| 5 | **PKG-05 — privacy, measurement and retargeting** | **NEXT** | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
 | 6 | **PKG-06 — matching and driver onboarding** | QUEUED | Recommendations, offers, activity and approved driver/vehicle onboarding work together. | none — checklist DAG gates entry |
 | 7 | **PKG-07 — production driver PWA** | QUEUED | The pilot PWA safely tracks, syncs, explains earnings and supports release across the device matrix. | none — checklist DAG gates entry |
 | 8 | **PKG-08 — governed reporting and pilot readiness** | QUEUED | Safe reports, release infrastructure and one complete pilot acceptance gate are ready. | none — checklist DAG gates entry |
@@ -407,12 +407,81 @@ started; W2-02A remains blocked by EXT-STORAGE-PROVIDER.
   independent review verdict is PASS. W2-01C remains
   `BLOCKED — EXT-PAYMENT-PROVIDER` and W2-01E remains
   `BLOCKED — EXT-BUDGET-POLICY`; issuer and real commercial values remain
-  fail-closed live-use gates. Package 4 is NEXT, not started.
+  fail-closed live-use gates. Package 4 is IN PROGRESS with its W2-03A
+  checkpoint preserved on top of this corrected authority.
 
 ### PKG-04 — secure evidence, activation and communications
 
 - **Owns:** checklist 28–43, with internal checkpoints for storage/security,
   KYC lifecycle, approvals/activation/cancellation, then communications.
+- **Package plan (activated 24 Aug 2026, canonical branch `feat/pkg-04`):**
+  adopt verified shared CI repair `a8fa4e0`, then serialize Package 4 behind one
+  controller-owned migration/contract/authority boundary. W2-03A is the sole
+  admitted first slice: dedicated submit/approve/reject/resubmit transitions
+  bind immutable reviewed campaign snapshots and cannot schedule or activate.
+  One no-history Terra worker owns bounded domain/API/UI/test implementation;
+  the controller owns migrations, all three §9 baselines and authority docs,
+  with one independent plan review PASS before implementation. Focused tests
+  only at that checkpoint. Corrected Package 3 tip `878be3a` was integrated by
+  merge commit `5866dca`, preserving both histories; governance commit
+  `e4533a9` was then adopted. W2-04A was admitted next and is now complete.
+- **W2-03A checkpoint evidence (24 Aug 2026):** migration `0043` extends the campaign
+  lifecycle and adds append-only, exact-submission-bound review evidence.
+  Dedicated row-locked advertiser/admin actions enforce submit, approve,
+  reasoned reject and resubmit; generic creation/update cannot bypass review,
+  and approval cannot schedule or activate. Advertiser detail/history and the
+  typed `/admin/approvals` queue expose the same snapshot digest and immutable
+  transition history. Focused evidence: 19 backend passes plus 13 expected
+  SQLite skips, 5 PostgreSQL lifecycle/race/migration passes, filtered
+  autogenerate-empty, 4 OpenAPI/migration-chain passes, 18 frontend tests,
+  55 R14-B fixtures, typecheck and lint (one existing compiler warning), and
+  the isolated real-stack submit→approve→history journey in desktop/mobile
+  Chromium (2 passes). All three §9 baselines moved together. No provider,
+  scheduling, activation, physical-device, real-route, staging, pilot or
+  user-feedback validation is claimed.
+- **Corrected-authority seam evidence (24 Aug 2026):** Package 4 migration
+  `0043` now descends from Package 3 head `0042`. The adopted Package 3
+  campaign/terms currency lock initially exposed one stale-update ordering
+  against review submission; the tenant campaign row is now locked before the
+  review-state check while retaining advisory-lock-first currency ordering.
+  The barrier proves the stale loser returns
+  `CAMPAIGN_REVIEW_STATE_CONFLICT` and live/snapshotted currency remain equal.
+  Six focused PostgreSQL authority/review cases, six migration/OpenAPI checks,
+  filtered autogenerate, 40 delivery-control cases, Ruff and 55 R14-B fixtures
+  pass. W2-03A remains complete; no Package 3 full-suite rerun was performed.
+- **W2-04A checkpoint evidence (24 Aug 2026):** migration `0044` converts the
+  MNY-08C fraud-notice foundation into a recipient/channel-scoped outbox with
+  exact retry fingerprints, unique provider receipt identity, immutable
+  evidence, delivery/read state, an unread index and lossless legacy backfill.
+  Current-user APIs and same-origin BFF routes expose sanitized list/unread/
+  read operations; one root TanStack Query provider mounts a visible-only
+  45-second polled centre for admin, advertiser and driver. D24's default-on
+  advertiser-organization email preference is shared, manager-controlled and
+  audited; in-app remains mandatory. All three §9 baselines moved together.
+  Focused evidence: 22 backend passes with 5 expected environment skips; 6
+  real-PostgreSQL feed/migration/autogenerate passes; 4 OpenAPI/contract passes;
+  62 frontend and preserved R14-B fixtures; typecheck, scoped lint and Ruff;
+  and 8 isolated real-stack desktop/mobile three-role Playwright passes.
+  Consolidated independent review passed after correcting fresh in-app `sent`
+  semantics and provider-ID uniqueness. No email provider, driver WhatsApp/
+  SMS, push, external/live-provider, physical-device, staging, pilot or user-
+  feedback validation is claimed. Remaining Package 4 work is dependency-
+  blocked, so the executable frontier advances to PKG-05/W3-00A without
+  starting it in this checkpoint.
+- **Package 4 post-review correction evidence (24 Aug 2026):** Extended Pro's
+  exact-head review found three uncovered authority defects plus stale PR
+  controls. Generic campaign PATCH now treats only an identical status as a
+  no-op and rejects every lifecycle change; campaign-zone create/update/delete
+  lock the campaign before mutability checks and writes; external-channel
+  notification rows start `pending` with no sent timestamp while in-app rows
+  start `sent`. Audit, migration/seed-head and Package 3 fixtures now follow the
+  governed review path, and notification E2E creates idempotent per-role data
+  with one serialized preference mutation. Focused evidence: 83 backend passes,
+  including six PostgreSQL submission-versus-zone races; a controller rerun of
+  the affected controls passed 64 with 25 environment skips; Ruff, frontend
+  lint/type and diff checks pass; the corrected real-stack desktop/mobile
+  notification journey passes 7 with one intentional mobile preference skip.
+  External provider deferrals remain unchanged and no live delivery is claimed.
 - **Closure:** migrations/contracts integrate once; security and communications
   receive separate specialist verification before consolidated package review.
 
@@ -528,22 +597,22 @@ verification, gates or required specialist review.
 | 25 | **W2-01C — gateway adapter and webhook ingestion** | PKG-03 | BLOCKED — EXT-PAYMENT-PROVIDER | One-off Q3 checkout and signed provider events converge into canonical receipts. | leaf: W2-00B, W2-01A; external: EXT-PAYMENT-PROVIDER |
 | 26 | **W2-01D — credits, reversals and 24-hour refund registry** | PKG-03 | DONE | Standard refund eligibility lasts to the 24-hour boundary; expedited eligibility ends only when production actually begins under an immutable advertiser-requested waiver. | leaf: W2-01A, W2-01B |
 | 27 | **W2-01E — advertiser-spend budget enforcement** | PKG-03 | BLOCKED — EXT-BUDGET-POLICY | Spend facts drive persisted alerts/pauses without using driver payout cost as a proxy. | leaf: W2-01A, W2-01B; external: EXT-BUDGET-POLICY |
-| 28 | **W2-02A — private object-storage foundation** | PKG-04 | TODO | Direct private uploads produce managed stored-file records. | external: EXT-STORAGE-PROVIDER |
-| 29 | **W2-02B — malware scanning and purpose-scoped reads** | PKG-04 | TODO | Unsafe files fail closed; privileged downloads are short-lived and audited. | leaf: W2-02A; external: EXT-MALWARE-SCANNER |
+| 28 | **W2-02A — private object-storage foundation** | PKG-04 | BLOCKED — EXT-STORAGE-PROVIDER | Direct private uploads produce managed stored-file records. | external: EXT-STORAGE-PROVIDER |
+| 29 | **W2-02B — malware scanning and purpose-scoped reads** | PKG-04 | BLOCKED — EXT-MALWARE-SCANNER | Unsafe files fail closed; privileged downloads are short-lived and audited. | leaf: W2-02A; external: EXT-MALWARE-SCANNER |
 | 30 | **W2-02C — advertiser creative upload** | PKG-04 | TODO | Campaign flows use managed scanned assets instead of arbitrary URLs. | leaf: W2-02B |
-| 31 | **W2-02D — encrypted KYC and financial identifiers** | PKG-04 | TODO | Required documents/NIN/bank data reuse the crypto port and are protected and version-reviewed. | leaf: W2-02B, MNY-10A; external: EXT-KMS-CUSTODY |
+| 31 | **W2-02D — encrypted KYC and financial identifiers** | PKG-04 | BLOCKED — EXT-KMS-CUSTODY | Required documents/NIN/bank data reuse the crypto port and are protected and version-reviewed. | leaf: W2-02B, MNY-10A; external: EXT-KMS-CUSTODY |
 | 32 | **W2-02E — file/KYC lifecycle and incident operations** | PKG-04 | TODO | File/KYC purge plus scanner/key/vendor failures are tested and audited. | leaf: W2-02B, W2-02D |
-| 33 | **W2-03A — campaign submission and approval** | PKG-04 | TODO | Advertiser submits; admin approves/rejects; unapproved campaigns cannot schedule. | none |
+| 33 | **W2-03A — campaign submission and approval** | PKG-04 | DONE | Advertiser submits; admin approves/rejects; unapproved campaigns cannot schedule. | none |
 | 34 | **W2-03B — creative review gate** | PKG-04 | TODO | Only admin-approved, scan-cleared creative can satisfy campaign launch. | leaf: W2-02C |
 | 35 | **W2-03C — installation evidence and proof-of-display** | PKG-04 | TODO | Assignment-bound evidence and nonce proof gate earning eligibility. | leaf: W2-02B |
 | 36 | **W2-03D — atomic activation** | PKG-04 | TODO | One admin command locks/rechecks every commercial and operational prerequisite, including valid standard-wait or expedited-waiver production authority. | leaf: W2-00C, W2-01A, W2-01B, W2-03A, W2-03B, W2-03C |
 | 37 | **W2-03E — governed mid-flight changes** | PKG-04 | TODO | Expansions honor funded headroom; reductions need approval and effective revisions. | leaf: W2-00A, W2-00C, W2-03D |
 | 38 | **W2-03F — cancellation cutoff and settlement** | PKG-04 | TODO | One idempotent cutoff stops new work, clips pay and applies the standard-boundary or actual-waived-start refund rule. | leaf: W2-01D, W2-03D, MNY-11A |
 | 39 | **W2-03G — proof challenges and spot checks** | PKG-04 | TODO | Missed challenges and physical verification feed the authoritative fraud hold. | leaf: MNY-09A, W2-03C, W2-03D |
-| 40 | **W2-04A — notification core and role surfaces** | PKG-04 | TODO | W1 in-app notices become the shared outbox/list/unread-preference system. | leaf: MNY-08C |
-| 41 | **W2-04B — advertiser email delivery** | PKG-04 | TODO | Worker-dispatched email and signed receipts update one logical notification. | leaf: W2-04A; external: EXT-EMAIL-PROVIDER |
+| 40 | **W2-04A — notification core and role surfaces** | PKG-04 | DONE | W1 in-app notices become the shared outbox/list/unread-preference system. | leaf: MNY-08C |
+| 41 | **W2-04B — advertiser email delivery** | PKG-04 | BLOCKED — EXT-EMAIL-PROVIDER | Worker-dispatched email and signed receipts update one logical notification. | leaf: W2-04A; external: EXT-EMAIL-PROVIDER |
 | 42 | **W2-04C — business triggers and manual driver contact** | PKG-04 | TODO | Stable event keys notify users; driver WhatsApp remains an audited ops task. | leaf: W2-04A, W2-04B, W2-01E, W2-03F, W2-03G, MNY-10C |
-| 43 | **W2-04D — account recovery and verified contact preferences** | PKG-04 | TODO | Advertiser/admin password reset and driver verified-phone/WhatsApp consent are explicit. | leaf: W2-04B, W2-04C; external: EXT-PHONE-OPERATOR |
+| 43 | **W2-04D — account recovery and verified contact preferences** | PKG-04 | BLOCKED — EXT-PHONE-OPERATOR | Advertiser/admin password reset and driver verified-phone/WhatsApp consent are explicit. | leaf: W2-04B, W2-04C; external: EXT-PHONE-OPERATOR |
 | 44 | **W3-00A — privacy operating model** | PKG-05 | TODO | DPIA/ROPA/roles/lawful bases/consent/vendor/breach responsibilities are explicit. | none |
 | 45 | **W3-00B — end-to-end retention and DSR** | PKG-05 | TODO | Synthetic DSR spans DB, objects, devices, logs, backups and processors. | leaf: W3-00A, W2-02E |
 | 46 | **W3-00C — central disclosure-control service** | PKG-05 | TODO | Every advertiser heatmap/report/audience query enforces one privacy floor. | leaf: W3-00A |

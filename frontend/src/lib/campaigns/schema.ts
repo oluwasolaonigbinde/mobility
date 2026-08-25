@@ -43,7 +43,6 @@ export const campaignBasicsSchema = z
     end_at: optionalDatetime,
     budget_amount: optionalMoney,
     daily_budget_amount: optionalMoney,
-    launch: z.enum(["draft", "scheduled"]),
   })
   .superRefine((data, ctx) => {
     if (data.start_at && data.end_at && Date.parse(data.start_at) >= Date.parse(data.end_at)) {
@@ -51,13 +50,6 @@ export const campaignBasicsSchema = z
         code: "custom",
         path: ["end_at"],
         message: "End must be after start",
-      });
-    }
-    if (data.launch === "scheduled" && !data.start_at) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["start_at"],
-        message: "A scheduled campaign needs a start date",
       });
     }
   });
