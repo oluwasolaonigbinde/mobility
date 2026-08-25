@@ -21,7 +21,7 @@ export default async function AdvertiserOverviewPage() {
       <h1 className="font-display text-3xl font-semibold tracking-tight">
         {greeting}, {me.advertiser_organization?.name ?? me.user.full_name}
       </h1>
-      <p className="micro text-muted mt-1 mb-8">Network overview · live</p>
+      <p className="micro text-muted mt-1 mb-8">Campaign overview · aggregate measurement</p>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
         <Stat

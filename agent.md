@@ -41,3 +41,28 @@ These guidelines are working successfully if:
 Use subagents when parallel read-only investigation or review will materially
 speed up the task. Give each subagent clear ownership and avoid duplicated work.
 Keep code edits single-owner unless write scopes are explicitly disjoint.
+
+Spawn delegated workers with no inherited conversation history by default and
+give them a compact, self-contained task packet. Do not send the controller's
+full chat, programme ledger or repeated test output. Parallel workers must own
+genuinely disjoint work; do not duplicate discovery, implementation or review.
+
+Before dispatching or resuming a task, explicitly select a model and reasoning
+level capable of its highest-risk boundary. Use lightweight models only for
+bounded searches and low-risk checks; money, security, migration, concurrency
+and cross-package authority work require a suitably strong model.
+
+## Controller autonomy
+
+Once a package task is dispatched, its controller monitors it to a terminal
+checkpoint, sends routine failures and confirmed review findings back for
+bounded correction, verifies the corrected result once, and advances the
+executable package queue without waiting for step-by-step owner reminders.
+Questions go to the project owner only for genuine product, business, legal or
+client decisions, external credentials/accounts or actions, or unavoidable
+authority conflicts. Discoverable technical ambiguity remains controller work.
+
+Keep owner updates short and in plain English, and report only material state
+changes. Do not create iterative evidence-only or “finalize receipt” commits.
+Write a package receipt once after the implementation and verification state is
+stable; never embed the SHA of the commit containing that receipt inside itself.

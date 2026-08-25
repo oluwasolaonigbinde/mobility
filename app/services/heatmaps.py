@@ -383,6 +383,7 @@ async def build_heatmap(
         "lp.geom && bbox.geom",
         "ST_Intersects(lp.geom, bbox.geom)",
     ]
+    authority_filters: list[str] = []
     if query.start_at is not None:
         filters.append("lp.recorded_at >= :start_at")
         params["start_at"] = query.start_at
@@ -391,15 +392,21 @@ async def build_heatmap(
         params["end_at"] = query.end_at
     if campaign_id is not None:
         filters.append("ts.campaign_id = :campaign_id")
+        authority_filters.append("ts.campaign_id = :campaign_id")
         params["campaign_id"] = campaign_id
     if organization_id is not None:
         filters.append("c.organization_id = :organization_id")
+        authority_filters.append("c.organization_id = :organization_id")
         params["organization_id"] = organization_id
     if vehicle_type is not None:
         filters.append("v.vehicle_type = :vehicle_type")
+        authority_filters.append("v.vehicle_type = :vehicle_type")
         params["vehicle_type"] = vehicle_type
 
-    result = await session.execute(text(aggregation_sql(filters)), params)
+    result = await session.execute(
+        text(aggregation_sql(filters, authority_filters=authority_filters)),
+        params,
+    )
     features = [
         heatmap_feature(
             row=row,
@@ -423,8 +430,13 @@ async def build_heatmap(
     )
 
 
-def aggregation_sql(filters: list[str]) -> str:
+def aggregation_sql(
+    filters: list[str],
+    *,
+    authority_filters: list[str] | None = None,
+) -> str:
     where_clause = " AND ".join(filters)
+    authority_where_clause = " AND ".join(authority_filters or ["TRUE"])
     return f"""
         WITH bbox AS (
             SELECT ST_MakeEnvelope(:min_lon, :min_lat, :max_lon, :max_lat, 4326) AS geom
@@ -464,18 +476,73 @@ def aggregation_sql(filters: list[str]) -> str:
             FROM eligible_pings
             GROUP BY grid_x, grid_y
         ),
-        trip_window_counts AS (
-            SELECT trip_session_id, count(*)::integer AS total_ping_count
-            FROM eligible_pings
-            GROUP BY trip_session_id
+        trip_authority_counts AS (
+            SELECT
+                lp.trip_session_id,
+                count(*)::integer AS total_ping_count
+            FROM location_pings lp
+            JOIN trip_sessions ts ON ts.id = lp.trip_session_id
+            JOIN campaigns c ON c.id = ts.campaign_id
+            JOIN vehicles v ON v.id = ts.vehicle_id
+            WHERE {authority_where_clause}
+            GROUP BY lp.trip_session_id
+        ),
+        trip_fraud_counts AS (
+            SELECT
+                ff.trip_session_id,
+                count(*) FILTER (
+                    WHERE ff.severity = 'low'
+                )::integer AS low_count,
+                count(*) FILTER (
+                    WHERE ff.severity = 'medium'
+                )::integer AS medium_count,
+                count(*) FILTER (
+                    WHERE ff.severity = 'high'
+                )::integer AS high_count
+            FROM fraud_flags ff
+            WHERE ff.status IN ('open', 'acknowledged', 'confirmed')
+            GROUP BY ff.trip_session_id
         ),
         latest_estimates AS (
             SELECT DISTINCT ON (trip_session_id)
-                trip_session_id,
-                estimated_impressions
-            FROM impression_estimates
-            WHERE formula_version = :impression_formula_version
-            ORDER BY trip_session_id, estimated_at DESC, id DESC
+                ie.trip_session_id,
+                ie.estimated_impressions
+            FROM impression_estimates ie
+            JOIN trip_analytics ita ON ita.id = ie.trip_analytics_id
+            LEFT JOIN trip_fraud_counts tfc ON tfc.trip_session_id = ie.trip_session_id
+            WHERE ie.formula_version = :impression_formula_version
+              AND ie.is_authoritative = true
+              AND ita.formula_version = :route_analytics_formula_version
+              AND ie.metadata -> 'fraud_flag_counts' IS NOT NULL
+              AND COALESCE(
+                      (ie.metadata -> 'fraud_flag_counts' ->> 'low')::integer,
+                      -1
+                  ) = COALESCE(tfc.low_count, 0)
+              AND COALESCE(
+                      (ie.metadata -> 'fraud_flag_counts' ->> 'medium')::integer,
+                      -1
+                  ) = COALESCE(tfc.medium_count, 0)
+              AND COALESCE(
+                      (ie.metadata -> 'fraud_flag_counts' ->> 'high')::integer,
+                      -1
+                  ) = COALESCE(tfc.high_count, 0)
+              AND (
+                  (
+                      ie.metadata ->> 'source_analytics_fingerprint' IS NOT NULL
+                      AND ie.metadata ->> 'source_analytics_fingerprint'
+                          = ita.metadata ->> 'output_fingerprint'
+                  )
+                  OR (
+                      ie.metadata ->> 'source_analytics_fingerprint' IS NULL
+                      AND ie.estimated_at >= ita.computed_at
+                      AND (
+                          ie.metadata ->> 'source_analytics_formula_version' IS NULL
+                          OR ie.metadata ->> 'source_analytics_formula_version'
+                              = ita.formula_version
+                      )
+                  )
+              )
+            ORDER BY ie.trip_session_id, ie.estimated_at DESC, ie.id DESC
         ),
         vehicle_cell_metrics AS (
             SELECT
@@ -487,19 +554,19 @@ def aggregation_sql(filters: list[str]) -> str:
                 coalesce(
                     sum(
                         coalesce(ta.distance_m, 0)
-                        * (tcc.cell_ping_count::numeric / nullif(twc.total_ping_count, 0))
+                        * (tcc.cell_ping_count::numeric / nullif(tac.total_ping_count, 0))
                     ),
                     0
                 ) AS distance_m,
                 coalesce(
                     sum(
                         coalesce(le.estimated_impressions, 0)
-                        * (tcc.cell_ping_count::numeric / nullif(twc.total_ping_count, 0))
+                        * (tcc.cell_ping_count::numeric / nullif(tac.total_ping_count, 0))
                     ),
                     0
                 ) AS estimated_impressions
             FROM trip_cell_counts tcc
-            JOIN trip_window_counts twc ON twc.trip_session_id = tcc.trip_session_id
+            JOIN trip_authority_counts tac ON tac.trip_session_id = tcc.trip_session_id
             LEFT JOIN trip_analytics ta
                 ON ta.trip_session_id = tcc.trip_session_id
                 AND ta.formula_version = :route_analytics_formula_version
@@ -532,20 +599,20 @@ def aggregation_sql(filters: list[str]) -> str:
                 coalesce(
                     sum(
                         coalesce(ta.distance_m, 0)
-                        * (tcc.cell_ping_count::numeric / nullif(twc.total_ping_count, 0))
+                        * (tcc.cell_ping_count::numeric / nullif(tac.total_ping_count, 0))
                     ),
                     0
                 ) AS distance_m,
                 coalesce(
                     sum(
                         coalesce(le.estimated_impressions, 0)
-                        * (tcc.cell_ping_count::numeric / nullif(twc.total_ping_count, 0))
+                        * (tcc.cell_ping_count::numeric / nullif(tac.total_ping_count, 0))
                     ),
                     0
                 ) AS estimated_impressions,
                 coalesce(avg(ta.quality_score), 0) AS average_quality_score
             FROM trip_cell_counts tcc
-            JOIN trip_window_counts twc ON twc.trip_session_id = tcc.trip_session_id
+            JOIN trip_authority_counts tac ON tac.trip_session_id = tcc.trip_session_id
             LEFT JOIN trip_analytics ta
                 ON ta.trip_session_id = tcc.trip_session_id
                 AND ta.formula_version = :route_analytics_formula_version

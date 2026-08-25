@@ -631,6 +631,20 @@ chain); W3-04C waits on W3-04B plus W2-02B/D. Package 7 is not started.
   the cleanup path lacked `PAYOUT_CRYPTO_KEYRING_B64`; it is not attributed to
   these repairs and was not rerun. No external gate changed, and Package 6's
   separate W3-03A checkpoint was not touched.
+- **Audit-correction adoption (25 Aug 2026):** Package 6 selectively adopted
+  the net Package 5 product, test and contract corrections without the source
+  branch's delivery receipts. Its colliding draft migration was reconciled as
+  linear migration `0051` after Package 6's published `0050`; `0048`–`0050`
+  remain unchanged. One canonical impression authority now governs workers,
+  reports, payouts and heatmaps while scenarios remain inspectable; stale
+  provenance, full-slice heatmap conservation and service-layer active-admin
+  checks fail closed. Frontend notification state/retry and Cardvert branding
+  corrections moved with synchronized contracts. Focused verification and the
+  combined gate passed (1,058 backend passes, 4 skips; 225 frontend tests plus
+  typecheck/lint/build; isolated migration/seed/live-stack checks). The sole
+  bounded review's worker-authority finding was corrected with observed
+  red/green evidence. Package 5 and Package 6 remain honestly BLOCKED at their
+  existing external/dependency frontiers; no later slice was admitted.
 - **Closure:** privacy/measurement review proves suppression, reproducibility,
   provenance and safe claims before any advertiser live-use gate opens.
 
@@ -1835,7 +1849,7 @@ and Git history win.
 | S1 — payout engine v2 (hourly pay + daily caps, D2/D4/D9) | Complete, merged — RM1 fixed and the original whole-trip stationary grace retained for immutable payout-v2 history | Git `f9cd8ca`; architecture v1.8/v1.15, §16.1 [BUILT] |
 | PKG-01 — foundations and empirical risk proof | Complete — RM2/RM6/RM7 closed; payout-v3 frozen parked-time behavior, PWA protocol/interrupted-flow build proof and provider-neutral release/recovery proof delivered; physical/live validation remains explicitly deferred | Git `d2cd424`…`be726a2` plus the package closure commit; architecture v1.30; D22/D23; automated/PostGIS/frontend/browser/recovery evidence |
 | PKG-02 — money integrity and payout operations | Complete — RM8/RM10/RM11 closed; copied-route control, authoritative holds, clean release, encrypted payees, frozen provider instructions, line finality and carry-forward debt delivered provider-neutrally | Git through `e3a505e`; migrations `0022`–`0031`; architecture v1.37; Postgres/frontend/contract/synthetic end-to-end evidence and consolidated review resolved |
-| PKG-06 / W3-03A–W3-04A — matching, offers, activity and public application | Complete checkpoints — advisory cars-only ranking, immutable expiring offers, reviewable activity flags and default-off non-enumerating pending driver applications; W3-04B/C are dependency-blocked | Package 6 commits through the W3-04A blocked-frontier checkpoint on corrected Package 5 history; architecture v1.48–v1.51; focused PostgreSQL/Redis/backend/frontend/contract/live-journey evidence and consolidated reviews resolved |
+| PKG-06 / W3-03A–W3-04A — matching, offers, activity and public application | Complete checkpoints — advisory cars-only ranking, immutable expiring offers, reviewable activity flags and default-off non-enumerating pending driver applications; W3-04B/C are dependency-blocked | Package 6 commits through the W3-04A blocked-frontier checkpoint with selectively adopted Package 5 audit corrections; architecture v1.48–v1.52; focused PostgreSQL/Redis/backend/frontend/contract/live-journey evidence and consolidated reviews resolved |
 | S4 — data lifecycle (ping partitions, retention purge, audit backfill, D10) | Complete, merged | Git `a879a3d`…`4f487e7`; architecture v1.9, §24.2 [BUILT] |
 | W0-F — trip finality protocol + durable client queue (RM3/RM4/RM5, D15) | Complete — sealed-only money chain, post-seal quarantine, IndexedDB queue with stable retry keys; independently reviewed and hardened (D16: apply-after-initial-payout, pre-seal analytics recompute, fail-closed client) | Migrations `0016`+`0017`; architecture v1.16/v1.17; `tests/test_trip_seal.py`; live compose e2e |
 | Pre-production ops (production Compose overlay, release smoke, backup/restore rehearsal) | Complete locally, **not deployed** | Git from `006d94e`; `docker-compose.production.yml`, `docs/runbook.md` |

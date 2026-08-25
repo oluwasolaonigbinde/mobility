@@ -8618,6 +8618,10 @@
             "title": "Id",
             "type": "string"
           },
+          "is_authoritative": {
+            "title": "Is Authoritative",
+            "type": "boolean"
+          },
           "metadata": {
             "additionalProperties": true,
             "title": "Metadata",
@@ -8696,6 +8700,7 @@
           "vehicle_id",
           "traffic_density_profile_id",
           "formula_version",
+          "is_authoritative",
           "status",
           "estimated_impressions",
           "base_distance_impressions",

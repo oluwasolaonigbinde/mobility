@@ -329,6 +329,7 @@ async def process_ended_trip(
         .where(
             ImpressionEstimate.trip_session_id == trip.id,
             ImpressionEstimate.formula_version == settings.impression_formula_version,
+            ImpressionEstimate.is_authoritative.is_(True),
         )
         .order_by(ImpressionEstimate.estimated_at.desc(), ImpressionEstimate.id)
     )
@@ -567,6 +568,7 @@ async def find_unprocessed_trip_page(
             TripAnalytics.trip_session_id == TripSession.id,
             TripAnalytics.formula_version == settings.route_analytics_formula_version,
             ImpressionEstimate.formula_version == settings.impression_formula_version,
+            ImpressionEstimate.is_authoritative.is_(True),
             estimate_low_count == open_low_count,
             estimate_medium_count == open_medium_count,
             estimate_high_count == open_high_count,

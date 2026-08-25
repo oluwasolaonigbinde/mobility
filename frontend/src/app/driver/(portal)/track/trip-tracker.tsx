@@ -460,7 +460,7 @@ export function TripTracker({
             {busy ? "Starting…" : storageReady === null ? "Preparing…" : "▶ Start trip"}
           </Button>
           <p className="text-faint text-center text-xs">
-            Keep the app open while driving — tracking runs while Vantage Driver is on screen.
+            Keep the app open while driving — tracking runs while Cardvert Driver is on screen.
             Unsent points are stored on your phone and retried automatically.
           </p>
         </>

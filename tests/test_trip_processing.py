@@ -1664,6 +1664,46 @@ def test_due_work_excludes_fully_processed_trip(db_sessionmaker, settings) -> No
     assert find_due(db_sessionmaker, settings) == []
 
 
+def test_due_work_replaces_scenario_only_estimate_with_canonical_authority(
+    db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_graph(db_sessionmaker, "due-scenario-only")
+    seed_analytics(db_sessionmaker, graph)
+    run_pipeline(db_sessionmaker, graph.trip.id, settings)
+    original = fetch_impression_estimates(db_sessionmaker)[0]
+
+    async def demote_to_scenario() -> None:
+        async with db_sessionmaker() as session:
+            estimate = await session.get(ImpressionEstimate, original.id)
+            profile = await session.get(
+                TrafficDensityProfile,
+                original.traffic_density_profile_id,
+            )
+            assert estimate is not None
+            assert profile is not None
+            estimate.is_authoritative = False
+            estimate.estimate_metadata = {
+                **(estimate.estimate_metadata or {}),
+                "authority": "scenario",
+            }
+            profile.is_default = False
+            await session.commit()
+
+    asyncio.run(demote_to_scenario())
+
+    assert find_due(db_sessionmaker, settings) == [graph.trip.id]
+    result = run_pipeline(db_sessionmaker, graph.trip.id, settings)
+    assert stage_outcomes(result)["impressions"] == "created"
+
+    estimates = fetch_impression_estimates(db_sessionmaker)
+    authoritative = [estimate for estimate in estimates if estimate.is_authoritative]
+    assert len(estimates) == 2
+    assert len(authoritative) == 1
+    assert authoritative[0].id != original.id
+    assert authoritative[0].traffic_density_profile_id != original.traffic_density_profile_id
+
+
 def test_due_work_reselects_changed_replay_detector_version(
     db_sessionmaker,
     settings,

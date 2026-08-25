@@ -244,6 +244,14 @@ class ImpressionEstimate(Base):
         Index("ix_impression_estimates_campaign_estimated_at", "campaign_id", "estimated_at"),
         Index("ix_impression_estimates_campaign_status", "campaign_id", "status"),
         Index("ix_impression_estimates_traffic_density_profile_id", "traffic_density_profile_id"),
+        Index(
+            "uq_impression_estimates_authoritative_trip_formula",
+            "trip_session_id",
+            "formula_version",
+            unique=True,
+            postgresql_where=text("is_authoritative = true"),
+            sqlite_where=text("is_authoritative = 1"),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -286,6 +294,11 @@ class ImpressionEstimate(Base):
         nullable=False,
     )
     status: Mapped[str] = mapped_column(String(32), nullable=False)
+    is_authoritative: Mapped[bool] = mapped_column(
+        default=False,
+        server_default=text("false"),
+        nullable=False,
+    )
     estimated_impressions: Mapped[Decimal] = mapped_column(
         Numeric(16, 2),
         default=0,

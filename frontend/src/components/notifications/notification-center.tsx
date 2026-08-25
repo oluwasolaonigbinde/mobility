@@ -27,6 +27,10 @@ async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+function mutationErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 function useDocumentVisible() {
   return useSyncExternalStore(
     (onChange) => {
@@ -149,6 +153,44 @@ export function NotificationCenter({
               Mark all read
             </button>
           </div>
+          {markRead.isError ? (
+            <div
+              role="alert"
+              aria-live="polite"
+              className="border-coral/40 bg-coral/10 text-coral mt-3 flex items-center justify-between gap-3 rounded border px-3 py-2 text-sm"
+            >
+              <span>
+                {mutationErrorMessage(markRead.error, "Could not mark the notification as read.")}
+              </span>
+              <button
+                type="button"
+                className="shrink-0 underline underline-offset-2"
+                onClick={() => {
+                  if (markRead.variables) markRead.mutate(markRead.variables);
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          ) : null}
+          {markAllRead.isError ? (
+            <div
+              role="alert"
+              aria-live="polite"
+              className="border-coral/40 bg-coral/10 text-coral mt-3 flex items-center justify-between gap-3 rounded border px-3 py-2 text-sm"
+            >
+              <span>
+                {mutationErrorMessage(markAllRead.error, "Could not mark notifications as read.")}
+              </span>
+              <button
+                type="button"
+                className="shrink-0 underline underline-offset-2"
+                onClick={() => markAllRead.mutate()}
+              >
+                Retry
+              </button>
+            </div>
+          ) : null}
           {notifications.isLoading ? (
             <p className="text-muted py-6 text-sm">Loading notifications…</p>
           ) : null}
@@ -179,9 +221,38 @@ export function NotificationCenter({
                   type="checkbox"
                   checked={preferences.data?.transactional_email_enabled ?? true}
                   disabled={preferences.isLoading || updatePreferences.isPending}
+                  aria-describedby={
+                    updatePreferences.isError ? "notification-preference-error" : undefined
+                  }
                   onChange={(event) => updatePreferences.mutate(event.target.checked)}
                 />
               </label>
+              {updatePreferences.isError ? (
+                <div
+                  id="notification-preference-error"
+                  role="alert"
+                  aria-live="polite"
+                  className="border-coral/40 bg-coral/10 text-coral mt-2 flex items-center justify-between gap-3 rounded border px-3 py-2 text-sm"
+                >
+                  <span>
+                    {mutationErrorMessage(
+                      updatePreferences.error,
+                      "Could not save email preferences.",
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    className="shrink-0 underline underline-offset-2"
+                    onClick={() => {
+                      if (typeof updatePreferences.variables === "boolean") {
+                        updatePreferences.mutate(updatePreferences.variables);
+                      }
+                    }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </section>

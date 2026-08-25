@@ -28,7 +28,7 @@ export default function GlobalError({
           }}
         >
           <section style={{ maxWidth: "24rem", textAlign: "center" }}>
-            <title>Something went wrong · Vantage</title>
+            <title>Something went wrong · Cardvert</title>
             <h1>That wasn&apos;t supposed to happen.</h1>
             <p>
               The error has been logged

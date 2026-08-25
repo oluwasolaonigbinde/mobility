@@ -35,6 +35,7 @@ from app.models.payout import (
     PayoutCorrectionOrderStatus,
 )
 from app.models.trip import TripSession, TripSessionStatus
+from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.payouts import (
     PAYOUT_V2,
@@ -314,6 +315,7 @@ async def create_correction_order(
 ) -> PayoutCorrectionOrder:
     """Project the campaign day and persist it as a draft order (C1: the
     named adjuster's proposal, value-complete before anyone approves)."""
+    await require_active_admin(session, created_by_user_id)
     projection = await project_campaign_day(
         session, campaign_id=campaign_id, lagos_day=lagos_day, settings=settings
     )
@@ -382,6 +384,7 @@ async def submit_correction_order(
     order_id: UUID,
     actor_user_id: UUID,
 ) -> PayoutCorrectionOrder:
+    await require_active_admin(session, actor_user_id)
     order = await get_correction_order(session, order_id, for_update=True)
     if order.status != PayoutCorrectionOrderStatus.DRAFT.value:
         raise correction_order_invalid_state(order.status, "submit")
@@ -437,6 +440,7 @@ async def approve_correction_order(
     actor_user_id: UUID,
     settings: Settings,
 ) -> PayoutCorrectionOrder:
+    await require_active_admin(session, actor_user_id)
     order = await get_correction_order(session, order_id, for_update=True)
     if order.status != PayoutCorrectionOrderStatus.PENDING_APPROVAL.value:
         raise correction_order_invalid_state(order.status, "approve")
@@ -470,7 +474,7 @@ async def reject_correction_order(
     order_id: UUID,
     actor_user_id: UUID,
 ) -> PayoutCorrectionOrder:
-    del actor_user_id  # the rejecting actor is recorded in the audit event
+    await require_active_admin(session, actor_user_id)
     order = await get_correction_order(session, order_id, for_update=True)
     if order.status != PayoutCorrectionOrderStatus.PENDING_APPROVAL.value:
         raise correction_order_invalid_state(order.status, "reject")
@@ -550,6 +554,7 @@ async def execute_correction_order(
     recorded execution_result without recomputing anything. The status flip,
     execution_result, and every ledger write share one transaction — a crash
     before commit leaves the order approved and no money written."""
+    await require_active_admin(session, actor_user_id)
     order = await get_correction_order(session, order_id, for_update=True)
     if order.status == PayoutCorrectionOrderStatus.EXECUTED.value:
         return order, False

@@ -33,6 +33,7 @@ from app.models.driver import DriverOnboardingStatus
 from app.models.impression import ImpressionEstimate
 from app.models.payout import PayoutCalculation
 from app.models.trip import LocationPing, LocationPingBatch, TripSessionStatus
+from app.models.trip_analytics import FraudFlag, FraudFlagSeverity, FraudFlagStatus
 from app.models.user import UserRole, UserStatus
 from app.models.vehicle import VehicleStatus, VehicleType
 from app.services import heatmaps
@@ -455,6 +456,132 @@ def test_advertiser_heatmap_aggregates_metrics_and_preserves_privacy(
     assert len(fetch_impression_estimates(postgis_db_sessionmaker)) == before_estimates
     assert len(fetch_payout_calculations(postgis_db_sessionmaker)) == before_payouts
     assert len(fetch_earnings_ledger_entries(postgis_db_sessionmaker)) == before_ledger
+
+
+def test_heatmap_slices_conserve_authoritative_trip_totals(
+    postgis_db_client,
+    postgis_db_sessionmaker,
+) -> None:
+    _, advertiser, _, campaign, _, _, _, trip, _ = create_heatmap_graph(
+        postgis_db_sessionmaker,
+        advertiser_email="heatmap-conservation-advertiser@example.com",
+        driver_email="heatmap-conservation-driver@example.com",
+        plate_number="HMAP-CONSERVE",
+    )
+    add_ping_batch(
+        postgis_db_sessionmaker,
+        trip_id=trip.id,
+        idempotency_key="heatmap-conservation-second-slice",
+        points=[
+            (RECORDED_AT + timedelta(minutes=30), 6.45, 3.39),
+            (RECORDED_AT + timedelta(minutes=35), 6.45, 3.39),
+        ],
+    )
+    headers = auth_headers(postgis_db_client, advertiser.email, PASSWORD)
+
+    first_slice = postgis_db_client.get(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
+        headers=headers,
+        params={
+            "bbox": BBOX,
+            "resolution_m": 500,
+            "metric": "distance_m",
+            "start_at": RECORDED_AT.isoformat(),
+            "end_at": (RECORDED_AT + timedelta(minutes=10)).isoformat(),
+        },
+    )
+    second_slice = postgis_db_client.get(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
+        headers=headers,
+        params={
+            "bbox": BBOX,
+            "resolution_m": 500,
+            "metric": "distance_m",
+            "start_at": (RECORDED_AT + timedelta(minutes=30)).isoformat(),
+            "end_at": (RECORDED_AT + timedelta(minutes=40)).isoformat(),
+        },
+    )
+
+    assert first_slice.status_code == http_status.HTTP_200_OK
+    assert second_slice.status_code == http_status.HTTP_200_OK
+    first = first_slice.json()["features"][0]["properties"]
+    second = second_slice.json()["features"][0]["properties"]
+    first_distance = Decimal(first["distance_m"])
+    second_distance = Decimal(second["distance_m"])
+    first_impressions = Decimal(first["estimated_impressions"])
+    second_impressions = Decimal(second["estimated_impressions"])
+
+    assert first["ping_count"] == 2
+    assert second["ping_count"] == 2
+    assert first_distance < Decimal("1000.00")
+    assert second_distance < Decimal("1000.00")
+    assert first_impressions < Decimal("200.00")
+    assert second_impressions < Decimal("200.00")
+    assert first_distance + second_distance == Decimal("1000.00")
+    assert first_impressions + second_impressions == Decimal("200.00")
+
+
+def test_heatmap_excludes_estimate_when_active_fraud_counts_change(
+    postgis_db_sessionmaker,
+) -> None:
+    _, _, _, campaign, _, _, _, trip, estimate = create_heatmap_graph(
+        postgis_db_sessionmaker,
+        advertiser_email="heatmap-fraud-stale-advertiser@example.com",
+        driver_email="heatmap-fraud-stale-driver@example.com",
+        plate_number="HMAP-FRAUD-STALE",
+    )
+
+    async def add_active_flag() -> None:
+        async with postgis_db_sessionmaker() as session:
+            session.add(
+                FraudFlag(
+                    trip_session_id=trip.id,
+                    trip_analytics_id=estimate.trip_analytics_id,
+                    assignment_id=estimate.assignment_id,
+                    campaign_id=estimate.campaign_id,
+                    driver_profile_id=estimate.driver_profile_id,
+                    vehicle_id=estimate.vehicle_id,
+                    flag_type="impossible_speed",
+                    severity=FraudFlagSeverity.LOW.value,
+                    status=FraudFlagStatus.OPEN.value,
+                    description="stale heatmap estimate regression",
+                    evidence={},
+                    detected_at=RECORDED_AT,
+                )
+            )
+            await session.commit()
+
+    asyncio.run(add_active_flag())
+    query = heatmaps.parse_heatmap_query(
+        bbox=BBOX,
+        resolution_m=500,
+        metric="estimated_impressions",
+        start_at=None,
+        end_at=None,
+        settings=Settings(),
+    )
+
+    async def build() -> Decimal:
+        async with postgis_db_sessionmaker() as session:
+            result = await heatmaps.build_heatmap(
+                session,
+                query=query,
+                settings=Settings(
+                    privacy_min_vehicles_per_cell=1,
+                    privacy_min_trips_per_cell=1,
+                    privacy_min_days_per_cell=1,
+                    privacy_max_contributor_share=1.0,
+                ),
+                campaign_id=campaign.id,
+                organization_id=None,
+                vehicle_type=None,
+                metadata_campaign_id=campaign.id,
+                metadata_organization_id=None,
+            )
+            assert result.features
+            return result.features[0].properties.estimated_impressions
+
+    assert asyncio.run(build()) == Decimal("0.00")
 
 
 def test_admin_heatmap_filters_global_campaign_org_and_vehicle_type(

@@ -16,17 +16,19 @@ from conftest import (
     create_test_vehicle,
     fetch_impression_estimates,
 )
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status as http_status
 
 from app.models.campaign import CampaignStatus
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
-from app.models.impression import ImpressionEstimate
+from app.models.impression import ImpressionEstimate, TrafficDensityProfile
 from app.models.trip import TripSessionStatus
-from app.models.trip_analytics import FraudFlag, FraudFlagStatus
+from app.models.trip_analytics import FraudFlag, FraudFlagStatus, TripAnalytics
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
+from app.services.impressions import estimate_trip_impressions
 
 PASSWORD = "long-secure-password"
 BASE_TIME = datetime(2026, 5, 31, 12, 0, tzinfo=UTC)
@@ -142,6 +144,22 @@ def create_formula_profile(db_sessionmaker, **overrides):
     }
     values.update(overrides)
     return create_test_traffic_density_profile(db_sessionmaker, **values)
+
+
+def switch_default_profile(db_sessionmaker, profile_id) -> None:
+    async def switch() -> None:
+        async with db_sessionmaker() as session:
+            await session.execute(
+                update(TrafficDensityProfile).values(is_default=False)
+            )
+            await session.execute(
+                update(TrafficDensityProfile)
+                .where(TrafficDensityProfile.id == profile_id)
+                .values(is_default=True)
+            )
+            await session.commit()
+
+    asyncio.run(switch())
 
 
 def add_fraud_flag(
@@ -564,6 +582,332 @@ def test_advertiser_summary_is_scoped_and_aggregates_stored_estimates(
     assert empty.status_code == http_status.HTTP_200_OK
     assert empty.json()["estimated_impressions"] == "0.00"
     assert empty.json()["trip_count"] == 0
+
+
+def test_authoritative_estimate_is_one_deterministic_profile_scenario(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    _, advertiser, _, campaign, _, _, _, trip, _ = create_estimation_graph(
+        db_sessionmaker,
+        advertiser_email="adv-authority-order@example.com",
+        driver_email="driver-authority-order@example.com",
+        plate_number="AUTH-123",
+    )
+    default_profile = create_formula_profile(
+        db_sessionmaker,
+        name="Canonical profile",
+        is_default=True,
+    )
+    scenario_profile = create_formula_profile(
+        db_sessionmaker,
+        name="Scenario profile",
+        is_default=False,
+        traffic_density_per_km=Decimal("250"),
+    )
+    headers = admin_headers(db_client)
+
+    scenario_first = db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/estimate-impressions",
+        headers=headers,
+        json={"traffic_density_profile_id": str(scenario_profile.id)},
+    )
+    assert scenario_first.status_code == http_status.HTTP_200_OK
+    assert scenario_first.json()["is_authoritative"] is False
+    scenario_summary = db_client.get(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
+        headers=auth_headers(db_client, advertiser.email, PASSWORD),
+    )
+    assert scenario_summary.status_code == http_status.HTTP_200_OK
+    assert scenario_summary.json()["estimated_impressions"] == "0.00"
+    assert scenario_summary.json()["trip_count"] == 0
+    canonical_second = db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/estimate-impressions",
+        headers=headers,
+        json={"traffic_density_profile_id": str(default_profile.id)},
+    )
+    assert canonical_second.status_code == http_status.HTTP_200_OK
+
+    summary = db_client.get(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
+        headers=auth_headers(db_client, advertiser.email, PASSWORD),
+    )
+    rows = db_client.get(
+        f"/api/v1/admin/impression-estimates?trip_session_id={trip.id}",
+        headers=headers,
+    )
+    assert summary.status_code == http_status.HTTP_200_OK
+    assert summary.json()["estimated_impressions"] == canonical_second.json()[
+        "estimated_impressions"
+    ]
+    assert summary.json()["trip_count"] == 1
+    assert rows.status_code == http_status.HTTP_200_OK
+    assert rows.json()["total"] == 2
+    assert {item["is_authoritative"] for item in rows.json()["items"]} == {True, False}
+    assert any(
+        item["traffic_density_profile_id"] == str(scenario_profile.id)
+        and item["is_authoritative"] is False
+        for item in rows.json()["items"]
+    )
+
+
+def test_authority_stays_with_pinned_profile_after_default_changes(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    _, advertiser, _, campaign, _, _, _, trip, _ = create_estimation_graph(
+        db_sessionmaker,
+        advertiser_email="adv-pinned-default@example.com",
+        driver_email="driver-pinned-default@example.com",
+        plate_number="PIN-DEFAULT",
+    )
+    original_default = create_formula_profile(
+        db_sessionmaker,
+        name="Original default",
+        is_default=True,
+    )
+    replacement_default = create_formula_profile(
+        db_sessionmaker,
+        name="Replacement default",
+        is_default=False,
+        traffic_density_per_km=Decimal("250"),
+    )
+    headers = admin_headers(db_client)
+    original = db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/estimate-impressions",
+        headers=headers,
+        json={"traffic_density_profile_id": str(original_default.id)},
+    )
+    assert original.status_code == http_status.HTTP_200_OK
+    assert original.json()["is_authoritative"] is True
+
+    switch_default_profile(db_sessionmaker, replacement_default.id)
+    scenario = db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/estimate-impressions",
+        headers=headers,
+        json={"traffic_density_profile_id": str(replacement_default.id)},
+    )
+    assert scenario.status_code == http_status.HTTP_200_OK
+    assert scenario.json()["is_authoritative"] is False
+    scenario_retry = db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/estimate-impressions",
+        headers=headers,
+        json={"traffic_density_profile_id": str(replacement_default.id)},
+    )
+    assert scenario_retry.status_code == http_status.HTTP_200_OK
+    assert scenario_retry.json()["id"] == scenario.json()["id"]
+    assert scenario_retry.json()["is_authoritative"] is False
+
+    rows = db_client.get(
+        f"/api/v1/admin/impression-estimates?trip_session_id={trip.id}",
+        headers=headers,
+    ).json()["items"]
+    authoritative = [row for row in rows if row["is_authoritative"]]
+    assert len(authoritative) == 1
+    assert authoritative[0]["id"] == original.json()["id"]
+    assert authoritative[0]["traffic_density_profile_id"] == str(original_default.id)
+
+    summary = db_client.get(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
+        headers=auth_headers(db_client, advertiser.email, PASSWORD),
+    )
+    assert summary.status_code == http_status.HTTP_200_OK
+    assert summary.json()["estimated_impressions"] == original.json()[
+        "estimated_impressions"
+    ]
+
+
+def test_active_scenario_without_default_remains_non_economic(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    _, advertiser, _, campaign, _, _, _, trip, _ = create_estimation_graph(
+        db_sessionmaker,
+        advertiser_email="adv-no-default@example.com",
+        driver_email="driver-no-default@example.com",
+        plate_number="NO-DEFAULT",
+    )
+    scenario_profile = create_formula_profile(
+        db_sessionmaker,
+        name="Unapproved scenario",
+        is_default=False,
+    )
+    headers = admin_headers(db_client)
+    scenario = db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/estimate-impressions",
+        headers=headers,
+        json={"traffic_density_profile_id": str(scenario_profile.id)},
+    )
+    assert scenario.status_code == http_status.HTTP_200_OK
+    assert scenario.json()["is_authoritative"] is False
+
+    rows = db_client.get(
+        f"/api/v1/admin/impression-estimates?trip_session_id={trip.id}",
+        headers=headers,
+    )
+    assert rows.status_code == http_status.HTTP_200_OK
+    assert rows.json()["total"] == 1
+    assert rows.json()["items"][0]["metadata"]["authority"] == "scenario"
+
+    summary = db_client.get(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
+        headers=auth_headers(db_client, advertiser.email, PASSWORD),
+    )
+    assert summary.status_code == http_status.HTTP_200_OK
+    assert summary.json()["estimated_impressions"] == "0.00"
+    assert summary.json()["trip_count"] == 0
+
+
+def test_stale_authoritative_estimate_is_excluded_until_recomputed(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    _, advertiser, _, campaign, _, _, _, trip, analytics = create_estimation_graph(
+        db_sessionmaker,
+        advertiser_email="adv-authority-stale@example.com",
+        driver_email="driver-authority-stale@example.com",
+        plate_number="AUTH-STALE",
+    )
+    profile = create_formula_profile(db_sessionmaker, name="Stale authority profile")
+    replacement_default = create_formula_profile(
+        db_sessionmaker,
+        name="Later default profile",
+        is_default=False,
+        traffic_density_per_km=Decimal("250"),
+    )
+    headers = admin_headers(db_client)
+    estimated = db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/estimate-impressions",
+        headers=headers,
+        json={"traffic_density_profile_id": str(profile.id)},
+    )
+    assert estimated.status_code == http_status.HTTP_200_OK
+
+    switch_default_profile(db_sessionmaker, replacement_default.id)
+
+    async def stale_analytics() -> None:
+        async with db_sessionmaker() as session:
+            row = await session.scalar(
+                select(TripAnalytics).where(TripAnalytics.id == analytics.id)
+            )
+            assert row is not None
+            row.distance_m = Decimal("12000")
+            await session.commit()
+
+    asyncio.run(stale_analytics())
+    advertiser_headers = auth_headers(db_client, advertiser.email, PASSWORD)
+    stale_summary = db_client.get(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
+        headers=advertiser_headers,
+    )
+    assert stale_summary.status_code == http_status.HTTP_200_OK
+    assert stale_summary.json()["estimated_impressions"] == "0.00"
+    assert stale_summary.json()["trip_count"] == 0
+
+    recomputed = db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/estimate-impressions",
+        headers=headers,
+        json={},
+    )
+    fresh_summary = db_client.get(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
+        headers=advertiser_headers,
+    )
+    assert recomputed.status_code == http_status.HTTP_200_OK
+    assert recomputed.json()["id"] == estimated.json()["id"]
+    assert recomputed.json()["traffic_density_profile_id"] == str(profile.id)
+    assert recomputed.json()["is_authoritative"] is True
+    assert fresh_summary.json()["estimated_impressions"] == recomputed.json()[
+        "estimated_impressions"
+    ]
+    assert fresh_summary.json()["trip_count"] == 1
+
+
+def test_concurrent_scenario_and_recompute_preserve_pinned_authority(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    _, _, _, _, _, _, _, trip, analytics = create_estimation_graph(
+        postgis_db_sessionmaker,
+        advertiser_email="adv-authority-race@example.com",
+        driver_email="driver-authority-race@example.com",
+        plate_number="AUTH-RACE",
+    )
+    pinned_profile = create_formula_profile(
+        postgis_db_sessionmaker,
+        name="Pinned race profile",
+        is_default=True,
+    )
+    replacement_default = create_formula_profile(
+        postgis_db_sessionmaker,
+        name="Replacement race profile",
+        is_default=False,
+        traffic_density_per_km=Decimal("250"),
+    )
+
+    async def exercise() -> None:
+        async with postgis_db_sessionmaker() as session:
+            pinned = await estimate_trip_impressions(
+                session,
+                trip_id=trip.id,
+                traffic_density_profile_id=pinned_profile.id,
+                metadata={"source": "initial"},
+                settings=settings,
+            )
+            pinned_id = pinned.id
+            await session.commit()
+
+        async with postgis_db_sessionmaker() as session:
+            await session.execute(
+                update(TrafficDensityProfile).values(is_default=False)
+            )
+            await session.execute(
+                update(TrafficDensityProfile)
+                .where(TrafficDensityProfile.id == replacement_default.id)
+                .values(is_default=True)
+            )
+            row = await session.scalar(
+                select(TripAnalytics).where(TripAnalytics.id == analytics.id)
+            )
+            assert row is not None
+            row.distance_m = Decimal("12000")
+            await session.commit()
+
+        async def estimate(profile_id, source: str) -> None:
+            async with postgis_db_sessionmaker() as session:
+                await estimate_trip_impressions(
+                    session,
+                    trip_id=trip.id,
+                    traffic_density_profile_id=profile_id,
+                    metadata={"source": source},
+                    settings=settings,
+                )
+                await session.commit()
+
+        await asyncio.gather(
+            estimate(None, "recompute"),
+            estimate(replacement_default.id, "scenario"),
+        )
+
+        async with postgis_db_sessionmaker() as session:
+            rows = list(
+                (
+                    await session.scalars(
+                        select(ImpressionEstimate).where(
+                            ImpressionEstimate.trip_session_id == trip.id,
+                            ImpressionEstimate.formula_version
+                            == settings.impression_formula_version,
+                        )
+                    )
+                ).all()
+            )
+            authoritative = [row for row in rows if row.is_authoritative]
+            assert len(authoritative) == 1
+            assert authoritative[0].id == pinned_id
+            assert authoritative[0].traffic_density_profile_id == pinned_profile.id
+            assert len(rows) == 2
+
+    asyncio.run(exercise())
 
 
 def test_advertiser_summary_excludes_non_current_formula_estimates(

@@ -631,6 +631,7 @@ def create_test_impression_estimate(
     estimated_impressions=0,
     estimated_at=None,
     metadata: dict | None = None,
+    is_authoritative: bool = True,
 ) -> ImpressionEstimate:
     async def create() -> ImpressionEstimate:
         async with db_sessionmaker() as session:
@@ -653,6 +654,7 @@ def create_test_impression_estimate(
                 quality_multiplier=1,
                 fraud_adjustment_multiplier=1,
                 confidence_score=1,
+                is_authoritative=is_authoritative,
                 estimated_at=estimated_at or datetime.now(UTC),
                 estimate_metadata=(
                     metadata

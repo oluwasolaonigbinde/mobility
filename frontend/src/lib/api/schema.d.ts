@@ -5726,6 +5726,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Is Authoritative */
+            is_authoritative: boolean;
             /** Metadata */
             metadata?: {
                 [key: string]: unknown;

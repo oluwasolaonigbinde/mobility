@@ -158,6 +158,7 @@ class ImpressionEstimateRead(DecimalStringMixin):
     vehicle_id: UUID
     traffic_density_profile_id: UUID
     formula_version: str
+    is_authoritative: bool
     status: ImpressionEstimateStatus
     estimated_impressions: Decimal
     base_distance_impressions: Decimal

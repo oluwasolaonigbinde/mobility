@@ -1,5 +1,5 @@
 /**
- * Vantage Driver service worker — deliberately minimal and auth-safe.
+ * Cardvert Driver service worker — deliberately minimal and auth-safe.
  *
  * - Immutable Next.js static assets: cache-first (hashed filenames).
  * - Navigations & API calls: network-only. NEVER cached — responses are
@@ -25,12 +25,12 @@ self.addEventListener("activate", (event) => {
 
 const OFFLINE_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Offline · Vantage Driver</title>
+<title>Offline · Cardvert Driver</title>
 <style>body{margin:0;min-height:100dvh;display:grid;place-items:center;background:#0a0b0e;color:#eaedf2;font-family:system-ui,sans-serif;text-align:center;padding:24px}
 h1{font-size:20px;margin:0 0 8px}p{color:#8a90a0;font-size:14px;max-width:280px;line-height:1.6}
 b{color:#ffa62b}</style></head><body><div>
-<h1><b>V</b> You're offline</h1>
-<p>Vantage Driver needs a connection to track trips and sync earnings. Reconnect and pull to refresh.</p>
+<h1><b>C</b> You're offline</h1>
+<p>Cardvert Driver needs a connection to track trips and sync hourly earnings. Reconnect and pull to refresh.</p>
 </div></body></html>`;
 
 self.addEventListener("fetch", (event) => {

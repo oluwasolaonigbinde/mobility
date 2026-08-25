@@ -44,10 +44,10 @@ export function AppShell({
       <aside className="border-edge bg-panel sticky top-0 hidden h-dvh w-52 shrink-0 flex-col border-r md:flex">
         <Link href="/" className="flex items-center gap-2 px-5 pt-5 pb-6">
           <span className="font-display text-amber text-lg font-bold" aria-hidden>
-            V
+            C
           </span>
           <span className="font-display text-lg font-semibold tracking-tight">
-            Vantage<span className="text-amber">.</span>
+            Cardvert<span className="text-amber">.</span>
           </span>
         </Link>
         <SidebarNav items={nav} />
@@ -67,7 +67,7 @@ export function AppShell({
         <header className="border-edge bg-bg/85 sticky top-0 z-40 flex h-14 items-center justify-between border-b px-4 backdrop-blur md:px-6">
           <div className="flex items-center gap-3 md:hidden">
             <Link href="/" className="font-display text-lg font-semibold">
-              Vantage<span className="text-amber">.</span>
+              Cardvert<span className="text-amber">.</span>
             </Link>
           </div>
           <div className="micro text-muted hidden md:block">
@@ -81,11 +81,7 @@ export function AppShell({
           </div>
           <div className="micro text-muted flex items-center gap-2">
             <NotificationCenter canManageAdvertiserPreferences={canManageAdvertiserPreferences} />
-            <span
-              className="animate-pulse-dot bg-green inline-block size-1.5 rounded-full"
-              aria-hidden
-            />
-            Live
+            <span aria-label="Workspace context">Workspace</span>
           </div>
         </header>
 

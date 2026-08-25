@@ -15,8 +15,11 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
+import pytest
 from conftest import (
     auth_headers,
+    create_test_campaign,
+    create_test_organization,
     create_test_user,
     fetch_audit_events,
     fetch_earnings_ledger_entries,
@@ -34,8 +37,9 @@ from test_payouts_v2 import (
 from test_payouts_v3 import bind_v2_graph, build_mixed_engine_day
 from test_trip_processing import PASSWORD, add_pings, run_pipeline
 
+from app.core.config import Settings
 from app.core.errors import AppError
-from app.models.campaign import Campaign
+from app.models.campaign import Campaign, CampaignStatus
 from app.models.payout import (
     AssignmentRuleBinding,
     CampaignPayoutRule,
@@ -46,8 +50,10 @@ from app.models.payout import (
     PayoutCorrectionOrder,
     PayoutCorrectionOrderStatus,
 )
+from app.models.user import UserRole, UserStatus
 from app.services import payout_corrections
 from app.services.payout_corrections import (
+    CampaignDayProjection,
     approve_correction_order,
     create_correction_order,
     execute_correction_order,
@@ -133,6 +139,143 @@ def approved_order(db_sessionmaker, settings, graph, tag):
     order, approver = submitted_order(db_sessionmaker, settings, graph, tag)
     approve(db_sessionmaker, settings, order.id, approver.id)
     return order, approver
+
+
+def test_correction_services_require_active_admin_before_domain_reads(
+    db_sessionmaker,
+    monkeypatch,
+) -> None:
+    advertiser = create_test_user(
+        db_sessionmaker,
+        email="correction-auth-advertiser@example.com",
+        role=UserRole.ADVERTISER,
+    )
+    organization, _ = create_test_organization(
+        db_sessionmaker,
+        name="Correction authorization org",
+        owner_user_id=advertiser.id,
+    )
+    campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=advertiser.id,
+        campaign_status=CampaignStatus.ACTIVE,
+    )
+    admin = create_test_user(
+        db_sessionmaker,
+        email="correction-auth-admin@example.com",
+    )
+    checker = create_test_user(
+        db_sessionmaker,
+        email="correction-auth-checker@example.com",
+    )
+    driver = create_test_user(
+        db_sessionmaker,
+        email="correction-auth-driver@example.com",
+        role=UserRole.DRIVER,
+    )
+    disabled_admin = create_test_user(
+        db_sessionmaker,
+        email="correction-auth-disabled@example.com",
+        user_status=UserStatus.DISABLED,
+    )
+    settings = Settings(environment="test")
+    projection = CampaignDayProjection(computations=[], projected_delta={}, fingerprint="stable")
+
+    async def fake_project(*_args, **_kwargs):
+        return projection
+
+    monkeypatch.setattr(payout_corrections, "project_campaign_day", fake_project)
+
+    async def scenario() -> None:
+        denied_actors = [driver.id, advertiser.id, disabled_admin.id, uuid4()]
+        for actor_user_id in denied_actors:
+            async with db_sessionmaker() as session:
+                with pytest.raises(AppError) as error:
+                    await create_correction_order(
+                        session,
+                        campaign_id=campaign.id,
+                        lagos_day=datetime(2026, 6, 1, tzinfo=UTC).date(),
+                        reason="auth test",
+                        created_by_user_id=actor_user_id,
+                        settings=settings,
+                    )
+                assert error.value.code == "FORBIDDEN_ROLE"
+                await session.rollback()
+
+                for operation in (
+                    lambda actor_user_id=actor_user_id: submit_correction_order(
+                        session, order_id=uuid4(), actor_user_id=actor_user_id
+                    ),
+                    lambda actor_user_id=actor_user_id: approve_correction_order(
+                        session,
+                        order_id=uuid4(),
+                        actor_user_id=actor_user_id,
+                        settings=settings,
+                    ),
+                    lambda actor_user_id=actor_user_id: reject_correction_order(
+                        session, order_id=uuid4(), actor_user_id=actor_user_id
+                    ),
+                    lambda actor_user_id=actor_user_id: execute_correction_order(
+                        session,
+                        order_id=uuid4(),
+                        actor_user_id=actor_user_id,
+                        release_at=None,
+                        request_metadata={},
+                        settings=settings,
+                    ),
+                ):
+                    with pytest.raises(AppError) as error:
+                        await operation()
+                    assert error.value.code == "FORBIDDEN_ROLE"
+                    await session.rollback()
+
+        async with db_sessionmaker() as session:
+            order = await create_correction_order(
+                session,
+                campaign_id=campaign.id,
+                lagos_day=datetime(2026, 6, 1, tzinfo=UTC).date(),
+                reason="auth test",
+                created_by_user_id=admin.id,
+                settings=settings,
+            )
+            await submit_correction_order(session, order_id=order.id, actor_user_id=admin.id)
+            approved = await approve_correction_order(
+                session,
+                order_id=order.id,
+                actor_user_id=checker.id,
+                settings=settings,
+            )
+            assert approved.status == PayoutCorrectionOrderStatus.APPROVED.value
+            executed, executed_now = await execute_correction_order(
+                session,
+                order_id=order.id,
+                actor_user_id=checker.id,
+                release_at=None,
+                request_metadata={},
+                settings=settings,
+            )
+            assert executed.status == PayoutCorrectionOrderStatus.EXECUTED.value
+            assert executed_now is True
+
+            rejected_order = await create_correction_order(
+                session,
+                campaign_id=campaign.id,
+                lagos_day=datetime(2026, 6, 2, tzinfo=UTC).date(),
+                reason="auth test",
+                created_by_user_id=admin.id,
+                settings=settings,
+            )
+            await submit_correction_order(
+                session, order_id=rejected_order.id, actor_user_id=admin.id
+            )
+            rejected = await reject_correction_order(
+                session, order_id=rejected_order.id, actor_user_id=checker.id
+            )
+            assert rejected.status == PayoutCorrectionOrderStatus.REJECTED.value
+            await session.commit()
+
+    asyncio.run(scenario())
 
 
 def reload_order(db_sessionmaker, order_id) -> PayoutCorrectionOrder:

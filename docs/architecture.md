@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.51 — 2026-08-25. Canonical source of truth: current state AND target state.**
+**Version 1.52 — 2026-08-25. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -500,7 +500,7 @@ Derived (analytics → money):
 | `fraud_assessments` | One current attempt per sealed trip (`pending \| clean \| flagged \| error`) with formula, analytics/input fingerprints and current-flag provenance; pending/error never count as successful-current |
 | `route_replay_signatures` | One current detector/config/analytics-bound signature per trip; indexed absolute-payload and time-shift-normalized hashes support bounded cross-trip/account replay reconciliation without persisting raw route facts in review evidence |
 | `traffic_density_profiles` | Admin-managed density inputs for impression math |
-| `impression_estimates` | Per-trip estimated impressions + confidence, links density profile |
+| `impression_estimates` | Per-trip estimated impressions + confidence, links density profile; one partial-index-pinned canonical authority per trip/formula while additional profiles remain non-authoritative scenarios |
 | `campaign_payout_rule_revisions` | Append-only effective-dated payout-v3 rule revisions (MNY-06A) |
 | `assignment_rule_bindings` | Acceptance-time frozen payout terms and eligibility/geography fingerprints (MNY-06B) |
 | `payout_correction_orders` | Maker-checker projected correction lifecycle with value-complete evidence (MNY-06C) |
@@ -1672,6 +1672,18 @@ query traffic. Numeric defaults are synthetic build parameters, not approved
 pilot thresholds. `EXT-LEGAL-PRIVACY` remains MISSING and no live output is
 authorized.
 
+**[BUILT — Package 5 audit correction, adopted by Package 6]:** migration
+`0051` makes the canonical impression authority explicit and backfills one
+deterministic row per trip/formula while preserving other profile estimates as
+inspectable scenarios. Current-source checks, processing workers, advertiser
+reports, payout calculations and heatmaps consume only that authority; stale
+analytics or fraud provenance fails closed. Full-slice heatmap conservation
+now precedes disclosure, and campaign-review/payout-correction services enforce
+active-admin authority inside their own transactions. Package 6 retained its
+published migrations `0048`–`0050`; `0051` is the single linear head. These
+corrections do not open the legal, reporting-method or ad-platform live-use
+gates.
+
 ### 22.3 Shape (Q11 confirmed by D18/D20; scope per D11)
 
 New domain `app/services/audience.py` + `audience_segments` table (segment
@@ -2280,6 +2292,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.52 | 2026-08-25 | **Package 5 audit corrections adopted onto the Package 6 line without receipt history.** Migration `0051` follows published Package 6 migration `0050`, backfills and partial-index-pins one canonical impression authority per trip/formula, and preserves other density-profile estimates as scenarios. Processing workers, reports, payouts and heatmaps now reject scenario-only or stale authority; full-slice heatmap conservation and transactional active-admin checks close the associated measurement and authorization seams. Truthful notification retry/status handling and Cardvert branding corrections move with their frontend regressions and regenerated §9 contracts. Focused correction checks, the combined backend gate (1,058 passed, 4 skipped), frontend gate (225 tests plus typecheck/lint/build), and isolated migration/seed/live-stack evidence pass. The sole bounded review found one worker predicate gap; its observed red/green regression and adjacent checks pass after correction. No receipt commits, KYC/vehicle/Package 7 authority or external-gate claim is added; Package 6 remains blocked at W3-04B. |
 | v1.51 | 2026-08-25 | **W3-04A public driver application delivered without work or identity-approval authority.** Migration `0050` adds one pending-only application linked to an invited driver user and pending profile, with a digest-only high-entropy status reference and populated downgrade refusal. The default-off cohort flag, separate atomic Redis IP/email/global limiter and notify-once audit fail closed; new, duplicate and concurrent same-email requests share one non-enumerating response shape, and known/unknown status reads expose the same pending envelope. The generated credential is unreachable. An active-admin service gate protects a sanitized queue, while public/admin UI routes and both Compose/environment contracts expose the bounded workflow. All §9 artifacts move together. Focused backend/PostgreSQL/real-Redis/migration/autogenerate/pre-production, frontend/R14-B, isolated live apply/status, one backend aggregate with focused correction of 12 stale Package 6 harness expectations, a green frontend aggregate and consolidated Luna review pass. No KYC, payee, vehicle, document, tracking, earnings, live-use, Package 7 or external-gate claim is added; W3-04B/C remain dependency-blocked. |
 | v1.50 | 2026-08-25 | **W3-03C verified-hours and inactivity operations delivered without automatic work or money mutation.** Migration `0049` adds dedicated current activity flags and append-only opened/recovered evidence with populated downgrade refusal. A no-default positive weekly-hours setting evaluates the immediately completed UTC week from computed sealed assignment-linked analytics; missing/invalid configuration skips only that rule. The independent exact seven-day database-time rule continues from activation/latest verified activity. A configured-batch rolling cursor reaches the full active-assignment set while per-assignment transactions isolate errors and retain W3-03B campaign→assignment lock compatibility. Stable notices report open/recovery to drivers and the admin assignment surface exposes sanitized review evidence. All §9 artifacts move together and regenerate byte-stably. Focused backend/API/worker/migration, real-PostgreSQL concurrency, frontend/admin-notification, preserved driver/PWA contract fixtures and consolidated Luna review pass after bounded-worker and migration-head corrections. No threshold value, lifecycle/earnings change, external authorization, Package 7 work or unrelated Pro finding is claimed. |
 | v1.49 | 2026-08-25 | **W3-03B complete assignment-offer lifecycle delivered with honest activation gating.** Migration `0048` adds explicit expiry, canonical complete offer snapshots and hashes, accepted-binding linkage, coherent timestamps, one terminal-decision event and append-only evidence while preserving legacy hashless rows and blocking destructive downgrade. Driver accept/decline, lazy/worker expiry, admin cancel/activation and trip start share DB time plus a campaign→assignment→eligibility lock order; active-admin checks live inside create/cancel services. Admin activation composes built review/funding/liability/hold gates and then fails closed because approved-creative and installation-evidence authorities remain unavailable in Package 4. All §9 artifacts move together. Focused real-PostgreSQL decision/sweep/producer/transition/trip/migration barriers, fast API tests, append-only demo-seed reruns, frontend lifecycle tests/type/lint/format and a consolidated Luna minimal-change review pass. No external gate, live activation, KYC/work eligibility, activity-floor, Package 7 or unrelated Pro finding is claimed. |

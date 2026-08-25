@@ -16,7 +16,7 @@ export default async function DriverPortalLayout({ children }: { children: React
         style={{ paddingTop: "max(env(safe-area-inset-top), 0.75rem)" }}
       >
         <p className="font-display text-base font-semibold tracking-tight">
-          Vantage<span className="text-amber">.</span>{" "}
+          Cardvert<span className="text-amber">.</span>{" "}
           <span className="micro text-faint align-middle">DRIVER</span>
         </p>
         <div className="flex items-center gap-3">

@@ -11,7 +11,7 @@ export default function DriverApplicationPage() {
       <div className="animate-rise relative mx-auto w-full max-w-5xl">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="micro text-amber mb-3">Vantage // driver network</p>
+            <p className="micro text-amber mb-3">Cardvert // driver network</p>
             <h1 className="font-display text-4xl font-semibold tracking-tight">Drive the city.</h1>
             <p className="text-muted mt-3 max-w-xl text-sm">
               Applications are reviewed by operations before any account can access the driver

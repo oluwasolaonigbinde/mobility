@@ -46,6 +46,7 @@ from app.services.drivers import get_required_driver_profile_with_user_by_user_i
 from app.services.fraud_holds import fraud_hold_counts
 from app.services.impressions import (
     ensure_current_estimate_source,
+    get_authoritative_estimate_for_trip,
     impression_output_fingerprint,
     quantize_2,
     quantize_4,
@@ -830,14 +831,11 @@ async def get_impression_estimate_for_trip(
     trip_id: UUID,
     settings: Settings,
 ) -> ImpressionEstimate:
-    estimate = await session.scalar(
-        select(ImpressionEstimate)
-        .where(
-            ImpressionEstimate.trip_session_id == trip_id,
-            ImpressionEstimate.formula_version == settings.impression_formula_version,
-        )
-        .order_by(ImpressionEstimate.estimated_at.desc(), ImpressionEstimate.id)
-        .limit(1)
+    estimate = await get_authoritative_estimate_for_trip(
+        session,
+        trip_id=trip_id,
+        settings=settings,
+        validate_source=False,
     )
     if estimate is None:
         raise impression_estimate_not_found()
