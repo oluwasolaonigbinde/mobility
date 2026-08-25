@@ -187,9 +187,6 @@ def test_governed_output_selects_latest_active_membership_deterministically(
                 first_org.id,
                 second_org.id,
             }
-            membership_by_org = {
-                membership.organization_id: membership for membership in memberships
-            }
             tied_created_at = datetime(2026, 1, 1, tzinfo=UTC)
             for membership in memberships:
                 membership.created_at = tied_created_at
