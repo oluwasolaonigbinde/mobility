@@ -36,6 +36,7 @@ from app.schemas.campaign_assignments import (
 from app.services.assignment_activity import list_assignment_activity_flags
 from app.services.audit import create_audit_event
 from app.services.campaign_assignments import (
+    OfferExpiredError,
     accept_driver_assignment,
     activate_admin_assignment,
     cancel_admin_assignment,
@@ -334,12 +335,16 @@ async def admin_cancel_campaign_assignment(
     current_user: AdminUserDependency,
     session: SessionDependency,
 ) -> CampaignAssignmentRead:
-    assignment = await cancel_admin_assignment(
-        session,
-        admin_user_id=current_user.id,
-        assignment_id=assignment_id,
-        payload=payload,
-    )
+    try:
+        assignment = await cancel_admin_assignment(
+            session,
+            admin_user_id=current_user.id,
+            assignment_id=assignment_id,
+            payload=payload,
+        )
+    except OfferExpiredError:
+        await session.commit()
+        raise
     await create_audit_event(
         session,
         actor_user_id=current_user.id,
@@ -453,13 +458,17 @@ async def driver_accept_campaign_assignment(
     )
     await expire_assignment_offer(session, assignment_id)
     await session.commit()
-    assignment = await accept_driver_assignment(
-        session,
-        user_id=current_user.id,
-        assignment_id=assignment_id,
-        payload=payload,
-        settings=settings,
-    )
+    try:
+        assignment = await accept_driver_assignment(
+            session,
+            user_id=current_user.id,
+            assignment_id=assignment_id,
+            payload=payload,
+            settings=settings,
+        )
+    except OfferExpiredError:
+        await session.commit()
+        raise
     await session.commit()
     return await assignment_response(session, assignment, include_events=True)
 
@@ -482,9 +491,13 @@ async def driver_decline_campaign_assignment(
     )
     await expire_assignment_offer(session, assignment_id)
     await session.commit()
-    assignment = await decline_driver_assignment(
-        session, user_id=current_user.id, assignment_id=assignment_id, payload=payload
-    )
+    try:
+        assignment = await decline_driver_assignment(
+            session, user_id=current_user.id, assignment_id=assignment_id, payload=payload
+        )
+    except OfferExpiredError:
+        await session.commit()
+        raise
     await session.commit()
     return await assignment_response(session, assignment, include_events=True)
 

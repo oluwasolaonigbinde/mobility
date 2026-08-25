@@ -21,11 +21,12 @@ from conftest import (
     fetch_audit_events,
     fetch_user_by_email,
 )
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status as http_status
 
 import app.services.campaign_assignments as assignments_service
+from app.api.v1 import campaign_assignments as assignments_api
 from app.core.errors import AppError
 from app.models.billing import CampaignLiabilityReservation
 from app.models.campaign import Campaign, CampaignCreative, CampaignStatus, CreativeStatus
@@ -1336,6 +1337,221 @@ def test_offer_expiry_materializes_before_post_expiry_decision(
     assert len(fetch_activation_events(db_sessionmaker)) == 2
 
 
+@pytest.mark.parametrize("action", ["accept", "decline"])
+def test_driver_decision_clock_crossing_commits_new_expiry_before_conflict(
+    db_client,
+    db_sessionmaker,
+    monkeypatch,
+    action,
+) -> None:
+    _, campaign, _, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
+    assignment_id = post_assignment(db_client, campaign, profile, vehicle).json()["id"]
+    set_offer_due(db_sessionmaker, UUID(assignment_id))
+
+    async def preflight_before_boundary(_session, _assignment_id):
+        return False
+
+    monkeypatch.setattr(assignments_api, "expire_assignment_offer", preflight_before_boundary)
+    response = db_client.post(
+        f"/api/v1/driver/campaign-assignments/{assignment_id}/{action}",
+        headers=driver_headers(db_client),
+        json={"metadata": {}},
+    )
+
+    assert response.status_code == http_status.HTTP_409_CONFLICT
+    assert response.json()["error"]["code"] == "OFFER_EXPIRED"
+    assert fetch_assignments(db_sessionmaker)[0].status == CampaignAssignmentStatus.EXPIRED.value
+    assert [event.event_type for event in fetch_activation_events(db_sessionmaker)] == [
+        "assigned",
+        "expired",
+    ]
+
+
+def test_due_offer_expiry_precedes_campaign_expiry_validation(
+    db_client,
+    db_sessionmaker,
+    monkeypatch,
+) -> None:
+    _, campaign, _, profile, vehicle = create_assignment_ready_graph(
+        db_sessionmaker,
+        campaign_status=CampaignStatus.ACTIVE,
+        start_at=PAST,
+        end_at=FUTURE,
+    )
+    assignment_id = post_assignment(db_client, campaign, profile, vehicle).json()["id"]
+    set_offer_due(db_sessionmaker, UUID(assignment_id))
+
+    async def cross_campaign_and_offer_boundaries() -> None:
+        async with db_sessionmaker() as session:
+            stored = await session.get(Campaign, campaign.id)
+            stored.end_at = datetime.now(UTC) - timedelta(seconds=1)
+            await session.commit()
+
+    async def preflight_before_boundary(_session, _assignment_id):
+        return False
+
+    asyncio.run(cross_campaign_and_offer_boundaries())
+    monkeypatch.setattr(assignments_api, "expire_assignment_offer", preflight_before_boundary)
+    response = db_client.post(
+        f"/api/v1/driver/campaign-assignments/{assignment_id}/accept",
+        headers=driver_headers(db_client),
+        json={"metadata": {}},
+    )
+
+    assert response.status_code == http_status.HTTP_409_CONFLICT
+    assert response.json()["error"]["code"] == "OFFER_EXPIRED"
+    assert fetch_assignments(db_sessionmaker)[0].status == CampaignAssignmentStatus.EXPIRED.value
+
+
+def test_admin_cancel_due_offer_commits_expiry_before_conflict(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    _, campaign, _, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
+    assignment_id = post_assignment(db_client, campaign, profile, vehicle).json()["id"]
+    set_offer_due(db_sessionmaker, UUID(assignment_id))
+
+    response = db_client.post(
+        f"/api/v1/admin/campaign-assignments/{assignment_id}/cancel",
+        headers=admin_headers(db_client),
+        json={"reason": "operator correction"},
+    )
+
+    assert response.status_code == http_status.HTTP_409_CONFLICT
+    assert response.json()["error"]["code"] == "OFFER_EXPIRED"
+    assert fetch_assignments(db_sessionmaker)[0].status == CampaignAssignmentStatus.EXPIRED.value
+    assert [event.event_type for event in fetch_activation_events(db_sessionmaker)] == [
+        "assigned",
+        "expired",
+    ]
+
+
+def test_direct_cancel_service_materializes_expiry_for_targeted_transaction_commit(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    admin, campaign, _, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
+    assignment_id = UUID(post_assignment(db_client, campaign, profile, vehicle).json()["id"])
+    set_offer_due(db_sessionmaker, assignment_id)
+
+    async def cancel() -> str:
+        async with db_sessionmaker() as session:
+            try:
+                await assignments_service.cancel_admin_assignment(
+                    session,
+                    admin_user_id=admin.id,
+                    assignment_id=assignment_id,
+                    payload=CampaignAssignmentCancel(reason="operator correction"),
+                )
+            except assignments_service.OfferExpiredError as exc:
+                await session.commit()
+                return exc.code
+        raise AssertionError("due cancel must return an expiry conflict")
+
+    assert asyncio.run(cancel()) == "OFFER_EXPIRED"
+    assert fetch_assignments(db_sessionmaker)[0].status == CampaignAssignmentStatus.EXPIRED.value
+    assert [event.event_type for event in fetch_activation_events(db_sessionmaker)] == [
+        "assigned",
+        "expired",
+    ]
+
+
+def test_driver_list_has_one_route_sweep_and_never_exposes_unmaterialized_due_offer(
+    db_client,
+    db_sessionmaker,
+    monkeypatch,
+) -> None:
+    _, campaign, _, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
+    assignment_id = post_assignment(db_client, campaign, profile, vehicle).json()["id"]
+    set_offer_due(db_sessionmaker, UUID(assignment_id))
+    route_sweeps = 0
+
+    async def bounded_route_sweep(_session):
+        nonlocal route_sweeps
+        route_sweeps += 1
+        # Models the requested row being beyond the global sweep's first page.
+        return 100
+
+    async def forbidden_service_sweep(*_args, **_kwargs):
+        raise AssertionError("list service must remain a pure read")
+
+    monkeypatch.setattr(assignments_api, "expire_due_assignment_offers", bounded_route_sweep)
+    monkeypatch.setattr(
+        assignments_service,
+        "expire_due_assignment_offers",
+        forbidden_service_sweep,
+    )
+    response = db_client.get(
+        "/api/v1/driver/campaign-assignments?status=offered",
+        headers=driver_headers(db_client),
+    )
+
+    assert response.status_code == http_status.HTTP_200_OK
+    assert route_sweeps == 1
+    assert assignment_id not in {item["id"] for item in response.json()["items"]}
+
+
+def test_driver_list_service_is_a_pure_db_time_read(
+    db_client,
+    db_sessionmaker,
+    monkeypatch,
+) -> None:
+    _, campaign, driver, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
+    assignment_id = UUID(post_assignment(db_client, campaign, profile, vehicle).json()["id"])
+    set_offer_due(db_sessionmaker, assignment_id)
+
+    async def forbidden_sweep(*_args, **_kwargs):
+        raise AssertionError("pure list service cannot materialize expiry")
+
+    monkeypatch.setattr(assignments_service, "expire_due_assignment_offers", forbidden_sweep)
+
+    async def read_ids():
+        async with db_sessionmaker() as session:
+            assignments, total = await assignments_service.list_driver_assignments(
+                session,
+                user_id=driver.id,
+                limit=50,
+                offset=0,
+                assignment_status=CampaignAssignmentStatus.OFFERED.value,
+            )
+            return [assignment.id for assignment in assignments], total
+
+    assignment_ids, total = asyncio.run(read_ids())
+    assert assignment_id not in assignment_ids
+    assert total == 0
+    assert fetch_assignments(db_sessionmaker)[0].status == CampaignAssignmentStatus.OFFERED.value
+
+
+def test_generic_post_mutation_conflict_is_not_committed(
+    db_client,
+    db_sessionmaker,
+    monkeypatch,
+) -> None:
+    _, campaign, _, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
+    assignment_id = post_assignment(db_client, campaign, profile, vehicle).json()["id"]
+
+    async def synthetic_conflict(session, **_kwargs):
+        assignment = await session.get(CampaignAssignment, UUID(assignment_id))
+        assignment.notes = "must roll back"
+        await session.flush()
+        raise AppError(
+            "SYNTHETIC_CONFLICT",
+            "This conflict must not commit pending work",
+            status_code=http_status.HTTP_409_CONFLICT,
+        )
+
+    monkeypatch.setattr(assignments_api, "accept_driver_assignment", synthetic_conflict)
+    response = db_client.post(
+        f"/api/v1/driver/campaign-assignments/{assignment_id}/accept",
+        headers=driver_headers(db_client),
+        json={"metadata": {}},
+    )
+
+    assert response.status_code == http_status.HTTP_409_CONFLICT
+    assert response.json()["error"]["code"] == "SYNTHETIC_CONFLICT"
+    assert fetch_assignments(db_sessionmaker)[0].notes == "Driver accepted wrap kit"
+
+
 def test_admin_cannot_cancel_a_complete_offered_assignment(
     db_client,
     db_sessionmaker,
@@ -1506,6 +1722,172 @@ def test_duplicate_expiry_sweeps_have_one_terminal_event_postgres(
     assert terminal_events[0].event_type == "expired"
     assert len(fetch_bindings_for_assignment(postgis_db_sessionmaker, assignment_id)) == 0
     assert len(fetch_reservations_for_assignment(postgis_db_sessionmaker, assignment_id)) == 0
+
+
+def test_postgres_due_accept_decline_cancel_and_sweep_converge_to_one_expiry(
+    postgis_db_sessionmaker,
+    settings,
+    monkeypatch,
+) -> None:
+    admin, campaign, driver, profile, vehicle = create_assignment_ready_graph(
+        postgis_db_sessionmaker,
+        campaign_status=CampaignStatus.ACTIVE,
+        start_at=PAST,
+        end_at=FUTURE,
+        admin_email="expiry-race-admin@example.com",
+        advertiser_email="expiry-race-advertiser@example.com",
+        driver_email="expiry-race-driver@example.com",
+        plate_number="EXP-RACE-1",
+    )
+    assignment_id = create_postgres_offer(
+        postgis_db_sessionmaker,
+        settings,
+        admin,
+        campaign,
+        profile,
+        vehicle,
+    )
+    crossing_time = datetime.now(UTC) + timedelta(days=2)
+    original_lock = assignments_service.acquire_campaign_terms_lock
+    all_at_lock = asyncio.Event()
+    lock_call_count = 0
+
+    async def preflight_before_boundary(_session, _assignment_id):
+        return False
+
+    async def future_clock(_session):
+        return crossing_time
+
+    async def barrier_lock(session, campaign_id):
+        nonlocal lock_call_count
+        lock_call_count += 1
+        if lock_call_count == 4:
+            all_at_lock.set()
+        await all_at_lock.wait()
+        await original_lock(session, campaign_id)
+
+    monkeypatch.setattr(assignments_api, "expire_assignment_offer", preflight_before_boundary)
+    monkeypatch.setattr(assignments_service, "database_clock", future_clock)
+    monkeypatch.setattr(assignments_service, "acquire_campaign_terms_lock", barrier_lock)
+
+    async def accept() -> str:
+        async with postgis_db_sessionmaker() as session:
+            try:
+                await assignments_api.driver_accept_campaign_assignment(
+                    assignment_id=assignment_id,
+                    payload=CampaignAssignmentTransition(),
+                    current_user=driver,
+                    session=session,
+                    settings=settings,
+                )
+                return "accepted"
+            except AppError as exc:
+                return exc.code
+
+    async def decline() -> str:
+        async with postgis_db_sessionmaker() as session:
+            try:
+                await assignments_api.driver_decline_campaign_assignment(
+                    assignment_id=assignment_id,
+                    payload=CampaignAssignmentTransition(),
+                    current_user=driver,
+                    session=session,
+                )
+                return "declined"
+            except AppError as exc:
+                return exc.code
+
+    async def cancel() -> str:
+        async with postgis_db_sessionmaker() as session:
+            try:
+                await assignments_api.admin_cancel_campaign_assignment(
+                    assignment_id=assignment_id,
+                    payload=CampaignAssignmentCancel(reason="operator correction"),
+                    current_user=admin,
+                    session=session,
+                )
+                return "cancelled"
+            except AppError as exc:
+                return exc.code
+
+    async def sweep() -> str:
+        async with postgis_db_sessionmaker() as session:
+            count = await assignments_service.expire_due_assignment_offers(session)
+            await session.commit()
+            return f"sweep:{count}"
+
+    async def race():
+        return await asyncio.wait_for(
+            asyncio.gather(accept(), decline(), cancel(), sweep()),
+            timeout=10,
+        )
+
+    outcomes = asyncio.run(race())
+
+    assert lock_call_count == 4
+    assert "OFFER_EXPIRED" in outcomes or "sweep:1" in outcomes
+    terminal_events = [
+        event
+        for event in fetch_activation_events(postgis_db_sessionmaker)
+        if event.event_type in {"accepted", "declined", "expired"}
+    ]
+    assert [event.event_type for event in terminal_events] == ["expired"]
+    assert len(fetch_bindings_for_assignment(postgis_db_sessionmaker, assignment_id)) == 0
+    assert len(fetch_reservations_for_assignment(postgis_db_sessionmaker, assignment_id)) == 0
+
+
+def test_postgres_list_uses_wall_clock_after_transaction_start(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    admin, campaign, driver, profile, vehicle = create_assignment_ready_graph(
+        postgis_db_sessionmaker,
+        campaign_status=CampaignStatus.ACTIVE,
+        start_at=PAST,
+        end_at=FUTURE,
+        admin_email="list-clock-admin@example.com",
+        advertiser_email="list-clock-advertiser@example.com",
+        driver_email="list-clock-driver@example.com",
+        plate_number="LIST-CLOCK-1",
+    )
+    assignment_id = create_postgres_offer(
+        postgis_db_sessionmaker,
+        settings,
+        admin,
+        campaign,
+        profile,
+        vehicle,
+    )
+
+    async def cross_boundary() -> tuple[list[UUID], datetime, datetime]:
+        async with postgis_db_sessionmaker() as setup_session:
+            expires_at = await setup_session.scalar(
+                select(func.clock_timestamp() + timedelta(seconds=1))
+            )
+            await setup_session.execute(
+                update(CampaignAssignment)
+                .where(CampaignAssignment.id == assignment_id)
+                .values(expires_at=expires_at)
+            )
+            await setup_session.commit()
+
+        async with postgis_db_sessionmaker() as session:
+            transaction_started_at = await session.scalar(select(func.now()))
+            assert transaction_started_at < expires_at
+            await asyncio.sleep(1.1)
+            assignments, _ = await assignments_service.list_driver_assignments(
+                session,
+                user_id=driver.id,
+                limit=50,
+                offset=0,
+                assignment_status=CampaignAssignmentStatus.OFFERED.value,
+            )
+            statement_wall_clock = await assignments_service.database_clock(session)
+            return [assignment.id for assignment in assignments], expires_at, statement_wall_clock
+
+    assignment_ids, expires_at, statement_wall_clock = asyncio.run(cross_boundary())
+    assert statement_wall_clock > expires_at
+    assert assignment_id not in assignment_ids
 
 
 def test_admin_activation_checks_campaign_and_driver_gates(

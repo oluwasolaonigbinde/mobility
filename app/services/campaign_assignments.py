@@ -89,6 +89,18 @@ TERMINAL_DECISION_STATUSES = {
 OFFER_TERMS_VERSION = "campaign-assignment-offer-v1"
 PAYOUT_V3 = "payout_v3"
 
+
+class OfferExpiredError(AppError):
+    """A due offer was newly materialized in the caller's transaction."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(
+            "OFFER_EXPIRED",
+            message,
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+
 MATCHING_VERSION = "matching_v1"
 
 
@@ -748,8 +760,13 @@ async def list_admin_assignments(
     driver_profile_id: UUID | None,
     vehicle_id: UUID | None,
 ) -> tuple[list[CampaignAssignment], int]:
-    await expire_due_assignment_offers(session)
-    filters = []
+    query_now = await database_clock(session)
+    due_offer = (
+        (CampaignAssignment.status == CampaignAssignmentStatus.OFFERED.value)
+        & CampaignAssignment.expires_at.is_not(None)
+        & (CampaignAssignment.expires_at <= query_now)
+    )
+    filters = [~due_offer]
     if assignment_status is not None:
         filters.append(CampaignAssignment.status == assignment_status)
     if campaign_id is not None:
@@ -782,9 +799,14 @@ async def list_driver_assignments(
     offset: int,
     assignment_status: str | None,
 ) -> tuple[list[CampaignAssignment], int]:
-    await expire_due_assignment_offers(session)
     driver_profile = await get_driver_profile_for_user(session, user_id)
-    filters = [CampaignAssignment.driver_profile_id == driver_profile.id]
+    query_now = await database_clock(session)
+    due_offer = (
+        (CampaignAssignment.status == CampaignAssignmentStatus.OFFERED.value)
+        & CampaignAssignment.expires_at.is_not(None)
+        & (CampaignAssignment.expires_at <= query_now)
+    )
+    filters = [CampaignAssignment.driver_profile_id == driver_profile.id, ~due_offer]
     if assignment_status is not None:
         filters.append(CampaignAssignment.status == assignment_status)
 
@@ -1420,14 +1442,10 @@ async def accept_driver_assignment(
             "This assignment already has a different terminal decision",
             status_code=status.HTTP_409_CONFLICT,
         )
+    if await expire_assignment_if_due(session, assignment, now=now):
+        raise OfferExpiredError("The assignment offer expired before it could be accepted")
     if assignment.status == CampaignAssignmentStatus.OFFERED.value:
         ensure_campaign_acceptable(campaign, now)
-    if await expire_assignment_if_due(session, assignment, now=now):
-        raise AppError(
-            "OFFER_EXPIRED",
-            "The assignment offer expired before it could be accepted",
-            status_code=status.HTTP_409_CONFLICT,
-        )
     if assignment.status != CampaignAssignmentStatus.OFFERED.value:
         raise AppError(
             "INVALID_ASSIGNMENT_TRANSITION",
@@ -1507,6 +1525,8 @@ async def decline_driver_assignment(
             "This assignment already has a different terminal decision",
             status_code=status.HTTP_409_CONFLICT,
         )
+    if await expire_assignment_if_due(session, assignment, now=now):
+        raise OfferExpiredError("The assignment offer expired before it could be declined")
     if assignment.status != CampaignAssignmentStatus.OFFERED.value:
         raise AppError(
             "INVALID_ASSIGNMENT_TRANSITION",
@@ -1514,12 +1534,6 @@ async def decline_driver_assignment(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     ensure_campaign_acceptable(campaign, now)
-    if await expire_assignment_if_due(session, assignment, now=now):
-        raise AppError(
-            "OFFER_EXPIRED",
-            "The assignment offer expired before it could be declined",
-            status_code=status.HTTP_409_CONFLICT,
-        )
     assignment.status = CampaignAssignmentStatus.DECLINED.value
     assignment.declined_at = now
     await create_activation_event(
@@ -1785,12 +1799,7 @@ async def cancel_admin_assignment(
         raise assignment_not_found()
     now = await database_clock(session)
     if await expire_assignment_if_due(session, assignment, now=now):
-        if _offer_terms_complete(assignment.offer_terms, assignment.offer_terms_sha256):
-            raise AppError(
-                "OFFER_DECISION_REQUIRED",
-                "A complete offer may only be accepted, declined, or expired",
-                status_code=status.HTTP_409_CONFLICT,
-            )
+        raise OfferExpiredError("The assignment offer expired before it could be cancelled")
     if (
         assignment.status == CampaignAssignmentStatus.OFFERED.value
         and _offer_terms_complete(assignment.offer_terms, assignment.offer_terms_sha256)

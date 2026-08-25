@@ -75,6 +75,7 @@ def _evidence(
     observed_seconds: int,
     last_verified_activity_at: datetime | None,
     eligible_trip_count: int,
+    expected_formula_version: str,
 ) -> dict[str, Any]:
     return {
         "activity_rule": flag_type.value,
@@ -89,6 +90,7 @@ def _evidence(
         ),
         "eligible_trip_count": eligible_trip_count,
         "analytics_source": "computed_sealed_trip_analytics",
+        "expected_formula_version": expected_formula_version,
     }
 
 
@@ -116,6 +118,7 @@ async def _eligible_analytics(
     session: AsyncSession,
     *,
     assignment: CampaignAssignment,
+    settings: Settings,
     now: datetime,
     window_start: datetime | None = None,
     window_end: datetime | None = None,
@@ -134,6 +137,7 @@ async def _eligible_analytics(
         TripAnalytics.driver_profile_id == assignment.driver_profile_id,
         TripAnalytics.vehicle_id == assignment.vehicle_id,
         TripAnalytics.status == TripAnalyticsStatus.COMPUTED.value,
+        TripAnalytics.formula_version == settings.route_analytics_formula_version,
         TripAnalytics.active_tracking_seconds > 0,
         TripAnalytics.computed_at <= now,
         TripAnalytics.last_ping_at.is_not(None),
@@ -242,6 +246,7 @@ async def _open_flag(
     observed_seconds: int,
     last_verified_activity_at: datetime | None,
     eligible_trip_count: int,
+    expected_formula_version: str,
     now: datetime,
 ) -> tuple[AssignmentActivityFlag, bool, bool]:
     evidence = _evidence(
@@ -252,6 +257,7 @@ async def _open_flag(
         observed_seconds=observed_seconds,
         last_verified_activity_at=last_verified_activity_at,
         eligible_trip_count=eligible_trip_count,
+        expected_formula_version=expected_formula_version,
     )
     flag = AssignmentActivityFlag(
         assignment_id=assignment.id,
@@ -284,7 +290,7 @@ async def _open_flag(
         if existing is None:
             raise
         return existing, False, False
-    await _append_event(
+    event = await _append_event(
         session,
         flag=flag,
         event_type=AssignmentActivityFlagEventType.OPENED,
@@ -296,6 +302,7 @@ async def _open_flag(
         session,
         flag=flag,
         event_type=AssignmentActivityFlagEventType.OPENED,
+        event_sequence=event.sequence_number,
     )
     return flag, True, True
 
@@ -307,6 +314,7 @@ async def _recover_flag(
     observed_seconds: int,
     last_verified_activity_at: datetime | None,
     eligible_trip_count: int,
+    expected_formula_version: str,
     now: datetime,
 ) -> tuple[bool, bool]:
     if flag.status != AssignmentActivityFlagStatus.OPEN.value:
@@ -324,10 +332,11 @@ async def _recover_flag(
         observed_seconds=observed_seconds,
         last_verified_activity_at=last_verified_activity_at,
         eligible_trip_count=eligible_trip_count,
+        expected_formula_version=expected_formula_version,
     )
     flag.current_evidence = evidence
     await session.flush()
-    await _append_event(
+    event = await _append_event(
         session,
         flag=flag,
         event_type=AssignmentActivityFlagEventType.RECOVERED,
@@ -339,6 +348,54 @@ async def _recover_flag(
         session,
         flag=flag,
         event_type=AssignmentActivityFlagEventType.RECOVERED,
+        event_sequence=event.sequence_number,
+    )
+    return True, True
+
+
+async def _reopen_flag(
+    session: AsyncSession,
+    *,
+    flag: AssignmentActivityFlag,
+    observed_seconds: int,
+    last_verified_activity_at: datetime | None,
+    eligible_trip_count: int,
+    expected_formula_version: str,
+    now: datetime,
+) -> tuple[bool, bool]:
+    """Reopen one exact recovered occurrence while its row lock is retained."""
+    if flag.status != AssignmentActivityFlagStatus.RECOVERED.value:
+        return False, False
+    flag.status = AssignmentActivityFlagStatus.OPEN.value
+    flag.recovered_at = None
+    flag.last_evaluated_at = now
+    flag.observed_seconds = observed_seconds
+    flag.last_verified_activity_at = last_verified_activity_at
+    evidence = _evidence(
+        flag_type=AssignmentActivityFlagType(flag.flag_type),
+        window_start=flag.window_start,
+        window_end=flag.window_end,
+        threshold_seconds=flag.threshold_seconds,
+        observed_seconds=observed_seconds,
+        last_verified_activity_at=last_verified_activity_at,
+        eligible_trip_count=eligible_trip_count,
+        expected_formula_version=expected_formula_version,
+    )
+    flag.current_evidence = evidence
+    await session.flush()
+    event = await _append_event(
+        session,
+        flag=flag,
+        event_type=AssignmentActivityFlagEventType.OPENED,
+        occurred_at=now,
+        observed_seconds=observed_seconds,
+        evidence=evidence,
+    )
+    await create_activity_flag_notice(
+        session,
+        flag=flag,
+        event_type=AssignmentActivityFlagEventType.OPENED,
+        event_sequence=event.sequence_number,
     )
     return True, True
 
@@ -347,6 +404,7 @@ async def _evaluate_weekly_floor(
     session: AsyncSession,
     *,
     assignment: CampaignAssignment,
+    settings: Settings,
     threshold_seconds: int,
     now: datetime,
 ) -> tuple[str, int, int, int]:
@@ -356,6 +414,7 @@ async def _evaluate_weekly_floor(
     analytics = await _eligible_analytics(
         session,
         assignment=assignment,
+        settings=settings,
         now=now,
         window_start=window_start,
         window_end=window_end,
@@ -384,6 +443,7 @@ async def _evaluate_weekly_floor(
             observed_seconds=observed,
             last_verified_activity_at=last_activity,
             eligible_trip_count=len(analytics),
+            expected_formula_version=settings.route_analytics_formula_version,
         )
         await session.flush()
         if flag.status == AssignmentActivityFlagStatus.OPEN.value and observed >= threshold_seconds:
@@ -393,9 +453,24 @@ async def _evaluate_weekly_floor(
                 observed_seconds=observed,
                 last_verified_activity_at=last_activity,
                 eligible_trip_count=len(analytics),
+                expected_formula_version=settings.route_analytics_formula_version,
                 now=now,
             )
             return ("recovered" if recovered else "open"), 0, int(recovered), int(notice)
+        if (
+            flag.status == AssignmentActivityFlagStatus.RECOVERED.value
+            and observed < threshold_seconds
+        ):
+            reopened, notice = await _reopen_flag(
+                session,
+                flag=flag,
+                observed_seconds=observed,
+                last_verified_activity_at=last_activity,
+                eligible_trip_count=len(analytics),
+                expected_formula_version=settings.route_analytics_formula_version,
+                now=now,
+            )
+            return ("reopened" if reopened else "recovered"), int(reopened), 0, int(notice)
         return (
             "open" if flag.status == AssignmentActivityFlagStatus.OPEN.value else "recovered",
             0,
@@ -414,6 +489,7 @@ async def _evaluate_weekly_floor(
         observed_seconds=observed,
         last_verified_activity_at=last_activity,
         eligible_trip_count=len(analytics),
+        expected_formula_version=settings.route_analytics_formula_version,
         now=now,
     )
     return "opened", int(opened), 0, int(notice)
@@ -423,9 +499,15 @@ async def _evaluate_inactivity(
     session: AsyncSession,
     *,
     assignment: CampaignAssignment,
+    settings: Settings,
     now: datetime,
 ) -> tuple[str, int, int, int]:
-    analytics = await _eligible_analytics(session, assignment=assignment, now=now)
+    analytics = await _eligible_analytics(
+        session,
+        assignment=assignment,
+        settings=settings,
+        now=now,
+    )
     last_activity = max(
         (_utc(row.last_ping_at) for row in analytics if row.last_ping_at is not None),
         default=None,
@@ -462,6 +544,7 @@ async def _evaluate_inactivity(
                     observed_seconds=sum(int(row.active_tracking_seconds) for row in analytics),
                     last_verified_activity_at=last_activity,
                     eligible_trip_count=len(analytics),
+                    expected_formula_version=settings.route_analytics_formula_version,
                     now=now,
                 )
                 recovered += int(changed)
@@ -487,8 +570,22 @@ async def _evaluate_inactivity(
             observed_seconds=flag.observed_seconds,
             last_verified_activity_at=last_activity,
             eligible_trip_count=len(analytics),
+            expected_formula_version=settings.route_analytics_formula_version,
         )
         await session.flush()
+        if flag.status == AssignmentActivityFlagStatus.RECOVERED.value:
+            reopened, notice = await _reopen_flag(
+                session,
+                flag=flag,
+                observed_seconds=flag.observed_seconds,
+                last_verified_activity_at=last_activity,
+                eligible_trip_count=len(analytics),
+                expected_formula_version=settings.route_analytics_formula_version,
+                now=now,
+            )
+            return ("reopened" if reopened else "recovered"), int(reopened), recovered, (
+                notices + int(notice)
+            )
         return ("recovered" if recovered else flag.status), 0, recovered, notices
     _, opened, notice = await _open_flag(
         session,
@@ -500,6 +597,7 @@ async def _evaluate_inactivity(
         observed_seconds=sum(int(row.active_tracking_seconds) for row in analytics),
         last_verified_activity_at=last_activity,
         eligible_trip_count=len(analytics),
+        expected_formula_version=settings.route_analytics_formula_version,
         now=now,
     )
     return "opened", int(opened), 0, int(notice)
@@ -545,6 +643,7 @@ async def evaluate_assignment_activity(
         ) = await _evaluate_weekly_floor(
             session,
             assignment=assignment,
+            settings=settings,
             threshold_seconds=threshold_seconds,
             now=evaluation_now,
         )
@@ -556,6 +655,7 @@ async def evaluate_assignment_activity(
     ) = await _evaluate_inactivity(
         session,
         assignment=assignment,
+        settings=settings,
         now=evaluation_now,
     )
     # Counts are derived from the two state transitions; no assignment or

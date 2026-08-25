@@ -12,6 +12,7 @@ from test_trip_processing import build_graph
 from app.models.assignment_activity import (
     AssignmentActivityFlag,
     AssignmentActivityFlagEvent,
+    AssignmentActivityFlagStatus,
     AssignmentActivityFlagType,
 )
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
@@ -226,6 +227,217 @@ def test_weekly_floor_before_equality_and_after_use_only_computed_authoritative_
         )
         == 1
     )
+
+
+def test_current_formula_only_and_weekly_recovered_flag_reopens_on_regression(
+    db_sessionmaker,
+    settings,
+) -> None:
+    activated_at = datetime(2025, 12, 28, 12, tzinfo=UTC)
+    graph = build_graph(db_sessionmaker, "activity-formula-weekly", started_at=activated_at)
+
+    def add_analytics(tag: str, seconds: int, formula_version: str):
+        started_at = datetime(2026, 1, 4, 10 if tag == "current" else 8, tzinfo=UTC)
+        trip = create_test_trip_session(
+            db_sessionmaker,
+            assignment_id=graph.assignment.id,
+            campaign_id=graph.campaign.id,
+            driver_profile_id=graph.profile.id,
+            vehicle_id=graph.vehicle.id,
+            started_by_user_id=graph.driver.id,
+            trip_status=TripSessionStatus.SEALED,
+            started_at=started_at,
+            ended_at=started_at + timedelta(minutes=10),
+        )
+        return create_test_trip_analytics(
+            db_sessionmaker,
+            trip_session_id=trip.id,
+            assignment_id=graph.assignment.id,
+            campaign_id=graph.campaign.id,
+            driver_profile_id=graph.profile.id,
+            vehicle_id=graph.vehicle.id,
+            formula_version=formula_version,
+            active_tracking_seconds=seconds,
+            started_at=trip.started_at,
+            ended_at=trip.ended_at,
+            last_ping_at=trip.ended_at,
+            computed_at=trip.sealed_at + timedelta(seconds=1),
+        )
+
+    current = add_analytics("current", 3599, settings.route_analytics_formula_version)
+    add_analytics("old", 7200, "route_analytics_old")
+    configured = _settings(settings, 1)
+    now = datetime(2026, 1, 8, 12, tzinfo=UTC)
+
+    opened = _evaluate(db_sessionmaker, graph.assignment.id, configured, now)
+    assert opened["weekly_floor"] == "opened"
+    weekly = next(
+        flag
+        for flag in _flags(db_sessionmaker)
+        if flag.flag_type == AssignmentActivityFlagType.VERIFIED_HOURS_FLOOR.value
+    )
+    assert weekly.observed_seconds == 3599
+    assert weekly.current_evidence["eligible_trip_count"] == 1
+    assert (
+        weekly.current_evidence["expected_formula_version"]
+        == settings.route_analytics_formula_version
+    )
+
+    async def update_current(*, seconds: int | None = None, formula_version: str | None = None):
+        async with db_sessionmaker() as session:
+            row = await session.get(type(current), current.id)
+            if seconds is not None:
+                row.active_tracking_seconds = seconds
+            if formula_version is not None:
+                row.formula_version = formula_version
+            await session.commit()
+
+    asyncio.run(update_current(seconds=3600))
+    recovered = _evaluate(
+        db_sessionmaker,
+        graph.assignment.id,
+        configured,
+        now + timedelta(minutes=1),
+    )
+    assert recovered["weekly_floor"] == "recovered"
+
+    asyncio.run(update_current(formula_version="route_analytics_old"))
+    reopened = _evaluate(
+        db_sessionmaker,
+        graph.assignment.id,
+        configured,
+        now + timedelta(minutes=2),
+    )
+    retry = _evaluate(
+        db_sessionmaker,
+        graph.assignment.id,
+        configured,
+        now + timedelta(minutes=3),
+    )
+    assert reopened["weekly_floor"] == "reopened"
+    assert retry["flags_opened"] == 0
+
+    async def history():
+        async with db_sessionmaker() as session:
+            flag = await session.get(AssignmentActivityFlag, weekly.id)
+            events = list(
+                (
+                    await session.scalars(
+                        select(AssignmentActivityFlagEvent)
+                        .where(AssignmentActivityFlagEvent.flag_id == weekly.id)
+                        .order_by(AssignmentActivityFlagEvent.sequence_number)
+                    )
+                ).all()
+            )
+            notices = [
+                notice
+                for notice in (await session.scalars(select(Notification))).all()
+                if notice.payload.get("activity_flag_id") == str(weekly.id)
+            ]
+            return flag, events, notices
+
+    flag, events, notices = asyncio.run(history())
+    assert flag.status == AssignmentActivityFlagStatus.OPEN.value
+    assert flag.recovered_at is None
+    assert flag.first_detected_at == weekly.first_detected_at
+    assert [event.event_type for event in events] == ["opened", "recovered", "opened"]
+    assert [event.sequence_number for event in events] == [1, 2, 3]
+    assert all(
+        event.evidence["expected_formula_version"]
+        == settings.route_analytics_formula_version
+        for event in events
+    )
+    assert len(notices) == 3
+
+
+def test_inactivity_recovered_flag_reopens_when_authoritative_activity_becomes_invalid(
+    db_sessionmaker,
+    settings,
+) -> None:
+    baseline = datetime(2026, 1, 1, 12, tzinfo=UTC)
+    graph = build_graph(db_sessionmaker, "activity-inactivity-reopen", started_at=baseline)
+    configured = _settings(settings, None)
+    _evaluate(db_sessionmaker, graph.assignment.id, configured, baseline + timedelta(days=7))
+    flag = _flags(db_sessionmaker)[0]
+
+    trip = create_test_trip_session(
+        db_sessionmaker,
+        assignment_id=graph.assignment.id,
+        campaign_id=graph.campaign.id,
+        driver_profile_id=graph.profile.id,
+        vehicle_id=graph.vehicle.id,
+        started_by_user_id=graph.driver.id,
+        trip_status=TripSessionStatus.SEALED,
+        started_at=baseline + timedelta(days=7, minutes=10),
+        ended_at=baseline + timedelta(days=7, minutes=20),
+    )
+    analytics = create_test_trip_analytics(
+        db_sessionmaker,
+        trip_session_id=trip.id,
+        assignment_id=graph.assignment.id,
+        campaign_id=graph.campaign.id,
+        driver_profile_id=graph.profile.id,
+        vehicle_id=graph.vehicle.id,
+        active_tracking_seconds=60,
+        started_at=trip.started_at,
+        ended_at=trip.ended_at,
+        last_ping_at=trip.ended_at,
+        computed_at=trip.sealed_at + timedelta(seconds=1),
+    )
+    recovered = _evaluate(
+        db_sessionmaker,
+        graph.assignment.id,
+        configured,
+        baseline + timedelta(days=7, minutes=30),
+    )
+    assert recovered["inactivity"] == "recovered"
+
+    async def invalidate() -> None:
+        async with db_sessionmaker() as session:
+            row = await session.get(type(analytics), analytics.id)
+            row.status = TripAnalyticsStatus.BLOCKED.value
+            await session.commit()
+
+    asyncio.run(invalidate())
+    reopened = _evaluate(
+        db_sessionmaker,
+        graph.assignment.id,
+        configured,
+        baseline + timedelta(days=7, minutes=31),
+    )
+    retry = _evaluate(
+        db_sessionmaker,
+        graph.assignment.id,
+        configured,
+        baseline + timedelta(days=7, minutes=32),
+    )
+    assert reopened["inactivity"] == "reopened"
+    assert retry["flags_opened"] == 0
+
+    async def history():
+        async with db_sessionmaker() as session:
+            stored = await session.get(AssignmentActivityFlag, flag.id)
+            events = list(
+                (
+                    await session.scalars(
+                        select(AssignmentActivityFlagEvent)
+                        .where(AssignmentActivityFlagEvent.flag_id == flag.id)
+                        .order_by(AssignmentActivityFlagEvent.sequence_number)
+                    )
+                ).all()
+            )
+            notices = [
+                notice
+                for notice in (await session.scalars(select(Notification))).all()
+                if notice.payload.get("activity_flag_id") == str(flag.id)
+            ]
+            return stored, events, notices
+
+    stored, events, notices = asyncio.run(history())
+    assert stored.status == AssignmentActivityFlagStatus.OPEN.value
+    assert stored.recovered_at is None
+    assert [event.event_type for event in events] == ["opened", "recovered", "opened"]
+    assert len(notices) == 3
 
 
 def test_utc_completed_week_window_has_explicit_monday_edges() -> None:
@@ -620,3 +832,91 @@ def test_postgres_concurrent_recovery_is_one_event_and_notice(postgis_db_session
     assert flag.status == "recovered"
     assert event_count == 2
     assert notice_count == 2
+
+
+def test_postgres_concurrent_reopen_is_one_event_and_notice(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    baseline = datetime(2026, 1, 1, 12, tzinfo=UTC)
+    graph = build_graph(postgis_db_sessionmaker, "activity-reopen-race", started_at=baseline)
+    configured = _settings(settings, None)
+    _evaluate(
+        postgis_db_sessionmaker,
+        graph.assignment.id,
+        configured,
+        baseline + timedelta(days=7),
+    )
+    trip = create_test_trip_session(
+        postgis_db_sessionmaker,
+        assignment_id=graph.assignment.id,
+        campaign_id=graph.campaign.id,
+        driver_profile_id=graph.profile.id,
+        vehicle_id=graph.vehicle.id,
+        started_by_user_id=graph.driver.id,
+        trip_status=TripSessionStatus.SEALED,
+        started_at=baseline + timedelta(days=7, minutes=10),
+        ended_at=baseline + timedelta(days=7, minutes=20),
+    )
+    analytics = create_test_trip_analytics(
+        postgis_db_sessionmaker,
+        trip_session_id=trip.id,
+        assignment_id=graph.assignment.id,
+        campaign_id=graph.campaign.id,
+        driver_profile_id=graph.profile.id,
+        vehicle_id=graph.vehicle.id,
+        active_tracking_seconds=60,
+        started_at=trip.started_at,
+        ended_at=trip.ended_at,
+        last_ping_at=trip.ended_at,
+        computed_at=trip.sealed_at + timedelta(seconds=1),
+    )
+    _evaluate(
+        postgis_db_sessionmaker,
+        graph.assignment.id,
+        configured,
+        baseline + timedelta(days=7, minutes=30),
+    )
+
+    async def invalidate() -> None:
+        async with postgis_db_sessionmaker() as session:
+            row = await session.get(type(analytics), analytics.id)
+            row.status = TripAnalyticsStatus.BLOCKED.value
+            await session.commit()
+
+    asyncio.run(invalidate())
+    barrier = asyncio.Barrier(2)
+    now = baseline + timedelta(days=7, minutes=31)
+
+    async def run_one():
+        async with postgis_db_sessionmaker() as session:
+            await barrier.wait()
+            result = await evaluate_assignment_activity(
+                session,
+                assignment_id=graph.assignment.id,
+                settings=configured,
+                now=now,
+            )
+            await session.commit()
+            return result
+
+    async def run_both():
+        return await asyncio.gather(run_one(), run_one())
+
+    results = asyncio.run(run_both())
+
+    async def state():
+        async with postgis_db_sessionmaker() as session:
+            flag = await session.scalar(select(AssignmentActivityFlag))
+            events = await session.scalar(
+                select(func.count()).select_from(AssignmentActivityFlagEvent)
+            )
+            notices = await session.scalar(select(func.count()).select_from(Notification))
+            return flag, events, notices
+
+    flag, event_count, notice_count = asyncio.run(state())
+    assert sum(result["flags_opened"] for result in results) == 1
+    assert flag.status == AssignmentActivityFlagStatus.OPEN.value
+    assert flag.recovered_at is None
+    assert event_count == 3
+    assert notice_count == 3

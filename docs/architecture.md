@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.52 — 2026-08-25. Canonical source of truth: current state AND target state.**
+**Version 1.53 — 2026-08-25. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1563,7 +1563,11 @@ policy; it does not block the recommendation/offer/assignment architecture.
   order; acceptance creates its payout binding only from the displayed frozen
   snapshot. Expiry sweeps and lazy reads are idempotent, decision/event evidence
   is append-only, and legacy hashless rows remain identifiable without invented
-  facts. Final activation is admin-only, revalidates every built campaign,
+  facts. A transaction owner commits only a newly materialized DB-time expiry
+  before returning its typed conflict; unrelated application errors retain normal
+  rollback. List services are pure reads and exclude any overdue offer that a
+  bounded route sweep has not yet materialized, so no response presents it as
+  currently offered. Final activation is admin-only, revalidates every built campaign,
   funding, liability, hold, driver and vehicle gate under retained locks, and
   fails closed until Package 4 supplies authoritative creative approval and
   installation evidence. The same ordering serializes cancel/deactivate with
@@ -1582,13 +1586,20 @@ policy; it does not block the recommendation/offer/assignment architecture.
   active assignments under the established campaign→assignment lock order and
   commits each assignment independently. The immediately completed
   Monday-to-Monday UTC window sums `active_tracking_seconds` only from current,
-  computed, sealed, correctly linked analytics; the positive verified-hours
+  computed, sealed, correctly linked analytics whose formula exactly matches
+  `ROUTE_ANALYTICS_FORMULA_VERSION`; that expected identity is retained in
+  current and append-only evidence. The positive verified-hours
   floor has no invented default and is skipped visibly until operations sets
   `VERIFIED_HOURS_FLOOR_PER_WEEK`. Independently, the exact seven-day
   database-clock boundary starts at activation or the latest verified activity.
   Dedicated operations flags retain append-only opened/recovered evidence and
-  deduplicated driver notices; resumed verified activity recovers the current
-  flag without deleting history. Admin assignment views expose only sanitized
+  event-scoped driver notices. Resumed verified activity recovers the current
+  flag without deleting history; if the same authoritative condition later
+  regresses, the locked flag identity reopens, clears only `recovered_at`, and
+  appends a new opened event/notice while preserving its original detection and
+  prior history. Cursor decode/load/persist failures fail the worker run visibly;
+  per-assignment commits remain idempotently retryable and no run reports an
+  advanced/wrapped cursor before persistence succeeds. Admin assignment views expose only sanitized
   review fields. Neither rule cancels/deactivates assignments nor mutates trip,
   earnings, hold, payee, reservation or payout authority.
 
@@ -2292,6 +2303,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.53 | 2026-08-25 | **Package 6 offer/activity audit correction.** A newly materialized DB-time offer expiry is committed by only its typed API transaction boundary before conflict, while generic application errors still roll back; accept/decline/cancel and the bounded sweep retain the campaign→assignment order and converge on one terminal event. List services no longer sweep and never expose an overdue row as currently offered beyond the route sweep bound. Activity authority now accepts only the configured current analytics formula and records that identity in evidence. Weekly/inactivity flags can move `opened → recovered → opened` on the same locked identity with event-scoped notices and preserved history. Malformed or failed cursor GET/SET/DELETE operations fail the worker visibly after already committed evaluations remain safely retryable. Focused red/green, adjacent backend/notification, real-PostgreSQL concurrency and consolidated review evidence pass; no migration, public contract, Package 7 path or external gate changes. |
 | v1.52 | 2026-08-25 | **Package 5 audit corrections adopted onto the Package 6 line without receipt history.** Migration `0051` follows published Package 6 migration `0050`, backfills and partial-index-pins one canonical impression authority per trip/formula, and preserves other density-profile estimates as scenarios. Processing workers, reports, payouts and heatmaps now reject scenario-only or stale authority; full-slice heatmap conservation and transactional active-admin checks close the associated measurement and authorization seams. Truthful notification retry/status handling and Cardvert branding corrections move with their frontend regressions and regenerated §9 contracts. Focused correction checks, the combined backend gate (1,058 passed, 4 skipped), frontend gate (225 tests plus typecheck/lint/build), and isolated migration/seed/live-stack evidence pass. The sole bounded review found one worker predicate gap; its observed red/green regression and adjacent checks pass after correction. No receipt commits, KYC/vehicle/Package 7 authority or external-gate claim is added; Package 6 remains blocked at W3-04B. |
 | v1.51 | 2026-08-25 | **W3-04A public driver application delivered without work or identity-approval authority.** Migration `0050` adds one pending-only application linked to an invited driver user and pending profile, with a digest-only high-entropy status reference and populated downgrade refusal. The default-off cohort flag, separate atomic Redis IP/email/global limiter and notify-once audit fail closed; new, duplicate and concurrent same-email requests share one non-enumerating response shape, and known/unknown status reads expose the same pending envelope. The generated credential is unreachable. An active-admin service gate protects a sanitized queue, while public/admin UI routes and both Compose/environment contracts expose the bounded workflow. All §9 artifacts move together. Focused backend/PostgreSQL/real-Redis/migration/autogenerate/pre-production, frontend/R14-B, isolated live apply/status, one backend aggregate with focused correction of 12 stale Package 6 harness expectations, a green frontend aggregate and consolidated Luna review pass. No KYC, payee, vehicle, document, tracking, earnings, live-use, Package 7 or external-gate claim is added; W3-04B/C remain dependency-blocked. |
 | v1.50 | 2026-08-25 | **W3-03C verified-hours and inactivity operations delivered without automatic work or money mutation.** Migration `0049` adds dedicated current activity flags and append-only opened/recovered evidence with populated downgrade refusal. A no-default positive weekly-hours setting evaluates the immediately completed UTC week from computed sealed assignment-linked analytics; missing/invalid configuration skips only that rule. The independent exact seven-day database-time rule continues from activation/latest verified activity. A configured-batch rolling cursor reaches the full active-assignment set while per-assignment transactions isolate errors and retain W3-03B campaign→assignment lock compatibility. Stable notices report open/recovery to drivers and the admin assignment surface exposes sanitized review evidence. All §9 artifacts move together and regenerate byte-stably. Focused backend/API/worker/migration, real-PostgreSQL concurrency, frontend/admin-notification, preserved driver/PWA contract fixtures and consolidated Luna review pass after bounded-worker and migration-head corrections. No threshold value, lifecycle/earnings change, external authorization, Package 7 work or unrelated Pro finding is claimed. |

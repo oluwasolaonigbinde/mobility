@@ -32,7 +32,8 @@ from app.jobs import earnings_release as earnings_release_jobs
 from app.jobs import payment_gateway as payment_gateway_jobs
 from app.jobs import trip_processing as jobs
 from app.jobs.worker import WorkerSettings, sweep_cron_minutes
-from app.models.assignment_activity import AssignmentActivityFlag
+from app.models.assignment_activity import AssignmentActivityFlag, AssignmentActivityFlagEvent
+from app.models.notification import Notification
 from app.services.trip_processing import DueTrip, process_ended_trip
 
 
@@ -169,6 +170,141 @@ def test_activity_worker_cursor_reaches_tail_across_bounded_runs(db_sessionmaker
     assert second["selected"] == 1
     assert second["cursor"] == "wrapped"
     assert asyncio.run(flag_count()) == 3
+
+
+@pytest.mark.parametrize("failure_mode", ["get", "malformed"])
+def test_activity_worker_cursor_load_failure_is_visible(
+    db_sessionmaker,
+    settings,
+    monkeypatch,
+    failure_mode,
+) -> None:
+    failure = RuntimeError("cursor get failed")
+    captured: list[Exception] = []
+
+    class FakeRedis:
+        async def get(self, _key):
+            if failure_mode == "get":
+                raise failure
+            return "not-a-uuid"
+
+    monkeypatch.setattr(assignment_activity_jobs, "capture_exception", captured.append)
+    ctx = {**make_ctx(db_sessionmaker, settings), "redis": FakeRedis()}
+
+    with pytest.raises((RuntimeError, ValueError)):
+        asyncio.run(assignment_activity_jobs.sweep_assignment_activity_flags(ctx))
+
+    assert len(captured) == 1
+
+
+def test_activity_worker_set_failure_retries_without_duplicate_events_or_notices(
+    db_sessionmaker,
+    settings,
+    monkeypatch,
+) -> None:
+    for index in range(3):
+        build_graph(
+            db_sessionmaker,
+            f"setretry{index}",
+            started_at=datetime(2026, 1, 1, 12, tzinfo=UTC),
+        )
+    batch_settings = settings.model_copy(
+        update={"worker_sweep_batch_size": 2, "verified_hours_floor_per_week": None}
+    )
+    failure = RuntimeError("cursor set failed")
+    captured: list[Exception] = []
+
+    class FakeRedis:
+        def __init__(self):
+            self.value = None
+            self.fail_set = True
+
+        async def get(self, _key):
+            return self.value
+
+        async def set(self, _key, value):
+            if self.fail_set:
+                self.fail_set = False
+                raise failure
+            self.value = value
+
+        async def delete(self, _key):
+            self.value = None
+            return 1
+
+    redis = FakeRedis()
+    monkeypatch.setattr(assignment_activity_jobs, "capture_exception", captured.append)
+    ctx = {**make_ctx(db_sessionmaker, batch_settings), "redis": redis}
+
+    with pytest.raises(RuntimeError, match="cursor set failed"):
+        asyncio.run(assignment_activity_jobs.sweep_assignment_activity_flags(ctx))
+    second = asyncio.run(assignment_activity_jobs.sweep_assignment_activity_flags(ctx))
+    third = asyncio.run(assignment_activity_jobs.sweep_assignment_activity_flags(ctx))
+
+    async def counts():
+        async with db_sessionmaker() as session:
+            return (
+                await session.scalar(select(func.count()).select_from(AssignmentActivityFlag)),
+                await session.scalar(
+                    select(func.count()).select_from(AssignmentActivityFlagEvent)
+                ),
+                await session.scalar(select(func.count()).select_from(Notification)),
+            )
+
+    flag_count, event_count, notice_count = asyncio.run(counts())
+    assert captured == [failure]
+    assert second["cursor"] == "advanced"
+    assert third["cursor"] == "wrapped"
+    assert (flag_count, event_count, notice_count) == (3, 3, 3)
+
+
+def test_activity_worker_delete_failure_retries_wrap_idempotently(
+    db_sessionmaker,
+    settings,
+    monkeypatch,
+) -> None:
+    build_graph(
+        db_sessionmaker,
+        "cursor-delete-retry",
+        started_at=datetime(2026, 1, 1, 12, tzinfo=UTC),
+    )
+    batch_settings = settings.model_copy(
+        update={"worker_sweep_batch_size": 2, "verified_hours_floor_per_week": None}
+    )
+    failure = RuntimeError("cursor delete failed")
+    captured: list[Exception] = []
+
+    class FakeRedis:
+        def __init__(self):
+            self.fail_delete = True
+
+        async def get(self, _key):
+            return None
+
+        async def delete(self, _key):
+            if self.fail_delete:
+                self.fail_delete = False
+                raise failure
+            return 0
+
+    redis = FakeRedis()
+    monkeypatch.setattr(assignment_activity_jobs, "capture_exception", captured.append)
+    ctx = {**make_ctx(db_sessionmaker, batch_settings), "redis": redis}
+
+    with pytest.raises(RuntimeError, match="cursor delete failed"):
+        asyncio.run(assignment_activity_jobs.sweep_assignment_activity_flags(ctx))
+    result = asyncio.run(assignment_activity_jobs.sweep_assignment_activity_flags(ctx))
+
+    async def counts():
+        async with db_sessionmaker() as session:
+            return (
+                await session.scalar(select(func.count()).select_from(AssignmentActivityFlagEvent)),
+                await session.scalar(select(func.count()).select_from(Notification)),
+            )
+
+    assert captured == [failure]
+    assert result["cursor"] == "wrapped"
+    assert asyncio.run(counts()) == (1, 1)
 
 
 def test_activity_worker_uses_one_database_clock_for_the_claimed_batch(
