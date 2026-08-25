@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import case, func, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
@@ -41,9 +41,6 @@ DECIMAL_4 = Decimal("0.0001")
 DEFAULT_PROFILE_CONSTRAINTS = frozenset({"uq_traffic_density_profiles_active_default"})
 IMPRESSION_ESTIMATE_CONSTRAINTS = frozenset(
     {"uq_impression_estimates_trip_formula_profile"}
-)
-AUTHORITATIVE_ESTIMATE_CONSTRAINTS = frozenset(
-    {"uq_impression_estimates_authoritative_trip_formula"}
 )
 IMPRESSION_FINGERPRINT_FIELDS = (
     "trip_analytics_id",
@@ -221,35 +218,20 @@ def ensure_current_estimate_source(
         raise impression_estimate_stale()
 
 
-def _authoritative_profile_order():
-    return (
-        case(
-            (
-                TrafficDensityProfile.is_default.is_(True)
-                & (TrafficDensityProfile.status == TrafficDensityProfileStatus.ACTIVE.value),
-                0,
-            ),
-            else_=1,
-        ),
-        TrafficDensityProfile.id.asc(),
-        ImpressionEstimate.id.asc(),
-    )
-
-
 async def pin_authoritative_estimate(
     session: AsyncSession,
     *,
     trip_id: UUID,
     formula_version: str,
 ) -> ImpressionEstimate | None:
-    """Choose one deterministic economic estimate and mark other profiles scenarios."""
+    """Preserve pinned authority, or establish it from the active default only."""
     await session.execute(
         select(TripSession.id).where(TripSession.id == trip_id).with_for_update()
     )
-    estimates = list(
+    rows = list(
         (
-            await session.scalars(
-                select(ImpressionEstimate)
+            await session.execute(
+                select(ImpressionEstimate, TrafficDensityProfile)
                 .join(
                     TrafficDensityProfile,
                     TrafficDensityProfile.id == ImpressionEstimate.traffic_density_profile_id,
@@ -258,27 +240,36 @@ async def pin_authoritative_estimate(
                     ImpressionEstimate.trip_session_id == trip_id,
                     ImpressionEstimate.formula_version == formula_version,
                 )
-                .order_by(*_authoritative_profile_order())
+                .order_by(ImpressionEstimate.id)
                 .with_for_update()
             )
         ).all()
     )
-    if not estimates:
+    if not rows:
         return None
-    authoritative = estimates[0]
-    await session.execute(
-        update(ImpressionEstimate)
-        .where(
-            ImpressionEstimate.trip_session_id == trip_id,
-            ImpressionEstimate.formula_version == formula_version,
-        )
-        .values(is_authoritative=False)
+    authoritative = next(
+        (estimate for estimate, _profile in rows if estimate.is_authoritative),
+        None,
     )
-    for estimate in estimates:
-        estimate.is_authoritative = estimate.id == authoritative.id
+    if authoritative is None:
+        authoritative = next(
+            (
+                estimate
+                for estimate, profile in rows
+                if profile.status == TrafficDensityProfileStatus.ACTIVE.value
+                and profile.is_default
+            ),
+            None,
+        )
+    for estimate, _profile in rows:
+        estimate.is_authoritative = (
+            authoritative is not None and estimate.id == authoritative.id
+        )
         metadata = dict(estimate.estimate_metadata or {})
         metadata["authority"] = (
-            "authoritative" if estimate.id == authoritative.id else "scenario"
+            "authoritative"
+            if authoritative is not None and estimate.id == authoritative.id
+            else "scenario"
         )
         estimate.estimate_metadata = metadata
     await session.flush()
@@ -794,12 +785,34 @@ async def estimate_trip_impressions(
     trip = await get_trip_for_estimation(session, trip_id)
     analytics = await get_analytics_for_trip(session, trip.id)
     ensure_current_analytics_formula(analytics, settings)
-    profile = await resolve_active_profile(
-        session,
-        profile_id=traffic_density_profile_id,
-        settings=settings,
-    )
     counts = await fraud_hold_counts(session, trip.id)
+    await session.refresh(analytics)
+    ensure_current_analytics_formula(analytics, settings)
+    pinned = await session.scalar(
+        select(ImpressionEstimate)
+        .where(
+            ImpressionEstimate.trip_session_id == trip.id,
+            ImpressionEstimate.formula_version == settings.impression_formula_version,
+            ImpressionEstimate.is_authoritative.is_(True),
+        )
+        .order_by(ImpressionEstimate.id)
+        .limit(1)
+        .with_for_update()
+    )
+    if pinned is not None and (
+        traffic_density_profile_id is None
+        or traffic_density_profile_id == pinned.traffic_density_profile_id
+    ):
+        profile = await get_traffic_density_profile(
+            session,
+            pinned.traffic_density_profile_id,
+        )
+    else:
+        profile = await resolve_active_profile(
+            session,
+            profile_id=traffic_density_profile_id,
+            settings=settings,
+        )
     values = estimate_values(
         analytics=analytics,
         profile=profile,

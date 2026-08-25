@@ -6,7 +6,10 @@
   service enforcement outside assignment ownership, truthful notifications/shell
   metadata, and bounded real-stack E2E diagnosis.
 - Constraints: no queue-state edits, no Package 6 files/worktree, no merge,
-  no subagents or duplicate audit/review.
+  and no duplicate audit/review. Correction attempt 2 used the one authorized
+  no-history Luna read-only scout solely for E2E launch diagnosis; all
+  measurement, migration, and concurrency work remained with the Sol High
+  controller.
 - External or Package 6-dependent failures remain explicit; no policy or client
   facts are invented.
 
@@ -33,10 +36,38 @@
   outside the filesystem root. The same local constraint blocks `next build`.
   No E2E root-cause code change was made.
 
-The current worktree has no `TEST_DATABASE_URL`; the newly added PostGIS fraud
-staleness regression and the inherited PostGIS seam rerun therefore report
-`skipped: PostGIS test database is not configured` locally. The earlier
-configured-environment slice evidence remains the B regression basis.
+## Correction attempt 2 — pinned authority
+
+- Candidate parent: `52ec56857788a4617388d5bcea6538b779ca2fd4`.
+- An existing authoritative trip/formula row now pins its exact traffic-density
+  profile across default changes and scenario reruns. An omitted-profile
+  recomputation refreshes that same row after current analytics and fraud inputs
+  are locked and refreshed. A different explicit active profile remains a
+  non-economic scenario.
+- With no existing authority, only an estimate for the active default profile
+  may become authoritative. Scenario-only evidence remains inspectable while
+  advertiser reporting, payout, and heatmap consumers publish no result.
+- Red/green evidence: five focused runtime/backfill regressions failed on the
+  pre-fix behavior and passed after the repair. The full impression estimate
+  file plus the SQLite migration regression passed (18 passed, one configured-
+  PostgreSQL concurrency test skipped in that SQLite run). Focused report and
+  payout seams passed (2 tests); focused PostGIS heatmap seams passed (3 tests).
+- Disposable PostgreSQL evidence passed for concurrent pinned-profile
+  recomputation/scenario execution (1 test) and for active-default-only
+  backfill, zero scenario-only authority, partial-index shape, and unique-index
+  enforcement (1 test). Each throwaway database and its isolated container were
+  removed after the run.
+- Migration integration remains intentionally unresolved: this isolated branch
+  still names the authority migration `0048`, while Package 6 currently owns
+  `0048_campaign_assignment_offer_lifecycle`,
+  `0049_assignment_activity_flags`, and `0050_driver_applications`. Renumber and
+  set `down_revision` only when adopting onto Package 6's clean W3-04A head;
+  do not merge this migration unchanged.
+- Minimal E2E launch: use an isolated Compose project for DB/Redis/API, migrate
+  and demo-seed it, then run host Playwright with `API_BASE_URL` pointing to the
+  isolated API. Before `npm ci`, remove `frontend/node_modules` only after
+  verifying it is the known symlink to the separate main checkout; never delete
+  that external target. No E2E suite was run in correction attempt 2.
 
 ## Aggregate verification
 

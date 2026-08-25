@@ -25,31 +25,13 @@ def upgrade() -> None:
     op.execute(
         sa.text(
             """
-            WITH ranked AS (
-                SELECT
-                    ie.id,
-                    row_number() OVER (
-                        PARTITION BY ie.trip_session_id, ie.formula_version
-                        ORDER BY
-                            CASE
-                                WHEN tdp.status = 'active' AND tdp.is_default
-                                    THEN 0
-                                ELSE 1
-                            END,
-                            tdp.id,
-                            ie.estimated_at DESC,
-                            ie.id
-                    ) AS authority_rank
-                FROM impression_estimates ie
-                JOIN traffic_density_profiles tdp
-                    ON tdp.id = ie.traffic_density_profile_id
-            )
             UPDATE impression_estimates
             SET is_authoritative = EXISTS (
                 SELECT 1
-                FROM ranked
-                WHERE ranked.id = impression_estimates.id
-                  AND ranked.authority_rank = 1
+                FROM traffic_density_profiles tdp
+                WHERE tdp.id = impression_estimates.traffic_density_profile_id
+                  AND tdp.status = 'active'
+                  AND tdp.is_default
             )
             """
         )

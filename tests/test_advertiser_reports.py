@@ -229,6 +229,18 @@ def set_estimate_confidence(db_sessionmaker, estimate_id, confidence_score) -> N
     asyncio.run(update())
 
 
+def set_estimate_fraud_counts(db_sessionmaker, estimate_id, counts: dict[str, int]) -> None:
+    async def update() -> None:
+        async with db_sessionmaker() as session:
+            estimate = await session.get(ImpressionEstimate, estimate_id)
+            metadata = dict(estimate.estimate_metadata or {})
+            metadata["fraud_flag_counts"] = counts
+            estimate.estimate_metadata = metadata
+            await session.commit()
+
+    asyncio.run(update())
+
+
 def add_payout_calculation(
     db_sessionmaker: async_sessionmaker[AsyncSession],
     *,
@@ -339,7 +351,7 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(db_clien
             created_by_user_id=advertiser.id,
             zone_type=zone_type,
         )
-    _, _, _, _, trip, analytics, _ = create_report_graph(
+    _, _, _, _, trip, analytics, estimate = create_report_graph(
         db_sessionmaker,
         admin=admin,
         advertiser=advertiser,
@@ -363,6 +375,11 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(db_clien
         flag_type="poor_accuracy",
         flag_status=FraudFlagStatus.DISMISSED.value,
         reviewed_by_user_id=admin.id,
+    )
+    set_estimate_fraud_counts(
+        db_sessionmaker,
+        estimate.id,
+        {"low": 0, "medium": 0, "high": 1},
     )
     create_report_graph(
         db_sessionmaker,
