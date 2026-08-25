@@ -122,6 +122,42 @@ describe("NotificationCenter", () => {
     );
   });
 
+  it("renders the new activity notices with their truthful driver copy", async () => {
+    const fetchMock = vi.fn((input: string) => {
+      if (input === "/api/notifications/unread-count") return response({ unread_count: 1 });
+      if (input === "/api/notifications") {
+        return response({
+          items: [
+            {
+              id: "activity-notice-1",
+              title: "Verified activity below floor",
+              body: "Your verified activity was below the configured weekly floor. Operations will review the assignment.",
+              channel: "in_app",
+              type_key: "activity_floor_breached",
+              created_at: "2026-08-24T12:00:00Z",
+              read_at: null,
+            },
+          ],
+          total: 1,
+          limit: 50,
+          offset: 0,
+        });
+      }
+      return response({ unread_count: 0 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderCentre();
+    fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
+
+    expect(await screen.findByText("Verified activity below floor")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Your verified activity was below the configured weekly floor. Operations will review the assignment.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("shows the organization-wide mandatory in-app setting and email toggle only to advertisers", async () => {
     const fetchMock = vi.fn((input: string, init?: RequestInit) => {
       if (input === "/api/notifications/unread-count") return response({ unread_count: 0 });

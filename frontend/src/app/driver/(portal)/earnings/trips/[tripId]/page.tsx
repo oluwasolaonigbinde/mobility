@@ -39,6 +39,10 @@ const noticeCopy: Record<DriverNoticeType, string> = {
   fraud_hold_raised: "This trip was placed under review.",
   fraud_review_resolved: "Staff completed their review of this trip.",
   fraud_dispute_replied: "Staff replied to your dispute.",
+  activity_floor_breached: "Your verified activity was below the configured weekly floor.",
+  activity_floor_recovered: "Your verified activity recovered to the configured weekly floor.",
+  assignment_inactive: "This assignment had no verified activity for seven consecutive days.",
+  assignment_activity_recovered: "Verified activity resumed for this assignment.",
 };
 
 const EXCLUSION_LABELS: Record<string, string> = {

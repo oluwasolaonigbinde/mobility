@@ -10,6 +10,7 @@ import sentry_sdk
 from arq.connections import RedisSettings, create_pool
 from arq.cron import CronJob
 from arq.worker import Function, Worker
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from test_trip_processing import (
     BASE_TIME,
@@ -23,6 +24,7 @@ from test_trip_processing import (
 
 from app.core.config import get_settings
 from app.core.trip_enqueue import RedisTripProcessingEnqueuer
+from app.jobs import assignment_activity as assignment_activity_jobs
 from app.jobs import campaign_assignments as campaign_assignment_jobs
 from app.jobs import data_lifecycle as data_lifecycle_jobs
 from app.jobs import disclosure_retention as disclosure_retention_jobs
@@ -30,6 +32,7 @@ from app.jobs import earnings_release as earnings_release_jobs
 from app.jobs import payment_gateway as payment_gateway_jobs
 from app.jobs import trip_processing as jobs
 from app.jobs.worker import WorkerSettings, sweep_cron_minutes
+from app.models.assignment_activity import AssignmentActivityFlag
 from app.services.trip_processing import DueTrip, process_ended_trip
 
 
@@ -58,7 +61,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert gateway.name == "process_payment_gateway_event"
     assert gateway.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 9
+    assert len(WorkerSettings.cron_jobs) == 10
     cron_job = WorkerSettings.cron_jobs[0]
     assert isinstance(cron_job, CronJob)
     assert cron_job.coroutine is jobs.process_unprocessed_trips
@@ -87,17 +90,19 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assignment_expiry = WorkerSettings.cron_jobs[4]
     assert isinstance(assignment_expiry, CronJob)
     assert (
-        assignment_expiry.coroutine
-        is campaign_assignment_jobs.sweep_campaign_assignment_expiries
+        assignment_expiry.coroutine is campaign_assignment_jobs.sweep_campaign_assignment_expiries
     )
     assert assignment_expiry.unique is True
     assert assignment_expiry.minute == sweep_cron_minutes(
         get_settings().worker_sweep_interval_minutes
     )
+    activity_sweep = WorkerSettings.cron_jobs[5]
+    assert isinstance(activity_sweep, CronJob)
+    assert activity_sweep.coroutine is assignment_activity_jobs.sweep_assignment_activity_flags
+    assert activity_sweep.unique is True
+    assert activity_sweep.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
-    lifecycle_crons = {
-        cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[5:]
-    }
+    lifecycle_crons = {cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[6:]}
     assert set(lifecycle_crons) == {
         data_lifecycle_jobs.premake_ping_partitions,
         data_lifecycle_jobs.check_ping_partition_coverage,
@@ -133,6 +138,80 @@ def test_assignment_expiry_worker_commits_bounded_sweep(
     assert calls == 1
     assert result["expired"] == 3
     assert result["duration_seconds"] >= 0
+
+
+def test_activity_worker_cursor_reaches_tail_across_bounded_runs(db_sessionmaker, settings) -> None:
+    for index in range(3):
+        build_graph(
+            db_sessionmaker,
+            f"batch-{index}",
+            started_at=datetime(2026, 1, 1, 12, tzinfo=UTC),
+        )
+    batch_settings = settings.model_copy(
+        update={
+            "worker_sweep_batch_size": 2,
+            "verified_hours_floor_per_week": None,
+        }
+    )
+    ctx = make_ctx(db_sessionmaker, batch_settings)
+
+    first = asyncio.run(assignment_activity_jobs.sweep_assignment_activity_flags(ctx))
+    second = asyncio.run(assignment_activity_jobs.sweep_assignment_activity_flags(ctx))
+
+    async def flag_count() -> int:
+        async with db_sessionmaker() as session:
+            return int(
+                await session.scalar(select(func.count()).select_from(AssignmentActivityFlag)) or 0
+            )
+
+    assert first["selected"] == 2
+    assert first["cursor"] == "advanced"
+    assert second["selected"] == 1
+    assert second["cursor"] == "wrapped"
+    assert asyncio.run(flag_count()) == 3
+
+
+def test_activity_worker_uses_one_database_clock_for_the_claimed_batch(
+    db_sessionmaker, settings, monkeypatch
+) -> None:
+    graph = build_graph(db_sessionmaker, "activity-db-clock")
+    frozen = datetime(2026, 1, 8, 12, tzinfo=UTC)
+    captured: dict[str, object] = {}
+
+    async def fake_clock(_session):
+        return frozen
+
+    async def fake_sweep(sessionmaker, *, assignment_ids, settings, now):
+        captured.update(
+            sessionmaker=sessionmaker,
+            assignment_ids=assignment_ids,
+            settings=settings,
+            now=now,
+        )
+        return {
+            "selected": len(assignment_ids),
+            "evaluated": len(assignment_ids),
+            "flags_opened": 0,
+            "flags_recovered": 0,
+            "notices_created": 0,
+            "skipped": 0,
+            "errors": 0,
+            "config": "applied",
+            "config_reason": None,
+        }
+
+    monkeypatch.setattr(assignment_activity_jobs, "database_clock", fake_clock)
+    monkeypatch.setattr(assignment_activity_jobs, "sweep_activity_flags", fake_sweep)
+
+    result = asyncio.run(
+        assignment_activity_jobs.sweep_assignment_activity_flags(
+            make_ctx(db_sessionmaker, settings)
+        )
+    )
+
+    assert result["selected"] == 1
+    assert captured["assignment_ids"] == [graph.assignment.id]
+    assert captured["now"] == frozen
 
 
 def test_process_trip_malformed_id_fails_before_any_write(db_sessionmaker, settings) -> None:

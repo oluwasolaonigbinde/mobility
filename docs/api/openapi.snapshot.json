@@ -1000,6 +1000,146 @@
         "title": "AnalyticsRecomputeRequest",
         "type": "object"
       },
+      "AssignmentActivityFlagRead": {
+        "description": "Admin-only projection; no raw trip/analytics evidence is returned.",
+        "properties": {
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "eligible_trip_count": {
+            "title": "Eligible Trip Count",
+            "type": "integer"
+          },
+          "evidence_event_count": {
+            "title": "Evidence Event Count",
+            "type": "integer"
+          },
+          "first_detected_at": {
+            "format": "date-time",
+            "title": "First Detected At",
+            "type": "string"
+          },
+          "flag_type": {
+            "$ref": "#/components/schemas/AssignmentActivityFlagType"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_evaluated_at": {
+            "format": "date-time",
+            "title": "Last Evaluated At",
+            "type": "string"
+          },
+          "last_verified_activity_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Verified Activity At"
+          },
+          "observed_seconds": {
+            "title": "Observed Seconds",
+            "type": "integer"
+          },
+          "recovered_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovered At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AssignmentActivityFlagStatus"
+          },
+          "threshold_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold Seconds"
+          },
+          "vehicle_id": {
+            "format": "uuid",
+            "title": "Vehicle Id",
+            "type": "string"
+          },
+          "window_end": {
+            "format": "date-time",
+            "title": "Window End",
+            "type": "string"
+          },
+          "window_start": {
+            "format": "date-time",
+            "title": "Window Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "assignment_id",
+          "campaign_id",
+          "driver_profile_id",
+          "vehicle_id",
+          "flag_type",
+          "status",
+          "window_start",
+          "window_end",
+          "threshold_seconds",
+          "observed_seconds",
+          "last_verified_activity_at",
+          "first_detected_at",
+          "last_evaluated_at",
+          "recovered_at",
+          "eligible_trip_count",
+          "evidence_event_count"
+        ],
+        "title": "AssignmentActivityFlagRead",
+        "type": "object"
+      },
+      "AssignmentActivityFlagStatus": {
+        "enum": [
+          "open",
+          "recovered"
+        ],
+        "title": "AssignmentActivityFlagStatus",
+        "type": "string"
+      },
+      "AssignmentActivityFlagType": {
+        "enum": [
+          "verified_hours_floor",
+          "inactivity"
+        ],
+        "title": "AssignmentActivityFlagType",
+        "type": "string"
+      },
       "AssignmentCampaignSummary": {
         "properties": {
           "end_at": {
@@ -1877,6 +2017,20 @@
               }
             ],
             "title": "Activated At"
+          },
+          "activity_flags": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AssignmentActivityFlagRead"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity Flags"
           },
           "assigned_by_user_id": {
             "format": "uuid",
@@ -6407,6 +6561,30 @@
       },
       "DriverNotificationRead": {
         "properties": {
+          "activity_flag_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity Flag Id"
+          },
+          "assignment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignment Id"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -6425,9 +6603,16 @@
             "title": "Fraud Dispute Id"
           },
           "fraud_flag_id": {
-            "format": "uuid",
-            "title": "Fraud Flag Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fraud Flag Id"
           },
           "id": {
             "format": "uuid",
@@ -6450,9 +6635,16 @@
             "type": "string"
           },
           "trip_session_id": {
-            "format": "uuid",
-            "title": "Trip Session Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Session Id"
           },
           "type_key": {
             "$ref": "#/components/schemas/NotificationType"
@@ -6462,8 +6654,6 @@
           "id",
           "type_key",
           "template_version",
-          "fraud_flag_id",
-          "trip_session_id",
           "created_at"
         ],
         "title": "DriverNotificationRead",
@@ -9418,7 +9608,11 @@
         "enum": [
           "fraud_hold_raised",
           "fraud_review_resolved",
-          "fraud_dispute_replied"
+          "fraud_dispute_replied",
+          "activity_floor_breached",
+          "activity_floor_recovered",
+          "assignment_inactive",
+          "assignment_activity_recovered"
         ],
         "title": "NotificationType",
         "type": "string"

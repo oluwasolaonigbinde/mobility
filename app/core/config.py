@@ -141,6 +141,10 @@ class Settings(BaseSettings):
     location_ping_end_skew_seconds: int = 300
     worker_sweep_interval_minutes: int = 5
     worker_sweep_batch_size: int = 25
+    # Q20 deliberately has no invented production default. Keep the raw
+    # value so an absent, malformed, non-finite, or non-positive setting can
+    # fail closed at the activity worker boundary with observable evidence.
+    verified_hours_floor_per_week: str | float | int | None = None
     fraud_review_sla_days: int = 7
     ping_retention_months: int = 12
     partition_premake_months: int = 4

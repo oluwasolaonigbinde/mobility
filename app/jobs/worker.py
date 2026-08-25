@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import Settings, get_settings
 from app.core.observability import init_error_tracking
+from app.jobs.assignment_activity import sweep_assignment_activity_flags
 from app.jobs.campaign_assignments import sweep_campaign_assignment_expiries
 from app.jobs.data_lifecycle import (
     check_ping_partition_coverage,
@@ -103,6 +104,11 @@ class WorkerSettings:
         ),
         cron(
             sweep_campaign_assignment_expiries,
+            minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
+            unique=True,
+        ),
+        cron(
+            sweep_assignment_activity_flags,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
             unique=True,
         ),

@@ -10,8 +10,10 @@ class DriverNotificationRead(BaseModel):
     id: UUID
     type_key: NotificationType
     template_version: str
-    fraud_flag_id: UUID
-    trip_session_id: UUID
+    fraud_flag_id: UUID | None = None
+    trip_session_id: UUID | None = None
+    activity_flag_id: UUID | None = None
+    assignment_id: UUID | None = None
     outcome: str | None = None
     fraud_dispute_id: UUID | None = None
     created_at: datetime

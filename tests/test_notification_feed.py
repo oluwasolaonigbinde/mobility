@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
 from conftest import (
@@ -11,6 +12,7 @@ from conftest import (
 from sqlalchemy import func, select
 from starlette import status as http_status
 
+from app.api.v1.notifications import notification_feed_response
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
 from app.models.notification import Notification, NotificationChannel, NotificationType
@@ -20,6 +22,52 @@ from app.services.notifications import create_notification, notification_dedupe_
 from app.services.organizations import get_notification_preference, update_notification_preference
 
 PASSWORD = "long-secure-password"
+
+
+@pytest.mark.parametrize(
+    ("type_key", "title", "body"),
+    [
+        (
+            NotificationType.ACTIVITY_FLOOR_BREACHED,
+            "Verified activity below floor",
+            "Your verified activity was below the configured weekly floor. "
+            "Operations will review the assignment.",
+        ),
+        (
+            NotificationType.ACTIVITY_FLOOR_RECOVERED,
+            "Verified activity recovered",
+            "Your verified activity has recovered to the configured weekly floor.",
+        ),
+        (
+            NotificationType.ASSIGNMENT_INACTIVE,
+            "Assignment inactive",
+            "No verified activity was recorded for this assignment for seven "
+            "consecutive days. Operations will review it.",
+        ),
+        (
+            NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED,
+            "Assignment activity resumed",
+            "Verified activity resumed for this assignment. The operations flag "
+            "has been recovered.",
+        ),
+    ],
+)
+def test_activity_notification_feed_copy_is_truthful(type_key, title, body) -> None:
+    notice = Notification(
+        id=uuid4(),
+        recipient_user_id=uuid4(),
+        type_key=type_key.value,
+        channel=NotificationChannel.IN_APP.value,
+        payload={"activity_flag_id": "private-flag", "analytics_source": "private"},
+        dedupe_fingerprint="a" * 64,
+        created_at=datetime(2026, 8, 24, 12, tzinfo=UTC),
+    )
+
+    rendered = notification_feed_response(notice)
+
+    assert rendered.title == title
+    assert rendered.body == body
+    assert "private" not in rendered.body
 
 
 def _insert_notice(

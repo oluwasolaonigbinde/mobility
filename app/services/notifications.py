@@ -10,6 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from app.core.errors import AppError
+from app.models.assignment_activity import (
+    AssignmentActivityFlag,
+    AssignmentActivityFlagEventType,
+    AssignmentActivityFlagType,
+)
 from app.models.driver import DriverProfile
 from app.models.notification import (
     Notification,
@@ -200,6 +205,44 @@ async def create_fraud_dispute_replied_notice(
             "fraud_dispute_id": str(dispute_id),
         },
         dedupe_key=f"fraud_dispute_replied:v1:{dispute_id}",
+    )
+
+
+async def create_activity_flag_notice(
+    session: AsyncSession,
+    *,
+    flag: AssignmentActivityFlag,
+    event_type: AssignmentActivityFlagEventType,
+) -> Notification:
+    """Create one typed driver notice for an activity occurrence/recovery."""
+    if event_type == AssignmentActivityFlagEventType.OPENED:
+        type_key = (
+            NotificationType.ACTIVITY_FLOOR_BREACHED
+            if flag.flag_type == AssignmentActivityFlagType.VERIFIED_HOURS_FLOOR.value
+            else NotificationType.ASSIGNMENT_INACTIVE
+        )
+    else:
+        type_key = (
+            NotificationType.ACTIVITY_FLOOR_RECOVERED
+            if flag.flag_type == AssignmentActivityFlagType.VERIFIED_HOURS_FLOOR.value
+            else NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED
+        )
+    recipient_user_id = await session.scalar(
+        select(DriverProfile.user_id).where(DriverProfile.id == flag.driver_profile_id)
+    )
+    if recipient_user_id is None:
+        raise RuntimeError("activity flag driver profile is missing")
+    return await _create_notice(
+        session,
+        recipient_user_id=recipient_user_id,
+        type_key=type_key,
+        payload={
+            "activity_flag_id": str(flag.id),
+            "assignment_id": str(flag.assignment_id),
+            "activity_flag_type": flag.flag_type,
+            "activity_event": event_type.value,
+        },
+        dedupe_key=f"assignment_activity:{event_type.value}:v1:{flag.id}",
     )
 
 

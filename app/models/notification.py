@@ -26,6 +26,10 @@ class NotificationType(StrEnum):
     FRAUD_HOLD_RAISED = "fraud_hold_raised"
     FRAUD_REVIEW_RESOLVED = "fraud_review_resolved"
     FRAUD_DISPUTE_REPLIED = "fraud_dispute_replied"
+    ACTIVITY_FLOOR_BREACHED = "activity_floor_breached"
+    ACTIVITY_FLOOR_RECOVERED = "activity_floor_recovered"
+    ASSIGNMENT_INACTIVE = "assignment_inactive"
+    ASSIGNMENT_ACTIVITY_RECOVERED = "assignment_activity_recovered"
 
 
 class NotificationChannel(StrEnum):

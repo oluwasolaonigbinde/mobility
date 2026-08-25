@@ -40,6 +40,8 @@ def driver_notification_response(notice: Notification) -> DriverNotificationRead
         template_version=notice.template_version,
         fraud_flag_id=notice.payload.get("fraud_flag_id"),
         trip_session_id=notice.payload.get("trip_session_id"),
+        activity_flag_id=notice.payload.get("activity_flag_id"),
+        assignment_id=notice.payload.get("assignment_id"),
         outcome=(
             notice.payload.get("outcome")
             if notice.payload.get("outcome") in {"confirmed", "dismissed"}
@@ -64,6 +66,25 @@ def notification_feed_response(notice: Notification) -> NotificationFeedItemRead
         NotificationType.FRAUD_DISPUTE_REPLIED.value: (
             "Fraud dispute update",
             "Your fraud dispute has received a reply.",
+        ),
+        NotificationType.ACTIVITY_FLOOR_BREACHED.value: (
+            "Verified activity below floor",
+            "Your verified activity was below the configured weekly floor. "
+            "Operations will review the assignment.",
+        ),
+        NotificationType.ACTIVITY_FLOOR_RECOVERED.value: (
+            "Verified activity recovered",
+            "Your verified activity has recovered to the configured weekly floor.",
+        ),
+        NotificationType.ASSIGNMENT_INACTIVE.value: (
+            "Assignment inactive",
+            "No verified activity was recorded for this assignment for seven "
+            "consecutive days. Operations will review it.",
+        ),
+        NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED.value: (
+            "Assignment activity resumed",
+            "Verified activity resumed for this assignment. The operations flag "
+            "has been recovered.",
         ),
     }
     title, body = rendered.get(

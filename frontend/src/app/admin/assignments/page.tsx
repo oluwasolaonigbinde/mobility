@@ -60,13 +60,14 @@ export default async function AdminAssignmentsPage({
 
       <Panel className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
+          <table className="w-full min-w-[900px] text-sm">
             <thead>
               <tr className="border-edge micro text-muted border-b text-left">
                 <th className="px-5 py-3.5 font-normal">Campaign</th>
                 <th className="px-5 py-3.5 font-normal">Driver</th>
                 <th className="px-5 py-3.5 font-normal">Vehicle</th>
                 <th className="px-5 py-3.5 font-normal">Status</th>
+                <th className="px-5 py-3.5 font-normal">Activity operations</th>
                 <th className="px-5 py-3.5 font-normal">Offered</th>
                 <th className="px-5 py-3.5 text-right font-normal">Actions</th>
               </tr>
@@ -83,6 +84,34 @@ export default async function AdminAssignmentsPage({
                   </td>
                   <td className="px-5 py-3.5">
                     <StatusChip tone={tone[a.status]}>{a.status}</StatusChip>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    {a.activity_flags?.length ? (
+                      <div className="space-y-1.5">
+                        {a.activity_flags.map((flag) => (
+                          <div key={flag.id} className="text-xs">
+                            <span className={flag.status === "open" ? "text-coral" : "text-green"}>
+                              {flag.flag_type === "inactivity"
+                                ? "7-day inactivity"
+                                : "Weekly floor"}{" "}
+                              {flag.status}
+                            </span>
+                            <div className="text-muted font-mono text-[10px]">
+                              {flag.observed_seconds}s observed · {flag.evidence_event_count}{" "}
+                              evidence event
+                              {flag.evidence_event_count === 1 ? "" : "s"}
+                            </div>
+                            {flag.recovered_at ? (
+                              <div className="text-faint text-[10px]">
+                                Recovered {formatDate(flag.recovered_at)}
+                              </div>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-faint text-xs">Clear</span>
+                    )}
                   </td>
                   <td className="text-muted px-5 py-3.5 font-mono text-xs">
                     {formatDate(a.offered_at)}

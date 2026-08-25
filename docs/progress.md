@@ -59,11 +59,11 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 ### Current control pointer
 
 **Controller state:** `ACTIVE`
-**Control package:** `PKG-06` — W3-03A/B are verified on the adopted corrected
+**Control package:** `PKG-06` — W3-03A/B/C are verified on the adopted corrected
 Package 5 history and Package 6 remains in progress. Package 5 remains BLOCKED
 only on its registered dependency/external gates.
-**Current checkpoint:** `PKG-06 / W3-03C` — W3-03B is DONE. W3-03C is the next
-dependency-safe pointer; it has not been admitted or started in this checkpoint.
+**Current checkpoint:** `PKG-06 / W3-04A` — W3-03C is DONE. Dependency-free
+W3-04A is the next runnable pointer; it has not yet been admitted.
 
 ## Executable package queue
 
@@ -668,6 +668,27 @@ dependency-safe pointer; it has not been admitted or started in this checkpoint.
   focused lifecycle UI tests, type/lint/format, byte-stable §9 artifacts, and
   one consolidated Luna review PASS after seed/UI corrections. W3-03C–W3-04C
   remain unstarted; external Package 4/5 gates remain unchanged.
+- **W3-03C evidence (25 Aug 2026):** migration `0049` adds dedicated
+  assignment-activity operations flags plus append-only opened/recovered
+  evidence. The fixed seven-day rule uses the later of activation or latest
+  verified activity at an exact database-clock boundary; the weekly rule uses
+  the immediately completed Monday-to-Monday UTC window and only runs when
+  operations explicitly configures a positive verified-hours floor. Missing,
+  invalid, insufficient, blocked, future, stale or wrongly linked analytics
+  never become verified activity, while missing weekly configuration does not
+  disable inactivity protection. The worker uses the established rolling
+  cursor, configured batch bound and one transaction per assignment; retries,
+  concurrent opens/recoveries and failures converge without starving the tail.
+  Admins see a sanitized review projection and drivers receive deduplicated
+  in-app open/recovery notices; no assignment, trip, earnings, hold, payee or
+  payout state is changed. Evidence includes 65 focused backend/API/worker/
+  migration passes, 3 isolated real-PostgreSQL concurrency and populated-
+  migration passes, 5 focused admin/notification UI passes, 73 preserved
+  driver/PWA contract fixtures, type/lint/format, byte-stable §9 regeneration
+  and consolidated Luna review PASS after the bounded-worker/head-guard
+  correction. No weekly policy value, external input, live-use approval,
+  automatic termination or Package 7 work was added. W3-04A is next runnable;
+  W3-04B/C remain dependency-blocked.
 - **Closure:** security/privacy/money and lifecycle races pass, including the
   complete accept/decline/expiry flow and non-work-eligible pending states.
 
@@ -798,7 +819,7 @@ verification, gates or required specialist review.
 | 54 | **W3-02B — high-exposure zone insights** | PKG-05 | TODO | Governed ranked zones appear in admin/advertiser maps and reports. | leaf: W3-00C, W3-00E |
 | 55 | **W3-03A — matching recommendations** | PKG-06 | DONE | Admin receives deterministic eligible driver/vehicle rankings. | none |
 | 56 | **W3-03B — complete offer lifecycle** | PKG-06 | DONE | Terms-complete expiring offers support accept/decline and immutable evidence. | leaf: W3-03A, W2-00A, MNY-06B |
-| 57 | **W3-03C — activity floor and inactivity handling** | PKG-06 | TODO | Verified-hours/inactivity sweeps create reviewable ops flags and notices. | leaf: W3-03B, W2-04A |
+| 57 | **W3-03C — activity floor and inactivity handling** | PKG-06 | DONE | Verified-hours/inactivity sweeps create reviewable ops flags and notices. | leaf: W3-03B, W2-04A |
 | 58 | **W3-04A — public driver application** | PKG-06 | TODO | Abuse-resistant registration creates a pending, non-work-eligible application. | none |
 | 59 | **W3-04B — KYC/bank onboarding approval** | PKG-06 | TODO | Person/payee KYC is approved but remains non-work-eligible pending W3-04C vehicle approval. | leaf: W3-04A, W2-02D, MNY-10A |
 | 60 | **W3-04C — driver vehicle profile and approval** | PKG-06 | TODO | Identity/KYC-approved applicants add vehicle evidence; admin approval grants work eligibility. | leaf: W3-04B, W2-02B, W2-02D |

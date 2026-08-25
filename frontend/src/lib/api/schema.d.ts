@@ -3040,6 +3040,81 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /**
+         * AssignmentActivityFlagRead
+         * @description Admin-only projection; no raw trip/analytics evidence is returned.
+         */
+        AssignmentActivityFlagRead: {
+            /**
+             * Assignment Id
+             * Format: uuid
+             */
+            assignment_id: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /** Eligible Trip Count */
+            eligible_trip_count: number;
+            /** Evidence Event Count */
+            evidence_event_count: number;
+            /**
+             * First Detected At
+             * Format: date-time
+             */
+            first_detected_at: string;
+            flag_type: components["schemas"]["AssignmentActivityFlagType"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Last Evaluated At
+             * Format: date-time
+             */
+            last_evaluated_at: string;
+            /** Last Verified Activity At */
+            last_verified_activity_at: string | null;
+            /** Observed Seconds */
+            observed_seconds: number;
+            /** Recovered At */
+            recovered_at: string | null;
+            status: components["schemas"]["AssignmentActivityFlagStatus"];
+            /** Threshold Seconds */
+            threshold_seconds: number | null;
+            /**
+             * Vehicle Id
+             * Format: uuid
+             */
+            vehicle_id: string;
+            /**
+             * Window End
+             * Format: date-time
+             */
+            window_end: string;
+            /**
+             * Window Start
+             * Format: date-time
+             */
+            window_start: string;
+        };
+        /**
+         * AssignmentActivityFlagStatus
+         * @enum {string}
+         */
+        AssignmentActivityFlagStatus: "open" | "recovered";
+        /**
+         * AssignmentActivityFlagType
+         * @enum {string}
+         */
+        AssignmentActivityFlagType: "verified_hours_floor" | "inactivity";
         /** AssignmentCampaignSummary */
         AssignmentCampaignSummary: {
             /** End At */
@@ -3396,6 +3471,8 @@ export interface components {
             accepted_at: string | null;
             /** Activated At */
             activated_at: string | null;
+            /** Activity Flags */
+            activity_flags?: components["schemas"]["AssignmentActivityFlagRead"][] | null;
             /**
              * Assigned By User Id
              * Format: uuid
@@ -4842,6 +4919,10 @@ export interface components {
         };
         /** DriverNotificationRead */
         DriverNotificationRead: {
+            /** Activity Flag Id */
+            activity_flag_id?: string | null;
+            /** Assignment Id */
+            assignment_id?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -4849,11 +4930,8 @@ export interface components {
             created_at: string;
             /** Fraud Dispute Id */
             fraud_dispute_id?: string | null;
-            /**
-             * Fraud Flag Id
-             * Format: uuid
-             */
-            fraud_flag_id: string;
+            /** Fraud Flag Id */
+            fraud_flag_id?: string | null;
             /**
              * Id
              * Format: uuid
@@ -4863,11 +4941,8 @@ export interface components {
             outcome?: string | null;
             /** Template Version */
             template_version: string;
-            /**
-             * Trip Session Id
-             * Format: uuid
-             */
-            trip_session_id: string;
+            /** Trip Session Id */
+            trip_session_id?: string | null;
             type_key: components["schemas"]["NotificationType"];
         };
         /**
@@ -6023,7 +6098,7 @@ export interface components {
          * NotificationType
          * @enum {string}
          */
-        NotificationType: "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied";
+        NotificationType: "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered";
         /** NotificationUnreadCountRead */
         NotificationUnreadCountRead: {
             /** Unread Count */

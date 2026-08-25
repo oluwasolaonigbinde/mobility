@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.47 — 2026-08-25. Canonical source of truth: current state AND target state.**
+**Version 1.50 — 2026-08-25. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1578,9 +1578,19 @@ policy; it does not block the recommendation/offer/assignment architecture.
   pilot. The product and documentation do not promise later overlapping or
   multiple-brand compatibility; any such future change requires a new client
   decision and explicit compatibility rules.
-- Activity floor (Q20): worker sweep flags assignments below minimum tracked
-  km/hours per week to ops (notification, §20) — data already exists in
-  `trip_analytics`.
+- Activity floor (Q20) **[BUILT]:** one bounded rolling-cursor worker evaluates
+  active assignments under the established campaign→assignment lock order and
+  commits each assignment independently. The immediately completed
+  Monday-to-Monday UTC window sums `active_tracking_seconds` only from current,
+  computed, sealed, correctly linked analytics; the positive verified-hours
+  floor has no invented default and is skipped visibly until operations sets
+  `VERIFIED_HOURS_FLOOR_PER_WEEK`. Independently, the exact seven-day
+  database-clock boundary starts at activation or the latest verified activity.
+  Dedicated operations flags retain append-only opened/recovered evidence and
+  deduplicated driver notices; resumed verified activity recovers the current
+  flag without deleting history. Admin assignment views expose only sanitized
+  review fields. Neither rule cancels/deactivates assignments nor mutates trip,
+  earnings, hold, payee, reservation or payout authority.
 
 ## 22. Retargeting & the audience privacy boundary (D6, D11, D20)
 
@@ -2262,6 +2272,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.50 | 2026-08-25 | **W3-03C verified-hours and inactivity operations delivered without automatic work or money mutation.** Migration `0049` adds dedicated current activity flags and append-only opened/recovered evidence with populated downgrade refusal. A no-default positive weekly-hours setting evaluates the immediately completed UTC week from computed sealed assignment-linked analytics; missing/invalid configuration skips only that rule. The independent exact seven-day database-time rule continues from activation/latest verified activity. A configured-batch rolling cursor reaches the full active-assignment set while per-assignment transactions isolate errors and retain W3-03B campaign→assignment lock compatibility. Stable notices report open/recovery to drivers and the admin assignment surface exposes sanitized review evidence. All §9 artifacts move together and regenerate byte-stably. Focused backend/API/worker/migration, real-PostgreSQL concurrency, frontend/admin-notification, preserved driver/PWA contract fixtures and consolidated Luna review pass after bounded-worker and migration-head corrections. No threshold value, lifecycle/earnings change, external authorization, Package 7 work or unrelated Pro finding is claimed. |
 | v1.49 | 2026-08-25 | **W3-03B complete assignment-offer lifecycle delivered with honest activation gating.** Migration `0048` adds explicit expiry, canonical complete offer snapshots and hashes, accepted-binding linkage, coherent timestamps, one terminal-decision event and append-only evidence while preserving legacy hashless rows and blocking destructive downgrade. Driver accept/decline, lazy/worker expiry, admin cancel/activation and trip start share DB time plus a campaign→assignment→eligibility lock order; active-admin checks live inside create/cancel services. Admin activation composes built review/funding/liability/hold gates and then fails closed because approved-creative and installation-evidence authorities remain unavailable in Package 4. All §9 artifacts move together. Focused real-PostgreSQL decision/sweep/producer/transition/trip/migration barriers, fast API tests, append-only demo-seed reruns, frontend lifecycle tests/type/lint/format and a consolidated Luna minimal-change review pass. No external gate, live activation, KYC/work eligibility, activity-floor, Package 7 or unrelated Pro finding is claimed. |
 | v1.48 | 2026-08-25 | **W3-03A deterministic matching recommendations delivered on the corrected Package 5 base.** `matching_v1` adds an admin-only, non-persistent cars-only recommender inside the existing assignment service. Current assignment readiness requires an assignable campaign, active driver profile, normalized city, active driver-owned car and no same-campaign non-terminal vehicle assignment. Transparent lexicographic ranking uses vehicle load, driver load, computed-only activity and stable UUID ties; the UI never auto-selects. A typed fingerprint is rechecked under deterministic parent and aggregate-contributor locks before the existing create command, with real-PostgreSQL parent/load/activity interleavings and inherited exclusivity envelopes passing. Context-free manual assignment remains compatible. All three §9 baselines moved together and regenerate byte-stably; focused backend/frontend/R14-B/type/lint/build and isolated admin recommendation→offer evidence pass after consolidated review corrections. No migration, automatic assignment, person/payee/KYC eligibility, provider input or live-use authorization was added. W3-03B–W3-04C remain unstarted; Package 5's external legal, reporting-method and ad-platform gates remain unchanged. |
 | v1.47 | 2026-08-25 | **Package 5 Extended Pro correction pass.** Migration `0047`'s active-link PostgreSQL partial unique index is declared in ORM metadata with a SQLite partial predicate and an autogenerate regression. Heatmap disclosure now applies the contributor cap across every serialized ping/trip/distance/impression metric. Source monitoring and admin heatmap service boundaries verify an active admin before domain reads, preserving router checks; governed advertiser output selects the newest active organization membership deterministically after the default-deny live gate. Focused red/green regressions and the impacted Package 5 backend/migration subset pass. No external legal/provider gate is changed and Package 6 remains untouched. |

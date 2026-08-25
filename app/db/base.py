@@ -5,6 +5,7 @@ class Base(DeclarativeBase):
     pass
 
 
+import app.models.assignment_activity  # noqa: E402,F401
 import app.models.audit  # noqa: E402,F401
 import app.models.billing  # noqa: E402,F401
 import app.models.campaign  # noqa: E402,F401

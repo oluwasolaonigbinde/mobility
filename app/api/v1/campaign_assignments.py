@@ -2,6 +2,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
+from sqlalchemy import func, select
 
 from app.api.v1.dependencies import (
     AdminUserDependency,
@@ -9,6 +10,7 @@ from app.api.v1.dependencies import (
     SessionDependency,
     SettingsDependency,
 )
+from app.models.assignment_activity import AssignmentActivityFlag, AssignmentActivityFlagEvent
 from app.models.campaign import Campaign
 from app.models.campaign_assignment import (
     CampaignActivationEvent,
@@ -19,6 +21,7 @@ from app.models.driver import DriverProfile
 from app.models.vehicle import Vehicle
 from app.schemas.campaign_assignments import (
     ActiveCampaignAssignmentResponse,
+    AssignmentActivityFlagRead,
     AssignmentCampaignSummary,
     AssignmentDriverProfileSummary,
     AssignmentVehicleSummary,
@@ -30,6 +33,7 @@ from app.schemas.campaign_assignments import (
     CampaignAssignmentRecommendationListResponse,
     CampaignAssignmentTransition,
 )
+from app.services.assignment_activity import list_assignment_activity_flags
 from app.services.audit import create_audit_event
 from app.services.campaign_assignments import (
     accept_driver_assignment,
@@ -108,12 +112,22 @@ async def assignment_response(
     assignment: CampaignAssignment,
     *,
     include_events: bool = False,
+    include_activity_flags: bool = False,
 ) -> CampaignAssignmentRead:
     campaign, driver_profile, vehicle, _assigned_by = await get_assignment_context(
         session,
         assignment,
     )
     events = await list_assignment_events(session, assignment.id) if include_events else None
+    activity_flags = None
+    if include_activity_flags:
+        activity_flags = [
+            await activity_flag_response(session, flag)
+            for flag in await list_assignment_activity_flags(
+                session,
+                assignment_id=assignment.id,
+            )
+        ]
     return CampaignAssignmentRead(
         id=assignment.id,
         campaign_id=assignment.campaign_id,
@@ -140,6 +154,45 @@ async def assignment_response(
         driver_profile=driver_profile_summary(driver_profile),
         vehicle=vehicle_summary(vehicle),
         events=[event_response(event) for event in events] if events is not None else None,
+        activity_flags=activity_flags,
+    )
+
+
+async def activity_flag_response(
+    session: SessionDependency, flag: AssignmentActivityFlag
+) -> AssignmentActivityFlagRead:
+    event_count = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(AssignmentActivityFlagEvent)
+            .where(AssignmentActivityFlagEvent.flag_id == flag.id)
+        )
+        or 0
+    )
+    evidence = flag.current_evidence if isinstance(flag.current_evidence, dict) else {}
+    raw_trip_count = evidence.get("eligible_trip_count", 0)
+    try:
+        eligible_trip_count = max(0, int(raw_trip_count))
+    except (TypeError, ValueError):
+        eligible_trip_count = 0
+    return AssignmentActivityFlagRead(
+        id=flag.id,
+        assignment_id=flag.assignment_id,
+        campaign_id=flag.campaign_id,
+        driver_profile_id=flag.driver_profile_id,
+        vehicle_id=flag.vehicle_id,
+        flag_type=flag.flag_type,
+        status=flag.status,
+        window_start=flag.window_start,
+        window_end=flag.window_end,
+        threshold_seconds=flag.threshold_seconds,
+        observed_seconds=flag.observed_seconds,
+        last_verified_activity_at=flag.last_verified_activity_at,
+        first_detected_at=flag.first_detected_at,
+        last_evaluated_at=flag.last_evaluated_at,
+        recovered_at=flag.recovered_at,
+        eligible_trip_count=eligible_trip_count,
+        evidence_event_count=event_count,
     )
 
 
@@ -174,7 +227,9 @@ async def admin_create_campaign_assignment(
         },
     )
     await session.commit()
-    return await assignment_response(session, assignment, include_events=True)
+    return await assignment_response(
+        session, assignment, include_events=True, include_activity_flags=True
+    )
 
 
 @router.get(
@@ -206,7 +261,12 @@ async def admin_list_campaign_assignments(
     )
     return CampaignAssignmentListResponse(
         items=[
-            await assignment_response(session, assignment, include_events=True)
+            await assignment_response(
+                session,
+                assignment,
+                include_events=True,
+                include_activity_flags=True,
+            )
             for assignment in assignments
         ],
         total=total,
@@ -258,7 +318,9 @@ async def admin_get_campaign_assignment(
     await expire_assignment_offer(session, assignment_id)
     await session.commit()
     assignment = await get_admin_assignment(session, assignment_id)
-    return await assignment_response(session, assignment, include_events=True)
+    return await assignment_response(
+        session, assignment, include_events=True, include_activity_flags=True
+    )
 
 
 @router.post(
@@ -291,7 +353,9 @@ async def admin_cancel_campaign_assignment(
         },
     )
     await session.commit()
-    return await assignment_response(session, assignment, include_events=True)
+    return await assignment_response(
+        session, assignment, include_events=True, include_activity_flags=True
+    )
 
 
 @router.get(
@@ -451,7 +515,9 @@ async def admin_activate_campaign_assignment(
         metadata={"campaign_id": str(assignment.campaign_id)},
     )
     await session.commit()
-    return await assignment_response(session, assignment, include_events=True)
+    return await assignment_response(
+        session, assignment, include_events=True, include_activity_flags=True
+    )
 
 
 @router.post(

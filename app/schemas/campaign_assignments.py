@@ -4,6 +4,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.models.assignment_activity import (
+    AssignmentActivityFlagStatus,
+    AssignmentActivityFlagType,
+)
 from app.models.campaign import CampaignStatus
 from app.models.campaign_assignment import CampaignActivationEventType, CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
@@ -146,6 +150,29 @@ class CampaignAssignmentRead(BaseModel):
     driver_profile: AssignmentDriverProfileSummary | None = None
     vehicle: AssignmentVehicleSummary | None = None
     events: list[CampaignActivationEventRead] | None = None
+    activity_flags: list["AssignmentActivityFlagRead"] | None = None
+
+
+class AssignmentActivityFlagRead(BaseModel):
+    """Admin-only projection; no raw trip/analytics evidence is returned."""
+
+    id: UUID
+    assignment_id: UUID
+    campaign_id: UUID
+    driver_profile_id: UUID
+    vehicle_id: UUID
+    flag_type: AssignmentActivityFlagType
+    status: AssignmentActivityFlagStatus
+    window_start: datetime
+    window_end: datetime
+    threshold_seconds: int | None
+    observed_seconds: int
+    last_verified_activity_at: datetime | None
+    first_detected_at: datetime
+    last_evaluated_at: datetime
+    recovered_at: datetime | None
+    eligible_trip_count: int
+    evidence_event_count: int
 
 
 class CampaignAssignmentListResponse(BaseModel):
