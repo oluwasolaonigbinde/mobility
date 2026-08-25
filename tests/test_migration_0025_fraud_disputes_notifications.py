@@ -56,17 +56,17 @@ def test_dispute_notification_populated_downgrade_fails_closed(monkeypatch) -> N
                     text(
                         "INSERT INTO notifications "
                         "(recipient_user_id, type_key, template_version, payload, dedupe_key, "
-                        "dedupe_fingerprint, created_at, sent_at) "
+                        "created_at) "
                         "VALUES ('20000000-0000-0000-0000-000000000001', "
                         "'fraud_hold_raised', 'v1', '{}'::jsonb, 'migration-fixture', "
-                        "repeat('c', 64), statement_timestamp(), statement_timestamp())"
+                        "statement_timestamp())"
                     )
                 )
         finally:
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0025_fraud_disputes_notifications", monkeypatch)
         asyncio.run(seed())
         with pytest.raises(DBAPIError, match="downgrade blocked"):
             downgrade_to(migration_url, PRE_DISPUTE_REVISION, monkeypatch)
