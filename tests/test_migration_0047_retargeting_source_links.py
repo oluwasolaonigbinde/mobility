@@ -3,6 +3,8 @@
 import asyncio
 
 import pytest
+from alembic.autogenerate import compare_metadata
+from alembic.migration import MigrationContext
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -14,6 +16,8 @@ from test_migration_0014_partitioning import (
     drop_database,
     upgrade_to,
 )
+
+from app.db.base import Base
 
 PRE_LINK_REVISION = "0046_retargeting_sources"
 
@@ -104,5 +108,39 @@ def test_link_empty_roundtrip_append_only_and_populated_downgrade(monkeypatch) -
         asyncio.run(seed_and_verify())
         with pytest.raises(RuntimeError, match="Refusing to drop populated"):
             downgrade_to(migration_url, PRE_LINK_REVISION, monkeypatch)
+    finally:
+        asyncio.run(drop_database(migration_url))
+
+
+def test_link_active_identity_index_has_no_autogenerate_removal(monkeypatch) -> None:
+    migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
+
+    async def compare() -> list:
+        engine = create_async_engine(migration_url, poolclass=NullPool)
+        try:
+            async with engine.connect() as connection:
+                def run(sync_connection):
+                    context = MigrationContext.configure(
+                        sync_connection,
+                        opts={
+                            "compare_type": False,
+                            "compare_server_default": False,
+                        },
+                    )
+                    return compare_metadata(context, Base.metadata)
+
+                return await connection.run_sync(run)
+        finally:
+            await engine.dispose()
+
+    try:
+        upgrade_to(migration_url, "head", monkeypatch)
+        diffs = asyncio.run(compare())
+        removed = {
+            diff[1].name
+            for diff in diffs
+            if diff[0] == "remove_index" and getattr(diff[1], "name", None)
+        }
+        assert "uq_retargeting_source_links_active_identity" not in removed
     finally:
         asyncio.run(drop_database(migration_url))

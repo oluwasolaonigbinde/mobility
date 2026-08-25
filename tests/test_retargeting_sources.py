@@ -13,9 +13,13 @@ from app.core.config import Settings, get_settings
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
 from app.models.retargeting_source import RetargetingSource, RetargetingSourceEvent
-from app.models.user import UserRole
+from app.models.user import UserRole, UserStatus
 from app.schemas.retargeting_sources import RetargetingSourceCreate, RetargetingSourceRead
-from app.services.audience import create_retargeting_source, list_admin_retargeting_sources
+from app.services.audience import (
+    create_retargeting_source,
+    get_admin_retargeting_source,
+    list_admin_retargeting_sources,
+)
 
 PASSWORD = "StrongPassword123!"
 
@@ -177,8 +181,85 @@ def test_live_gate_runs_before_admin_registry_read() -> None:
 
     async def scenario() -> None:
         with pytest.raises(AppError) as blocked:
-            await list_admin_retargeting_sources(NoReadSession(), settings=Settings())  # type: ignore[arg-type]
+            await list_admin_retargeting_sources(
+                NoReadSession(), settings=Settings(), actor_user_id=uuid4()
+            )  # type: ignore[arg-type]
         assert blocked.value.code == "PRIVACY_LIVE_USE_BLOCKED"
+
+    asyncio.run(scenario())
+
+
+def test_admin_source_services_require_active_admin_and_allow_one(
+    db_sessionmaker,
+) -> None:
+    advertiser = create_test_user(
+        db_sessionmaker,
+        email="source-service-advertiser@example.com",
+        password=PASSWORD,
+        role=UserRole.ADVERTISER,
+    )
+    admin = create_test_user(
+        db_sessionmaker,
+        email="source-service-admin@example.com",
+        password=PASSWORD,
+        role=UserRole.ADMIN,
+    )
+    disabled_admin = create_test_user(
+        db_sessionmaker,
+        email="source-service-disabled-admin@example.com",
+        password=PASSWORD,
+        role=UserRole.ADMIN,
+        user_status=UserStatus.DISABLED,
+    )
+    create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
+    settings = Settings(environment="test", privacy_disclosure_synthetic_test_mode=True)
+
+    async def scenario() -> UUID:
+        async with db_sessionmaker() as session:
+            source = await create_retargeting_source(
+                session,
+                settings=settings,
+                actor_user_id=advertiser.id,
+                payload=TypeAdapter(RetargetingSourceCreate).validate_python(
+                    payload("manual-insight")
+                ),
+                idempotency_key="source-service-create",
+            )
+            await session.commit()
+            source_id = source.id
+
+        async with db_sessionmaker() as session:
+            for actor_user_id in (advertiser.id, disabled_admin.id):
+                with pytest.raises(AppError) as list_denied:
+                    await list_admin_retargeting_sources(
+                        session,
+                        settings=settings,
+                        actor_user_id=actor_user_id,
+                    )
+                assert list_denied.value.code == "FORBIDDEN_ROLE"
+                with pytest.raises(AppError) as get_denied:
+                    await get_admin_retargeting_source(
+                        session,
+                        settings=settings,
+                        actor_user_id=actor_user_id,
+                        source_id=source_id,
+                    )
+                assert get_denied.value.code == "FORBIDDEN_ROLE"
+
+            listed = await list_admin_retargeting_sources(
+                session,
+                settings=settings,
+                actor_user_id=admin.id,
+            )
+            fetched = await get_admin_retargeting_source(
+                session,
+                settings=settings,
+                actor_user_id=admin.id,
+                source_id=source_id,
+            )
+            assert [item.id for item in listed] == [source_id]
+            assert fetched.id == source_id
+        return source_id
 
     asyncio.run(scenario())
 

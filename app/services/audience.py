@@ -89,7 +89,7 @@ async def _advertiser_membership(
             OrganizationMembership.status == MembershipStatus.ACTIVE,
             AdvertiserOrganization.status == OrganizationStatus.ACTIVE,
         )
-        .order_by(OrganizationMembership.created_at.desc())
+        .order_by(OrganizationMembership.created_at.desc(), OrganizationMembership.id.desc())
         .limit(1)
     )
     if membership is None:
@@ -359,9 +359,10 @@ async def deactivate_retargeting_source(
 
 
 async def list_admin_retargeting_sources(
-    session: AsyncSession, *, settings: Settings
+    session: AsyncSession, *, settings: Settings, actor_user_id: UUID
 ) -> list[RetargetingSource]:
     await _privacy_gate(settings)
+    await _active_admin(session, actor_user_id)
     return list(
         await session.scalars(
             select(RetargetingSource).order_by(RetargetingSource.created_at.desc())
@@ -370,9 +371,10 @@ async def list_admin_retargeting_sources(
 
 
 async def get_admin_retargeting_source(
-    session: AsyncSession, *, settings: Settings, source_id: UUID
+    session: AsyncSession, *, settings: Settings, actor_user_id: UUID, source_id: UUID
 ) -> RetargetingSource:
     await _privacy_gate(settings)
+    await _active_admin(session, actor_user_id)
     source = await session.get(RetargetingSource, source_id)
     if source is None:
         raise _source_not_found()

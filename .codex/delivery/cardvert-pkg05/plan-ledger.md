@@ -212,3 +212,32 @@ inside PKG-05 authority.
   formatting. Promotion was deferred, five real-PostgreSQL cases passed, the
   formatting hunk was removed, and the same reviewer rechecked PASS before the
   control-plane transition.
+
+## Extended Pro correction pass (25 Aug 2026)
+
+- Scope was limited to four validated defects on the existing Package 5 head:
+  migration/ORM partial-index parity, heatmap cross-metric contributor
+  suppression, service-layer active-admin authorization, and deterministic
+  multi-membership disclosure selection.
+- Red/green evidence: the four new regressions failed against the pre-repair
+  code (service signatures/authorization, scalar membership cardinality and
+  missing cross-metric/index behavior), then passed after the minimal fixes.
+  The impacted Package 5 backend/migration subset passed 42 tests with two
+  expected warnings.
+- No external gate, checklist status, Package 4 behavior or Package 6 work
+  changed. The separate untracked Extended Pro review artifact is preserved at
+  `.codex/delivery/cardvert-pkg05/extended-pro-implementation-review.md`.
+- Aggregate evidence after integration: backend `968 passed, 3 skipped, 4
+  warnings`; Ruff and the progress validator passed; pre-production checks
+  passed `26` tests; frontend lint, typecheck, `212` unit tests, contract drift
+  and the webpack production build passed. The default Turbopack build failed
+  only on this worktree's external `node_modules` symlink. The one real-stack
+  Playwright attempt reached `63 passed, 6 skipped, 9 failed`; failures were
+  local-stack-only (API mounted from worktree `0160`, stale seeded advertiser
+  state, and missing `PAYOUT_CRYPTO_KEYRING_B64` during cleanup), so no code
+  defect is attributed and the gate was not repeated.
+- The single no-history Terra correction review returned `FIX` only because
+  the first multi-membership regression did not exercise equal timestamps;
+  the test now ties `created_at` and asserts the greater-membership-UUID
+  organization, with its focused check passing. No reviewer-of-reviewer loop
+  was opened and the preserved Extended Pro artifact remains untracked.

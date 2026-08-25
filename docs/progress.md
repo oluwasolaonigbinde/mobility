@@ -542,7 +542,8 @@ dependency and is the next authorized frontier; no Package 6 work has started.
   retention references; numeric thresholds alone cannot enable it. Reports
   remain additionally denied until W3-00E safe runs. The grandfathered
   heatmap reader now releases only coarse cells meeting distinct vehicle,
-  trip and day floors plus a requested-metric contributor cap. Atomic history
+  trip and day floors plus one contributor cap applied to every serialized
+  ping, trip, distance and impression metric. Atomic history
   binds principal, tenant, campaign, endpoint, window, filters and result
   fingerprint; one global spatial-history lock plus hierarchical global/org/
   campaign overlap checks prevents cross-endpoint, cross-principal,
@@ -590,7 +591,8 @@ dependency and is the next authorized frontier; no Package 6 work has started.
   rewriting history. The privacy gate precedes advertiser and service-enforced
   active-admin access; cross-tenant, inactive, expired and changed-payload
   operations fail closed. Advertiser setup/removal and read-only admin
-  monitoring move with all three §9 baselines. Focused API/RBAC/lifecycle/
+  monitoring is service-authorized for active admins and moves with all three
+  §9 baselines. Focused API/RBAC/lifecycle/
   retry/audit/migration/frontend checks pass; five real-PostgreSQL migration/
   concurrency cases cover 0045–0047, same- and distinct-key retries plus
   source-deactivation and campaign/zone races.
@@ -611,6 +613,24 @@ dependency and is the next authorized frontier; no Package 6 work has started.
   creative/activation chain. W3-01C/D and W3-02A/B therefore remain dependency-
   blocked. Package 5 is BLOCKED, not DONE; the controller advances to
   dependency-free PKG-06/W3-03A without starting it.
+- **Extended Pro correction pass (25 Aug 2026):** four validated defects were
+  repaired on the published Package 5 head without reopening Packages 1–4:
+  migration `0047`'s PostgreSQL partial active-link index is now declared in
+  ORM metadata with a SQLite partial predicate and an autogenerate regression;
+  heatmap contributor suppression now covers every serialized metric rather
+  than only the selected weight; source monitoring and admin heatmap services
+  now require an active admin before domain reads; and governed advertiser
+  output deterministically selects the newest active organization membership
+  after the live gate. Focused red/green regressions pass, followed by the
+  impacted Package 5 backend/migration subset (42 passed, 2 warnings). The
+  post-repair aggregate backend gate is 968 passed, 3 skipped; frontend lint,
+  typecheck, 212 unit tests, contract drift and the webpack build pass, and
+  pre-production verification is 26 passed. The local Playwright attempt
+  reached 63 passed and 6 skipped but had 9 environment-only failures because
+  the running API is mounted from another worktree with stale seeded state and
+  the cleanup path lacked `PAYOUT_CRYPTO_KEYRING_B64`; it is not attributed to
+  these repairs and was not rerun. No external gate changed, and Package 6's
+  separate W3-03A checkpoint was not touched.
 - **Closure:** privacy/measurement review proves suppression, reproducibility,
   provenance and safe claims before any advertiser live-use gate opens.
 

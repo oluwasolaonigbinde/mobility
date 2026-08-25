@@ -101,6 +101,11 @@ async def require_governed_advertiser_output(
                 OrganizationMembership.status == "active",
                 AdvertiserOrganization.status == "active",
             )
+            .order_by(
+                OrganizationMembership.created_at.desc(),
+                OrganizationMembership.id.desc(),
+            )
+            .limit(1)
         )
     ).scalar_one_or_none()
     if row is None:
