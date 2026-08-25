@@ -1,6 +1,10 @@
+import "fake-indexeddb/auto";
+import { IDBFactory } from "fake-indexeddb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "@/lib/api/errors";
+import { ApiError, toApiError } from "@/lib/api/errors";
+import { openPingQueue } from "@/lib/trips/ping-queue";
 import {
+  endTripAction,
   getCurrentTripAction,
   sendPingBatchAction,
   startTripAction,
@@ -17,8 +21,64 @@ vi.mock("@/lib/api/client", () => ({
 const TRIP_ID = "11111111-1111-4111-8111-111111111111";
 const ASSIGNMENT_ID = "22222222-2222-4222-8222-222222222222";
 
+function rawOpen(name: string): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(name);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function requestResult<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function seedLegacyV1(name: string): Promise<void> {
+  const db = await new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(name, 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore("pending", { keyPath: ["tripId", "seq"] });
+      request.result.createObjectStore("batches", { keyPath: "key" });
+      request.result.createObjectStore("meta", { keyPath: "tripId" });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  const tx = db.transaction(["pending", "meta"], "readwrite");
+  tx.objectStore("pending").put({
+    tripId: TRIP_ID,
+    seq: 0,
+    ping: {
+      recorded_at: "2026-08-25T00:00:00.000Z",
+      lat: 6.45,
+      lon: 3.39,
+      accuracy_m: 10,
+      speed_mps: 5,
+      heading_degrees: 90,
+      sequence_number: 0,
+    },
+  });
+  tx.objectStore("meta").put({
+    tripId: TRIP_ID,
+    nextSeq: 1,
+    batchesCut: 0,
+    pingsRecorded: 1,
+  });
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
 describe("driver trip BFF actions", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (globalThis as { indexedDB: IDBFactory }).indexedDB = new IDBFactory();
+  });
 
   it("classifies proven Start rejection separately from an unknown response", async () => {
     mocks.post.mockRejectedValueOnce(
@@ -73,10 +133,197 @@ describe("driver trip BFF actions", () => {
     });
   });
 
+  it("marks only a complete ping response as an explicit ACK", async () => {
+    const input = {
+      tripId: TRIP_ID,
+      idempotencyKey: "stable-retry-key",
+      pings: [
+        {
+          recorded_at: "2026-08-25T00:00:00.000Z",
+          lat: 6.45,
+          lon: 3.39,
+          accuracy_m: 10,
+          speed_mps: 5,
+          heading_degrees: 90,
+          sequence_number: 0,
+        },
+      ],
+    };
+    mocks.post.mockResolvedValueOnce({
+      data: {
+        batch_id: "44444444-4444-4444-8444-444444444444",
+        trip_id: TRIP_ID,
+        accepted_count: 1,
+        duplicate: false,
+        quarantined: false,
+      },
+    });
+    await expect(sendPingBatchAction(input)).resolves.toMatchObject({ acknowledged: true });
+
+    mocks.post.mockResolvedValueOnce({ data: undefined });
+    await expect(sendPingBatchAction(input)).resolves.toMatchObject({
+      acknowledged: false,
+      retryable: true,
+    });
+
+    mocks.post.mockResolvedValueOnce({
+      data: {
+        batch_id: "44444444-4444-4444-8444-444444444444",
+        trip_id: TRIP_ID,
+        accepted_count: 0,
+        duplicate: false,
+        quarantined: false,
+      },
+    });
+    await expect(sendPingBatchAction(input)).resolves.toMatchObject({
+      acknowledged: false,
+      retryable: true,
+    });
+  });
+
+  it("classifies an unconfirmed End response as unknown", async () => {
+    mocks.post.mockResolvedValueOnce({ data: undefined });
+
+    await expect(
+      endTripAction(TRIP_ID, {
+        clientBatchCount: 2,
+        clientPingCount: 3,
+        clientComplete: true,
+      }),
+    ).resolves.toMatchObject({ outcome: "unknown" });
+  });
+
+  it.each([
+    ["accepted", { accepted_count: 1, duplicate: false, quarantined: false }],
+    ["duplicate", { accepted_count: 1, duplicate: true, quarantined: false }],
+    ["quarantined", { accepted_count: 0, duplicate: false, quarantined: true }],
+  ])("treats a complete %s response as an ACK", async (_label, response) => {
+    mocks.post.mockResolvedValueOnce({
+      data: {
+        batch_id: "44444444-4444-4444-8444-444444444444",
+        trip_id: TRIP_ID,
+        ...response,
+      },
+    });
+
+    await expect(
+      sendPingBatchAction({
+        tripId: TRIP_ID,
+        idempotencyKey: "stable-retry-key",
+        pings: [
+          {
+            recorded_at: "2026-08-25T00:00:00.000Z",
+            lat: 6.45,
+            lon: 3.39,
+            accuracy_m: 10,
+            speed_mps: 5,
+            heading_degrees: 90,
+            sequence_number: 0,
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({
+      acknowledged: true,
+      acceptedCount: response.accepted_count,
+      duplicate: response.duplicate,
+      quarantined: response.quarantined,
+    });
+  });
+
   it("verifies legacy trip ownership only through the owner-scoped BFF", async () => {
     mocks.get.mockResolvedValueOnce({ data: { id: TRIP_ID } });
-    await expect(verifyDriverTripOwnershipAction(TRIP_ID)).resolves.toBe(true);
-    mocks.get.mockRejectedValueOnce(new ApiError(404, { code: "NOT_FOUND", message: "none" }));
-    await expect(verifyDriverTripOwnershipAction(TRIP_ID)).resolves.toBe(false);
+    await expect(verifyDriverTripOwnershipAction(TRIP_ID)).resolves.toBe("owned");
+    mocks.get.mockRejectedValueOnce(new ApiError(404, { code: "TRIP_NOT_FOUND", message: "none" }));
+    await expect(verifyDriverTripOwnershipAction(TRIP_ID)).resolves.toBe("not-owned");
+
+    for (const error of [
+      new ApiError(404, { code: "DRIVER_PROFILE_NOT_FOUND", message: "none" }),
+      new ApiError(404, { code: "NOT_FOUND", message: "none" }),
+      new ApiError(404, { code: "UNEXPECTED_ERROR", message: "none" }),
+      toApiError(404, { error: { message: "none" } }),
+    ]) {
+      mocks.get.mockRejectedValueOnce(error);
+      await expect(verifyDriverTripOwnershipAction(TRIP_ID)).resolves.toBe("unavailable");
+    }
+
+    mocks.get.mockRejectedValueOnce(new Error("provider unavailable"));
+    await expect(verifyDriverTripOwnershipAction(TRIP_ID)).resolves.toBe("unavailable");
+    mocks.get.mockRejectedValueOnce(
+      new ApiError(401, { code: "UNAUTHORIZED", message: "expired" }),
+    );
+    await expect(verifyDriverTripOwnershipAction(TRIP_ID)).resolves.toBe("unavailable");
+    mocks.get.mockResolvedValueOnce({ data: undefined });
+    await expect(verifyDriverTripOwnershipAction(TRIP_ID)).resolves.toBe("unavailable");
+    mocks.get.mockResolvedValueOnce({ data: { id: ASSIGNMENT_ID } });
+    await expect(verifyDriverTripOwnershipAction(TRIP_ID)).resolves.toBe("unavailable");
+    await expect(verifyDriverTripOwnershipAction("invalid-trip-id")).resolves.toBe("unavailable");
+  });
+
+  it("fails queue on outage, isolates a proven non-owner, then binds without collision", async () => {
+    const dbName = "action-queue-composition";
+    await seedLegacyV1(dbName);
+    mocks.get.mockRejectedValueOnce(
+      new ApiError(404, { code: "DRIVER_PROFILE_NOT_FOUND", message: "none" }),
+    );
+
+    await expect(
+      openPingQueue({
+        dbName,
+        driverId: "driver-a",
+        requireMigrationLock: false,
+        verifyTripOwner: verifyDriverTripOwnershipAction,
+      }),
+    ).rejects.toThrow(/ownership could not be verified/i);
+
+    const raw = await rawOpen(dbName);
+    const encrypted = (await requestResult(
+      raw.transaction("encrypted-records", "readonly").objectStore("encrypted-records").getAll(),
+    )) as Array<{ ownerDriverId: string | null }>;
+    const journal = (await requestResult(
+      raw
+        .transaction("migration-journal", "readonly")
+        .objectStore("migration-journal")
+        .get("legacy-v1"),
+    )) as { phase: string };
+    expect(encrypted).toHaveLength(2);
+    expect(encrypted.every((record) => record.ownerDriverId === null)).toBe(true);
+    expect(journal.phase).toBe("binding");
+    raw.close();
+
+    mocks.get.mockRejectedValueOnce(new ApiError(404, { code: "TRIP_NOT_FOUND", message: "none" }));
+    const isolated = await openPingQueue({
+      dbName,
+      driverId: "driver-b",
+      requireMigrationLock: false,
+      verifyTripOwner: verifyDriverTripOwnershipAction,
+    });
+    expect(await isolated.tripsWithLeftovers()).toEqual([]);
+    isolated.close();
+
+    mocks.get.mockResolvedValueOnce({ data: { id: TRIP_ID } });
+    const recovered = await openPingQueue({
+      dbName,
+      driverId: "driver-a",
+      requireMigrationLock: false,
+      verifyTripOwner: verifyDriverTripOwnershipAction,
+    });
+    expect(await recovered.tripsWithLeftovers()).toEqual([TRIP_ID]);
+    const added = await recovered.addPing(TRIP_ID, {
+      recorded_at: "2026-08-25T00:00:01.000Z",
+      lat: 6.46,
+      lon: 3.4,
+      accuracy_m: 11,
+      speed_mps: 6,
+      heading_degrees: 91,
+    });
+    expect(added.sequence_number).toBe(1);
+    const batch = await recovered.cutBatch(TRIP_ID);
+    expect(batch?.pings.map((item) => item.sequence_number)).toEqual([0, 1]);
+    expect(await recovered.meta(TRIP_ID)).toMatchObject({
+      nextSeq: 2,
+      pingsRecorded: 2,
+      batchesCut: 1,
+    });
+    recovered.close();
   });
 });

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
+import type { TripOwnershipVerification } from "@/lib/trips/ping-queue";
 import type { components } from "@/lib/api/schema";
 
 export interface DriverActionState {
@@ -87,16 +88,20 @@ export async function getCurrentTripAction(): Promise<StartTripResult> {
   }
 }
 
-export async function verifyDriverTripOwnershipAction(tripId: string): Promise<boolean> {
-  if (!z.string().uuid().safeParse(tripId).success) return false;
+export async function verifyDriverTripOwnershipAction(
+  tripId: string,
+): Promise<TripOwnershipVerification> {
+  if (!z.string().uuid().safeParse(tripId).success) return "unavailable";
   try {
     const api = createApiClient(await getSessionToken());
     const { data } = await api.GET("/api/v1/driver/trips/{trip_id}", {
       params: { path: { trip_id: tripId } },
     });
-    return data?.id === tripId;
-  } catch {
-    return false;
+    return data?.id === tripId ? "owned" : "unavailable";
+  } catch (error) {
+    return error instanceof ApiError && error.status === 404 && error.code === "TRIP_NOT_FOUND"
+      ? "not-owned"
+      : "unavailable";
   }
 }
 
@@ -110,15 +115,18 @@ export type TripEndWatermark = z.infer<typeof watermarkSchema>;
 
 export interface EndTripResult extends DriverActionState {
   trip?: components["schemas"]["TripRead"];
+  outcome: "ended" | "failed" | "unknown";
 }
 
 export async function endTripAction(
   tripId: string,
   watermark?: TripEndWatermark,
 ): Promise<EndTripResult> {
-  if (!z.string().uuid().safeParse(tripId).success) return { error: "Invalid trip" };
+  if (!z.string().uuid().safeParse(tripId).success)
+    return { error: "Invalid trip", outcome: "failed" };
   const parsedWatermark = watermark ? watermarkSchema.safeParse(watermark) : undefined;
-  if (parsedWatermark && !parsedWatermark.success) return { error: "Invalid trip end state" };
+  if (parsedWatermark && !parsedWatermark.success)
+    return { error: "Invalid trip end state", outcome: "failed" };
   try {
     const api = createApiClient(await getSessionToken());
     const { data } = await api.POST("/api/v1/driver/trips/{trip_id}/end", {
@@ -132,10 +140,20 @@ export async function endTripAction(
         client_complete: parsedWatermark?.data.clientComplete ?? null,
       },
     });
+    if (!data || data.id !== tripId || !["ended", "sealed"].includes(data.status)) {
+      return {
+        error: "Cardvert could not confirm whether the trip ended.",
+        outcome: "unknown",
+      };
+    }
     revalidateDriver();
-    return { trip: data };
+    return { trip: data, outcome: "ended" };
   } catch (error) {
-    return toState(error);
+    const outcome =
+      error instanceof ApiError && [400, 403, 404, 422].includes(error.status)
+        ? "failed"
+        : "unknown";
+    return { ...toState(error), outcome };
   }
 }
 
@@ -155,7 +173,17 @@ const pingBatchSchema = z.object({
   pings: z.array(pingSchema).min(1).max(200),
 });
 
+const pingBatchAckSchema = z.object({
+  batch_id: z.string().uuid(),
+  trip_id: z.string().uuid(),
+  accepted_count: z.number().int().nonnegative(),
+  duplicate: z.boolean(),
+  quarantined: z.boolean(),
+});
+
 export interface PingBatchResult extends DriverActionState {
+  /** True only when the backend returned its complete D15/D16 ACK envelope. */
+  acknowledged: boolean;
   acceptedCount?: number;
   duplicate?: boolean;
   /** Trip already sealed: server preserved the batch as quarantine evidence. */
@@ -174,7 +202,8 @@ export async function sendPingBatchAction(
   input: z.input<typeof pingBatchSchema>,
 ): Promise<PingBatchResult> {
   const parsed = pingBatchSchema.safeParse(input);
-  if (!parsed.success) return { error: "Invalid ping batch", retryable: false };
+  if (!parsed.success)
+    return { error: "Invalid ping batch", retryable: false, acknowledged: false };
   try {
     const api = createApiClient(await getSessionToken());
     const { data } = await api.POST("/api/v1/driver/trips/{trip_id}/pings", {
@@ -184,22 +213,38 @@ export async function sendPingBatchAction(
         pings: parsed.data.pings,
       },
     });
+    const acknowledgement = pingBatchAckSchema.safeParse(data);
+    const positiveAck =
+      acknowledgement.success &&
+      acknowledgement.data.trip_id === parsed.data.tripId &&
+      (acknowledgement.data.duplicate ||
+        acknowledgement.data.quarantined ||
+        acknowledgement.data.accepted_count === parsed.data.pings.length);
+    if (!positiveAck) {
+      return {
+        error: "Cardvert could not confirm the GPS batch acknowledgement.",
+        retryable: true,
+        acknowledged: false,
+      };
+    }
     return {
-      acceptedCount: data?.accepted_count,
-      duplicate: data?.duplicate,
-      quarantined: data?.quarantined,
+      acknowledged: true,
+      acceptedCount: acknowledgement.data.accepted_count,
+      duplicate: acknowledgement.data.duplicate,
+      quarantined: acknowledgement.data.quarantined,
     };
   } catch (error) {
     if (error instanceof ApiError) {
       const terminal = [400, 409, 422].includes(error.status);
       return {
         error: error.message,
+        acknowledged: false,
         retryable: !terminal,
         terminalStatus: terminal ? error.status : undefined,
         terminalCode: terminal ? error.code : undefined,
       };
     }
-    return { ...toState(error), retryable: true };
+    return { ...toState(error), acknowledged: false, retryable: true };
   }
 }
 

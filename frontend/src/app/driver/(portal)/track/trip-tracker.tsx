@@ -81,6 +81,7 @@ export function TripTracker({
   const [runtime, setRuntime] = useState<CapabilitySnapshot>(() => passiveSnapshot(false));
   const [serverTripVerified, setServerTripVerified] = useState(false);
   const [startUncertain, setStartUncertain] = useState(false);
+  const [authorityUncertain, setAuthorityUncertain] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const runtimeRef = useRef(runtime);
@@ -89,19 +90,22 @@ export function TripTracker({
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const keepaliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recoveryRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const flushingRef = useRef(false);
+  const flushPromiseRef = useRef<Promise<void> | null>(null);
   const releaseWriterRef = useRef<(() => void) | null>(null);
   const writerAcquireRef = useRef<Promise<boolean> | null>(null);
   const wakeRef = useRef<WakeSentinel | null>(null);
   const storageBrokenRef = useRef(false);
   const identityValidRef = useRef(true);
   const startUncertainRef = useRef(false);
+  const authorityUncertainRef = useRef(false);
+  const pendingEndCompleteRef = useRef<boolean | null>(null);
   const tripRef = useRef<Trip | null>(initialTrip);
   const reconciledTripRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
 
   const patchRuntime = useCallback((patch: Partial<CapabilitySnapshot>) => {
     runtimeRef.current = { ...runtimeRef.current, ...patch };
-    setRuntime(runtimeRef.current);
+    if (mountedRef.current) setRuntime(runtimeRef.current);
     return runtimeRef.current;
   }, []);
   const assessment = useMemo(() => assessPilotPwa(runtime), [runtime]);
@@ -324,45 +328,61 @@ export function TripTracker({
 
   const flush = useCallback(
     async (tripId: string) => {
+      while (flushPromiseRef.current) await flushPromiseRef.current;
       const queue = queueRef.current;
-      if (flushingRef.current || !queue || !identityValidRef.current) return;
-      flushingRef.current = true;
-      try {
-        const backlog = await queue.listBatches(tripId);
-        for (;;) {
-          const batch = backlog.shift() ?? (await queue.cutBatch(tripId, MAX_BATCH_PINGS));
-          if (!batch) break;
-          await queue.recordAttempt(batch.key);
-          const result = await sendPingBatchAction({
-            tripId: batch.tripId,
-            idempotencyKey: batch.key,
-            pings: batch.pings,
-          });
-          if (result.error) {
-            if (result.retryable === false) {
-              await queue.dropBatch(batch.key, {
-                status: result.terminalStatus,
-                code: result.terminalCode,
-              });
-              setError("Some GPS evidence was rejected and retained locally for diagnosis.");
-              continue;
+      if (!queue || !identityValidRef.current) return;
+      const operation = (async () => {
+        try {
+          const backlog = await queue.listBatches(tripId);
+          for (;;) {
+            const batch = backlog.shift() ?? (await queue.cutBatch(tripId, MAX_BATCH_PINGS));
+            if (!batch) break;
+            await queue.recordAttempt(batch.key);
+            const result = await sendPingBatchAction({
+              tripId: batch.tripId,
+              idempotencyKey: batch.key,
+              pings: batch.pings,
+            });
+            if (result.error) {
+              if (result.retryable === false) {
+                await queue.dropBatch(batch.key, {
+                  status: result.terminalStatus,
+                  code: result.terminalCode,
+                });
+                if (mountedRef.current)
+                  setError("Some GPS evidence was rejected and retained locally for diagnosis.");
+                continue;
+              }
+              if (mountedRef.current) setError(result.error);
+              break;
             }
-            setError(result.error);
-            break;
+            if (!result.acknowledged) {
+              if (mountedRef.current)
+                setError("Cardvert could not confirm the GPS batch acknowledgement.");
+              break;
+            }
+            await queue.ackBatch(batch.key);
+            if (mountedRef.current) setError(undefined);
           }
-          await queue.ackBatch(batch.key);
-          setError(undefined);
+        } catch {
+          storageBrokenRef.current = true;
+          if (mountedRef.current) {
+            setStorageReady(false);
+            setError(
+              "Encrypted GPS storage failed, so tracking stopped without discarding evidence.",
+            );
+          }
+          stopWatch();
+          patchRuntime({ indexedDb: "failed", durableQueue: "failed" });
         }
-      } catch {
-        storageBrokenRef.current = true;
-        setStorageReady(false);
-        stopWatch();
-        patchRuntime({ indexedDb: "failed", durableQueue: "failed" });
-        setError("Encrypted GPS storage failed, so tracking stopped without discarding evidence.");
+      })();
+      flushPromiseRef.current = operation;
+      try {
+        await operation;
       } finally {
-        flushingRef.current = false;
+        if (flushPromiseRef.current === operation) flushPromiseRef.current = null;
       }
-      await refreshCounts(tripId).catch(() => undefined);
+      if (mountedRef.current) await refreshCounts(tripId).catch(() => undefined);
     },
     [patchRuntime, refreshCounts, stopWatch],
   );
@@ -468,6 +488,7 @@ export function TripTracker({
   }, [acquireWriter, drainLeftovers, releaseWriter]);
 
   useEffect(() => {
+    mountedRef.current = true;
     let cancelled = false;
     const currentTripId = initialTrip?.id ?? null;
     const recover = () => void recoverWithWriter();
@@ -489,6 +510,7 @@ export function TripTracker({
       });
     return () => {
       cancelled = true;
+      mountedRef.current = false;
       if (recoveryRef.current) clearInterval(recoveryRef.current);
       recoveryRef.current = null;
       window.removeEventListener("online", recover);
@@ -617,6 +639,7 @@ export function TripTracker({
         result = await getCurrentTripAction();
       } else {
         captureReady = await prepareCapture(true);
+        if (!mountedRef.current || !identityValidRef.current || !releaseWriterRef.current) return;
         if (!captureReady) {
           stopWatch();
           await releaseWake();
@@ -627,6 +650,7 @@ export function TripTracker({
         result = await startTripAction(assignment.id);
         if (result.outcome === "unknown") result = await getCurrentTripAction();
       }
+      if (!mountedRef.current || !identityValidRef.current || !releaseWriterRef.current) return;
       if (!result.trip) {
         setError(result.error ?? "Cardvert could not prove whether the trip started.");
         if (result.outcome === "failed") {
@@ -651,14 +675,76 @@ export function TripTracker({
       setBufferedCount(0);
       setDeadLetterCount(0);
       if (captureReady || (await prepareCapture(true))) beginWatch(result.trip.id);
-    })().finally(() => setBusy(false));
+    })().finally(() => {
+      if (mountedRef.current) setBusy(false);
+    });
   }
+
+  const finishEndedTrip = useCallback(
+    async (complete: boolean | null) => {
+      const activeTripId = tripRef.current?.id;
+      if (complete && activeTripId) {
+        await queueRef.current?.forgetTrip(activeTripId).catch(() => undefined);
+      }
+      tripRef.current = null;
+      reconciledTripRef.current = null;
+      authorityUncertainRef.current = false;
+      pendingEndCompleteRef.current = null;
+      if (mountedRef.current) {
+        setAuthorityUncertain(false);
+        setServerTripVerified(false);
+        setTrip(null);
+        setGps("idle");
+      }
+      patchRuntime({ activeTrip: false });
+      await releaseWake();
+      releaseWriter();
+      if (mountedRef.current) router.refresh();
+    },
+    [patchRuntime, releaseWake, releaseWriter, router],
+  );
+
+  const reconcileAfterEnd = useCallback(
+    async (complete: boolean | null) => {
+      const current = await getCurrentTripAction();
+      if (!mountedRef.current || !identityValidRef.current || !releaseWriterRef.current) return;
+      if (current.trip) {
+        tripRef.current = current.trip;
+        reconciledTripRef.current = current.trip.id;
+        authorityUncertainRef.current = false;
+        pendingEndCompleteRef.current = null;
+        setAuthorityUncertain(false);
+        setServerTripVerified(true);
+        setTrip(current.trip);
+        patchRuntime({ activeTrip: true });
+        const ready = await prepareCapture(true);
+        if (ready && mountedRef.current && identityValidRef.current && tripRef.current) {
+          beginWatch(tripRef.current.id);
+        } else if (mountedRef.current) {
+          await releaseWake();
+        }
+        return;
+      }
+      if (current.outcome === "failed") {
+        await finishEndedTrip(complete);
+        return;
+      }
+      stopWatch();
+      await releaseWake();
+      authorityUncertainRef.current = true;
+      pendingEndCompleteRef.current = complete;
+      setAuthorityUncertain(true);
+      setServerTripVerified(false);
+      setError("Cardvert could not reconcile trip authority; the writer remains reserved.");
+    },
+    [beginWatch, finishEndedTrip, patchRuntime, prepareCapture, releaseWake, stopWatch],
+  );
 
   function end() {
     const activeTrip = tripRef.current;
     if (
       !activeTrip ||
-      !serverTripVerified ||
+      (!serverTripVerified && !authorityUncertainRef.current) ||
       !assessment.actions.end ||
       busy ||
       !identityValidRef.current
@@ -666,10 +752,25 @@ export function TripTracker({
       return;
     setBusy(true);
     void (async () => {
+      if (authorityUncertainRef.current) {
+        await reconcileAfterEnd(pendingEndCompleteRef.current);
+        return;
+      }
       stopWatch();
       const queue = queueRef.current;
       if (!queue) return;
       await flush(activeTrip.id);
+      if (
+        !mountedRef.current ||
+        !identityValidRef.current ||
+        storageBrokenRef.current ||
+        !releaseWriterRef.current ||
+        !assessPilotPwa(runtimeRef.current).actions.end
+      ) {
+        if (mountedRef.current)
+          setError("End stopped because Cardvert can no longer vouch for the durable watermark.");
+        return;
+      }
       const [unsynced, deadLetters, meta] = await Promise.all([
         queue.unsyncedCount(activeTrip.id),
         queue.deadLetterCount(activeTrip.id),
@@ -680,8 +781,7 @@ export function TripTracker({
         ? "End this trip? Tracking stops and the trip is sent for analysis."
         : "Some GPS evidence is unsynced or diagnostically retained. End with an incomplete client watermark?";
       if (!window.confirm(message)) {
-        const ready = await prepareCapture(true);
-        if (ready) beginWatch(activeTrip.id);
+        await reconcileAfterEnd(null);
         return;
       }
       const result = await endTripAction(activeTrip.id, {
@@ -689,22 +789,19 @@ export function TripTracker({
         clientPingCount: meta.pingsRecorded,
         clientComplete: complete,
       });
-      if (result.error) {
-        setError(result.error);
-        const ready = await prepareCapture(true);
-        if (ready) beginWatch(activeTrip.id);
+      if (result.outcome !== "ended") {
+        if (mountedRef.current)
+          setError(result.error ?? "Cardvert could not confirm whether the trip ended.");
+        authorityUncertainRef.current = true;
+        pendingEndCompleteRef.current = complete;
+        if (mountedRef.current) setAuthorityUncertain(true);
+        await reconcileAfterEnd(complete);
         return;
       }
-      if (complete) await queue.forgetTrip(activeTrip.id);
-      tripRef.current = null;
-      setServerTripVerified(false);
-      setTrip(null);
-      setGps("idle");
-      patchRuntime({ activeTrip: false });
-      await releaseWake();
-      releaseWriter();
-      router.refresh();
-    })().finally(() => setBusy(false));
+      await finishEndedTrip(complete);
+    })().finally(() => {
+      if (mountedRef.current) setBusy(false);
+    });
   }
 
   if (!assignment && !trip) {
@@ -762,10 +859,18 @@ export function TripTracker({
             type="button"
             variant="danger"
             onClick={end}
-            disabled={busy || !serverTripVerified || !assessment.actions.end}
+            disabled={
+              busy || (!serverTripVerified && !authorityUncertain) || !assessment.actions.end
+            }
             className="h-14 w-full text-base"
           >
-            {busy ? "Ending…" : "■ End trip"}
+            {busy
+              ? authorityUncertain
+                ? "Reconciling…"
+                : "Ending…"
+              : authorityUncertain
+                ? "Reconcile trip"
+                : "■ End trip"}
           </Button>
         </>
       ) : (

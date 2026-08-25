@@ -263,7 +263,7 @@ describe("serialized legacy migration", () => {
     const migrated = await openPingQueue({
       driverId: "driver-a",
       requireMigrationLock: false,
-      verifyTripOwner: async () => true,
+      verifyTripOwner: async () => "owned",
     });
     expect(await migrated.tripsWithLeftovers()).toEqual([TRIP]);
     expect(await migrated.meta(TRIP)).toMatchObject({ nextSeq: 1, pingsRecorded: 1 });
@@ -292,30 +292,45 @@ describe("serialized legacy migration", () => {
         dbName: legacyName,
         driverId: "driver-a",
         requireMigrationLock: false,
-        verifyTripOwner: async () => {
-          throw new Error("response lost");
-        },
+        verifyTripOwner: async () => "unavailable",
       }),
-    ).rejects.toThrow("response lost");
+    ).rejects.toThrow(/ownership could not be verified/i);
 
     const raw = await rawOpen(legacyName);
     expect(
       await requestResult(raw.transaction("pending", "readonly").objectStore("pending").count()),
     ).toBe(0);
-    const encrypted = await requestResult(
+    const encrypted = (await requestResult(
       raw.transaction("encrypted-records", "readonly").objectStore("encrypted-records").getAll(),
-    );
+    )) as Array<{ ownerDriverId: string | null }>;
     expect(JSON.stringify(encrypted)).not.toContain("6.45");
+    expect(encrypted.every((record) => record.ownerDriverId === null)).toBe(true);
+    const journal = (await requestResult(
+      raw
+        .transaction("migration-journal", "readonly")
+        .objectStore("migration-journal")
+        .get("legacy-v1"),
+    )) as { phase: string };
+    expect(journal.phase).toBe("binding");
     raw.close();
 
     const resumed = await openPingQueue({
       dbName: legacyName,
       driverId: "driver-a",
       requireMigrationLock: false,
-      verifyTripOwner: async () => true,
+      verifyTripOwner: async () => "owned",
     });
     expect(await resumed.tripsWithLeftovers()).toEqual([TRIP]);
     expect(await resumed.meta(TRIP)).toMatchObject({ nextSeq: 1, pingsRecorded: 1 });
+    const added = await resumed.addPing(TRIP, ping(1));
+    expect(added.sequence_number).toBe(1);
+    const batch = await resumed.cutBatch(TRIP);
+    expect(batch?.pings.map((item) => item.sequence_number)).toEqual([0, 1]);
+    expect(await resumed.meta(TRIP)).toMatchObject({
+      nextSeq: 2,
+      pingsRecorded: 2,
+      batchesCut: 1,
+    });
     resumed.close();
   });
 
@@ -327,16 +342,30 @@ describe("serialized legacy migration", () => {
       dbName: legacyName,
       driverId: "driver-b",
       requireMigrationLock: false,
-      verifyTripOwner: async () => false,
+      verifyTripOwner: async () => "not-owned",
     });
     expect(await other.tripsWithLeftovers()).toEqual([]);
     other.close();
+
+    const raw = await rawOpen(legacyName);
+    const encrypted = (await requestResult(
+      raw.transaction("encrypted-records", "readonly").objectStore("encrypted-records").getAll(),
+    )) as Array<{ ownerDriverId: string | null }>;
+    const journal = (await requestResult(
+      raw
+        .transaction("migration-journal", "readonly")
+        .objectStore("migration-journal")
+        .get("legacy-v1"),
+    )) as { phase: string };
+    expect(encrypted.every((record) => record.ownerDriverId === null)).toBe(true);
+    expect(journal.phase).toBe("complete");
+    raw.close();
 
     const owner = await openPingQueue({
       dbName: legacyName,
       driverId: "driver-a",
       requireMigrationLock: false,
-      verifyTripOwner: async () => true,
+      verifyTripOwner: async () => "owned",
     });
     expect(await owner.tripsWithLeftovers()).toEqual([TRIP]);
     owner.close();

@@ -41,10 +41,12 @@ export interface DeadLetter extends QueuedBatch {
   rejectedAt?: number;
 }
 
+export type TripOwnershipVerification = "owned" | "not-owned" | "unavailable";
+
 export interface OpenPingQueueOptions {
   driverId: string;
   dbName?: string;
-  verifyTripOwner?: (tripId: string) => Promise<boolean>;
+  verifyTripOwner?: (tripId: string) => Promise<TripOwnershipVerification>;
   /** Test/probe-only injection; production callers must keep this true. */
   requireMigrationLock?: boolean;
 }
@@ -238,7 +240,7 @@ async function migrateLegacy(
   db: IDBDatabase,
   driverId: string,
   driverKey: CryptoKey,
-  verifyTripOwner?: (tripId: string) => Promise<boolean>,
+  verifyTripOwner?: (tripId: string) => Promise<TripOwnershipVerification>,
 ): Promise<void> {
   const present = LEGACY_STORES.filter((name) => db.objectStoreNames.contains(name));
   let unboundKey = await loadKey(db, UNBOUND_KEY_ID);
@@ -293,14 +295,22 @@ async function migrateLegacy(
   if (unbound.length > 0 && !unboundKey) {
     throw new Error("Encrypted legacy data exists but its migration key is missing");
   }
-  const ownership = new Map<string, boolean>();
+  if (unbound.length > 0) {
+    const tx = db.transaction(MIGRATION, "readwrite");
+    tx.objectStore(MIGRATION).put({ id: "legacy-v1", phase: "binding" } satisfies MigrationJournal);
+    await transactionDone(tx);
+  }
+  const ownership = new Map<string, TripOwnershipVerification>();
   for (const record of unbound) {
-    let owned = ownership.get(record.tripId);
-    if (owned === undefined) {
-      owned = verifyTripOwner ? await verifyTripOwner(record.tripId) : false;
-      ownership.set(record.tripId, owned);
+    let verification = ownership.get(record.tripId);
+    if (verification === undefined) {
+      verification = verifyTripOwner ? await verifyTripOwner(record.tripId) : "unavailable";
+      ownership.set(record.tripId, verification);
     }
-    if (!owned) continue;
+    if (verification === "unavailable") {
+      throw new Error("Legacy trip ownership could not be verified");
+    }
+    if (verification === "not-owned") continue;
     const payload = await decryptPayload<unknown>(unboundKey!, record);
     const logicalId =
       record.kind === "pending"
