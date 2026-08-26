@@ -63,10 +63,10 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 activation and email work is complete through W2-04B. Its remaining trigger
 chain is transitively blocked by the still-explicit W2-01E budget-policy input,
 so the queue advances to the earliest later runnable checklist item.
-**Current checkpoint:** `PKG-05 / W3-00B` — implement synthetic end-to-end
-retention and DSR over the now-complete secure file/KYC lifecycle. Live legal,
-processor, backup and production deletion adoption remains gated by recorded
-external inputs; no live data-subject request or legal validation is claimed.
+**Current checkpoint:** `PKG-05 / W3-00E` — bind immutable measurement runs and
+proof manifests to the now-complete evidence/activation foundations. Live
+report issuance and ROI remain gated by the recorded methodology/legal inputs;
+no report or live advertiser output is claimed.
 
 ## Executable package queue
 
@@ -741,9 +741,9 @@ external inputs; no live data-subject request or legal validation is claimed.
 - **Package plan (activated 24 Aug 2026, canonical branch `feat/pkg-05`):**
   the controller serializes the dependency-safe frontier W3-00A → W3-00D →
   W3-00C → W3-01A → W3-01B and owns all authority, migration, disclosure,
-  public-contract and control-plane surfaces. W3-00B remains transitively
-  blocked by W2-02E; W3-00E by W2-03C/D; W3-01C/D and W3-02A/B therefore
-  remain transitively blocked. The client input document proves the legal,
+  public-contract and control-plane surfaces. The later build-first correction
+  completed W2-02E and W2-03C/D, making W3-00B and W3-00E runnable without
+  changing their live legal/methodology gates. The client input document proves the legal,
   report-method and ad-platform facts were requested, not supplied, so
   `EXT-LEGAL-PRIVACY`, `EXT-REPORT-METHOD` and `EXT-AD-PLATFORM` remain
   MISSING and live use defaults denied. One clean-context Terra plan review
@@ -862,6 +862,24 @@ external inputs; no live data-subject request or legal validation is claimed.
   creative/activation chain. W3-01C/D and W3-02A/B therefore remain dependency-
   blocked. Package 5 is BLOCKED, not DONE; the controller advances to
   dependency-free PKG-06/W3-03A without starting it.
+- **W3-00B checkpoint evidence (26 Aug 2026):** migration `0062` records one
+  lifecycle-guarded access/rectification/erasure case and append-only evidence
+  for database, private objects, device queue, operational logs, backups and
+  processors. Active-admin and identity checks, all-six-location completion,
+  exact-retry convergence, changed-retry conflict and blank-by-default approved
+  exception references fail closed. The database inventory covers account,
+  KYC/vehicle, raw/derived/replay/impression, fraud, payout/financial,
+  notification and audit classes; managed objects are verified through the
+  provider-neutral storage port, with missing/mismatched/unavailable storage
+  refused. Database/object erasure cannot be claimed while records remain, so
+  immutable money/audit facts are preserved. Backup tooling now enforces both
+  newest-14 and hard 1–35-day age bounds. Focused API/privacy/config/contract,
+  PostgreSQL race/migration/autogenerate and backup checks pass, including
+  observed red/green storage-outage evidence and a real local six-location
+  access dry run (118 records across 19 database classes, zero object records,
+  six evidence rows, completed). All three §9 baselines moved together. `EXT-LEGAL-PRIVACY`, named
+  processors/regions, response rules and production exception decisions remain
+  MISSING; no real DSR, deletion or legal validation is claimed.
 - **Extended Pro correction pass (25 Aug 2026):** four validated defects were
   repaired on the published Package 5 head without reopening Packages 1–4:
   migration `0047`'s PostgreSQL partial active-link index is now declared in
@@ -1153,7 +1171,7 @@ verification, gates or required specialist review.
 | 42 | **W2-04C — business triggers and manual driver contact** | PKG-04 | TODO | Stable event keys notify users; driver WhatsApp remains an audited ops task. | leaf: W2-04A, W2-04B, W2-01E, W2-03F, W2-03G, MNY-10C |
 | 43 | **W2-04D — account recovery and verified contact preferences** | PKG-04 | TODO | Advertiser/admin password reset and driver verified-phone/WhatsApp consent are explicit; live pilot sends remain gated by EXT-PHONE-OPERATOR. | leaf: W2-04B, W2-04C |
 | 44 | **W3-00A — privacy operating model** | PKG-05 | DONE | DPIA/ROPA/roles/lawful bases/consent/vendor/breach responsibilities are explicit. | none |
-| 45 | **W3-00B — end-to-end retention and DSR** | PKG-05 | TODO | Synthetic DSR spans DB, objects, devices, logs, backups and processors. | leaf: W3-00A, W2-02E |
+| 45 | **W3-00B — end-to-end retention and DSR** | PKG-05 | DONE | Synthetic DSR spans DB, objects, devices, logs, backups and processors. | leaf: W3-00A, W2-02E |
 | 46 | **W3-00C — central disclosure-control service** | PKG-05 | DONE | Every advertiser heatmap/report/audience query enforces one privacy floor. | leaf: W3-00A |
 | 47 | **W3-00D — measurement methodology contract** | PKG-05 | DONE | Product defines modelled potential contacts, provenance, uncertainty and claims; Campaign Performance Analysis is standard and true ROI requires approved inputs and method. | none |
 | 48 | **W3-00E — immutable measurement runs and proof manifests** | PKG-05 | TODO | Issued results bind frozen inputs to creative/evidence/assignment/period and reproduce whether the ROI gate passed or failed closed. | leaf: W3-00D, W2-03C, W2-03D |

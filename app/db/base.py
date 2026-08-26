@@ -14,6 +14,7 @@ import app.models.campaign_cancellation  # noqa: E402,F401
 import app.models.campaign_change  # noqa: E402,F401
 import app.models.campaign_zone  # noqa: E402,F401
 import app.models.data_purge  # noqa: E402,F401
+import app.models.data_subject_request  # noqa: E402,F401
 import app.models.disbursement  # noqa: E402,F401
 import app.models.disclosure  # noqa: E402,F401
 import app.models.driver  # noqa: E402,F401

@@ -6697,6 +6697,323 @@
         "title": "DashboardCostSummary",
         "type": "object"
       },
+      "DataSubjectDisposition": {
+        "enum": [
+          "provided",
+          "rectified",
+          "erased",
+          "not_found",
+          "retained_exception"
+        ],
+        "title": "DataSubjectDisposition",
+        "type": "string"
+      },
+      "DataSubjectInventoryRead": {
+        "properties": {
+          "database": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Database",
+            "type": "object"
+          },
+          "manual_locations": {
+            "items": {
+              "$ref": "#/components/schemas/DataSubjectLocation"
+            },
+            "title": "Manual Locations",
+            "type": "array"
+          },
+          "object_storage": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Object Storage",
+            "type": "object"
+          }
+        },
+        "required": [
+          "database",
+          "object_storage",
+          "manual_locations"
+        ],
+        "title": "DataSubjectInventoryRead",
+        "type": "object"
+      },
+      "DataSubjectLocation": {
+        "enum": [
+          "database",
+          "object_storage",
+          "device_queue",
+          "operational_logs",
+          "backups",
+          "processors"
+        ],
+        "title": "DataSubjectLocation",
+        "type": "string"
+      },
+      "DataSubjectLocationAssessmentCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "disposition": {
+            "$ref": "#/components/schemas/DataSubjectDisposition"
+          },
+          "evidence_reference": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Evidence Reference",
+            "type": "string"
+          },
+          "exception_reference": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exception Reference"
+          },
+          "external_record_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Record Count"
+          }
+        },
+        "required": [
+          "disposition",
+          "evidence_reference",
+          "client_request_id"
+        ],
+        "title": "DataSubjectLocationAssessmentCreate",
+        "type": "object"
+      },
+      "DataSubjectLocationAssessmentRead": {
+        "properties": {
+          "assessed_by_user_id": {
+            "format": "uuid",
+            "title": "Assessed By User Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "data_class_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Data Class Counts",
+            "type": "object"
+          },
+          "disposition": {
+            "$ref": "#/components/schemas/DataSubjectDisposition"
+          },
+          "evidence_reference": {
+            "title": "Evidence Reference",
+            "type": "string"
+          },
+          "exception_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exception Reference"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "location": {
+            "$ref": "#/components/schemas/DataSubjectLocation"
+          },
+          "record_count": {
+            "title": "Record Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "location",
+          "disposition",
+          "record_count",
+          "data_class_counts",
+          "evidence_reference",
+          "exception_reference",
+          "assessed_by_user_id",
+          "created_at"
+        ],
+        "title": "DataSubjectLocationAssessmentRead",
+        "type": "object"
+      },
+      "DataSubjectRequestCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "request_type": {
+            "$ref": "#/components/schemas/DataSubjectRequestType"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "subject_user_id": {
+            "format": "uuid",
+            "title": "Subject User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject_user_id",
+          "request_type",
+          "client_request_id",
+          "requested_at"
+        ],
+        "title": "DataSubjectRequestCreate",
+        "type": "object"
+      },
+      "DataSubjectRequestRead": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "completed_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed By User Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "identity_verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identity Verified At"
+          },
+          "identity_verified_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identity Verified By User Id"
+          },
+          "opened_by_user_id": {
+            "format": "uuid",
+            "title": "Opened By User Id",
+            "type": "string"
+          },
+          "request_type": {
+            "$ref": "#/components/schemas/DataSubjectRequestType"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DataSubjectRequestStatus"
+          },
+          "subject_user_id": {
+            "format": "uuid",
+            "title": "Subject User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "subject_user_id",
+          "request_type",
+          "status",
+          "opened_by_user_id",
+          "requested_at",
+          "identity_verified_at",
+          "identity_verified_by_user_id",
+          "completed_at",
+          "completed_by_user_id",
+          "created_at"
+        ],
+        "title": "DataSubjectRequestRead",
+        "type": "object"
+      },
+      "DataSubjectRequestStatus": {
+        "enum": [
+          "open",
+          "identity_verified",
+          "completed"
+        ],
+        "title": "DataSubjectRequestStatus",
+        "type": "string"
+      },
+      "DataSubjectRequestType": {
+        "enum": [
+          "access",
+          "rectification",
+          "erasure"
+        ],
+        "title": "DataSubjectRequestType",
+        "type": "string"
+      },
       "DigitalCampaignAudienceSourceCreate": {
         "additionalProperties": false,
         "properties": {
@@ -22840,7 +23157,7 @@
     },
     "/api/v1/admin/payouts/recompute-day": {
       "post": {
-        "description": "PR7: the direct execute path is retired. Every retroactive recompute \u2014\nregardless of delta sign \u2014 runs through an approved maker-checker\ncorrection order. The route stays registered so the contract and the\naudit-coverage table remain consistent; it always answers 409.",
+        "description": "PR7: the direct execute path is retired. Every retroactive recompute —\nregardless of delta sign — runs through an approved maker-checker\ncorrection order. The route stays registered so the contract and the\naudit-coverage table remain consistent; it always answers 409.",
         "operationId": "admin_recompute_payout_day_api_v1_admin_payouts_recompute_day_post",
         "requestBody": {
           "content": {
@@ -22882,6 +23199,262 @@
         "summary": "Retired: direct day recompute now requires a correction order",
         "tags": [
           "Payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/privacy/dsr-requests": {
+      "post": {
+        "operationId": "open_data_subject_request_api_v1_admin_privacy_dsr_requests_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataSubjectRequestCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSubjectRequestRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Open Data Subject Request",
+        "tags": [
+          "Admin Privacy"
+        ]
+      }
+    },
+    "/api/v1/admin/privacy/dsr-requests/{request_id}/complete": {
+      "post": {
+        "operationId": "complete_data_subject_request_case_api_v1_admin_privacy_dsr_requests__request_id__complete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSubjectRequestRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Complete Data Subject Request Case",
+        "tags": [
+          "Admin Privacy"
+        ]
+      }
+    },
+    "/api/v1/admin/privacy/dsr-requests/{request_id}/inventory": {
+      "get": {
+        "operationId": "inspect_data_subject_inventory_api_v1_admin_privacy_dsr_requests__request_id__inventory_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSubjectInventoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Inspect Data Subject Inventory",
+        "tags": [
+          "Admin Privacy"
+        ]
+      }
+    },
+    "/api/v1/admin/privacy/dsr-requests/{request_id}/locations/{location}": {
+      "post": {
+        "operationId": "assess_data_subject_location_api_v1_admin_privacy_dsr_requests__request_id__locations__location__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "location",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/DataSubjectLocation"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataSubjectLocationAssessmentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSubjectLocationAssessmentRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Assess Data Subject Location",
+        "tags": [
+          "Admin Privacy"
+        ]
+      }
+    },
+    "/api/v1/admin/privacy/dsr-requests/{request_id}/verify-identity": {
+      "post": {
+        "operationId": "verify_data_subject_request_identity_api_v1_admin_privacy_dsr_requests__request_id__verify_identity_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSubjectRequestRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Verify Data Subject Request Identity",
+        "tags": [
+          "Admin Privacy"
         ]
       }
     },
@@ -29684,7 +30257,7 @@
     },
     "/api/v1/health/partitions": {
       "get": {
-        "description": "503 when no partition covers now() + 1 month \u2014 the API-side detector\nfor the write-outage failure mode (catches a dead worker, which no\nworker-side check can). Deliberately separate from /ready: a partition\ngap a month out must not drop live API traffic.",
+        "description": "503 when no partition covers now() + 1 month — the API-side detector\nfor the write-outage failure mode (catches a dead worker, which no\nworker-side check can). Deliberately separate from /ready: a partition\ngap a month out must not drop live API traffic.",
         "operationId": "partitions_api_v1_health_partitions_get",
         "responses": {
           "200": {

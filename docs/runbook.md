@@ -399,9 +399,11 @@ closed with `outcome=drop_refused`); an `orphan=... outcome=unclaimed_table`
 error log means a table the job refuses to touch: investigate manually.
 
 **Backups respect retention (§24.2.5):** backup rotation must stay ≤ 35
-days so purged pings age out of backups automatically — the local
-`scripts/db_backup.sh` newest-14 rotation complies at any realistic cadence;
-keep any off-host copies on the same bounded rotation.
+days so purged pings age out of backups automatically. The local
+`scripts/db_backup.sh` enforces both newest-14 and age-at-most-35-days bounds;
+`BACKUP_RETENTION_DAYS` may narrow that age but cannot exceed 35. Keep approved
+encrypted off-host copies on the same or a shorter bounded rotation. The
+cross-store request procedure is in `docs/data-subject-request-runbook.md`.
 
 | Failure | Effect | Recovery |
 |---|---|---|

@@ -23,6 +23,7 @@ from app.api.v1.me import router as me_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.payees import router as payees_router
 from app.api.v1.payouts import router as payouts_router
+from app.api.v1.privacy_dsr import router as privacy_dsr_router
 from app.api.v1.retargeting_source_links import router as retargeting_source_links_router
 from app.api.v1.retargeting_sources import router as retargeting_sources_router
 from app.api.v1.stored_files import router as stored_files_router
@@ -36,6 +37,7 @@ api_router.include_router(auth_router)
 api_router.include_router(billing_router)
 api_router.include_router(me_router)
 api_router.include_router(notifications_router)
+api_router.include_router(privacy_dsr_router)
 api_router.include_router(payees_router)
 api_router.include_router(disbursements_router)
 api_router.include_router(admin_router)

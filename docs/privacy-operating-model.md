@@ -75,16 +75,26 @@ Operators must apply these rules:
 The retention schedule is deliberately complete about what is unknown. Every
 registered data class maps to a disposition, but no MISSING period is silently
 converted into a live policy. The current 12-month ping setting is synthetic
-build configuration, not legal approval. Existing backup rotation must remain
-within architecture's 35-day bound, but W3-00B still owns the end-to-end
-schedule and synthetic DSR across DB, objects, devices, logs, backups, and
-processors.
+build configuration, not legal approval. Backup tooling now enforces both a
+newest-14 cap and a hard age bound of at most 35 days.
+
+W3-00B's manual operator workflow is defined in
+`docs/data-subject-request-runbook.md`. It opens and identity-verifies one
+access, rectification or erasure case; inventories subject-linked database
+classes; verifies managed objects through the private-storage port; requires
+operator evidence for devices, logs, backups and processors; and refuses
+completion until all six locations are assessed. Case identity and location
+evidence are append-only, retries are fingerprinted, and storage outage or
+mismatch fails closed. This is synthetic build capability, not a live DSR,
+approved response deadline or legal disposition.
 
 No erasure operation may rewrite immutable money, invoice, receipt, payout,
-fraud-review, or audit facts. The approved W3-00B procedure must decide the
-legal exception and prefer unlinking or pseudonymisation where permitted. It
-must also cover MNY-09A route-replay hashes explicitly: those hashes are
-pseudonymous derived location-linkage data, not anonymous data.
+fraud-review, or audit facts. The W3-00B service refuses to record database or
+object erasure while its inventory still finds records. A retained exception
+therefore requires an exact configured approval reference; the setting is
+blank by default while the legal decision is MISSING. The inventory covers
+MNY-09A route-replay hashes explicitly: those hashes are pseudonymous derived
+location-linkage data, not anonymous data.
 
 ## Notice, consent, and withdrawal
 

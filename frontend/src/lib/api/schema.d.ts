@@ -1471,6 +1471,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/privacy/dsr-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Open Data Subject Request */
+        post: operations["open_data_subject_request_api_v1_admin_privacy_dsr_requests_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/privacy/dsr-requests/{request_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete Data Subject Request Case */
+        post: operations["complete_data_subject_request_case_api_v1_admin_privacy_dsr_requests__request_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/privacy/dsr-requests/{request_id}/inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Inspect Data Subject Inventory */
+        get: operations["inspect_data_subject_inventory_api_v1_admin_privacy_dsr_requests__request_id__inventory_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/privacy/dsr-requests/{request_id}/locations/{location}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assess Data Subject Location */
+        post: operations["assess_data_subject_location_api_v1_admin_privacy_dsr_requests__request_id__locations__location__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/privacy/dsr-requests/{request_id}/verify-identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify Data Subject Request Identity */
+        post: operations["verify_data_subject_request_identity_api_v1_admin_privacy_dsr_requests__request_id__verify_identity_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/quotations/{revision_id}/accept-external": {
         parameters: {
             query?: never;
@@ -5721,6 +5806,141 @@ export interface components {
             /** Totals By Currency */
             totals_by_currency: components["schemas"]["DashboardCostCurrencySummary"][];
         };
+        /**
+         * DataSubjectDisposition
+         * @enum {string}
+         */
+        DataSubjectDisposition: "provided" | "rectified" | "erased" | "not_found" | "retained_exception";
+        /** DataSubjectInventoryRead */
+        DataSubjectInventoryRead: {
+            /** Database */
+            database: {
+                [key: string]: number;
+            };
+            /** Manual Locations */
+            manual_locations: components["schemas"]["DataSubjectLocation"][];
+            /** Object Storage */
+            object_storage: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * DataSubjectLocation
+         * @enum {string}
+         */
+        DataSubjectLocation: "database" | "object_storage" | "device_queue" | "operational_logs" | "backups" | "processors";
+        /** DataSubjectLocationAssessmentCreate */
+        DataSubjectLocationAssessmentCreate: {
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            disposition: components["schemas"]["DataSubjectDisposition"];
+            /** Evidence Reference */
+            evidence_reference: string;
+            /** Exception Reference */
+            exception_reference?: string | null;
+            /** External Record Count */
+            external_record_count?: number | null;
+        };
+        /** DataSubjectLocationAssessmentRead */
+        DataSubjectLocationAssessmentRead: {
+            /**
+             * Assessed By User Id
+             * Format: uuid
+             */
+            assessed_by_user_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Data Class Counts */
+            data_class_counts: {
+                [key: string]: number;
+            };
+            disposition: components["schemas"]["DataSubjectDisposition"];
+            /** Evidence Reference */
+            evidence_reference: string;
+            /** Exception Reference */
+            exception_reference: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            location: components["schemas"]["DataSubjectLocation"];
+            /** Record Count */
+            record_count: number;
+        };
+        /** DataSubjectRequestCreate */
+        DataSubjectRequestCreate: {
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            request_type: components["schemas"]["DataSubjectRequestType"];
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            /**
+             * Subject User Id
+             * Format: uuid
+             */
+            subject_user_id: string;
+        };
+        /** DataSubjectRequestRead */
+        DataSubjectRequestRead: {
+            /** Completed At */
+            completed_at: string | null;
+            /** Completed By User Id */
+            completed_by_user_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Identity Verified At */
+            identity_verified_at: string | null;
+            /** Identity Verified By User Id */
+            identity_verified_by_user_id: string | null;
+            /**
+             * Opened By User Id
+             * Format: uuid
+             */
+            opened_by_user_id: string;
+            request_type: components["schemas"]["DataSubjectRequestType"];
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            status: components["schemas"]["DataSubjectRequestStatus"];
+            /**
+             * Subject User Id
+             * Format: uuid
+             */
+            subject_user_id: string;
+        };
+        /**
+         * DataSubjectRequestStatus
+         * @enum {string}
+         */
+        DataSubjectRequestStatus: "open" | "identity_verified" | "completed";
+        /**
+         * DataSubjectRequestType
+         * @enum {string}
+         */
+        DataSubjectRequestType: "access" | "rectification" | "erasure";
         /** DigitalCampaignAudienceSourceCreate */
         DigitalCampaignAudienceSourceCreate: {
             /** Aggregation Window Days */
@@ -12980,6 +13200,168 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecomputePayoutDayResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_data_subject_request_api_v1_admin_privacy_dsr_requests_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DataSubjectRequestCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataSubjectRequestRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_data_subject_request_case_api_v1_admin_privacy_dsr_requests__request_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataSubjectRequestRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    inspect_data_subject_inventory_api_v1_admin_privacy_dsr_requests__request_id__inventory_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataSubjectInventoryRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assess_data_subject_location_api_v1_admin_privacy_dsr_requests__request_id__locations__location__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+                location: components["schemas"]["DataSubjectLocation"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DataSubjectLocationAssessmentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataSubjectLocationAssessmentRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_data_subject_request_identity_api_v1_admin_privacy_dsr_requests__request_id__verify_identity_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataSubjectRequestRead"];
                 };
             };
             /** @description Validation Error */

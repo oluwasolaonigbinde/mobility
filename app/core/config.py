@@ -118,6 +118,9 @@ class Settings(BaseSettings):
     email_delivery_max_attempts: int = 5
     email_delivery_retry_base_seconds: int = 60
     email_delivery_claim_seconds: int = 120
+    # Comma-separated legal exception evidence references. Empty means that a
+    # DSR may be inventoried but no retained-exception assessment can complete.
+    dsr_approved_exception_references: str = ""
     malware_scanner_host: str = ""
     malware_scanner_port: int = 3310
     malware_scanner_timeout_seconds: int = 30
@@ -550,6 +553,22 @@ class Settings(BaseSettings):
             raise ValueError("EMAIL_PROVIDER must be blank or smtp")
         return normalized
 
+    @field_validator("dsr_approved_exception_references")
+    @classmethod
+    def validate_dsr_exception_references(cls, value: str) -> str:
+        references = [part.strip() for part in value.split(",") if part.strip()]
+        if len(references) != len(set(references)) or any(
+            len(reference) > 255
+            or reference.lower()
+            in {"missing", "todo", "tbd", "placeholder", "n/a", "none"}
+            for reference in references
+        ):
+            raise ValueError(
+                "DSR_APPROVED_EXCEPTION_REFERENCES must contain unique non-placeholder "
+                "references of at most 255 characters"
+            )
+        return ",".join(references)
+
     @field_validator("email_receipt_signing_secret")
     @classmethod
     def validate_email_receipt_signing_secret(
@@ -643,6 +662,16 @@ class Settings(BaseSettings):
             raise ValueError("IMPRESSION_MIN_CONFIDENCE must not exceed IMPRESSION_MAX_CONFIDENCE")
         if self.privacy_disclosure_synthetic_test_mode and self.environment.lower() != "test":
             raise ValueError("PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE requires environment=test")
+        if (
+            self.dsr_approved_exception_references
+            and self.environment.lower() != "test"
+            and self.privacy_legal_approval_reference.strip().lower()
+            in {"", "missing", "todo", "tbd", "placeholder", "n/a", "none"}
+        ):
+            raise ValueError(
+                "DSR_APPROVED_EXCEPTION_REFERENCES requires an approved privacy legal "
+                "reference outside test"
+            )
         if (
             self.payout_default_max_payout_per_trip is not None
             and self.payout_default_max_payout_per_trip < self.payout_default_min_payout_per_trip

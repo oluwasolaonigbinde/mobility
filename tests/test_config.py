@@ -126,6 +126,23 @@ def test_custom_jwt_secret_allowed_outside_local_environment() -> None:
     assert settings.jwt_secret_key == "production-secret-with-at-least-32-characters"
 
 
+def test_dsr_exception_references_require_legal_approval_outside_test() -> None:
+    with pytest.raises(ValidationError, match="approved privacy legal reference"):
+        Settings(
+            environment="production",
+            jwt_secret_key="production-secret-with-at-least-32-characters",
+            dsr_approved_exception_references="LEGAL-EXCEPTION-1",
+        )
+
+    settings = Settings(
+        environment="production",
+        jwt_secret_key="production-secret-with-at-least-32-characters",
+        privacy_legal_approval_reference="COUNSEL-APPROVAL-1",
+        dsr_approved_exception_references="LEGAL-EXCEPTION-1",
+    )
+    assert settings.dsr_approved_exception_references == "LEGAL-EXCEPTION-1"
+
+
 def test_short_jwt_secret_rejected() -> None:
     with pytest.raises(ValidationError):
         Settings(jwt_secret_key="too-short")

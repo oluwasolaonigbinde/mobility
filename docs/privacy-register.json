@@ -92,7 +92,7 @@
     {
       "id": "P07_SECURITY_AUDIT_BREACH",
       "purpose": "Protect the platform, preserve audit evidence and investigate security/privacy incidents",
-      "data_classes": ["audit_event", "security_log", "breach_register"],
+      "data_classes": ["audit_event", "security_log", "breach_register", "privacy_request_evidence"],
       "owner_role": "platform_operator_role",
       "lawful_basis_candidate": "legitimate interests in security and confirmed legal obligations; counsel confirmation required",
       "basis_approval": "MISSING",
@@ -139,13 +139,13 @@
     {
       "id": "R03_RAW_LOCATION",
       "data_classes": ["precise_location", "trip_session", "device_queue_evidence"],
-      "build_disposition": "The current synthetic build parameter is PING_RETENTION_MONTHS=12; this is not an approved live retention decision. Device, quarantine, backup and processor propagation remain W3-00B work",
+      "build_disposition": "The current synthetic build parameter is PING_RETENTION_MONTHS=12; this is not an approved live retention decision. The W3-00B manual workflow now inventories raw/derived/replay data, device queues, backups and processors without supplying a live period",
       "approval": "MISSING"
     },
     {
       "id": "R04_DERIVED_LOCATION",
       "data_classes": ["derived_location_analytics", "route_replay_hashes", "fraud_evidence", "impression_estimates"],
-      "build_disposition": "Current records follow owning trips, but no approved period exists; W3-00B must cover hashes and derived linkage explicitly",
+      "build_disposition": "Current records follow owning trips and the W3-00B inventory explicitly counts derived analytics, route-replay hashes, fraud evidence and impression estimates; no approved live period exists",
       "approval": "MISSING"
     },
     {
@@ -162,7 +162,7 @@
     },
     {
       "id": "R07_SECURITY_AUDIT",
-      "data_classes": ["audit_event", "security_log", "breach_register"],
+      "data_classes": ["audit_event", "security_log", "breach_register", "privacy_request_evidence"],
       "build_disposition": "Preserve minimum evidence pending approved security/legal periods. Local backup rotation must remain at or below the architecture's 35-day bound",
       "approval": "MISSING"
     },
@@ -237,6 +237,18 @@
       "Confirm completion or the exact approved exception to the requester through a safe channel"
     ]
   },
+  "dsr_workflow": {
+    "build_status": "BUILT_SYNTHETIC_ONLY",
+    "live_use_authorized": false,
+    "operator_role": "active Cardvert administrator; named accountable operator MISSING",
+    "request_types": ["access", "rectification", "erasure"],
+    "locations": ["database", "object_storage", "device_queue", "operational_logs", "backups", "processors"],
+    "evidence_rule": "Every location has one immutable assessment; exact retries converge, changed retries conflict, and completion requires all six",
+    "erasure_rule": "Never claim erased while database or object inventory still finds records; required immutable history needs an explicitly configured approved exception reference",
+    "production_exception_references": "MISSING",
+    "response_wording_and_deadline": "MISSING",
+    "runbook": "docs/data-subject-request-runbook.md"
+  },
   "breach_responsibilities": {
     "incident_commander_role": "platform_operator_role",
     "privacy_decision_role": "privacy_approval_role (named adviser MISSING)",
@@ -273,8 +285,8 @@
     },
     {
       "risk": "Over-retention or resurrection from backups/processors",
-      "controls": "Partition purge evidence and bounded backup rotation exist; W3-00B must span all stores and processors",
-      "residual": "OPEN — retention/DSR decisions and end-to-end dry run missing"
+      "controls": "Partition purge evidence, hard 35-day backup age bound and W3-00B's immutable six-location manual DSR workflow cover database, objects, devices, logs, backups and processors",
+      "residual": "OPEN — approved retention/DSR decisions, named providers and live exercise remain missing"
     },
     {
       "risk": "KYC, financial or raw-location confidentiality breach",
