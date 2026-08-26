@@ -63,10 +63,10 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 clarification corrects the prior false pause: missing production storage,
 scanner, KMS, email and phone inputs remain explicit live/deployment gates but
 do not block provider-neutral/local/synthetic implementation under D23.
-**Current checkpoint:** `PKG-04 / W2-02B` — add mandatory fail-closed malware
-scanning, quarantine authority and purpose-scoped audited reads on the shared
-stored-file boundary. The production scanner/provider remains `MISSING`; no
-production adoption, live KYC, real-GPS, external-staging, physical-device or
+**Current checkpoint:** `PKG-04 / W2-02C` — replace arbitrary advertiser
+creative submission URLs with the shared managed, scan-cleared stored-file
+authority while preserving safe legacy reads. No creative approval, launch,
+production provider, live KYC, real-GPS, external-staging, physical-device or
 pilot evidence is claimed.
 
 ## Executable package queue
@@ -454,6 +454,28 @@ pilot evidence is claimed.
   boundaries; the consolidated post-build security review remains reserved for
   the shared W2-02 boundary. `EXT-STORAGE-PROVIDER` remains MISSING and no
   client account, production provider, credential or live upload is claimed.
+- **W2-02B checkpoint evidence (26 Aug 2026):** additive migration `0053`
+  records actual MIME, attempts, retry timing, terminal scan time and sanitized
+  unsafe/error state on the one stored-file authority. A provider-neutral
+  streaming scanner port and local ClamAV INSTREAM adapter recount bytes and
+  magic-sniff the allowed formats independently of client metadata; pending,
+  unavailable, missing, spoofed, changed-size, infected and rejected files all
+  remain quarantined. The bounded worker row-locks/rechecks candidates and
+  commits exponential retry state without duplicate terminal scans. Only exact
+  clean files receive at-most-60-second private GETs, with advertiser/admin
+  role-purpose restrictions, tenant hiding, active-admin service authorization
+  and one audit containing actor, file, purpose, reason and request ID. The
+  initial missing-module/migration collection failures provide red evidence;
+  80 combined focused API/service/worker/protocol/migration/head/audit/contract
+  controls, Ruff and Compose parsing pass green. An isolated populated
+  PostgreSQL upgrade/downgrade proves the `rejected` constraint transition and
+  fail-closed downgrade mapping. A real local clamd daemon
+  returned `clean` for benign bytes and `Eicar-Test-Signature` for the standard
+  harmless antivirus test string; the real MinIO adapter returned the exact
+  body through a 60-second signed GET while the unsigned GET remained 403.
+  `EXT-MALWARE-SCANNER` remains MISSING; the
+  official local image runs under explicit amd64 emulation on ARM hosts and no
+  production scanner, credential, live file or provider validation is claimed.
 - **W2-03A checkpoint evidence (24 Aug 2026):** migration `0043` extends the campaign
   lifecycle and adds append-only, exact-submission-bound review evidence.
   Dedicated row-locked advertiser/admin actions enforce submit, approve,
@@ -917,7 +939,7 @@ verification, gates or required specialist review.
 | 26 | **W2-01D — credits, reversals and 24-hour refund registry** | PKG-03 | DONE | Standard refund eligibility lasts to the 24-hour boundary; expedited eligibility ends only when production actually begins under an immutable advertiser-requested waiver. | leaf: W2-01A, W2-01B |
 | 27 | **W2-01E — advertiser-spend budget enforcement** | PKG-03 | BLOCKED — EXT-BUDGET-POLICY | Spend facts drive persisted alerts/pauses without using driver payout cost as a proxy. | leaf: W2-01A, W2-01B; external: EXT-BUDGET-POLICY |
 | 28 | **W2-02A — private object-storage foundation** | PKG-04 | DONE | Direct private uploads produce managed stored-file records; production adoption remains gated by EXT-STORAGE-PROVIDER. | none |
-| 29 | **W2-02B — malware scanning and purpose-scoped reads** | PKG-04 | TODO | Unsafe files fail closed and privileged downloads are short-lived/audited; production adoption remains gated by EXT-MALWARE-SCANNER. | leaf: W2-02A |
+| 29 | **W2-02B — malware scanning and purpose-scoped reads** | PKG-04 | DONE | Unsafe files fail closed and privileged downloads are short-lived/audited; production adoption remains gated by EXT-MALWARE-SCANNER. | leaf: W2-02A |
 | 30 | **W2-02C — advertiser creative upload** | PKG-04 | TODO | Campaign flows use managed scanned assets instead of arbitrary URLs. | leaf: W2-02B |
 | 31 | **W2-02D — encrypted KYC and financial identifiers** | PKG-04 | TODO | Required documents/NIN/bank data reuse the crypto port and are protected/version-reviewed; production custody remains gated by EXT-KMS-CUSTODY. | leaf: W2-02B, MNY-10A |
 | 32 | **W2-02E — file/KYC lifecycle and incident operations** | PKG-04 | TODO | File/KYC purge plus scanner/key/vendor failures are tested and audited. | leaf: W2-02B, W2-02D |

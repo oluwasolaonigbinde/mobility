@@ -70,6 +70,8 @@ x-backend-env: &backend-env
   OBJECT_STORAGE_BUCKET: cardvert-private
   OBJECT_STORAGE_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-cardvert-local}
   OBJECT_STORAGE_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-cardvert-local-secret}
+  MALWARE_SCANNER_HOST: clamav
+  MALWARE_SCANNER_PORT: 3310
 
 services:
   api:
@@ -96,6 +98,7 @@ services:
       - db
       - redis
       - minio
+      - clamav
 
   # Production-style frontend container. Local dev normally runs
   # `npm run dev` instead — start this with: docker compose --profile full up
@@ -161,6 +164,13 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cardvert-local}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-cardvert-local-secret}
 
+  clamav:
+    image: clamav/clamav:1.4
+    platform: linux/amd64
+    volumes:
+      - clamav_signatures:/var/lib/clamav
+
 volumes:
   postgres_data:
   minio_data:
+  clamav_signatures:

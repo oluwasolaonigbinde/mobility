@@ -1,5 +1,6 @@
 import hashlib
 import json
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -8,7 +9,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
+from app.adapters.scanner import MalwareScanner, MalwareScanVerdict, ScannerUnavailable
 from app.adapters.storage import (
+    PresignedGet,
     PresignedPost,
     StorageObjectNotFound,
     StorageProvider,
@@ -16,6 +19,7 @@ from app.adapters.storage import (
 )
 from app.core.config import Settings
 from app.core.errors import AppError
+from app.core.middleware import get_request_id
 from app.models.organization import (
     MembershipRole,
     MembershipStatus,
@@ -28,6 +32,7 @@ from app.models.stored_file import (
     UploadIntentStatus,
 )
 from app.schemas.stored_files import FileUploadCreate
+from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.organizations import get_advertiser_organization_for_user
 
@@ -72,6 +77,20 @@ def _fingerprint(payload: FileUploadCreate) -> str:
 
 def _aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def _detected_content_type(prefix: bytes) -> str | None:
+    if prefix.startswith(b"%PDF-"):
+        return "application/pdf"
+    if prefix.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if prefix.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if len(prefix) >= 12 and prefix.startswith(b"RIFF") and prefix[8:12] == b"WEBP":
+        return "image/webp"
+    if len(prefix) >= 12 and prefix[4:8] == b"ftyp":
+        return "video/mp4"
+    return None
 
 
 async def create_advertiser_upload_intent(
@@ -359,3 +378,201 @@ async def purge_expired_upload_intents(
         )
     await session.flush()
     return len(intents)
+
+
+async def scan_stored_file(
+    session: AsyncSession,
+    *,
+    file_id: UUID,
+    storage: StorageProvider,
+    scanner: MalwareScanner,
+) -> FileScanStatus | None:
+    stored_file = await session.scalar(
+        select(StoredFile).where(StoredFile.id == file_id).with_for_update(skip_locked=True)
+    )
+    if stored_file is None:
+        return None
+    current_status = FileScanStatus(stored_file.scan_status)
+    if current_status in {
+        FileScanStatus.CLEAN,
+        FileScanStatus.INFECTED,
+        FileScanStatus.REJECTED,
+    }:
+        return current_status
+
+    prefix = bytearray()
+    observed_size = 0
+
+    async def observed_chunks() -> AsyncIterator[bytes]:
+        nonlocal observed_size
+        async for chunk in storage.stream(stored_file.storage_key):
+            observed_size += len(chunk)
+            if len(prefix) < 32:
+                prefix.extend(chunk[: 32 - len(prefix)])
+            yield chunk
+
+    stored_file.scan_attempts += 1
+    stored_file.scan_error_code = None
+    stored_file.malware_signature = None
+    stored_file.next_scan_at = None
+    try:
+        result = await scanner.scan(observed_chunks())
+    except (ScannerUnavailable, StorageUnavailable, StorageObjectNotFound) as exc:
+        stored_file.scan_status = FileScanStatus.ERROR
+        stored_file.scan_error_code = (
+            "stored_object_missing"
+            if isinstance(exc, StorageObjectNotFound)
+            else "scanner_or_storage_unavailable"
+        )
+        stored_file.next_scan_at = datetime.now(UTC) + timedelta(
+            seconds=min(60 * (2 ** min(stored_file.scan_attempts - 1, 5)), 3600)
+        )
+    else:
+        actual_type = _detected_content_type(bytes(prefix))
+        stored_file.actual_content_type = actual_type
+        if result.verdict == MalwareScanVerdict.INFECTED:
+            stored_file.scan_status = FileScanStatus.INFECTED
+            stored_file.malware_signature = result.signature
+            stored_file.scanned_at = datetime.now(UTC)
+        elif (
+            observed_size != stored_file.size_bytes
+            or actual_type is None
+            or actual_type != stored_file.content_type
+        ):
+            stored_file.scan_status = FileScanStatus.REJECTED
+            stored_file.scan_error_code = "observed_metadata_mismatch"
+            stored_file.scanned_at = datetime.now(UTC)
+        else:
+            stored_file.scan_status = FileScanStatus.CLEAN
+            stored_file.scanned_at = datetime.now(UTC)
+
+    await create_audit_event(
+        session,
+        actor_user_id=None,
+        action="stored_file.scan_completed",
+        entity_type="stored_file",
+        entity_id=str(stored_file.id),
+        metadata={
+            "organization_id": str(stored_file.organization_id),
+            "status": stored_file.scan_status,
+            "attempt": stored_file.scan_attempts,
+            "error_code": stored_file.scan_error_code,
+        },
+    )
+    await session.flush()
+    return FileScanStatus(stored_file.scan_status)
+
+
+def _require_cleared(stored_file: StoredFile) -> None:
+    if stored_file.scan_status != FileScanStatus.CLEAN:
+        raise _error(
+            "STORED_FILE_NOT_CLEARED",
+            "The stored file has not passed mandatory security checks",
+            status.HTTP_409_CONFLICT,
+        )
+
+
+async def _issue_download(
+    session: AsyncSession,
+    *,
+    stored_file: StoredFile,
+    actor_user_id: UUID,
+    access_purpose: str,
+    reason: str,
+    storage: StorageProvider,
+    settings: Settings,
+) -> PresignedGet:
+    _require_cleared(stored_file)
+    try:
+        download = await storage.presign_get(
+            object_key=stored_file.storage_key,
+            expires_in_seconds=settings.object_storage_download_ttl_seconds,
+        )
+    except StorageUnavailable:
+        raise _storage_unavailable() from None
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="stored_file.read",
+        entity_type="stored_file",
+        entity_id=str(stored_file.id),
+        metadata={
+            "organization_id": str(stored_file.organization_id),
+            "file_purpose": stored_file.purpose,
+            "access_purpose": access_purpose,
+            "reason": reason,
+            "request_id": get_request_id(),
+        },
+    )
+    return download
+
+
+async def issue_advertiser_file_download(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    file_id: UUID,
+    access_purpose: str,
+    reason: str,
+    storage: StorageProvider,
+    settings: Settings,
+) -> PresignedGet:
+    if access_purpose != "campaign_preview":
+        raise _error(
+            "FILE_ACCESS_PURPOSE_FORBIDDEN",
+            "The requested file-access purpose is not allowed for this role",
+            status.HTTP_403_FORBIDDEN,
+        )
+    organization_id = await _advertiser_scope(session, actor_user_id=actor_user_id, write=False)
+    stored_file = await session.scalar(
+        select(StoredFile).where(
+            StoredFile.id == file_id,
+            StoredFile.organization_id == organization_id,
+        )
+    )
+    if stored_file is None:
+        raise _error(
+            "STORED_FILE_NOT_FOUND", "Stored file was not found", status.HTTP_404_NOT_FOUND
+        )
+    return await _issue_download(
+        session,
+        stored_file=stored_file,
+        actor_user_id=actor_user_id,
+        access_purpose=access_purpose,
+        reason=reason,
+        storage=storage,
+        settings=settings,
+    )
+
+
+async def issue_admin_file_download(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    file_id: UUID,
+    access_purpose: str,
+    reason: str,
+    storage: StorageProvider,
+    settings: Settings,
+) -> PresignedGet:
+    await require_active_admin(session, actor_user_id)
+    if access_purpose not in {"creative_review", "security_review", "incident_response"}:
+        raise _error(
+            "FILE_ACCESS_PURPOSE_FORBIDDEN",
+            "The requested file-access purpose is not allowed for this role",
+            status.HTTP_403_FORBIDDEN,
+        )
+    stored_file = await session.scalar(select(StoredFile).where(StoredFile.id == file_id))
+    if stored_file is None:
+        raise _error(
+            "STORED_FILE_NOT_FOUND", "Stored file was not found", status.HTTP_404_NOT_FOUND
+        )
+    return await _issue_download(
+        session,
+        stored_file=stored_file,
+        actor_user_id=actor_user_id,
+        access_purpose=access_purpose,
+        reason=reason,
+        storage=storage,
+        settings=settings,
+    )

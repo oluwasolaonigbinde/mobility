@@ -1466,15 +1466,26 @@ remains the production-adoption gate.
    checksum (rejecting anything outside the declared caps), creates a
    `stored_files` row (storage key, mime, size, checksum, uploader,
    scan status), and links it to its domain object.
-3. A worker job validates the server-observed MIME and size, then performs a
+3. **[BUILT — W2-02B]** A worker job validates the server-observed MIME and size, then performs a
    **mandatory malware scan**. Files remain quarantined and cannot be reviewed,
    approved, or served until the scan clears. The scanner/provider is an
    external deployment choice; admin review is never a substitute for this
    fail-closed gate (RM18).
-4. Serving: **time-limited signed GET URLs** issued by the backend; nothing in
+4. **[BUILT — W2-02B]** Serving: **time-limited signed GET URLs** issued by the backend; nothing in
    the bucket is public. `campaign_creatives.asset_url` remains and now points
    at (or is derived from) the managed object — external-URL creatives keep
    working for backward compatibility.
+
+Migration `0053` adds the fail-closed scan projection without creating a
+second file authority. The worker streams private managed bytes once through
+the scanner while independently recounting size and magic-sniffing only the
+allowed PDF/JPEG/PNG/WebP/MP4 formats. Clean, infected, rejected and retryable
+error states are explicit; only exact clean rows can be served. The local
+adapter speaks clamd INSTREAM to Compose ClamAV, while production remains
+unconfigured behind `EXT-MALWARE-SCANNER`. Advertiser campaign-preview and
+active-admin creative/security/incident reads are role-purpose scoped,
+tenant-safe, at most 60 seconds and audited with actor, subject, purpose,
+reason and request ID.
 
 ### 19.3 Consumers of the same pattern
 
@@ -1717,7 +1728,8 @@ analytics or fraud provenance fails closed. Full-slice heatmap conservation
 now precedes disclosure, and campaign-review/payout-correction services enforce
 active-admin authority inside their own transactions. Package 6 retained its
 published migrations `0048`–`0050`; `0051` remains their immutable correction
-revision and W2-02A's additive `0052` is the single linear head. These
+revision, W2-02A's additive `0052` remains immutable, and W2-02B's additive
+`0053` is the single linear head. These
 corrections do not open the legal, reporting-method or ad-platform live-use
 gates.
 
@@ -2354,6 +2366,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.57 | 2026-08-26 | **W2-02B fail-closed scanning and purpose-scoped private reads delivered without production-scanner authority.** Migration `0053` extends the one stored-file authority with actual MIME, scan attempts/retry timing and terminal clean/infected/rejected/error evidence. A streaming scanner port and local clamd INSTREAM adapter independently recount and magic-sniff bytes; a bounded row-locked worker retries outages and never clears unavailable, missing, spoofed, changed-size or infected content. Only exact clean files receive at-most-60-second GETs under tenant, active-admin and role-purpose checks, with actor/subject/purpose/reason/request audit. Focused protocol/API/service/worker/migration/head/audit/contract controls, an isolated populated PostgreSQL constraint round trip, Ruff, Compose parsing, real local ClamAV benign/EICAR and private MinIO signed-GET/unsigned-denial simulations pass. `EXT-MALWARE-SCANNER` remains MISSING; amd64 emulation is explicit for the official local image on ARM hosts, and no production scanner, credential, live file or provider validation is claimed. |
 | v1.56 | 2026-08-26 | **W2-02A private object-storage foundation delivered without production-provider authority.** Migration `0052` adds tenant-owned upload intents and private stored-file records with populated downgrade refusal. One S3-compatible port and local MinIO adapter provide exact condition-bound POSTs, streamed server-side checksum confirmation, idempotent private promotion and abandoned-object lifecycle cleanup; unconfigured/outage paths fail closed before persisting a new intent, public DTOs expose no bucket or managed key, and every confirmation is audited without filenames. Focused API/service/migration/worker/head controls, synchronized §9 artifacts, Ruff, Compose parsing and a real local MinIO POST→verify→promote flow pass, including a 403 unsigned GET. The production provider/account/region remains `EXT-STORAGE-PROVIDER` MISSING; no live upload, external staging, real KYC, device, route or pilot evidence is claimed. |
 | v1.55 | 2026-08-26 | **Package 6 offer/activity audit correction adopted onto the completed Package 7 W4-01A/B line.** A newly materialized DB-time offer expiry is committed by only its typed API transaction boundary before conflict, while generic application errors still roll back; accept/decline/cancel and the bounded sweep retain the campaign→assignment order and converge on one terminal event. List services no longer sweep and never expose an overdue row as currently offered beyond the route sweep bound. Activity authority now accepts only the configured current analytics formula and records that identity in evidence. Weekly/inactivity flags can move `opened → recovered → opened` on the same locked identity with event-scoped notices and preserved history. Malformed or failed cursor GET/SET/DELETE operations fail the worker visibly after already committed evaluations remain safely retryable. The reviewed correction adds no migration, public contract, Package 7 product change or external-gate change; W4-01A/B remain DONE and W4-01C remains dependency-blocked. |
 | v1.54 | 2026-08-25 | **W4-01B screen-on tracking and durable sync delivered to the dependency-blocked Package 7 frontier.** The client now joins the active drain before End, accepts only complete positive ACK envelopes, preserves stable batches across malformed/lost responses, rejects a watermark after runtime authority loss, and reconciles cancelled/ambiguous End under the writer before resume or release. Seven observed red cases preceded 277 green frontend tests, type/lint/format/build and 14 desktop/mobile browser checks; the P7-K1 focused controller gate passed 107 tests with byte-stable §9 artifacts. The combined independent review found migration-owner availability was treated as non-ownership and §8 retained obsolete Vantage/fail-open/buffering text. Tri-state authority now keeps migration fail closed unless exact `404/TRIP_NOT_FOUND` proves non-ownership, rightful-owner recovery conserves sequence/watermark state, §8 matches the built Cardvert behavior, and the final bounded recheck passes. W4-01C remains blocked by W3-04C/W2-03D and their storage/scanner/KMS chain; W4-01D is transitively blocked. No physical-device, native/background, real-GPS, route/battery, staging, pilot, KYC/vehicle, API-contract or Package 8 authority is claimed. |

@@ -32,6 +32,7 @@ class FileScanStatus(StrEnum):
     PENDING = "pending"
     CLEAN = "clean"
     INFECTED = "infected"
+    REJECTED = "rejected"
     ERROR = "error"
 
 
@@ -43,9 +44,7 @@ class FileUploadIntent(Base):
             "status IN ('pending', 'confirmed', 'expired')",
             name="ck_file_upload_intents_status",
         ),
-        CheckConstraint(
-            "declared_size_bytes > 0", name="ck_file_upload_intents_size_positive"
-        ),
+        CheckConstraint("declared_size_bytes > 0", name="ck_file_upload_intents_size_positive"),
         CheckConstraint(
             "length(declared_sha256) = 64", name="ck_file_upload_intents_sha256_length"
         ),
@@ -95,7 +94,7 @@ class StoredFile(Base):
     __table_args__ = (
         CheckConstraint("purpose IN ('creative')", name="ck_stored_files_purpose"),
         CheckConstraint(
-            "scan_status IN ('pending', 'clean', 'infected', 'error')",
+            "scan_status IN ('pending', 'clean', 'infected', 'rejected', 'error')",
             name="ck_stored_files_scan_status",
         ),
         CheckConstraint("size_bytes > 0", name="ck_stored_files_size_positive"),
@@ -128,6 +127,12 @@ class StoredFile(Base):
     scan_status: Mapped[str] = mapped_column(
         String(32), default=FileScanStatus.PENDING, server_default="pending", nullable=False
     )
+    actual_content_type: Mapped[str | None] = mapped_column(String(255))
+    scan_attempts: Mapped[int] = mapped_column(default=0, server_default="0", nullable=False)
+    scan_error_code: Mapped[str | None] = mapped_column(String(64))
+    malware_signature: Mapped[str | None] = mapped_column(String(255))
+    next_scan_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

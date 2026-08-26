@@ -520,6 +520,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/files/{file_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Download Admin File */
+        post: operations["download_admin_file_api_v1_admin_files__file_id__download_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/fraud-disputes": {
         parameters: {
             query?: never;
@@ -1953,6 +1970,23 @@ export interface paths {
         get: operations["get_file_api_v1_advertiser_files__file_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/files/{file_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Download Advertiser File */
+        post: operations["download_advertiser_file_api_v1_advertiser_files__file_id__download_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5387,6 +5421,24 @@ export interface components {
             traffic_density_profile_id?: string | null;
         };
         /**
+         * FileAccessPurpose
+         * @enum {string}
+         */
+        FileAccessPurpose: "campaign_preview" | "creative_review" | "security_review" | "incident_response";
+        /** FileDownloadRead */
+        FileDownloadRead: {
+            /** Expires In Seconds */
+            expires_in_seconds: number;
+            /** Url */
+            url: string;
+        };
+        /** FileDownloadRequest */
+        FileDownloadRequest: {
+            purpose: components["schemas"]["FileAccessPurpose"];
+            /** Reason */
+            reason: string;
+        };
+        /**
          * FilePurpose
          * @enum {string}
          */
@@ -5395,7 +5447,7 @@ export interface components {
          * FileScanStatus
          * @enum {string}
          */
-        FileScanStatus: "pending" | "clean" | "infected" | "error";
+        FileScanStatus: "pending" | "clean" | "infected" | "rejected" | "error";
         /** FileUploadCreate */
         FileUploadCreate: {
             /**
@@ -9629,6 +9681,41 @@ export interface operations {
             };
         };
     };
+    download_admin_file_api_v1_admin_files__file_id__download_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                file_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileDownloadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileDownloadRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_get_fraud_disputes_api_v1_admin_fraud_disputes_get: {
         parameters: {
             query?: {
@@ -12793,6 +12880,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StoredFileRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_advertiser_file_api_v1_advertiser_files__file_id__download_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                file_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileDownloadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileDownloadRead"];
                 };
             };
             /** @description Validation Error */

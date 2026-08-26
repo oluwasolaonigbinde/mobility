@@ -1,3 +1,4 @@
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
@@ -21,6 +22,12 @@ class PresignedPost:
 
 
 @dataclass(frozen=True, slots=True)
+class PresignedGet:
+    url: str
+    expires_in_seconds: int
+
+
+@dataclass(frozen=True, slots=True)
 class ObjectMetadata:
     object_key: str
     size_bytes: int
@@ -41,6 +48,10 @@ class StorageProvider(Protocol):
     ) -> PresignedPost: ...
 
     async def stat(self, object_key: str) -> ObjectMetadata: ...
+
+    def stream(self, object_key: str) -> AsyncIterator[bytes]: ...
+
+    async def presign_get(self, *, object_key: str, expires_in_seconds: int) -> PresignedGet: ...
 
     async def promote(self, *, source_key: str, destination_key: str) -> ObjectMetadata: ...
 

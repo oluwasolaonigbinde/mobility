@@ -1,5 +1,8 @@
+from collections.abc import AsyncIterator
+
 from app.adapters.storage.base import (
     ObjectMetadata,
+    PresignedGet,
     PresignedPost,
     StorageError,
     StorageObjectNotFound,
@@ -15,6 +18,13 @@ class UnconfiguredStorageProvider:
         raise StorageUnavailable("Private object storage is not configured")
 
     async def stat(self, object_key: str) -> ObjectMetadata:
+        raise StorageUnavailable("Private object storage is not configured")
+
+    async def stream(self, object_key: str) -> AsyncIterator[bytes]:
+        raise StorageUnavailable("Private object storage is not configured")
+        yield b""  # pragma: no cover
+
+    async def presign_get(self, *, object_key: str, expires_in_seconds: int) -> PresignedGet:
         raise StorageUnavailable("Private object storage is not configured")
 
     async def promote(self, *, source_key: str, destination_key: str) -> ObjectMetadata:
@@ -53,9 +63,11 @@ def build_storage_provider(settings: Settings) -> StorageProvider:
         secret_access_key=secret_key,
     )
 
+
 __all__ = [
     "ObjectMetadata",
     "PresignedPost",
+    "PresignedGet",
     "S3StorageProvider",
     "StorageError",
     "StorageObjectNotFound",

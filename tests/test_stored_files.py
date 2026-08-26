@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 
 from app.adapters.storage import (
     ObjectMetadata,
+    PresignedGet,
     PresignedPost,
     StorageObjectNotFound,
     StorageProvider,
@@ -27,7 +28,9 @@ PASSWORD = "long-secure-password"
 class FakeStorageProvider(StorageProvider):
     def __init__(self) -> None:
         self.objects: dict[str, ObjectMetadata] = {}
+        self.contents: dict[str, bytes] = {}
         self.presigned: list[dict[str, object]] = []
+        self.presigned_gets: list[dict[str, object]] = []
         self.deleted: list[str] = []
         self.unavailable = False
 
@@ -67,11 +70,31 @@ class FakeStorageProvider(StorageProvider):
         except KeyError:
             raise StorageObjectNotFound(object_key) from None
 
+    async def stream(self, object_key: str):
+        if self.unavailable:
+            raise StorageUnavailable("storage is unavailable")
+        try:
+            yield self.contents[object_key]
+        except KeyError:
+            raise StorageObjectNotFound(object_key) from None
+
+    async def presign_get(self, *, object_key: str, expires_in_seconds: int) -> PresignedGet:
+        if self.unavailable:
+            raise StorageUnavailable("storage is unavailable")
+        self.presigned_gets.append(
+            {"object_key": object_key, "expires_in_seconds": expires_in_seconds}
+        )
+        return PresignedGet(
+            url="http://storage.test/private-download",
+            expires_in_seconds=expires_in_seconds,
+        )
+
     async def promote(self, *, source_key: str, destination_key: str) -> ObjectMetadata:
         if self.unavailable:
             raise StorageUnavailable("storage is unavailable")
         if destination_key in self.objects:
             self.objects.pop(source_key, None)
+            self.contents.pop(source_key, None)
             return self.objects[destination_key]
         try:
             metadata = self.objects.pop(source_key)
@@ -79,6 +102,8 @@ class FakeStorageProvider(StorageProvider):
             raise StorageObjectNotFound(source_key) from None
         promoted = replace(metadata, object_key=destination_key)
         self.objects[destination_key] = promoted
+        if source_key in self.contents:
+            self.contents[destination_key] = self.contents.pop(source_key)
         return promoted
 
     async def delete(self, object_key: str) -> None:
@@ -86,6 +111,7 @@ class FakeStorageProvider(StorageProvider):
             raise StorageUnavailable("storage is unavailable")
         self.deleted.append(object_key)
         self.objects.pop(object_key, None)
+        self.contents.pop(object_key, None)
 
 
 @pytest.fixture

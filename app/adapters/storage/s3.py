@@ -1,10 +1,12 @@
 import asyncio
 import base64
 import hashlib
+from collections.abc import AsyncIterator
 from typing import Any
 
 from app.adapters.storage.base import (
     ObjectMetadata,
+    PresignedGet,
     PresignedPost,
     StorageObjectNotFound,
     StorageUnavailable,
@@ -111,6 +113,36 @@ class S3StorageProvider:
 
     async def stat(self, object_key: str) -> ObjectMetadata:
         return await asyncio.to_thread(self._stat_sync, object_key)
+
+    async def stream(self, object_key: str) -> AsyncIterator[bytes]:
+        try:
+            response = await asyncio.to_thread(
+                self._client.get_object,
+                Bucket=self._bucket,
+                Key=object_key,
+            )
+        except Exception as exc:
+            self._raise_provider_error(exc, object_key)
+        body = response["Body"]
+        try:
+            while chunk := await asyncio.to_thread(body.read, READ_CHUNK_BYTES):
+                yield chunk
+        except Exception as exc:
+            raise StorageUnavailable("Private object storage is unavailable") from exc
+        finally:
+            body.close()
+
+    async def presign_get(self, *, object_key: str, expires_in_seconds: int) -> PresignedGet:
+        try:
+            url = await asyncio.to_thread(
+                self._public_client.generate_presigned_url,
+                "get_object",
+                Params={"Bucket": self._bucket, "Key": object_key},
+                ExpiresIn=expires_in_seconds,
+            )
+        except Exception as exc:
+            raise StorageUnavailable("Private object storage is unavailable") from exc
+        return PresignedGet(url=str(url), expires_in_seconds=expires_in_seconds)
 
     def _promote_sync(self, source_key: str, destination_key: str) -> ObjectMetadata:
         try:

@@ -84,6 +84,10 @@ class Settings(BaseSettings):
     object_storage_secret_access_key: SecretStr | None = None
     object_storage_presign_ttl_seconds: int = 300
     object_storage_orphan_ttl_hours: int = 24
+    object_storage_download_ttl_seconds: int = 60
+    malware_scanner_host: str = ""
+    malware_scanner_port: int = 3310
+    malware_scanner_timeout_seconds: int = 30
     max_campaign_zone_area_sq_km: int = 5000
     max_location_pings_per_batch: int = 500
     location_ping_future_skew_seconds: int = 300
@@ -235,11 +239,17 @@ class Settings(BaseSettings):
             raise ValueError("MAX_CAMPAIGN_ZONE_AREA_SQ_KM must be positive")
         return value
 
-    @field_validator("object_storage_presign_ttl_seconds", "object_storage_orphan_ttl_hours")
+    @field_validator(
+        "object_storage_presign_ttl_seconds",
+        "object_storage_orphan_ttl_hours",
+        "object_storage_download_ttl_seconds",
+        "malware_scanner_port",
+        "malware_scanner_timeout_seconds",
+    )
     @classmethod
-    def validate_positive_object_storage_settings(cls, value: int) -> int:
+    def validate_positive_file_boundary_settings(cls, value: int) -> int:
         if value <= 0:
-            raise ValueError("Object storage time limits must be positive")
+            raise ValueError("File-boundary numeric settings must be positive")
         return value
 
     @field_validator(

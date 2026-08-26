@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -66,3 +67,30 @@ class StoredFileRead(BaseModel):
     checksum_sha256: str
     scan_status: FileScanStatus
     created_at: datetime
+
+
+class FileAccessPurpose(StrEnum):
+    CAMPAIGN_PREVIEW = "campaign_preview"
+    CREATIVE_REVIEW = "creative_review"
+    SECURITY_REVIEW = "security_review"
+    INCIDENT_RESPONSE = "incident_response"
+
+
+class FileDownloadRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    purpose: FileAccessPurpose
+    reason: str = Field(min_length=10, max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_reason(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if len(normalized) < 10:
+            raise ValueError("A specific file-access reason is required")
+        return normalized
+
+
+class FileDownloadRead(BaseModel):
+    url: str
+    expires_in_seconds: int

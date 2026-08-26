@@ -80,6 +80,11 @@ AUDITED = {
         "POST",
         "/api/v1/advertiser/files/uploads/{upload_id}/confirm",
     ): "stored_file.confirmed",
+    (
+        "POST",
+        "/api/v1/advertiser/files/{file_id}/download",
+    ): "stored_file.read",
+    ("POST", "/api/v1/admin/files/{file_id}/download"): "stored_file.read",
     ("PATCH", "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}"): (
         "advertiser.campaign_creative.updated"
     ),

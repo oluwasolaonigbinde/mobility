@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, status
 
 from app.api.v1.dependencies import (
+    AdminUserDependency,
     AdvertiserUserDependency,
     SessionDependency,
     SettingsDependency,
@@ -10,6 +11,8 @@ from app.api.v1.dependencies import (
 )
 from app.models.stored_file import StoredFile
 from app.schemas.stored_files import (
+    FileDownloadRead,
+    FileDownloadRequest,
     FileUploadCreate,
     FileUploadRead,
     PresignedPostRead,
@@ -19,6 +22,8 @@ from app.services.stored_files import (
     confirm_advertiser_upload,
     create_advertiser_upload_intent,
     get_advertiser_stored_file,
+    issue_admin_file_download,
+    issue_advertiser_file_download,
 )
 
 router = APIRouter(tags=["Files"])
@@ -88,4 +93,57 @@ async def get_file(
             actor_user_id=user.id,
             file_id=file_id,
         )
+    )
+
+
+@router.post(
+    "/advertiser/files/{file_id}/download",
+    response_model=FileDownloadRead,
+)
+async def download_advertiser_file(
+    file_id: UUID,
+    payload: FileDownloadRequest,
+    user: AdvertiserUserDependency,
+    session: SessionDependency,
+    storage: StorageDependency,
+    settings: SettingsDependency,
+) -> FileDownloadRead:
+    download = await issue_advertiser_file_download(
+        session,
+        actor_user_id=user.id,
+        file_id=file_id,
+        access_purpose=payload.purpose,
+        reason=payload.reason,
+        storage=storage,
+        settings=settings,
+    )
+    await session.commit()
+    return FileDownloadRead(
+        url=download.url,
+        expires_in_seconds=download.expires_in_seconds,
+    )
+
+
+@router.post("/admin/files/{file_id}/download", response_model=FileDownloadRead)
+async def download_admin_file(
+    file_id: UUID,
+    payload: FileDownloadRequest,
+    user: AdminUserDependency,
+    session: SessionDependency,
+    storage: StorageDependency,
+    settings: SettingsDependency,
+) -> FileDownloadRead:
+    download = await issue_admin_file_download(
+        session,
+        actor_user_id=user.id,
+        file_id=file_id,
+        access_purpose=payload.purpose,
+        reason=payload.reason,
+        storage=storage,
+        settings=settings,
+    )
+    await session.commit()
+    return FileDownloadRead(
+        url=download.url,
+        expires_in_seconds=download.expires_in_seconds,
     )

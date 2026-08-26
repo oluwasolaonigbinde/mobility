@@ -7658,6 +7658,54 @@
         "title": "EstimateImpressionsRequest",
         "type": "object"
       },
+      "FileAccessPurpose": {
+        "enum": [
+          "campaign_preview",
+          "creative_review",
+          "security_review",
+          "incident_response"
+        ],
+        "title": "FileAccessPurpose",
+        "type": "string"
+      },
+      "FileDownloadRead": {
+        "properties": {
+          "expires_in_seconds": {
+            "title": "Expires In Seconds",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expires_in_seconds"
+        ],
+        "title": "FileDownloadRead",
+        "type": "object"
+      },
+      "FileDownloadRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "purpose": {
+            "$ref": "#/components/schemas/FileAccessPurpose"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "purpose",
+          "reason"
+        ],
+        "title": "FileDownloadRequest",
+        "type": "object"
+      },
       "FilePurpose": {
         "enum": [
           "creative"
@@ -7670,6 +7718,7 @@
           "pending",
           "clean",
           "infected",
+          "rejected",
           "error"
         ],
         "title": "FileScanStatus",
@@ -17541,6 +17590,64 @@
         ]
       }
     },
+    "/api/v1/admin/files/{file_id}/download": {
+      "post": {
+        "operationId": "download_admin_file_api_v1_admin_files__file_id__download_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "file_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "File Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileDownloadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileDownloadRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Download Admin File",
+        "tags": [
+          "Files"
+        ]
+      }
+    },
     "/api/v1/admin/fraud-disputes": {
       "get": {
         "operationId": "admin_get_fraud_disputes_api_v1_admin_fraud_disputes_get",
@@ -23830,6 +23937,64 @@
           }
         ],
         "summary": "Get File",
+        "tags": [
+          "Files"
+        ]
+      }
+    },
+    "/api/v1/advertiser/files/{file_id}/download": {
+      "post": {
+        "operationId": "download_advertiser_file_api_v1_advertiser_files__file_id__download_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "file_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "File Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileDownloadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileDownloadRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Download Advertiser File",
         "tags": [
           "Files"
         ]

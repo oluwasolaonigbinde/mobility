@@ -30,6 +30,7 @@ from app.jobs import data_lifecycle as data_lifecycle_jobs
 from app.jobs import disclosure_retention as disclosure_retention_jobs
 from app.jobs import earnings_release as earnings_release_jobs
 from app.jobs import file_lifecycle as file_lifecycle_jobs
+from app.jobs import file_scanning as file_scanning_jobs
 from app.jobs import payment_gateway as payment_gateway_jobs
 from app.jobs import trip_processing as jobs
 from app.jobs.worker import WorkerSettings, sweep_cron_minutes
@@ -63,7 +64,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert gateway.name == "process_payment_gateway_event"
     assert gateway.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 11
+    assert len(WorkerSettings.cron_jobs) == 12
     cron_job = WorkerSettings.cron_jobs[0]
     assert isinstance(cron_job, CronJob)
     assert cron_job.coroutine is jobs.process_unprocessed_trips
@@ -104,7 +105,13 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert activity_sweep.unique is True
     assert activity_sweep.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
-    lifecycle_crons = {cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[6:]}
+    scan_sweep = WorkerSettings.cron_jobs[6]
+    assert isinstance(scan_sweep, CronJob)
+    assert scan_sweep.coroutine is file_scanning_jobs.scan_pending_files
+    assert scan_sweep.unique is True
+    assert scan_sweep.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
+
+    lifecycle_crons = {cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[7:]}
     assert set(lifecycle_crons) == {
         data_lifecycle_jobs.premake_ping_partitions,
         data_lifecycle_jobs.check_ping_partition_coverage,
@@ -247,9 +254,7 @@ def test_activity_worker_set_failure_retries_without_duplicate_events_or_notices
         async with db_sessionmaker() as session:
             return (
                 await session.scalar(select(func.count()).select_from(AssignmentActivityFlag)),
-                await session.scalar(
-                    select(func.count()).select_from(AssignmentActivityFlagEvent)
-                ),
+                await session.scalar(select(func.count()).select_from(AssignmentActivityFlagEvent)),
                 await session.scalar(select(func.count()).select_from(Notification)),
             )
 
