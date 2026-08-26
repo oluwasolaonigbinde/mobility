@@ -63,9 +63,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 clarification corrects the prior false pause: missing production storage,
 scanner, KMS, email and phone inputs remain explicit live/deployment gates but
 do not block provider-neutral/local/synthetic implementation under D23.
-**Current checkpoint:** `PKG-04 / W2-03D` — build the single atomic activation
-command over the completed funding, campaign/creative review and assignment-
-bound installation-evidence authorities. No production storage/scanner/KMS
+**Current checkpoint:** `PKG-04 / W2-03E` — build governed effective-dated
+mid-flight campaign changes over the completed atomic activation and funded-
+liability authorities. No production storage/scanner/KMS
 provider, custodian, live
 creative/KYC/evidence approval, launch, live KYC, real-GPS, external-staging,
 physical-device or pilot evidence is claimed.
@@ -604,6 +604,23 @@ physical-device or pilot evidence is claimed.
   owns missed/periodic challenges and spot checks. No production policy,
   physical-device, real-route, live-staging, launch, earning or pilot evidence
   is claimed.
+- **W2-03D checkpoint evidence (26 Aug 2026):** the existing named admin
+  activation command now holds the shared commercial-authority lock and stable
+  campaign→assignment→driver→vehicle rows while rechecking campaign review,
+  current accepted creative/offer/binding, funded liability reserve, valid
+  production and new-work authority, approved installation evidence and vehicle
+  exclusivity. The status change, timestamp, audit and canonical digest-bound
+  activation snapshot share one transaction and the existing append-only
+  activation-event authority; exact active retries recheck current gates and
+  converge without another event. Trip start requires the snapshot and still
+  independently rechecks current financial authority and display proof. The
+  pre-build all-gates regression returned the prior 409 placeholder, then
+  passed after implementation; a real synthetic admin activation→driver trip
+  flow passes. Real PostgreSQL proves activation commits before a waiting cash
+  reversal cutoff, after which new work fails closed, and preserves existing
+  cancel/deactivate/trip serialization. No migration or §9 shape change was
+  required. This is provider-neutral build evidence only: no live funding,
+  production start, installation approval, route, earning or pilot claim.
 - **Corrected-authority seam evidence (24 Aug 2026):** Package 4 migration
   `0043` now descends from Package 3 head `0042`. The adopted Package 3
   campaign/terms currency lock initially exposed one stale-update ordering
@@ -1060,7 +1077,7 @@ verification, gates or required specialist review.
 | 33 | **W2-03A — campaign submission and approval** | PKG-04 | DONE | Advertiser submits; admin approves/rejects; unapproved campaigns cannot schedule. | none |
 | 34 | **W2-03B — creative review gate** | PKG-04 | DONE | Only admin-approved, scan-cleared creative can satisfy campaign launch. | leaf: W2-02C |
 | 35 | **W2-03C — installation evidence and proof-of-display** | PKG-04 | DONE | Assignment-bound evidence and nonce proof gate earning eligibility. | leaf: W2-02B |
-| 36 | **W2-03D — atomic activation** | PKG-04 | TODO | One admin command locks/rechecks every commercial and operational prerequisite, including valid standard-wait or expedited-waiver production authority. | leaf: W2-00C, W2-01A, W2-01B, W2-03A, W2-03B, W2-03C |
+| 36 | **W2-03D — atomic activation** | PKG-04 | DONE | One admin command locks/rechecks every commercial and operational prerequisite, including valid standard-wait or expedited-waiver production authority. | leaf: W2-00C, W2-01A, W2-01B, W2-03A, W2-03B, W2-03C |
 | 37 | **W2-03E — governed mid-flight changes** | PKG-04 | TODO | Expansions honor funded headroom; reductions need approval and effective revisions. | leaf: W2-00A, W2-00C, W2-03D |
 | 38 | **W2-03F — cancellation cutoff and settlement** | PKG-04 | TODO | One idempotent cutoff stops new work, clips pay and applies the standard-boundary or actual-waived-start refund rule. | leaf: W2-01D, W2-03D, MNY-11A |
 | 39 | **W2-03G — proof challenges and spot checks** | PKG-04 | TODO | Missed challenges and physical verification feed the authoritative fraud hold. | leaf: MNY-09A, W2-03C, W2-03D |

@@ -521,14 +521,6 @@ async def admin_activate_campaign_assignment(
         payload=payload,
         settings=settings,
     )
-    await create_audit_event(
-        session,
-        actor_user_id=current_user.id,
-        action="admin.campaign_assignment.activated",
-        entity_type="campaign_assignment",
-        entity_id=str(assignment.id),
-        metadata={"campaign_id": str(assignment.campaign_id)},
-    )
     await session.commit()
     return await assignment_response(
         session, assignment, include_events=True, include_activity_flags=True

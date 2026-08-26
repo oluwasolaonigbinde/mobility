@@ -1,5 +1,6 @@
 # ruff: noqa: E402
 import asyncio
+import hashlib
 import json
 import os
 from collections.abc import Generator
@@ -34,6 +35,7 @@ from app.models.campaign import (
 )
 from app.models.campaign_assignment import (
     CampaignActivationEvent,
+    CampaignActivationEventType,
     CampaignAssignment,
     CampaignAssignmentStatus,
 )
@@ -511,6 +513,76 @@ def create_test_campaign_assignment(
     return asyncio.run(create())
 
 
+def create_test_activation_snapshot(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    assignment_id: UUID,
+    actor_user_id: UUID,
+) -> CampaignActivationEvent | None:
+    """Seed explicit synthetic W2-03D authority for active test assignments."""
+
+    async def create() -> CampaignActivationEvent | None:
+        async with db_sessionmaker() as session:
+            assignment = await session.get(CampaignAssignment, assignment_id)
+            assert assignment is not None
+            if assignment.status != CampaignAssignmentStatus.ACTIVE.value:
+                return None
+            existing = await session.scalar(
+                select(CampaignActivationEvent).where(
+                    CampaignActivationEvent.assignment_id == assignment.id,
+                    CampaignActivationEvent.event_type
+                    == CampaignActivationEventType.ACTIVATED.value,
+                )
+            )
+            if existing is not None:
+                return existing
+            activated_at = assignment.activated_at or datetime.now(UTC)
+            assignment.activated_at = activated_at
+            normalized_activated_at = (
+                activated_at.replace(tzinfo=UTC)
+                if activated_at.tzinfo is None
+                else activated_at.astimezone(UTC)
+            )
+            snapshot = {
+                "version": "assignment-activation-v1",
+                "assignment_id": str(assignment.id),
+                "campaign_id": str(assignment.campaign_id),
+                "driver_profile_id": str(assignment.driver_profile_id),
+                "vehicle_id": str(assignment.vehicle_id),
+                "offer_terms_sha256": assignment.offer_terms_sha256,
+                "activated_at": normalized_activated_at.isoformat(),
+                "synthetic_test": True,
+            }
+            canonical = json.dumps(
+                snapshot,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            )
+            event = CampaignActivationEvent(
+                assignment_id=assignment.id,
+                actor_user_id=actor_user_id,
+                event_type=CampaignActivationEventType.ACTIVATED.value,
+                previous_status=CampaignAssignmentStatus.ACCEPTED.value,
+                new_status=CampaignAssignmentStatus.ACTIVE.value,
+                occurred_at=activated_at,
+                event_metadata={
+                    "activation_snapshot": snapshot,
+                    "activation_snapshot_sha256": hashlib.sha256(
+                        canonical.encode("utf-8")
+                    ).hexdigest(),
+                    "synthetic_test": True,
+                },
+                offer_terms_sha256=assignment.offer_terms_sha256,
+            )
+            session.add(event)
+            await session.commit()
+            await session.refresh(event)
+            return event
+
+    return asyncio.run(create())
+
+
 def create_test_display_proof(
     db_sessionmaker: async_sessionmaker[AsyncSession],
     *,
@@ -627,7 +699,13 @@ def create_test_display_proof(
             await session.refresh(proof)
             return proof
 
-    return asyncio.run(create())
+    proof = asyncio.run(create())
+    create_test_activation_snapshot(
+        db_sessionmaker,
+        assignment_id=assignment_id,
+        actor_user_id=reviewed_by_user_id,
+    )
+    return proof
 
 
 def create_test_trip_session(

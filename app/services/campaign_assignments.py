@@ -12,11 +12,13 @@ from starlette import status
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
 from app.db.integrity import integrity_constraint_name
+from app.models.billing import CampaignLiabilityReservation, ProductionStart
 from app.models.campaign import (
     Campaign,
     CampaignCreative,
     CampaignReviewEvent,
     CampaignStatus,
+    CreativeReviewEvent,
     CreativeStatus,
 )
 from app.models.campaign_assignment import (
@@ -91,6 +93,7 @@ TERMINAL_DECISION_STATUSES = {
 
 OFFER_TERMS_VERSION = "campaign-assignment-offer-v1"
 PAYOUT_V3 = "payout_v3"
+ACTIVATION_SNAPSHOT_VERSION = "assignment-activation-v1"
 
 
 class OfferExpiredError(AppError):
@@ -243,7 +246,7 @@ def ensure_campaign_acceptable(campaign: Campaign, now: datetime) -> None:
 async def ensure_campaign_review_approved(
     session: AsyncSession,
     campaign_id: UUID,
-) -> None:
+) -> CampaignReviewEvent:
     """Require the built admin campaign-review authority before activation."""
     approved = await session.scalar(
         select(CampaignReviewEvent)
@@ -261,6 +264,87 @@ async def ensure_campaign_review_approved(
             "An approved campaign review is required before assignment activation",
             status_code=status.HTTP_409_CONFLICT,
         )
+    return approved
+
+
+def activation_snapshot_digest(snapshot: dict[str, object]) -> str:
+    canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _activation_snapshot_error() -> AppError:
+    return AppError(
+        "VALID_ACTIVATION_SNAPSHOT_REQUIRED",
+        "A valid immutable admin activation snapshot is required before earning can start",
+        status_code=status.HTTP_409_CONFLICT,
+    )
+
+
+async def ensure_current_activation_snapshot(
+    session: AsyncSession,
+    *,
+    assignment: CampaignAssignment,
+    lock: bool = False,
+) -> dict[str, object]:
+    query = (
+        select(CampaignActivationEvent)
+        .where(
+            CampaignActivationEvent.assignment_id == assignment.id,
+            CampaignActivationEvent.event_type == CampaignActivationEventType.ACTIVATED.value,
+        )
+        .order_by(
+            CampaignActivationEvent.occurred_at.desc(),
+            CampaignActivationEvent.id.desc(),
+        )
+        .limit(1)
+    )
+    if lock:
+        query = query.with_for_update()
+    event = await session.scalar(query)
+    if event is None or assignment.status != CampaignAssignmentStatus.ACTIVE.value:
+        raise _activation_snapshot_error()
+    snapshot = event.event_metadata.get("activation_snapshot")
+    digest = event.event_metadata.get("activation_snapshot_sha256")
+    if not isinstance(snapshot, dict) or not isinstance(digest, str):
+        raise _activation_snapshot_error()
+    if activation_snapshot_digest(snapshot) != digest:
+        raise _activation_snapshot_error()
+    activated_at = assignment.activated_at
+    expected = {
+        "version": ACTIVATION_SNAPSHOT_VERSION,
+        "assignment_id": str(assignment.id),
+        "campaign_id": str(assignment.campaign_id),
+        "driver_profile_id": str(assignment.driver_profile_id),
+        "vehicle_id": str(assignment.vehicle_id),
+        "offer_terms_sha256": assignment.offer_terms_sha256,
+        "activated_at": (
+            as_aware_utc(activated_at).isoformat() if activated_at is not None else None
+        ),
+    }
+    if any(snapshot.get(key) != value for key, value in expected.items()):
+        raise _activation_snapshot_error()
+    if event.offer_terms_sha256 != assignment.offer_terms_sha256:
+        raise _activation_snapshot_error()
+    return snapshot
+
+
+async def activation_production_start(
+    session: AsyncSession,
+    *,
+    campaign_id: UUID,
+) -> ProductionStart:
+    production_start = await session.scalar(
+        select(ProductionStart)
+        .where(ProductionStart.campaign_id == campaign_id)
+        .with_for_update()
+    )
+    if production_start is None:
+        raise AppError(
+            "PRODUCTION_FINANCIAL_AUTHORITY_REQUIRED",
+            "Campaign activation requires a recorded production start",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    return production_start
 
 
 def ensure_campaign_activatable(campaign: Campaign, now: datetime) -> None:
@@ -323,6 +407,7 @@ async def create_activation_event(
         CampaignActivationEventType.ACCEPTED,
         CampaignActivationEventType.DECLINED,
         CampaignActivationEventType.EXPIRED,
+        CampaignActivationEventType.ACTIVATED,
     }:
         evidence_sha256 = assignment.offer_terms_sha256
         if evidence_sha256 is not None:
@@ -1611,11 +1696,12 @@ async def activate_admin_assignment(
     assert assignment is not None
     if assignment.status not in {
         CampaignAssignmentStatus.ACCEPTED.value,
+        CampaignAssignmentStatus.ACTIVE.value,
         CampaignAssignmentStatus.DEACTIVATED.value,
     }:
         raise AppError(
             "INVALID_ASSIGNMENT_TRANSITION",
-            "Only accepted or deactivated assignments can be activated",
+            "Only accepted, active or deactivated assignments can be activated",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     driver_profile = await session.scalar(
@@ -1643,7 +1729,7 @@ async def activate_admin_assignment(
     ensure_active_driver_profile(driver_profile)
     ensure_active_vehicle(vehicle)
     ensure_vehicle_belongs_to_driver(vehicle, driver_profile)
-    await ensure_campaign_review_approved(session, campaign.id)
+    campaign_review = await ensure_campaign_review_approved(session, campaign.id)
     if not _offer_terms_complete(assignment.offer_terms, assignment.offer_terms_sha256):
         raise AppError(
             "FROZEN_OFFER_TERMS_REQUIRED",
@@ -1685,6 +1771,16 @@ async def activate_admin_assignment(
             "The selected campaign creative changed after the offer was accepted",
             status_code=status.HTTP_409_CONFLICT,
         )
+    creative_review = await session.scalar(
+        select(CreativeReviewEvent)
+        .where(
+            CreativeReviewEvent.creative_id == creative.id,
+            CreativeReviewEvent.new_status == CreativeStatus.APPROVED.value,
+        )
+        .order_by(CreativeReviewEvent.created_at.desc(), CreativeReviewEvent.id.desc())
+        .limit(1)
+        .with_for_update()
+    )
     binding = await session.scalar(
         select(AssignmentRuleBinding)
         .where(AssignmentRuleBinding.assignment_id == assignment.id)
@@ -1707,33 +1803,113 @@ async def activate_admin_assignment(
             "The payout binding is not linked to the accepted offer evidence",
             status_code=status.HTTP_409_CONFLICT,
         )
-    reservation = await reserve_assignment_liability(
-        session, assignment_id=assignment.id, actor_user_id=admin_user_id
-    )
+    if assignment.status == CampaignAssignmentStatus.ACTIVE.value:
+        reservation = await session.scalar(
+            select(CampaignLiabilityReservation)
+            .where(CampaignLiabilityReservation.assignment_id == assignment.id)
+            .with_for_update()
+        )
+        if reservation is None:
+            reservation = await reserve_assignment_liability(
+                session, assignment_id=assignment.id, actor_user_id=admin_user_id
+            )
+    else:
+        reservation = await reserve_assignment_liability(
+            session, assignment_id=assignment.id, actor_user_id=admin_user_id
+        )
+    if reservation is None:
+        raise AppError(
+            "ASSIGNMENT_FUNDING_REQUIRED",
+            "Campaign funding must reserve this assignment before activation",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     if reservation.status != "reserved":
         raise AppError(
             "ASSIGNMENT_FUNDING_REQUIRED",
             "Campaign funding must reserve this assignment before activation",
             status_code=status.HTTP_409_CONFLICT,
         )
-    await assert_campaign_production_authorized(session, campaign_id=campaign.id)
+    authorization = await assert_campaign_production_authorized(
+        session, campaign_id=campaign.id
+    )
     await assert_new_work_authorized(
         session, campaign_id=campaign.id, assignment_id=assignment.id
     )
-    await ensure_current_approved_installation_evidence(
+    evidence = await ensure_current_approved_installation_evidence(
         session,
         assignment=assignment,
         settings=settings,
         now=now,
         lock=True,
     )
-    # W2-03C installs and rechecks the evidence authority. W2-03D still owns
-    # the single atomic activation command and immutable launch snapshot.
-    raise AppError(
-        "ACTIVATION_APPROVAL_GATES_UNAVAILABLE",
-        "Activation is unavailable until the atomic activation authority is installed",
-        status_code=status.HTTP_409_CONFLICT,
+    if assignment.status == CampaignAssignmentStatus.ACTIVE.value:
+        await ensure_current_activation_snapshot(session, assignment=assignment, lock=True)
+        return assignment
+
+    await ensure_no_other_active_assignment_for_vehicle(
+        session,
+        vehicle_id=assignment.vehicle_id,
+        assignment_id=assignment.id,
     )
+    production_start = await activation_production_start(
+        session,
+        campaign_id=campaign.id,
+    )
+    previous_status = assignment.status
+    assignment.status = CampaignAssignmentStatus.ACTIVE.value
+    assignment.activated_at = now
+    snapshot: dict[str, object] = {
+        "version": ACTIVATION_SNAPSHOT_VERSION,
+        "assignment_id": str(assignment.id),
+        "campaign_id": str(campaign.id),
+        "driver_profile_id": str(driver_profile.id),
+        "vehicle_id": str(vehicle.id),
+        "offer_terms_sha256": assignment.offer_terms_sha256,
+        "campaign_review_event_id": str(campaign_review.id),
+        "creative_id": str(creative.id),
+        "creative_review_event_id": (
+            str(creative_review.id) if creative_review is not None else None
+        ),
+        "assignment_rule_binding_id": str(binding.id),
+        "liability_reservation_id": str(reservation.id),
+        "financial_authorization_id": str(authorization.id),
+        "production_start_id": str(production_start.id),
+        "production_authority_basis": production_start.authority_basis,
+        "production_waiver_id": (
+            str(production_start.waiver_id)
+            if production_start.waiver_id is not None
+            else None
+        ),
+        "installation_evidence_submission_id": str(evidence.id),
+        "installation_evidence_revision": evidence.revision,
+        "activated_at": as_aware_utc(now).isoformat(),
+    }
+    event_metadata = dict(payload.metadata)
+    event_metadata["activation_snapshot"] = snapshot
+    event_metadata["activation_snapshot_sha256"] = activation_snapshot_digest(snapshot)
+    await flush_translating_exclusivity_conflict(session)
+    await create_activation_event(
+        session,
+        assignment=assignment,
+        actor_user_id=admin_user_id,
+        event_type=CampaignActivationEventType.ACTIVATED,
+        previous_status=previous_status,
+        metadata=event_metadata,
+        occurred_at=now,
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=admin_user_id,
+        action="admin.campaign_assignment.activated",
+        entity_type="campaign_assignment",
+        entity_id=str(assignment.id),
+        metadata={
+            "campaign_id": str(campaign.id),
+            "activation_snapshot_sha256": event_metadata["activation_snapshot_sha256"],
+        },
+    )
+    await session.refresh(assignment)
+    return assignment
 
 
 async def deactivate_driver_assignment(

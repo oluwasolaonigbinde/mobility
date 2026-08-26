@@ -17,7 +17,7 @@ from conftest import (
     fetch_location_pings,
     fetch_trip_sessions,
 )
-from sqlalchemy import text
+from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status as http_status
 from test_payouts_v2 import create_v2_rule
@@ -25,7 +25,11 @@ from test_payouts_v3 import create_revision_row
 
 from app.models.billing import AcceptanceMethod, PaymentClass, QuoteRequestSource
 from app.models.campaign import Campaign, CampaignStatus
-from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
+from app.models.campaign_assignment import (
+    CampaignActivationEvent,
+    CampaignAssignment,
+    CampaignAssignmentStatus,
+)
 from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.payout import AssignmentRuleBinding
 from app.models.trip import TripSessionStatus
@@ -354,6 +358,28 @@ def test_driver_can_start_get_current_read_and_end_trip(db_client, db_sessionmak
     trips = fetch_trip_sessions(db_sessionmaker)
     assert trips[0].started_by_user_id == driver.id
     assert trips[0].status == TripSessionStatus.ENDED.value
+
+
+def test_trip_start_fails_closed_without_immutable_activation_snapshot(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    _, _, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
+
+    async def remove_snapshot() -> None:
+        async with db_sessionmaker() as session:
+            await session.execute(
+                delete(CampaignActivationEvent).where(
+                    CampaignActivationEvent.assignment_id == assignment.id,
+                    CampaignActivationEvent.event_type == "activated",
+                )
+            )
+            await session.commit()
+
+    asyncio.run(remove_snapshot())
+    response = start_trip(db_client, assignment.id)
+    assert response.status_code == http_status.HTTP_409_CONFLICT
+    assert response.json()["error"]["code"] == "VALID_ACTIVATION_SNAPSHOT_REQUIRED"
 
 
 def test_trip_start_validates_assignment_campaign_driver_vehicle_and_uniqueness(

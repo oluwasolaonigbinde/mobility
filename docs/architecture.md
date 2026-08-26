@@ -1404,10 +1404,10 @@ nothing.
 
 ## 18. Approval workflows
 
-Q6, Q15, Q17 and Q18 are client-confirmed. Campaign and creative review are
-[BUILT] through W2-03B; installation evidence and atomic activation remain
-[TARGET] and must honour RM12/RM13's funded-liability, evidence and atomic-
-activation contracts.
+Q6, Q15, Q17 and Q18 are client-confirmed. Campaign and creative review,
+installation evidence and atomic assignment activation are [BUILT] through
+W2-03D and honour RM12/RM13's funded-liability, evidence and atomic-activation
+contracts.
 
 - **Campaign approval [BUILT — W2-03A]:** the campaign status enum and typed
   consumers include `pending_review`, `approved` and `rejected`. Dedicated,
@@ -1449,9 +1449,26 @@ activation contracts.
   bound to the same assignment, campaign, driver, vehicle, device and evidence
   revision. Trip start rechecks freshness and stores the exact proof ID. Missing
   policy, approval or proof fails closed. This is a predicate on activation and
-  earning, not a parallel assignment state machine; W2-03D still owns the one
-  atomic activation command and snapshot, and W2-03G owns recurring/missed
+  earning, not a parallel assignment state machine; W2-03D consumes it in the
+  one atomic activation command and snapshot, and W2-03G owns recurring/missed
   challenges and physical spot checks.
+- **Atomic assignment activation [BUILT — W2-03D] (Q15/Q24):** the existing
+  admin-only command owns the final transition. Under the shared commercial
+  advisory lock it takes stable campaign, assignment, driver and vehicle row
+  locks and re-reads the approved campaign, exact accepted creative/offer and
+  payout binding, funded liability reservation, current standard-wait,
+  expedited-waiver or approved-credit production authority, current new-work
+  authority, approved assignment-bound evidence and vehicle exclusivity. Only
+  then does one transaction set `active`/`activated_at`, append the activation
+  event and audit, and store a canonical digest-bound snapshot naming every
+  authority used. The existing activation-event append-only trigger makes that
+  snapshot immutable, so no new table or migration is needed. An exact retry
+  on an already-active assignment rechecks current gates and returns the same
+  activation without duplicating the event. Trip start requires a valid
+  snapshot and still independently rechecks current financial authority and
+  fresh proof; receipt reversal uses the same lock chronology and therefore
+  either follows a committed activation cutoff or makes new work fail closed.
+  W2-03F still owns the later explicit cancellation cutoff/settlement command.
 - Admin UI: one **approvals queue** section listing pending campaigns,
   creatives, and activation evidence (§27).
 
@@ -2450,6 +2467,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.63 | 2026-08-26 | **W2-03D atomic assignment activation delivered over the completed commercial, review and evidence authorities.** The admin command now serializes on the shared campaign authority and stable assignment/driver/vehicle rows, rechecks the exact approved campaign/creative/offer/binding, funded reserve, current production/new-work authority, evidence and vehicle exclusivity, then atomically records active state, timestamp, audit and a canonical digest-bound snapshot in the existing append-only activation event. Exact active retries recheck and converge; trip start requires the immutable snapshot plus current financial authority and proof. The prior all-gates 409 placeholder was observed red, a real synthetic admin→driver trip flow passes, and PostgreSQL proves activation-before-reversal chronology followed by fail-closed new work. No migration or §9 shape changed, and no live funding, production, approval, route, earning or pilot evidence is claimed; W2-03E is next. |
 | v1.62 | 2026-08-26 | **W2-03C assignment-bound installation evidence and start-of-shift display proof delivered without inventing production policy.** Migration `0057` adds immutable evidence revisions/photos, serialized admin review/expiry, digest-only one-use challenges, immutable fresh proofs and an exact proof FK on trip sessions while extending the shared subject-scoped scanned-file authority. Submission and approval recheck configured views, assignment/vehicle/driver/device identity and exact clean images; changed retry, cross-driver file, stale evidence, pre-challenge photo, device mismatch and nonce replay fail closed. Driver capture/proof surfaces and the combined admin queue use same-origin BFFs and audited purpose-scoped reads. Real PostgreSQL proves concurrent nonce single-winner behavior and populated migration/append-only controls; focused backend, frontend, contract, type/lint/build checks pass. Production uploader/views/renewal/proof values remain `EXT-EVIDENCE-POLICY` MISSING; W2-03D still owns atomic activation and W2-03G recurring challenges/spot checks, with no physical-device, real-route, launch, earning or pilot claim. |
 | v1.61 | 2026-08-26 | **W2-03B managed-creative review gate delivered over the existing private upload/scanner foundation.** Migration `0056` adds governed pending/approved/rejected states plus append-only exact-submission snapshots while retaining legacy `ready` only for compatibility. Advertiser writes cannot self-approve, pending/approved definitions freeze, rejected definitions can be corrected and resubmitted, and admin approve/reject decisions serialize under stable locks with reasoned audit and tenant-safe history. Approval rechecks the exact clean managed file. Offer creation and activation now require `approved`, so legacy `ready`, rejected, replaced or unsafe assets fail closed. The combined admin approvals page and advertiser detail surface expose the flow. Focused API/service/assignment/audit checks, a real PostgreSQL opposite-decision race, populated migration round trips, synchronized §9 contracts and frontend tests/type/lint/build pass. Production storage/scanner/KMS inputs remain MISSING, installation evidence/atomic activation remain W2-03C/D, and no live approval, launch, device, route or pilot evidence is claimed. |
 | v1.60 | 2026-08-26 | **W2-02E file/KYC lifecycle and incident operations delivered without inventing a legal retention period or production provider.** Terminal rejected/expired KYC and vehicle-evidence submissions are selected by an optional approved retention setting, planned through a dry-run-first active-admin API, and purged under one PostgreSQL advisory lock. Document links are removed before an unreferenced private object and its intent; shared campaign/KYC files survive, storage failure rolls database deletion back, and each submission/file/run is redacted and audited. The scheduled worker remains visibly disabled while `FILE_KYC_RETENTION_DAYS` is absent. Scanner, storage and key-custody outages remain fail closed, with bounded recovery guidance in the operations runbook. Session refresh, driver profile update and assignment accept/decline/deactivate close the five registered audit gaps without retry amplification. Focused API/service/worker/audit/contract checks and a real PostgreSQL concurrent-purge proof pass. `EXT-LEGAL-PRIVACY`, `EXT-STORAGE-PROVIDER`, `EXT-MALWARE-SCANNER` and `EXT-KMS-CUSTODY` remain MISSING; no live retention, provider, identity or pilot validation is claimed. |

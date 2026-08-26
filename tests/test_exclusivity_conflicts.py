@@ -392,9 +392,8 @@ def test_cancel_and_trip_start_serialize_postgres(
     assert "cancelled" in outcomes
     assert "started" in outcomes or "CAMPAIGN_ASSIGNMENT_NOT_ACTIVE" in outcomes
     events = fetch_activation_events(postgis_db_sessionmaker)
-    assert len(events) == 1
-    assert events[0].event_type == "cancelled"
-    assert events[0].previous_status == CampaignAssignmentStatus.ACTIVE.value
+    assert [event.event_type for event in events] == ["activated", "cancelled"]
+    assert events[-1].previous_status == CampaignAssignmentStatus.ACTIVE.value
 
 
 def test_deactivation_and_funded_trip_start_serialize_postgres(
@@ -463,9 +462,8 @@ def test_deactivation_and_funded_trip_start_serialize_postgres(
     assert "deactivated" in outcomes
     assert "started" in outcomes or "CAMPAIGN_ASSIGNMENT_NOT_ACTIVE" in outcomes
     events = fetch_activation_events(postgis_db_sessionmaker)
-    assert len(events) == 1
-    assert events[0].event_type == "deactivated"
-    assert events[0].previous_status == CampaignAssignmentStatus.ACTIVE.value
+    assert [event.event_type for event in events] == ["activated", "deactivated"]
+    assert events[-1].previous_status == CampaignAssignmentStatus.ACTIVE.value
 
 
 def test_lost_create_race_returns_duplicate_assignment_envelope(

@@ -40,6 +40,7 @@ from app.services.campaign_assignments import (
     as_aware_utc,
     ensure_active_driver_profile,
     ensure_active_vehicle,
+    ensure_current_activation_snapshot,
     ensure_vehicle_belongs_to_driver,
     get_driver_profile_for_user,
 )
@@ -256,6 +257,7 @@ async def start_driver_trip(
     await assert_new_work_authorized(
         session, campaign_id=campaign.id, assignment_id=assignment.id
     )
+    await ensure_current_activation_snapshot(session, assignment=assignment, lock=True)
     await ensure_no_active_trip_for_driver_or_vehicle(
         session,
         driver_profile_id=driver_profile.id,
