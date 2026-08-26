@@ -691,6 +691,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/evidence-verifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List recurring challenges and physical spot checks */
+        get: operations["admin_evidence_verifications_api_v1_admin_evidence_verifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/evidence-verifications/physical-spot-checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Queue an assignment-bound physical spot check */
+        post: operations["admin_queue_physical_spot_check_api_v1_admin_evidence_verifications_physical_spot_checks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/evidence-verifications/{verification_id}/physical-spot-check-result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record an audited physical spot-check result */
+        post: operations["admin_resolve_physical_spot_check_api_v1_admin_evidence_verifications__verification_id__physical_spot_check_result_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/files/{file_id}/download": {
         parameters: {
             query?: never;
@@ -2796,6 +2847,23 @@ export interface paths {
         };
         /** Read current driver earnings summary */
         get: operations["driver_get_earnings_summary_api_v1_driver_earnings_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/evidence-verifications/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List current driver's pending evidence verifications */
+        get: operations["driver_pending_evidence_verifications_api_v1_driver_evidence_verifications_pending_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6357,6 +6425,79 @@ export interface components {
             /** Traffic Density Profile Id */
             traffic_density_profile_id?: string | null;
         };
+        /** EvidenceVerificationList */
+        EvidenceVerificationList: {
+            /** Items */
+            items: components["schemas"]["EvidenceVerificationRead"][];
+        };
+        /** EvidenceVerificationRead */
+        EvidenceVerificationRead: {
+            /**
+             * Assignment Id
+             * Format: uuid
+             */
+            assignment_id: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Display Proof Id */
+            display_proof_id: string | null;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /** Due At */
+            due_at: string | null;
+            /** Fraud Flag Id */
+            fraud_flag_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+            /** Issued By User Id */
+            issued_by_user_id: string | null;
+            /** Metadata */
+            metadata: {
+                [key: string]: unknown;
+            };
+            /** Resolved At */
+            resolved_at: string | null;
+            /** Resolved By User Id */
+            resolved_by_user_id: string | null;
+            /** Result Note */
+            result_note: string | null;
+            /**
+             * Source Trip Session Id
+             * Format: uuid
+             */
+            source_trip_session_id: string;
+            status: components["schemas"]["EvidenceVerificationStatus"];
+            /**
+             * Vehicle Id
+             * Format: uuid
+             */
+            vehicle_id: string;
+            verification_type: components["schemas"]["EvidenceVerificationType"];
+        };
+        /**
+         * EvidenceVerificationStatus
+         * @enum {string}
+         */
+        EvidenceVerificationStatus: "pending" | "satisfied" | "missed" | "passed" | "failed";
+        /**
+         * EvidenceVerificationType
+         * @enum {string}
+         */
+        EvidenceVerificationType: "high_earner_renewal" | "concurrent_session" | "physical_spot_check";
         /**
          * FileAccessPurpose
          * @enum {string}
@@ -6675,7 +6816,7 @@ export interface components {
          * FraudFlagType
          * @enum {string}
          */
-        FraudFlagType: "insufficient_pings" | "impossible_speed" | "poor_accuracy" | "stationary_trip" | "excessive_ping_gap" | "future_timestamp" | "route_looping" | "route_replay" | "exclusion_zone_presence";
+        FraudFlagType: "insufficient_pings" | "impossible_speed" | "poor_accuracy" | "stationary_trip" | "excessive_ping_gap" | "future_timestamp" | "route_looping" | "route_replay" | "exclusion_zone_presence" | "missed_display_challenge" | "concurrent_session_day" | "physical_spot_check_failed";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -7936,6 +8077,44 @@ export interface components {
              */
             id: string;
             status: components["schemas"]["EarningsLedgerEntryStatus"];
+        };
+        /** PhysicalSpotCheckCreate */
+        PhysicalSpotCheckCreate: {
+            /**
+             * Assignment Id
+             * Format: uuid
+             */
+            assignment_id: string;
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Note */
+            note: string;
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
+        };
+        /** PhysicalSpotCheckResolve */
+        PhysicalSpotCheckResolve: {
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            };
+            /** Note */
+            note: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "passed" | "failed";
         };
         /** PresignedPostRead */
         PresignedPostRead: {
@@ -11188,6 +11367,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminVehicleRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_evidence_verifications_api_v1_admin_evidence_verifications_get: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["EvidenceVerificationStatus"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceVerificationList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_queue_physical_spot_check_api_v1_admin_evidence_verifications_physical_spot_checks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhysicalSpotCheckCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceVerificationRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_resolve_physical_spot_check_api_v1_admin_evidence_verifications__verification_id__physical_spot_check_result_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                verification_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhysicalSpotCheckResolve"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceVerificationRead"];
                 };
             };
             /** @description Validation Error */
@@ -15750,6 +16028,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    driver_pending_evidence_verifications_api_v1_driver_evidence_verifications_pending_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvidenceVerificationList"];
                 };
             };
         };

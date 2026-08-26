@@ -39,6 +39,9 @@ class FraudFlagType(StrEnum):
     ROUTE_LOOPING = "route_looping"
     ROUTE_REPLAY = "route_replay"
     EXCLUSION_ZONE_PRESENCE = "exclusion_zone_presence"
+    MISSED_DISPLAY_CHALLENGE = "missed_display_challenge"
+    CONCURRENT_SESSION_DAY = "concurrent_session_day"
+    PHYSICAL_SPOT_CHECK_FAILED = "physical_spot_check_failed"
 
 
 class FraudFlagSeverity(StrEnum):
@@ -226,7 +229,8 @@ class FraudFlag(Base):
         CheckConstraint(
             "flag_type IN ('insufficient_pings', 'impossible_speed', 'poor_accuracy', "
             "'stationary_trip', 'excessive_ping_gap', 'future_timestamp', 'route_looping', "
-            "'route_replay', 'exclusion_zone_presence')",
+            "'route_replay', 'exclusion_zone_presence', 'missed_display_challenge', "
+            "'concurrent_session_day', 'physical_spot_check_failed')",
             name="ck_fraud_flags_flag_type",
         ),
         CheckConstraint(

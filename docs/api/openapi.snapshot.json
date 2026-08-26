@@ -8525,6 +8525,196 @@
         "title": "EstimateImpressionsRequest",
         "type": "object"
       },
+      "EvidenceVerificationList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceVerificationRead"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "EvidenceVerificationList",
+        "type": "object"
+      },
+      "EvidenceVerificationRead": {
+        "properties": {
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "display_proof_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Proof Id"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "fraud_flag_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fraud Flag Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "issued_at": {
+            "format": "date-time",
+            "title": "Issued At",
+            "type": "string"
+          },
+          "issued_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issued By User Id"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "resolved_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved By User Id"
+          },
+          "result_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Note"
+          },
+          "source_trip_session_id": {
+            "format": "uuid",
+            "title": "Source Trip Session Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EvidenceVerificationStatus"
+          },
+          "vehicle_id": {
+            "format": "uuid",
+            "title": "Vehicle Id",
+            "type": "string"
+          },
+          "verification_type": {
+            "$ref": "#/components/schemas/EvidenceVerificationType"
+          }
+        },
+        "required": [
+          "id",
+          "assignment_id",
+          "campaign_id",
+          "driver_profile_id",
+          "vehicle_id",
+          "source_trip_session_id",
+          "verification_type",
+          "status",
+          "issued_by_user_id",
+          "resolved_by_user_id",
+          "due_at",
+          "display_proof_id",
+          "fraud_flag_id",
+          "result_note",
+          "metadata",
+          "issued_at",
+          "resolved_at"
+        ],
+        "title": "EvidenceVerificationRead",
+        "type": "object"
+      },
+      "EvidenceVerificationStatus": {
+        "enum": [
+          "pending",
+          "satisfied",
+          "missed",
+          "passed",
+          "failed"
+        ],
+        "title": "EvidenceVerificationStatus",
+        "type": "string"
+      },
+      "EvidenceVerificationType": {
+        "enum": [
+          "high_earner_renewal",
+          "concurrent_session",
+          "physical_spot_check"
+        ],
+        "title": "EvidenceVerificationType",
+        "type": "string"
+      },
       "FileAccessPurpose": {
         "enum": [
           "campaign_preview",
@@ -9295,7 +9485,10 @@
           "future_timestamp",
           "route_looping",
           "route_replay",
-          "exclusion_zone_presence"
+          "exclusion_zone_presence",
+          "missed_display_challenge",
+          "concurrent_session_day",
+          "physical_spot_check_failed"
         ],
         "title": "FraudFlagType",
         "type": "string"
@@ -12386,6 +12579,75 @@
           "currency"
         ],
         "title": "PayoutLedgerEntrySummary",
+        "type": "object"
+      },
+      "PhysicalSpotCheckCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "note": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Note",
+            "type": "string"
+          },
+          "trip_session_id": {
+            "format": "uuid",
+            "title": "Trip Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assignment_id",
+          "trip_session_id",
+          "client_request_id",
+          "note"
+        ],
+        "title": "PhysicalSpotCheckCreate",
+        "type": "object"
+      },
+      "PhysicalSpotCheckResolve": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence": {
+            "additionalProperties": true,
+            "title": "Evidence",
+            "type": "object"
+          },
+          "note": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Note",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "passed",
+              "failed"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome",
+          "note"
+        ],
+        "title": "PhysicalSpotCheckResolve",
         "type": "object"
       },
       "PresignedPostRead": {
@@ -19586,6 +19848,164 @@
         "summary": "Create a vehicle for a driver",
         "tags": [
           "Vehicles"
+        ]
+      }
+    },
+    "/api/v1/admin/evidence-verifications": {
+      "get": {
+        "operationId": "admin_evidence_verifications_api_v1_admin_evidence_verifications_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EvidenceVerificationStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceVerificationList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List recurring challenges and physical spot checks",
+        "tags": [
+          "Installation evidence"
+        ]
+      }
+    },
+    "/api/v1/admin/evidence-verifications/physical-spot-checks": {
+      "post": {
+        "operationId": "admin_queue_physical_spot_check_api_v1_admin_evidence_verifications_physical_spot_checks_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhysicalSpotCheckCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceVerificationRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Queue an assignment-bound physical spot check",
+        "tags": [
+          "Installation evidence"
+        ]
+      }
+    },
+    "/api/v1/admin/evidence-verifications/{verification_id}/physical-spot-check-result": {
+      "post": {
+        "operationId": "admin_resolve_physical_spot_check_api_v1_admin_evidence_verifications__verification_id__physical_spot_check_result_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "verification_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Verification Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhysicalSpotCheckResolve"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceVerificationRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Record an audited physical spot-check result",
+        "tags": [
+          "Installation evidence"
         ]
       }
     },
@@ -28145,6 +28565,32 @@
         "summary": "Read current driver earnings summary",
         "tags": [
           "Payouts"
+        ]
+      }
+    },
+    "/api/v1/driver/evidence-verifications/pending": {
+      "get": {
+        "operationId": "driver_pending_evidence_verifications_api_v1_driver_evidence_verifications_pending_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceVerificationList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List current driver's pending evidence verifications",
+        "tags": [
+          "Installation evidence"
         ]
       }
     },

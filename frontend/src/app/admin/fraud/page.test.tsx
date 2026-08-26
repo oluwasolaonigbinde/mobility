@@ -55,6 +55,9 @@ describe("AdminFraudPage disputes", () => {
           },
         };
       }
+      if (get.mock.calls.length === 2) {
+        return { data: { items: [] } };
+      }
       return {
         data: {
           items: [
@@ -92,11 +95,14 @@ describe("AdminFraudPage disputes", () => {
     expect(
       screen.getByRole("button", { name: "Confirm fraud & reverse released earnings" }),
     ).toBeInTheDocument();
-    expect(get).toHaveBeenCalledTimes(2);
+    expect(get).toHaveBeenCalledTimes(3);
     expect(get).toHaveBeenNthCalledWith(1, "/api/v1/admin/fraud-flags", {
       params: { query: { limit: 25, offset: 0 } },
     });
-    expect(get).toHaveBeenNthCalledWith(2, "/api/v1/admin/fraud-disputes", {
+    expect(get).toHaveBeenNthCalledWith(2, "/api/v1/admin/evidence-verifications", {
+      params: { query: { status: "pending" } },
+    });
+    expect(get).toHaveBeenNthCalledWith(3, "/api/v1/admin/fraud-disputes", {
       params: { query: { flag_id: [FLAG_ID], limit: 25, offset: 0 } },
     });
   });
@@ -107,7 +113,7 @@ describe("AdminFraudPage disputes", () => {
     render(await AdminFraudPage({ searchParams: Promise.resolve({}) }));
 
     expect(screen.getByText(/No flags/)).toBeInTheDocument();
-    expect(get).toHaveBeenCalledOnce();
+    expect(get).toHaveBeenCalledTimes(2);
   });
 
   it("describes a terminal escalation as historical, not unresolved", async () => {
@@ -149,6 +155,7 @@ describe("AdminFraudPage disputes", () => {
           offset: 0,
         },
       })
+      .mockResolvedValueOnce({ data: { items: [] } })
       .mockResolvedValueOnce({ data: { items: [], total: 0, limit: 25, offset: 0 } });
 
     render(await AdminFraudPage({ searchParams: Promise.resolve({}) }));

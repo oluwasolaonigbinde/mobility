@@ -1,6 +1,7 @@
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Query, status
 
 from app.api.v1.dependencies import (
     AdminUserDependency,
@@ -9,8 +10,15 @@ from app.api.v1.dependencies import (
     SettingsDependency,
     StorageDependency,
 )
+from app.models.evidence_verification import EvidenceVerification, EvidenceVerificationStatus
 from app.models.installation_evidence import DisplayProof, InstallationEvidenceSubmission
 from app.models.stored_file import StoredFile
+from app.schemas.evidence_verification import (
+    EvidenceVerificationList,
+    EvidenceVerificationRead,
+    PhysicalSpotCheckCreate,
+    PhysicalSpotCheckResolve,
+)
 from app.schemas.installation_evidence import (
     DisplayProofChallengeCreate,
     DisplayProofChallengeRead,
@@ -30,6 +38,12 @@ from app.schemas.stored_files import (
     StoredFileRead,
 )
 from app.services.audit import create_audit_event
+from app.services.evidence_verification import (
+    list_admin_verifications,
+    list_driver_pending_verifications,
+    queue_physical_spot_check,
+    resolve_physical_spot_check,
+)
 from app.services.installation_evidence import (
     create_display_proof_challenge,
     list_evidence,
@@ -88,6 +102,28 @@ def proof_response(proof: DisplayProof) -> DisplayProofRead:
         verified_at=proof.verified_at,
         valid_until=proof.valid_until,
         metadata=proof.proof_metadata,
+    )
+
+
+def verification_response(row: EvidenceVerification) -> EvidenceVerificationRead:
+    return EvidenceVerificationRead(
+        id=row.id,
+        assignment_id=row.assignment_id,
+        campaign_id=row.campaign_id,
+        driver_profile_id=row.driver_profile_id,
+        vehicle_id=row.vehicle_id,
+        source_trip_session_id=row.source_trip_session_id,
+        verification_type=row.verification_type,
+        status=row.status,
+        issued_by_user_id=row.issued_by_user_id,
+        resolved_by_user_id=row.resolved_by_user_id,
+        due_at=row.due_at,
+        display_proof_id=row.display_proof_id,
+        fraud_flag_id=row.fraud_flag_id,
+        result_note=row.result_note,
+        metadata=row.verification_metadata,
+        issued_at=row.issued_at,
+        resolved_at=row.resolved_at,
     )
 
 
@@ -396,3 +432,80 @@ async def driver_submit_display_proof(
     )
     await session.commit()
     return proof_response(proof)
+
+
+@router.get(
+    "/driver/evidence-verifications/pending",
+    response_model=EvidenceVerificationList,
+    summary="List current driver's pending evidence verifications",
+)
+async def driver_pending_evidence_verifications(
+    user: DriverUserDependency,
+    session: SessionDependency,
+) -> EvidenceVerificationList:
+    rows = await list_driver_pending_verifications(session, user_id=user.id)
+    return EvidenceVerificationList(items=[verification_response(row) for row in rows])
+
+
+@router.get(
+    "/admin/evidence-verifications",
+    response_model=EvidenceVerificationList,
+    summary="List recurring challenges and physical spot checks",
+)
+async def admin_evidence_verifications(
+    _user: AdminUserDependency,
+    session: SessionDependency,
+    verification_status: Annotated[EvidenceVerificationStatus | None, Query(alias="status")] = None,
+) -> EvidenceVerificationList:
+    rows = await list_admin_verifications(
+        session,
+        verification_status=(verification_status.value if verification_status else None),
+    )
+    return EvidenceVerificationList(items=[verification_response(row) for row in rows])
+
+
+@router.post(
+    "/admin/evidence-verifications/physical-spot-checks",
+    response_model=EvidenceVerificationRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Queue an assignment-bound physical spot check",
+)
+async def admin_queue_physical_spot_check(
+    payload: PhysicalSpotCheckCreate,
+    user: AdminUserDependency,
+    session: SessionDependency,
+) -> EvidenceVerificationRead:
+    row = await queue_physical_spot_check(
+        session,
+        actor_user_id=user.id,
+        assignment_id=payload.assignment_id,
+        trip_session_id=payload.trip_session_id,
+        client_request_id=payload.client_request_id,
+        note=payload.note,
+        metadata=payload.metadata,
+    )
+    await session.commit()
+    return verification_response(row)
+
+
+@router.post(
+    "/admin/evidence-verifications/{verification_id}/physical-spot-check-result",
+    response_model=EvidenceVerificationRead,
+    summary="Record an audited physical spot-check result",
+)
+async def admin_resolve_physical_spot_check(
+    verification_id: UUID,
+    payload: PhysicalSpotCheckResolve,
+    user: AdminUserDependency,
+    session: SessionDependency,
+) -> EvidenceVerificationRead:
+    row = await resolve_physical_spot_check(
+        session,
+        verification_id=verification_id,
+        actor_user_id=user.id,
+        outcome=payload.outcome,
+        note=payload.note,
+        evidence=payload.evidence,
+    )
+    await session.commit()
+    return verification_response(row)

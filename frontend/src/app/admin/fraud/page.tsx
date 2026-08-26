@@ -11,6 +11,7 @@ import { cx } from "@/lib/cx";
 import type { components } from "@/lib/api/schema";
 import { ReviewActions } from "./review-actions";
 import { DisputeReplyActions } from "./dispute-actions";
+import { SpotCheckQueueForm, SpotCheckResultForm } from "./spot-check-actions";
 
 export const metadata: Metadata = { title: "Fraud console" };
 
@@ -35,6 +36,9 @@ const typeLabel: Record<string, string> = {
   route_looping: "Route looping",
   route_replay: "Route replay",
   exclusion_zone_presence: "Exclusion zone",
+  missed_display_challenge: "Missed display challenge",
+  concurrent_session_day: "Concurrent sessions",
+  physical_spot_check_failed: "Failed physical spot check",
 };
 
 function evidenceLabel(key: string): string {
@@ -76,9 +80,14 @@ export default async function AdminFraudPage({
   const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
 
   const api = createApiClient(await getSessionToken());
-  const { data } = await api.GET("/api/v1/admin/fraud-flags", {
-    params: { query: { limit: PAGE_SIZE, offset, ...(status ? { status } : {}) } },
-  });
+  const [{ data }, { data: verificationData }] = await Promise.all([
+    api.GET("/api/v1/admin/fraud-flags", {
+      params: { query: { limit: PAGE_SIZE, offset, ...(status ? { status } : {}) } },
+    }),
+    api.GET("/api/v1/admin/evidence-verifications", {
+      params: { query: { status: "pending" } },
+    }),
+  ]);
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
   const disputeResponse =
@@ -99,6 +108,40 @@ export default async function AdminFraudPage({
         title="Fraud console"
         eyebrow={`${total} flag${total === 1 ? "" : "s"} — open, acknowledged and confirmed flags hold affected money; only dismissal releases the hold`}
       />
+
+      <Panel className="mb-5 p-5">
+        <h2 className="font-medium">Physical display checks</h2>
+        <p className="text-muted mt-1 text-sm">
+          Queue an in-person check against one assignment and trip. A failed result enters the same
+          authoritative fraud-review hold below; location data alone is never treated as proof that
+          a branded vehicle moved.
+        </p>
+        <div className="mt-4">
+          <SpotCheckQueueForm />
+        </div>
+        {(verificationData?.items ?? []).filter(
+          (item) => item.verification_type === "physical_spot_check",
+        ).length > 0 ? (
+          <div className="border-edge mt-5 border-t pt-4">
+            <h3 className="micro text-muted">Pending physical checks</h3>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              {(verificationData?.items ?? [])
+                .filter((item) => item.verification_type === "physical_spot_check")
+                .map((item) => (
+                  <div key={item.id} className="border-edge rounded-lg border p-3 text-xs">
+                    <p className="font-medium">Assignment {item.assignment_id.slice(0, 8)}</p>
+                    <p className="text-muted mt-1 font-mono">
+                      trip {item.source_trip_session_id.slice(0, 8)} · queued{" "}
+                      {formatDate(item.issued_at)}
+                    </p>
+                    <p className="text-muted mt-2">{item.result_note}</p>
+                    <SpotCheckResultForm verificationId={item.id} />
+                  </div>
+                ))}
+            </div>
+          </div>
+        ) : null}
+      </Panel>
 
       <div className="mb-4 flex gap-1" role="group" aria-label="Filter by status">
         <Link

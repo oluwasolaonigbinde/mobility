@@ -139,6 +139,14 @@ AUDITED = {
         "POST",
         "/api/v1/driver/campaign-assignments/{assignment_id}/display-proof",
     ): "display_proof.verified",
+    (
+        "POST",
+        "/api/v1/admin/evidence-verifications/physical-spot-checks",
+    ): "evidence_verification.spot_check_queued",
+    (
+        "POST",
+        "/api/v1/admin/evidence-verifications/{verification_id}/physical-spot-check-result",
+    ): "evidence_verification.spot_check_resolved",
     ("POST", "/api/v1/driver/kyc/submissions"): "driver.kyc.submitted",
     ("PATCH", "/api/v1/driver/profile"): "driver.profile.updated",
     ("POST", "/api/v1/driver/campaign-assignments/{assignment_id}/accept"): (

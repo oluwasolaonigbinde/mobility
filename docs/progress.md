@@ -63,12 +63,11 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 clarification corrects the prior false pause: missing production storage,
 scanner, KMS, email and phone inputs remain explicit live/deployment gates but
 do not block provider-neutral/local/synthetic implementation under D23.
-**Current checkpoint:** `PKG-04 / W2-03G` — build recurring proof challenges,
-missed-challenge holds and physical spot-check evidence over the completed
-installation-proof and atomic-activation authorities. No production
-storage/scanner/KMS provider, custodian, live
-creative/KYC/evidence approval, launch, live KYC, real-GPS, external-staging,
-physical-device or pilot evidence is claimed.
+**Current checkpoint:** `PKG-04 / W2-04B` — build provider-neutral advertiser
+email dispatch, retry and signed receipt handling over the completed shared
+notification authority. Live sender/provider adoption remains gated by
+`EXT-EMAIL-PROVIDER`; no production sender, provider delivery, live creative/
+KYC/evidence approval, launch, real route/device or pilot evidence is claimed.
 
 ## Executable package queue
 
@@ -655,6 +654,23 @@ physical-device or pilot evidence is claimed.
   11 frontend tests, type/lint/build, byte-stable §9 artifacts and one isolated
   real browser cancellation journey pass; its database was removed. No refund
   transfer, live funding, provider, route, earning or pilot evidence is claimed.
+- **W2-03G checkpoint evidence (26 Aug 2026):** migration `0060` adds one
+  assignment/trip-bound verification queue for configurable high-earner
+  display-proof renewal, concurrent-session evidence and reasoned physical
+  spot checks. Exact worker/admin retries serialize, a fresh nonce proof
+  satisfies pending renewal work before its exact deadline, and missed,
+  overlapping or failed checks create the existing MNY-08B fraud flag rather
+  than a second hold authority. Acknowledgement/confirmation/dismissal and
+  money release remain owned by that state machine. Missing high-earner policy
+  is reported without inventing production values, tenant reads stay scoped,
+  and every stored/displayed boundary says phone GPS is not proof that the
+  branded vehicle moved. A reversed deadline predicate produced the expected
+  red pending challenge; the restored flow passed. Thirty focused PostgreSQL
+  worker/race/migration/API/audit/contract checks and 94 configuration checks
+  pass, as do 13 frontend tests, typecheck, scoped lint, production build,
+  byte-stable §9 artifacts and an isolated real ops queue→failed-check→fraud-
+  hold browser journey. No live policy, physical inspection, GPS, earning,
+  provider, staging or pilot evidence is claimed.
 - **Corrected-authority seam evidence (24 Aug 2026):** Package 4 migration
   `0043` now descends from Package 3 head `0042`. The adopted Package 3
   campaign/terms currency lock initially exposed one stale-update ordering
@@ -1114,7 +1130,7 @@ verification, gates or required specialist review.
 | 36 | **W2-03D — atomic activation** | PKG-04 | DONE | One admin command locks/rechecks every commercial and operational prerequisite, including valid standard-wait or expedited-waiver production authority. | leaf: W2-00C, W2-01A, W2-01B, W2-03A, W2-03B, W2-03C |
 | 37 | **W2-03E — governed mid-flight changes** | PKG-04 | DONE | Expansions honor funded headroom; reductions need approval and effective revisions. | leaf: W2-00A, W2-00C, W2-03D |
 | 38 | **W2-03F — cancellation cutoff and settlement** | PKG-04 | DONE | One idempotent cutoff stops new work, clips pay and applies the standard-boundary or actual-waived-start refund rule. | leaf: W2-01D, W2-03D, MNY-11A |
-| 39 | **W2-03G — proof challenges and spot checks** | PKG-04 | TODO | Missed challenges and physical verification feed the authoritative fraud hold. | leaf: MNY-09A, W2-03C, W2-03D |
+| 39 | **W2-03G — proof challenges and spot checks** | PKG-04 | DONE | Missed challenges and physical verification feed the authoritative fraud hold. | leaf: MNY-09A, W2-03C, W2-03D |
 | 40 | **W2-04A — notification core and role surfaces** | PKG-04 | DONE | W1 in-app notices become the shared outbox/list/unread-preference system. | leaf: MNY-08C |
 | 41 | **W2-04B — advertiser email delivery** | PKG-04 | TODO | Worker-dispatched email and signed receipts update one logical notification; live delivery remains gated by EXT-EMAIL-PROVIDER. | leaf: W2-04A |
 | 42 | **W2-04C — business triggers and manual driver contact** | PKG-04 | TODO | Stable event keys notify users; driver WhatsApp remains an audited ops task. | leaf: W2-04A, W2-04B, W2-01E, W2-03F, W2-03G, MNY-10C |

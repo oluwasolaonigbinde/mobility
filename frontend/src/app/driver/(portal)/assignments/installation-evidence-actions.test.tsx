@@ -102,4 +102,22 @@ describe("InstallationEvidenceActions", () => {
       }),
     );
   });
+
+  it("surfaces a recurring challenge without making a GPS proof claim", () => {
+    render(
+      <InstallationEvidenceActions
+        assignmentId={ASSIGNMENT_ID}
+        status="active"
+        requiredViews={["front"]}
+        latestEvidenceStatus="approved"
+        pendingChallengeDueAt="2026-08-27T12:00:00Z"
+      />,
+    );
+
+    expect(screen.getByText("Fresh display proof required")).toBeVisible();
+    expect(screen.getByText(/phone GPS is not treated as proof/i)).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Complete required display challenge" }),
+    ).toBeVisible();
+  });
 });

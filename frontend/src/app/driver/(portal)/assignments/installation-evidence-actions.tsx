@@ -19,11 +19,13 @@ export function InstallationEvidenceActions({
   status,
   requiredViews,
   latestEvidenceStatus,
+  pendingChallengeDueAt,
 }: {
   assignmentId: string;
   status: string;
   requiredViews: string[];
   latestEvidenceStatus?: string;
+  pendingChallengeDueAt?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -95,6 +97,16 @@ export function InstallationEvidenceActions({
   return (
     <section className="border-edge bg-raised mt-4 rounded-lg border p-3">
       <p className="text-sm font-medium">Installation evidence</p>
+      {pendingChallengeDueAt ? (
+        <div className="border-amber/40 bg-amber/10 mt-2 rounded-lg border p-2" role="status">
+          <p className="text-amber text-xs font-medium">Fresh display proof required</p>
+          <p className="text-muted mt-1 text-xs">
+            Complete the current-photo challenge before{" "}
+            {new Date(pendingChallengeDueAt).toLocaleString()}. This verifies fresh assignment-bound
+            evidence; phone GPS is not treated as proof that the branded vehicle moved.
+          </p>
+        </div>
+      ) : null}
       <p className="text-muted mt-1 text-xs">
         Latest review: {latestEvidenceStatus?.replaceAll("_", " ") ?? "not submitted"}
       </p>
@@ -142,7 +154,11 @@ export function InstallationEvidenceActions({
             onClick={submitProof}
             className="mt-3 h-10 w-full"
           >
-            {pending ? "Verifying…" : "Verify display for this shift"}
+            {pending
+              ? "Verifying…"
+              : pendingChallengeDueAt
+                ? "Complete required display challenge"
+                : "Verify display for this shift"}
           </Button>
         </div>
       ) : null}

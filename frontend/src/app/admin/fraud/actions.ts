@@ -16,6 +16,11 @@ export interface FraudDisputeReplyActionState {
   done?: string;
 }
 
+export interface SpotCheckActionState {
+  error?: string;
+  done?: string;
+}
+
 const reviewSchema = z.discriminatedUnion("intent", [
   z.object({
     flag_id: z.string().uuid(),
@@ -31,6 +36,18 @@ const reviewSchema = z.discriminatedUnion("intent", [
 const disputeReplySchema = z.object({
   dispute_id: z.string().uuid(),
   reply: z.string().trim().min(1, "A driver reply is required").max(2000),
+});
+
+const spotCheckQueueSchema = z.object({
+  assignment_id: z.string().uuid(),
+  trip_session_id: z.string().uuid(),
+  note: z.string().trim().min(1, "A queue note is required").max(2000),
+});
+
+const spotCheckResultSchema = z.object({
+  verification_id: z.string().uuid(),
+  outcome: z.enum(["passed", "failed"]),
+  note: z.string().trim().min(1, "A result note is required").max(2000),
 });
 
 export async function reviewFraudFlagAction(
@@ -104,4 +121,67 @@ export async function replyFraudDisputeAction(
 
   revalidatePath("/admin/fraud");
   return { done: "Reply sent to driver" };
+}
+
+export async function queueSpotCheckAction(
+  _prev: SpotCheckActionState,
+  formData: FormData,
+): Promise<SpotCheckActionState> {
+  const parsed = spotCheckQueueSchema.safeParse({
+    assignment_id: String(formData.get("assignment_id") ?? ""),
+    trip_session_id: String(formData.get("trip_session_id") ?? ""),
+    note: String(formData.get("note") ?? ""),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid spot-check request" };
+  }
+  const api = createApiClient(await getSessionToken());
+  try {
+    await api.POST("/api/v1/admin/evidence-verifications/physical-spot-checks", {
+      body: {
+        ...parsed.data,
+        client_request_id: crypto.randomUUID(),
+        metadata: { queue_surface: "admin_fraud_console" },
+      },
+    });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    return { error: "Could not reach the server." };
+  }
+  revalidatePath("/admin/fraud");
+  return { done: "Physical spot check queued" };
+}
+
+export async function resolveSpotCheckAction(
+  _prev: SpotCheckActionState,
+  formData: FormData,
+): Promise<SpotCheckActionState> {
+  const parsed = spotCheckResultSchema.safeParse({
+    verification_id: String(formData.get("verification_id") ?? ""),
+    outcome: String(formData.get("outcome") ?? ""),
+    note: String(formData.get("note") ?? ""),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid spot-check result" };
+  }
+  const { verification_id, outcome, note } = parsed.data;
+  const api = createApiClient(await getSessionToken());
+  try {
+    await api.POST(
+      "/api/v1/admin/evidence-verifications/{verification_id}/physical-spot-check-result",
+      {
+        params: { path: { verification_id } },
+        body: {
+          outcome,
+          note,
+          evidence: { method: "physical_observation", result_surface: "admin_fraud_console" },
+        },
+      },
+    );
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    return { error: "Could not reach the server." };
+  }
+  revalidatePath("/admin/fraud");
+  return { done: outcome === "passed" ? "Spot check passed" : "Failure sent to fraud review" };
 }

@@ -291,6 +291,30 @@ def test_file_kyc_retention_must_be_positive_when_configured(invalid_value: int)
         Settings(file_kyc_retention_days=invalid_value)
 
 
+def test_recurring_evidence_policy_has_no_production_defaults() -> None:
+    settings = Settings(
+        evidence_high_earner_threshold_ngn="",
+        evidence_renewal_lookback_days="",
+        evidence_challenge_response_hours="",
+    )
+
+    assert settings.evidence_high_earner_threshold_ngn == ""
+    assert settings.evidence_renewal_lookback_days is None
+    assert settings.evidence_challenge_response_hours is None
+
+
+@pytest.mark.parametrize(
+    "setting_name",
+    ["evidence_renewal_lookback_days", "evidence_challenge_response_hours"],
+)
+@pytest.mark.parametrize("invalid_value", [0, -1])
+def test_recurring_evidence_windows_must_be_positive(
+    setting_name: str, invalid_value: int
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings(**{setting_name: invalid_value})
+
+
 def test_payout_settings_load_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("PAYOUT_FORMULA_VERSION", "payout_v1")
     monkeypatch.setenv("PAYOUT_DEFAULT_BASE_RATE_PER_KM", "11.5")

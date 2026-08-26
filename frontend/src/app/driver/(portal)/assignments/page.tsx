@@ -37,7 +37,13 @@ export default async function DriverAssignmentsPage() {
     });
 
   const items = data?.items ?? [];
-  const { data: evidencePolicy } = await api.GET("/api/v1/driver/installation-evidence/policy");
+  const [{ data: evidencePolicy }, { data: pendingVerifications }] = await Promise.all([
+    api.GET("/api/v1/driver/installation-evidence/policy"),
+    api.GET("/api/v1/driver/evidence-verifications/pending"),
+  ]);
+  const pendingByAssignment = new Map(
+    (pendingVerifications?.items ?? []).map((item) => [item.assignment_id, item]),
+  );
   const evidenceHistories = evidencePolicy?.configured
     ? await Promise.all(
         items.map(async (assignment) => {
@@ -207,6 +213,7 @@ export default async function DriverAssignmentsPage() {
                 status={a.status}
                 requiredViews={evidencePolicy.required_views}
                 latestEvidenceStatus={evidenceByAssignment.get(a.id)?.at(-1)?.status}
+                pendingChallengeDueAt={pendingByAssignment.get(a.id)?.due_at ?? undefined}
               />
             ) : ["accepted", "active", "deactivated"].includes(a.status) ? (
               <p className="text-muted border-edge mt-4 border-t pt-3 text-xs">

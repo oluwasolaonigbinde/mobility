@@ -1100,6 +1100,16 @@ cutoff. The existing W2-01D registry retains unique external refund references;
 this command records eligibility/disposition and never claims a provider
 transfer that has not been observed.
 
+**[BUILT — W2-03G]** Migration `0060` records assignment/trip-bound recurring
+display challenges, concurrent-session evidence and reasoned physical spot
+checks. High-earner thresholds, lookback and response windows have no
+production defaults; the worker reports missing configuration while retaining
+provider-neutral synthetic operation. Fresh display proof satisfies pending
+work, exact-deadline misses and failed/overlapping checks feed the existing
+MNY-08B `FraudFlag` state machine, and only its dismissal releases a hold.
+Queue/result/audit records are evidence of review; phone GPS is never treated
+as proof that a branded vehicle moved.
+
 ### Relation to current code
 
 Additive domain. Preserve: campaigns, reports, cost summaries as built. The
@@ -2497,6 +2507,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.66 | 2026-08-26 | **W2-03G recurring proof renewal and physical spot-check evidence delivered over the existing display-proof and fraud-hold authorities.** Migration `0060` adds assignment/trip-bound verification work and extends governed fraud types without creating another money hold. Explicit high-earner policy values have no production defaults; exact worker/admin retries, concurrent sessions, challenge deadlines, fresh-proof satisfaction and false-positive dismissal serialize through existing campaign/driver/trip locks. Driver/admin surfaces expose due work and physical results while explicitly rejecting any GPS-as-branding-proof claim. Focused PostgreSQL race/migration/API/audit/contract checks, red/green deadline evidence, configuration checks, synchronized byte-stable §9 contracts, frontend tests/type/lint/build and an isolated synthetic ops browser journey pass. `EXT-EVIDENCE-POLICY` remains a live-use gate; no physical inspection, live GPS, earning, provider, staging or pilot evidence is claimed; W2-04B is next. |
 | v1.65 | 2026-08-26 | **W2-03F immutable campaign cancellation cutoff and settlement delivered over the existing refund and activation authorities.** Migration `0059` adds one append-only cancellation/settlement snapshot and terminal liability release. The shared campaign lock serializes new work, tracking, analytics and payout-v2/v3/day recompute; post-cutoff pings remain evidence but never earn, exact retry converges, and standard/waived-start/credit outcomes reuse W2-01D without inventing a provider transfer. Focused PostgreSQL race/migration/money/trip checks, red/green cutoff evidence, synchronized byte-stable §9 contracts, advertiser UI tests/build and an isolated synthetic browser journey pass. No refund transfer, live funding, route, earning or pilot evidence is claimed; W2-03G is next. |
 | v1.64 | 2026-08-26 | **W2-03E governed mid-flight campaign changes delivered without rewriting accepted terms.** Migration `0058` adds immutable request/impact/retry evidence and append-only effective revisions. Expansions serialize on the shared campaign authority and apply only inside total funded headroom; insufficient funding waits for an exact reasoned retry. Reductions, removals and every date change require admin reason, retroactive/stale/changed retries fail closed, accepted assignment bindings remain unchanged, and interval reads resolve the revision then in force. Advertiser/admin UI and reasoned assignment removal move with synchronized §9 contracts. Focused PostgreSQL concurrency, liability, tenant, migration, audit, API and frontend/native-contract checks plus an isolated synthetic browser journey pass; no live funding, approval, campaign change, route, earning or pilot evidence is claimed. W2-03F is next. |
 | v1.63 | 2026-08-26 | **W2-03D atomic assignment activation delivered over the completed commercial, review and evidence authorities.** The admin command now serializes on the shared campaign authority and stable assignment/driver/vehicle rows, rechecks the exact approved campaign/creative/offer/binding, funded reserve, current production/new-work authority, evidence and vehicle exclusivity, then atomically records active state, timestamp, audit and a canonical digest-bound snapshot in the existing append-only activation event. Exact active retries recheck and converge; trip start requires the immutable snapshot plus current financial authority and proof. The prior all-gates 409 placeholder was observed red, a real synthetic admin→driver trip flow passes, and PostgreSQL proves activation-before-reversal chronology followed by fail-closed new work. No migration or §9 shape changed, and no live funding, production, approval, route, earning or pilot evidence is claimed; W2-03E is next. |

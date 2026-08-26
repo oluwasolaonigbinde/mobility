@@ -13,6 +13,7 @@ from test_trips import create_trip_ready_graph, start_trip
 
 from app.core.errors import AppError
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
+from app.models.evidence_verification import EvidenceVerification
 from app.models.installation_evidence import DisplayProof
 from app.models.stored_file import (
     FilePurpose,
@@ -21,6 +22,7 @@ from app.models.stored_file import (
     StoredFile,
     UploadIntentStatus,
 )
+from app.models.trip import TripSession
 from app.schemas.installation_evidence import DisplayProofCreate
 from app.services.installation_evidence import submit_display_proof
 
@@ -191,7 +193,7 @@ def test_evidence_policy_absence_and_cross_driver_file_fail_closed(
     settings.installation_evidence_validity_hours = None
     settings.display_proof_challenge_ttl_seconds = None
     settings.display_proof_validity_seconds = None
-    admin, driver, _, assignment_id = accepted_assignment(
+    admin, driver, vehicle, assignment_id = accepted_assignment(
         db_client, db_sessionmaker, suffix="policy"
     )
     payload = evidence_payload(db_sessionmaker, driver_id=driver.id)
@@ -223,7 +225,7 @@ def test_display_proof_nonce_is_device_bound_fresh_and_one_use(
     settings,
 ) -> None:
     configure_evidence_policy(settings)
-    admin, driver, _, assignment_id = accepted_assignment(
+    admin, driver, vehicle, assignment_id = accepted_assignment(
         db_client, db_sessionmaker, suffix="proof"
     )
     payload = evidence_payload(db_sessionmaker, driver_id=driver.id)
@@ -240,6 +242,43 @@ def test_display_proof_nonce_is_device_bound_fresh_and_one_use(
     )
     assert approved.status_code == 200, approved.text
     set_assignment_active(db_sessionmaker, UUID(assignment_id))
+
+    async def seed_recurring_challenge() -> UUID:
+        async with db_sessionmaker() as session:
+            assignment = await session.get(CampaignAssignment, UUID(assignment_id))
+            issued_at = datetime.now(UTC) - timedelta(minutes=1)
+            source_trip = TripSession(
+                assignment_id=assignment.id,
+                campaign_id=assignment.campaign_id,
+                driver_profile_id=assignment.driver_profile_id,
+                vehicle_id=vehicle.id,
+                started_by_user_id=driver.id,
+                status="sealed",
+                started_at=issued_at - timedelta(hours=1),
+                ended_at=issued_at - timedelta(minutes=10),
+                sealed_at=issued_at - timedelta(minutes=5),
+                seal_reason="migration_backfill",
+                trip_metadata={"synthetic": True},
+            )
+            session.add(source_trip)
+            await session.flush()
+            verification = EvidenceVerification(
+                assignment_id=assignment.id,
+                campaign_id=assignment.campaign_id,
+                driver_profile_id=assignment.driver_profile_id,
+                vehicle_id=vehicle.id,
+                source_trip_session_id=source_trip.id,
+                verification_type="high_earner_renewal",
+                status="pending",
+                due_at=issued_at + timedelta(hours=1),
+                verification_metadata={"source": "synthetic-test"},
+                issued_at=issued_at,
+            )
+            session.add(verification)
+            await session.commit()
+            return verification.id
+
+    verification_id = asyncio.run(seed_recurring_challenge())
 
     wrong_device = db_client.post(
         f"/api/v1/driver/campaign-assignments/{assignment_id}/display-proof/challenge",
@@ -271,6 +310,14 @@ def test_display_proof_nonce_is_device_bound_fresh_and_one_use(
     assert proof.status_code == 201, proof.text
     assert proof.json()["assignment_id"] == assignment_id
     assert proof.json()["evidence_submission_id"] == approved.json()["id"]
+
+    async def read_verification() -> EvidenceVerification:
+        async with db_sessionmaker() as session:
+            return await session.get(EvidenceVerification, verification_id)
+
+    verification = asyncio.run(read_verification())
+    assert verification.status == "satisfied"
+    assert verification.display_proof_id == UUID(proof.json()["id"])
 
     replay = db_client.post(
         f"/api/v1/driver/campaign-assignments/{assignment_id}/display-proof",

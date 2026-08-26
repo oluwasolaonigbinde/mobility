@@ -706,6 +706,14 @@ async def submit_display_proof(
             "valid_until": proof.valid_until.isoformat(),
         },
     )
+    from app.services.evidence_verification import satisfy_pending_evidence_challenges
+
+    await satisfy_pending_evidence_challenges(
+        session,
+        assignment_id=assignment.id,
+        proof=proof,
+        actor_user_id=actor_user_id,
+    )
     return proof
 
 

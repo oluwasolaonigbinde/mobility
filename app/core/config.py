@@ -97,6 +97,11 @@ class Settings(BaseSettings):
     installation_evidence_validity_hours: OptionalInt = None
     display_proof_challenge_ttl_seconds: OptionalInt = None
     display_proof_validity_seconds: OptionalInt = None
+    # Q17 policy values remain deployment inputs. Recurring proof work is
+    # disabled until all three are explicitly configured.
+    evidence_high_earner_threshold_ngn: str | float | int | None = None
+    evidence_renewal_lookback_days: OptionalInt = None
+    evidence_challenge_response_hours: OptionalInt = None
     malware_scanner_host: str = ""
     malware_scanner_port: int = 3310
     malware_scanner_timeout_seconds: int = 30
@@ -275,6 +280,8 @@ class Settings(BaseSettings):
         "installation_evidence_validity_hours",
         "display_proof_challenge_ttl_seconds",
         "display_proof_validity_seconds",
+        "evidence_renewal_lookback_days",
+        "evidence_challenge_response_hours",
     )
     @classmethod
     def validate_optional_evidence_windows(cls, value: int | None) -> int | None:
