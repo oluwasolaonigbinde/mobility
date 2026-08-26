@@ -24,6 +24,17 @@ export default async function PlanningSourcesPage() {
   const items = data?.items ?? [];
   const links = linkData?.items ?? [];
   const campaigns = campaignData?.items ?? [];
+  const recommendations = new Map(
+    await Promise.all(
+      links.map(async (link) => {
+        const { data: recommendation } = await api.GET(
+          "/api/v1/advertiser/retargeting-source-links/{link_id}/recommendations",
+          { params: { path: { link_id: link.id } } },
+        );
+        return [link.id, recommendation] as const;
+      }),
+    ),
+  );
   const zoneGroups = await Promise.all(
     campaigns.map(async (campaign) => {
       const { data: zones } = await api.GET("/api/v1/advertiser/campaigns/{campaign_id}/zones", {
@@ -101,38 +112,88 @@ export default async function PlanningSourcesPage() {
               />
             ) : (
               <Panel className="divide-edge divide-y overflow-hidden">
-                {links.map((link) => (
-                  <article key={link.id} className="p-5">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <StatusChip tone={link.status === "active" ? "green" : "default"}>
-                            {link.status}
-                          </StatusChip>
-                          {link.stale ? (
-                            <StatusChip tone="coral">stale parent state</StatusChip>
+                {links.map((link) => {
+                  const recommendation = recommendations.get(link.id);
+                  return (
+                    <article key={link.id} className="p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <StatusChip tone={link.status === "active" ? "green" : "default"}>
+                              {link.status}
+                            </StatusChip>
+                            {link.stale ? (
+                              <StatusChip tone="coral">stale parent state</StatusChip>
+                            ) : null}
+                          </div>
+                          <p className="micro text-faint mt-2 font-mono">
+                            Campaign {link.campaign_id}
+                          </p>
+                          <p className="micro text-faint mt-1 font-mono">
+                            Target zone {link.zone_id}
+                          </p>
+                          <p className="micro text-faint mt-1">
+                            {formatDate(link.start_at)} → {formatDate(link.end_at)}
+                          </p>
+                        </div>
+                        {link.status === "active" ? (
+                          <form action={removeSourceLinkAction.bind(null, link.id)}>
+                            <button className="border-edge hover:border-coral rounded-lg border px-3 py-2 text-sm">
+                              Remove link
+                            </button>
+                          </form>
+                        ) : null}
+                      </div>
+                      <div className="border-edge mt-4 border-t pt-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium">
+                              Follow-up targeting recommendations
+                            </p>
+                            <p className="micro text-faint mt-1">
+                              {recommendation?.state === "ready"
+                                ? `${recommendation.recommendations.length} aggregate geography/time recommendation${recommendation.recommendations.length === 1 ? "" : "s"}`
+                                : recommendation?.state === "suppressed"
+                                  ? "All cells are suppressed by the current disclosure floor."
+                                  : recommendation?.state === "stale"
+                                    ? "The issued aggregate is stale and cannot be exported."
+                                    : "No issued aggregate is available yet."}
+                            </p>
+                          </div>
+                          {recommendation?.state === "ready" && recommendation.segment_id ? (
+                            <form
+                              action={`/api/advertiser/exposure-segments/${recommendation.segment_id}/export`}
+                              method="post"
+                            >
+                              <button className="border-edge hover:border-coral rounded-lg border px-3 py-2 text-sm">
+                                Download controlled CSV
+                              </button>
+                            </form>
                           ) : null}
                         </div>
-                        <p className="micro text-faint mt-2 font-mono">
-                          Campaign {link.campaign_id}
-                        </p>
-                        <p className="micro text-faint mt-1 font-mono">
-                          Target zone {link.zone_id}
-                        </p>
-                        <p className="micro text-faint mt-1">
-                          {formatDate(link.start_at)} → {formatDate(link.end_at)}
-                        </p>
+                        {recommendation?.recommendations.slice(0, 3).map((item) => (
+                          <p
+                            key={`${item.coverage_cell}-${item.window_start_at}`}
+                            className="micro mt-2"
+                          >
+                            #{item.rank} {item.coverage_cell} · {formatDate(item.window_start_at)} →{" "}
+                            {formatDate(item.window_end_at)}
+                          </p>
+                        ))}
+                        {recommendation?.uncertainty ? (
+                          <p className="micro text-faint mt-3">{recommendation.uncertainty}</p>
+                        ) : null}
+                        <p className="micro text-faint mt-1">{recommendation?.disclaimer}</p>
+                        {recommendation?.provenance ? (
+                          <p className="micro text-faint mt-2 font-mono">
+                            Segment v{recommendation.provenance.segment_version} · Evidence{" "}
+                            {recommendation.provenance.segment_snapshot_sha256}
+                          </p>
+                        ) : null}
                       </div>
-                      {link.status === "active" ? (
-                        <form action={removeSourceLinkAction.bind(null, link.id)}>
-                          <button className="border-edge hover:border-coral rounded-lg border px-3 py-2 text-sm">
-                            Remove link
-                          </button>
-                        </form>
-                      ) : null}
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
               </Panel>
             )}
           </section>

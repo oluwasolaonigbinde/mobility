@@ -17,6 +17,17 @@ export default async function AdminPlanningSourcesPage() {
   ]);
   const items = data?.items ?? [];
   const links = linkData?.items ?? [];
+  const recommendations = new Map(
+    await Promise.all(
+      links.map(async (link) => {
+        const { data: recommendation } = await api.GET(
+          "/api/v1/admin/retargeting-source-links/{link_id}/recommendations",
+          { params: { path: { link_id: link.id } } },
+        );
+        return [link.id, recommendation] as const;
+      }),
+    ),
+  );
   return (
     <div className="animate-rise mx-auto max-w-6xl">
       <PageHeader
@@ -85,29 +96,53 @@ export default async function AdminPlanningSourcesPage() {
                     <th className="px-5 py-3 font-normal">Target zone</th>
                     <th className="px-5 py-3 font-normal">Status</th>
                     <th className="px-5 py-3 font-normal">Window</th>
+                    <th className="px-5 py-3 font-normal">Recommendation</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {links.map((link) => (
-                    <tr key={link.id} className="border-edge/60 border-b last:border-0">
-                      <td className="px-5 py-4 font-mono text-xs">{link.organization_id}</td>
-                      <td className="px-5 py-4 font-mono text-xs">{link.campaign_id}</td>
-                      <td className="px-5 py-4 font-mono text-xs">{link.zone_id}</td>
-                      <td className="px-5 py-4">
-                        <StatusChip tone={link.status === "active" ? "green" : "default"}>
-                          {link.status}
-                        </StatusChip>
-                        {link.stale ? (
-                          <StatusChip tone="coral" className="ml-2">
-                            stale
+                  {links.map((link) => {
+                    const recommendation = recommendations.get(link.id);
+                    return (
+                      <tr key={link.id} className="border-edge/60 border-b last:border-0">
+                        <td className="px-5 py-4 font-mono text-xs">{link.organization_id}</td>
+                        <td className="px-5 py-4 font-mono text-xs">{link.campaign_id}</td>
+                        <td className="px-5 py-4 font-mono text-xs">{link.zone_id}</td>
+                        <td className="px-5 py-4">
+                          <StatusChip tone={link.status === "active" ? "green" : "default"}>
+                            {link.status}
                           </StatusChip>
-                        ) : null}
-                      </td>
-                      <td className="px-5 py-4 text-xs">
-                        {formatDate(link.start_at)} → {formatDate(link.end_at)}
-                      </td>
-                    </tr>
-                  ))}
+                          {link.stale ? (
+                            <StatusChip tone="coral" className="ml-2">
+                              stale
+                            </StatusChip>
+                          ) : null}
+                        </td>
+                        <td className="px-5 py-4 text-xs">
+                          {formatDate(link.start_at)} → {formatDate(link.end_at)}
+                        </td>
+                        <td className="px-5 py-4 text-xs">
+                          <StatusChip
+                            tone={
+                              recommendation?.state === "ready"
+                                ? "green"
+                                : recommendation?.state === "suppressed"
+                                  ? "amber"
+                                  : recommendation?.state === "stale"
+                                    ? "coral"
+                                    : "default"
+                            }
+                          >
+                            {recommendation?.state ?? "empty"}
+                          </StatusChip>
+                          {recommendation?.recommendations[0] ? (
+                            <p className="mt-2 font-mono">
+                              {recommendation.recommendations[0].coverage_cell}
+                            </p>
+                          ) : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -116,7 +151,7 @@ export default async function AdminPlanningSourcesPage() {
       </section>
       <p className="micro text-faint mt-5">
         Monitoring is read-only. Live use remains unavailable until legal/privacy approval evidence
-        is recorded.
+        is recorded. Ad-platform activation remains disabled while EXT-AD-PLATFORM is missing.
       </p>
     </div>
   );
