@@ -61,8 +61,8 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 **Controller state:** `ACTIVE`
 **Control package:** `PKG-05` — PKG-03 has no remaining runnable work while
 `EXT-PAYMENT-PROVIDER` is missing, and PKG-04 is complete through W2-04D.
-**Current checkpoint:** `PKG-05 / W3-02A` — exposure score v1 is promoted but
-not started after W3-01D completion.
+**Current checkpoint:** `PKG-05 / W3-02B` — high-exposure zone insights are
+promoted but not started after W3-02A completion.
 
 ## Executable package queue
 
@@ -72,7 +72,7 @@ not started after W3-01D completion.
 | 2 | **PKG-02 — money integrity and payout operations** | DONE | Corrected release, pre-existing-reversal backfill and debt-aware economic/settlement authority agree. | none — checklist DAG gates entry |
 | 3 | **PKG-03 — commercial contracts and billing** | **BLOCKED** | Synthetic/provider-neutral commercial flow and configurable budget enforcement are verified; only `W2-01C BLOCKED — EXT-PAYMENT-PROVIDER` remains unfinished. | none — checklist DAG gates entry |
 | 4 | **PKG-04 — secure evidence, activation and communications** | **DONE** | Provider-neutral storage/KYC/activation, shared notifications, business triggers, audited driver contact and account recovery are verified; live providers remain gated. | none — checklist DAG gates entry |
-| 5 | **PKG-05 — privacy, measurement and retargeting** | **IN PROGRESS** | Privacy controls and reproducible measurement govern retargeting and advertiser insights; W3-02A is the next executable checkpoint. | none — checklist DAG gates entry |
+| 5 | **PKG-05 — privacy, measurement and retargeting** | **IN PROGRESS** | Privacy controls and reproducible measurement govern retargeting and advertiser insights; W3-02B is the next executable checkpoint. | none — checklist DAG gates entry |
 | 6 | **PKG-06 — matching and driver onboarding** | QUEUED | Recommendations, offers, activity and public application are verified; KYC/payee and vehicle approval await their recorded secure-evidence dependencies. | none — checklist DAG gates entry |
 | 7 | **PKG-07 — production driver PWA** | QUEUED | The pilot PWA safely tracks, syncs, explains earnings and supports release across the device matrix. | none — checklist DAG gates entry |
 | 8 | **PKG-08 — governed reporting and pilot readiness** | QUEUED | Safe reports, release infrastructure and one complete pilot acceptance gate are ready. | none — checklist DAG gates entry |
@@ -916,6 +916,23 @@ not started after W3-01D completion.
   baselines. `EXT-AD-PLATFORM` and `EXT-LEGAL-PRIVACY` remain MISSING: the fake
   adapter is verified, while live platform activation remains disabled and no
   credentials, budget or legal approval is claimed.
+- **W3-02A checkpoint evidence (27 Aug 2026):** migration `0067` records
+  immutable `exposure_v1` campaign/route scores bound to one issued measurement
+  run, frozen proof/input hashes and a canonical formula fingerprint. Route
+  scores combine capped distance and active-tracking components with frozen
+  quality; campaign scores use an active-time-weighted route mean, half-up to
+  two decimals on a 0–100-point scale. Missing computable routes produce an
+  explicit insufficient-data result instead of a fabricated number. Exact
+  retries converge, changed inputs create linked immutable history, unsupported
+  formula versions conflict and previously issued results never rescore.
+  Advertiser reporting labels the score as an uncalibrated operational index,
+  explicitly separate from impressions, potential contacts, attribution and
+  ROI. Focused backend/API checks passed 11 tests with two environment skips;
+  the real-PostgreSQL migration/concurrency/version gate passed 10 tests, the
+  adjacent methodology/disclosure/segment seam passed 28, and frontend
+  terminology, typecheck, scoped lint, formatting and build passed. All three
+  §9 contract baselines moved together. No live methodology approval,
+  calibration corpus, ROI input or external fact is claimed.
 - **Package 5 frontier closure (25 Aug 2026; superseded by build-first
   work):** the consolidated privacy,
   authorization and minimal-change review returned PASS after real-PostgreSQL
@@ -923,8 +940,8 @@ not started after W3-01D completion.
   W3-00A/D/C and W3-01A/B were complete at that checkpoint. Its then-recorded
   storage/KYC/evidence blockers were later corrected by provider-neutral
   completion of the required Package 4 foundations: W3-00B and W3-00E are now
-  DONE. W3-01C/D are now also DONE; W3-02A/B remain unbuilt, so Package 5 is
-  not DONE.
+  DONE. W3-01C/D and W3-02A are now also DONE; W3-02B remains unbuilt, so
+  Package 5 is not DONE.
 - **W3-00B checkpoint evidence (26 Aug 2026):** migration `0062` records one
   lifecycle-guarded access/rectification/erasure case and append-only evidence
   for database, private objects, device queue, operational logs, backups and
@@ -1256,7 +1273,7 @@ verification, gates or required specialist review.
 | 50 | **W3-01B — source/campaign/zone linkage** | PKG-05 | DONE | Owned sources link safely to campaigns, zones and time windows. | leaf: W3-01A |
 | 51 | **W3-01C — governed exposure segments** | PKG-05 | DONE | Worker materializes versioned, suppressed coverage-cell/time aggregates. | leaf: W3-00C, W3-00D, W3-00E, W3-01B |
 | 52 | **W3-01D — recommendations, export and gated activation** | PKG-05 | DONE | Safe geography/time/context recommendations, controlled export and activation use one governed aggregate; identifiers/person-level payloads reject and live push fails closed without EXT-AD-PLATFORM. | leaf: W3-01C, W3-00D, W3-00E |
-| 53 | **W3-02A — exposure score v1** | PKG-05 | TODO | Formula-versioned score is reproducible and distinct from impressions. | leaf: W3-00D, W3-00E |
+| 53 | **W3-02A — exposure score v1** | PKG-05 | DONE | Formula-versioned score is reproducible and distinct from impressions. | leaf: W3-00D, W3-00E |
 | 54 | **W3-02B — high-exposure zone insights** | PKG-05 | TODO | Governed ranked zones appear in admin/advertiser maps and reports. | leaf: W3-00C, W3-00E |
 | 55 | **W3-03A — matching recommendations** | PKG-06 | DONE | Admin receives deterministic eligible driver/vehicle rankings. | none |
 | 56 | **W3-03B — complete offer lifecycle** | PKG-06 | DONE | Terms-complete expiring offers support accept/decline and immutable evidence. | leaf: W3-03A, W2-00A, MNY-06B |
