@@ -21,12 +21,22 @@ from app.core.security import decode_token_claims
 from app.core.trip_enqueue import TripProcessingEnqueuer, build_trip_enqueuer
 from app.db.session import get_session
 from app.models.user import User, UserRole, UserStatus
+from app.services.audience_delivery import AdPlatformAdapter, build_ad_platform_adapter
 from app.services.users import get_user_by_id
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
+
+
+def get_ad_platform_adapter() -> AdPlatformAdapter:
+    return build_ad_platform_adapter()
+
+
+AdPlatformAdapterDependency = Annotated[
+    AdPlatformAdapter, Depends(get_ad_platform_adapter)
+]
 
 
 def get_storage_provider(settings: SettingsDependency) -> StorageProvider:

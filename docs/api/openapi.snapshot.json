@@ -1161,6 +1161,47 @@
         "title": "AdvertiserOrganizationRead",
         "type": "object"
       },
+      "AggregateRecommendation": {
+        "properties": {
+          "campaign_context": {
+            "const": "vehicle_transit",
+            "title": "Campaign Context",
+            "type": "string"
+          },
+          "coverage_cell": {
+            "title": "Coverage Cell",
+            "type": "string"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "rationale": {
+            "title": "Rationale",
+            "type": "string"
+          },
+          "window_end_at": {
+            "format": "date-time",
+            "title": "Window End At",
+            "type": "string"
+          },
+          "window_start_at": {
+            "format": "date-time",
+            "title": "Window Start At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rank",
+          "coverage_cell",
+          "window_start_at",
+          "window_end_at",
+          "campaign_context",
+          "rationale"
+        ],
+        "title": "AggregateRecommendation",
+        "type": "object"
+      },
       "AnalyticsRecomputeRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1457,6 +1498,111 @@
           "status"
         ],
         "title": "AssignmentVehicleSummary",
+        "type": "object"
+      },
+      "AudienceActivationRead": {
+        "properties": {
+          "adapter_name": {
+            "title": "Adapter Name",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "operation": {
+            "const": "ad_platform_activation",
+            "title": "Operation",
+            "type": "string"
+          },
+          "payload_sha256": {
+            "title": "Payload Sha256",
+            "type": "string"
+          },
+          "provider_reference": {
+            "title": "Provider Reference",
+            "type": "string"
+          },
+          "segment_id": {
+            "format": "uuid",
+            "title": "Segment Id",
+            "type": "string"
+          },
+          "synthetic": {
+            "title": "Synthetic",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "segment_id",
+          "operation",
+          "adapter_name",
+          "provider_reference",
+          "payload_sha256",
+          "synthetic",
+          "created_at"
+        ],
+        "title": "AudienceActivationRead",
+        "type": "object"
+      },
+      "AudienceDeliveryRequest": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "AudienceDeliveryRequest",
+        "type": "object"
+      },
+      "AudienceExportRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "csv_content": {
+            "title": "Csv Content",
+            "type": "string"
+          },
+          "csv_sha256": {
+            "title": "Csv Sha256",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "operation": {
+            "const": "csv_export",
+            "title": "Operation",
+            "type": "string"
+          },
+          "payload_sha256": {
+            "title": "Payload Sha256",
+            "type": "string"
+          },
+          "segment_id": {
+            "format": "uuid",
+            "title": "Segment Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "segment_id",
+          "operation",
+          "payload_sha256",
+          "csv_content",
+          "csv_sha256",
+          "created_at"
+        ],
+        "title": "AudienceExportRead",
         "type": "object"
       },
       "AuditEventListResponse": {
@@ -15157,6 +15303,143 @@
         "title": "ReceiptReverse",
         "type": "object"
       },
+      "RecommendationProvenance": {
+        "properties": {
+          "measurement_input_sha256": {
+            "title": "Measurement Input Sha256",
+            "type": "string"
+          },
+          "measurement_proof_sha256": {
+            "title": "Measurement Proof Sha256",
+            "type": "string"
+          },
+          "measurement_result_sha256": {
+            "title": "Measurement Result Sha256",
+            "type": "string"
+          },
+          "measurement_run_id": {
+            "format": "uuid",
+            "title": "Measurement Run Id",
+            "type": "string"
+          },
+          "segment_id": {
+            "format": "uuid",
+            "title": "Segment Id",
+            "type": "string"
+          },
+          "segment_snapshot_sha256": {
+            "title": "Segment Snapshot Sha256",
+            "type": "string"
+          },
+          "segment_version": {
+            "title": "Segment Version",
+            "type": "integer"
+          },
+          "source_link_id": {
+            "format": "uuid",
+            "title": "Source Link Id",
+            "type": "string"
+          },
+          "source_link_snapshot_sha256": {
+            "title": "Source Link Snapshot Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "segment_id",
+          "segment_version",
+          "segment_snapshot_sha256",
+          "source_link_id",
+          "source_link_snapshot_sha256",
+          "measurement_run_id",
+          "measurement_input_sha256",
+          "measurement_result_sha256",
+          "measurement_proof_sha256"
+        ],
+        "title": "RecommendationProvenance",
+        "type": "object"
+      },
+      "RecommendationsRead": {
+        "properties": {
+          "campaign_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Id"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecommendationProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recommendations": {
+            "items": {
+              "$ref": "#/components/schemas/AggregateRecommendation"
+            },
+            "title": "Recommendations",
+            "type": "array"
+          },
+          "segment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment Id"
+          },
+          "state": {
+            "enum": [
+              "empty",
+              "suppressed",
+              "ready",
+              "stale"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "uncertainty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uncertainty"
+          }
+        },
+        "required": [
+          "state",
+          "segment_id",
+          "campaign_id",
+          "recommendations",
+          "provenance",
+          "disclaimer",
+          "uncertainty"
+        ],
+        "title": "RecommendationsRead",
+        "type": "object"
+      },
       "RecomputeDayTripResult": {
         "properties": {
           "delta_amount": {
@@ -22095,6 +22378,75 @@
         ]
       }
     },
+    "/api/v1/admin/exposure-segments/{segment_id}/activations": {
+      "post": {
+        "operationId": "activate_segment_api_v1_admin_exposure_segments__segment_id__activations_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "segment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Segment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AudienceDeliveryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudienceActivationRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Activate Segment",
+        "tags": [
+          "Audience Recommendations and Delivery"
+        ]
+      }
+    },
     "/api/v1/admin/files/{file_id}/download": {
       "post": {
         "operationId": "download_admin_file_api_v1_admin_files__file_id__download_post",
@@ -25824,6 +26176,54 @@
         ]
       }
     },
+    "/api/v1/admin/retargeting-source-links/{link_id}/recommendations": {
+      "get": {
+        "operationId": "admin_recommendations_api_v1_admin_retargeting_source_links__link_id__recommendations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Recommendations",
+        "tags": [
+          "Audience Recommendations and Delivery"
+        ]
+      }
+    },
     "/api/v1/admin/retargeting-sources": {
       "get": {
         "operationId": "list_admin_sources_api_v1_admin_retargeting_sources_get",
@@ -29479,6 +29879,75 @@
         ]
       }
     },
+    "/api/v1/advertiser/exposure-segments/{segment_id}/exports": {
+      "post": {
+        "operationId": "export_segment_api_v1_advertiser_exposure_segments__segment_id__exports_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "segment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Segment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AudienceDeliveryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudienceExportRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Export Segment",
+        "tags": [
+          "Audience Recommendations and Delivery"
+        ]
+      }
+    },
     "/api/v1/advertiser/files/uploads": {
       "post": {
         "operationId": "create_file_upload_api_v1_advertiser_files_uploads_post",
@@ -30009,6 +30478,54 @@
         "summary": "Link History",
         "tags": [
           "Retargeting Source Links"
+        ]
+      }
+    },
+    "/api/v1/advertiser/retargeting-source-links/{link_id}/recommendations": {
+      "get": {
+        "operationId": "advertiser_recommendations_api_v1_advertiser_retargeting_source_links__link_id__recommendations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Link Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Recommendations",
+        "tags": [
+          "Audience Recommendations and Delivery"
         ]
       }
     },

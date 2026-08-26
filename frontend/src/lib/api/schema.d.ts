@@ -759,6 +759,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/exposure-segments/{segment_id}/activations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Activate Segment */
+        post: operations["activate_segment_api_v1_admin_exposure_segments__segment_id__activations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/files/{file_id}/download": {
         parameters: {
             query?: never;
@@ -1794,6 +1811,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/retargeting-source-links/{link_id}/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Recommendations */
+        get: operations["admin_recommendations_api_v1_admin_retargeting_source_links__link_id__recommendations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/retargeting-sources": {
         parameters: {
             query?: never;
@@ -2522,6 +2556,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/advertiser/exposure-segments/{segment_id}/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Export Segment */
+        post: operations["export_segment_api_v1_advertiser_exposure_segments__segment_id__exports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/advertiser/files/uploads": {
         parameters: {
             query?: never;
@@ -2686,6 +2737,23 @@ export interface paths {
         };
         /** Link History */
         get: operations["link_history_api_v1_advertiser_retargeting_source_links__link_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/retargeting-source-links/{link_id}/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Advertiser Recommendations */
+        get: operations["advertiser_recommendations_api_v1_advertiser_retargeting_source_links__link_id__recommendations_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4193,6 +4261,30 @@ export interface components {
             name: string;
             status: components["schemas"]["OrganizationStatus"];
         };
+        /** AggregateRecommendation */
+        AggregateRecommendation: {
+            /**
+             * Campaign Context
+             * @constant
+             */
+            campaign_context: "vehicle_transit";
+            /** Coverage Cell */
+            coverage_cell: string;
+            /** Rank */
+            rank: number;
+            /** Rationale */
+            rationale: string;
+            /**
+             * Window End At
+             * Format: date-time
+             */
+            window_end_at: string;
+            /**
+             * Window Start At
+             * Format: date-time
+             */
+            window_start_at: string;
+        };
         /** AnalyticsRecomputeRequest */
         AnalyticsRecomputeRequest: {
             /** Metadata */
@@ -4355,6 +4447,68 @@ export interface components {
             plate_number: string;
             status: components["schemas"]["VehicleStatus"];
             vehicle_type: components["schemas"]["VehicleType"];
+        };
+        /** AudienceActivationRead */
+        AudienceActivationRead: {
+            /** Adapter Name */
+            adapter_name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Operation
+             * @constant
+             */
+            operation: "ad_platform_activation";
+            /** Payload Sha256 */
+            payload_sha256: string;
+            /** Provider Reference */
+            provider_reference: string;
+            /**
+             * Segment Id
+             * Format: uuid
+             */
+            segment_id: string;
+            /** Synthetic */
+            synthetic: boolean;
+        };
+        /** AudienceDeliveryRequest */
+        AudienceDeliveryRequest: Record<string, never>;
+        /** AudienceExportRead */
+        AudienceExportRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Csv Content */
+            csv_content: string;
+            /** Csv Sha256 */
+            csv_sha256: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Operation
+             * @constant
+             */
+            operation: "csv_export";
+            /** Payload Sha256 */
+            payload_sha256: string;
+            /**
+             * Segment Id
+             * Format: uuid
+             */
+            segment_id: string;
         };
         /** AuditEventListResponse */
         AuditEventListResponse: {
@@ -9556,6 +9710,55 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** RecommendationProvenance */
+        RecommendationProvenance: {
+            /** Measurement Input Sha256 */
+            measurement_input_sha256: string;
+            /** Measurement Proof Sha256 */
+            measurement_proof_sha256: string;
+            /** Measurement Result Sha256 */
+            measurement_result_sha256: string;
+            /**
+             * Measurement Run Id
+             * Format: uuid
+             */
+            measurement_run_id: string;
+            /**
+             * Segment Id
+             * Format: uuid
+             */
+            segment_id: string;
+            /** Segment Snapshot Sha256 */
+            segment_snapshot_sha256: string;
+            /** Segment Version */
+            segment_version: number;
+            /**
+             * Source Link Id
+             * Format: uuid
+             */
+            source_link_id: string;
+            /** Source Link Snapshot Sha256 */
+            source_link_snapshot_sha256: string;
+        };
+        /** RecommendationsRead */
+        RecommendationsRead: {
+            /** Campaign Id */
+            campaign_id: string | null;
+            /** Disclaimer */
+            disclaimer: string;
+            provenance: components["schemas"]["RecommendationProvenance"] | null;
+            /** Recommendations */
+            recommendations: components["schemas"]["AggregateRecommendation"][];
+            /** Segment Id */
+            segment_id: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "empty" | "suppressed" | "ready" | "stale";
+            /** Uncertainty */
+            uncertainty: string | null;
+        };
         /** RecomputeDayTripResult */
         RecomputeDayTripResult: {
             /** Delta Amount */
@@ -12712,6 +12915,43 @@ export interface operations {
             };
         };
     };
+    activate_segment_api_v1_admin_exposure_segments__segment_id__activations_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                segment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AudienceDeliveryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AudienceActivationRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     download_admin_file_api_v1_admin_files__file_id__download_post: {
         parameters: {
             query?: never;
@@ -14750,6 +14990,37 @@ export interface operations {
             };
         };
     };
+    admin_recommendations_api_v1_admin_retargeting_source_links__link_id__recommendations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommendationsRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_admin_sources_api_v1_admin_retargeting_sources_get: {
         parameters: {
             query?: never;
@@ -16546,6 +16817,43 @@ export interface operations {
             };
         };
     };
+    export_segment_api_v1_advertiser_exposure_segments__segment_id__exports_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                segment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AudienceDeliveryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AudienceExportRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_file_upload_api_v1_advertiser_files_uploads_post: {
         parameters: {
             query?: never;
@@ -16888,6 +17196,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RetargetingSourceLinkHistoryRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advertiser_recommendations_api_v1_advertiser_retargeting_source_links__link_id__recommendations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommendationsRead"];
                 };
             };
             /** @description Validation Error */

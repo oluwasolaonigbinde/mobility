@@ -80,6 +80,14 @@ AUDITED = {
         "POST",
         "/api/v1/advertiser/retargeting-source-links/{link_id}/remove",
     ): "retargeting_source_link.removed",
+    (
+        "POST",
+        "/api/v1/advertiser/exposure-segments/{segment_id}/exports",
+    ): "audience_segment.exported",
+    (
+        "POST",
+        "/api/v1/admin/exposure-segments/{segment_id}/activations",
+    ): "audience_segment.activation_submitted",
     ("PATCH", "/api/v1/advertiser/campaigns/{campaign_id}"): "advertiser.campaign.updated",
     ("POST", "/api/v1/advertiser/campaigns/{campaign_id}/submit"): (
         "advertiser.campaign.submitted_for_review"
