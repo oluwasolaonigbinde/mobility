@@ -10,6 +10,7 @@ import { Panel } from "@/components/ui/panel";
 import { Stat } from "@/components/ui/stat";
 import { StatusChip } from "@/components/ui/status-chip";
 import { AreaTimeseries, BarTimeseries, type SeriesPoint } from "@/components/charts/timeseries";
+import { MeasurementHeadlineStats } from "./measurement-headline-stats";
 
 export const metadata: Metadata = { title: "Campaign Performance Analysis" };
 
@@ -73,11 +74,25 @@ export default async function CampaignReportPage({
       </div>
 
       {/* Headline numbers */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat
-          label="Modelled potential contacts"
-          value={formatCount(report.impression_summary.estimated_impressions)}
-          hint={`${formatCount(report.impression_summary.estimated_trip_count)} estimated trips · ${formatScore(report.impression_summary.average_confidence_score)} model diagnostic (not a statistical confidence interval)`}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <MeasurementHeadlineStats
+          exposureScore={
+            report.exposure_score
+              ? {
+                  formulaVersion: report.exposure_score.formula_version,
+                  formulaFingerprint: report.exposure_score.formula_fingerprint,
+                  inputFingerprint: report.exposure_score.input_fingerprint,
+                  status: report.exposure_score.result.status,
+                  score: report.exposure_score.result.score,
+                  routeCount: report.exposure_score.result.route_count,
+                  missingRouteCount: report.exposure_score.result.missing_route_count,
+                  uncertainty: report.exposure_score.result.uncertainty.statement,
+                }
+              : null
+          }
+          modelledPotentialContacts={report.impression_summary.estimated_impressions}
+          estimatedTripCount={report.impression_summary.estimated_trip_count}
+          modelDiagnostic={report.impression_summary.average_confidence_score}
         />
         <Stat
           label="Trips analyzed"
