@@ -61,7 +61,8 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 **Controller state:** `PAUSED — EXT-MALWARE-SCANNER`
 **Control package:** `PKG-07` — the owner’s 25 Aug 2026 standing instruction
 authorizes automatic advance to the next dependency-safe package. PKG-06 stays
-BLOCKED: W3-04B/C still require their recorded Package 4 secure-evidence chain.
+BLOCKED: its W3-03B/C audit correction is verified, while W3-04B/C still require
+their recorded Package 4 secure-evidence chain.
 **Current checkpoint:** `PKG-07 / W4-01C` — W4-01A/B and PKG02-C2 are DONE;
 W4-01C is transitively blocked by W3-04C and W2-03D. Its current blocker set
 includes `EXT-MALWARE-SCANNER` and `EXT-KMS-CUSTODY`; the preceding storage
@@ -655,6 +656,18 @@ authorizes no real tracking or pilot use. Package 8 has not been admitted.
 
 - **Owns:** checklist 55–60. Matching/offers/activity and public application,
   KYC/payee and vehicle approval become one governed eligibility journey.
+- **W3-03B/C audit-correction evidence (25 Aug 2026):** a newly materialized
+  DB-time expiry is durably committed only through its typed transaction
+  boundary, while generic errors roll back and list pages use statement-time
+  database authority without duplicate service sweeps. Activity reads only the
+  configured current analytics formula; a recovered weekly/inactivity flag can
+  reopen on the same locked identity with one new event/notice and preserved
+  history. Malformed or failed cursor load/persistence now fails the worker
+  visibly while committed evaluations retry idempotently. Observed red/green,
+  80 focused assignment/activity/worker/notification/exclusivity passes, 11
+  real-PostgreSQL decision/reopen/lock/clock barriers, scoped static checks and
+  one consolidated Sol High review PASS. No migration, public contract,
+  Package 7 path or external-gate state changed.
 - **W3-03A evidence (25 Aug 2026):** `matching_v1` adds an admin-only,
   non-persistent cars-only recommender over current assignment readiness. It
   ranks lower vehicle/driver load, then computed-only activity and stable UUID

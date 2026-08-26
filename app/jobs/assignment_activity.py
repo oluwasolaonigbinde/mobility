@@ -1,6 +1,5 @@
 """Scheduled Q20 assignment activity operations sweep."""
 
-import logging
 import time
 from typing import Any
 from uuid import UUID
@@ -11,8 +10,6 @@ from app.core.observability import capture_exception
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.services.assignment_activity import sweep_activity_flags
 from app.services.payout_rule_serialization import database_clock
-
-logger = logging.getLogger(__name__)
 
 SWEEP_CURSOR_KEY = "worker:assignment-activity:sweep-cursor:v1"
 SWEEP_CURSOR_CONTEXT_KEY = "_assignment_activity_sweep_cursor"
@@ -25,37 +22,29 @@ def _decode_cursor(raw: bytes | str | None) -> UUID | None:
         raw = raw.decode("utf-8")
     try:
         return UUID(raw)
-    except (TypeError, ValueError):
-        logger.warning("job=sweep_assignment_activity event=invalid_cursor")
-        return None
+    except (TypeError, ValueError) as exc:
+        raise ValueError("assignment activity cursor is malformed") from exc
 
 
 async def _load_sweep_cursor(ctx: dict[str, Any]) -> UUID | None:
     redis = ctx.get("redis")
-    try:
-        if redis is None:
-            return _decode_cursor(ctx.get(SWEEP_CURSOR_CONTEXT_KEY))
-        return _decode_cursor(await redis.get(SWEEP_CURSOR_KEY))
-    except Exception:
-        logger.exception("job=sweep_assignment_activity event=cursor_load_failed")
-        return None
+    if redis is None:
+        return _decode_cursor(ctx.get(SWEEP_CURSOR_CONTEXT_KEY))
+    return _decode_cursor(await redis.get(SWEEP_CURSOR_KEY))
 
 
 async def _store_sweep_cursor(ctx: dict[str, Any], cursor: UUID | None) -> None:
     redis = ctx.get("redis")
-    try:
-        if redis is None:
-            if cursor is None:
-                ctx.pop(SWEEP_CURSOR_CONTEXT_KEY, None)
-            else:
-                ctx[SWEEP_CURSOR_CONTEXT_KEY] = str(cursor)
-            return
+    if redis is None:
         if cursor is None:
-            await redis.delete(SWEEP_CURSOR_KEY)
+            ctx.pop(SWEEP_CURSOR_CONTEXT_KEY, None)
         else:
-            await redis.set(SWEEP_CURSOR_KEY, str(cursor))
-    except Exception:
-        logger.exception("job=sweep_assignment_activity event=cursor_store_failed")
+            ctx[SWEEP_CURSOR_CONTEXT_KEY] = str(cursor)
+        return
+    if cursor is None:
+        await redis.delete(SWEEP_CURSOR_KEY)
+    else:
+        await redis.set(SWEEP_CURSOR_KEY, str(cursor))
 
 
 async def _active_assignment_batch(session, *, limit: int, after: UUID | None) -> list[UUID]:
@@ -73,8 +62,8 @@ async def sweep_assignment_activity_flags(ctx: dict[str, Any]) -> dict[str, Any]
     sessionmaker = ctx["sessionmaker"]
     settings = ctx["settings"]
     batch_size = settings.worker_sweep_batch_size
-    cursor = await _load_sweep_cursor(ctx)
     try:
+        cursor = await _load_sweep_cursor(ctx)
         async with sessionmaker() as session:
             evaluation_now = await database_clock(session)
             assignment_ids = await _active_assignment_batch(
@@ -94,12 +83,12 @@ async def sweep_assignment_activity_flags(ctx: dict[str, Any]) -> dict[str, Any]
             settings=settings,
             now=evaluation_now,
         )
+        next_cursor = assignment_ids[-1] if len(assignment_ids) == batch_size else None
+        await _store_sweep_cursor(ctx, next_cursor)
     except Exception as exc:
         capture_exception(exc)
         raise
 
-    next_cursor = assignment_ids[-1] if len(assignment_ids) == batch_size else None
-    await _store_sweep_cursor(ctx, next_cursor)
     result["cursor"] = "advanced" if next_cursor is not None else "wrapped"
     result["duration_ms"] = int((time.monotonic() - started) * 1000)
     return result

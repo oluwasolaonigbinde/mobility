@@ -213,6 +213,7 @@ async def create_activity_flag_notice(
     *,
     flag: AssignmentActivityFlag,
     event_type: AssignmentActivityFlagEventType,
+    event_sequence: int,
 ) -> Notification:
     """Create one typed driver notice for an activity occurrence/recovery."""
     if event_type == AssignmentActivityFlagEventType.OPENED:
@@ -241,8 +242,11 @@ async def create_activity_flag_notice(
             "assignment_id": str(flag.assignment_id),
             "activity_flag_type": flag.flag_type,
             "activity_event": event_type.value,
+            "activity_event_sequence": event_sequence,
         },
-        dedupe_key=f"assignment_activity:{event_type.value}:v1:{flag.id}",
+        dedupe_key=(
+            f"assignment_activity:{event_type.value}:v2:{flag.id}:{event_sequence}"
+        ),
     )
 
 
