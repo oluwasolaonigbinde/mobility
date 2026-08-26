@@ -1,18 +1,21 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Header, Query
 
 from app.api.v1.dependencies import (
     AdvertiserUserDependency,
     CurrentUserDependency,
     SessionDependency,
+    SettingsDependency,
 )
 from app.models.notification import Notification, NotificationType
 from app.schemas.notifications import (
     AdvertiserNotificationPreferenceRead,
     AdvertiserNotificationPreferenceUpdate,
     DriverNotificationRead,
+    EmailDeliveryReceiptCreate,
+    EmailDeliveryReceiptRead,
     NotificationFeedItemRead,
     NotificationFeedListRead,
     NotificationUnreadCountRead,
@@ -21,6 +24,7 @@ from app.services.notifications import (
     list_current_user_notifications,
     mark_all_notifications_read,
     mark_notification_read,
+    record_email_delivery_receipt,
     unread_notification_count,
 )
 from app.services.organizations import (
@@ -29,6 +33,34 @@ from app.services.organizations import (
 )
 
 router = APIRouter(tags=["Notifications"])
+
+
+@router.post(
+    "/notifications/email/delivery-receipts",
+    response_model=EmailDeliveryReceiptRead,
+)
+async def email_delivery_receipt(
+    payload: EmailDeliveryReceiptCreate,
+    session: SessionDependency,
+    settings: SettingsDependency,
+    x_email_receipt_signature: Annotated[str, Header()],
+    x_email_receipt_key_id: Annotated[str, Header()],
+) -> EmailDeliveryReceiptRead:
+    secret = (
+        settings.email_receipt_signing_secret.get_secret_value().encode()
+        if settings.email_receipt_signing_secret is not None
+        else None
+    )
+    receipt = await record_email_delivery_receipt(
+        session,
+        payload=payload.model_dump(mode="json"),
+        signature=x_email_receipt_signature,
+        signing_key_id=x_email_receipt_key_id,
+        signing_secret=secret,
+        configured_key_id=settings.email_receipt_key_id,
+    )
+    await session.commit()
+    return EmailDeliveryReceiptRead.model_validate(receipt)
 
 
 def driver_notification_response(notice: Notification) -> DriverNotificationRead:

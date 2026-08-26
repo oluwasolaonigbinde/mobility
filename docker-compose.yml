@@ -81,6 +81,14 @@ x-backend-env: &backend-env
   EVIDENCE_HIGH_EARNER_THRESHOLD_NGN: ${EVIDENCE_HIGH_EARNER_THRESHOLD_NGN:-}
   EVIDENCE_RENEWAL_LOOKBACK_DAYS: ${EVIDENCE_RENEWAL_LOOKBACK_DAYS:-}
   EVIDENCE_CHALLENGE_RESPONSE_HOURS: ${EVIDENCE_CHALLENGE_RESPONSE_HOURS:-}
+  # Synthetic local SMTP/receipt authority only; production Compose stays blank.
+  EMAIL_PROVIDER: smtp
+  EMAIL_SENDER_ADDRESS: no-reply@cardvert.local
+  EMAIL_SENDER_NAME: Cardvert Local
+  EMAIL_SMTP_HOST: mailpit
+  EMAIL_SMTP_PORT: 1025
+  EMAIL_RECEIPT_SIGNING_SECRET: local-synthetic-email-receipt-secret
+  EMAIL_RECEIPT_KEY_ID: local-v1
 
 services:
   api:
@@ -108,6 +116,7 @@ services:
       - redis
       - minio
       - clamav
+      - mailpit
 
   # Production-style frontend container. Local dev normally runs
   # `npm run dev` instead — start this with: docker compose --profile full up
@@ -178,6 +187,12 @@ services:
     platform: linux/amd64
     volumes:
       - clamav_signatures:/var/lib/clamav
+
+  mailpit:
+    image: axllent/mailpit:v1.30.3
+    ports:
+      - "1025:1025"
+      - "8025:8025"
 
 volumes:
   postgres_data:

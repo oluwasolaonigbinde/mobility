@@ -3307,6 +3307,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications/email/delivery-receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Email Delivery Receipt */
+        post: operations["email_delivery_receipt_api_v1_notifications_email_delivery_receipts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications/read-all": {
         parameters: {
             query?: never;
@@ -6416,6 +6433,45 @@ export interface components {
          * @enum {string}
          */
         EarningsLedgerEntryType: "trip_payout" | "adjustment" | "reversal" | "debt_remainder";
+        /** EmailDeliveryReceiptCreate */
+        EmailDeliveryReceiptCreate: {
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "delivered" | "failed";
+            /** Provider Event Id */
+            provider_event_id: string;
+            /** Provider Message Id */
+            provider_message_id: string;
+        };
+        /** EmailDeliveryReceiptRead */
+        EmailDeliveryReceiptRead: {
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "delivered" | "failed";
+            /** Provider Event Id */
+            provider_event_id: string;
+            /** Provider Message Id */
+            provider_message_id: string;
+            /**
+             * Verified At
+             * Format: date-time
+             */
+            verified_at: string;
+        };
         /** EstimateImpressionsRequest */
         EstimateImpressionsRequest: {
             /** Metadata */
@@ -16786,6 +16842,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotificationFeedListRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    email_delivery_receipt_api_v1_notifications_email_delivery_receipts_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-email-receipt-signature": string;
+                "x-email-receipt-key-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailDeliveryReceiptCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailDeliveryReceiptRead"];
                 };
             };
             /** @description Validation Error */

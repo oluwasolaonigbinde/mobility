@@ -16,6 +16,7 @@ from app.jobs.data_lifecycle import (
 )
 from app.jobs.disclosure_retention import purge_expired_disclosure_query_history
 from app.jobs.earnings_release import sweep_earnings_release_reviews
+from app.jobs.email_delivery import sweep_email_notifications
 from app.jobs.evidence_verification import sweep_evidence_verifications
 from app.jobs.file_lifecycle import purge_expired_file_kyc, purge_orphaned_file_uploads
 from app.jobs.file_scanning import scan_pending_files
@@ -117,6 +118,11 @@ class WorkerSettings:
         ),
         cron(
             sweep_evidence_verifications,
+            minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
+            unique=True,
+        ),
+        cron(
+            sweep_email_notifications,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
             unique=True,
         ),

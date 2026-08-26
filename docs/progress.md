@@ -59,15 +59,14 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 ### Current control pointer
 
 **Controller state:** `ACTIVE`
-**Control package:** `PKG-04` — the project owner's 26 Aug 2026 build-first
-clarification corrects the prior false pause: missing production storage,
-scanner, KMS, email and phone inputs remain explicit live/deployment gates but
-do not block provider-neutral/local/synthetic implementation under D23.
-**Current checkpoint:** `PKG-04 / W2-04B` — build provider-neutral advertiser
-email dispatch, retry and signed receipt handling over the completed shared
-notification authority. Live sender/provider adoption remains gated by
-`EXT-EMAIL-PROVIDER`; no production sender, provider delivery, live creative/
-KYC/evidence approval, launch, real route/device or pilot evidence is claimed.
+**Control package:** `PKG-05` — Package 4's provider-neutral storage, KYC,
+activation and email work is complete through W2-04B. Its remaining trigger
+chain is transitively blocked by the still-explicit W2-01E budget-policy input,
+so the queue advances to the earliest later runnable checklist item.
+**Current checkpoint:** `PKG-05 / W3-00B` — implement synthetic end-to-end
+retention and DSR over the now-complete secure file/KYC lifecycle. Live legal,
+processor, backup and production deletion adoption remains gated by recorded
+external inputs; no live data-subject request or legal validation is claimed.
 
 ## Executable package queue
 
@@ -76,8 +75,8 @@ KYC/evidence approval, launch, real route/device or pilot evidence is claimed.
 | 1 | **PKG-01 — foundations and empirical risk proof** | DONE | Resolve remaining foundations, production-PWA/staging risk and correction authority. | none |
 | 2 | **PKG-02 — money integrity and payout operations** | DONE | Corrected release, pre-existing-reversal backfill and debt-aware economic/settlement authority agree. | none — checklist DAG gates entry |
 | 3 | **PKG-03 — commercial contracts and billing** | BLOCKED | Synthetic/provider-neutral commercial flow is verified; live provider checkout and budget enforcement await their recorded external inputs. | none — checklist DAG gates entry |
-| 4 | **PKG-04 — secure evidence, activation and communications** | **IN PROGRESS** | Campaign review and the shared in-app notification core are complete; provider-neutral storage/KYC/activation/communications now advance in checklist order while production-only inputs remain live-use gates. | none — checklist DAG gates entry |
-| 5 | **PKG-05 — privacy, measurement and retargeting** | QUEUED | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
+| 4 | **PKG-04 — secure evidence, activation and communications** | **BLOCKED** | Provider-neutral storage/KYC/activation/email work is complete through W2-04B; W2-04C/D wait transitively on W2-01E's unresolved budget policy. | none — checklist DAG gates entry |
+| 5 | **PKG-05 — privacy, measurement and retargeting** | **IN PROGRESS** | Privacy controls and reproducible measurement govern retargeting and advertiser insights. | none — checklist DAG gates entry |
 | 6 | **PKG-06 — matching and driver onboarding** | QUEUED | Recommendations, offers, activity and public application are verified; KYC/payee and vehicle approval await their recorded secure-evidence dependencies. | none — checklist DAG gates entry |
 | 7 | **PKG-07 — production driver PWA** | QUEUED | The pilot PWA safely tracks, syncs, explains earnings and supports release across the device matrix. | none — checklist DAG gates entry |
 | 8 | **PKG-08 — governed reporting and pilot readiness** | QUEUED | Safe reports, release infrastructure and one complete pilot acceptance gate are ready. | none — checklist DAG gates entry |
@@ -700,6 +699,24 @@ KYC/evidence approval, launch, real route/device or pilot evidence is claimed.
   feedback validation is claimed. Remaining Package 4 work is dependency-
   blocked, so the executable frontier advances to PKG-05/W3-00A without
   starting it in this checkpoint.
+- **W2-04B checkpoint evidence (26 Aug 2026):** migration `0061` adds bounded
+  email-dispatch claims, exponential retry timing and immutable, uniquely
+  keyed terminal receipt evidence over the existing outbox. The worker
+  rechecks active advertiser membership and the organization preference before
+  every send, uses one notification ID as the provider idempotency key, and
+  recovers expired claims without duplicate concurrent dispatch. Typed code
+  templates and a provider-neutral SMTP port run against local Mailpit; blank
+  or partial production configuration remains fail closed. Canonical HMAC
+  receipts require the configured key ID, converge on exact replay, reject
+  changed or contradictory terminal events and update only the uniquely
+  matched provider message. A reversed preference predicate produced the
+  expected red send and the restored guard passed. Seven focused delivery/
+  preference/concurrency/receipt cases, two PostgreSQL migration round trips,
+  156 combined notification/config/worker/contract/control checks, 42 preserved
+  R14-B/frontend fixtures, typecheck, Ruff, synchronized byte-stable §9
+  artifacts and a real local SMTP send plus signed 200/200/401 receipt flow
+  pass. `EXT-EMAIL-PROVIDER` remains MISSING; no production
+  provider, verified sender, live recipient or delivery claim is made.
 - **Package 4 post-review correction evidence (24 Aug 2026):** Extended Pro's
   exact-head review found three uncovered authority defects plus stale PR
   controls. Generic campaign PATCH now treats only an identical status as a
@@ -1132,7 +1149,7 @@ verification, gates or required specialist review.
 | 38 | **W2-03F — cancellation cutoff and settlement** | PKG-04 | DONE | One idempotent cutoff stops new work, clips pay and applies the standard-boundary or actual-waived-start refund rule. | leaf: W2-01D, W2-03D, MNY-11A |
 | 39 | **W2-03G — proof challenges and spot checks** | PKG-04 | DONE | Missed challenges and physical verification feed the authoritative fraud hold. | leaf: MNY-09A, W2-03C, W2-03D |
 | 40 | **W2-04A — notification core and role surfaces** | PKG-04 | DONE | W1 in-app notices become the shared outbox/list/unread-preference system. | leaf: MNY-08C |
-| 41 | **W2-04B — advertiser email delivery** | PKG-04 | TODO | Worker-dispatched email and signed receipts update one logical notification; live delivery remains gated by EXT-EMAIL-PROVIDER. | leaf: W2-04A |
+| 41 | **W2-04B — advertiser email delivery** | PKG-04 | DONE | Worker-dispatched email and signed receipts update one logical notification; live delivery remains gated by EXT-EMAIL-PROVIDER. | leaf: W2-04A |
 | 42 | **W2-04C — business triggers and manual driver contact** | PKG-04 | TODO | Stable event keys notify users; driver WhatsApp remains an audited ops task. | leaf: W2-04A, W2-04B, W2-01E, W2-03F, W2-03G, MNY-10C |
 | 43 | **W2-04D — account recovery and verified contact preferences** | PKG-04 | TODO | Advertiser/admin password reset and driver verified-phone/WhatsApp consent are explicit; live pilot sends remain gated by EXT-PHONE-OPERATOR. | leaf: W2-04B, W2-04C |
 | 44 | **W3-00A — privacy operating model** | PKG-05 | DONE | DPIA/ROPA/roles/lawful bases/consent/vendor/breach responsibilities are explicit. | none |

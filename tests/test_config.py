@@ -303,6 +303,49 @@ def test_recurring_evidence_policy_has_no_production_defaults() -> None:
     assert settings.evidence_challenge_response_hours is None
 
 
+def test_email_provider_and_receipt_authority_have_no_production_defaults() -> None:
+    settings = Settings(
+        email_provider="",
+        email_sender_address="",
+        email_smtp_host="",
+        email_receipt_signing_secret=None,
+        email_receipt_key_id="",
+    )
+
+    assert settings.email_provider == ""
+    assert settings.email_sender_address == ""
+    assert settings.email_smtp_host == ""
+    assert settings.email_receipt_signing_secret is None
+    assert settings.email_receipt_key_id == ""
+
+
+@pytest.mark.parametrize("invalid_provider", ["ses", "sendgrid", "unknown"])
+def test_email_provider_rejects_unimplemented_live_choices(invalid_provider: str) -> None:
+    with pytest.raises(ValidationError):
+        Settings(email_provider=invalid_provider)
+
+
+def test_email_receipt_secret_rejects_short_values() -> None:
+    with pytest.raises(ValidationError):
+        Settings(email_receipt_signing_secret="too-short")
+
+    assert Settings(email_receipt_signing_secret="").email_receipt_signing_secret is None
+
+
+@pytest.mark.parametrize(
+    "setting_name",
+    [
+        "email_smtp_port",
+        "email_delivery_max_attempts",
+        "email_delivery_retry_base_seconds",
+        "email_delivery_claim_seconds",
+    ],
+)
+def test_email_delivery_numeric_settings_must_be_positive(setting_name: str) -> None:
+    with pytest.raises(ValidationError):
+        Settings(**{setting_name: 0})
+
+
 @pytest.mark.parametrize(
     "setting_name",
     ["evidence_renewal_lookback_days", "evidence_challenge_response_hours"],

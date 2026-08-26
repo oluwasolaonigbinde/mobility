@@ -1654,7 +1654,7 @@ advertiser transactional email default-on with one audited organization-wide
 opt-out while in-app remains mandatory. Email is a first-class transactional
 channel adapter; its concrete provider/account remains an external parameter.
 
-### 20.1 Outbox pattern — in-app core [BUILT], provider dispatch [TARGET]
+### 20.1 Outbox pattern — in-app core and provider-neutral email dispatch [BUILT], live provider [GATED]
 
 - `notifications` table: recipient user, type/template key, payload (JSONB),
   channel (currently `in_app | transactional_email`; later adapters do not
@@ -1671,8 +1671,8 @@ channel adapter; its concrete provider/account remains an external parameter.
 - **Created transactionally** with the business mutation that triggers them
   (same DB transaction — a payout release that commits also commits its
   notification row; no lost or phantom sends).
-- A worker job (§14) will dispatch pending provider rows through channel adapters
-  (`app/adapters/messaging/` — provider [OPEN]; in-app "dispatch" is a no-op,
+- A worker job (§14) dispatches pending provider rows through channel adapters
+  (`app/adapters/messaging/`; in-app "dispatch" is a no-op,
   the row itself is the notification).
 - In-app UI: notification list + unread badge, **polled** (P8) via TanStack
   Query (§27.2), with recipient-scoped read/read-all and sanitized allowlisted
@@ -1680,6 +1680,20 @@ channel adapter; its concrete provider/account remains an external parameter.
   poll-only (no WebSockets/SSE); mobile-app
   push (FCM) is a post-pilot native-client channel adapter (§23, D18) and does
   not change the schema.
+- Transactional-email dispatch uses a short database claim, a stable
+  notification-ID idempotency key and exponential retry timing. An active
+  claim excludes a concurrent worker; an expired claim is recoverable after a
+  crash. The worker rechecks active advertiser membership, organization state
+  and the current organization email preference before it contacts the
+  adapter. Missing or partial provider configuration never falls back to a
+  live transport.
+- Delivery receipts are canonical HMAC-SHA-256 events bound to an explicit key
+  ID and the unique provider message ID. Exact replays converge; changed reuse,
+  unknown messages and a second contradictory terminal event fail closed. The
+  immutable receipt row is the evidence for the single `delivered | failed`
+  transition. SMTP plus Mailpit is the runnable local adapter; the production
+  provider, credentials, verified sender and signing secret remain
+  `EXT-EMAIL-PROVIDER` inputs.
 
 ### 20.2 Rules
 
@@ -2507,6 +2521,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.67 | 2026-08-26 | **W2-04B provider-neutral advertiser email delivery completed without inventing a live provider.** Migration `0061` adds bounded crash-recoverable claims, retry timing and immutable signed terminal receipts to the shared notification outbox. Active membership, organization state and the default-on organization preference are rechecked before dispatch; typed code templates and one stable idempotency key drive the SMTP port/local Mailpit adapter. Canonical HMAC receipt replay converges while invalid, changed, unknown and contradictory events fail closed. Focused delivery/concurrency/preference/migration/contract checks, preserved R14-B fixtures, red/green preference evidence and a real local SMTP plus signed-receipt flow pass. All §9 artifacts move together; `EXT-EMAIL-PROVIDER` remains MISSING and no production sender, provider or live delivery is claimed. W2-04C/D remain transitively blocked by W2-01E, so W3-00B is the next runnable checkpoint. |
 | v1.66 | 2026-08-26 | **W2-03G recurring proof renewal and physical spot-check evidence delivered over the existing display-proof and fraud-hold authorities.** Migration `0060` adds assignment/trip-bound verification work and extends governed fraud types without creating another money hold. Explicit high-earner policy values have no production defaults; exact worker/admin retries, concurrent sessions, challenge deadlines, fresh-proof satisfaction and false-positive dismissal serialize through existing campaign/driver/trip locks. Driver/admin surfaces expose due work and physical results while explicitly rejecting any GPS-as-branding-proof claim. Focused PostgreSQL race/migration/API/audit/contract checks, red/green deadline evidence, configuration checks, synchronized byte-stable §9 contracts, frontend tests/type/lint/build and an isolated synthetic ops browser journey pass. `EXT-EVIDENCE-POLICY` remains a live-use gate; no physical inspection, live GPS, earning, provider, staging or pilot evidence is claimed; W2-04B is next. |
 | v1.65 | 2026-08-26 | **W2-03F immutable campaign cancellation cutoff and settlement delivered over the existing refund and activation authorities.** Migration `0059` adds one append-only cancellation/settlement snapshot and terminal liability release. The shared campaign lock serializes new work, tracking, analytics and payout-v2/v3/day recompute; post-cutoff pings remain evidence but never earn, exact retry converges, and standard/waived-start/credit outcomes reuse W2-01D without inventing a provider transfer. Focused PostgreSQL race/migration/money/trip checks, red/green cutoff evidence, synchronized byte-stable §9 contracts, advertiser UI tests/build and an isolated synthetic browser journey pass. No refund transfer, live funding, route, earning or pilot evidence is claimed; W2-03G is next. |
 | v1.64 | 2026-08-26 | **W2-03E governed mid-flight campaign changes delivered without rewriting accepted terms.** Migration `0058` adds immutable request/impact/retry evidence and append-only effective revisions. Expansions serialize on the shared campaign authority and apply only inside total funded headroom; insufficient funding waits for an exact reasoned retry. Reductions, removals and every date change require admin reason, retroactive/stale/changed retries fail closed, accepted assignment bindings remain unchanged, and interval reads resolve the revision then in force. Advertiser/admin UI and reasoned assignment removal move with synchronized §9 contracts. Focused PostgreSQL concurrency, liability, tenant, migration, audit, API and frontend/native-contract checks plus an isolated synthetic browser journey pass; no live funding, approval, campaign change, route, earning or pilot evidence is claimed. W2-03F is next. |

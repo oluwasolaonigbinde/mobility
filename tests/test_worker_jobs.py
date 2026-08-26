@@ -29,6 +29,8 @@ from app.jobs import campaign_assignments as campaign_assignment_jobs
 from app.jobs import data_lifecycle as data_lifecycle_jobs
 from app.jobs import disclosure_retention as disclosure_retention_jobs
 from app.jobs import earnings_release as earnings_release_jobs
+from app.jobs import email_delivery as email_delivery_jobs
+from app.jobs import evidence_verification as evidence_verification_jobs
 from app.jobs import file_lifecycle as file_lifecycle_jobs
 from app.jobs import file_scanning as file_scanning_jobs
 from app.jobs import payment_gateway as payment_gateway_jobs
@@ -64,7 +66,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert gateway.name == "process_payment_gateway_event"
     assert gateway.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 13
+    assert len(WorkerSettings.cron_jobs) == 15
     cron_job = WorkerSettings.cron_jobs[0]
     assert isinstance(cron_job, CronJob)
     assert cron_job.coroutine is jobs.process_unprocessed_trips
@@ -105,13 +107,18 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert activity_sweep.unique is True
     assert activity_sweep.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
-    scan_sweep = WorkerSettings.cron_jobs[6]
+    evidence_sweep = WorkerSettings.cron_jobs[6]
+    assert evidence_sweep.coroutine is evidence_verification_jobs.sweep_evidence_verifications
+    email_sweep = WorkerSettings.cron_jobs[7]
+    assert email_sweep.coroutine is email_delivery_jobs.sweep_email_notifications
+
+    scan_sweep = WorkerSettings.cron_jobs[8]
     assert isinstance(scan_sweep, CronJob)
     assert scan_sweep.coroutine is file_scanning_jobs.scan_pending_files
     assert scan_sweep.unique is True
     assert scan_sweep.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
-    lifecycle_crons = {cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[7:]}
+    lifecycle_crons = {cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[9:]}
     assert set(lifecycle_crons) == {
         data_lifecycle_jobs.premake_ping_partitions,
         data_lifecycle_jobs.check_ping_partition_coverage,

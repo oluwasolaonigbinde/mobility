@@ -8501,6 +8501,83 @@
         "title": "EarningsLedgerEntryType",
         "type": "string"
       },
+      "EmailDeliveryReceiptCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "delivered",
+              "failed"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "provider_event_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Provider Event Id",
+            "type": "string"
+          },
+          "provider_message_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Provider Message Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider_event_id",
+          "provider_message_id",
+          "outcome",
+          "occurred_at"
+        ],
+        "title": "EmailDeliveryReceiptCreate",
+        "type": "object"
+      },
+      "EmailDeliveryReceiptRead": {
+        "properties": {
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "delivered",
+              "failed"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "provider_event_id": {
+            "title": "Provider Event Id",
+            "type": "string"
+          },
+          "provider_message_id": {
+            "title": "Provider Message Id",
+            "type": "string"
+          },
+          "verified_at": {
+            "format": "date-time",
+            "title": "Verified At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider_event_id",
+          "provider_message_id",
+          "outcome",
+          "occurred_at",
+          "verified_at"
+        ],
+        "title": "EmailDeliveryReceiptRead",
+        "type": "object"
+      },
       "EstimateImpressionsRequest": {
         "additionalProperties": false,
         "properties": {
@@ -29727,6 +29804,67 @@
           }
         ],
         "summary": "Current User Notifications",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/email/delivery-receipts": {
+      "post": {
+        "operationId": "email_delivery_receipt_api_v1_notifications_email_delivery_receipts_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-email-receipt-signature",
+            "required": true,
+            "schema": {
+              "title": "X-Email-Receipt-Signature",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-email-receipt-key-id",
+            "required": true,
+            "schema": {
+              "title": "X-Email-Receipt-Key-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailDeliveryReceiptCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDeliveryReceiptRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Email Delivery Receipt",
         "tags": [
           "Notifications"
         ]

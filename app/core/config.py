@@ -34,6 +34,7 @@ DEFAULT_JWT_SECRET = "change-me-local-development-secret-at-least-32-bytes"
 CorsOrigins = Annotated[list[str], BeforeValidator(_parse_cors_origins)]
 OptionalFloat = Annotated[float | None, BeforeValidator(_blank_to_none)]
 OptionalInt = Annotated[int | None, BeforeValidator(_blank_to_none)]
+OptionalSecret = Annotated[SecretStr | None, BeforeValidator(_blank_to_none)]
 
 
 class Settings(BaseSettings):
@@ -102,6 +103,21 @@ class Settings(BaseSettings):
     evidence_high_earner_threshold_ngn: str | float | int | None = None
     evidence_renewal_lookback_days: OptionalInt = None
     evidence_challenge_response_hours: OptionalInt = None
+    # Production provider and verified sender identity are external inputs.
+    # Empty values keep provider dispatch and receipt handling fail closed.
+    email_provider: str = ""
+    email_sender_address: str = ""
+    email_sender_name: str = "Cardvert"
+    email_smtp_host: str = ""
+    email_smtp_port: int = 1025
+    email_smtp_username: str = ""
+    email_smtp_password: OptionalSecret = None
+    email_smtp_starttls: bool = False
+    email_receipt_signing_secret: OptionalSecret = None
+    email_receipt_key_id: str = ""
+    email_delivery_max_attempts: int = 5
+    email_delivery_retry_base_seconds: int = 60
+    email_delivery_claim_seconds: int = 120
     malware_scanner_host: str = ""
     malware_scanner_port: int = 3310
     malware_scanner_timeout_seconds: int = 30
@@ -512,6 +528,35 @@ class Settings(BaseSettings):
     def validate_worker_sweep_batch_size(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("WORKER_SWEEP_BATCH_SIZE must be positive")
+        return value
+
+    @field_validator(
+        "email_smtp_port",
+        "email_delivery_max_attempts",
+        "email_delivery_retry_base_seconds",
+        "email_delivery_claim_seconds",
+    )
+    @classmethod
+    def validate_positive_email_settings(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("Email delivery settings must be positive")
+        return value
+
+    @field_validator("email_provider")
+    @classmethod
+    def validate_email_provider(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"", "smtp"}:
+            raise ValueError("EMAIL_PROVIDER must be blank or smtp")
+        return normalized
+
+    @field_validator("email_receipt_signing_secret")
+    @classmethod
+    def validate_email_receipt_signing_secret(
+        cls, value: SecretStr | None
+    ) -> SecretStr | None:
+        if value is not None and len(value.get_secret_value()) < 32:
+            raise ValueError("EMAIL_RECEIPT_SIGNING_SECRET must be at least 32 characters")
         return value
 
     @field_validator("fraud_review_sla_days")

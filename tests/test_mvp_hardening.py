@@ -14,7 +14,7 @@ from app.main import create_app
 from app.models.user import UserRole
 
 SNAPSHOT_PATH = Path("docs/api/openapi.snapshot.json")
-EXPECTED_ALEMBIC_HEAD = "0059_campaign_cancellations"
+EXPECTED_ALEMBIC_HEAD = "0061_email_delivery"
 EXPECTED_MIGRATIONS = {
     "0001_enable_extensions.py",
     "0002_identity_and_organizations.py",
@@ -75,6 +75,8 @@ EXPECTED_MIGRATIONS = {
     "0057_installation_evidence.py",
     "0058_campaign_changes.py",
     "0059_campaign_cancellations.py",
+    "0060_evidence_verifications.py",
+    "0061_email_delivery.py",
 }
 MAJOR_CONTRACT_PATHS = {
     "health": "/api/v1/health",
