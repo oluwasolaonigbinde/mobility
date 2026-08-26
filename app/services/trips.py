@@ -44,6 +44,7 @@ from app.services.campaign_assignments import (
     ensure_vehicle_belongs_to_driver,
     get_driver_profile_for_user,
 )
+from app.services.campaign_cancellations import campaign_financial_cutoff
 from app.services.installation_evidence import ensure_current_display_proof
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 
@@ -430,6 +431,7 @@ async def end_driver_trip(
     payload: TripEndRequest,
 ) -> TripEndResult:
     trip = await get_driver_trip(session, user_id=user_id, trip_id=trip_id)
+    await acquire_campaign_terms_lock(session, trip.campaign_id)
     now = utc_now()
     # Guarded transition (like ended -> sealed): two concurrent end requests
     # must not both pass a read-then-write check — the loser would overwrite
@@ -584,6 +586,9 @@ async def ingest_location_ping_batch(
     settings: Settings,
 ) -> PingBatchResult:
     trip = await get_driver_trip(session, user_id=user_id, trip_id=trip_id)
+    # Cancellation owns this same campaign authority. Whichever transaction
+    # wins establishes whether this batch is pre- or post-cutoff evidence.
+    await acquire_campaign_terms_lock(session, trip.campaign_id)
     # Lock the trip row and re-read status before deciding live vs quarantine:
     # under READ COMMITTED a concurrent seal (grace sweep or a racing end
     # request) must not land while this insert is mid-flight, or live pings
@@ -593,11 +598,13 @@ async def ingest_location_ping_batch(
     )
     if trip is None:
         raise trip_not_found()
+    financial_cutoff = await campaign_financial_cutoff(session, trip.campaign_id)
     if trip.status == TripSessionStatus.ACTIVE.value:
         assignment = await session.get(CampaignAssignment, trip.assignment_id)
         if assignment is None:
             raise trip_not_found()
-        ensure_assignment_active(assignment)
+        if financial_cutoff is None:
+            ensure_assignment_active(assignment)
     # `ended` = the RM3 recovery window: late batches are accepted, and the
     # assignment-active gate is deliberately skipped — delivery of evidence
     # already recorded must not depend on the assignment still being active.
@@ -637,13 +644,19 @@ async def ingest_location_ping_batch(
     for ping in payload.pings:
         ensure_ping_bounds(trip=trip, ping=ping, now=received_at, settings=settings)
 
+    batch_metadata = dict(payload.metadata)
+    if financial_cutoff is not None:
+        batch_metadata["financial_cutoff_at"] = financial_cutoff.isoformat()
+        batch_metadata["post_cutoff_ping_count"] = sum(
+            1 for ping in payload.pings if as_aware_utc(ping.recorded_at) > financial_cutoff
+        )
     batch = LocationPingBatch(
         trip_session_id=trip.id,
         idempotency_key=payload.idempotency_key,
         payload_hash=digest,
         pings_accepted=len(payload.pings),
         received_at=received_at,
-        batch_metadata=payload.metadata,
+        batch_metadata=batch_metadata,
     )
     session.add(batch)
     await session.flush()

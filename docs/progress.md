@@ -63,10 +63,10 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 clarification corrects the prior false pause: missing production storage,
 scanner, KMS, email and phone inputs remain explicit live/deployment gates but
 do not block provider-neutral/local/synthetic implementation under D23.
-**Current checkpoint:** `PKG-04 / W2-03F` — build the idempotent campaign
-cancellation cutoff, settlement and refund boundary over the completed atomic
-activation and funded-liability authorities. No production storage/scanner/KMS
-provider, custodian, live
+**Current checkpoint:** `PKG-04 / W2-03G` — build recurring proof challenges,
+missed-challenge holds and physical spot-check evidence over the completed
+installation-proof and atomic-activation authorities. No production
+storage/scanner/KMS provider, custodian, live
 creative/KYC/evidence approval, launch, live KYC, real-GPS, external-staging,
 physical-device or pilot evidence is claimed.
 
@@ -639,6 +639,22 @@ physical-device or pilot evidence is claimed.
   synthetic advertiser expansion→admin-approved reduction browser journey
   passes; its disposable database was removed. No live funding, production
   change, approval, route, earning or pilot evidence is claimed.
+- **W2-03F checkpoint evidence (26 Aug 2026):** migration `0059` adds one
+  append-only advertiser cancellation and settlement-revision authority plus a
+  terminal liability-release transition. The exact-retry command holds the
+  shared campaign lock, records one database-time cutoff, cancels nonterminal
+  assignments without rewriting accepted/event history, releases reserved
+  liability and classifies cash-refund, closed-window, credit-settlement or
+  no-settlement outcomes from existing W2-01D evidence. Trip start, ingestion,
+  analytics, payout-v2/v3 and day recompute share the cutoff chronology;
+  post-cutoff pings remain evidence but cannot earn. Exact standard-boundary,
+  tenant/retry, populated migration, append-only, release-terminal and
+  cancel-versus-trip races pass. A temporary missing-cutoff mutation made both
+  payout engines overpay and the restored implementation passed. Nineteen
+  focused migration/API/audit/contract checks, 17 adjacent money/trip checks,
+  11 frontend tests, type/lint/build, byte-stable §9 artifacts and one isolated
+  real browser cancellation journey pass; its database was removed. No refund
+  transfer, live funding, provider, route, earning or pilot evidence is claimed.
 - **Corrected-authority seam evidence (24 Aug 2026):** Package 4 migration
   `0043` now descends from Package 3 head `0042`. The adopted Package 3
   campaign/terms currency lock initially exposed one stale-update ordering
@@ -1097,7 +1113,7 @@ verification, gates or required specialist review.
 | 35 | **W2-03C — installation evidence and proof-of-display** | PKG-04 | DONE | Assignment-bound evidence and nonce proof gate earning eligibility. | leaf: W2-02B |
 | 36 | **W2-03D — atomic activation** | PKG-04 | DONE | One admin command locks/rechecks every commercial and operational prerequisite, including valid standard-wait or expedited-waiver production authority. | leaf: W2-00C, W2-01A, W2-01B, W2-03A, W2-03B, W2-03C |
 | 37 | **W2-03E — governed mid-flight changes** | PKG-04 | DONE | Expansions honor funded headroom; reductions need approval and effective revisions. | leaf: W2-00A, W2-00C, W2-03D |
-| 38 | **W2-03F — cancellation cutoff and settlement** | PKG-04 | TODO | One idempotent cutoff stops new work, clips pay and applies the standard-boundary or actual-waived-start refund rule. | leaf: W2-01D, W2-03D, MNY-11A |
+| 38 | **W2-03F — cancellation cutoff and settlement** | PKG-04 | DONE | One idempotent cutoff stops new work, clips pay and applies the standard-boundary or actual-waived-start refund rule. | leaf: W2-01D, W2-03D, MNY-11A |
 | 39 | **W2-03G — proof challenges and spot checks** | PKG-04 | TODO | Missed challenges and physical verification feed the authoritative fraud hold. | leaf: MNY-09A, W2-03C, W2-03D |
 | 40 | **W2-04A — notification core and role surfaces** | PKG-04 | DONE | W1 in-app notices become the shared outbox/list/unread-preference system. | leaf: MNY-08C |
 | 41 | **W2-04B — advertiser email delivery** | PKG-04 | TODO | Worker-dispatched email and signed receipts update one logical notification; live delivery remains gated by EXT-EMAIL-PROVIDER. | leaf: W2-04A |

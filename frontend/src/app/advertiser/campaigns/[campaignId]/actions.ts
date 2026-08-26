@@ -14,6 +14,13 @@ const creativeSubmitSchema = submitSchema.extend({
   creativeId: z.string().uuid(),
 });
 
+const cancellationSchema = z.object({
+  campaignId: z.string().uuid(),
+  clientRequestId: z.string().uuid(),
+  reason: z.string().trim().min(1, "A cancellation reason is required").max(1000),
+  confirmed: z.literal("on", "Confirm that you understand cancellation is permanent"),
+});
+
 const optionalLagosDateTime = z
   .string()
   .trim()
@@ -55,6 +62,39 @@ export interface CampaignReviewActionState {
 function lagosDateTime(value: string | undefined): string | undefined {
   if (!value) return undefined;
   return new Date(`${value}:00+01:00`).toISOString();
+}
+
+export async function requestCampaignCancellationAction(
+  _previous: CampaignReviewActionState,
+  formData: FormData,
+): Promise<CampaignReviewActionState> {
+  const parsed = cancellationSchema.safeParse({
+    campaignId: String(formData.get("campaign_id") ?? ""),
+    clientRequestId: String(formData.get("client_request_id") ?? ""),
+    reason: String(formData.get("reason") ?? ""),
+    confirmed: String(formData.get("confirmed") ?? ""),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid campaign cancellation request." };
+  }
+
+  try {
+    const api = createApiClient(await getSessionToken());
+    await api.POST("/api/v1/advertiser/campaigns/{campaign_id}/cancel", {
+      params: { path: { campaign_id: parsed.data.campaignId } },
+      body: {
+        client_request_id: parsed.data.clientRequestId,
+        reason: parsed.data.reason,
+      },
+    });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    return { error: "Could not reach the server. Please try again." };
+  }
+
+  revalidatePath(`/advertiser/campaigns/${parsed.data.campaignId}`);
+  revalidatePath("/advertiser/campaigns");
+  return { done: "Campaign cancelled at the recorded financial cutoff." };
 }
 
 export async function requestCampaignChangeAction(

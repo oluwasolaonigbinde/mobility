@@ -1868,6 +1868,23 @@ export interface paths {
         patch: operations["advertiser_update_campaign_api_v1_advertiser_campaigns__campaign_id__patch"];
         trace?: never;
     };
+    "/api/v1/advertiser/campaigns/{campaign_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Advertiser Cancel Campaign */
+        post: operations["advertiser_cancel_campaign_api_v1_advertiser_campaigns__campaign_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/advertiser/campaigns/{campaign_id}/change-requests": {
         parameters: {
             query?: never;
@@ -4302,6 +4319,76 @@ export interface components {
             metadata?: {
                 [key: string]: unknown;
             };
+        };
+        /** CampaignCancellationCreate */
+        CampaignCancellationCreate: {
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /** Reason */
+            reason: string;
+        };
+        /** CampaignCancellationRead */
+        CampaignCancellationRead: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Cancelled Assignment Count */
+            cancelled_assignment_count: number;
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /** Commercial Terms Id */
+            commercial_terms_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Cutoff At
+             * Format: date-time
+             */
+            cutoff_at: string;
+            /** Disposition */
+            disposition: string;
+            /** Funding Authorized At */
+            funding_authorized_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Prior Status */
+            prior_status: string;
+            /** Production Start Id */
+            production_start_id: string | null;
+            /** Reason */
+            reason: string;
+            /** Refund Eligibility Ends At */
+            refund_eligibility_ends_at: string | null;
+            /** Refundable Amount */
+            refundable_amount: string;
+            /** Released Liability Amount */
+            released_liability_amount: string;
+            /**
+             * Requested By User Id
+             * Format: uuid
+             */
+            requested_by_user_id: string;
         };
         /** CampaignChangeCreate */
         CampaignChangeCreate: {
@@ -13595,6 +13682,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advertiser_cancel_campaign_api_v1_advertiser_campaigns__campaign_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignCancellationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignCancellationRead"];
                 };
             };
             /** @description Validation Error */

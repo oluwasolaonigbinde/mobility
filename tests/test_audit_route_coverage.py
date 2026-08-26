@@ -61,6 +61,10 @@ AUDITED = {
         "POST",
         "/api/v1/admin/campaign-change-requests/{request_id}/reject",
     ): "admin.campaign_change.rejected",
+    (
+        "POST",
+        "/api/v1/advertiser/campaigns/{campaign_id}/cancel",
+    ): "advertiser.campaign.cancelled",
     ("POST", "/api/v1/advertiser/retargeting-sources"): "retargeting_source.created",
     (
         "POST",

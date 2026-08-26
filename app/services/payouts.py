@@ -41,6 +41,7 @@ from app.schemas.payouts import (
     CampaignPayoutRuleRevisionCreate,
     CampaignPayoutRuleUpdate,
 )
+from app.services.campaign_cancellations import campaign_financial_cutoff
 from app.services.campaigns import get_advertiser_campaign
 from app.services.drivers import get_required_driver_profile_with_user_by_user_id
 from app.services.fraud_holds import fraud_hold_counts
@@ -161,6 +162,29 @@ def lagos_day_for(moment: datetime) -> date:
 def lagos_day_utc_range(day: date) -> tuple[datetime, datetime]:
     day_start = datetime.combine(day, time.min, tzinfo=LAGOS_TZ)
     return day_start.astimezone(UTC), (day_start + timedelta(days=1)).astimezone(UTC)
+
+
+def _aware_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
+async def payout_time_bounds(
+    session: AsyncSession,
+    *,
+    trip: TripSession,
+    window_end_at: datetime | None,
+) -> tuple[datetime, datetime | None, datetime | None]:
+    """Return the economic trip end, effective campaign end and frozen cutoff."""
+    cutoff = await campaign_financial_cutoff(session, trip.campaign_id)
+    trip_end = _aware_utc(trip.ended_at)
+    economic_end = min(trip_end, cutoff) if cutoff is not None else trip_end
+    economic_end = max(_aware_utc(trip.started_at), economic_end)
+    effective_window_end = window_end_at
+    if cutoff is not None and (
+        effective_window_end is None or cutoff < _aware_utc(effective_window_end)
+    ):
+        effective_window_end = cutoff
+    return economic_end, effective_window_end, cutoff
 
 
 def paycap_lock_key(driver_profile_id: UUID, campaign_id: UUID, lagos_date: date) -> int:
@@ -1097,6 +1121,7 @@ async def load_eligibility_pings(
     premium_zone_ids: list[UUID] | None = None,
     frozen_premium_zone_wkts: list[str] | None = None,
     frozen_exclusion_zone_wkts: list[str] | None = None,
+    recorded_through: datetime | None = None,
 ) -> list[EligibilityPingRow]:
     """One PostGIS round trip: pings plus geofence/tier membership.
 
@@ -1158,6 +1183,9 @@ async def load_eligibility_pings(
         )
     elif not frozen_geography:
         in_premium = false()
+    ping_filters = [LocationPing.trip_session_id == trip_id]
+    if recorded_through is not None:
+        ping_filters.append(LocationPing.recorded_at <= recorded_through)
     result = await session.execute(
         select(
             LocationPing.id,
@@ -1168,7 +1196,7 @@ async def load_eligibility_pings(
             in_area.label("in_area"),
             in_premium.label("in_premium"),
         )
-        .where(LocationPing.trip_session_id == trip_id)
+        .where(*ping_filters)
         .order_by(
             LocationPing.recorded_at,
             LocationPing.sequence_number.asc().nullslast(),
@@ -1843,7 +1871,15 @@ async def v2_calculation_is_stale(
         return True
     campaign = await get_campaign(session, trip.campaign_id)
     params = effective_eligibility_params(settings, rule)
-    ping_rows = await load_eligibility_pings(session, trip_id=trip.id, campaign_id=trip.campaign_id)
+    economic_end, effective_window_end, _ = await payout_time_bounds(
+        session, trip=trip, window_end_at=campaign.end_at
+    )
+    ping_rows = await load_eligibility_pings(
+        session,
+        trip_id=trip.id,
+        campaign_id=trip.campaign_id,
+        recorded_through=economic_end,
+    )
     zone_state = await campaign_zone_state(session, trip.campaign_id)
     current = v2_inputs_fingerprint(
         rule=rule,
@@ -1851,7 +1887,7 @@ async def v2_calculation_is_stale(
         ping_fingerprint=ping_set_fingerprint(ping_rows),
         zone_fingerprint=zone_state.fingerprint,
         window_start_at=campaign.start_at,
-        window_end_at=campaign.end_at,
+        window_end_at=effective_window_end,
     )
     return calculation.inputs_fingerprint != current
 
@@ -1872,13 +1908,21 @@ async def calculate_trip_payout_v2(
     calculated_at = now or utc_now()
     campaign = await get_campaign(session, trip.campaign_id)
     params = effective_eligibility_params(settings, rule)
-    ping_rows = await load_eligibility_pings(session, trip_id=trip.id, campaign_id=trip.campaign_id)
+    economic_end, effective_window_end, cutoff = await payout_time_bounds(
+        session, trip=trip, window_end_at=campaign.end_at
+    )
+    ping_rows = await load_eligibility_pings(
+        session,
+        trip_id=trip.id,
+        campaign_id=trip.campaign_id,
+        recorded_through=economic_end,
+    )
     breakdown = classify_session(
         session_started_at=trip.started_at,
-        session_ended_at=trip.ended_at,
+        session_ended_at=economic_end,
         pings=[row.ping for row in ping_rows],
         window_start_at=campaign.start_at,
-        window_end_at=campaign.end_at,
+        window_end_at=effective_window_end,
         params=params,
     )
     zone_state = await campaign_zone_state(session, trip.campaign_id)
@@ -1889,7 +1933,7 @@ async def calculate_trip_payout_v2(
         ping_fingerprint=pings_fingerprint,
         zone_fingerprint=zone_state.fingerprint,
         window_start_at=campaign.start_at,
-        window_end_at=campaign.end_at,
+        window_end_at=effective_window_end,
     )
 
     lagos_day = lagos_day_for(trip.started_at)
@@ -1989,6 +2033,8 @@ async def calculate_trip_payout_v2(
         "source_impression_formula_version": estimate.formula_version,
         "source_impression_estimated_at": estimate.estimated_at.isoformat(),
         "source_impression_fingerprint": impression_output_fingerprint(estimate),
+        "financial_cutoff_at": cutoff.isoformat() if cutoff is not None else None,
+        "recorded_trip_end_at": _aware_utc(trip.ended_at).isoformat(),
     }
 
     calculation = PayoutCalculation(
@@ -2111,6 +2157,9 @@ async def calculate_trip_payout_v3(
     calculated_at = now or utc_now()
     await get_campaign(session, trip.campaign_id)
     window_start_at, window_end_at = frozen_campaign_window(binding)
+    economic_end, effective_window_end, cutoff = await payout_time_bounds(
+        session, trip=trip, window_end_at=window_end_at
+    )
     revision = await session.get(CampaignPayoutRuleRevision, binding.revision_id)
     rule = await session.get(CampaignPayoutRule, revision.payout_rule_id)
     params = frozen_eligibility_params(binding)
@@ -2122,13 +2171,14 @@ async def calculate_trip_payout_v3(
         premium_zone_ids=premium_zone_uuids,
         frozen_premium_zone_wkts=list(binding.premium_zone_geometry_wkts or []),
         frozen_exclusion_zone_wkts=list(binding.exclusion_zone_geometry_wkts or []),
+        recorded_through=economic_end,
     )
     breakdown = classify_session(
         session_started_at=trip.started_at,
-        session_ended_at=trip.ended_at,
+        session_ended_at=economic_end,
         pings=[row.ping for row in ping_rows],
         window_start_at=window_start_at,
-        window_end_at=window_end_at,
+        window_end_at=effective_window_end,
         params=params,
         stationary_policy_marker=binding.stationary_policy_marker,
     )
@@ -2142,7 +2192,7 @@ async def calculate_trip_payout_v3(
             f"{binding.premium_zone_geometry_hash}:{binding.exclusion_zone_geometry_hash}"
         ),
         window_start_at=window_start_at,
-        window_end_at=window_end_at,
+        window_end_at=effective_window_end,
     )
 
     lagos_day = lagos_day_for(trip.started_at)
@@ -2296,6 +2346,8 @@ async def calculate_trip_payout_v3(
         "source_impression_formula_version": estimate.formula_version,
         "source_impression_estimated_at": estimate.estimated_at.isoformat(),
         "source_impression_fingerprint": impression_output_fingerprint(estimate),
+        "financial_cutoff_at": cutoff.isoformat() if cutoff is not None else None,
+        "recorded_trip_end_at": _aware_utc(trip.ended_at).isoformat(),
     }
 
     calculation = PayoutCalculation(
@@ -2364,6 +2416,9 @@ async def v3_calculation_is_stale(
         return True
     await get_campaign(session, trip.campaign_id)
     window_start_at, window_end_at = frozen_campaign_window(binding)
+    economic_end, effective_window_end, _ = await payout_time_bounds(
+        session, trip=trip, window_end_at=window_end_at
+    )
     params = frozen_eligibility_params(binding)
     ping_rows = await load_eligibility_pings(
         session,
@@ -2371,6 +2426,7 @@ async def v3_calculation_is_stale(
         campaign_id=trip.campaign_id,
         frozen_premium_zone_wkts=list(binding.premium_zone_geometry_wkts or []),
         frozen_exclusion_zone_wkts=list(binding.exclusion_zone_geometry_wkts or []),
+        recorded_through=economic_end,
     )
     current = v3_inputs_fingerprint(
         binding=binding,
@@ -2381,7 +2437,7 @@ async def v3_calculation_is_stale(
             f"{binding.premium_zone_geometry_hash}:{binding.exclusion_zone_geometry_hash}"
         ),
         window_start_at=window_start_at,
-        window_end_at=window_end_at,
+        window_end_at=effective_window_end,
     )
     return calculation.inputs_fingerprint != current
 
@@ -2529,6 +2585,9 @@ async def calculate_trip_payout(
     strict_staleness=False and reuses (recompute-day is the corrective tool).
     """
     trip = await get_trip_for_payout(session, trip_id)
+    # Serialize the whole money read/write chain with the immutable
+    # cancellation cutoff, not only the final cutoff lookup.
+    await acquire_campaign_terms_lock(session, trip.campaign_id)
     analytics = await get_analytics_for_trip(session, trip.id)
     ensure_current_analytics_formula(analytics, settings)
     estimate = await get_impression_estimate_for_trip(session, trip_id=trip.id, settings=settings)
@@ -3199,6 +3258,7 @@ async def compute_payout_day_targets(
     targets exactly the posted position.
     """
     ensure_postgis(session)
+    await acquire_campaign_terms_lock(session, campaign_id)
     campaign = await get_campaign(session, campaign_id)
     day_range = lagos_day_utc_range(lagos_date)
     day_key = lagos_date.isoformat()
@@ -3341,6 +3401,16 @@ async def compute_payout_day_targets(
                 "currency": rule.currency,
             }
 
+        contract_window_end = (
+            window_end_at if formula_version == PAYOUT_V3 else campaign.end_at
+        )
+        economic_end, effective_window_end, financial_cutoff = await payout_time_bounds(
+            session, trip=trip, window_end_at=contract_window_end
+        )
+        governing_values["financial_cutoff_at"] = (
+            financial_cutoff.isoformat() if financial_cutoff is not None else None
+        )
+
         ping_fingerprint: str | None = None
         payable_by_day_tier: dict[str, dict[str, int]] | None = None
         stationary_detector_evidence: dict | None = None
@@ -3357,15 +3427,18 @@ async def compute_payout_day_targets(
             target_amount = Decimal("0.00")
         elif formula_version == PAYOUT_V2:
             ping_rows = await load_eligibility_pings(
-                session, trip_id=trip.id, campaign_id=campaign_id
+                session,
+                trip_id=trip.id,
+                campaign_id=campaign_id,
+                recorded_through=economic_end,
             )
             ping_fingerprint = ping_set_fingerprint(ping_rows)
             breakdown = classify_session(
                 session_started_at=trip.started_at,
-                session_ended_at=trip.ended_at,
+                session_ended_at=economic_end,
                 pings=[row.ping for row in ping_rows],
                 window_start_at=campaign.start_at,
-                window_end_at=campaign.end_at,
+                window_end_at=effective_window_end,
                 params=v2_params,
             )
             eligible_seconds = breakdown.eligible_seconds
@@ -3408,14 +3481,15 @@ async def compute_payout_day_targets(
                 premium_zone_ids=premium_zone_uuids,
                 frozen_premium_zone_wkts=list(binding.premium_zone_geometry_wkts or []),
                 frozen_exclusion_zone_wkts=list(binding.exclusion_zone_geometry_wkts or []),
+                recorded_through=economic_end,
             )
             ping_fingerprint = ping_set_fingerprint(ping_rows)
             breakdown = classify_session(
                 session_started_at=trip.started_at,
-                session_ended_at=trip.ended_at,
+                session_ended_at=economic_end,
                 pings=[row.ping for row in ping_rows],
                 window_start_at=window_start_at,
-                window_end_at=window_end_at,
+                window_end_at=effective_window_end,
                 params=v3_params,
                 stationary_policy_marker=binding.stationary_policy_marker,
             )

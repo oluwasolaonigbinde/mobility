@@ -69,6 +69,7 @@ class FinancialAuthorityType(StrEnum):
 class LiabilityReservationStatus(StrEnum):
     PENDING_FUNDING = "pending_funding"
     RESERVED = "reserved"
+    RELEASED = "released"
 
 
 class ProductionAuthorityBasis(StrEnum):
@@ -626,7 +627,7 @@ class CampaignLiabilityReservation(Base):
     __tablename__ = "campaign_liability_reservations"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('pending_funding', 'reserved')",
+            "status IN ('pending_funding', 'reserved', 'released')",
             name="ck_campaign_liability_reservations_status",
         ),
         CheckConstraint(
@@ -636,9 +637,16 @@ class CampaignLiabilityReservation(Base):
         ),
         CheckConstraint(
             "(status = 'pending_funding' AND authorization_id IS NULL "
-            "AND reserved_amount IS NULL AND reserved_at IS NULL) OR "
+            "AND reserved_amount IS NULL AND reserved_at IS NULL "
+            "AND released_at IS NULL AND release_cancellation_id IS NULL) OR "
             "(status = 'reserved' AND authorization_id IS NOT NULL "
-            "AND reserved_amount = requested_amount AND reserved_at IS NOT NULL)",
+            "AND reserved_amount = requested_amount AND reserved_at IS NOT NULL "
+            "AND released_at IS NULL AND release_cancellation_id IS NULL) OR "
+            "(status = 'released' AND released_at IS NOT NULL "
+            "AND release_cancellation_id IS NOT NULL AND ((authorization_id IS NULL "
+            "AND reserved_amount IS NULL AND reserved_at IS NULL) OR "
+            "(authorization_id IS NOT NULL AND reserved_amount = requested_amount "
+            "AND reserved_at IS NOT NULL)))",
             name="ck_campaign_liability_reservations_state",
         ),
         UniqueConstraint("assignment_id", name="uq_campaign_liability_reservations_assignment"),
@@ -667,6 +675,10 @@ class CampaignLiabilityReservation(Base):
     reserved_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     reserved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    release_cancellation_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("campaign_cancellations.id", ondelete="RESTRICT")
+    )
     formula_version: Mapped[str] = mapped_column(String(64), nullable=False)
 
 

@@ -1780,7 +1780,14 @@ async def reserved_campaign_liability_total(
     *,
     campaign_id: UUID,
 ) -> Decimal:
+    from app.models.campaign_cancellation import CampaignCancellation
     from app.models.campaign_change import CampaignChangeRequest
+
+    cancelled = await session.scalar(
+        select(CampaignCancellation.id).where(CampaignCancellation.campaign_id == campaign_id)
+    )
+    if cancelled is not None:
+        return Decimal("0.00")
 
     assignment_total = await session.scalar(
         select(func.coalesce(func.sum(CampaignLiabilityReservation.reserved_amount), 0)).where(
@@ -1819,6 +1826,18 @@ async def reserve_assignment_liability(
         raise AppError("ASSIGNMENT_NOT_FOUND", "Assignment was not found", status_code=404)
     await acquire_campaign_terms_lock(session, assignment.campaign_id)
     await _campaign(session, assignment.campaign_id, lock=True)
+    from app.models.campaign_cancellation import CampaignCancellation
+
+    if await session.scalar(
+        select(CampaignCancellation.id).where(
+            CampaignCancellation.campaign_id == assignment.campaign_id
+        )
+    ) is not None:
+        raise AppError(
+            "CAMPAIGN_FINANCIAL_CUTOFF",
+            "Cancelled campaign liability cannot be reserved",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     binding = await session.scalar(
         select(AssignmentRuleBinding).where(AssignmentRuleBinding.assignment_id == assignment.id)
     )
@@ -2003,6 +2022,16 @@ async def record_production_start(
     await _active_admin(session, actor_user_id)
     await acquire_campaign_terms_lock(session, campaign_id)
     await _campaign(session, campaign_id, lock=True)
+    from app.models.campaign_cancellation import CampaignCancellation
+
+    if await session.scalar(
+        select(CampaignCancellation.id).where(CampaignCancellation.campaign_id == campaign_id)
+    ) is not None:
+        raise AppError(
+            "CAMPAIGN_FINANCIAL_CUTOFF",
+            "Cancelled campaign production cannot start",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     existing = await session.scalar(
         select(ProductionStart).where(ProductionStart.campaign_id == campaign_id)
     )
@@ -2099,6 +2128,16 @@ async def record_production_start(
 async def assert_new_work_authorized(
     session: AsyncSession, *, campaign_id: UUID, assignment_id: UUID
 ) -> None:
+    from app.models.campaign_cancellation import CampaignCancellation
+
+    if await session.scalar(
+        select(CampaignCancellation.id).where(CampaignCancellation.campaign_id == campaign_id)
+    ) is not None:
+        raise AppError(
+            "CAMPAIGN_FINANCIAL_CUTOFF",
+            "The campaign cancellation cutoff blocks new work",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     try:
         authorization = await assert_campaign_production_authorized(
             session, campaign_id=campaign_id

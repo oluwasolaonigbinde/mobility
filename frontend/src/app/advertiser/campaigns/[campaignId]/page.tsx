@@ -21,6 +21,7 @@ import { StatusActions } from "./status-actions";
 import { CommercialPanel } from "./commercial-panel";
 import { CreativeStatusActions } from "./creative-status-actions";
 import { CampaignChangePanel } from "./campaign-change-panel";
+import { CampaignCancellationPanel } from "./campaign-cancellation-panel";
 
 export const metadata: Metadata = { title: "Campaign" };
 
@@ -187,6 +188,10 @@ export default async function CampaignDetailPage({
         currency={campaign.currency}
         requests={campaignChanges?.items ?? []}
       />
+
+      {(["approved", "scheduled", "active", "paused"] as string[]).includes(campaign.status) ? (
+        <CampaignCancellationPanel campaignId={campaign.id} clientRequestId={randomUUID()} />
+      ) : null}
 
       <Panel className="mt-6 overflow-hidden" aria-label="Review history">
         <div className="border-edge border-b px-6 py-4">

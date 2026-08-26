@@ -7,6 +7,7 @@ from app.api.v1.audit import router as audit_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.billing import router as billing_router
 from app.api.v1.campaign_assignments import router as campaign_assignments_router
+from app.api.v1.campaign_cancellations import router as campaign_cancellations_router
 from app.api.v1.campaign_changes import router as campaign_changes_router
 from app.api.v1.campaign_zones import router as campaign_zones_router
 from app.api.v1.campaigns import router as campaigns_router
@@ -43,6 +44,7 @@ api_router.include_router(advertiser_organizations_router)
 api_router.include_router(advertiser_reports_router)
 api_router.include_router(campaigns_router)
 api_router.include_router(campaign_assignments_router)
+api_router.include_router(campaign_cancellations_router)
 api_router.include_router(campaign_changes_router)
 api_router.include_router(campaign_zones_router)
 api_router.include_router(heatmaps_router)

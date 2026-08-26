@@ -1090,6 +1090,16 @@ path honours it (RM13). Provider fees, statutory treatment and any exceptional
 admin correction remain explicit settlement lines, never edits to an issued
 invoice or receipt.
 
+**[BUILT — W2-03F]** Migration `0059` records one immutable advertiser-owned
+cancellation cutoff and append-only settlement snapshot per campaign. The
+shared campaign authority serializes cancellation with activation, new work,
+tracking, analytics and payout recompute. Nonterminal assignments stop,
+reserved liability becomes terminally released, and post-cutoff tracking stays
+available as evidence while payout-v2/v3 and day correction clip to the exact
+cutoff. The existing W2-01D registry retains unique external refund references;
+this command records eligibility/disposition and never claims a provider
+transfer that has not been observed.
+
 ### Relation to current code
 
 Additive domain. Preserve: campaigns, reports, cost summaries as built. The
@@ -1468,7 +1478,7 @@ evidence and atomic-activation contracts.
   snapshot and still independently rechecks current financial authority and
   fresh proof; receipt reversal uses the same lock chronology and therefore
   either follows a committed activation cutoff or makes new work fail closed.
-  W2-03F still owns the later explicit cancellation cutoff/settlement command.
+  W2-03F's built cancellation command now uses this same authority.
 - **Governed mid-flight changes [BUILT — W2-03E] (Q9/Q24):** one
   effective-dated campaign-change authority stores immutable before/after
   impact, classification and retry identity, then appends the revision in
@@ -1479,7 +1489,16 @@ evidence and atomic-activation contracts.
   decision. Retroactive dates, changed retries and stale snapshots fail closed;
   accepted bindings and event history are never rewritten. Advertiser and
   admin surfaces expose the same governed request and decision evidence.
-  W2-03F owns cancellation cutoff, liability release, settlement and refunds.
+- **Cancellation cutoff and settlement [BUILT — W2-03F] (Q24):** one
+  advertiser-owned exact-retry command records the database-time cutoff under
+  the campaign lock, cancels nonterminal assignments, releases reserved
+  liability and appends the governing settlement snapshot. Standard cash,
+  actual expedited-start and approved-credit outcomes reuse W2-01D's existing
+  evidence and unique refund registry. Tracking after the cutoff remains
+  durable evidence but all analytics, classification, payout-v2/v3 and
+  recompute paths clip economic time to the same boundary. Advertiser UI
+  requires an explicit permanent-cancellation confirmation and does not claim
+  that a refund was transferred.
 - Admin UI: one **approvals queue** section listing pending campaigns,
   creatives, activation evidence and campaign changes (§27).
 
@@ -2478,6 +2497,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.65 | 2026-08-26 | **W2-03F immutable campaign cancellation cutoff and settlement delivered over the existing refund and activation authorities.** Migration `0059` adds one append-only cancellation/settlement snapshot and terminal liability release. The shared campaign lock serializes new work, tracking, analytics and payout-v2/v3/day recompute; post-cutoff pings remain evidence but never earn, exact retry converges, and standard/waived-start/credit outcomes reuse W2-01D without inventing a provider transfer. Focused PostgreSQL race/migration/money/trip checks, red/green cutoff evidence, synchronized byte-stable §9 contracts, advertiser UI tests/build and an isolated synthetic browser journey pass. No refund transfer, live funding, route, earning or pilot evidence is claimed; W2-03G is next. |
 | v1.64 | 2026-08-26 | **W2-03E governed mid-flight campaign changes delivered without rewriting accepted terms.** Migration `0058` adds immutable request/impact/retry evidence and append-only effective revisions. Expansions serialize on the shared campaign authority and apply only inside total funded headroom; insufficient funding waits for an exact reasoned retry. Reductions, removals and every date change require admin reason, retroactive/stale/changed retries fail closed, accepted assignment bindings remain unchanged, and interval reads resolve the revision then in force. Advertiser/admin UI and reasoned assignment removal move with synchronized §9 contracts. Focused PostgreSQL concurrency, liability, tenant, migration, audit, API and frontend/native-contract checks plus an isolated synthetic browser journey pass; no live funding, approval, campaign change, route, earning or pilot evidence is claimed. W2-03F is next. |
 | v1.63 | 2026-08-26 | **W2-03D atomic assignment activation delivered over the completed commercial, review and evidence authorities.** The admin command now serializes on the shared campaign authority and stable assignment/driver/vehicle rows, rechecks the exact approved campaign/creative/offer/binding, funded reserve, current production/new-work authority, evidence and vehicle exclusivity, then atomically records active state, timestamp, audit and a canonical digest-bound snapshot in the existing append-only activation event. Exact active retries recheck and converge; trip start requires the immutable snapshot plus current financial authority and proof. The prior all-gates 409 placeholder was observed red, a real synthetic admin→driver trip flow passes, and PostgreSQL proves activation-before-reversal chronology followed by fail-closed new work. No migration or §9 shape changed, and no live funding, production, approval, route, earning or pilot evidence is claimed; W2-03E is next. |
 | v1.62 | 2026-08-26 | **W2-03C assignment-bound installation evidence and start-of-shift display proof delivered without inventing production policy.** Migration `0057` adds immutable evidence revisions/photos, serialized admin review/expiry, digest-only one-use challenges, immutable fresh proofs and an exact proof FK on trip sessions while extending the shared subject-scoped scanned-file authority. Submission and approval recheck configured views, assignment/vehicle/driver/device identity and exact clean images; changed retry, cross-driver file, stale evidence, pre-challenge photo, device mismatch and nonce replay fail closed. Driver capture/proof surfaces and the combined admin queue use same-origin BFFs and audited purpose-scoped reads. Real PostgreSQL proves concurrent nonce single-winner behavior and populated migration/append-only controls; focused backend, frontend, contract, type/lint/build checks pass. Production uploader/views/renewal/proof values remain `EXT-EVIDENCE-POLICY` MISSING; W2-03D still owns atomic activation and W2-03G recurring challenges/spot checks, with no physical-device, real-route, launch, earning or pilot claim. |

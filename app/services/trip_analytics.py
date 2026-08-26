@@ -25,6 +25,7 @@ from app.models.trip_analytics import (
     TripAnalyticsStatus,
 )
 from app.services.campaign_assignments import get_driver_profile_for_user
+from app.services.campaign_cancellations import campaign_financial_cutoff
 from app.services.campaigns import comparable_campaign_datetime
 from app.services.fraud_holds import (
     fraud_hold_active_clause,
@@ -32,6 +33,7 @@ from app.services.fraud_holds import (
     lock_fraud_hold_scope,
 )
 from app.services.notifications import create_fraud_hold_raised_notice
+from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 from app.services.provenance import stable_source_fingerprint
 from app.services.trips import trip_not_found
 
@@ -212,10 +214,18 @@ def ensure_trip_ended(trip: TripSession) -> None:
         )
 
 
-async def load_ordered_pings(session: AsyncSession, trip_id: UUID) -> list[LocationPing]:
+async def load_ordered_pings(
+    session: AsyncSession,
+    trip_id: UUID,
+    *,
+    recorded_through: datetime | None = None,
+) -> list[LocationPing]:
+    filters = [LocationPing.trip_session_id == trip_id]
+    if recorded_through is not None:
+        filters.append(LocationPing.recorded_at <= recorded_through)
     result = await session.execute(
         select(LocationPing)
-        .where(LocationPing.trip_session_id == trip_id)
+        .where(*filters)
         .order_by(
             LocationPing.recorded_at,
             LocationPing.sequence_number.asc().nullslast(),
@@ -644,11 +654,20 @@ async def recompute_trip_analytics(
     # analytics uniqueness transaction while waiting for the worker's
     # reconciliation gate, and the worker could simultaneously wait for that
     # analytics write.
-    await lock_fraud_hold_scope(session, trip_id)
     trip = await get_admin_trip(session, trip_id)
+    # Cancellation owns this authority too. A recompute either commits before
+    # the cutoff or observes and clips to the immutable cutoff.
+    await acquire_campaign_terms_lock(session, trip.campaign_id)
+    await lock_fraud_hold_scope(session, trip_id)
     ensure_trip_ended(trip)
 
-    pings = await load_ordered_pings(session, trip.id)
+    cutoff = await campaign_financial_cutoff(session, trip.campaign_id)
+    recorded_end = as_aware_utc(trip.ended_at)
+    effective_end = min(recorded_end, cutoff) if cutoff is not None else recorded_end
+    effective_end = max(as_aware_utc(trip.started_at), effective_end)
+    pings = await load_ordered_pings(
+        session, trip.id, recorded_through=effective_end
+    )
     valid_pings = [ping for ping in pings if is_valid_ping(ping)]
     ping_count = len(pings)
     valid_ping_count = len(valid_pings)
@@ -669,7 +688,7 @@ async def recompute_trip_analytics(
     )
     first_ping_at = valid_pings[0].recorded_at if valid_pings else None
     last_ping_at = valid_pings[-1].recorded_at if valid_pings else None
-    duration_seconds = elapsed_seconds(trip.started_at, trip.ended_at)
+    duration_seconds = elapsed_seconds(trip.started_at, effective_end)
     active_tracking_seconds = elapsed_seconds(first_ping_at, last_ping_at)
 
     total_distance_m = Decimal("0")
@@ -790,6 +809,8 @@ async def recompute_trip_analytics(
         "zone_approximation_method": "whole_segment_attribution_on_postgis_intersection",
         "between_threshold_speed_classification": "stationary",
         "request_metadata": metadata,
+        "financial_cutoff_at": cutoff.isoformat() if cutoff is not None else None,
+        "recorded_trip_end_at": recorded_end.isoformat(),
     }
     analytics_values = {
         "assignment_id": trip.assignment_id,
@@ -802,7 +823,7 @@ async def recompute_trip_analytics(
         "valid_ping_count": valid_ping_count,
         "invalid_ping_count": ping_count - valid_ping_count,
         "started_at": trip.started_at,
-        "ended_at": trip.ended_at,
+        "ended_at": effective_end,
         "first_ping_at": first_ping_at,
         "last_ping_at": last_ping_at,
         "duration_seconds": duration_seconds,

@@ -2518,6 +2518,167 @@
         "title": "CampaignAssignmentTransition",
         "type": "object"
       },
+      "CampaignCancellationCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "reason"
+        ],
+        "title": "CampaignCancellationCreate",
+        "type": "object"
+      },
+      "CampaignCancellationRead": {
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "cancelled_assignment_count": {
+            "title": "Cancelled Assignment Count",
+            "type": "integer"
+          },
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "commercial_terms_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commercial Terms Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "cutoff_at": {
+            "format": "date-time",
+            "title": "Cutoff At",
+            "type": "string"
+          },
+          "disposition": {
+            "title": "Disposition",
+            "type": "string"
+          },
+          "funding_authorized_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Funding Authorized At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "prior_status": {
+            "title": "Prior Status",
+            "type": "string"
+          },
+          "production_start_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Production Start Id"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "refund_eligibility_ends_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refund Eligibility Ends At"
+          },
+          "refundable_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Refundable Amount",
+            "type": "string"
+          },
+          "released_liability_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Released Liability Amount",
+            "type": "string"
+          },
+          "requested_by_user_id": {
+            "format": "uuid",
+            "title": "Requested By User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "campaign_id",
+          "organization_id",
+          "requested_by_user_id",
+          "client_request_id",
+          "reason",
+          "prior_status",
+          "cutoff_at",
+          "commercial_terms_id",
+          "production_start_id",
+          "funding_authorized_at",
+          "refund_eligibility_ends_at",
+          "disposition",
+          "refundable_amount",
+          "currency",
+          "released_liability_amount",
+          "cancelled_assignment_count",
+          "created_at"
+        ],
+        "title": "CampaignCancellationRead",
+        "type": "object"
+      },
       "CampaignChangeCreate": {
         "additionalProperties": false,
         "properties": {
@@ -24135,6 +24296,61 @@
         "tags": [
           "Campaigns"
         ]
+      }
+    },
+    "/api/v1/advertiser/campaigns/{campaign_id}/cancel": {
+      "post": {
+        "operationId": "advertiser_cancel_campaign_api_v1_advertiser_campaigns__campaign_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignCancellationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignCancellationRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Cancel Campaign"
       }
     },
     "/api/v1/advertiser/campaigns/{campaign_id}/change-requests": {

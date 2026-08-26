@@ -11,6 +11,7 @@ vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ POST: mocks.post }) }));
 
 import {
+  requestCampaignCancellationAction,
   requestCampaignChangeAction,
   submitCampaignForReviewAction,
   submitCreativeForReviewAction,
@@ -19,6 +20,7 @@ import {
 const CAMPAIGN_ID = "00000000-0000-4000-8000-00000000000a";
 const CREATIVE_ID = "00000000-0000-4000-8000-00000000000b";
 const CHANGE_REQUEST_ID = "00000000-0000-4000-8000-00000000000c";
+const CANCELLATION_REQUEST_ID = "00000000-0000-4000-8000-00000000000d";
 
 function submitForm(campaignId = CAMPAIGN_ID): FormData {
   const form = new FormData();
@@ -151,6 +153,45 @@ describe("requestCampaignChangeAction", () => {
     form.set("client_request_id", CHANGE_REQUEST_ID);
     await expect(requestCampaignChangeAction({}, form)).resolves.toEqual({
       error: "A reason is required",
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+});
+
+describe("requestCampaignCancellationAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.post.mockResolvedValue({ data: {} });
+  });
+
+  function cancellationForm({ confirmed = true } = {}): FormData {
+    const form = submitForm();
+    form.set("client_request_id", CANCELLATION_REQUEST_ID);
+    form.set("reason", "  Advertiser ended the campaign  ");
+    if (confirmed) form.set("confirmed", "on");
+    return form;
+  }
+
+  it("uses one exact retry identity and refreshes advertiser campaign views", async () => {
+    await expect(requestCampaignCancellationAction({}, cancellationForm())).resolves.toEqual({
+      done: "Campaign cancelled at the recorded financial cutoff.",
+    });
+    expect(mocks.post).toHaveBeenCalledWith("/api/v1/advertiser/campaigns/{campaign_id}/cancel", {
+      params: { path: { campaign_id: CAMPAIGN_ID } },
+      body: {
+        client_request_id: CANCELLATION_REQUEST_ID,
+        reason: "Advertiser ended the campaign",
+      },
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/advertiser/campaigns/${CAMPAIGN_ID}`);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/advertiser/campaigns");
+  });
+
+  it("fails before the API when permanent cancellation is not confirmed", async () => {
+    await expect(
+      requestCampaignCancellationAction({}, cancellationForm({ confirmed: false })),
+    ).resolves.toEqual({
+      error: "Confirm that you understand cancellation is permanent",
     });
     expect(mocks.post).not.toHaveBeenCalled();
   });

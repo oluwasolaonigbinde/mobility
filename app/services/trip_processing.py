@@ -46,6 +46,7 @@ from app.services.impressions import (
     estimate_trip_impressions,
     is_current_estimate_for_analytics,
 )
+from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 from app.services.payouts import (
     PAYOUT_V2,
     calculate_trip_payout,
@@ -147,6 +148,9 @@ async def process_ended_trip(
             stages=[StageResult(stage="trip", outcome="blocked", reason="trip_not_sealed")],
         )
 
+    # Campaign authority precedes fraud/trip scopes so cancellation and the
+    # complete analytics-to-payout chain have one deterministic order.
+    await acquire_campaign_terms_lock(session, trip.campaign_id)
     # Detection may reconcile flags on other trips. Acquire its exclusive gate
     # before this trip's scope so no worker attempts a shared-to-exclusive
     # advisory-lock upgrade while another trip processor does the same.
@@ -271,7 +275,9 @@ async def process_ended_trip(
             )
         )
 
-    ordered_pings = await load_ordered_pings(session, trip.id)
+    ordered_pings = await load_ordered_pings(
+        session, trip.id, recorded_through=analytics.ended_at
+    )
     replay_result = await detect_route_replay(
         session,
         trip=trip,
