@@ -1060,17 +1060,24 @@ Rules, binding for any future webhook (payments, messaging delivery receipts):
 
 ### 15.5 Budget enforcement
 
-Today budgets are recorded, never enforced. Target: a worker sweep applies the
-policy — auto-pause at 100% / alert at 80% is the proposed default. **The
-final rule is [OPEN] but maps to no numbered v2 question** (Q9's mid-flight
-change rules are adjacent) — confirm it with Somto directly and record it in
-`decisions-log.md`. **"Spend" is a billing computation** (§15.1's
+The provider-neutral enforcement seam is built; live policy adoption remains
+gated by `EXT-BUDGET-POLICY`. **"Spend" is a billing computation** (§15.1's
 boundary applies: driver payout facts are *cost* in driver naira, not the
-advertiser's price — under D2 + Q1 they diverge) — the sweep calls
-`services/billing.py` for spend-vs-budget; until billing exists, any pilot
-proxy (e.g. payout-cost sums) must be labelled as such in the UI. Enforcement =
-a status transition through the existing campaign status machinery +
-notification, never a hard delete.
+advertiser's price — under D2 + Q1 they diverge). Before production starts,
+spend is the sum of confirmed, unreversed receipt allocations for accepted
+campaign terms. After actual production start it is the effective advertiser
+obligation. Payout and earnings rows never enter this computation.
+
+Every configured decision persists policy ID, revision, approved-versus-test
+source, total/daily basis, billing-fact source, spend, thresholds and alert,
+pause and resume authority. Receipt allocation/reversal, worker evaluation and
+campaign pause/resume share the campaign/commercial lock order. Exact retries
+reuse the same evaluation, transition and outbox key. A threshold pause is an
+append-only campaign transition, never a delete; resume requires an active
+administrator, a reason and a newer authoritative evaluation below the resume
+threshold. With missing or partial production policy configuration, the seam
+records only fail-closed `EXT-BUDGET-POLICY` evidence and applies no threshold.
+No alert, pause or resume percentage is a production default.
 
 ### 15.6 Cancellation and refund eligibility (Q24)
 
@@ -1706,8 +1713,13 @@ channel adapter; its concrete provider/account remains an external parameter.
   writable only through existing organization-management authority. Effective
   changes are audited with actor and before/after state; in-app cannot be
   disabled. W2-04B consults this preference before email delivery.
-- First triggers (when built): assignment offered/accepted, payout released,
-  fraud flag raised/resolved, campaign approved/paused, budget alerts.
+- Built business triggers use stable source-event keys for assignment offered/
+  accepted, campaign approval, confirmed funding, budget alert/pause/resume,
+  cancellation, evidence challenge/verification, fraud outcomes and payout
+  release. Advertiser events create mandatory in-app rows plus the existing
+  preference-governed email row; driver events create in-app rows and, only
+  when current verified-phone consent permits it, a separate audited manual
+  contact task. No business service contacts a provider inline.
 
 ### 20.3 Pilot phone verification and WhatsApp consent
 
@@ -1715,11 +1727,14 @@ Automated WhatsApp/SMS delivery is post-MVP, so the pilot verifies a driver's
 claimed phone through a bounded manual-send/system-verify flow:
 
 1. The driver requests verification; the server creates a rate-limited,
-   attempt-limited, short-lived challenge, stores only its hash, and creates an
-   operations work item for the claimed phone version.
+   attempt-limited, short-lived challenge, stores only a keyed hash, and exposes
+   the challenge as an operations work item with only the claimed phone mask.
 2. A named operator sends the code manually to that number by the approved
-   WhatsApp/voice channel and records `sent_by`, channel, and `sent_at`; the code
-   itself is never copied into audit/log records.
+   WhatsApp/voice channel and records `sent_by`, channel, `sent_at`, an opaque
+   operator evidence reference and provider message identity. Live recording
+   fails closed without `EXT-PHONE-OPERATOR`; audit payloads retain only
+   fingerprints of provider evidence, and the code itself is never copied into
+   API responses, notification payloads, audits or logs.
 3. The driver enters the code in-product. A valid one-use challenge marks only
    that phone version verified; expiry, number change, too many attempts, or
    withdrawal fail closed and require a new challenge.
@@ -2514,7 +2529,7 @@ the reviewer described.
 | **RM15** | F09/F10/F11 | PARTIAL — W3-00A/B/C build controls delivered; legal approval remains | W3-00A supplies the draft build-only DPIA/ROPA, role, purpose/basis/retention/recipient, processor/region, withdrawal, breach and tabletop controls. W3-00B adds immutable, replay-safe manual DSR evidence across DB, objects, devices, logs, backups and processors; storage verification and the hard 35-day backup age cap fail closed. W3-00C puts one default-deny service boundary on all eight current advertiser/report/heatmap outputs with density/contributor/differencing controls. Thresholds and retention decisions remain synthetic/unapproved, outputs remain personal, named legal approvals/providers remain MISSING, and live use stays false. | Before real GPS or advertiser output, qualified counsel must approve the operating artefacts, owner/bases/notices, live disclosure thresholds, history retention, DSR exceptions and response rules. Production providers/regions must be named and exercised. No distinct-vehicle threshold is described as anonymity. | §22.2/§24, **before real GPS / before heatmap** |
 | **RM16** | F12/F14/F15 | PARTIAL — W3-00D/E measurement authority and W3-01A/B typed planning foundations delivered; aggregate Module G controls remain | W3-00D defines safe claims and the conditional ROI gate. W3-00E binds append-only issued results to frozen inputs, formula/method, creative/evidence/activation proof, period and reissue lineage, and report reads verify the frozen fingerprints. W3-01A/B provide identifier-free typed sources and linkage. `EXT-REPORT-METHOD` remains MISSING and no live methodology or issuance is approved. | W3-01C/D and W3-02A/B must materialize and expose governed aggregates/scores. Live reports still require the approved report method and the G-advertiser disclosure chain. | §22.4/§27, D20, **before first live issued report** |
 | **RM17** | F18 | DESIGN-GAP — build foundation delivered; real-world validation deferred by D23 | W4 would otherwise defer the first production-like environment and physical-device PWA proof until the end, leaving no stabilisation runway. Store-review/background-native discovery is no longer a pilot risk. | PKG-01 verifies the provider-neutral edge/API/frontend/PostGIS/Redis/worker topology, release smoke, migrations and recovery contracts with synthetic data, and freezes the PWA ping/auth/seal/capability contract across deterministic desktop/mobile browser profiles. D23 keeps external staging deployment/restore and the representative Android/iPhone route/battery matrix explicitly NOT RUN until access exists; both still gate W4 release/pilot and real GPS. W4 becomes integration, physical validation, hardening, training and pilot, not first system build. Neither lane authorises real-data collection. | §23/§25/§31, D23; build now, physical/external validation before W4 pilot |
-| **RM18** | F17 | DESIGN-GAP | KYC/financial/location controls are incomplete: malware scanning optional, NIN/BVN/bank fields unencrypted at field level with no key governance, raw-route/KYC reads unaudited, no breach workflow, and known audit gaps (auth.refresh, driver profile/assignment routes) remain open from D10(g). | Managed KMS + field encryption or vaulting for national/financial identifiers; mandatory type/size/malware checks on driver uploads; short-lived purpose-scoped GETs with privileged-read audit for raw routes and KYC; encrypted browser/PWA storage where sensitive state exists; log/notification redaction; close the D10(g) audit gaps; add incident contacts, breach register, and one tabletop drill. Native secure-store/push-specific controls remain Phase 2. | §12/§19/§23, **before KYC/PWA pilot** |
+| **RM18** | F17 | PARTIAL — W2-02/W2-04 controls delivered; incident programme remains | Managed private files, mandatory scanning, encrypted/versioned KYC identifiers, purpose-scoped audited reads and notification/contact redaction are built. W2-04D stores keyed phone/code evidence, exposes masks, and keeps provider evidence out of audits. The remaining gap is the production custody/provider adoption plus breach workflow, incident contacts/register and tabletop evidence. | Adopt the named production KMS/storage/scanner/phone providers without weakening the built fail-closed ports; complete the breach workflow, contacts, register and tabletop drill. Native secure-store/push-specific controls remain Phase 2. | §12/§19/§20/§23, **before KYC/PWA pilot** |
 
 ### 35.3 Live-use and dependent-action gates
 
@@ -2540,6 +2555,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.70 | 2026-08-26 | **W2-01E and W2-04C/D complete the provider-neutral budget, business-notification and verified-contact chain.** Migration `0064` persists approved/test policy identity, advertiser billing-fact evaluations, append-only budget pause/resume authority, non-enumerating one-use recovery evidence, keyed phone/challenge evidence, provider-evidenced challenge work, versioned consent and audited manual contact. Campaign money locks serialize funding/reversal against evaluation and transitions; stable business-event keys reuse the W2-04 outbox and driver contact never claims automated delivery. Real PostgreSQL migration/autogenerate and funding/reset races, focused red/green, the relevant backend aggregate, typed frontend contract, 99 preserved R14-B fixtures and byte-stable §9 regeneration pass. `EXT-BUDGET-POLICY`, `EXT-EMAIL-PROVIDER` and `EXT-PHONE-OPERATOR` remain MISSING; production policy, email, phone sends and provider delivery are not claimed. PKG-04 closes and PKG-05/W3-01C is next. |
 | v1.69 | 2026-08-26 | **W3-00E immutable measurement runs and proof manifests delivered without live-report authority.** Migration `0063` adds append-only, fingerprinted campaign/period runs and restrictive proof bindings to exact assignments, activation events, approved installation evidence and creatives. Frozen analytics/impression/payout sources deterministically reproduce measured movement, modelled potential contacts, driver campaign cost and the performance-only/conditional-ROI decision; changed inputs create an immutable reissue lineage while actor/request replay converges and changed reuse conflicts. Campaign Performance Analysis reads the current reproducible frozen report snapshot. Local/test ROI requires complete explicitly synthetic inputs/method; production issuance defaults disabled and an approved configured method reference is additionally required. Focused measurement/methodology/disclosure, real PostgreSQL populated migration/immutability, OpenAPI drift and Ruff checks pass. `EXT-REPORT-METHOD` and privacy live-use approvals remain MISSING; no live report, client data or ROI claim is asserted. |
 | v1.68 | 2026-08-26 | **W3-00B synthetic end-to-end retention and manual DSR delivered.** Migration `0062` adds immutable, lifecycle-guarded request cases and append-only per-location evidence for database, private objects, device queue, logs, backups and processors. Active-admin access, identity verification, exact-retry convergence, changed-retry conflict, subject-scoped class inventory, real private-object stat verification, all-location completion and blank-by-default approved-exception configuration fail closed. Database/object erasure cannot be claimed while inventory remains; money/audit facts are preserved. Backup tooling now enforces both newest-14 and hard 1–35-day age bounds. The manual runbook covers access/rectification/erasure without a self-service portal. `EXT-LEGAL-PRIVACY` and every production provider/region/response/exception decision remain MISSING; no live DSR or deletion is claimed. |
 | v1.67 | 2026-08-26 | **W2-04B provider-neutral advertiser email delivery completed without inventing a live provider.** Migration `0061` adds bounded crash-recoverable claims, retry timing and immutable signed terminal receipts to the shared notification outbox. Active membership, organization state and the default-on organization preference are rechecked before dispatch; typed code templates and one stable idempotency key drive the SMTP port/local Mailpit adapter. Canonical HMAC receipt replay converges while invalid, changed, unknown and contradictory events fail closed. Focused delivery/concurrency/preference/migration/contract checks, preserved R14-B fixtures, red/green preference evidence and a real local SMTP plus signed-receipt flow pass. All §9 artifacts move together; `EXT-EMAIL-PROVIDER` remains MISSING and no production sender, provider or live delivery is claimed. W2-04C/D remain transitively blocked by W2-01E, so W3-00B is the next runnable checkpoint. |
