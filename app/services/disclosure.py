@@ -147,6 +147,13 @@ def disclosure_suppressed(reason: str) -> AppError:
     )
 
 
+def exposure_cell_meets_disclosure_floor(
+    *, distinct_vehicle_count: int, settings: Settings
+) -> bool:
+    """Apply the central audience k-floor before a cell can be persisted or exposed."""
+    return distinct_vehicle_count >= settings.privacy_min_vehicles_per_cell
+
+
 async def record_heatmap_disclosure(
     session: AsyncSession,
     *,

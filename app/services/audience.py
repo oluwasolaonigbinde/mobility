@@ -13,6 +13,8 @@ from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.campaign import Campaign
 from app.models.campaign_zone import CampaignZone
+from app.models.exposure_segment import ExposureSegment, ExposureSegmentCell
+from app.models.measurement import MeasurementRun
 from app.models.organization import (
     AdvertiserOrganization,
     MembershipRole,
@@ -31,10 +33,15 @@ from app.models.retargeting_source_link import (
     RetargetingSourceLinkIdempotency,
 )
 from app.models.user import User, UserRole, UserStatus
+from app.schemas.exposure_segments import ExposureCellInput
 from app.schemas.retargeting_source_links import RetargetingSourceLinkCreate
 from app.schemas.retargeting_sources import RetargetingSourceCreate
 from app.services.audit import create_audit_event
-from app.services.disclosure import ensure_disclosure_live_gate
+from app.services.disclosure import (
+    ensure_disclosure_live_gate,
+    exposure_cell_meets_disclosure_floor,
+)
+from app.services.measurement import measurement_run_reproducible
 from app.services.payout_rule_serialization import database_clock
 
 
@@ -761,4 +768,257 @@ async def link_is_stale(session: AsyncSession, link: RetargetingSourceLink) -> b
         or _source_fingerprint(source) != link.source_fingerprint
         or _campaign_fingerprint(campaign) != link.campaign_fingerprint
         or _zone_fingerprint(zone) != link.zone_fingerprint
+    )
+
+
+async def _exposure_materialization_lock(
+    session: AsyncSession, source_link_id: UUID
+) -> None:
+    if session.get_bind().dialect.name != "postgresql":
+        return
+    digest = hashlib.sha256(
+        f"exposure-segment-v1:{source_link_id}".encode()
+    ).digest()[:8]
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(:key)"),
+        {"key": int.from_bytes(digest, "big", signed=True)},
+    )
+
+
+def _cell_snapshot(cell: ExposureCellInput) -> dict:
+    return cell.model_dump(mode="json")
+
+
+async def materialize_exposure_segment(
+    session: AsyncSession,
+    *,
+    settings: Settings,
+    source_link_id: UUID,
+    measurement_run_id: UUID,
+    cells: list[ExposureCellInput],
+) -> ExposureSegment:
+    await _privacy_gate(settings)
+    if not cells:
+        raise AppError(
+            "EXPOSURE_SEGMENT_CELLS_REQUIRED",
+            "At least one aggregate coverage cell is required",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    await _exposure_materialization_lock(session, source_link_id)
+    link = await session.scalar(
+        select(RetargetingSourceLink)
+        .where(RetargetingSourceLink.id == source_link_id)
+        .with_for_update()
+    )
+    run = await session.get(MeasurementRun, measurement_run_id)
+    if link is None:
+        raise AppError(
+            "EXPOSURE_SEGMENT_LINK_NOT_FOUND",
+            "Retargeting source link was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    if run is None:
+        raise AppError(
+            "EXPOSURE_SEGMENT_MEASUREMENT_RUN_NOT_FOUND",
+            "Measurement run was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    if (
+        link.status != "active"
+        or await link_is_stale(session, link)
+        or run.organization_id != link.organization_id
+        or run.campaign_id != link.campaign_id
+    ):
+        raise AppError(
+            "EXPOSURE_SEGMENT_SCOPE_MISMATCH",
+            "An active current link and measurement run in the same tenant and campaign "
+            "are required",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if not measurement_run_reproducible(run):
+        raise AppError(
+            "EXPOSURE_SEGMENT_MEASUREMENT_RUN_INVALID",
+            "The immutable measurement run did not reproduce",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if not run.test_only and settings.privacy_disclosure_synthetic_test_mode:
+        raise AppError(
+            "EXPOSURE_SEGMENT_LIVE_RUN_FORBIDDEN",
+            "Synthetic materialization cannot consume a live measurement run",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+    normalized = sorted(
+        (_cell_snapshot(cell) for cell in cells),
+        key=lambda item: (
+            item["coverage_cell"],
+            item["window_start_at"],
+            item["window_end_at"],
+            item["context"],
+        ),
+    )
+    identities = {
+        (
+            item["coverage_cell"],
+            item["window_start_at"],
+            item["window_end_at"],
+            item["context"],
+        )
+        for item in normalized
+    }
+    if len(identities) != len(normalized):
+        raise AppError(
+            "EXPOSURE_SEGMENT_DUPLICATE_CELL",
+            "Duplicate coverage-cell/time/context facts are not allowed",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    link_start = _as_utc(link.start_at)
+    link_end = _as_utc(link.end_at)
+    run_start = _as_utc(run.period_start_at)
+    run_end = _as_utc(run.period_end_at)
+    for cell in cells:
+        start_at = _as_utc(cell.window_start_at)
+        end_at = _as_utc(cell.window_end_at)
+        if start_at < link_start or end_at > link_end or start_at < run_start or end_at > run_end:
+            raise AppError(
+                "EXPOSURE_SEGMENT_WINDOW_INVALID",
+                "Every cell window must be inside both the link and immutable run periods",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+
+    facts = {
+        "schema_version": "exposure-segment-facts-v1",
+        "source_link_id": str(link.id),
+        "source_link_snapshot_sha256": link.snapshot_sha256,
+        "measurement_run_id": str(run.id),
+        "measurement_input_sha256": run.input_manifest_sha256,
+        "measurement_result_sha256": run.result_manifest_sha256,
+        "measurement_proof_sha256": run.proof_manifest_sha256,
+        "cells": normalized,
+    }
+    facts_fingerprint = _canonical_hash(facts)
+    replay = await session.scalar(
+        select(ExposureSegment).where(
+            ExposureSegment.source_link_id == link.id,
+            ExposureSegment.facts_fingerprint == facts_fingerprint,
+        )
+    )
+    if replay is not None:
+        return replay
+    latest = await session.scalar(
+        select(ExposureSegment)
+        .where(ExposureSegment.source_link_id == link.id)
+        .order_by(ExposureSegment.version.desc())
+        .limit(1)
+    )
+    releasable = [
+        item
+        for item in normalized
+        if exposure_cell_meets_disclosure_floor(
+            distinct_vehicle_count=item["distinct_vehicle_count"], settings=settings
+        )
+    ]
+    snapshot = {
+        "schema_version": "exposure-segment-v1",
+        "organization_id": str(link.organization_id),
+        "campaign_id": str(link.campaign_id),
+        "zone_id": str(link.zone_id),
+        "source_link_id": str(link.id),
+        "measurement_run_id": str(run.id),
+        "version": (latest.version + 1) if latest is not None else 1,
+        "cells": releasable,
+    }
+    segment = ExposureSegment(
+        organization_id=link.organization_id,
+        campaign_id=link.campaign_id,
+        zone_id=link.zone_id,
+        source_id=link.source_id,
+        source_link_id=link.id,
+        measurement_run_id=run.id,
+        version=snapshot["version"],
+        facts_fingerprint=facts_fingerprint,
+        source_link_snapshot_sha256=link.snapshot_sha256,
+        measurement_input_sha256=run.input_manifest_sha256,
+        measurement_result_sha256=run.result_manifest_sha256,
+        measurement_proof_sha256=run.proof_manifest_sha256,
+        snapshot=snapshot,
+        snapshot_sha256=_canonical_hash(snapshot),
+        releasable_cell_count=len(releasable),
+        suppressed_cell_count=len(normalized) - len(releasable),
+        reissue_of_segment_id=latest.id if latest is not None else None,
+    )
+    session.add(segment)
+    await session.flush()
+    for item in releasable:
+        session.add(
+            ExposureSegmentCell(
+                segment_id=segment.id,
+                coverage_cell=item["coverage_cell"],
+                window_start_at=datetime.fromisoformat(item["window_start_at"]),
+                window_end_at=datetime.fromisoformat(item["window_end_at"]),
+                context=item["context"],
+                distinct_vehicle_count=item["distinct_vehicle_count"],
+                trip_count=item["trip_count"],
+                modelled_potential_contacts=item["modelled_potential_contacts"],
+            )
+        )
+    await session.flush()
+    return segment
+
+
+async def exposure_segment_cells(
+    session: AsyncSession, segment: ExposureSegment
+) -> list[ExposureSegmentCell]:
+    return list(
+        await session.scalars(
+            select(ExposureSegmentCell)
+            .where(ExposureSegmentCell.segment_id == segment.id)
+            .order_by(
+                ExposureSegmentCell.coverage_cell,
+                ExposureSegmentCell.window_start_at,
+                ExposureSegmentCell.window_end_at,
+            )
+        )
+    )
+
+
+async def list_exposure_segments(
+    session: AsyncSession,
+    *,
+    settings: Settings,
+    actor_user_id: UUID,
+    source_link_id: UUID,
+    admin: bool = False,
+) -> list[ExposureSegment]:
+    link = await _link_access(
+        session,
+        settings=settings,
+        actor_user_id=actor_user_id,
+        link_id=source_link_id,
+        write=False,
+        admin=admin,
+    )
+    return list(
+        await session.scalars(
+            select(ExposureSegment)
+            .where(ExposureSegment.source_link_id == link.id)
+            .order_by(ExposureSegment.version.desc())
+        )
+    )
+
+
+async def exposure_segment_is_stale(
+    session: AsyncSession, segment: ExposureSegment
+) -> bool:
+    link = await session.get(RetargetingSourceLink, segment.source_link_id)
+    run = await session.get(MeasurementRun, segment.measurement_run_id)
+    return (
+        link is None
+        or run is None
+        or link.snapshot_sha256 != segment.source_link_snapshot_sha256
+        or await link_is_stale(session, link)
+        or run.input_manifest_sha256 != segment.measurement_input_sha256
+        or run.result_manifest_sha256 != segment.measurement_result_sha256
+        or run.proof_manifest_sha256 != segment.measurement_proof_sha256
+        or not measurement_run_reproducible(run)
     )

@@ -19,6 +19,7 @@ from app.jobs.disclosure_retention import purge_expired_disclosure_query_history
 from app.jobs.earnings_release import sweep_earnings_release_reviews
 from app.jobs.email_delivery import sweep_email_notifications
 from app.jobs.evidence_verification import sweep_evidence_verifications
+from app.jobs.exposure_segments import materialize_exposure_segment_job
 from app.jobs.file_lifecycle import purge_expired_file_kyc, purge_orphaned_file_uploads
 from app.jobs.file_scanning import scan_pending_files
 from app.jobs.payment_gateway import (
@@ -77,6 +78,11 @@ class WorkerSettings:
     # stale result key — dedup applies only while queued/running (D4).
     functions: list = [
         func(process_trip, name="process_trip", keep_result=0),
+        func(
+            materialize_exposure_segment_job,
+            name="materialize_exposure_segment",
+            keep_result=0,
+        ),
         func(
             process_payment_gateway_event_job,
             name="process_payment_gateway_event",
