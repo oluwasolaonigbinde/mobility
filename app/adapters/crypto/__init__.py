@@ -4,7 +4,10 @@ from app.adapters.crypto.envelope import (
     CryptoConfigurationError,
     CryptoOperationError,
     CryptoProvider,
+    CustodyEnvelopeCryptoProvider,
     EnvelopeCryptoProvider,
+    KeyCustodyBackend,
+    LocalKeyCustodyBackend,
 )
 
 __all__ = [
@@ -13,5 +16,8 @@ __all__ = [
     "CryptoConfigurationError",
     "CryptoOperationError",
     "CryptoProvider",
+    "CustodyEnvelopeCryptoProvider",
     "EnvelopeCryptoProvider",
+    "KeyCustodyBackend",
+    "LocalKeyCustodyBackend",
 ]

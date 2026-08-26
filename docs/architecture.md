@@ -1284,16 +1284,21 @@ clawback; once cash has been paid, RM11's carry-forward debt contract applies.
 
 ### 16.3 Disbursement (Q27)
 
-- **[BUILT — MNY-10A] Sensitive payee data (D17):** one
+- **[BUILT — MNY-10A/W2-02D] Sensitive payee/KYC data (D17):** one
   `app/adapters/crypto/` provider boundary (`encrypt`, `decrypt`, `rotate`) for
   verified bank-account values and later KYC/national identifiers. The pilot
   provider uses authenticated per-record envelope encryption with a required,
   env-supplied typed-Settings KEK and no default. Ciphertext records algorithm
   and key version and authenticates tenant, record and field identity as
-  associated data. W2-02D adopts the selected KMS/vault custody through this
-  same port and supplies rewrap/re-encryption; it must not introduce a second
-  ciphertext schema. Plaintext values are excluded from list APIs, logs, audit
-  payloads, exports, errors and fallback storage.
+  associated data. Migration `0055` and W2-02D reuse that exact mapping for NIN
+  with stable tenant/record/field AAD. The application port now delegates KEK
+  operations to an adapter-private custody backend: local/test keyrings remain
+  available, while a selected production KMS/vault can replace custody without
+  changing services or ciphertext. Audited append-only rewrap preserves the
+  data ciphertext and converges on the active key version. Plaintext values are
+  excluded from list APIs, logs, audit payloads, exports, errors and fallback
+  storage. `EXT-KMS-CUSTODY` still gates production adoption; no production
+  custodian or provider is implied by the local implementation.
 - **[BUILT PROVIDER-NEUTRALLY — MNY-10B/MNY-10C]** Pilot (Q27/D18):
   **automated bank transfers through an approved provider**,
   behind `app/adapters/disbursement/`. RM10's finality contract is binding:
@@ -1502,6 +1507,18 @@ actionable failure/retry copy, and sends only the cleared stored-file ID to the
 server action. Offer construction independently rechecks the managed clean
 binding so a legacy `ready` row cannot bypass the later W2-03B review gate.
 
+Migration `0055` extends this same authority rather than creating a KYC upload
+silo. Creative files remain organization-scoped; driver-KYC and vehicle-
+evidence files are subject-user-scoped under mutually exclusive database
+checks and purpose-specific API authorization. The versioned driver-KYC record
+links the required clean licence/photo/agreement files, a same-driver verified
+bank-account version and D17-encrypted NIN. Vehicle evidence links the required
+clean registration/insurance/photo files to a driver-owned vehicle. Driver
+reads mask NIN; active-admin reveal and at-most-60-second KYC document reads
+require a declared purpose and append redacted audit evidence. These records
+are pending-review foundations only: W3-04B/C retain approval and work-
+eligibility authority.
+
 ### 19.3 Consumers of the same pattern
 
 | File kind | Linked to | Reviewer |
@@ -1517,8 +1534,9 @@ upload flow. Do not build per-feature upload paths.
 
 National identifiers and bank values are not file-storage payloads and do not
 get a second encryption design here. They reuse D17's crypto port and
-ciphertext schema from §16.3. W2-02D adds production KMS/vault custody and the
-audited rewrap/re-encryption path while preserving that schema.
+ciphertext schema from §16.3. W2-02D adds the provider-neutral custody seam and
+audited rewrap path while preserving that schema; production KMS/vault
+selection and adoption remain gated by `EXT-KMS-CUSTODY`.
 
 ## 20. Notifications
 
@@ -2381,6 +2399,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.59 | 2026-08-26 | **W2-02D protected KYC/key-custody foundation delivered without production-custodian or approval authority.** Migration `0055` extends the one stored-file model with strict organization/driver scope and adds versioned driver-KYC/vehicle-evidence records. Clean subject-owned documents and the same-driver verified bank version bind under stable locks; NIN reuses D17's ciphertext/AAD schema, stays masked outside an active-admin purpose-audited reveal, and supports append-only DEK rewrap whose data ciphertext remains unchanged. The application crypto port is unchanged while an adapter-private custody backend permits local keyrings now and a later production KMS/vault without schema drift. Exact retries converge; cross-driver, uncleared, tampered and unavailable-custody paths fail closed. Focused tests, explicit scan-gate red/green evidence, real PostgreSQL migration/concurrency proofs, synchronized §9 contracts, frontend type/lint/build and a real isolated MinIO→ClamAV→encrypted-KYC flow pass. `EXT-KMS-CUSTODY` remains MISSING; W3-04B/C still own approval and work eligibility, and no live identity/provider/pilot validation is claimed. |
 | v1.58 | 2026-08-26 | **W2-02C managed advertiser creative upload delivered without claiming creative approval or live storage/scanner authority.** Migration `0054` preserves legacy URL rows while adding one unique restrictive stored-file binding for new creatives and refusing downgrade when managed links are populated. New writes lock and tenant-check a purpose-matched clean file, derive MIME/checksum, converge identical retries, conflict on changed reuse, reject advertiser `ready` claims and keep arbitrary URLs out of the write contract. The browser hashes locally, obtains the exact private POST through its session BFF, uploads directly, confirms and polls the fail-closed scan with actionable retry/error state before the server action submits only a cleared file ID. Creative reads label managed versus legacy sources, and offer construction independently rejects legacy or non-clean authority. Focused backend/API/migration/offer/frontend BFF/schema/action/upload tests and synchronized §9 contracts pass; production storage/scanner gates remain MISSING and W2-03B still owns admin creative approval. |
 | v1.57 | 2026-08-26 | **W2-02B fail-closed scanning and purpose-scoped private reads delivered without production-scanner authority.** Migration `0053` extends the one stored-file authority with actual MIME, scan attempts/retry timing and terminal clean/infected/rejected/error evidence. A streaming scanner port and local clamd INSTREAM adapter independently recount and magic-sniff bytes; a bounded row-locked worker retries outages and never clears unavailable, missing, spoofed, changed-size or infected content. Only exact clean files receive at-most-60-second GETs under tenant, active-admin and role-purpose checks, with actor/subject/purpose/reason/request audit. Focused protocol/API/service/worker/migration/head/audit/contract controls, an isolated populated PostgreSQL constraint round trip, Ruff, Compose parsing, real local ClamAV benign/EICAR and private MinIO signed-GET/unsigned-denial simulations pass. `EXT-MALWARE-SCANNER` remains MISSING; amd64 emulation is explicit for the official local image on ARM hosts, and no production scanner, credential, live file or provider validation is claimed. |
 | v1.56 | 2026-08-26 | **W2-02A private object-storage foundation delivered without production-provider authority.** Migration `0052` adds tenant-owned upload intents and private stored-file records with populated downgrade refusal. One S3-compatible port and local MinIO adapter provide exact condition-bound POSTs, streamed server-side checksum confirmation, idempotent private promotion and abandoned-object lifecycle cleanup; unconfigured/outage paths fail closed before persisting a new intent, public DTOs expose no bucket or managed key, and every confirmation is audited without filenames. Focused API/service/migration/worker/head controls, synchronized §9 artifacts, Ruff, Compose parsing and a real local MinIO POST→verify→promote flow pass, including a 403 unsigned GET. The production provider/account/region remains `EXT-STORAGE-PROVIDER` MISSING; no live upload, external staging, real KYC, device, route or pilot evidence is claimed. |

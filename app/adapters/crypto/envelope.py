@@ -138,8 +138,22 @@ class CryptoProvider(Protocol):
     ) -> CiphertextEnvelope: ...
 
 
-class EnvelopeCryptoProvider:
-    """AES-GCM envelope encryption using explicitly injected KEK material."""
+@runtime_checkable
+class KeyCustodyBackend(Protocol):
+    """Adapter-private KEK custody; application services still use only CryptoProvider."""
+
+    @property
+    def active_key_version(self) -> int: ...
+
+    def wrap_key(self, plaintext_key: bytes, aad: bytes) -> tuple[int, bytes, bytes]: ...
+
+    def unwrap_key(
+        self, key_version: int, nonce: bytes, wrapped_key: bytes, aad: bytes
+    ) -> bytes: ...
+
+
+class LocalKeyCustodyBackend:
+    """Local/test custody backed by an explicitly versioned in-process keyring."""
 
     def __init__(self, *, keys: Mapping[int, bytes], active_key_version: int) -> None:
         if active_key_version not in keys or active_key_version < 1:
@@ -153,26 +167,61 @@ class EnvelopeCryptoProvider:
     def active_key_version(self) -> int:
         return self._active_key_version
 
+    def wrap_key(self, plaintext_key: bytes, aad: bytes) -> tuple[int, bytes, bytes]:
+        nonce = urandom(NONCE_BYTES)
+        wrapped = AESGCM(self._keys[self._active_key_version]).encrypt(
+            nonce,
+            plaintext_key,
+            _wrap_aad(aad, self._active_key_version),
+        )
+        return self._active_key_version, nonce, wrapped
+
+    def unwrap_key(self, key_version: int, nonce: bytes, wrapped_key: bytes, aad: bytes) -> bytes:
+        key = self._keys.get(key_version)
+        if key is None:
+            raise CryptoOperationError("Encrypted value key version is unavailable")
+        try:
+            return AESGCM(key).decrypt(nonce, wrapped_key, _wrap_aad(aad, key_version))
+        except InvalidTag:
+            raise CryptoOperationError("Encrypted value authentication failed") from None
+
+
+class CustodyEnvelopeCryptoProvider:
+    """D17 envelope provider whose KEK operations stay behind a custody backend."""
+
+    def __init__(self, *, custody: KeyCustodyBackend) -> None:
+        if custody.active_key_version < 1:
+            raise CryptoConfigurationError("The active encryption key version is unavailable")
+        self._custody = custody
+
+    @property
+    def active_key_version(self) -> int:
+        return self._custody.active_key_version
+
     def encrypt(self, plaintext: bytes, associated_data: AssociatedData) -> CiphertextEnvelope:
         if not isinstance(plaintext, bytes) or not plaintext:
             raise CryptoOperationError("Plaintext must be non-empty bytes")
         aad = associated_data.canonical_bytes()
         dek = urandom(KEY_BYTES)
         nonce = urandom(NONCE_BYTES)
-        wrapped_key_nonce = urandom(NONCE_BYTES)
-        if nonce == wrapped_key_nonce:
-            wrapped_key_nonce = urandom(NONCE_BYTES)
         ciphertext = AESGCM(dek).encrypt(nonce, plaintext, _data_aad(aad))
-        wrapped_key = AESGCM(self._keys[self._active_key_version]).encrypt(
+        try:
+            key_version, wrapped_key_nonce, wrapped_key = self._custody.wrap_key(dek, aad)
+        except CryptoOperationError:
+            raise
+        except Exception:
+            raise CryptoOperationError("Encryption key custody is unavailable") from None
+        _validate_wrapped_key(
+            key_version,
             wrapped_key_nonce,
-            dek,
-            _wrap_aad(aad, self._active_key_version),
+            wrapped_key,
+            expected_version=self.active_key_version,
         )
         return CiphertextEnvelope(
             format_version=ENVELOPE_FORMAT_VERSION,
             data_algorithm=DATA_ALGORITHM,
             key_wrap_algorithm=KEY_WRAP_ALGORITHM,
-            key_version=self._active_key_version,
+            key_version=key_version,
             nonce=nonce,
             ciphertext=ciphertext,
             wrapped_key_nonce=wrapped_key_nonce,
@@ -183,54 +232,84 @@ class EnvelopeCryptoProvider:
         self, encrypted_value: CiphertextEnvelope, associated_data: AssociatedData
     ) -> bytes:
         envelope = CiphertextEnvelope.from_mapping(encrypted_value.to_mapping())
-        key = self._keys.get(envelope.key_version)
-        if key is None:
-            raise CryptoOperationError("Encrypted value key version is unavailable")
         aad = associated_data.canonical_bytes()
         try:
-            dek = AESGCM(key).decrypt(
+            dek = self._custody.unwrap_key(
+                envelope.key_version,
                 envelope.wrapped_key_nonce,
                 envelope.wrapped_key,
-                _wrap_aad(aad, envelope.key_version),
+                aad,
             )
             return AESGCM(dek).decrypt(envelope.nonce, envelope.ciphertext, _data_aad(aad))
+        except CryptoOperationError:
+            raise
         except InvalidTag:
             raise CryptoOperationError("Encrypted value authentication failed") from None
+        except Exception:
+            raise CryptoOperationError("Encryption key custody is unavailable") from None
 
     def rotate(
         self, encrypted_value: CiphertextEnvelope, associated_data: AssociatedData
     ) -> CiphertextEnvelope:
         envelope = CiphertextEnvelope.from_mapping(encrypted_value.to_mapping())
-        if envelope.key_version == self._active_key_version:
+        if envelope.key_version == self.active_key_version:
             return envelope
-        old_key = self._keys.get(envelope.key_version)
-        if old_key is None:
-            raise CryptoOperationError("Encrypted value key version is unavailable")
         aad = associated_data.canonical_bytes()
         try:
-            dek = AESGCM(old_key).decrypt(
+            dek = self._custody.unwrap_key(
+                envelope.key_version,
                 envelope.wrapped_key_nonce,
                 envelope.wrapped_key,
-                _wrap_aad(aad, envelope.key_version),
+                aad,
             )
-        except InvalidTag:
-            raise CryptoOperationError("Encrypted value authentication failed") from None
-        wrapped_key_nonce = urandom(NONCE_BYTES)
-        wrapped_key = AESGCM(self._keys[self._active_key_version]).encrypt(
+            key_version, wrapped_key_nonce, wrapped_key = self._custody.wrap_key(dek, aad)
+        except CryptoOperationError:
+            raise
+        except Exception:
+            raise CryptoOperationError("Encryption key custody is unavailable") from None
+        _validate_wrapped_key(
+            key_version,
             wrapped_key_nonce,
-            dek,
-            _wrap_aad(aad, self._active_key_version),
+            wrapped_key,
+            expected_version=self.active_key_version,
         )
         return CiphertextEnvelope(
             format_version=envelope.format_version,
             data_algorithm=envelope.data_algorithm,
             key_wrap_algorithm=envelope.key_wrap_algorithm,
-            key_version=self._active_key_version,
+            key_version=key_version,
             nonce=envelope.nonce,
             ciphertext=envelope.ciphertext,
             wrapped_key_nonce=wrapped_key_nonce,
             wrapped_key=wrapped_key,
         )
+
+
+class EnvelopeCryptoProvider(CustodyEnvelopeCryptoProvider):
+    """Backward-compatible local/test D17 provider using an in-process keyring."""
+
+    def __init__(self, *, keys: Mapping[int, bytes], active_key_version: int) -> None:
+        super().__init__(
+            custody=LocalKeyCustodyBackend(
+                keys=keys,
+                active_key_version=active_key_version,
+            )
+        )
+
+
+def _validate_wrapped_key(
+    key_version: int,
+    nonce: bytes,
+    wrapped_key: bytes,
+    *,
+    expected_version: int,
+) -> None:
+    if (
+        key_version != expected_version
+        or len(nonce) != NONCE_BYTES
+        or not wrapped_key
+    ):
+        raise CryptoOperationError("Encryption key custody returned invalid wrapped key data")
 
 
 def _data_aad(aad: bytes) -> bytes:

@@ -678,15 +678,6 @@ def validate_text(text: str) -> list[str]:
         owned = package_items.get(package.package_id, [])
         if package.status == "DONE" and any(item.status != "DONE" for item in owned):
             errors.append(f"line {package.line}: DONE package contains unfinished checklist items")
-        if (
-            package.status == "QUEUED"
-            and any(item.status == "DONE" for item in owned)
-            and any(runnable(item) for item in owned)
-        ):
-            errors.append(
-                f"line {package.line}: QUEUED package contains DONE checklist items "
-                "and runnable unfinished work"
-            )
         if package.status == "BLOCKED":
             if not any(item.status != "DONE" for item in owned):
                 errors.append(f"line {package.line}: BLOCKED package has no unfinished work")

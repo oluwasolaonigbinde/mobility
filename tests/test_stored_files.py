@@ -4,7 +4,12 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
-from conftest import auth_headers, create_test_organization, create_test_user
+from conftest import (
+    auth_headers,
+    create_test_driver_profile,
+    create_test_organization,
+    create_test_user,
+)
 from sqlalchemy import func, select
 
 from app.adapters.storage import (
@@ -156,6 +161,73 @@ def create_upload(db_client, email: str, payload=None):
         headers=auth_headers(db_client, email, PASSWORD),
         json=payload or upload_payload(),
     )
+
+
+def test_driver_uploads_are_subject_scoped_and_role_purpose_bound(
+    db_client, db_sessionmaker, storage
+) -> None:
+    first = create_test_user(
+        db_sessionmaker,
+        email="driver-files-a@example.com",
+        password=PASSWORD,
+        role=UserRole.DRIVER,
+    )
+    second = create_test_user(
+        db_sessionmaker,
+        email="driver-files-b@example.com",
+        password=PASSWORD,
+        role=UserRole.DRIVER,
+    )
+    create_test_driver_profile(db_sessionmaker, user_id=first.id)
+    create_test_driver_profile(db_sessionmaker, user_id=second.id)
+    payload = upload_payload(purpose="driver_kyc", filename="12345678901-licence.png")
+
+    created = db_client.post(
+        "/api/v1/driver/files/uploads",
+        headers=auth_headers(db_client, first.email, PASSWORD),
+        json=payload,
+    )
+    forbidden = db_client.post(
+        "/api/v1/driver/files/uploads",
+        headers=auth_headers(db_client, first.email, PASSWORD),
+        json=upload_payload(client_request_id="0342e450-fb55-451d-9676-a28fdd284192"),
+    )
+
+    assert created.status_code == 201
+    assert forbidden.status_code == 403
+    assert forbidden.json()["error"]["code"] == "FILE_PURPOSE_FORBIDDEN"
+    key = created.json()["upload"]["fields"]["key"]
+    assert key.startswith(f"unconfirmed/subject/{first.id}/")
+    storage.objects[key] = ObjectMetadata(
+        object_key=key,
+        size_bytes=68,
+        content_type="image/png",
+        checksum_sha256="a" * 64,
+    )
+
+    cross_subject = db_client.post(
+        f"/api/v1/driver/files/uploads/{created.json()['upload_id']}/confirm",
+        headers=auth_headers(db_client, second.email, PASSWORD),
+    )
+    confirmed = db_client.post(
+        f"/api/v1/driver/files/uploads/{created.json()['upload_id']}/confirm",
+        headers=auth_headers(db_client, first.email, PASSWORD),
+    )
+
+    assert cross_subject.status_code == 404
+    assert confirmed.status_code == 201
+    assert confirmed.json()["organization_id"] is None
+    assert confirmed.json()["subject_user_id"] == str(first.id)
+    assert confirmed.json()["purpose"] == "driver_kyc"
+    assert confirmed.json()["original_filename"] == "driver-kyc.png"
+    assert "12345678901" not in str(confirmed.json())
+
+    async def inspect_sensitive_filename() -> None:
+        async with db_sessionmaker() as session:
+            intent = await session.get(FileUploadIntent, UUID(created.json()["upload_id"]))
+            assert intent is not None and intent.original_filename == "driver-kyc.png"
+
+    asyncio.run(inspect_sensitive_filename())
 
 
 def test_presigned_post_is_private_condition_bound_and_same_retry_converges(

@@ -1,6 +1,7 @@
 import hashlib
 import json
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -20,17 +21,20 @@ from app.adapters.storage import (
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.middleware import get_request_id
+from app.models.driver import DriverProfile
 from app.models.organization import (
     MembershipRole,
     MembershipStatus,
     OrganizationStatus,
 )
 from app.models.stored_file import (
+    FilePurpose,
     FileScanStatus,
     FileUploadIntent,
     StoredFile,
     UploadIntentStatus,
 )
+from app.models.user import User, UserRole, UserStatus
 from app.schemas.stored_files import FileUploadCreate
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
@@ -47,6 +51,29 @@ def _storage_unavailable() -> AppError:
         "Private file storage is unavailable",
         status.HTTP_503_SERVICE_UNAVAILABLE,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class _FileScope:
+    organization_id: UUID | None
+    subject_user_id: UUID | None
+
+    @property
+    def identity(self) -> UUID:
+        identity = self.organization_id or self.subject_user_id
+        if identity is None:  # pragma: no cover
+            raise RuntimeError("File scope has no identity")
+        return identity
+
+    @property
+    def label(self) -> str:
+        return "organization" if self.organization_id else "subject"
+
+    @property
+    def path(self) -> str:
+        if self.organization_id is not None:
+            return str(self.organization_id)
+        return f"subject/{self.identity}"
 
 
 async def _advertiser_scope(session: AsyncSession, *, actor_user_id: UUID, write: bool) -> UUID:
@@ -68,11 +95,49 @@ async def _advertiser_scope(session: AsyncSession, *, actor_user_id: UUID, write
     return organization.id
 
 
+async def _driver_scope(
+    session: AsyncSession, *, actor_user_id: UUID, write: bool
+) -> _FileScope:
+    user_query = select(User).where(User.id == actor_user_id)
+    profile_query = select(DriverProfile).where(DriverProfile.user_id == actor_user_id)
+    if write:
+        user_query = user_query.with_for_update()
+        profile_query = profile_query.with_for_update()
+    user = await session.scalar(user_query)
+    profile = await session.scalar(profile_query)
+    if (
+        user is None
+        or user.role != UserRole.DRIVER
+        or user.status != UserStatus.ACTIVE
+        or profile is None
+    ):
+        raise _error("FILE_SCOPE_NOT_FOUND", "File scope was not found", status.HTTP_404_NOT_FOUND)
+    return _FileScope(organization_id=None, subject_user_id=user.id)
+
+
 def _fingerprint(payload: FileUploadCreate) -> str:
     document = payload.model_dump(mode="json")
     return hashlib.sha256(
         json.dumps(document, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
+
+
+def _scope_filters(model, scope: _FileScope):
+    return (
+        model.organization_id == scope.organization_id,
+        model.subject_user_id == scope.subject_user_id,
+    )
+
+
+def _scope_metadata(scope: _FileScope) -> dict[str, str]:
+    return {f"{scope.label}_id": str(scope.identity)}
+
+
+def _file_scope(stored_file: StoredFile | FileUploadIntent) -> _FileScope:
+    return _FileScope(
+        organization_id=stored_file.organization_id,
+        subject_user_id=stored_file.subject_user_id,
+    )
 
 
 def _aware(value: datetime) -> datetime:
@@ -101,11 +166,74 @@ async def create_advertiser_upload_intent(
     storage: StorageProvider,
     settings: Settings,
 ) -> tuple[FileUploadIntent, PresignedPost]:
+    if payload.purpose != FilePurpose.CREATIVE:
+        raise _error(
+            "FILE_PURPOSE_FORBIDDEN",
+            "The requested file purpose is not allowed for this role",
+            status.HTTP_403_FORBIDDEN,
+        )
     organization_id = await _advertiser_scope(session, actor_user_id=actor_user_id, write=True)
+    return await _create_upload_intent(
+        session,
+        actor_user_id=actor_user_id,
+        payload=payload,
+        scope=_FileScope(organization_id=organization_id, subject_user_id=None),
+        storage=storage,
+        settings=settings,
+    )
+
+
+async def create_driver_upload_intent(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    payload: FileUploadCreate,
+    storage: StorageProvider,
+    settings: Settings,
+) -> tuple[FileUploadIntent, PresignedPost]:
+    if payload.purpose not in {FilePurpose.DRIVER_KYC, FilePurpose.VEHICLE_EVIDENCE}:
+        raise _error(
+            "FILE_PURPOSE_FORBIDDEN",
+            "The requested file purpose is not allowed for this role",
+            status.HTTP_403_FORBIDDEN,
+        )
+    scope = await _driver_scope(session, actor_user_id=actor_user_id, write=True)
+    return await _create_upload_intent(
+        session,
+        actor_user_id=actor_user_id,
+        payload=payload,
+        scope=scope,
+        stored_filename=_safe_subject_filename(payload),
+        storage=storage,
+        settings=settings,
+    )
+
+
+def _safe_subject_filename(payload: FileUploadCreate) -> str:
+    extensions = {
+        "application/pdf": "pdf",
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+        "video/mp4": "mp4",
+    }
+    return f"{payload.purpose.value.replace('_', '-')}.{extensions[payload.content_type]}"
+
+
+async def _create_upload_intent(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    payload: FileUploadCreate,
+    scope: _FileScope,
+    stored_filename: str | None = None,
+    storage: StorageProvider,
+    settings: Settings,
+) -> tuple[FileUploadIntent, PresignedPost]:
     fingerprint = _fingerprint(payload)
     existing = await session.scalar(
         select(FileUploadIntent).where(
-            FileUploadIntent.organization_id == organization_id,
+            *_scope_filters(FileUploadIntent, scope),
             FileUploadIntent.uploader_user_id == actor_user_id,
             FileUploadIntent.client_request_id == payload.client_request_id,
         )
@@ -128,16 +256,20 @@ async def create_advertiser_upload_intent(
         intent_id = uuid4()
         intent = FileUploadIntent(
             id=intent_id,
-            organization_id=organization_id,
+            organization_id=scope.organization_id,
+            subject_user_id=scope.subject_user_id,
             uploader_user_id=actor_user_id,
             client_request_id=payload.client_request_id,
             request_fingerprint=fingerprint,
             purpose=payload.purpose.value,
-            original_filename=payload.filename,
+            # Sensitive subject filenames may themselves contain an identifier;
+            # retain only a generated display label while fingerprinting the
+            # exact client request for retry conflict detection.
+            original_filename=stored_filename or payload.filename,
             declared_content_type=payload.content_type,
             declared_size_bytes=payload.size_bytes,
             declared_sha256=payload.sha256,
-            object_key=f"unconfirmed/{organization_id}/{intent_id}",
+            object_key=f"unconfirmed/{scope.path}/{intent_id}",
             expires_at=datetime.now(UTC)
             + timedelta(seconds=settings.object_storage_presign_ttl_seconds),
             status=UploadIntentStatus.PENDING,
@@ -150,7 +282,7 @@ async def create_advertiser_upload_intent(
         except IntegrityError:
             existing = await session.scalar(
                 select(FileUploadIntent).where(
-                    FileUploadIntent.organization_id == organization_id,
+                    *_scope_filters(FileUploadIntent, scope),
                     FileUploadIntent.uploader_user_id == actor_user_id,
                     FileUploadIntent.client_request_id == payload.client_request_id,
                 )
@@ -173,7 +305,7 @@ async def create_advertiser_upload_intent(
                 entity_type="file_upload_intent",
                 entity_id=str(intent.id),
                 metadata={
-                    "organization_id": str(organization_id),
+                    **_scope_metadata(scope),
                     "purpose": intent.purpose,
                     "size_bytes": intent.declared_size_bytes,
                     "checksum_sha256": intent.declared_sha256,
@@ -240,11 +372,45 @@ async def confirm_advertiser_upload(
     storage: StorageProvider,
 ) -> StoredFile:
     organization_id = await _advertiser_scope(session, actor_user_id=actor_user_id, write=True)
+    return await _confirm_upload(
+        session,
+        actor_user_id=actor_user_id,
+        upload_id=upload_id,
+        scope=_FileScope(organization_id=organization_id, subject_user_id=None),
+        storage=storage,
+    )
+
+
+async def confirm_driver_upload(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    upload_id: UUID,
+    storage: StorageProvider,
+) -> StoredFile:
+    scope = await _driver_scope(session, actor_user_id=actor_user_id, write=True)
+    return await _confirm_upload(
+        session,
+        actor_user_id=actor_user_id,
+        upload_id=upload_id,
+        scope=scope,
+        storage=storage,
+    )
+
+
+async def _confirm_upload(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    upload_id: UUID,
+    scope: _FileScope,
+    storage: StorageProvider,
+) -> StoredFile:
     intent = await session.scalar(
         select(FileUploadIntent)
         .where(
             FileUploadIntent.id == upload_id,
-            FileUploadIntent.organization_id == organization_id,
+            *_scope_filters(FileUploadIntent, scope),
         )
         .with_for_update()
     )
@@ -274,7 +440,7 @@ async def confirm_advertiser_upload(
     mismatch = _metadata_error(intent, observed)
     if mismatch is not None:
         raise mismatch
-    destination_key = f"managed/{organization_id}/{intent.id}"
+    destination_key = f"managed/{scope.path}/{intent.id}"
     try:
         promoted = await storage.promote(
             source_key=intent.object_key,
@@ -294,7 +460,8 @@ async def confirm_advertiser_upload(
     stored_file = StoredFile(
         id=uuid4(),
         upload_intent_id=intent.id,
-        organization_id=organization_id,
+        organization_id=scope.organization_id,
+        subject_user_id=scope.subject_user_id,
         uploader_user_id=actor_user_id,
         purpose=intent.purpose,
         original_filename=intent.original_filename,
@@ -314,7 +481,7 @@ async def confirm_advertiser_upload(
         entity_type="stored_file",
         entity_id=str(stored_file.id),
         metadata={
-            "organization_id": str(organization_id),
+            **_scope_metadata(scope),
             "purpose": stored_file.purpose,
             "size_bytes": stored_file.size_bytes,
             "checksum_sha256": stored_file.checksum_sha256,
@@ -332,6 +499,20 @@ async def get_advertiser_stored_file(
             StoredFile.id == file_id,
             StoredFile.organization_id == organization_id,
         )
+    )
+    if stored_file is None:
+        raise _error(
+            "STORED_FILE_NOT_FOUND", "Stored file was not found", status.HTTP_404_NOT_FOUND
+        )
+    return stored_file
+
+
+async def get_driver_stored_file(
+    session: AsyncSession, *, actor_user_id: UUID, file_id: UUID
+) -> StoredFile:
+    scope = await _driver_scope(session, actor_user_id=actor_user_id, write=False)
+    stored_file = await session.scalar(
+        select(StoredFile).where(StoredFile.id == file_id, *_scope_filters(StoredFile, scope))
     )
     if stored_file is None:
         raise _error(
@@ -362,9 +543,10 @@ async def purge_expired_upload_intents(
         ).all()
     )
     for intent in intents:
+        scope = _file_scope(intent)
         try:
             await storage.delete(intent.object_key)
-            await storage.delete(f"managed/{intent.organization_id}/{intent.id}")
+            await storage.delete(f"managed/{scope.path}/{intent.id}")
         except StorageUnavailable:
             raise _storage_unavailable() from None
         intent.status = UploadIntentStatus.EXPIRED
@@ -374,7 +556,7 @@ async def purge_expired_upload_intents(
             action="stored_file.upload_expired",
             entity_type="file_upload_intent",
             entity_id=str(intent.id),
-            metadata={"organization_id": str(intent.organization_id)},
+            metadata=_scope_metadata(scope),
         )
     await session.flush()
     return len(intents)
@@ -453,7 +635,7 @@ async def scan_stored_file(
         entity_type="stored_file",
         entity_id=str(stored_file.id),
         metadata={
-            "organization_id": str(stored_file.organization_id),
+            **_scope_metadata(_file_scope(stored_file)),
             "status": stored_file.scan_status,
             "attempt": stored_file.scan_attempts,
             "error_code": stored_file.scan_error_code,
@@ -497,7 +679,7 @@ async def _issue_download(
         entity_type="stored_file",
         entity_id=str(stored_file.id),
         metadata={
-            "organization_id": str(stored_file.organization_id),
+            **_scope_metadata(_file_scope(stored_file)),
             "file_purpose": stored_file.purpose,
             "access_purpose": access_purpose,
             "reason": reason,
@@ -556,7 +738,12 @@ async def issue_admin_file_download(
     settings: Settings,
 ) -> PresignedGet:
     await require_active_admin(session, actor_user_id)
-    if access_purpose not in {"creative_review", "security_review", "incident_response"}:
+    if access_purpose not in {
+        "creative_review",
+        "kyc_review",
+        "security_review",
+        "incident_response",
+    }:
         raise _error(
             "FILE_ACCESS_PURPOSE_FORBIDDEN",
             "The requested file-access purpose is not allowed for this role",
@@ -566,6 +753,18 @@ async def issue_admin_file_download(
     if stored_file is None:
         raise _error(
             "STORED_FILE_NOT_FOUND", "Stored file was not found", status.HTTP_404_NOT_FOUND
+        )
+    if (
+        access_purpose == "creative_review"
+        and stored_file.purpose != FilePurpose.CREATIVE
+    ) or (
+        access_purpose == "kyc_review"
+        and stored_file.purpose not in {FilePurpose.DRIVER_KYC, FilePurpose.VEHICLE_EVIDENCE}
+    ):
+        raise _error(
+            "FILE_ACCESS_PURPOSE_FORBIDDEN",
+            "The requested file-access purpose does not match this file",
+            status.HTTP_403_FORBIDDEN,
         )
     return await _issue_download(
         session,

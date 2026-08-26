@@ -727,6 +727,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/kyc/submissions/{submission_id}/nin/reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Reveal Driver Nin */
+        post: operations["admin_reveal_driver_nin_api_v1_admin_kyc_submissions__submission_id__nin_reveal_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/kyc/submissions/{submission_id}/nin/rewrap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Rewrap Driver Nin */
+        post: operations["admin_rewrap_driver_nin_api_v1_admin_kyc_submissions__submission_id__nin_rewrap_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payees/bank-account-versions/{version_id}/reveal": {
         parameters: {
             query?: never;
@@ -2410,6 +2444,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/driver/files/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Driver File Upload */
+        post: operations["create_driver_file_upload_api_v1_driver_files_uploads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/files/uploads/{upload_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Driver File Upload */
+        post: operations["confirm_driver_file_upload_api_v1_driver_files_uploads__upload_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/files/{file_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Driver File */
+        get: operations["get_driver_file_api_v1_driver_files__file_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/driver/fraud-holds": {
         parameters: {
             query?: never;
@@ -2438,6 +2523,40 @@ export interface paths {
         put?: never;
         /** Driver Create Fraud Dispute */
         post: operations["driver_create_fraud_dispute_api_v1_driver_fraud_holds__flag_id__disputes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/kyc/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Current Driver Kyc */
+        get: operations["get_current_driver_kyc_api_v1_driver_kyc_current_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/kyc/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Driver Kyc Submission */
+        post: operations["create_driver_kyc_submission_api_v1_driver_kyc_submissions_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2609,6 +2728,40 @@ export interface paths {
         get: operations["driver_get_vehicle_api_v1_driver_vehicles__vehicle_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/vehicles/{vehicle_id}/evidence-current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Current Vehicle Evidence */
+        get: operations["get_current_vehicle_evidence_api_v1_driver_vehicles__vehicle_id__evidence_current_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/vehicles/{vehicle_id}/evidence-submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Vehicle Evidence Submission */
+        post: operations["create_vehicle_evidence_submission_api_v1_driver_vehicles__vehicle_id__evidence_submissions_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5131,6 +5284,75 @@ export interface components {
              */
             version: "v1";
         };
+        /** DriverKycSubmissionCreate */
+        DriverKycSubmissionCreate: {
+            /**
+             * Bank Account Version Id
+             * Format: uuid
+             */
+            bank_account_version_id: string;
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /**
+             * Driver License File Id
+             * Format: uuid
+             */
+            driver_license_file_id: string;
+            /**
+             * Driver Photo File Id
+             * Format: uuid
+             */
+            driver_photo_file_id: string;
+            /**
+             * Nin
+             * Format: password
+             */
+            nin: string;
+            /**
+             * Signed Agreement File Id
+             * Format: uuid
+             */
+            signed_agreement_file_id: string;
+        };
+        /** DriverKycSubmissionRead */
+        DriverKycSubmissionRead: {
+            /**
+             * Bank Account Version Id
+             * Format: uuid
+             */
+            bank_account_version_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Document File Ids */
+            document_file_ids: {
+                [key: string]: string;
+            };
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /** Encryption Algorithm */
+            encryption_algorithm: string;
+            /** Encryption Key Version */
+            encryption_key_version: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Masked Nin */
+            masked_nin: string;
+            status: components["schemas"]["KycSubmissionStatus"];
+            /** Version */
+            version: number;
+        };
         /** DriverMoneyBalanceRead */
         DriverMoneyBalanceRead: {
             /** Batch Payable */
@@ -5427,7 +5649,7 @@ export interface components {
          * FileAccessPurpose
          * @enum {string}
          */
-        FileAccessPurpose: "campaign_preview" | "creative_review" | "security_review" | "incident_response";
+        FileAccessPurpose: "campaign_preview" | "creative_review" | "kyc_review" | "security_review" | "incident_response";
         /** FileDownloadRead */
         FileDownloadRead: {
             /** Expires In Seconds */
@@ -5445,7 +5667,7 @@ export interface components {
          * FilePurpose
          * @enum {string}
          */
-        FilePurpose: "creative";
+        FilePurpose: "creative" | "driver_kyc" | "vehicle_evidence";
         /**
          * FileScanStatus
          * @enum {string}
@@ -6126,6 +6348,11 @@ export interface components {
          * @enum {string}
          */
         IssuerVerificationStatus: "synthetic" | "verified";
+        /**
+         * KycSubmissionStatus
+         * @enum {string}
+         */
+        KycSubmissionStatus: "pending_review" | "approved" | "rejected" | "expired";
         /** LocationPingBatchCreate */
         LocationPingBatchCreate: {
             /** Idempotency Key */
@@ -6352,6 +6579,11 @@ export interface components {
          * @enum {string}
          */
         MembershipStatus: "active" | "invited" | "disabled";
+        /** NinRevealRead */
+        NinRevealRead: {
+            /** Nin */
+            nin: string;
+        };
         /**
          * NotificationChannel
          * @enum {string}
@@ -7511,6 +7743,11 @@ export interface components {
             /** Total Distance M */
             total_distance_m: string | null;
         };
+        /** SensitiveRevealRequest */
+        SensitiveRevealRequest: {
+            /** Purpose */
+            purpose: string;
+        };
         /** SettlementRead */
         SettlementRead: {
             /** Amount */
@@ -7568,17 +7805,16 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /**
-             * Organization Id
-             * Format: uuid
-             */
-            organization_id: string;
+            /** Organization Id */
+            organization_id: string | null;
             /** Original Filename */
             original_filename: string;
             purpose: components["schemas"]["FilePurpose"];
             scan_status: components["schemas"]["FileScanStatus"];
             /** Size Bytes */
             size_bytes: number;
+            /** Subject User Id */
+            subject_user_id: string | null;
         };
         /** TrafficDensityProfileCreate */
         TrafficDensityProfileCreate: {
@@ -8190,6 +8426,54 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
+        };
+        /** VehicleEvidenceSubmissionCreate */
+        VehicleEvidenceSubmissionCreate: {
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /**
+             * Insurance File Id
+             * Format: uuid
+             */
+            insurance_file_id: string;
+            /**
+             * Registration File Id
+             * Format: uuid
+             */
+            registration_file_id: string;
+            /**
+             * Vehicle Photo File Id
+             * Format: uuid
+             */
+            vehicle_photo_file_id: string;
+        };
+        /** VehicleEvidenceSubmissionRead */
+        VehicleEvidenceSubmissionRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Document File Ids */
+            document_file_ids: {
+                [key: string]: string;
+            };
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            status: components["schemas"]["KycSubmissionStatus"];
+            /**
+             * Vehicle Id
+             * Format: uuid
+             */
+            vehicle_id: string;
+            /** Version */
+            version: number;
         };
         /** VehicleListResponse */
         VehicleListResponse: {
@@ -10094,6 +10378,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InvoiceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_reveal_driver_nin_api_v1_admin_kyc_submissions__submission_id__nin_reveal_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SensitiveRevealRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NinRevealRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_rewrap_driver_nin_api_v1_admin_kyc_submissions__submission_id__nin_rewrap_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverKycSubmissionRead"];
                 };
             };
             /** @description Validation Error */
@@ -13744,6 +14094,101 @@ export interface operations {
             };
         };
     };
+    create_driver_file_upload_api_v1_driver_files_uploads_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileUploadCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileUploadRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_driver_file_upload_api_v1_driver_files_uploads__upload_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredFileRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_driver_file_api_v1_driver_files__file_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                file_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredFileRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     driver_get_fraud_holds_api_v1_driver_fraud_holds_get: {
         parameters: {
             query?: {
@@ -13797,6 +14242,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriverFraudDisputeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_current_driver_kyc_api_v1_driver_kyc_current_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverKycSubmissionRead"];
+                };
+            };
+        };
+    };
+    create_driver_kyc_submission_api_v1_driver_kyc_submissions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DriverKycSubmissionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverKycSubmissionRead"];
                 };
             };
             /** @description Validation Error */
@@ -14130,6 +14628,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VehicleRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_current_vehicle_evidence_api_v1_driver_vehicles__vehicle_id__evidence_current_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vehicle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleEvidenceSubmissionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_vehicle_evidence_submission_api_v1_driver_vehicles__vehicle_id__evidence_submissions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vehicle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VehicleEvidenceSubmissionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleEvidenceSubmissionRead"];
                 };
             };
             /** @description Validation Error */

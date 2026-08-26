@@ -63,11 +63,11 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 clarification corrects the prior false pause: missing production storage,
 scanner, KMS, email and phone inputs remain explicit live/deployment gates but
 do not block provider-neutral/local/synthetic implementation under D23.
-**Current checkpoint:** `PKG-04 / W2-02D` — add versioned KYC/financial-
-identifier protection and provider-neutral key-custody/rewrap behavior through
-D17's single crypto port and ciphertext schema. No production KMS/custodian,
-creative approval, launch, live KYC, real-GPS, external-staging, physical-
-device or pilot evidence is claimed.
+**Current checkpoint:** `PKG-04 / W2-02E` — add file/KYC lifecycle and incident
+operations over the completed provider-neutral stored-file, scanner and
+encrypted-identifier foundations. No production storage/scanner/KMS provider,
+custodian, creative/KYC approval, launch, live KYC, real-GPS, external-staging,
+physical-device or pilot evidence is claimed.
 
 ## Executable package queue
 
@@ -498,6 +498,33 @@ device or pilot evidence is claimed.
   temporary containers/network were removed. `EXT-STORAGE-PROVIDER` and
   `EXT-MALWARE-SCANNER` remain MISSING; no production provider, creative
   approval, live upload, external staging or pilot validation is claimed.
+- **W2-02D checkpoint evidence (26 Aug 2026):** migration `0055` extends the
+  single stored-file authority with mutually exclusive organization/driver
+  scope and adds immutable versioned driver-KYC and vehicle-evidence records.
+  Required clean, purpose-matched, subject-owned licence/photo/agreement and
+  registration/insurance/photo files bind to those versions; verified bank
+  versions are rechecked against the same driver payee. NIN is never a
+  plaintext column or list response: it reuses D17's exact envelope mapping and
+  tenant/record/field AAD, exposes only last-four masking, and requires an
+  active-admin purpose plus atomic redacted audit for reveal. The unchanged
+  application crypto port now delegates KEK wrapping to an adapter-private
+  custody backend; local/test keyrings remain available while a production
+  KMS/vault can replace custody without changing ciphertext. Rewrap appends one
+  KYC version under the stable identity record, preserves data ciphertext and
+  converges on the active key. Exact request retries converge; changed retries,
+  cross-driver bank/file substitution, uncleared files, tampered AAD/ciphertext
+  and missing custody fail closed. An observed temporary scan-gate mutation
+  failed before the restored invariant passed. One hundred fifteen focused
+  crypto/payee/file/scanner/KYC/migration/creative/audit/contract checks pass
+  with ten environment skips; real PostgreSQL proves the full `0001→0055`
+  empty round trip, populated downgrade refusal and concurrent retry/version
+  serialization.
+  Frontend typecheck/lint/build and synchronized §9 contracts pass, as does a
+  real isolated three-file MinIO→ClamAV→encrypted-KYC flow; its temporary
+  services/network were removed. `EXT-KMS-CUSTODY` remains MISSING. W3-04B/C
+  still own person/payee and vehicle approval/work eligibility; no production
+  custodian/provider, live identity check, approval or pilot evidence is
+  claimed.
 - **W2-03A checkpoint evidence (24 Aug 2026):** migration `0043` extends the campaign
   lifecycle and adds append-only, exact-submission-bound review evidence.
   Dedicated row-locked advertiser/admin actions enforce submit, approve,
@@ -963,7 +990,7 @@ verification, gates or required specialist review.
 | 28 | **W2-02A — private object-storage foundation** | PKG-04 | DONE | Direct private uploads produce managed stored-file records; production adoption remains gated by EXT-STORAGE-PROVIDER. | none |
 | 29 | **W2-02B — malware scanning and purpose-scoped reads** | PKG-04 | DONE | Unsafe files fail closed and privileged downloads are short-lived/audited; production adoption remains gated by EXT-MALWARE-SCANNER. | leaf: W2-02A |
 | 30 | **W2-02C — advertiser creative upload** | PKG-04 | DONE | Campaign flows use managed scanned assets instead of arbitrary URLs; legacy URL rows remain readable but cannot authorize a new offer. | leaf: W2-02B |
-| 31 | **W2-02D — encrypted KYC and financial identifiers** | PKG-04 | TODO | Required documents/NIN/bank data reuse the crypto port and are protected/version-reviewed; production custody remains gated by EXT-KMS-CUSTODY. | leaf: W2-02B, MNY-10A |
+| 31 | **W2-02D — encrypted KYC and financial identifiers** | PKG-04 | DONE | Required documents/NIN/bank data reuse the crypto port and are protected/version-reviewed; production custody remains gated by EXT-KMS-CUSTODY. | leaf: W2-02B, MNY-10A |
 | 32 | **W2-02E — file/KYC lifecycle and incident operations** | PKG-04 | TODO | File/KYC purge plus scanner/key/vendor failures are tested and audited. | leaf: W2-02B, W2-02D |
 | 33 | **W2-03A — campaign submission and approval** | PKG-04 | DONE | Advertiser submits; admin approves/rejects; unapproved campaigns cannot schedule. | none |
 | 34 | **W2-03B — creative review gate** | PKG-04 | TODO | Only admin-approved, scan-cleared creative can satisfy campaign launch. | leaf: W2-02C |
@@ -1396,7 +1423,8 @@ names never authorize work or replace the package queue.
 - **Scope / authority:** licence/registration/insurance/NIN/photos/agreement/
   bank linkage, versioned review, masking and purpose-authorized reveal using
   the same D17 crypto port/ciphertext schema introduced by MNY-10A (§19.3,
-  RM18, Q26/Q27). Add the chosen KMS/vault-backed key-custody provider; do not
+  RM18, Q26/Q27). Add the provider-neutral custody backend/adapter seam; the
+  selected production KMS/vault remains an external adoption gate. Do not
   create a second crypto mechanism.
 - **Acceptance:** sensitive data is never plaintext in DB/API/logs; every value
   retains algorithm/key version/associated-data binding; KMS/vault migration

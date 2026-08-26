@@ -6729,6 +6729,117 @@
         "title": "DriverFraudHoldReason",
         "type": "object"
       },
+      "DriverKycSubmissionCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "bank_account_version_id": {
+            "format": "uuid",
+            "title": "Bank Account Version Id",
+            "type": "string"
+          },
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "driver_license_file_id": {
+            "format": "uuid",
+            "title": "Driver License File Id",
+            "type": "string"
+          },
+          "driver_photo_file_id": {
+            "format": "uuid",
+            "title": "Driver Photo File Id",
+            "type": "string"
+          },
+          "nin": {
+            "format": "password",
+            "title": "Nin",
+            "type": "string",
+            "writeOnly": true
+          },
+          "signed_agreement_file_id": {
+            "format": "uuid",
+            "title": "Signed Agreement File Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "nin",
+          "bank_account_version_id",
+          "driver_license_file_id",
+          "driver_photo_file_id",
+          "signed_agreement_file_id"
+        ],
+        "title": "DriverKycSubmissionCreate",
+        "type": "object"
+      },
+      "DriverKycSubmissionRead": {
+        "properties": {
+          "bank_account_version_id": {
+            "format": "uuid",
+            "title": "Bank Account Version Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "document_file_ids": {
+            "additionalProperties": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Document File Ids",
+            "type": "object"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "encryption_algorithm": {
+            "title": "Encryption Algorithm",
+            "type": "string"
+          },
+          "encryption_key_version": {
+            "title": "Encryption Key Version",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "masked_nin": {
+            "title": "Masked Nin",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/KycSubmissionStatus"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "driver_profile_id",
+          "version",
+          "status",
+          "masked_nin",
+          "bank_account_version_id",
+          "document_file_ids",
+          "encryption_algorithm",
+          "encryption_key_version",
+          "created_at"
+        ],
+        "title": "DriverKycSubmissionRead",
+        "type": "object"
+      },
       "DriverMoneyBalanceRead": {
         "properties": {
           "batch_payable": {
@@ -7647,6 +7758,7 @@
         "enum": [
           "campaign_preview",
           "creative_review",
+          "kyc_review",
           "security_review",
           "incident_response"
         ],
@@ -7693,7 +7805,9 @@
       },
       "FilePurpose": {
         "enum": [
-          "creative"
+          "creative",
+          "driver_kyc",
+          "vehicle_evidence"
         ],
         "title": "FilePurpose",
         "type": "string"
@@ -9335,6 +9449,16 @@
         "title": "IssuerVerificationStatus",
         "type": "string"
       },
+      "KycSubmissionStatus": {
+        "enum": [
+          "pending_review",
+          "approved",
+          "rejected",
+          "expired"
+        ],
+        "title": "KycSubmissionStatus",
+        "type": "string"
+      },
       "LocationPingBatchCreate": {
         "additionalProperties": false,
         "properties": {
@@ -9868,6 +9992,19 @@
         ],
         "title": "MembershipStatus",
         "type": "string"
+      },
+      "NinRevealRead": {
+        "properties": {
+          "nin": {
+            "title": "Nin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "nin"
+        ],
+        "title": "NinRevealRead",
+        "type": "object"
       },
       "NotificationChannel": {
         "enum": [
@@ -12603,6 +12740,23 @@
         "title": "RouteAnalyticsSummary",
         "type": "object"
       },
+      "SensitiveRevealRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "purpose": {
+            "maxLength": 64,
+            "minLength": 3,
+            "pattern": "^[a-z][a-z0-9_]{2,63}$",
+            "title": "Purpose",
+            "type": "string"
+          }
+        },
+        "required": [
+          "purpose"
+        ],
+        "title": "SensitiveRevealRequest",
+        "type": "object"
+      },
       "SettlementRead": {
         "properties": {
           "amount": {
@@ -12726,9 +12880,16 @@
             "type": "string"
           },
           "organization_id": {
-            "format": "uuid",
-            "title": "Organization Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Id"
           },
           "original_filename": {
             "title": "Original Filename",
@@ -12743,11 +12904,24 @@
           "size_bytes": {
             "title": "Size Bytes",
             "type": "integer"
+          },
+          "subject_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject User Id"
           }
         },
         "required": [
           "id",
           "organization_id",
+          "subject_user_id",
           "purpose",
           "original_filename",
           "content_type",
@@ -14548,6 +14722,83 @@
           "phone"
         ],
         "title": "VehicleDriverSummary",
+        "type": "object"
+      },
+      "VehicleEvidenceSubmissionCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "insurance_file_id": {
+            "format": "uuid",
+            "title": "Insurance File Id",
+            "type": "string"
+          },
+          "registration_file_id": {
+            "format": "uuid",
+            "title": "Registration File Id",
+            "type": "string"
+          },
+          "vehicle_photo_file_id": {
+            "format": "uuid",
+            "title": "Vehicle Photo File Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "registration_file_id",
+          "insurance_file_id",
+          "vehicle_photo_file_id"
+        ],
+        "title": "VehicleEvidenceSubmissionCreate",
+        "type": "object"
+      },
+      "VehicleEvidenceSubmissionRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "document_file_ids": {
+            "additionalProperties": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Document File Ids",
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/KycSubmissionStatus"
+          },
+          "vehicle_id": {
+            "format": "uuid",
+            "title": "Vehicle Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "vehicle_id",
+          "version",
+          "status",
+          "document_file_ids",
+          "created_at"
+        ],
+        "title": "VehicleEvidenceSubmissionRead",
         "type": "object"
       },
       "VehicleListResponse": {
@@ -18593,6 +18844,112 @@
         "summary": "Admin Issue Invoice",
         "tags": [
           "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/kyc/submissions/{submission_id}/nin/reveal": {
+      "post": {
+        "operationId": "admin_reveal_driver_nin_api_v1_admin_kyc_submissions__submission_id__nin_reveal_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SensitiveRevealRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NinRevealRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Reveal Driver Nin",
+        "tags": [
+          "Protected KYC"
+        ]
+      }
+    },
+    "/api/v1/admin/kyc/submissions/{submission_id}/nin/rewrap": {
+      "post": {
+        "operationId": "admin_rewrap_driver_nin_api_v1_admin_kyc_submissions__submission_id__nin_rewrap_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverKycSubmissionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Rewrap Driver Nin",
+        "tags": [
+          "Protected KYC"
         ]
       }
     },
@@ -25328,6 +25685,148 @@
         ]
       }
     },
+    "/api/v1/driver/files/uploads": {
+      "post": {
+        "operationId": "create_driver_file_upload_api_v1_driver_files_uploads_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileUploadCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileUploadRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Driver File Upload",
+        "tags": [
+          "Files"
+        ]
+      }
+    },
+    "/api/v1/driver/files/uploads/{upload_id}/confirm": {
+      "post": {
+        "operationId": "confirm_driver_file_upload_api_v1_driver_files_uploads__upload_id__confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Upload Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredFileRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Confirm Driver File Upload",
+        "tags": [
+          "Files"
+        ]
+      }
+    },
+    "/api/v1/driver/files/{file_id}": {
+      "get": {
+        "operationId": "get_driver_file_api_v1_driver_files__file_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "file_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "File Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredFileRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Driver File",
+        "tags": [
+          "Files"
+        ]
+      }
+    },
     "/api/v1/driver/fraud-holds": {
       "get": {
         "operationId": "driver_get_fraud_holds_api_v1_driver_fraud_holds_get",
@@ -25438,6 +25937,78 @@
         "summary": "Driver Create Fraud Dispute",
         "tags": [
           "Fraud disputes"
+        ]
+      }
+    },
+    "/api/v1/driver/kyc/current": {
+      "get": {
+        "operationId": "get_current_driver_kyc_api_v1_driver_kyc_current_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverKycSubmissionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Current Driver Kyc",
+        "tags": [
+          "Protected KYC"
+        ]
+      }
+    },
+    "/api/v1/driver/kyc/submissions": {
+      "post": {
+        "operationId": "create_driver_kyc_submission_api_v1_driver_kyc_submissions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriverKycSubmissionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverKycSubmissionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Driver Kyc Submission",
+        "tags": [
+          "Protected KYC"
         ]
       }
     },
@@ -25965,6 +26536,112 @@
         "summary": "Get current driver vehicle",
         "tags": [
           "Vehicles"
+        ]
+      }
+    },
+    "/api/v1/driver/vehicles/{vehicle_id}/evidence-current": {
+      "get": {
+        "operationId": "get_current_vehicle_evidence_api_v1_driver_vehicles__vehicle_id__evidence_current_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vehicle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Vehicle Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleEvidenceSubmissionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Current Vehicle Evidence",
+        "tags": [
+          "Protected KYC"
+        ]
+      }
+    },
+    "/api/v1/driver/vehicles/{vehicle_id}/evidence-submissions": {
+      "post": {
+        "operationId": "create_vehicle_evidence_submission_api_v1_driver_vehicles__vehicle_id__evidence_submissions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vehicle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Vehicle Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VehicleEvidenceSubmissionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleEvidenceSubmissionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create Vehicle Evidence Submission",
+        "tags": [
+          "Protected KYC"
         ]
       }
     },

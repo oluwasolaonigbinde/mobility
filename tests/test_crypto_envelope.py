@@ -8,7 +8,9 @@ from app.adapters.crypto import (
     CiphertextEnvelope,
     CryptoConfigurationError,
     CryptoOperationError,
+    CustodyEnvelopeCryptoProvider,
     EnvelopeCryptoProvider,
+    LocalKeyCustodyBackend,
 )
 
 
@@ -92,3 +94,65 @@ def test_configuration_and_envelope_parsing_fail_closed() -> None:
     stored["data_algorithm"] = "unknown"
     with pytest.raises(CryptoOperationError):
         CiphertextEnvelope.from_mapping(stored)
+
+
+def test_provider_neutral_custody_preserves_schema_and_rewraps_only_the_dek() -> None:
+    aad = AssociatedData(tenant_id=uuid4(), record_id=uuid4(), field_name="driver_kyc.nin")
+    old = CustodyEnvelopeCryptoProvider(
+        custody=LocalKeyCustodyBackend(keys={1: b"a" * 32}, active_key_version=1)
+    )
+    encrypted = old.encrypt(b"12345678901", aad)
+    rotating = CustodyEnvelopeCryptoProvider(
+        custody=LocalKeyCustodyBackend(
+            keys={1: b"a" * 32, 2: b"b" * 32}, active_key_version=2
+        )
+    )
+
+    rotated = rotating.rotate(encrypted, aad)
+
+    assert set(rotated.to_mapping()) == set(encrypted.to_mapping())
+    assert rotated.key_version == 2
+    assert rotated.nonce == encrypted.nonce
+    assert rotated.ciphertext == encrypted.ciphertext
+    assert rotating.decrypt(rotated, aad) == b"12345678901"
+
+
+def test_unavailable_custody_fails_closed_without_plaintext_or_backend_detail() -> None:
+    class UnavailableCustody:
+        active_key_version = 1
+
+        def wrap_key(self, plaintext_key: bytes, aad: bytes):
+            del plaintext_key, aad
+            raise OSError("vendor secret detail")
+
+        def unwrap_key(self, key_version: int, nonce: bytes, wrapped_key: bytes, aad: bytes):
+            del key_version, nonce, wrapped_key, aad
+            raise OSError("vendor secret detail")
+
+    provider = CustodyEnvelopeCryptoProvider(custody=UnavailableCustody())
+    aad = AssociatedData(tenant_id=uuid4(), record_id=uuid4(), field_name="driver_kyc.nin")
+
+    with pytest.raises(CryptoOperationError) as caught:
+        provider.encrypt(b"12345678901", aad)
+
+    assert "12345678901" not in str(caught.value)
+    assert "vendor" not in str(caught.value)
+
+
+def test_custody_cannot_claim_an_inactive_wrapping_version() -> None:
+    class StaleCustody:
+        active_key_version = 2
+
+        def wrap_key(self, plaintext_key: bytes, aad: bytes):
+            del plaintext_key, aad
+            return 1, b"n" * 12, b"wrapped"
+
+        def unwrap_key(self, key_version: int, nonce: bytes, wrapped_key: bytes, aad: bytes):
+            del key_version, nonce, wrapped_key, aad
+            return b"d" * 32
+
+    provider = CustodyEnvelopeCryptoProvider(custody=StaleCustody())
+    aad = AssociatedData(tenant_id=uuid4(), record_id=uuid4(), field_name="driver_kyc.nin")
+
+    with pytest.raises(CryptoOperationError, match="invalid wrapped key data"):
+        provider.encrypt(b"12345678901", aad)

@@ -20,6 +20,8 @@ from app.db.base import Base
 
 class FilePurpose(StrEnum):
     CREATIVE = "creative"
+    DRIVER_KYC = "driver_kyc"
+    VEHICLE_EVIDENCE = "vehicle_evidence"
 
 
 class UploadIntentStatus(StrEnum):
@@ -39,7 +41,17 @@ class FileScanStatus(StrEnum):
 class FileUploadIntent(Base):
     __tablename__ = "file_upload_intents"
     __table_args__ = (
-        CheckConstraint("purpose IN ('creative')", name="ck_file_upload_intents_purpose"),
+        CheckConstraint(
+            "purpose IN ('creative', 'driver_kyc', 'vehicle_evidence')",
+            name="ck_file_upload_intents_purpose",
+        ),
+        CheckConstraint(
+            "(purpose = 'creative' AND organization_id IS NOT NULL "
+            "AND subject_user_id IS NULL) OR "
+            "(purpose IN ('driver_kyc', 'vehicle_evidence') "
+            "AND organization_id IS NULL AND subject_user_id IS NOT NULL)",
+            name="ck_file_upload_intents_scope",
+        ),
         CheckConstraint(
             "status IN ('pending', 'confirmed', 'expired')",
             name="ck_file_upload_intents_status",
@@ -55,6 +67,12 @@ class FileUploadIntent(Base):
             "client_request_id",
             name="uq_file_upload_intents_scope_request",
         ),
+        UniqueConstraint(
+            "subject_user_id",
+            "uploader_user_id",
+            "client_request_id",
+            name="uq_file_upload_intents_subject_request",
+        ),
         Index("ix_file_upload_intents_status_expires", "status", "expires_at"),
     )
 
@@ -63,8 +81,11 @@ class FileUploadIntent(Base):
         default=uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    organization_id: Mapped[UUID] = mapped_column(
-        ForeignKey("advertiser_organizations.id", ondelete="RESTRICT"), nullable=False
+    organization_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("advertiser_organizations.id", ondelete="RESTRICT")
+    )
+    subject_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
     )
     uploader_user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
@@ -92,7 +113,17 @@ class FileUploadIntent(Base):
 class StoredFile(Base):
     __tablename__ = "stored_files"
     __table_args__ = (
-        CheckConstraint("purpose IN ('creative')", name="ck_stored_files_purpose"),
+        CheckConstraint(
+            "purpose IN ('creative', 'driver_kyc', 'vehicle_evidence')",
+            name="ck_stored_files_purpose",
+        ),
+        CheckConstraint(
+            "(purpose = 'creative' AND organization_id IS NOT NULL "
+            "AND subject_user_id IS NULL) OR "
+            "(purpose IN ('driver_kyc', 'vehicle_evidence') "
+            "AND organization_id IS NULL AND subject_user_id IS NOT NULL)",
+            name="ck_stored_files_scope",
+        ),
         CheckConstraint(
             "scan_status IN ('pending', 'clean', 'infected', 'rejected', 'error')",
             name="ck_stored_files_scan_status",
@@ -102,6 +133,7 @@ class StoredFile(Base):
         UniqueConstraint("upload_intent_id", name="uq_stored_files_upload_intent"),
         UniqueConstraint("storage_key", name="uq_stored_files_storage_key"),
         Index("ix_stored_files_organization_created", "organization_id", "created_at"),
+        Index("ix_stored_files_subject_created", "subject_user_id", "created_at"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -112,8 +144,11 @@ class StoredFile(Base):
     upload_intent_id: Mapped[UUID] = mapped_column(
         ForeignKey("file_upload_intents.id", ondelete="RESTRICT"), nullable=False
     )
-    organization_id: Mapped[UUID] = mapped_column(
-        ForeignKey("advertiser_organizations.id", ondelete="RESTRICT"), nullable=False
+    organization_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("advertiser_organizations.id", ondelete="RESTRICT")
+    )
+    subject_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
     )
     uploader_user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False

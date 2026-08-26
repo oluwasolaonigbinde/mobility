@@ -85,6 +85,24 @@ AUDITED = {
         "/api/v1/advertiser/files/{file_id}/download",
     ): "stored_file.read",
     ("POST", "/api/v1/admin/files/{file_id}/download"): "stored_file.read",
+    ("POST", "/api/v1/driver/files/uploads"): "stored_file.upload_requested",
+    (
+        "POST",
+        "/api/v1/driver/files/uploads/{upload_id}/confirm",
+    ): "stored_file.confirmed",
+    ("POST", "/api/v1/driver/kyc/submissions"): "driver.kyc.submitted",
+    (
+        "POST",
+        "/api/v1/driver/vehicles/{vehicle_id}/evidence-submissions",
+    ): "driver.vehicle_evidence.submitted",
+    (
+        "POST",
+        "/api/v1/admin/kyc/submissions/{submission_id}/nin/reveal",
+    ): "admin.kyc.nin_read",
+    (
+        "POST",
+        "/api/v1/admin/kyc/submissions/{submission_id}/nin/rewrap",
+    ): "admin.kyc.nin_rewrapped",
     ("PATCH", "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}"): (
         "advertiser.campaign_creative.updated"
     ),

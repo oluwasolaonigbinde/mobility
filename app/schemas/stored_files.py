@@ -59,7 +59,8 @@ class StoredFileRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    organization_id: UUID
+    organization_id: UUID | None
+    subject_user_id: UUID | None
     purpose: FilePurpose
     original_filename: str
     content_type: str
@@ -72,6 +73,7 @@ class StoredFileRead(BaseModel):
 class FileAccessPurpose(StrEnum):
     CAMPAIGN_PREVIEW = "campaign_preview"
     CREATIVE_REVIEW = "creative_review"
+    KYC_REVIEW = "kyc_review"
     SECURITY_REVIEW = "security_review"
     INCIDENT_RESPONSE = "incident_response"
 

@@ -14,7 +14,7 @@ from app.main import create_app
 from app.models.user import UserRole
 
 SNAPSHOT_PATH = Path("docs/api/openapi.snapshot.json")
-EXPECTED_ALEMBIC_HEAD = "0054_managed_creatives"
+EXPECTED_ALEMBIC_HEAD = "0055_kyc_key_custody"
 EXPECTED_MIGRATIONS = {
     "0001_enable_extensions.py",
     "0002_identity_and_organizations.py",
@@ -70,6 +70,7 @@ EXPECTED_MIGRATIONS = {
     "0052_stored_files.py",
     "0053_file_scanning.py",
     "0054_managed_creatives.py",
+    "0055_kyc_key_custody.py",
 }
 MAJOR_CONTRACT_PATHS = {
     "health": "/api/v1/health",
@@ -94,6 +95,7 @@ MAJOR_CONTRACT_PATHS = {
     "heatmaps": "/api/v1/advertiser/campaigns/{campaign_id}/heatmap",
     "planning sources": "/api/v1/advertiser/retargeting-sources",
     "planning source links": "/api/v1/advertiser/retargeting-source-links",
+    "protected KYC": "/api/v1/driver/kyc/submissions",
 }
 PROTECTED_GET_PATHS = [
     "/api/v1/me",

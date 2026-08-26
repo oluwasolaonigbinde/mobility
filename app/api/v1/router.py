@@ -15,6 +15,7 @@ from app.api.v1.fraud_disputes import router as fraud_disputes_router
 from app.api.v1.health import router as health_router
 from app.api.v1.heatmaps import router as heatmaps_router
 from app.api.v1.impressions import router as impressions_router
+from app.api.v1.kyc import router as kyc_router
 from app.api.v1.me import router as me_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.payees import router as payees_router
@@ -43,6 +44,7 @@ api_router.include_router(campaign_assignments_router)
 api_router.include_router(campaign_zones_router)
 api_router.include_router(heatmaps_router)
 api_router.include_router(impressions_router)
+api_router.include_router(kyc_router)
 api_router.include_router(payouts_router)
 api_router.include_router(retargeting_sources_router)
 api_router.include_router(retargeting_source_links_router)
