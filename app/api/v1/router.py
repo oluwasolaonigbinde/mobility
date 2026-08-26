@@ -21,6 +21,7 @@ from app.api.v1.payees import router as payees_router
 from app.api.v1.payouts import router as payouts_router
 from app.api.v1.retargeting_source_links import router as retargeting_source_links_router
 from app.api.v1.retargeting_sources import router as retargeting_sources_router
+from app.api.v1.stored_files import router as stored_files_router
 from app.api.v1.trip_analytics import router as trip_analytics_router
 from app.api.v1.trips import admin_router as trips_admin_router
 from app.api.v1.trips import router as trips_router
@@ -45,6 +46,7 @@ api_router.include_router(impressions_router)
 api_router.include_router(payouts_router)
 api_router.include_router(retargeting_sources_router)
 api_router.include_router(retargeting_source_links_router)
+api_router.include_router(stored_files_router)
 api_router.include_router(trip_analytics_router)
 api_router.include_router(trips_router)
 api_router.include_router(trips_admin_router)

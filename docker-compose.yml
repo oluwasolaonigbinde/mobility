@@ -64,6 +64,12 @@ x-backend-env: &backend-env
   PRIVACY_MIN_DAYS_PER_CELL: ${PRIVACY_MIN_DAYS_PER_CELL:-2}
   PRIVACY_MAX_CONTRIBUTOR_SHARE: ${PRIVACY_MAX_CONTRIBUTOR_SHARE:-0.5}
   PRIVACY_MIN_RESOLUTION_M: ${PRIVACY_MIN_RESOLUTION_M:-500}
+  OBJECT_STORAGE_ENDPOINT_URL: http://minio:9000
+  OBJECT_STORAGE_PUBLIC_ENDPOINT_URL: ${OBJECT_STORAGE_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
+  OBJECT_STORAGE_REGION: us-east-1
+  OBJECT_STORAGE_BUCKET: cardvert-private
+  OBJECT_STORAGE_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-cardvert-local}
+  OBJECT_STORAGE_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-cardvert-local-secret}
 
 services:
   api:
@@ -77,6 +83,7 @@ services:
     depends_on:
       - db
       - redis
+      - minio
 
   # Post-trip processing worker (arq): one-off jobs + the periodic sweep (§14).
   worker:
@@ -88,6 +95,7 @@ services:
     depends_on:
       - db
       - redis
+      - minio
 
   # Production-style frontend container. Local dev normally runs
   # `npm run dev` instead — start this with: docker compose --profile full up
@@ -124,5 +132,35 @@ services:
     ports:
       - "6379:6379"
 
+  minio:
+    image: minio/minio:RELEASE.2025-07-23T15-54-02Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cardvert-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-cardvert-local-secret}
+      MINIO_API_CORS_ALLOW_ORIGIN: http://localhost:3000,http://localhost:5173
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-07-21T05-28-08Z
+    depends_on:
+      - minio
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        until mc alias set local http://minio:9000
+        "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"; do sleep 1; done;
+        mc mb --ignore-existing local/cardvert-private;
+        mc anonymous set none local/cardvert-private;
+        mc ilm rule add --expire-days 1 --prefix unconfirmed/ local/cardvert-private
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-cardvert-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-cardvert-local-secret}
+
 volumes:
   postgres_data:
+  minio_data:

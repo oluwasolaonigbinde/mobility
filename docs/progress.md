@@ -63,10 +63,11 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 clarification corrects the prior false pause: missing production storage,
 scanner, KMS, email and phone inputs remain explicit live/deployment gates but
 do not block provider-neutral/local/synthetic implementation under D23.
-**Current checkpoint:** `PKG-04 / W2-02A` — implement the shared private object-
-storage foundation with the local MinIO/provider-neutral adapter. Production
-provider/account/region remains `MISSING`; no production adoption, live KYC,
-real-GPS, external-staging, physical-device or pilot evidence is claimed.
+**Current checkpoint:** `PKG-04 / W2-02B` — add mandatory fail-closed malware
+scanning, quarantine authority and purpose-scoped audited reads on the shared
+stored-file boundary. The production scanner/provider remains `MISSING`; no
+production adoption, live KYC, real-GPS, external-staging, physical-device or
+pilot evidence is claimed.
 
 ## Executable package queue
 
@@ -435,6 +436,24 @@ real-GPS, external-staging, physical-device or pilot evidence is claimed.
   their production adoption and live delivery remain fail closed while the
   corresponding external IDs stay `MISSING`. Package 4 is the sole active
   package and resumes at W2-02A without changing any client fact.
+- **W2-02A checkpoint evidence (26 Aug 2026):** migration `0052` adds tenant-
+  owned upload intents and private managed stored-file authority after the
+  published `0051` head. One S3-compatible storage port and local MinIO adapter
+  issue short-lived, exact type/size/checksum-bound presigned POSTs; confirmation
+  streams and hashes the server object, promotes it idempotently from the
+  lifecycle-managed `unconfirmed/` prefix, and returns no bucket, URL or storage
+  key. Missing configuration and provider outages fail closed before a new
+  intent persists. A bounded worker purge removes abandoned source or partially
+  promoted objects, while populated downgrade refuses destructive loss. Eight
+  focused API/service cases, the populated migration round trip, worker and
+  migration-head and audit-route controls, 68 combined focused checks, Ruff,
+  Compose parsing,
+  synchronized §9 artifacts and a real private MinIO POST→verify→promote flow
+  pass; the unsigned GET returned 403. The independently challenged Package 4
+  plan covered tenant, replay, outage, promotion, lifecycle and migration-loss
+  boundaries; the consolidated post-build security review remains reserved for
+  the shared W2-02 boundary. `EXT-STORAGE-PROVIDER` remains MISSING and no
+  client account, production provider, credential or live upload is claimed.
 - **W2-03A checkpoint evidence (24 Aug 2026):** migration `0043` extends the campaign
   lifecycle and adds append-only, exact-submission-bound review evidence.
   Dedicated row-locked advertiser/admin actions enforce submit, approve,
@@ -897,7 +916,7 @@ verification, gates or required specialist review.
 | 25 | **W2-01C — gateway adapter and webhook ingestion** | PKG-03 | BLOCKED — EXT-PAYMENT-PROVIDER | One-off Q3 checkout and signed provider events converge into canonical receipts. | leaf: W2-00B, W2-01A; external: EXT-PAYMENT-PROVIDER |
 | 26 | **W2-01D — credits, reversals and 24-hour refund registry** | PKG-03 | DONE | Standard refund eligibility lasts to the 24-hour boundary; expedited eligibility ends only when production actually begins under an immutable advertiser-requested waiver. | leaf: W2-01A, W2-01B |
 | 27 | **W2-01E — advertiser-spend budget enforcement** | PKG-03 | BLOCKED — EXT-BUDGET-POLICY | Spend facts drive persisted alerts/pauses without using driver payout cost as a proxy. | leaf: W2-01A, W2-01B; external: EXT-BUDGET-POLICY |
-| 28 | **W2-02A — private object-storage foundation** | PKG-04 | TODO | Direct private uploads produce managed stored-file records; production adoption remains gated by EXT-STORAGE-PROVIDER. | none |
+| 28 | **W2-02A — private object-storage foundation** | PKG-04 | DONE | Direct private uploads produce managed stored-file records; production adoption remains gated by EXT-STORAGE-PROVIDER. | none |
 | 29 | **W2-02B — malware scanning and purpose-scoped reads** | PKG-04 | TODO | Unsafe files fail closed and privileged downloads are short-lived/audited; production adoption remains gated by EXT-MALWARE-SCANNER. | leaf: W2-02A |
 | 30 | **W2-02C — advertiser creative upload** | PKG-04 | TODO | Campaign flows use managed scanned assets instead of arbitrary URLs. | leaf: W2-02B |
 | 31 | **W2-02D — encrypted KYC and financial identifiers** | PKG-04 | TODO | Required documents/NIN/bank data reuse the crypto port and are protected/version-reviewed; production custody remains gated by EXT-KMS-CUSTODY. | leaf: W2-02B, MNY-10A |

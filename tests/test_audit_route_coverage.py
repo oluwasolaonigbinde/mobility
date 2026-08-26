@@ -75,6 +75,11 @@ AUDITED = {
     ("POST", "/api/v1/advertiser/campaigns/{campaign_id}/creatives"): (
         "advertiser.campaign_creative.created"
     ),
+    ("POST", "/api/v1/advertiser/files/uploads"): "stored_file.upload_requested",
+    (
+        "POST",
+        "/api/v1/advertiser/files/uploads/{upload_id}/confirm",
+    ): "stored_file.confirmed",
     ("PATCH", "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}"): (
         "advertiser.campaign_creative.updated"
     ),

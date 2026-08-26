@@ -7,6 +7,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
+from app.adapters.storage import StorageProvider, build_storage_provider
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
 from app.core.payment_enqueue import PaymentEventEnqueuer, build_payment_event_enqueuer
@@ -26,6 +27,13 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=F
 
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
+
+
+def get_storage_provider(settings: SettingsDependency) -> StorageProvider:
+    return build_storage_provider(settings)
+
+
+StorageDependency = Annotated[StorageProvider, Depends(get_storage_provider)]
 
 
 def get_login_rate_limiter(settings: SettingsDependency) -> LoginRateLimiter:

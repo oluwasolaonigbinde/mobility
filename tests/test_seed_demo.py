@@ -89,7 +89,7 @@ def test_no_seed_or_demo_migrations() -> None:
 
 
 def test_demo_seed_requires_the_code_migration_head() -> None:
-    assert required_migration_head() == "0051_canonical_impression_authority"
+    assert required_migration_head() == "0052_stored_files"
 
 
 def test_readme_documents_demo_seed_workflow() -> None:

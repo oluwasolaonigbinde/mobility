@@ -76,6 +76,14 @@ class Settings(BaseSettings):
     invoice_issuer_external_input_reference: str = ""
     payout_crypto_keyring_b64: SecretStr
     payout_crypto_key_version: int = 1
+    object_storage_endpoint_url: str = ""
+    object_storage_public_endpoint_url: str = ""
+    object_storage_region: str = "us-east-1"
+    object_storage_bucket: str = ""
+    object_storage_access_key_id: SecretStr | None = None
+    object_storage_secret_access_key: SecretStr | None = None
+    object_storage_presign_ttl_seconds: int = 300
+    object_storage_orphan_ttl_hours: int = 24
     max_campaign_zone_area_sq_km: int = 5000
     max_location_pings_per_batch: int = 500
     location_ping_future_skew_seconds: int = 300
@@ -225,6 +233,13 @@ class Settings(BaseSettings):
     def validate_max_campaign_zone_area_sq_km(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("MAX_CAMPAIGN_ZONE_AREA_SQ_KM must be positive")
+        return value
+
+    @field_validator("object_storage_presign_ttl_seconds", "object_storage_orphan_ttl_hours")
+    @classmethod
+    def validate_positive_object_storage_settings(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("Object storage time limits must be positive")
         return value
 
     @field_validator(

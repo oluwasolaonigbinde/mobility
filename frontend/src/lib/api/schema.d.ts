@@ -1908,6 +1908,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/advertiser/files/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create File Upload */
+        post: operations["create_file_upload_api_v1_advertiser_files_uploads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/files/uploads/{upload_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm File Upload */
+        post: operations["confirm_file_upload_api_v1_advertiser_files_uploads__upload_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/files/{file_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get File */
+        get: operations["get_file_api_v1_advertiser_files__file_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/advertiser/notification-preferences": {
         parameters: {
             query?: never;
@@ -5335,6 +5386,47 @@ export interface components {
             /** Traffic Density Profile Id */
             traffic_density_profile_id?: string | null;
         };
+        /**
+         * FilePurpose
+         * @enum {string}
+         */
+        FilePurpose: "creative";
+        /**
+         * FileScanStatus
+         * @enum {string}
+         */
+        FileScanStatus: "pending" | "clean" | "infected" | "error";
+        /** FileUploadCreate */
+        FileUploadCreate: {
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /** Content Type */
+            content_type: string;
+            /** Filename */
+            filename: string;
+            purpose: components["schemas"]["FilePurpose"];
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+        };
+        /** FileUploadRead */
+        FileUploadRead: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            upload: components["schemas"]["PresignedPostRead"];
+            /**
+             * Upload Id
+             * Format: uuid
+             */
+            upload_id: string;
+        };
         /** FinancialAuthorityCreate */
         FinancialAuthorityCreate: {
             /** Approved By User Id */
@@ -6682,6 +6774,15 @@ export interface components {
             id: string;
             status: components["schemas"]["EarningsLedgerEntryStatus"];
         };
+        /** PresignedPostRead */
+        PresignedPostRead: {
+            /** Fields */
+            fields: {
+                [key: string]: string;
+            };
+            /** Url */
+            url: string;
+        };
         /** ProductionStartCreate */
         ProductionStartCreate: {
             /** Waiver Id */
@@ -7395,6 +7496,34 @@ export interface components {
             recorded_at: string;
             /** Settlement Provider */
             settlement_provider: string;
+        };
+        /** StoredFileRead */
+        StoredFileRead: {
+            /** Checksum Sha256 */
+            checksum_sha256: string;
+            /** Content Type */
+            content_type: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Original Filename */
+            original_filename: string;
+            purpose: components["schemas"]["FilePurpose"];
+            scan_status: components["schemas"]["FileScanStatus"];
+            /** Size Bytes */
+            size_bytes: number;
         };
         /** TrafficDensityProfileCreate */
         TrafficDensityProfileCreate: {
@@ -12569,6 +12698,101 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdvertiserDashboardSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_file_upload_api_v1_advertiser_files_uploads_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileUploadCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileUploadRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_file_upload_api_v1_advertiser_files_uploads__upload_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredFileRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_file_api_v1_advertiser_files__file_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                file_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredFileRead"];
                 };
             };
             /** @description Validation Error */

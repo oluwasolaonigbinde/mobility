@@ -49,7 +49,8 @@ def _with_control_pointer(text: str, *, state: str, package: str, checkpoint: st
 def _pkg01_active() -> str:
     """Reconstruct the immediately preceding valid frontier for transition tests."""
     text = re.sub(
-        r"^(\| 1 \| \*\*PKG-01 —.*?\| )(?:\*\*[^|]+\*\*|DONE|QUEUED|BLOCKED|NEXT|IN PROGRESS|REVIEW)( \|)",
+        r"^(\| 1 \| \*\*PKG-01 —.*?\| )"
+        r"(?:\*\*[^|]+\*\*|DONE|QUEUED|BLOCKED|NEXT|IN PROGRESS|REVIEW)( \|)",
         r"\1**IN PROGRESS**\2",
         _progress(),
         count=1,
@@ -319,7 +320,8 @@ def test_all_done_terminal_complete_state_is_valid() -> None:
     text = _progress()
     text = re.sub(
         r"^(\| \d+ \| \*\*PKG-\d{2} —.*?\| )"
-        r"(?:\*\*NEXT\*\*|\*\*IN PROGRESS\*\*|\*\*REVIEW\*\*|\*\*BLOCKED\*\*|QUEUED|BLOCKED|NEXT|IN PROGRESS|REVIEW)( \|)",
+        r"(?:\*\*NEXT\*\*|\*\*IN PROGRESS\*\*|\*\*REVIEW\*\*|\*\*BLOCKED\*\*|"
+        r"QUEUED|BLOCKED|NEXT|IN PROGRESS|REVIEW)( \|)",
         r"\1DONE\2",
         text,
         flags=re.MULTILINE,

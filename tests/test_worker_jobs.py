@@ -29,6 +29,7 @@ from app.jobs import campaign_assignments as campaign_assignment_jobs
 from app.jobs import data_lifecycle as data_lifecycle_jobs
 from app.jobs import disclosure_retention as disclosure_retention_jobs
 from app.jobs import earnings_release as earnings_release_jobs
+from app.jobs import file_lifecycle as file_lifecycle_jobs
 from app.jobs import payment_gateway as payment_gateway_jobs
 from app.jobs import trip_processing as jobs
 from app.jobs.worker import WorkerSettings, sweep_cron_minutes
@@ -62,7 +63,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert gateway.name == "process_payment_gateway_event"
     assert gateway.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 10
+    assert len(WorkerSettings.cron_jobs) == 11
     cron_job = WorkerSettings.cron_jobs[0]
     assert isinstance(cron_job, CronJob)
     assert cron_job.coroutine is jobs.process_unprocessed_trips
@@ -109,13 +110,14 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
         data_lifecycle_jobs.check_ping_partition_coverage,
         data_lifecycle_jobs.purge_expired_ping_partitions,
         disclosure_retention_jobs.purge_expired_disclosure_query_history,
+        file_lifecycle_jobs.purge_orphaned_file_uploads,
     }
     for cron_job in lifecycle_crons.values():
         assert isinstance(cron_job, CronJob)
         assert cron_job.unique is True
         # Daily, staggered hours so lifecycle DDL never stacks.
         assert len(cron_job.hour) == 1
-    assert len({next(iter(job.hour)) for job in lifecycle_crons.values()}) == 4
+    assert len({next(iter(job.hour)) for job in lifecycle_crons.values()}) == 5
 
 
 def test_assignment_expiry_worker_commits_bounded_sweep(

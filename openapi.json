@@ -7658,6 +7658,93 @@
         "title": "EstimateImpressionsRequest",
         "type": "object"
       },
+      "FilePurpose": {
+        "enum": [
+          "creative"
+        ],
+        "title": "FilePurpose",
+        "type": "string"
+      },
+      "FileScanStatus": {
+        "enum": [
+          "pending",
+          "clean",
+          "infected",
+          "error"
+        ],
+        "title": "FileScanStatus",
+        "type": "string"
+      },
+      "FileUploadCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "content_type": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Content Type",
+            "type": "string"
+          },
+          "filename": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Filename",
+            "type": "string"
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/FilePurpose"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-fA-F]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 26214400.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "purpose",
+          "filename",
+          "content_type",
+          "size_bytes",
+          "sha256"
+        ],
+        "title": "FileUploadCreate",
+        "type": "object"
+      },
+      "FileUploadRead": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "upload": {
+            "$ref": "#/components/schemas/PresignedPostRead"
+          },
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id",
+          "expires_at",
+          "upload"
+        ],
+        "title": "FileUploadRead",
+        "type": "object"
+      },
       "FinancialAuthorityCreate": {
         "additionalProperties": false,
         "properties": {
@@ -10971,6 +11058,27 @@
         "title": "PayoutLedgerEntrySummary",
         "type": "object"
       },
+      "PresignedPostRead": {
+        "properties": {
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Fields",
+            "type": "object"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "fields"
+        ],
+        "title": "PresignedPostRead",
+        "type": "object"
+      },
       "ProductionStartCreate": {
         "properties": {
           "waiver_id": {
@@ -12561,6 +12669,60 @@
           "recorded_at"
         ],
         "title": "SettlementRead",
+        "type": "object"
+      },
+      "StoredFileRead": {
+        "properties": {
+          "checksum_sha256": {
+            "title": "Checksum Sha256",
+            "type": "string"
+          },
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "original_filename": {
+            "title": "Original Filename",
+            "type": "string"
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/FilePurpose"
+          },
+          "scan_status": {
+            "$ref": "#/components/schemas/FileScanStatus"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "organization_id",
+          "purpose",
+          "original_filename",
+          "content_type",
+          "size_bytes",
+          "checksum_sha256",
+          "scan_status",
+          "created_at"
+        ],
+        "title": "StoredFileRead",
         "type": "object"
       },
       "TrafficDensityProfileCreate": {
@@ -23528,6 +23690,148 @@
         "summary": "Read advertiser dashboard summary",
         "tags": [
           "Advertiser Reports"
+        ]
+      }
+    },
+    "/api/v1/advertiser/files/uploads": {
+      "post": {
+        "operationId": "create_file_upload_api_v1_advertiser_files_uploads_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileUploadCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileUploadRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Create File Upload",
+        "tags": [
+          "Files"
+        ]
+      }
+    },
+    "/api/v1/advertiser/files/uploads/{upload_id}/confirm": {
+      "post": {
+        "operationId": "confirm_file_upload_api_v1_advertiser_files_uploads__upload_id__confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Upload Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredFileRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Confirm File Upload",
+        "tags": [
+          "Files"
+        ]
+      }
+    },
+    "/api/v1/advertiser/files/{file_id}": {
+      "get": {
+        "operationId": "get_file_api_v1_advertiser_files__file_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "file_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "File Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredFileRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get File",
+        "tags": [
+          "Files"
         ]
       }
     },
