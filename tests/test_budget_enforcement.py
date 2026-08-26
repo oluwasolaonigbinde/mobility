@@ -11,7 +11,7 @@ from app.models.billing import BudgetPolicyEvaluation
 from app.models.campaign import Campaign, CampaignStatus
 from app.services.billing import (
     evaluate_campaign_budget_policy,
-    sweep_blocked_budget_policy_evaluations,
+    sweep_budget_policy_evaluations,
 )
 
 
@@ -79,7 +79,7 @@ def test_sweep_skips_campaigns_without_configured_budget(db_sessionmaker) -> Non
 
     async def scenario() -> None:
         async with db_sessionmaker() as session:
-            evaluations = await sweep_blocked_budget_policy_evaluations(session)
+            evaluations = await sweep_budget_policy_evaluations(session)
             assert {evaluation.campaign_id for evaluation in evaluations} == {
                 budgeted.id,
                 daily_only.id,
@@ -107,10 +107,16 @@ def test_nonblocked_policy_decision_is_rejected_while_gate_is_missing(db_session
             return BudgetPolicyDecision(
                 state="pause_threshold",
                 external_gate="",
-                policy_version="invented-v1",
+                policy_id="invented",
+                policy_revision="invented-v1",
+                policy_source="invented",
+                budget_basis="total",
+                billing_spend_amount=Decimal("1000.00"),
                 alert_threshold_amount=Decimal("800.00"),
                 pause_threshold_amount=Decimal("1000.00"),
+                resume_threshold_amount=Decimal("700.00"),
                 should_pause=True,
+                resume_allowed=False,
             )
 
     async def scenario() -> None:

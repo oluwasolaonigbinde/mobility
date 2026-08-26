@@ -30,6 +30,8 @@ from app.services.audit import create_audit_event
 AUDITED = {
     ("POST", "/api/v1/auth/login"): "auth.login.*",
     ("POST", "/api/v1/auth/change-password"): "auth.password.*",
+    ("POST", "/api/v1/auth/password-reset/request"): "auth.password_reset.requested",
+    ("POST", "/api/v1/auth/password-reset/complete"): "auth.password_reset.completed",
     ("POST", "/api/v1/auth/refresh"): "auth.session.refreshed",
     ("POST", "/api/v1/auth/register-driver"): "auth.driver_application.created",
     ("POST", "/api/v1/admin/users"): "admin.user.created",
@@ -341,11 +343,46 @@ AUDITED = {
         "billing.credit_settlement.recorded"
     ),
     ("POST", "/api/v1/admin/campaigns/{campaign_id}/budget-policy-evaluation"): (
-        "billing.budget_policy.blocked"
+        "billing.budget_policy.*"
     ),
+    ("POST", "/api/v1/admin/campaigns/{campaign_id}/budget-policy-resume"): (
+        "billing.budget_policy.resumed"
+    ),
+    ("PUT", "/api/v1/driver/contact/phone"): "driver.contact.phone_version.recorded",
+    ("POST", "/api/v1/driver/contact/phone-verification"): (
+        "driver.contact.phone_verification.requested"
+    ),
+    ("POST", "/api/v1/driver/contact/phone-verification/{challenge_id}/verify"): (
+        "driver.contact.phone_*"
+    ),
+    ("POST", "/api/v1/admin/phone-verification/{challenge_id}/sent"): (
+        "admin.phone_verification.sent"
+    ),
+    ("POST", "/api/v1/driver/contact/whatsapp-consent"): (
+        "driver.contact.whatsapp_consent.granted"
+    ),
+    ("POST", "/api/v1/driver/contact/whatsapp-consent/withdraw"): (
+        "driver.contact.whatsapp_consent.withdrawn"
+    ),
+    ("POST", "/api/v1/admin/manual-driver-contact-tasks/{task_id}/complete"): (
+        "operations.driver_contact_task.completed"
+    ),
+    ("POST", "/api/v1/admin/measurement-runs"): "measurement_run.issued",
+    ("POST", "/api/v1/admin/privacy/dsr-requests"): "privacy.dsr.opened",
+    ("POST", "/api/v1/admin/privacy/dsr-requests/{request_id}/verify-identity"): (
+        "privacy.dsr.identity_verified"
+    ),
+    ("POST", "/api/v1/admin/privacy/dsr-requests/{request_id}/locations/{location}"): (
+        "privacy.dsr.location_assessed"
+    ),
+    ("POST", "/api/v1/admin/privacy/dsr-requests/{request_id}/complete"): ("privacy.dsr.completed"),
 }
 
 EXEMPT = {
+    ("POST", "/api/v1/notifications/email/delivery-receipts"): (
+        "Provider-authenticated machine callback: the signed, fingerprinted, append-only "
+        "notification_delivery_receipts row is the canonical delivery evidence."
+    ),
     ("POST", "/api/v1/webhooks/payments"): (
         "Provider-authenticated machine callback: the append-only payment_gateway_events row "
         "is the canonical ingestion evidence and downstream receipt/allocation mutations are "

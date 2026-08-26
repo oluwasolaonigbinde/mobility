@@ -87,6 +87,50 @@ def driver_notification_response(notice: Notification) -> DriverNotificationRead
 def notification_feed_response(notice: Notification) -> NotificationFeedItemRead:
     """Render from the small approved type allowlist, never from JSON payload."""
     rendered = {
+        NotificationType.ASSIGNMENT_OFFERED.value: (
+            "Assignment offered",
+            "A campaign assignment is ready for your review.",
+        ),
+        NotificationType.ASSIGNMENT_ACCEPTED.value: (
+            "Assignment accepted",
+            "Your campaign assignment acceptance was recorded.",
+        ),
+        NotificationType.CAMPAIGN_APPROVED.value: (
+            "Campaign approved",
+            "Your campaign has been approved.",
+        ),
+        NotificationType.FUNDING_CONFIRMED.value: (
+            "Funding confirmed",
+            "Campaign funding has been confirmed.",
+        ),
+        NotificationType.BUDGET_ALERT.value: (
+            "Campaign budget alert",
+            "A configured campaign budget alert threshold was reached.",
+        ),
+        NotificationType.CAMPAIGN_BUDGET_PAUSED.value: (
+            "Campaign paused",
+            "A campaign was paused by the configured budget policy.",
+        ),
+        NotificationType.CAMPAIGN_BUDGET_RESUMED.value: (
+            "Campaign resumed",
+            "An administrator resumed a budget-paused campaign.",
+        ),
+        NotificationType.CAMPAIGN_CANCELLED.value: (
+            "Campaign cancelled",
+            "A campaign cancellation has been recorded.",
+        ),
+        NotificationType.EVIDENCE_CHALLENGE_CREATED.value: (
+            "Evidence requested",
+            "Operations requested new campaign evidence.",
+        ),
+        NotificationType.EVIDENCE_VERIFIED.value: (
+            "Evidence verified",
+            "Campaign evidence was verified.",
+        ),
+        NotificationType.PAYOUT_RELEASED.value: (
+            "Earnings released",
+            "Verified earnings are available for the next payout batch.",
+        ),
         NotificationType.FRAUD_HOLD_RAISED.value: (
             "Trip payment on hold",
             "A trip payment is on hold while it is reviewed.",

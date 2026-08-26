@@ -22,11 +22,24 @@ from app.core.security import (
     verify_password,
 )
 from app.models.user import UserStatus
-from app.schemas.auth import ChangePasswordRequest, LoginRequest, LoginResponse, LoginUser
+from app.schemas.auth import (
+    ChangePasswordRequest,
+    LoginRequest,
+    LoginResponse,
+    LoginUser,
+    PasswordResetComplete,
+    PasswordResetRequest,
+    PasswordResetResponse,
+)
 from app.schemas.driver_applications import (
     DriverApplicationCreate,
     DriverApplicationStatusResponse,
     DriverApplicationSubmitResponse,
+)
+from app.services.account_recovery import (
+    PASSWORD_RESET_RESPONSE,
+    complete_password_reset,
+    request_password_reset,
 )
 from app.services.audit import create_audit_event
 from app.services.auth import authenticate_user
@@ -103,6 +116,43 @@ def login_response(user, settings, *, auth_time: datetime | None = None, expires
         expires_in=expires_in,
         user=LoginUser.model_validate(user, from_attributes=True),
     )
+
+
+@router.post(
+    "/password-reset/request",
+    response_model=PasswordResetResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def password_reset_request(
+    payload: PasswordResetRequest,
+    session: SessionDependency,
+    settings: SettingsDependency,
+    request: Request,
+) -> PasswordResetResponse:
+    await request_password_reset(
+        session,
+        email=payload.email,
+        client_ip=login_client_ip(request, settings),
+        settings=settings,
+    )
+    await session.commit()
+    return PasswordResetResponse(message=PASSWORD_RESET_RESPONSE)
+
+
+@router.post("/password-reset/complete", response_model=PasswordResetResponse)
+async def password_reset_complete(
+    payload: PasswordResetComplete,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> PasswordResetResponse:
+    await complete_password_reset(
+        session,
+        token=payload.token,
+        new_password=payload.new_password,
+        settings=settings,
+    )
+    await session.commit()
+    return PasswordResetResponse(message="Password reset completed. Sign in again.")
 
 
 @router.post(

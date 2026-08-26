@@ -482,6 +482,17 @@ async def decide_campaign_review(
             "rejection_reason": normalized_reason,
         },
     )
+    if target_status is CampaignStatus.APPROVED:
+        from app.models.notification import NotificationType
+        from app.services.notifications import create_advertiser_business_notifications
+
+        await create_advertiser_business_notifications(
+            session,
+            advertiser_organization_id=campaign.organization_id,
+            type_key=NotificationType.CAMPAIGN_APPROVED,
+            event_key=f"campaign:approved:v1:{event.id}",
+            payload={"campaign_id": str(campaign.id), "campaign_review_event_id": str(event.id)},
+        )
     await session.refresh(campaign)
     return campaign
 

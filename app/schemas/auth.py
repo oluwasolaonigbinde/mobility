@@ -42,6 +42,23 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=1)
 
 
+class PasswordResetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=3, max_length=255)
+
+
+class PasswordResetComplete(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(min_length=1, max_length=512)
+    new_password: str = Field(min_length=1)
+
+
+class PasswordResetResponse(BaseModel):
+    message: str
+
+
 class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"

@@ -23,6 +23,18 @@ from app.db.base import Base
 
 
 class NotificationType(StrEnum):
+    ASSIGNMENT_OFFERED = "assignment_offered"
+    ASSIGNMENT_ACCEPTED = "assignment_accepted"
+    CAMPAIGN_APPROVED = "campaign_approved"
+    FUNDING_CONFIRMED = "funding_confirmed"
+    BUDGET_ALERT = "budget_alert"
+    CAMPAIGN_BUDGET_PAUSED = "campaign_budget_paused"
+    CAMPAIGN_BUDGET_RESUMED = "campaign_budget_resumed"
+    CAMPAIGN_CANCELLED = "campaign_cancelled"
+    EVIDENCE_CHALLENGE_CREATED = "evidence_challenge_created"
+    EVIDENCE_VERIFIED = "evidence_verified"
+    PAYOUT_RELEASED = "payout_released"
+    PASSWORD_RESET_REQUESTED = "password_reset_requested"
     FRAUD_HOLD_RAISED = "fraud_hold_raised"
     FRAUD_REVIEW_RESOLVED = "fraud_review_resolved"
     FRAUD_DISPUTE_REPLIED = "fraud_dispute_replied"

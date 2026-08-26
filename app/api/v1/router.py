@@ -11,6 +11,7 @@ from app.api.v1.campaign_cancellations import router as campaign_cancellations_r
 from app.api.v1.campaign_changes import router as campaign_changes_router
 from app.api.v1.campaign_zones import router as campaign_zones_router
 from app.api.v1.campaigns import router as campaigns_router
+from app.api.v1.contacts import router as contacts_router
 from app.api.v1.disbursements import router as disbursements_router
 from app.api.v1.driver_profiles import router as driver_profiles_router
 from app.api.v1.fraud_disputes import router as fraud_disputes_router
@@ -51,6 +52,7 @@ api_router.include_router(campaign_assignments_router)
 api_router.include_router(campaign_cancellations_router)
 api_router.include_router(campaign_changes_router)
 api_router.include_router(campaign_zones_router)
+api_router.include_router(contacts_router)
 api_router.include_router(heatmaps_router)
 api_router.include_router(impressions_router)
 api_router.include_router(installation_evidence_router)

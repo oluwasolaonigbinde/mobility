@@ -3,6 +3,8 @@ from app.adapters.budget.provider import (
     BudgetPolicyContext,
     BudgetPolicyDecision,
     DisabledBudgetPolicyAdapter,
+    FixedBudgetPolicyAdapter,
+    build_budget_policy_adapter,
 )
 
 __all__ = [
@@ -10,4 +12,6 @@ __all__ = [
     "BudgetPolicyContext",
     "BudgetPolicyDecision",
     "DisabledBudgetPolicyAdapter",
+    "FixedBudgetPolicyAdapter",
+    "build_budget_policy_adapter",
 ]

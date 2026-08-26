@@ -25,6 +25,7 @@ from test_trip_processing import (
 from app.core.config import get_settings
 from app.core.trip_enqueue import RedisTripProcessingEnqueuer
 from app.jobs import assignment_activity as assignment_activity_jobs
+from app.jobs import budget_enforcement as budget_enforcement_jobs
 from app.jobs import campaign_assignments as campaign_assignment_jobs
 from app.jobs import data_lifecycle as data_lifecycle_jobs
 from app.jobs import disclosure_retention as disclosure_retention_jobs
@@ -66,7 +67,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert gateway.name == "process_payment_gateway_event"
     assert gateway.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 15
+    assert len(WorkerSettings.cron_jobs) == 16
     cron_job = WorkerSettings.cron_jobs[0]
     assert isinstance(cron_job, CronJob)
     assert cron_job.coroutine is jobs.process_unprocessed_trips
@@ -112,13 +113,17 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     email_sweep = WorkerSettings.cron_jobs[7]
     assert email_sweep.coroutine is email_delivery_jobs.sweep_email_notifications
 
-    scan_sweep = WorkerSettings.cron_jobs[8]
+    budget_sweep = WorkerSettings.cron_jobs[8]
+    assert budget_sweep.coroutine is budget_enforcement_jobs.sweep_campaign_budget_enforcement
+    assert budget_sweep.unique is True
+
+    scan_sweep = WorkerSettings.cron_jobs[9]
     assert isinstance(scan_sweep, CronJob)
     assert scan_sweep.coroutine is file_scanning_jobs.scan_pending_files
     assert scan_sweep.unique is True
     assert scan_sweep.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
-    lifecycle_crons = {cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[9:]}
+    lifecycle_crons = {cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[10:]}
     assert set(lifecycle_crons) == {
         data_lifecycle_jobs.premake_ping_partitions,
         data_lifecycle_jobs.check_ping_partition_coverage,

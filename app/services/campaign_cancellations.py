@@ -313,4 +313,18 @@ async def request_campaign_cancellation(
             "settlement_revision_id": str(revision.id),
         },
     )
+    from app.models.notification import NotificationType
+    from app.services.notifications import create_advertiser_business_notifications
+
+    await create_advertiser_business_notifications(
+        session,
+        advertiser_organization_id=campaign.organization_id,
+        type_key=NotificationType.CAMPAIGN_CANCELLED,
+        event_key=f"campaign:cancelled:v1:{cancellation.id}",
+        payload={
+            "campaign_id": str(campaign.id),
+            "campaign_cancellation_id": str(cancellation.id),
+            "disposition": disposition.value,
+        },
+    )
     return cancellation

@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass
+from html import escape
 from typing import Any
 
 from app.models.notification import NotificationType
@@ -23,7 +24,38 @@ def _static(subject: str, body: str) -> Callable[[dict[str, Any]], RenderedEmail
     return render
 
 
+def _password_reset(payload: dict[str, Any]) -> RenderedEmail:
+    action = payload.get("reset_action")
+    if not isinstance(action, str) or not action:
+        raise ValueError("password_reset_action_missing")
+    body = f"Use this single-use password reset action before it expires: {action}"
+    return RenderedEmail(
+        subject="Reset your Cardvert password",
+        text_body=body,
+        html_body=f"<p>{escape(body)}</p>",
+    )
+
+
 _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = {
+    NotificationType.PASSWORD_RESET_REQUESTED: _password_reset,
+    NotificationType.CAMPAIGN_APPROVED: _static(
+        "Campaign approved", "Your campaign has been approved."
+    ),
+    NotificationType.FUNDING_CONFIRMED: _static(
+        "Campaign funding confirmed", "Campaign funding has been confirmed."
+    ),
+    NotificationType.BUDGET_ALERT: _static(
+        "Campaign budget alert", "A configured campaign budget alert threshold was reached."
+    ),
+    NotificationType.CAMPAIGN_BUDGET_PAUSED: _static(
+        "Campaign paused for budget", "A campaign was paused by the configured budget policy."
+    ),
+    NotificationType.CAMPAIGN_BUDGET_RESUMED: _static(
+        "Campaign resumed", "An administrator resumed a budget-paused campaign."
+    ),
+    NotificationType.CAMPAIGN_CANCELLED: _static(
+        "Campaign cancelled", "A campaign cancellation has been recorded."
+    ),
     NotificationType.FRAUD_HOLD_RAISED: _static(
         "Trip payment on hold", "A trip payment is on hold while it is reviewed."
     ),

@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Query, Request, status
 from sqlalchemy import select
 
+from app.adapters.budget import build_budget_policy_adapter
 from app.adapters.payments import DisabledPaymentGatewayAdapter, PaymentGatewayAdapter
 from app.api.v1.dependencies import (
     AdminUserDependency,
@@ -31,6 +32,8 @@ from app.models.campaign import Campaign
 from app.schemas.billing import (
     BillingHistoryEntry,
     BudgetEvaluationRead,
+    BudgetResumeCreate,
+    BudgetTransitionRead,
     CampaignCommercialRead,
     CommercialTermsRead,
     CompanyProfileRead,
@@ -83,6 +86,7 @@ from app.services.billing import (
     record_refund_settlement,
     record_subsidy_authorization,
     request_custom_quote,
+    resume_campaign_after_budget_pause,
     reverse_payment_receipt,
 )
 from app.services.organizations import (
@@ -639,14 +643,39 @@ async def admin_record_credit_settlement(
     "/admin/campaigns/{campaign_id}/budget-policy-evaluation",
     response_model=BudgetEvaluationRead,
 )
-async def admin_record_blocked_budget_evaluation(
+async def admin_record_budget_evaluation(
     campaign_id: UUID,
     _: AdminUserDependency,
     session: SessionDependency,
+    settings: SettingsDependency,
 ) -> BudgetEvaluationRead:
-    evaluation = await evaluate_campaign_budget_policy(session, campaign_id=campaign_id)
+    evaluation = await evaluate_campaign_budget_policy(
+        session,
+        campaign_id=campaign_id,
+        adapter=build_budget_policy_adapter(settings),
+    )
     await session.commit()
     return BudgetEvaluationRead.model_validate(evaluation)
+
+
+@router.post(
+    "/admin/campaigns/{campaign_id}/budget-policy-resume",
+    response_model=BudgetTransitionRead,
+)
+async def admin_resume_budget_paused_campaign(
+    campaign_id: UUID,
+    payload: BudgetResumeCreate,
+    user: AdminUserDependency,
+    session: SessionDependency,
+) -> BudgetTransitionRead:
+    transition = await resume_campaign_after_budget_pause(
+        session,
+        campaign_id=campaign_id,
+        actor_user_id=user.id,
+        reason=payload.reason,
+    )
+    await session.commit()
+    return BudgetTransitionRead.model_validate(transition)
 
 
 @router.post("/webhooks/payments", response_model=PaymentWebhookReceipt)

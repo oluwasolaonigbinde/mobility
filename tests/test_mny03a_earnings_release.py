@@ -24,6 +24,7 @@ from app.models.disbursement import (
 )
 from app.models.driver import DriverOnboardingStatus
 from app.models.fraud_assessment import FraudAssessment
+from app.models.notification import Notification, NotificationType
 from app.models.payout import EarningsLedgerEntry
 from app.models.route_replay import RouteReplaySignature, RouteReplayStatus
 from app.models.trip import TripSessionStatus
@@ -236,13 +237,24 @@ def test_clean_release_is_immediate_idempotent_and_audited(
                     AuditEvent.entity_id == str(graph.trip.id),
                 )
             )
-            return stored.status, audits
+            notices = list(
+                await session.scalars(
+                    select(Notification).where(
+                        Notification.recipient_user_id == graph.driver.id,
+                        Notification.type_key == NotificationType.PAYOUT_RELEASED.value,
+                    )
+                )
+            )
+            return stored.status, audits, notices
 
-    status, audits = asyncio.run(verify())
+    status, audits, notices = asyncio.run(verify())
     assert first.released_entry_ids == (entry.id,)
     assert second.released_entry_ids == ()
     assert status == "available"
     assert audits == 1
+    assert len(notices) == 1
+    assert notices[0].dedupe_key == f"payout:released:v1:{graph.trip.id}:in_app"
+    assert notices[0].payload == {"trip_session_id": str(graph.trip.id)}
 
 
 def test_release_creates_one_reversal_debt_obligation_before_commit(

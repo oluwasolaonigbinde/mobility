@@ -9,6 +9,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -90,6 +91,14 @@ class SettlementDisposition(StrEnum):
 
 class BudgetPolicyEvaluationState(StrEnum):
     BLOCKED_EXTERNAL_POLICY = "blocked_external_policy"
+    WITHIN_BUDGET = "within_budget"
+    ALERT_THRESHOLD = "alert_threshold"
+    PAUSE_THRESHOLD = "pause_threshold"
+
+
+class BudgetCampaignTransitionAction(StrEnum):
+    PAUSE = "pause"
+    RESUME = "resume"
 
 
 class CommercialQuoteRequest(Base):
@@ -943,11 +952,13 @@ class BudgetPolicyEvaluation(Base):
     __tablename__ = "budget_policy_evaluations"
     __table_args__ = (
         CheckConstraint(
-            "state = 'blocked_external_policy'",
+            "state IN ('blocked_external_policy', 'within_budget', "
+            "'alert_threshold', 'pause_threshold')",
             name="ck_budget_policy_evaluations_state",
         ),
         CheckConstraint(
-            "external_gate = 'EXT-BUDGET-POLICY'",
+            "(state = 'blocked_external_policy' AND external_gate = 'EXT-BUDGET-POLICY') OR "
+            "(state <> 'blocked_external_policy' AND external_gate IS NULL)",
             name="ck_budget_policy_evaluations_external_gate",
         ),
         CheckConstraint(
@@ -958,10 +969,21 @@ class BudgetPolicyEvaluation(Base):
         ),
         CheckConstraint("length(currency) = 3", name="ck_budget_policy_evaluations_currency"),
         CheckConstraint(
-            "policy_version IS NULL AND billing_spend_amount IS NULL "
-            "AND alert_threshold_amount IS NULL AND pause_threshold_amount IS NULL "
-            "AND pause_applied = false",
-            name="ck_budget_policy_evaluations_blocked_fields",
+            "(state = 'blocked_external_policy' AND policy_id IS NULL "
+            "AND policy_revision IS NULL AND policy_source IS NULL AND budget_basis IS NULL "
+            "AND billing_fact_source IS NULL "
+            "AND billing_spend_amount IS NULL AND alert_threshold_amount IS NULL "
+            "AND pause_threshold_amount IS NULL AND resume_threshold_amount IS NULL "
+            "AND alert_applied = false AND pause_applied = false AND resume_allowed = false) OR "
+            "(state <> 'blocked_external_policy' AND policy_id IS NOT NULL "
+            "AND policy_revision IS NOT NULL "
+            "AND policy_source IN ('external_approved', 'synthetic_test') "
+            "AND budget_basis IN ('total', 'daily') "
+            "AND billing_fact_source IN ('confirmed_funding', 'production_obligation') "
+            "AND billing_spend_amount >= 0 "
+            "AND alert_threshold_amount >= 0 AND pause_threshold_amount > alert_threshold_amount "
+            "AND resume_threshold_amount <= alert_threshold_amount)",
+            name="ck_budget_policy_evaluations_authority_fields",
         ),
         UniqueConstraint("campaign_id", "evaluation_key", name="uq_budget_policy_evaluation_key"),
     )
@@ -974,13 +996,60 @@ class BudgetPolicyEvaluation(Base):
     )
     evaluation_key: Mapped[str] = mapped_column(String(64), nullable=False)
     state: Mapped[str] = mapped_column(String(40), nullable=False)
-    external_gate: Mapped[str] = mapped_column(String(64), nullable=False)
+    external_gate: Mapped[str | None] = mapped_column(String(64))
     campaign_budget_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     campaign_daily_budget_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    policy_version: Mapped[str | None] = mapped_column(String(128))
+    policy_id: Mapped[str | None] = mapped_column(String(128))
+    policy_revision: Mapped[str | None] = mapped_column(String(128))
+    policy_source: Mapped[str | None] = mapped_column(String(32))
+    budget_basis: Mapped[str | None] = mapped_column(String(16))
+    billing_fact_source: Mapped[str | None] = mapped_column(String(32))
     billing_spend_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     alert_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     pause_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    resume_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    alert_applied: Mapped[bool] = mapped_column(nullable=False, default=False)
     pause_applied: Mapped[bool] = mapped_column(nullable=False, default=False)
+    resume_allowed: Mapped[bool] = mapped_column(nullable=False, default=False)
     evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class BudgetCampaignTransition(Base):
+    __tablename__ = "budget_campaign_transitions"
+    __table_args__ = (
+        CheckConstraint("action IN ('pause', 'resume')", name="ck_budget_transitions_action"),
+        CheckConstraint(
+            "prior_status IN ('scheduled', 'active', 'paused') AND "
+            "new_status IN ('scheduled', 'active', 'paused') AND prior_status <> new_status",
+            name="ck_budget_transitions_statuses",
+        ),
+        CheckConstraint(
+            "(action = 'pause' AND actor_user_id IS NULL AND new_status = 'paused') OR "
+            "(action = 'resume' AND actor_user_id IS NOT NULL AND prior_status = 'paused' "
+            "AND length(trim(reason)) > 0)",
+            name="ck_budget_transitions_authority",
+        ),
+        UniqueConstraint("evaluation_id", "action", name="uq_budget_transition_evaluation_action"),
+        Index(
+            "ix_budget_campaign_transitions_campaign_id",
+            "campaign_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    campaign_id: Mapped[UUID] = mapped_column(
+        ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False
+    )
+    evaluation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("budget_policy_evaluations.id", ondelete="RESTRICT"), nullable=False
+    )
+    action: Mapped[str] = mapped_column(String(16), nullable=False)
+    prior_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    new_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    actor_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

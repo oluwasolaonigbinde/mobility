@@ -144,6 +144,17 @@ async def release_pending_earnings_for_trip(
                 "ledger_entry_ids": [str(entry.id) for entry in released],
             },
         )
+        from app.models.notification import NotificationType
+        from app.services.notifications import create_driver_business_notification
+
+        await create_driver_business_notification(
+            session,
+            driver_profile_id=released[0].driver_profile_id,
+            type_key=NotificationType.PAYOUT_RELEASED,
+            event_key=f"payout:released:v1:{trip_id}",
+            payload={"trip_session_id": str(trip_id)},
+            manual_contact_purpose="earnings_release",
+        )
     return EarningsReleaseResult(
         trip_id,
         tuple(entry.id for entry in released),

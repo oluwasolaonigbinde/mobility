@@ -30,6 +30,8 @@ from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.billing import (
     AcceptanceMethod,
+    BudgetCampaignTransition,
+    BudgetCampaignTransitionAction,
     BudgetPolicyEvaluation,
     BudgetPolicyEvaluationState,
     CampaignFinancialAuthorization,
@@ -62,7 +64,7 @@ from app.models.billing import (
     RefundSettlement,
     SettlementDisposition,
 )
-from app.models.campaign import Campaign
+from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_assignment import CampaignAssignment
 from app.models.organization import AdvertiserOrganization
 from app.models.payout import AssignmentRuleBinding
@@ -811,9 +813,21 @@ async def allocate_payment_receipt(
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
         await _active_admin(session, actor_user_id)
+    campaign_id = await session.scalar(
+        select(CommercialTerms.campaign_id).where(CommercialTerms.id == commercial_terms_id)
+    )
+    if campaign_id is None:
+        raise AppError(
+            "BILLING_AUTHORITY_NOT_FOUND", "Billing authority was not found", status_code=404
+        )
     receipt = await session.scalar(
         select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
     )
+    # Receipt-first ordering is shared with reversal. The campaign advisory,
+    # campaign and terms order then matches evaluation/pause/resume, avoiding a
+    # terms↔campaign lock inversion while serializing the new funding fact.
+    await acquire_campaign_terms_lock(session, campaign_id)
+    await _campaign(session, campaign_id, lock=True)
     terms = await session.scalar(
         select(CommercialTerms).where(CommercialTerms.id == commercial_terms_id).with_for_update()
     )
@@ -927,6 +941,20 @@ async def allocate_payment_receipt(
             "commercial_terms_id": str(terms.id),
             "amount": f"{allocation_amount:.2f}",
             "currency": receipt.currency,
+        },
+    )
+    from app.models.notification import NotificationType
+    from app.services.notifications import create_advertiser_business_notifications
+
+    await create_advertiser_business_notifications(
+        session,
+        advertiser_organization_id=terms.organization_id,
+        type_key=NotificationType.FUNDING_CONFIRMED,
+        event_key=f"funding:allocation:v1:{allocation.id}",
+        payload={
+            "campaign_id": str(terms.campaign_id),
+            "receipt_allocation_id": str(allocation.id),
+            "currency": allocation.currency,
         },
     )
     return allocation
@@ -3016,32 +3044,169 @@ def _blocked_budget_evaluation_key(campaign: Campaign) -> str:
     return hashlib.sha256(source.encode()).hexdigest()
 
 
+async def _campaign_billing_spend(
+    session: AsyncSession, *, campaign_id: UUID, now: datetime
+) -> tuple[Decimal, Decimal, str]:
+    """Return advertiser billing authority only; driver payout rows are intentionally absent."""
+    terms = await _commercial_terms_for_campaign(session, campaign_id, lock=True)
+    if terms is None:
+        return Decimal("0.00"), Decimal("0.00"), "confirmed_funding"
+    production = await session.scalar(
+        select(ProductionStart).where(ProductionStart.campaign_id == campaign_id)
+    )
+    if production is not None:
+        obligation = (
+            await effective_invoice_obligation(session, commercial_terms_id=terms.id)
+        ).quantize(MONEY_QUANTUM)
+        daily = (
+            obligation
+            if _stored_aware_utc(production.started_at).astimezone(LAGOS_TZ).date()
+            == now.astimezone(LAGOS_TZ).date()
+            else Decimal("0.00")
+        )
+        return obligation, daily, "production_obligation"
+    allocations = await _active_cash_allocations(session, terms.id)
+    total = sum((Decimal(row.amount) for row in allocations), Decimal("0.00")).quantize(
+        MONEY_QUANTUM
+    )
+    today = now.astimezone(LAGOS_TZ).date()
+    daily = sum(
+        (
+            Decimal(row.amount)
+            for row in allocations
+            if _stored_aware_utc(row.allocated_at).astimezone(LAGOS_TZ).date() == today
+        ),
+        Decimal("0.00"),
+    ).quantize(MONEY_QUANTUM)
+    return total, daily, "confirmed_funding"
+
+
+def _budget_evaluation_key(
+    campaign: Campaign,
+    *,
+    decision,
+    billing_fact_source: str,
+) -> str:
+    source = "|".join(
+        (
+            str(campaign.id),
+            str(campaign.budget_amount),
+            str(campaign.daily_budget_amount),
+            campaign.currency,
+            str(decision.policy_id),
+            str(decision.policy_revision),
+            str(decision.policy_source),
+            str(decision.budget_basis),
+            billing_fact_source,
+            str(decision.billing_spend_amount),
+            str(decision.alert_threshold_amount),
+            str(decision.pause_threshold_amount),
+            str(decision.resume_threshold_amount),
+            decision.state,
+        )
+    )
+    return hashlib.sha256(source.encode()).hexdigest()
+
+
+def _validate_budget_decision(decision, *, synthetic_test_authority: bool) -> None:
+    if decision.policy_source == "synthetic_test" and not synthetic_test_authority:
+        raise AppError(
+            "SYNTHETIC_BUDGET_POLICY_FORBIDDEN",
+            "Synthetic budget policy values are allowed only by explicit test authority",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    if decision.policy_source not in {"external_approved", "synthetic_test"}:
+        raise AppError(
+            "BUDGET_POLICY_NOT_AUTHORIZED",
+            "Budget policy does not carry approved revision authority",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    required = (
+        decision.policy_id,
+        decision.policy_revision,
+        decision.budget_basis,
+        decision.billing_spend_amount,
+        decision.alert_threshold_amount,
+        decision.pause_threshold_amount,
+        decision.resume_threshold_amount,
+    )
+    missing = any(value is None for value in required)
+    expected_state = None
+    thresholds_valid = False
+    expected_resume_allowed = False
+    if not missing:
+        spend = Decimal(decision.billing_spend_amount)
+        alert = Decimal(decision.alert_threshold_amount)
+        pause = Decimal(decision.pause_threshold_amount)
+        resume = Decimal(decision.resume_threshold_amount)
+        thresholds_valid = Decimal("0") <= resume <= alert < pause and spend >= 0
+        expected_state = (
+            BudgetPolicyEvaluationState.PAUSE_THRESHOLD.value
+            if spend >= pause
+            else BudgetPolicyEvaluationState.ALERT_THRESHOLD.value
+            if spend >= alert
+            else BudgetPolicyEvaluationState.WITHIN_BUDGET.value
+        )
+        expected_resume_allowed = spend <= resume
+    if (
+        decision.state
+        not in {
+            BudgetPolicyEvaluationState.WITHIN_BUDGET.value,
+            BudgetPolicyEvaluationState.ALERT_THRESHOLD.value,
+            BudgetPolicyEvaluationState.PAUSE_THRESHOLD.value,
+        }
+        or missing
+        or not str(decision.policy_id).strip()
+        or not str(decision.policy_revision).strip()
+        or decision.budget_basis not in {"total", "daily"}
+        or not thresholds_valid
+        or decision.state != expected_state
+        or decision.external_gate
+        or decision.should_pause
+        != (decision.state == BudgetPolicyEvaluationState.PAUSE_THRESHOLD.value)
+        or decision.resume_allowed != expected_resume_allowed
+    ):
+        raise AppError(
+            "INVALID_BUDGET_POLICY_DECISION",
+            "Budget policy decision is internally inconsistent",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+
 async def evaluate_campaign_budget_policy(
     session: AsyncSession,
     *,
     campaign_id: UUID,
     adapter: BudgetPolicyAdapter | None = None,
+    synthetic_test_authority: bool = False,
 ) -> BudgetPolicyEvaluation:
-    """Persist fail-closed visibility without inventing the missing spend policy."""
+    """Persist one serialized advertiser-spend decision and any campaign pause."""
     await acquire_campaign_terms_lock(session, campaign_id)
     campaign = await _campaign(session, campaign_id, lock=True)
-    if campaign.budget_amount is None and campaign.daily_budget_amount is None:
+    configured_budgets = [
+        Decimal(value)
+        for value in (campaign.budget_amount, campaign.daily_budget_amount)
+        if value is not None
+    ]
+    if not configured_budgets:
         raise AppError(
             "CAMPAIGN_BUDGET_REQUIRED",
             "Budget policy evaluation requires a configured total or daily campaign budget",
             status_code=status.HTTP_409_CONFLICT,
         )
-    evaluation_key = _blocked_budget_evaluation_key(campaign)
-    existing = await session.scalar(
-        select(BudgetPolicyEvaluation).where(
-            BudgetPolicyEvaluation.campaign_id == campaign.id,
-            BudgetPolicyEvaluation.evaluation_key == evaluation_key,
-        )
-    )
-    if existing is not None:
-        return existing
-
     selected_adapter = adapter or DisabledBudgetPolicyAdapter()
+    if any(value <= 0 for value in configured_budgets) and not isinstance(
+        selected_adapter, DisabledBudgetPolicyAdapter
+    ):
+        raise AppError(
+            "CAMPAIGN_BUDGET_REQUIRED",
+            "Authorized threshold evaluation requires positive configured budgets",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    now = await database_clock(session)
+    total_spend, daily_spend, billing_fact_source = await _campaign_billing_spend(
+        session, campaign_id=campaign.id, now=now
+    )
     decision = await selected_adapter.evaluate(
         BudgetPolicyContext(
             campaign_id=campaign.id,
@@ -3054,59 +3219,254 @@ async def evaluate_campaign_budget_policy(
                 if campaign.daily_budget_amount is not None
                 else None
             ),
-            billing_spend_amount=None,
+            total_billing_spend_amount=total_spend,
+            daily_billing_spend_amount=daily_spend,
         )
     )
-    if (
-        decision.state != BLOCKED_BUDGET_POLICY_STATE
-        or decision.external_gate != MISSING_BUDGET_POLICY_GATE
-        or decision.policy_version is not None
-        or decision.alert_threshold_amount is not None
-        or decision.pause_threshold_amount is not None
-        or decision.should_pause
-    ):
-        raise AppError(
-            "BUDGET_POLICY_NOT_AUTHORIZED",
-            "EXT-BUDGET-POLICY is missing; threshold and pause decisions are disabled",
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+    blocked = decision.state == BLOCKED_BUDGET_POLICY_STATE
+    if blocked:
+        if any(
+            (
+                decision.external_gate != MISSING_BUDGET_POLICY_GATE,
+                decision.policy_id is not None,
+                decision.policy_revision is not None,
+                decision.policy_source is not None,
+                decision.budget_basis is not None,
+                decision.billing_spend_amount is not None,
+                decision.alert_threshold_amount is not None,
+                decision.pause_threshold_amount is not None,
+                decision.resume_threshold_amount is not None,
+                decision.should_pause,
+                decision.resume_allowed,
+            )
+        ):
+            raise AppError(
+                "BUDGET_POLICY_NOT_AUTHORIZED",
+                "EXT-BUDGET-POLICY is missing; threshold and pause decisions are disabled",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        evaluation_key = _blocked_budget_evaluation_key(campaign)
+    else:
+        _validate_budget_decision(decision, synthetic_test_authority=synthetic_test_authority)
+        evaluation_key = _budget_evaluation_key(
+            campaign, decision=decision, billing_fact_source=billing_fact_source
         )
-    now = await database_clock(session)
+    existing = await session.scalar(
+        select(BudgetPolicyEvaluation).where(
+            BudgetPolicyEvaluation.campaign_id == campaign.id,
+            BudgetPolicyEvaluation.evaluation_key == evaluation_key,
+        )
+    )
+    if existing is not None:
+        return existing
+
+    pause_will_apply = decision.should_pause and campaign.status in {
+        CampaignStatus.SCHEDULED.value,
+        CampaignStatus.ACTIVE.value,
+    }
     evaluation = BudgetPolicyEvaluation(
         campaign_id=campaign.id,
         evaluation_key=evaluation_key,
-        state=BudgetPolicyEvaluationState.BLOCKED_EXTERNAL_POLICY,
-        external_gate=MISSING_BUDGET_POLICY_GATE,
+        state=decision.state,
+        external_gate=decision.external_gate,
         campaign_budget_amount=campaign.budget_amount,
         campaign_daily_budget_amount=campaign.daily_budget_amount,
         currency=campaign.currency,
-        policy_version=None,
-        billing_spend_amount=None,
-        alert_threshold_amount=None,
-        pause_threshold_amount=None,
-        pause_applied=False,
+        policy_id=decision.policy_id,
+        policy_revision=decision.policy_revision,
+        policy_source=decision.policy_source,
+        budget_basis=decision.budget_basis,
+        billing_fact_source=None if blocked else billing_fact_source,
+        billing_spend_amount=decision.billing_spend_amount,
+        alert_threshold_amount=decision.alert_threshold_amount,
+        pause_threshold_amount=decision.pause_threshold_amount,
+        resume_threshold_amount=decision.resume_threshold_amount,
+        alert_applied=decision.state
+        in {
+            BudgetPolicyEvaluationState.ALERT_THRESHOLD.value,
+            BudgetPolicyEvaluationState.PAUSE_THRESHOLD.value,
+        },
+        pause_applied=pause_will_apply,
+        resume_allowed=decision.resume_allowed,
         evaluated_at=now,
     )
-    session.add(evaluation)
-    await session.flush()
+    try:
+        async with session.begin_nested():
+            session.add(evaluation)
+            await session.flush()
+    except IntegrityError:
+        existing = await session.scalar(
+            select(BudgetPolicyEvaluation).where(
+                BudgetPolicyEvaluation.campaign_id == campaign.id,
+                BudgetPolicyEvaluation.evaluation_key == evaluation_key,
+            )
+        )
+        if existing is None:
+            raise
+        return existing
+    transition = None
+    if pause_will_apply:
+        prior_status = campaign.status
+        campaign.status = CampaignStatus.PAUSED.value
+        transition = BudgetCampaignTransition(
+            campaign_id=campaign.id,
+            evaluation_id=evaluation.id,
+            action=BudgetCampaignTransitionAction.PAUSE.value,
+            prior_status=prior_status,
+            new_status=CampaignStatus.PAUSED.value,
+            actor_user_id=None,
+            reason="configured advertiser-spend pause threshold reached",
+            created_at=now,
+        )
+        session.add(transition)
+        await session.flush()
     await create_audit_event(
         session,
         actor_user_id=None,
-        action="billing.budget_policy.blocked",
+        action=("billing.budget_policy.blocked" if blocked else "billing.budget_policy.evaluated"),
         entity_type="budget_policy_evaluation",
         entity_id=str(evaluation.id),
         metadata={
             "campaign_id": str(campaign.id),
-            "external_gate": MISSING_BUDGET_POLICY_GATE,
-            "campaign_status_unchanged": campaign.status,
+            "external_gate": decision.external_gate or None,
+            "policy_id": decision.policy_id,
+            "policy_revision": decision.policy_revision,
+            "policy_source": decision.policy_source,
+            "budget_basis": decision.budget_basis,
+            "billing_fact_source": None if blocked else billing_fact_source,
+            "billing_spend_amount": (
+                f"{decision.billing_spend_amount:.2f}"
+                if decision.billing_spend_amount is not None
+                else None
+            ),
+            "state": decision.state,
+            "campaign_status": campaign.status,
+            "pause_transition_id": str(transition.id) if transition is not None else None,
         },
     )
+    if not blocked:
+        from app.services.notifications import create_budget_policy_notices
+
+        await create_budget_policy_notices(session, campaign=campaign, evaluation=evaluation)
     return evaluation
 
 
-async def sweep_blocked_budget_policy_evaluations(
+async def resume_campaign_after_budget_pause(
+    session: AsyncSession,
+    *,
+    campaign_id: UUID,
+    actor_user_id: UUID,
+    reason: str,
+) -> BudgetCampaignTransition:
+    from app.services.admin_authorization import require_active_admin
+
+    await require_active_admin(session, actor_user_id)
+    normalized_reason = reason.strip()
+    if not normalized_reason:
+        raise AppError(
+            "BUDGET_RESUME_REASON_REQUIRED",
+            "A budget-resume reason is required",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    await acquire_campaign_terms_lock(session, campaign_id)
+    campaign = await _campaign(session, campaign_id, lock=True)
+    evaluation = await session.scalar(
+        select(BudgetPolicyEvaluation)
+        .where(BudgetPolicyEvaluation.campaign_id == campaign_id)
+        .order_by(BudgetPolicyEvaluation.evaluated_at.desc(), BudgetPolicyEvaluation.id.desc())
+        .limit(1)
+        .with_for_update()
+    )
+    existing_resume = (
+        await session.scalar(
+            select(BudgetCampaignTransition).where(
+                BudgetCampaignTransition.evaluation_id == evaluation.id,
+                BudgetCampaignTransition.action == BudgetCampaignTransitionAction.RESUME.value,
+            )
+        )
+        if evaluation is not None
+        else None
+    )
+    if existing_resume is not None:
+        if (
+            existing_resume.actor_user_id == actor_user_id
+            and existing_resume.reason == normalized_reason
+        ):
+            return existing_resume
+        raise AppError(
+            "BUDGET_RESUME_ALREADY_RECORDED",
+            "This budget evaluation already has resume authority",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if campaign.status != CampaignStatus.PAUSED.value:
+        raise AppError(
+            "CAMPAIGN_NOT_BUDGET_PAUSED",
+            "Campaign is not paused",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if evaluation is None or not evaluation.resume_allowed:
+        raise AppError(
+            "BUDGET_RESUME_NOT_AUTHORIZED",
+            "The latest authoritative budget evaluation does not permit resume",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    pause = await session.scalar(
+        select(BudgetCampaignTransition)
+        .where(
+            BudgetCampaignTransition.campaign_id == campaign_id,
+            BudgetCampaignTransition.action == BudgetCampaignTransitionAction.PAUSE.value,
+        )
+        .order_by(BudgetCampaignTransition.created_at.desc(), BudgetCampaignTransition.id.desc())
+        .limit(1)
+    )
+    if pause is None:
+        raise AppError(
+            "BUDGET_PAUSE_AUTHORITY_MISSING",
+            "Campaign pause is not owned by budget enforcement",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    target = pause.prior_status
+    now = await database_clock(session)
+    transition = BudgetCampaignTransition(
+        campaign_id=campaign.id,
+        evaluation_id=evaluation.id,
+        action=BudgetCampaignTransitionAction.RESUME.value,
+        prior_status=campaign.status,
+        new_status=target,
+        actor_user_id=actor_user_id,
+        reason=normalized_reason,
+        created_at=now,
+    )
+    campaign.status = target
+    session.add(transition)
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="billing.budget_policy.resumed",
+        entity_type="budget_campaign_transition",
+        entity_id=str(transition.id),
+        metadata={
+            "campaign_id": str(campaign.id),
+            "evaluation_id": str(evaluation.id),
+            "policy_id": evaluation.policy_id,
+            "policy_revision": evaluation.policy_revision,
+            "status_before": CampaignStatus.PAUSED.value,
+            "status_after": target,
+            "reason": normalized_reason,
+        },
+    )
+    from app.services.notifications import create_budget_resume_notices
+
+    await create_budget_resume_notices(session, campaign=campaign, transition=transition)
+    return transition
+
+
+async def sweep_budget_policy_evaluations(
     session: AsyncSession,
     *,
     adapter: BudgetPolicyAdapter | None = None,
+    synthetic_test_authority: bool = False,
 ) -> list[BudgetPolicyEvaluation]:
     campaign_ids = list(
         await session.scalars(
@@ -3122,6 +3482,7 @@ async def sweep_blocked_budget_policy_evaluations(
             session,
             campaign_id=campaign_id,
             adapter=adapter,
+            synthetic_test_authority=synthetic_test_authority,
         )
         for campaign_id in campaign_ids
     ]

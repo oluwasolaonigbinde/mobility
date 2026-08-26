@@ -47,6 +47,7 @@ from app.models.campaign import (
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.driver import DriverOnboardingStatus, DriverProfile
+from app.models.notification import Notification, NotificationType
 from app.models.payout import AssignmentRuleBinding
 from app.models.trip import TripSessionStatus
 from app.models.user import UserRole, UserStatus
@@ -1053,6 +1054,33 @@ def test_admin_can_create_list_read_and_cancel_assignment_with_events_and_audit(
         "driver.campaign_assignment.accepted",
         "admin.campaign_assignment.cancelled",
     ]
+
+    async def notification_evidence():
+        async with db_sessionmaker() as session:
+            rows = list(
+                await session.scalars(
+                    select(Notification)
+                    .where(
+                        Notification.recipient_user_id == profile.user_id,
+                        Notification.type_key.in_(
+                            [
+                                NotificationType.ASSIGNMENT_OFFERED.value,
+                                NotificationType.ASSIGNMENT_ACCEPTED.value,
+                            ]
+                        ),
+                    )
+                    .order_by(Notification.type_key)
+                )
+            )
+            return rows
+
+    notices = asyncio.run(notification_evidence())
+    assert [notice.type_key for notice in notices] == [
+        NotificationType.ASSIGNMENT_ACCEPTED.value,
+        NotificationType.ASSIGNMENT_OFFERED.value,
+    ]
+    assert {notice.payload["assignment_id"] for notice in notices} == {assignment_id}
+    assert all("phone" not in json.dumps(notice.payload).lower() for notice in notices)
 
 
 def test_admin_assignment_creation_validates_eligibility_and_duplicates(

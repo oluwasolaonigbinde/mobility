@@ -16,6 +16,9 @@ from app.models.assignment_activity import (
     AssignmentActivityFlagEventType,
     AssignmentActivityFlagType,
 )
+from app.models.billing import BudgetCampaignTransition, BudgetPolicyEvaluation
+from app.models.campaign import Campaign
+from app.models.contact import PasswordResetToken
 from app.models.driver import DriverProfile
 from app.models.notification import (
     Notification,
@@ -335,6 +338,144 @@ async def _create_notice(
         type_key=type_key,
         payload=payload,
         dedupe_key=dedupe_key,
+    )
+
+
+async def create_advertiser_business_notifications(
+    session: AsyncSession,
+    *,
+    advertiser_organization_id: UUID,
+    type_key: NotificationType,
+    event_key: str,
+    payload: dict[str, Any],
+) -> list[Notification]:
+    """Create in-app plus preference-governed email rows from one authoritative event key."""
+    recipients = list(
+        await session.scalars(
+            select(User)
+            .join(OrganizationMembership, OrganizationMembership.user_id == User.id)
+            .join(
+                AdvertiserOrganization,
+                AdvertiserOrganization.id == OrganizationMembership.organization_id,
+            )
+            .where(
+                OrganizationMembership.organization_id == advertiser_organization_id,
+                OrganizationMembership.status == MembershipStatus.ACTIVE.value,
+                AdvertiserOrganization.status == OrganizationStatus.ACTIVE.value,
+                User.role == UserRole.ADVERTISER.value,
+                User.status == UserStatus.ACTIVE.value,
+            )
+            .order_by(User.id)
+        )
+    )
+    notices: list[Notification] = []
+    for recipient in recipients:
+        notices.append(
+            await create_notification(
+                session,
+                recipient_user_id=recipient.id,
+                type_key=type_key,
+                payload=payload,
+                dedupe_key=f"{event_key}:in_app",
+            )
+        )
+        email = await create_advertiser_email_notification(
+            session,
+            advertiser_organization_id=advertiser_organization_id,
+            recipient_user_id=recipient.id,
+            type_key=type_key,
+            payload=payload,
+            dedupe_key=f"{event_key}:transactional_email",
+        )
+        if email is not None:
+            notices.append(email)
+    return notices
+
+
+async def create_driver_business_notification(
+    session: AsyncSession,
+    *,
+    driver_profile_id: UUID,
+    type_key: NotificationType,
+    event_key: str,
+    payload: dict[str, Any],
+    manual_contact_purpose: str | None = None,
+) -> Notification:
+    recipient_user_id = await session.scalar(
+        select(DriverProfile.user_id).where(DriverProfile.id == driver_profile_id)
+    )
+    if recipient_user_id is None:
+        raise RuntimeError("driver business notification has no driver profile")
+    notice = await create_notification(
+        session,
+        recipient_user_id=recipient_user_id,
+        type_key=type_key,
+        payload=payload,
+        dedupe_key=f"{event_key}:in_app",
+    )
+    if manual_contact_purpose is not None:
+        from app.services.contacts import create_manual_driver_contact_task
+
+        await create_manual_driver_contact_task(
+            session,
+            driver_profile_id=driver_profile_id,
+            event_key=event_key,
+            purpose=manual_contact_purpose,
+        )
+    return notice
+
+
+async def create_budget_policy_notices(
+    session: AsyncSession, *, campaign: Campaign, evaluation: BudgetPolicyEvaluation
+) -> list[Notification]:
+    if evaluation.state == "alert_threshold":
+        type_key = NotificationType.BUDGET_ALERT
+    elif evaluation.state == "pause_threshold":
+        type_key = NotificationType.CAMPAIGN_BUDGET_PAUSED
+    else:
+        return []
+    return await create_advertiser_business_notifications(
+        session,
+        advertiser_organization_id=campaign.organization_id,
+        type_key=type_key,
+        event_key=f"budget:{evaluation.state}:v1:{evaluation.id}",
+        payload={
+            "campaign_id": str(campaign.id),
+            "budget_evaluation_id": str(evaluation.id),
+            "budget_state": evaluation.state,
+            "currency": evaluation.currency,
+        },
+    )
+
+
+async def create_budget_resume_notices(
+    session: AsyncSession, *, campaign: Campaign, transition: BudgetCampaignTransition
+) -> list[Notification]:
+    return await create_advertiser_business_notifications(
+        session,
+        advertiser_organization_id=campaign.organization_id,
+        type_key=NotificationType.CAMPAIGN_BUDGET_RESUMED,
+        event_key=f"budget:resume:v1:{transition.id}",
+        payload={
+            "campaign_id": str(campaign.id),
+            "budget_transition_id": str(transition.id),
+            "campaign_status": transition.new_status,
+        },
+    )
+
+
+async def create_password_reset_notification(
+    session: AsyncSession, *, user: User, reset: PasswordResetToken
+) -> Notification:
+    payload = {"password_reset_request_id": str(reset.id)}
+    dedupe_key = f"password_reset:v1:{reset.id}:transactional_email"
+    return await create_notification(
+        session,
+        recipient_user_id=user.id,
+        type_key=NotificationType.PASSWORD_RESET_REQUESTED,
+        payload=payload,
+        dedupe_key=dedupe_key,
+        channel=NotificationChannel.TRANSACTIONAL_EMAIL,
     )
 
 

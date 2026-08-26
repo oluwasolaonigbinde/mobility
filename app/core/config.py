@@ -118,6 +118,24 @@ class Settings(BaseSettings):
     email_delivery_max_attempts: int = 5
     email_delivery_retry_base_seconds: int = 60
     email_delivery_claim_seconds: int = 120
+    # Live budget enforcement remains disabled until an approved external
+    # identity, revision, and complete threshold set are configured together.
+    budget_policy_external_approved: bool = False
+    budget_policy_id: str | None = None
+    budget_policy_revision: str | None = None
+    budget_alert_ratio: OptionalFloat = None
+    budget_pause_ratio: OptionalFloat = None
+    budget_resume_ratio: OptionalFloat = None
+    phone_operator_external_approved: bool = False
+    phone_verification_ttl_seconds: int = 600
+    phone_verification_max_code_attempts: int = 5
+    phone_verification_request_max_attempts: int = 3
+    phone_verification_request_window_seconds: int = 3600
+    password_reset_ttl_seconds: int = 1800
+    password_reset_account_max_attempts: int = 3
+    password_reset_ip_max_attempts: int = 10
+    password_reset_rate_window_seconds: int = 3600
+    password_reset_public_url: str = ""
     # Comma-separated legal exception evidence references. Empty means that a
     # DSR may be inventoried but no retained-exception assessment can complete.
     dsr_approved_exception_references: str = ""
@@ -250,12 +268,40 @@ class Settings(BaseSettings):
         "driver_registration_rate_limit_email_window_seconds",
         "driver_registration_rate_limit_global_max_attempts",
         "driver_registration_rate_limit_global_window_seconds",
+        "phone_verification_ttl_seconds",
+        "phone_verification_max_code_attempts",
+        "phone_verification_request_max_attempts",
+        "phone_verification_request_window_seconds",
+        "password_reset_ttl_seconds",
+        "password_reset_account_max_attempts",
+        "password_reset_ip_max_attempts",
+        "password_reset_rate_window_seconds",
     )
     @classmethod
     def validate_positive_rate_limit_settings(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("Login rate-limit settings must be positive")
         return value
+
+    @model_validator(mode="after")
+    def validate_budget_policy_configuration(self):
+        values = (
+            self.budget_policy_id,
+            self.budget_policy_revision,
+            self.budget_alert_ratio,
+            self.budget_pause_ratio,
+            self.budget_resume_ratio,
+        )
+        configured = [value is not None and value != "" for value in values]
+        if any(configured) and not all(configured):
+            raise ValueError("Budget policy configuration must be complete")
+        if self.budget_policy_external_approved and not all(configured):
+            raise ValueError("Approved budget policy requires a complete revision")
+        if all(configured) and not (
+            0 < self.budget_resume_ratio <= self.budget_alert_ratio < self.budget_pause_ratio
+        ):
+            raise ValueError("Budget policy thresholds must satisfy resume <= alert < pause")
+        return self
 
     @field_validator("password_min_length")
     @classmethod

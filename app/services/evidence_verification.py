@@ -302,6 +302,20 @@ async def _issue_high_earner_challenge(
         entity_id=str(row.id),
         metadata={"assignment_id": str(assignment.id), "due_at": row.due_at.isoformat()},
     )
+    from app.models.notification import NotificationType
+    from app.services.notifications import create_driver_business_notification
+
+    await create_driver_business_notification(
+        session,
+        driver_profile_id=assignment.driver_profile_id,
+        type_key=NotificationType.EVIDENCE_CHALLENGE_CREATED,
+        event_key=f"evidence:challenge:v1:{row.id}",
+        payload={
+            "assignment_id": str(assignment.id),
+            "evidence_verification_id": str(row.id),
+        },
+        manual_contact_purpose="display_evidence_challenge",
+    )
     return 1
 
 
@@ -479,6 +493,19 @@ async def satisfy_pending_evidence_challenges(
             entity_type="evidence_verification",
             entity_id=str(row.id),
             metadata={"display_proof_id": str(proof.id), "assignment_id": str(assignment_id)},
+        )
+        from app.models.notification import NotificationType
+        from app.services.notifications import create_driver_business_notification
+
+        await create_driver_business_notification(
+            session,
+            driver_profile_id=row.driver_profile_id,
+            type_key=NotificationType.EVIDENCE_VERIFIED,
+            event_key=f"evidence:satisfied:v1:{row.id}",
+            payload={
+                "assignment_id": str(assignment_id),
+                "evidence_verification_id": str(row.id),
+            },
         )
     await session.flush()
     return len(rows)

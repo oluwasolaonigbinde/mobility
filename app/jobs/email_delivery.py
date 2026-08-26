@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import quote
 from uuid import UUID, uuid4
 
 from sqlalchemy import or_, select
@@ -7,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.adapters.messaging import EmailAdapter, EmailMessage, EmailSendError, build_email_adapter
 from app.core.config import Settings, get_settings
+from app.models.contact import PasswordResetToken
 from app.models.notification import Notification, NotificationChannel, NotificationStatus
 from app.models.organization import (
     AdvertiserOrganization,
@@ -26,6 +28,15 @@ def _utc(value: datetime) -> datetime:
 async def _preference_allows_delivery(
     session: AsyncSession, notice: Notification
 ) -> tuple[bool, str | None]:
+    if notice.type_key == "password_reset_requested":
+        user = await session.get(User, notice.recipient_user_id)
+        if (
+            user is None
+            or user.role not in {UserRole.ADMIN.value, UserRole.ADVERTISER.value}
+            or user.status not in {UserStatus.ACTIVE.value, UserStatus.INVITED.value}
+        ):
+            return False, "email_recipient_inactive"
+        return True, user.email
     try:
         organization_id = UUID(str(notice.payload["advertiser_organization_id"]))
     except (KeyError, TypeError, ValueError):
@@ -124,7 +135,36 @@ async def process_email_notification(
         return "skipped"
     token, notice, recipient = claimed
     try:
-        rendered = render_email_template(notice.type_key, notice.template_version, notice.payload)
+        runtime_payload = dict(notice.payload)
+        if notice.type_key == "password_reset_requested":
+            try:
+                reset_id = UUID(str(notice.payload["password_reset_request_id"]))
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError("password_reset_request_missing") from exc
+            async with sessionmaker() as session:
+                reset = await session.get(PasswordResetToken, reset_id)
+                user = await session.get(User, notice.recipient_user_id)
+            if (
+                reset is None
+                or user is None
+                or reset.used_at is not None
+                or _utc(reset.expires_at) <= _utc(current)
+                or reset.session_version != user.session_version
+            ):
+                raise ValueError("password_reset_request_inactive")
+            from app.services.account_recovery import password_reset_token_for_delivery
+
+            reset_token = password_reset_token_for_delivery(reset, user, settings)
+            if settings.password_reset_public_url:
+                separator = "&" if "?" in settings.password_reset_public_url else "?"
+                runtime_payload["reset_action"] = (
+                    f"{settings.password_reset_public_url}{separator}token={quote(reset_token)}"
+                )
+            elif settings.environment in {"local", "dev", "development", "test", "testing"}:
+                runtime_payload["reset_action"] = reset_token
+            else:
+                raise ValueError("password_reset_public_url_missing")
+        rendered = render_email_template(notice.type_key, notice.template_version, runtime_payload)
         adapter: EmailAdapter = ctx.get("email_adapter") or build_email_adapter(settings)
         submission = await adapter.send(
             EmailMessage(

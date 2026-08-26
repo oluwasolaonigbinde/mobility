@@ -528,6 +528,20 @@ async def create_campaign_assignment(
         metadata=payload.metadata,
         occurred_at=now,
     )
+    from app.models.notification import NotificationType
+    from app.services.notifications import create_driver_business_notification
+
+    await create_driver_business_notification(
+        session,
+        driver_profile_id=assignment.driver_profile_id,
+        type_key=NotificationType.ASSIGNMENT_OFFERED,
+        event_key=f"assignment:offered:v1:{assignment.id}",
+        payload={
+            "assignment_id": str(assignment.id),
+            "campaign_id": str(assignment.campaign_id),
+        },
+        manual_contact_purpose="campaign_assignment_offer",
+    )
     await session.refresh(assignment)
     return assignment
 
@@ -1588,6 +1602,19 @@ async def accept_driver_assignment(
         entity_type="campaign_assignment",
         entity_id=str(assignment.id),
         metadata={"campaign_id": str(assignment.campaign_id)},
+    )
+    from app.models.notification import NotificationType
+    from app.services.notifications import create_driver_business_notification
+
+    await create_driver_business_notification(
+        session,
+        driver_profile_id=assignment.driver_profile_id,
+        type_key=NotificationType.ASSIGNMENT_ACCEPTED,
+        event_key=f"assignment:accepted:v1:{assignment.id}",
+        payload={
+            "assignment_id": str(assignment.id),
+            "campaign_id": str(assignment.campaign_id),
+        },
     )
     await session.refresh(assignment)
     return assignment

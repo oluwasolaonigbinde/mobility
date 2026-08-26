@@ -382,15 +382,41 @@ class BudgetEvaluationRead(ORMRead):
     id: UUID
     campaign_id: UUID
     state: str
-    external_gate: str
+    external_gate: str | None
     campaign_budget_amount: Decimal | None
     campaign_daily_budget_amount: Decimal | None
     currency: str
+    policy_id: str | None
+    policy_revision: str | None
+    policy_source: str | None
+    budget_basis: str | None
+    billing_fact_source: str | None
     billing_spend_amount: Decimal | None
     alert_threshold_amount: Decimal | None
     pause_threshold_amount: Decimal | None
+    resume_threshold_amount: Decimal | None
+    alert_applied: bool
     pause_applied: bool
+    resume_allowed: bool
     evaluated_at: datetime
+
+
+class BudgetResumeCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+class BudgetTransitionRead(ORMRead):
+    id: UUID
+    campaign_id: UUID
+    evaluation_id: UUID
+    action: str
+    prior_status: str
+    new_status: str
+    actor_user_id: UUID | None
+    reason: str | None
+    created_at: datetime
 
 
 class CampaignCommercialRead(BaseModel):
