@@ -78,7 +78,7 @@ def build_graph(db_sessionmaker, suffix: str, campaign_count: int = 1):
         creative = create_test_campaign_creative(
             db_sessionmaker,
             campaign_id=campaign.id,
-            creative_status=CreativeStatus.READY,
+            creative_status=CreativeStatus.APPROVED,
         )
         create_test_campaign_payout_revision(
             db_sessionmaker,

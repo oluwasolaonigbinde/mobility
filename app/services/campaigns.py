@@ -6,6 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 from starlette import status
 
 from app.core.errors import AppError
@@ -14,6 +15,7 @@ from app.models.campaign import (
     CampaignCreative,
     CampaignReviewEvent,
     CampaignStatus,
+    CreativeReviewEvent,
     CreativeStatus,
     CreativeType,
 )
@@ -780,7 +782,18 @@ async def update_campaign_creative(
     update_values = payload.model_dump(exclude_unset=True)
     changed_fields = list(update_values)
 
-    if update_values.get("status") == CreativeStatus.READY:
+    if creative.status in {
+        CreativeStatus.PENDING_REVIEW.value,
+        CreativeStatus.APPROVED.value,
+    }:
+        raise creative_review_state_conflict(creative.status, None)
+
+    if update_values.get("status") in {
+        CreativeStatus.READY,
+        CreativeStatus.PENDING_REVIEW,
+        CreativeStatus.APPROVED,
+        CreativeStatus.REJECTED,
+    }:
         raise AppError(
             "CREATIVE_READY_REQUIRES_REVIEW",
             "A managed creative can become ready only through creative review",
@@ -879,6 +892,330 @@ async def update_campaign_creative(
     for field, value in update_values.items():
         setattr(creative, field, value)
 
+    if creative.status == CreativeStatus.REJECTED.value and changed_fields:
+        creative.status = CreativeStatus.DRAFT.value
+
     await session.flush()
     await session.refresh(creative)
     return creative, changed_fields
+
+
+def creative_review_state_conflict(current_status: str, target_status: str | None) -> AppError:
+    return AppError(
+        "CREATIVE_REVIEW_STATE_CONFLICT",
+        "Creative review state does not allow this operation",
+        status_code=status.HTTP_409_CONFLICT,
+        details={"current_status": current_status, "target_status": target_status},
+    )
+
+
+def creative_review_snapshot(
+    creative: CampaignCreative, campaign: Campaign, stored_file: StoredFile
+) -> dict[str, object]:
+    return {
+        "creative_id": str(creative.id),
+        "campaign_id": str(campaign.id),
+        "organization_id": str(campaign.organization_id),
+        "name": creative.name,
+        "creative_type": creative.creative_type,
+        "placement": creative.placement,
+        "stored_file_id": str(stored_file.id),
+        "mime_type": creative.mime_type,
+        "checksum": creative.checksum,
+        "width_px": creative.width_px,
+        "height_px": creative.height_px,
+        "duration_seconds": creative.duration_seconds,
+        "metadata": creative.creative_metadata,
+    }
+
+
+def creative_review_snapshot_digest(snapshot: dict[str, object]) -> str:
+    canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+async def _locked_advertiser_creative(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    campaign_id: UUID,
+    creative_id: UUID,
+) -> tuple[Campaign, CampaignCreative, StoredFile]:
+    campaign = await _locked_advertiser_campaign(
+        session, user_id=user_id, campaign_id=campaign_id
+    )
+    creative = await session.scalar(
+        select(CampaignCreative)
+        .where(
+            CampaignCreative.id == creative_id,
+            CampaignCreative.campaign_id == campaign.id,
+        )
+        .with_for_update()
+    )
+    if creative is None or creative.stored_file_id is None:
+        raise AppError(
+            "CAMPAIGN_CREATIVE_NOT_FOUND",
+            "Campaign creative was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    stored_file = await session.scalar(
+        select(StoredFile).where(StoredFile.id == creative.stored_file_id).with_for_update()
+    )
+    if stored_file is None:
+        raise AppError(
+            "CREATIVE_FILE_NOT_CLEARED",
+            "The managed creative file is unavailable",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    return campaign, creative, stored_file
+
+
+def _assert_reviewable_file(
+    campaign: Campaign, creative: CampaignCreative, stored_file: StoredFile
+) -> None:
+    if (
+        stored_file.organization_id != campaign.organization_id
+        or stored_file.purpose != FilePurpose.CREATIVE.value
+        or stored_file.scan_status != FileScanStatus.CLEAN.value
+        or stored_file.checksum_sha256 != creative.checksum
+        or stored_file.content_type != creative.mime_type
+        or stored_file.actual_content_type != creative.mime_type
+    ):
+        raise AppError(
+            "CREATIVE_FILE_NOT_CLEARED",
+            "The managed creative file must remain scan-cleared and unchanged",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+
+async def submit_creative_for_review(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    campaign_id: UUID,
+    creative_id: UUID,
+) -> CampaignCreative:
+    campaign, creative, stored_file = await _locked_advertiser_creative(
+        session,
+        user_id=user_id,
+        campaign_id=campaign_id,
+        creative_id=creative_id,
+    )
+    prior_status = creative.status
+    if prior_status not in {CreativeStatus.DRAFT.value, CreativeStatus.REJECTED.value}:
+        raise creative_review_state_conflict(prior_status, CreativeStatus.PENDING_REVIEW.value)
+    _assert_reviewable_file(campaign, creative, stored_file)
+    snapshot = creative_review_snapshot(creative, campaign, stored_file)
+    digest = creative_review_snapshot_digest(snapshot)
+    creative.status = CreativeStatus.PENDING_REVIEW.value
+    event = CreativeReviewEvent(
+        creative_id=creative.id,
+        actor_user_id=user_id,
+        prior_status=prior_status,
+        new_status=CreativeStatus.PENDING_REVIEW.value,
+        reviewed_snapshot=snapshot,
+        reviewed_snapshot_sha256=digest,
+    )
+    session.add(event)
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=user_id,
+        action="advertiser.campaign_creative.submitted_for_review",
+        entity_type="campaign_creative",
+        entity_id=str(creative.id),
+        metadata={
+            "campaign_id": str(campaign.id),
+            "status_before": prior_status,
+            "status_after": creative.status,
+            "review_event_id": str(event.id),
+            "reviewed_snapshot_sha256": digest,
+        },
+    )
+    await session.refresh(creative)
+    return creative
+
+
+async def _current_creative_submission(
+    session: AsyncSession, creative_id: UUID
+) -> CreativeReviewEvent | None:
+    decision = aliased(CreativeReviewEvent)
+    return await session.scalar(
+        select(CreativeReviewEvent)
+        .where(
+            CreativeReviewEvent.creative_id == creative_id,
+            CreativeReviewEvent.new_status == CreativeStatus.PENDING_REVIEW.value,
+            ~select(decision.id)
+            .where(decision.submission_event_id == CreativeReviewEvent.id)
+            .exists(),
+        )
+        .order_by(CreativeReviewEvent.created_at.desc(), CreativeReviewEvent.id.desc())
+        .limit(1)
+        .with_for_update()
+    )
+
+
+async def decide_creative_review(
+    session: AsyncSession,
+    *,
+    admin_user_id: UUID,
+    creative_id: UUID,
+    target_status: CreativeStatus,
+    rejection_reason: str | None = None,
+) -> CampaignCreative:
+    await require_active_admin(session, admin_user_id)
+    campaign_id = await session.scalar(
+        select(CampaignCreative.campaign_id).where(CampaignCreative.id == creative_id)
+    )
+    if campaign_id is None:
+        raise AppError(
+            "CAMPAIGN_CREATIVE_NOT_FOUND",
+            "Campaign creative was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    campaign = await _locked_campaign(session, campaign_id)
+    creative = await session.scalar(
+        select(CampaignCreative)
+        .where(CampaignCreative.id == creative_id, CampaignCreative.campaign_id == campaign.id)
+        .with_for_update()
+    )
+    if creative is None or creative.stored_file_id is None:
+        raise AppError(
+            "CAMPAIGN_CREATIVE_NOT_FOUND",
+            "Campaign creative was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    if target_status not in {CreativeStatus.APPROVED, CreativeStatus.REJECTED}:
+        raise creative_review_state_conflict(creative.status, target_status.value)
+    if creative.status != CreativeStatus.PENDING_REVIEW.value:
+        raise creative_review_state_conflict(creative.status, target_status.value)
+    normalized_reason = rejection_reason.strip() if rejection_reason is not None else None
+    if target_status is CreativeStatus.REJECTED and not normalized_reason:
+        raise AppError(
+            "CREATIVE_REJECTION_REASON_REQUIRED",
+            "A nonblank rejection reason is required",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if target_status is CreativeStatus.APPROVED and normalized_reason is not None:
+        raise AppError(
+            "INVALID_CREATIVE_REVIEW_DECISION",
+            "Approval does not accept a rejection reason",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    stored_file = await session.scalar(
+        select(StoredFile).where(StoredFile.id == creative.stored_file_id).with_for_update()
+    )
+    if stored_file is None:
+        raise AppError(
+            "CREATIVE_FILE_NOT_CLEARED",
+            "The managed creative file is unavailable",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if target_status is CreativeStatus.APPROVED:
+        _assert_reviewable_file(campaign, creative, stored_file)
+    submission = await _current_creative_submission(session, creative.id)
+    if submission is None or submission.reviewed_snapshot_sha256 is None:
+        raise creative_review_state_conflict(creative.status, target_status.value)
+    creative.status = target_status.value
+    event = CreativeReviewEvent(
+        creative_id=creative.id,
+        actor_user_id=admin_user_id,
+        prior_status=CreativeStatus.PENDING_REVIEW.value,
+        new_status=target_status.value,
+        rejection_reason=normalized_reason,
+        submission_event_id=submission.id,
+    )
+    session.add(event)
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=admin_user_id,
+        action=(
+            "admin.campaign_creative.approved"
+            if target_status is CreativeStatus.APPROVED
+            else "admin.campaign_creative.rejected"
+        ),
+        entity_type="campaign_creative",
+        entity_id=str(creative.id),
+        metadata={
+            "campaign_id": str(campaign.id),
+            "status_before": CreativeStatus.PENDING_REVIEW.value,
+            "status_after": creative.status,
+            "review_event_id": str(event.id),
+            "submission_event_id": str(submission.id),
+            "reviewed_snapshot_sha256": submission.reviewed_snapshot_sha256,
+            "rejection_reason": normalized_reason,
+        },
+    )
+    await session.refresh(creative)
+    return creative
+
+
+async def list_creative_review_events(
+    session: AsyncSession,
+    *,
+    creative_id: UUID,
+    limit: int,
+    offset: int,
+) -> tuple[list[CreativeReviewEvent], int]:
+    total = await session.scalar(
+        select(func.count())
+        .select_from(CreativeReviewEvent)
+        .where(CreativeReviewEvent.creative_id == creative_id)
+    )
+    events = list(
+        (
+            await session.scalars(
+                select(CreativeReviewEvent)
+                .where(CreativeReviewEvent.creative_id == creative_id)
+                .order_by(CreativeReviewEvent.created_at.desc(), CreativeReviewEvent.id.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+        ).all()
+    )
+    return events, int(total or 0)
+
+
+async def list_advertiser_creative_review_events(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    campaign_id: UUID,
+    creative_id: UUID,
+    limit: int,
+    offset: int,
+) -> tuple[list[CreativeReviewEvent], int]:
+    await get_campaign_creative(
+        session, user_id=user_id, campaign_id=campaign_id, creative_id=creative_id
+    )
+    return await list_creative_review_events(
+        session, creative_id=creative_id, limit=limit, offset=offset
+    )
+
+
+async def list_pending_creative_reviews(
+    session: AsyncSession,
+    *,
+    limit: int,
+    offset: int,
+) -> tuple[list[tuple[CampaignCreative, Campaign, AdvertiserOrganization]], int]:
+    filters = [CampaignCreative.status == CreativeStatus.PENDING_REVIEW.value]
+    total = await session.scalar(
+        select(func.count()).select_from(CampaignCreative).where(*filters)
+    )
+    rows = (
+        await session.execute(
+            select(CampaignCreative, Campaign, AdvertiserOrganization)
+            .join(Campaign, Campaign.id == CampaignCreative.campaign_id)
+            .join(
+                AdvertiserOrganization,
+                AdvertiserOrganization.id == Campaign.organization_id,
+            )
+            .where(*filters)
+            .order_by(CampaignCreative.updated_at, CampaignCreative.id)
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+    return [(row[0], row[1], row[2]) for row in rows], int(total or 0)

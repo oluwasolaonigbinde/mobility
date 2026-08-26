@@ -10,6 +10,8 @@ import AdminApprovalsPage from "./page";
 
 const CAMPAIGN_ID = "00000000-0000-4000-8000-00000000000a";
 const EVENT_ID = "00000000-0000-4000-8000-00000000000b";
+const CREATIVE_ID = "00000000-0000-4000-8000-00000000000d";
+const CREATIVE_EVENT_ID = "00000000-0000-4000-8000-00000000000e";
 
 describe("AdminApprovalsPage", () => {
   beforeEach(() => get.mockReset());
@@ -40,6 +42,28 @@ describe("AdminApprovalsPage", () => {
         data: {
           items: [
             {
+              creative: {
+                id: CREATIVE_ID,
+                campaign_id: CAMPAIGN_ID,
+                name: "Exterior wrap",
+                creative_type: "image",
+                placement: "vehicle_exterior",
+                status: "pending_review",
+                mime_type: "image/png",
+              },
+              campaign_name: "Rainy season launch",
+              organization: { name: "Acme Ads" },
+            },
+          ],
+          total: 1,
+          limit: 25,
+          offset: 0,
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          items: [
+            {
               id: EVENT_ID,
               campaign_id: CAMPAIGN_ID,
               actor_user_id: "00000000-0000-4000-8000-00000000000c",
@@ -50,6 +74,27 @@ describe("AdminApprovalsPage", () => {
               reviewed_snapshot_sha256: "a".repeat(64),
               submission_event_id: null,
               created_at: "2026-08-24T10:00:00Z",
+            },
+          ],
+          total: 1,
+          limit: 10,
+          offset: 0,
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          items: [
+            {
+              id: CREATIVE_EVENT_ID,
+              creative_id: CREATIVE_ID,
+              actor_user_id: "00000000-0000-4000-8000-00000000000c",
+              prior_status: "draft",
+              new_status: "pending_review",
+              rejection_reason: null,
+              reviewed_snapshot: { name: "Exterior wrap" },
+              reviewed_snapshot_sha256: "b".repeat(64),
+              submission_event_id: null,
+              created_at: "2026-08-24T10:05:00Z",
             },
           ],
           total: 1,
@@ -68,11 +113,22 @@ describe("AdminApprovalsPage", () => {
     expect(within(card).getByLabelText("Rejection reason")).toBeInTheDocument();
     expect(within(card).getByRole("button", { name: "Approve" })).toBeInTheDocument();
     expect(within(card).getByRole("button", { name: "Reject" })).toBeInTheDocument();
+    const creativeCard = screen.getByTestId(`creative-approval-${CREATIVE_ID}`);
+    expect(within(creativeCard).getByText("Exterior wrap")).toBeInTheDocument();
+    expect(within(creativeCard).getByText("Rainy season launch")).toBeInTheDocument();
+    expect(within(creativeCard).getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(within(creativeCard).getByRole("button", { name: "Reject" })).toBeInTheDocument();
     expect(get).toHaveBeenNthCalledWith(1, "/api/v1/admin/campaigns/pending-review", {
       params: { query: { limit: 25, offset: 0 } },
     });
-    expect(get).toHaveBeenNthCalledWith(2, "/api/v1/admin/campaigns/{campaign_id}/review-history", {
+    expect(get).toHaveBeenNthCalledWith(2, "/api/v1/admin/creatives/pending-review", {
+      params: { query: { limit: 25, offset: 0 } },
+    });
+    expect(get).toHaveBeenNthCalledWith(3, "/api/v1/admin/campaigns/{campaign_id}/review-history", {
       params: { path: { campaign_id: CAMPAIGN_ID }, query: { limit: 10, offset: 0 } },
+    });
+    expect(get).toHaveBeenNthCalledWith(4, "/api/v1/admin/creatives/{creative_id}/review-history", {
+      params: { path: { creative_id: CREATIVE_ID }, query: { limit: 10, offset: 0 } },
     });
   });
 
@@ -81,7 +137,7 @@ describe("AdminApprovalsPage", () => {
 
     render(await AdminApprovalsPage());
 
-    expect(screen.getByText("No campaigns awaiting review")).toBeInTheDocument();
-    expect(get).toHaveBeenCalledOnce();
+    expect(screen.getByText("Nothing awaiting review")).toBeInTheDocument();
+    expect(get).toHaveBeenCalledTimes(2);
   });
 });

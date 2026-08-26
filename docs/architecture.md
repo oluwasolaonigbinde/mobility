@@ -1404,10 +1404,10 @@ nothing.
 
 ## 18. Approval workflows
 
-Q6, Q15, Q17 and Q18 are client-confirmed. Campaign review is [BUILT] through
-W2-03A; creative review, installation evidence and atomic activation remain
-[TARGET] and must honour RM12/RM13's funded-liability, evidence and
-atomic-activation contracts.
+Q6, Q15, Q17 and Q18 are client-confirmed. Campaign and creative review are
+[BUILT] through W2-03B; installation evidence and atomic activation remain
+[TARGET] and must honour RM12/RM13's funded-liability, evidence and atomic-
+activation contracts.
 
 - **Campaign approval [BUILT — W2-03A]:** the campaign status enum and typed
   consumers include `pending_review`, `approved` and `rejected`. Dedicated,
@@ -1420,11 +1420,22 @@ atomic-activation contracts.
   same transaction. Advertisers see tenant-scoped history and admins review the
   cross-tenant queue at `/admin/approvals`. Approval deliberately does **not**
   schedule or activate: the later `approved → scheduled` edge remains [TARGET]
-  behind W2-03B/C/D's complete launch gate. There is no parallel `is_approved`
+  behind W2-03C/D's complete launch gate. There is no parallel `is_approved`
   flag.
-- **Creative approval:** same pattern on `campaign_creatives.status`
-  (`pending_review → approved | rejected`), tied to upload (§19) — an
-  unapproved creative blocks scheduling/activation per Q6/Q18 and RM13.
+- **Creative approval [BUILT — W2-03B]:** migration `0056` extends the status
+  authority to `draft | rejected → pending_review → approved | rejected` while
+  preserving legacy `ready` as readable but never launch-authoritative. Generic
+  advertiser writes cannot enter a review state; pending/approved definitions
+  freeze, while a rejected definition becomes draft when corrected and may be
+  resubmitted. Each submission binds the exact tenant-owned, scan-clean managed
+  file and immutable canonical snapshot/digest. Admin decisions serialize under
+  campaign→creative→file locks, recheck file safety on approval, require a
+  rejection reason, and bind the one undecided submission in append-only
+  `creative_review_events`. Advertiser history and the combined admin approvals
+  queue expose the governed flow. Offer and activation consumers require
+  `approved` and independently recheck the managed clean identity, so legacy
+  `ready`, rejected, replaced or unsafe assets fail closed. Creative approval
+  alone does not activate work; W2-03C/D remain required.
 - **Activation gate (Q15/Q17):** a campaign-assignment may require evidence
   before the vehicle starts earning — installation photo(s) uploaded by the
   configured pilot operator/driver role, reviewed by admin, recorded against
@@ -1505,7 +1516,7 @@ hashes locally, obtains its condition-bound POST through a same-origin BFF,
 uploads bytes directly to private storage, confirms, polls scan state with
 actionable failure/retry copy, and sends only the cleared stored-file ID to the
 server action. Offer construction independently rechecks the managed clean
-binding so a legacy `ready` row cannot bypass the later W2-03B review gate.
+binding so a legacy `ready` row cannot bypass the built W2-03B review gate.
 
 Migration `0055` extends this same authority rather than creating a KYC upload
 silo. Creative files remain organization-scoped; driver-KYC and vehicle-
@@ -2228,7 +2239,7 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 | Release scheduling | §16.2 | `jobs/` + `services/payouts.py` | ledger statuses | ledger edits (append-only) | Q22 confirmed; RM8 before release |
 | Automated disbursement | §16.3 | `adapters/disbursement/`, `services/payouts.py` | payout_batches (new) | direct vendor calls from services | Q27 confirmed; RM10/RM11; `EXT-DISBURSEMENT-PROVIDER` for live submission |
 | Fraud review workflow | §17 | `services/` + `api/v1/` fraud modules | fraud_flags lifecycle | detection engine internals | Q21 confirmed; RM8 |
-| Campaign/creative approval | §18 | campaign review: `services/campaigns.py` + campaign APIs and role surfaces [BUILT W2-03A]; creative review remains status enums + services [TARGET] | campaign/creative status and append-only review evidence | parallel approval flags; scheduling/activation from W2-03A | Campaign review [BUILT]; creative/activation Q6/Q18 + RM13 |
+| Campaign/creative approval | §18 | `services/campaigns.py` + campaign/creative APIs and combined role surfaces [BUILT W2-03A/B] | campaign/creative status and append-only review evidence | parallel approval flags; scheduling/activation from review actions | Campaign and creative review [BUILT]; activation still requires W2-03C/D + Q6/Q18/RM13 |
 | File upload (any kind) | §19 | `adapters/storage/`, `services/files.py` | stored_files (new) | container FS, DB blobs | Q18/Q26 + provider |
 | Notifications | §20 | `services/notifications.py`, `jobs/`, `adapters/messaging/` | notifications (new) | inline provider calls | Q34 confirmed; provider is parameter |
 | Billing / accepted terms / invoices / payments | §15 | `services/billing.py`, `adapters/payments/` | commercial_terms, invoices, payments (new) | report/cost-summary logic | Q1–Q3, Q14, Q28 confirmed; external provider/company facts for live use |
@@ -2420,6 +2431,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.61 | 2026-08-26 | **W2-03B managed-creative review gate delivered over the existing private upload/scanner foundation.** Migration `0056` adds governed pending/approved/rejected states plus append-only exact-submission snapshots while retaining legacy `ready` only for compatibility. Advertiser writes cannot self-approve, pending/approved definitions freeze, rejected definitions can be corrected and resubmitted, and admin approve/reject decisions serialize under stable locks with reasoned audit and tenant-safe history. Approval rechecks the exact clean managed file. Offer creation and activation now require `approved`, so legacy `ready`, rejected, replaced or unsafe assets fail closed. The combined admin approvals page and advertiser detail surface expose the flow. Focused API/service/assignment/audit checks, a real PostgreSQL opposite-decision race, populated migration round trips, synchronized §9 contracts and frontend tests/type/lint/build pass. Production storage/scanner/KMS inputs remain MISSING, installation evidence/atomic activation remain W2-03C/D, and no live approval, launch, device, route or pilot evidence is claimed. |
 | v1.60 | 2026-08-26 | **W2-02E file/KYC lifecycle and incident operations delivered without inventing a legal retention period or production provider.** Terminal rejected/expired KYC and vehicle-evidence submissions are selected by an optional approved retention setting, planned through a dry-run-first active-admin API, and purged under one PostgreSQL advisory lock. Document links are removed before an unreferenced private object and its intent; shared campaign/KYC files survive, storage failure rolls database deletion back, and each submission/file/run is redacted and audited. The scheduled worker remains visibly disabled while `FILE_KYC_RETENTION_DAYS` is absent. Scanner, storage and key-custody outages remain fail closed, with bounded recovery guidance in the operations runbook. Session refresh, driver profile update and assignment accept/decline/deactivate close the five registered audit gaps without retry amplification. Focused API/service/worker/audit/contract checks and a real PostgreSQL concurrent-purge proof pass. `EXT-LEGAL-PRIVACY`, `EXT-STORAGE-PROVIDER`, `EXT-MALWARE-SCANNER` and `EXT-KMS-CUSTODY` remain MISSING; no live retention, provider, identity or pilot validation is claimed. |
 | v1.59 | 2026-08-26 | **W2-02D protected KYC/key-custody foundation delivered without production-custodian or approval authority.** Migration `0055` extends the one stored-file model with strict organization/driver scope and adds versioned driver-KYC/vehicle-evidence records. Clean subject-owned documents and the same-driver verified bank version bind under stable locks; NIN reuses D17's ciphertext/AAD schema, stays masked outside an active-admin purpose-audited reveal, and supports append-only DEK rewrap whose data ciphertext remains unchanged. The application crypto port is unchanged while an adapter-private custody backend permits local keyrings now and a later production KMS/vault without schema drift. Exact retries converge; cross-driver, uncleared, tampered and unavailable-custody paths fail closed. Focused tests, explicit scan-gate red/green evidence, real PostgreSQL migration/concurrency proofs, synchronized §9 contracts, frontend type/lint/build and a real isolated MinIO→ClamAV→encrypted-KYC flow pass. `EXT-KMS-CUSTODY` remains MISSING; W3-04B/C still own approval and work eligibility, and no live identity/provider/pilot validation is claimed. |
 | v1.58 | 2026-08-26 | **W2-02C managed advertiser creative upload delivered without claiming creative approval or live storage/scanner authority.** Migration `0054` preserves legacy URL rows while adding one unique restrictive stored-file binding for new creatives and refusing downgrade when managed links are populated. New writes lock and tenant-check a purpose-matched clean file, derive MIME/checksum, converge identical retries, conflict on changed reuse, reject advertiser `ready` claims and keep arbitrary URLs out of the write contract. The browser hashes locally, obtains the exact private POST through its session BFF, uploads directly, confirms and polls the fail-closed scan with actionable retry/error state before the server action submits only a cleared file ID. Creative reads label managed versus legacy sources, and offer construction independently rejects legacy or non-clean authority. Focused backend/API/migration/offer/frontend BFF/schema/action/upload tests and synchronized §9 contracts pass; production storage/scanner gates remain MISSING and W2-03B still owns admin creative approval. |

@@ -282,3 +282,49 @@ class CreativeListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class CreativeReviewReject(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1)
+
+    @field_validator("reason")
+    @classmethod
+    def trim_reason(cls, value: str) -> str:
+        return normalize_required_text(value)
+
+
+class CreativeReviewEventRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    creative_id: UUID
+    actor_user_id: UUID
+    prior_status: CreativeStatus
+    new_status: CreativeStatus
+    rejection_reason: str | None
+    reviewed_snapshot: dict[str, Any] | None
+    reviewed_snapshot_sha256: str | None
+    submission_event_id: UUID | None
+    created_at: datetime
+
+
+class CreativeReviewEventListResponse(BaseModel):
+    items: list[CreativeReviewEventRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class AdminCreativeReviewItem(BaseModel):
+    creative: CreativeRead
+    campaign_name: str
+    organization: AdminCampaignOrganizationSummary
+
+
+class AdminCreativeReviewListResponse(BaseModel):
+    items: list[AdminCreativeReviewItem]
+    total: int
+    limit: int
+    offset: int

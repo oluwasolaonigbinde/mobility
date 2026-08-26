@@ -10,9 +10,10 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ POST: mocks.post }) }));
 
-import { reviewCampaignAction } from "./actions";
+import { reviewCampaignAction, reviewCreativeAction } from "./actions";
 
 const CAMPAIGN_ID = "00000000-0000-4000-8000-00000000000a";
+const CREATIVE_ID = "00000000-0000-4000-8000-00000000000b";
 
 function reviewForm(intent: "approve" | "reject", reason = ""): FormData {
   const form = new FormData();
@@ -67,5 +68,44 @@ describe("reviewCampaignAction", () => {
       error: "Campaign review state changed. Refresh and try again.",
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("reviewCreativeAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.post.mockResolvedValue({ data: {} });
+  });
+
+  function creativeForm(intent: "approve" | "reject", reason = ""): FormData {
+    const form = new FormData();
+    form.set("creative_id", CREATIVE_ID);
+    form.set("intent", intent);
+    form.set("reason", reason);
+    return form;
+  }
+
+  it("uses the dedicated creative decision endpoints and requires rejection reason", async () => {
+    await expect(reviewCreativeAction({}, creativeForm("approve"))).resolves.toEqual({
+      done: "Creative approved",
+    });
+    expect(mocks.post).toHaveBeenCalledWith("/api/v1/admin/creatives/{creative_id}/approve", {
+      params: { path: { creative_id: CREATIVE_ID } },
+    });
+
+    vi.clearAllMocks();
+    await expect(reviewCreativeAction({}, creativeForm("reject", "  "))).resolves.toEqual({
+      error: "A rejection reason is required",
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
+
+    await expect(
+      reviewCreativeAction({}, creativeForm("reject", "  Replace the low-resolution asset. ")),
+    ).resolves.toEqual({ done: "Creative rejected" });
+    expect(mocks.post).toHaveBeenCalledWith("/api/v1/admin/creatives/{creative_id}/reject", {
+      params: { path: { creative_id: CREATIVE_ID } },
+      body: { reason: "Replace the low-resolution asset." },
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/approvals");
   });
 });

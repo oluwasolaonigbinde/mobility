@@ -18,6 +18,7 @@ import { Stat } from "@/components/ui/stat";
 import { StatusChip } from "@/components/ui/status-chip";
 import { StatusActions } from "./status-actions";
 import { CommercialPanel } from "./commercial-panel";
+import { CreativeStatusActions } from "./creative-status-actions";
 
 export const metadata: Metadata = { title: "Campaign" };
 
@@ -279,17 +280,26 @@ export default async function CampaignDetailPage({
                         : " · legacy URL (not launch-authoritative)"}
                     </p>
                   </div>
-                  <StatusChip
-                    tone={
-                      cr.status === "ready"
-                        ? "green"
-                        : cr.status === "archived"
-                          ? "default"
-                          : "amber"
-                    }
-                  >
-                    {cr.status}
-                  </StatusChip>
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    <StatusChip
+                      tone={
+                        cr.status === "approved"
+                          ? "green"
+                          : cr.status === "rejected"
+                            ? "coral"
+                            : cr.status === "archived" || cr.status === "ready"
+                              ? "default"
+                              : "amber"
+                      }
+                    >
+                      {cr.status.replace("_", " ")}
+                    </StatusChip>
+                    <CreativeStatusActions
+                      campaignId={campaign.id}
+                      creativeId={cr.id}
+                      status={cr.status}
+                    />
+                  </div>
                 </li>
               ))}
             </ul>

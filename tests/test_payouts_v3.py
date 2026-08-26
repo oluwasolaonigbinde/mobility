@@ -123,7 +123,7 @@ def build_offered_graph(db_sessionmaker, tag: str) -> SimpleNamespace:
     creative = create_test_campaign_creative(
         db_sessionmaker,
         campaign_id=campaign.id,
-        creative_status=CreativeStatus.READY,
+        creative_status=CreativeStatus.APPROVED,
     )
     target_zone = create_test_campaign_zone(
         db_sessionmaker,

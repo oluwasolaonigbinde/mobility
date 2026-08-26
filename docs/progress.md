@@ -63,10 +63,10 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 clarification corrects the prior false pause: missing production storage,
 scanner, KMS, email and phone inputs remain explicit live/deployment gates but
 do not block provider-neutral/local/synthetic implementation under D23.
-**Current checkpoint:** `PKG-04 / W2-03B` — add the admin creative review gate
-over the completed managed-file/scan foundation; W2-02E file/KYC lifecycle and
-incident operations are complete. No production storage/scanner/KMS provider,
-custodian, creative/KYC approval, launch, live KYC, real-GPS, external-staging,
+**Current checkpoint:** `PKG-04 / W2-03C` — add assignment-bound installation
+evidence and proof-of-display over the completed managed-file/scan and creative-
+review foundation. No production storage/scanner/KMS provider, custodian, live
+creative/KYC/evidence approval, launch, live KYC, real-GPS, external-staging,
 physical-device or pilot evidence is claimed.
 
 ## Executable package queue
@@ -563,6 +563,26 @@ physical-device or pilot evidence is claimed.
   Chromium (2 passes). All three §9 baselines moved together. No provider,
   scheduling, activation, physical-device, real-route, staging, pilot or
   user-feedback validation is claimed.
+- **W2-03B checkpoint evidence (26 Aug 2026):** migration `0056` adds the
+  `draft | rejected → pending_review → approved | rejected` managed-creative
+  lifecycle and append-only, exact-submission-bound snapshot evidence without
+  removing readable legacy `ready` rows. Advertisers cannot write review
+  states; pending/approved definitions are frozen, rejected definitions can be
+  corrected and resubmitted, and approval rechecks the tenant-owned exact clean
+  file under campaign→creative→file locks. The combined approvals page exposes
+  campaign and creative queues, reasoned decisions and immutable history, while
+  the advertiser campaign page submits reviewable creatives. Offer creation
+  and activation now require `approved`; legacy `ready`, rejected, replaced or
+  newly unsafe assets fail closed. An initial two-endpoint 404 red run preceded
+  the implementation; a resubmission regression then exposed and corrected a
+  same-second event-order bug by selecting the one undecided submission.
+  Fifty-nine focused campaign/creative/assignment/audit checks pass with ten
+  expected environment skips, as do the real PostgreSQL opposite-decision race,
+  two populated migration round-trip/append-only checks, six contract/audit
+  checks with one expected skip, Ruff, 12 frontend approval/action checks,
+  typecheck, lint and the production frontend build. Regenerated §9 contracts
+  are byte-stable. W2-02C's real local MinIO→ClamAV foundation remains the file
+  boundary; this checkpoint adds no production provider or live approval claim.
 - **Corrected-authority seam evidence (24 Aug 2026):** Package 4 migration
   `0043` now descends from Package 3 head `0042`. The adopted Package 3
   campaign/terms currency lock initially exposed one stale-update ordering
@@ -1017,7 +1037,7 @@ verification, gates or required specialist review.
 | 31 | **W2-02D — encrypted KYC and financial identifiers** | PKG-04 | DONE | Required documents/NIN/bank data reuse the crypto port and are protected/version-reviewed; production custody remains gated by EXT-KMS-CUSTODY. | leaf: W2-02B, MNY-10A |
 | 32 | **W2-02E — file/KYC lifecycle and incident operations** | PKG-04 | DONE | File/KYC purge plus scanner/key/vendor failures are tested and audited. | leaf: W2-02B, W2-02D |
 | 33 | **W2-03A — campaign submission and approval** | PKG-04 | DONE | Advertiser submits; admin approves/rejects; unapproved campaigns cannot schedule. | none |
-| 34 | **W2-03B — creative review gate** | PKG-04 | TODO | Only admin-approved, scan-cleared creative can satisfy campaign launch. | leaf: W2-02C |
+| 34 | **W2-03B — creative review gate** | PKG-04 | DONE | Only admin-approved, scan-cleared creative can satisfy campaign launch. | leaf: W2-02C |
 | 35 | **W2-03C — installation evidence and proof-of-display** | PKG-04 | TODO | Assignment-bound evidence and nonce proof gate earning eligibility. | leaf: W2-02B |
 | 36 | **W2-03D — atomic activation** | PKG-04 | TODO | One admin command locks/rechecks every commercial and operational prerequisite, including valid standard-wait or expedited-waiver production authority. | leaf: W2-00C, W2-01A, W2-01B, W2-03A, W2-03B, W2-03C |
 | 37 | **W2-03E — governed mid-flight changes** | PKG-04 | TODO | Expansions honor funded headroom; reductions need approval and effective revisions. | leaf: W2-00A, W2-00C, W2-03D |

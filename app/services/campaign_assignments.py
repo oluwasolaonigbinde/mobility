@@ -1107,10 +1107,10 @@ async def build_offer_terms(
         .where(CampaignCreative.id == creative_id, CampaignCreative.campaign_id == campaign.id)
         .with_for_update()
     )
-    if creative is None or creative.status != CreativeStatus.READY.value:
+    if creative is None or creative.status != CreativeStatus.APPROVED.value:
         raise AppError(
-            "READY_CAMPAIGN_CREATIVE_REQUIRED",
-            "A currently ready campaign creative must be selected for an offer",
+            "APPROVED_CAMPAIGN_CREATIVE_REQUIRED",
+            "A currently approved campaign creative must be selected for an offer",
             status_code=status.HTTP_409_CONFLICT,
         )
     stored_file = creative.stored_file
@@ -1126,7 +1126,7 @@ async def build_offer_terms(
     ):
         raise AppError(
             "MANAGED_CLEAN_CREATIVE_REQUIRED",
-            "A ready creative must remain bound to its clean managed file before offering",
+            "An approved creative must remain bound to its clean managed file before offering",
             status_code=status.HTTP_409_CONFLICT,
         )
     if campaign.start_at is None or campaign.end_at is None:
@@ -1662,17 +1662,17 @@ async def activate_admin_assignment(
         .where(CampaignCreative.id == creative_id, CampaignCreative.campaign_id == campaign.id)
         .with_for_update()
     )
-    if creative is None or creative.status != CreativeStatus.READY.value:
+    if creative is None or creative.status != CreativeStatus.APPROVED.value:
         raise AppError(
-            "READY_CAMPAIGN_CREATIVE_REQUIRED",
-            "The selected campaign creative is no longer ready",
+            "APPROVED_CAMPAIGN_CREATIVE_REQUIRED",
+            "The selected campaign creative is no longer approved",
             status_code=status.HTTP_409_CONFLICT,
         )
     try:
         current_creative = _creative_snapshot(creative)
     except AppError as exc:
         raise AppError(
-            "READY_CAMPAIGN_CREATIVE_REQUIRED",
+            "APPROVED_CAMPAIGN_CREATIVE_REQUIRED",
             "The selected campaign creative has incomplete content identity",
             status_code=status.HTTP_409_CONFLICT,
         ) from exc

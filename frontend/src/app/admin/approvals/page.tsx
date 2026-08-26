@@ -8,14 +8,18 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { ReviewActions } from "./review-actions";
+import { CreativeReviewActions } from "./creative-review-actions";
 
-export const metadata: Metadata = { title: "Campaign approvals" };
+export const metadata: Metadata = { title: "Approvals" };
 
 const PAGE_SIZE = 25;
 
 export default async function AdminApprovalsPage() {
   const api = createApiClient(await getSessionToken());
   const { data: queue } = await api.GET("/api/v1/admin/campaigns/pending-review", {
+    params: { query: { limit: PAGE_SIZE, offset: 0 } },
+  });
+  const { data: creativeQueue } = await api.GET("/api/v1/admin/creatives/pending-review", {
     params: { query: { limit: PAGE_SIZE, offset: 0 } },
   });
   const items = queue?.items ?? [];
@@ -28,21 +32,33 @@ export default async function AdminApprovalsPage() {
     }),
   );
   const historyByCampaignId = new Map(histories);
+  const creativeItems = creativeQueue?.items ?? [];
+  const creativeHistories = await Promise.all(
+    creativeItems.map(async ({ creative }) => {
+      const { data } = await api.GET("/api/v1/admin/creatives/{creative_id}/review-history", {
+        params: { path: { creative_id: creative.id }, query: { limit: 10, offset: 0 } },
+      });
+      return [creative.id, data?.items ?? []] as const;
+    }),
+  );
+  const historyByCreativeId = new Map(creativeHistories);
+  const totalPending = (queue?.total ?? 0) + (creativeQueue?.total ?? 0);
 
   return (
     <div className="animate-rise mx-auto max-w-6xl">
       <PageHeader
-        title="Campaign approvals"
-        eyebrow={`${queue?.total ?? 0} campaign${queue?.total === 1 ? "" : "s"} awaiting review`}
+        title="Approvals"
+        eyebrow={`${totalPending} campaign or creative item${totalPending === 1 ? "" : "s"} awaiting review`}
       />
 
-      {items.length === 0 ? (
+      {items.length === 0 && creativeItems.length === 0 ? (
         <EmptyState
-          title="No campaigns awaiting review"
+          title="Nothing awaiting review"
           body="New submissions will appear here with their immutable review history."
         />
       ) : (
         <div className="flex flex-col gap-4">
+          {items.length ? <h2 className="text-lg font-medium">Campaigns</h2> : null}
           {items.map((campaign) => {
             const history = historyByCampaignId.get(campaign.id) ?? [];
             const submission = history.find((event) => event.new_status === "pending_review");
@@ -110,6 +126,61 @@ export default async function AdminApprovalsPage() {
                     </section>
                   </div>
                   <ReviewActions campaignId={campaign.id} />
+                </div>
+              </Panel>
+            );
+          })}
+          {creativeItems.length ? (
+            <h2 className="mt-4 text-lg font-medium">Managed creatives</h2>
+          ) : null}
+          {creativeItems.map(({ creative, campaign_name: campaignName, organization }) => {
+            const history = historyByCreativeId.get(creative.id) ?? [];
+            const submission = history.find((event) => event.new_status === "pending_review");
+            return (
+              <Panel
+                key={creative.id}
+                className="p-5"
+                data-testid={`creative-approval-${creative.id}`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-5">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusChip tone="amber">Pending review</StatusChip>
+                      <h3 className="font-medium">{creative.name}</h3>
+                    </div>
+                    <dl className="micro text-faint mt-3 grid gap-x-5 gap-y-1 sm:grid-cols-2">
+                      <div>
+                        <dt className="inline">Advertiser: </dt>
+                        <dd className="inline">{organization.name}</dd>
+                      </div>
+                      <div>
+                        <dt className="inline">Campaign: </dt>
+                        <dd className="inline">{campaignName}</dd>
+                      </div>
+                      <div>
+                        <dt className="inline">Type: </dt>
+                        <dd className="inline">
+                          {creative.creative_type} · {creative.placement}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="inline">Validated MIME: </dt>
+                        <dd className="inline">{creative.mime_type ?? "Unavailable"}</dd>
+                      </div>
+                      {submission ? (
+                        <div>
+                          <dt className="inline">Submitted: </dt>
+                          <dd className="inline">{formatDate(submission.created_at)}</dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                    {submission?.reviewed_snapshot_sha256 ? (
+                      <p className="micro text-faint mt-3 font-mono break-all">
+                        Snapshot SHA-256: {submission.reviewed_snapshot_sha256}
+                      </p>
+                    ) : null}
+                  </div>
+                  <CreativeReviewActions creativeId={creative.id} />
                 </div>
               </Panel>
             );

@@ -80,7 +80,7 @@ def create_assignment_ready_graph(
     creative = create_test_campaign_creative(
         db_sessionmaker,
         campaign_id=campaign.id,
-        creative_status=CreativeStatus.READY,
+        creative_status=CreativeStatus.APPROVED,
     )
     create_test_campaign_payout_revision(
         db_sessionmaker,
@@ -507,8 +507,22 @@ def test_offer_creation_fails_closed_after_creative_archive_pg_lock(
         return await asyncio.wait_for(asyncio.gather(producer(), offer()), timeout=10)
 
     _, outcome = asyncio.run(race())
-    assert outcome == "READY_CAMPAIGN_CREATIVE_REQUIRED"
+    assert outcome == "APPROVED_CAMPAIGN_CREATIVE_REQUIRED"
     assert fetch_assignments(postgis_db_sessionmaker) == []
+
+
+def test_offer_creation_rejects_legacy_ready_creative(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    _, campaign, _, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
+    creative_id = UUID(campaign.campaign_metadata["_test_creative_id"])
+    update_creative_status(db_sessionmaker, creative_id, CreativeStatus.READY)
+
+    response = post_assignment(db_client, campaign, profile, vehicle)
+
+    assert response.status_code == http_status.HTTP_409_CONFLICT
+    assert response.json()["error"]["code"] == "APPROVED_CAMPAIGN_CREATIVE_REQUIRED"
 
 
 def fetch_bindings_for_assignment(db_sessionmaker, assignment_id):
@@ -2050,7 +2064,7 @@ def test_admin_activation_checks_campaign_and_driver_gates(
 @pytest.mark.parametrize(
     ("gate", "expected_code"),
     [
-        ("creative", "READY_CAMPAIGN_CREATIVE_REQUIRED"),
+        ("creative", "APPROVED_CAMPAIGN_CREATIVE_REQUIRED"),
         ("binding", "FROZEN_PAYOUT_BINDING_REQUIRED"),
         ("funding", "ASSIGNMENT_FUNDING_REQUIRED"),
         ("production", "PRODUCTION_FINANCIAL_AUTHORITY_REQUIRED"),
@@ -2264,7 +2278,7 @@ def test_admin_activation_owns_final_transition(
     second_creative = create_test_campaign_creative(
         db_sessionmaker,
         campaign_id=second_campaign.id,
-        creative_status=CreativeStatus.READY,
+        creative_status=CreativeStatus.APPROVED,
     )
     create_test_campaign_payout_revision(
         db_sessionmaker,

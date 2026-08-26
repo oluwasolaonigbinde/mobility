@@ -11,6 +11,7 @@ from app.models.campaign import (
     CampaignCreative,
     CampaignReviewEvent,
     CampaignStatus,
+    CreativeReviewEvent,
     CreativeStatus,
     CreativeType,
 )
@@ -19,6 +20,8 @@ from app.schemas.campaigns import (
     AdminCampaignListResponse,
     AdminCampaignOrganizationSummary,
     AdminCampaignRead,
+    AdminCreativeReviewItem,
+    AdminCreativeReviewListResponse,
     CampaignCreate,
     CampaignListResponse,
     CampaignRead,
@@ -29,6 +32,9 @@ from app.schemas.campaigns import (
     CreativeCreate,
     CreativeListResponse,
     CreativeRead,
+    CreativeReviewEventListResponse,
+    CreativeReviewEventRead,
+    CreativeReviewReject,
     CreativeUpdate,
     ensure_timezone_aware,
 )
@@ -37,15 +43,20 @@ from app.services.campaigns import (
     create_campaign,
     create_campaign_creative,
     decide_campaign_review,
+    decide_creative_review,
     get_admin_campaign,
     get_advertiser_campaign,
     get_campaign_creative,
     list_admin_campaigns,
     list_advertiser_campaign_review_events,
     list_advertiser_campaigns,
+    list_advertiser_creative_review_events,
     list_campaign_creatives,
     list_campaign_review_events,
+    list_creative_review_events,
+    list_pending_creative_reviews,
     submit_campaign_for_review,
+    submit_creative_for_review,
     update_advertiser_campaign,
     update_campaign_creative,
 )
@@ -146,6 +157,21 @@ def campaign_review_event_response(event: CampaignReviewEvent) -> CampaignReview
     return CampaignReviewEventRead(
         id=event.id,
         campaign_id=event.campaign_id,
+        actor_user_id=event.actor_user_id,
+        prior_status=event.prior_status,
+        new_status=event.new_status,
+        rejection_reason=event.rejection_reason,
+        reviewed_snapshot=event.reviewed_snapshot,
+        reviewed_snapshot_sha256=event.reviewed_snapshot_sha256,
+        submission_event_id=event.submission_event_id,
+        created_at=event.created_at,
+    )
+
+
+def creative_review_event_response(event: CreativeReviewEvent) -> CreativeReviewEventRead:
+    return CreativeReviewEventRead(
+        id=event.id,
+        creative_id=event.creative_id,
         actor_user_id=event.actor_user_id,
         prior_status=event.prior_status,
         new_status=event.new_status,
@@ -418,6 +444,158 @@ async def advertiser_update_campaign_creative(
     )
     await session.commit()
     return creative_response(creative)
+
+
+@router.post(
+    "/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/submit",
+    response_model=CreativeRead,
+    summary="Submit a managed creative for admin review",
+)
+async def advertiser_submit_creative_review(
+    campaign_id: UUID,
+    creative_id: UUID,
+    current_user: AdvertiserUserDependency,
+    session: SessionDependency,
+) -> CreativeRead:
+    creative = await submit_creative_for_review(
+        session,
+        user_id=current_user.id,
+        campaign_id=campaign_id,
+        creative_id=creative_id,
+    )
+    await session.commit()
+    return creative_response(creative)
+
+
+@router.get(
+    "/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/review-history",
+    response_model=CreativeReviewEventListResponse,
+    summary="List a managed creative's review history",
+)
+async def advertiser_creative_review_history(
+    campaign_id: UUID,
+    creative_id: UUID,
+    current_user: AdvertiserUserDependency,
+    session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> CreativeReviewEventListResponse:
+    events, total = await list_advertiser_creative_review_events(
+        session,
+        user_id=current_user.id,
+        campaign_id=campaign_id,
+        creative_id=creative_id,
+        limit=limit,
+        offset=offset,
+    )
+    return CreativeReviewEventListResponse(
+        items=[creative_review_event_response(event) for event in events],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.post(
+    "/admin/creatives/{creative_id}/approve",
+    response_model=CreativeRead,
+    summary="Approve a pending managed creative",
+)
+async def admin_approve_creative_review(
+    creative_id: UUID,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+) -> CreativeRead:
+    creative = await decide_creative_review(
+        session,
+        admin_user_id=current_user.id,
+        creative_id=creative_id,
+        target_status=CreativeStatus.APPROVED,
+    )
+    await session.commit()
+    return creative_response(creative)
+
+
+@router.post(
+    "/admin/creatives/{creative_id}/reject",
+    response_model=CreativeRead,
+    summary="Reject a pending managed creative",
+)
+async def admin_reject_creative_review(
+    creative_id: UUID,
+    payload: CreativeReviewReject,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+) -> CreativeRead:
+    creative = await decide_creative_review(
+        session,
+        admin_user_id=current_user.id,
+        creative_id=creative_id,
+        target_status=CreativeStatus.REJECTED,
+        rejection_reason=payload.reason,
+    )
+    await session.commit()
+    return creative_response(creative)
+
+
+@router.get(
+    "/admin/creatives/{creative_id}/review-history",
+    response_model=CreativeReviewEventListResponse,
+    summary="List managed-creative review history",
+)
+async def admin_creative_review_history(
+    creative_id: UUID,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> CreativeReviewEventListResponse:
+    del current_user
+    if await session.get(CampaignCreative, creative_id) is None:
+        raise AppError(
+            "CAMPAIGN_CREATIVE_NOT_FOUND",
+            "Campaign creative was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    events, total = await list_creative_review_events(
+        session, creative_id=creative_id, limit=limit, offset=offset
+    )
+    return CreativeReviewEventListResponse(
+        items=[creative_review_event_response(event) for event in events],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get(
+    "/admin/creatives/pending-review",
+    response_model=AdminCreativeReviewListResponse,
+    summary="List managed creatives pending admin review",
+)
+async def admin_pending_creative_reviews(
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> AdminCreativeReviewListResponse:
+    del current_user
+    rows, total = await list_pending_creative_reviews(
+        session, limit=limit, offset=offset
+    )
+    return AdminCreativeReviewListResponse(
+        items=[
+            AdminCreativeReviewItem(
+                creative=creative_response(creative),
+                campaign_name=campaign.name,
+                organization=organization_summary(organization),
+            )
+            for creative, campaign, organization in rows
+        ],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get(

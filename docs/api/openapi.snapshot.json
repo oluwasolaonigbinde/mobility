@@ -204,6 +204,58 @@
         "title": "AdminCampaignRead",
         "type": "object"
       },
+      "AdminCreativeReviewItem": {
+        "properties": {
+          "campaign_name": {
+            "title": "Campaign Name",
+            "type": "string"
+          },
+          "creative": {
+            "$ref": "#/components/schemas/CreativeRead"
+          },
+          "organization": {
+            "$ref": "#/components/schemas/AdminCampaignOrganizationSummary"
+          }
+        },
+        "required": [
+          "creative",
+          "campaign_name",
+          "organization"
+        ],
+        "title": "AdminCreativeReviewItem",
+        "type": "object"
+      },
+      "AdminCreativeReviewListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminCreativeReviewItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "AdminCreativeReviewListResponse",
+        "type": "object"
+      },
       "AdminDriverProfileRead": {
         "properties": {
           "country_code": {
@@ -5575,9 +5627,148 @@
         "title": "CreativeRead",
         "type": "object"
       },
+      "CreativeReviewEventListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CreativeReviewEventRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "CreativeReviewEventListResponse",
+        "type": "object"
+      },
+      "CreativeReviewEventRead": {
+        "properties": {
+          "actor_user_id": {
+            "format": "uuid",
+            "title": "Actor User Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "creative_id": {
+            "format": "uuid",
+            "title": "Creative Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "new_status": {
+            "$ref": "#/components/schemas/CreativeStatus"
+          },
+          "prior_status": {
+            "$ref": "#/components/schemas/CreativeStatus"
+          },
+          "rejection_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejection Reason"
+          },
+          "reviewed_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed Snapshot"
+          },
+          "reviewed_snapshot_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed Snapshot Sha256"
+          },
+          "submission_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submission Event Id"
+          }
+        },
+        "required": [
+          "id",
+          "creative_id",
+          "actor_user_id",
+          "prior_status",
+          "new_status",
+          "rejection_reason",
+          "reviewed_snapshot",
+          "reviewed_snapshot_sha256",
+          "submission_event_id",
+          "created_at"
+        ],
+        "title": "CreativeReviewEventRead",
+        "type": "object"
+      },
+      "CreativeReviewReject": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "CreativeReviewReject",
+        "type": "object"
+      },
       "CreativeStatus": {
         "enum": [
           "draft",
+          "pending_review",
+          "approved",
+          "rejected",
           "ready",
           "archived"
         ],
@@ -17448,6 +17639,244 @@
         ]
       }
     },
+    "/api/v1/admin/creatives/pending-review": {
+      "get": {
+        "operationId": "admin_pending_creative_reviews_api_v1_admin_creatives_pending_review_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCreativeReviewListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List managed creatives pending admin review",
+        "tags": [
+          "Campaigns"
+        ]
+      }
+    },
+    "/api/v1/admin/creatives/{creative_id}/approve": {
+      "post": {
+        "operationId": "admin_approve_creative_review_api_v1_admin_creatives__creative_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "creative_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Creative Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Approve a pending managed creative",
+        "tags": [
+          "Campaigns"
+        ]
+      }
+    },
+    "/api/v1/admin/creatives/{creative_id}/reject": {
+      "post": {
+        "operationId": "admin_reject_creative_review_api_v1_admin_creatives__creative_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "creative_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Creative Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreativeReviewReject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Reject a pending managed creative",
+        "tags": [
+          "Campaigns"
+        ]
+      }
+    },
+    "/api/v1/admin/creatives/{creative_id}/review-history": {
+      "get": {
+        "operationId": "admin_creative_review_history_api_v1_admin_creatives__creative_id__review_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "creative_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Creative Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeReviewEventListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List managed-creative review history",
+        "tags": [
+          "Campaigns"
+        ]
+      }
+    },
     "/api/v1/admin/credit-settlements": {
       "post": {
         "operationId": "admin_record_credit_settlement_api_v1_admin_credit_settlements_post",
@@ -22877,6 +23306,145 @@
           }
         ],
         "summary": "Update campaign creative metadata",
+        "tags": [
+          "Campaigns"
+        ]
+      }
+    },
+    "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/review-history": {
+      "get": {
+        "operationId": "advertiser_creative_review_history_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__review_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "creative_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Creative Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeReviewEventListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List a managed creative's review history",
+        "tags": [
+          "Campaigns"
+        ]
+      }
+    },
+    "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/submit": {
+      "post": {
+        "operationId": "advertiser_submit_creative_review_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__submit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "creative_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Creative Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Submit a managed creative for admin review",
         "tags": [
           "Campaigns"
         ]

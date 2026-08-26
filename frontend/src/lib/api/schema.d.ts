@@ -417,6 +417,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/creatives/pending-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List managed creatives pending admin review */
+        get: operations["admin_pending_creative_reviews_api_v1_admin_creatives_pending_review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/creatives/{creative_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a pending managed creative */
+        post: operations["admin_approve_creative_review_api_v1_admin_creatives__creative_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/creatives/{creative_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a pending managed creative */
+        post: operations["admin_reject_creative_review_api_v1_admin_creatives__creative_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/creatives/{creative_id}/review-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List managed-creative review history */
+        get: operations["admin_creative_review_history_api_v1_admin_creatives__creative_id__review_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/credit-settlements": {
         parameters: {
             query?: never;
@@ -1714,6 +1782,40 @@ export interface paths {
         head?: never;
         /** Update campaign creative metadata */
         patch: operations["advertiser_update_campaign_creative_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/review-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a managed creative's review history */
+        get: operations["advertiser_creative_review_history_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__review_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit a managed creative for admin review */
+        post: operations["advertiser_submit_creative_review_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__submit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/advertiser/campaigns/{campaign_id}/daily-metrics": {
@@ -3043,6 +3145,24 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** AdminCreativeReviewItem */
+        AdminCreativeReviewItem: {
+            /** Campaign Name */
+            campaign_name: string;
+            creative: components["schemas"]["CreativeRead"];
+            organization: components["schemas"]["AdminCampaignOrganizationSummary"];
+        };
+        /** AdminCreativeReviewListResponse */
+        AdminCreativeReviewListResponse: {
+            /** Items */
+            items: components["schemas"]["AdminCreativeReviewItem"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
         };
         /** AdminDriverProfileRead */
         AdminDriverProfileRead: {
@@ -4864,11 +4984,62 @@ export interface components {
             /** Width Px */
             width_px: number | null;
         };
+        /** CreativeReviewEventListResponse */
+        CreativeReviewEventListResponse: {
+            /** Items */
+            items: components["schemas"]["CreativeReviewEventRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** CreativeReviewEventRead */
+        CreativeReviewEventRead: {
+            /**
+             * Actor User Id
+             * Format: uuid
+             */
+            actor_user_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Creative Id
+             * Format: uuid
+             */
+            creative_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            new_status: components["schemas"]["CreativeStatus"];
+            prior_status: components["schemas"]["CreativeStatus"];
+            /** Rejection Reason */
+            rejection_reason: string | null;
+            /** Reviewed Snapshot */
+            reviewed_snapshot: {
+                [key: string]: unknown;
+            } | null;
+            /** Reviewed Snapshot Sha256 */
+            reviewed_snapshot_sha256: string | null;
+            /** Submission Event Id */
+            submission_event_id: string | null;
+        };
+        /** CreativeReviewReject */
+        CreativeReviewReject: {
+            /** Reason */
+            reason: string;
+        };
         /**
          * CreativeStatus
          * @enum {string}
          */
-        CreativeStatus: "draft" | "ready" | "archived";
+        CreativeStatus: "draft" | "pending_review" | "approved" | "rejected" | "ready" | "archived";
         /** CreativeStatusCounts */
         CreativeStatusCounts: {
             /**
@@ -9774,6 +9945,138 @@ export interface operations {
             };
         };
     };
+    admin_pending_creative_reviews_api_v1_admin_creatives_pending_review_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCreativeReviewListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_approve_creative_review_api_v1_admin_creatives__creative_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                creative_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreativeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_reject_creative_review_api_v1_admin_creatives__creative_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                creative_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreativeReviewReject"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreativeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_creative_review_history_api_v1_admin_creatives__creative_id__review_history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                creative_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreativeReviewEventListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_record_credit_settlement_api_v1_admin_credit_settlements_post: {
         parameters: {
             query?: never;
@@ -12598,6 +12901,73 @@ export interface operations {
                 "application/json": components["schemas"]["CreativeUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreativeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advertiser_creative_review_history_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__review_history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                campaign_id: string;
+                creative_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreativeReviewEventListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advertiser_submit_creative_review_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__submit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+                creative_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

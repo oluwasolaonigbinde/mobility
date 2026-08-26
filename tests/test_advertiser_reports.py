@@ -336,7 +336,7 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(db_clien
     create_test_campaign_creative(
         db_sessionmaker,
         campaign_id=campaign.id,
-        creative_status=CreativeStatus.READY,
+        creative_status=CreativeStatus.APPROVED,
     )
     create_test_campaign_creative(
         db_sessionmaker,

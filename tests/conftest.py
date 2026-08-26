@@ -867,7 +867,7 @@ def create_test_campaign_creative(
             managed_file = None
             persisted_checksum = checksum
             persisted_asset_url = asset_url
-            if creative_status == CreativeStatus.READY:
+            if creative_status in {CreativeStatus.READY, CreativeStatus.APPROVED}:
                 campaign = await session.get(Campaign, campaign_id)
                 assert campaign is not None
                 file_id = uuid4()
