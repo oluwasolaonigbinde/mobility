@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
+import { HighExposureZoneInsights } from "@/components/analytics/high-exposure-zone-insights";
 
 export const metadata: Metadata = { title: "Planning source monitoring" };
 
@@ -17,6 +18,18 @@ export default async function AdminPlanningSourcesPage() {
   ]);
   const items = data?.items ?? [];
   const links = linkData?.items ?? [];
+  const campaignIds = [...new Set(links.map((link) => link.campaign_id))];
+  const zoneInsights = new Map(
+    await Promise.all(
+      campaignIds.map(async (campaignId) => {
+        const { data: insight } = await api.GET(
+          "/api/v1/admin/campaigns/{campaign_id}/zone-insights",
+          { params: { path: { campaign_id: campaignId } } },
+        );
+        return [campaignId, insight] as const;
+      }),
+    ),
+  );
   const recommendations = new Map(
     await Promise.all(
       links.map(async (link) => {
@@ -149,6 +162,24 @@ export default async function AdminPlanningSourcesPage() {
           </Panel>
         )}
       </section>
+      {campaignIds.length > 0 ? (
+        <section className="mt-6" aria-labelledby="admin-zone-insights-heading">
+          <h2 id="admin-zone-insights-heading" className="mb-3 font-medium">
+            Governed high-exposure zone reports
+          </h2>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {campaignIds.map((campaignId) => {
+              const insight = zoneInsights.get(campaignId);
+              return insight ? (
+                <div key={campaignId}>
+                  <p className="micro text-faint mb-2 font-mono">Campaign {campaignId}</p>
+                  <HighExposureZoneInsights insight={insight} surface="admin" />
+                </div>
+              ) : null;
+            })}
+          </div>
+        </section>
+      ) : null}
       <p className="micro text-faint mt-5">
         Monitoring is read-only. Live use remains unavailable until legal/privacy approval evidence
         is recorded. Ad-platform activation remains disabled while EXT-AD-PLATFORM is missing.

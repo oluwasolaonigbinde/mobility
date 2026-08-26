@@ -16,10 +16,12 @@ import { fetchHeatmapAction } from "./actions";
 import { Panel } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import { cx } from "@/lib/cx";
+import { HighExposureZoneInsights } from "@/components/analytics/high-exposure-zone-insights";
 
 type Zone = components["schemas"]["CampaignZoneRead"];
 type Heatmap = components["schemas"]["HeatmapFeatureCollection"];
 type Metric = components["schemas"]["HeatmapMetric"];
+type ZoneInsights = components["schemas"]["HighExposureZoneInsightsRead"];
 
 const METRICS: Array<{
   value: Metric;
@@ -99,7 +101,15 @@ function refreshTime(value: string): string {
   }).format(new Date(value));
 }
 
-export function HeatmapView({ campaignId, zones }: { campaignId: string; zones: Zone[] }) {
+export function HeatmapView({
+  campaignId,
+  zones,
+  zoneInsights,
+}: {
+  campaignId: string;
+  zones: Zone[];
+  zoneInsights: ZoneInsights | undefined;
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
@@ -137,17 +147,31 @@ export function HeatmapView({ campaignId, zones }: { campaignId: string; zones: 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
+    const ranks = new Map(
+      zoneInsights?.state === "ready"
+        ? zoneInsights.items.map((item) => [item.zone_id, item.rank])
+        : [],
+    );
     const data = {
       type: "FeatureCollection" as const,
       features: zones.map((z) => ({
         type: "Feature" as const,
-        properties: { zone_type: z.zone_type },
+        properties: { zone_type: z.zone_type, insight_rank: ranks.get(z.id) ?? 0 },
         geometry: z.geometry as unknown as ZoneGeometry,
       })),
     };
     if (!map.getSource(ZONES_SOURCE)) {
       const zc = zoneColors();
       map.addSource(ZONES_SOURCE, { type: "geojson", data });
+      map.addLayer({
+        id: `${ZONES_SOURCE}-ranked-fill`,
+        type: "fill",
+        source: ZONES_SOURCE,
+        paint: {
+          "fill-color": "#ffa62b",
+          "fill-opacity": ["case", [">", ["get", "insight_rank"], 0], 0.16, 0],
+        },
+      });
       map.addLayer({
         id: `${ZONES_SOURCE}-line`,
         type: "line",
@@ -164,13 +188,20 @@ export function HeatmapView({ campaignId, zones }: { campaignId: string; zones: 
             zc.exclusion,
             zc.neutral,
           ],
-          "line-width": 1.5,
+          "line-width": ["case", [">", ["get", "insight_rank"], 0], 3, 1.5],
           "line-dasharray": [2, 2],
         },
       });
     }
+    const source = map.getSource(ZONES_SOURCE) as maplibregl.GeoJSONSource | undefined;
+    source?.setData(data);
+    map.setLayoutProperty(
+      `${ZONES_SOURCE}-ranked-fill`,
+      "visibility",
+      showZones ? "visible" : "none",
+    );
     map.setLayoutProperty(`${ZONES_SOURCE}-line`, "visibility", showZones ? "visible" : "none");
-  }, [zones, mapReady, showZones]);
+  }, [zones, mapReady, showZones, zoneInsights]);
 
   // Fit to zones once (they mark the campaign's home turf)
   const fittedRef = useRef(false);
@@ -308,6 +339,7 @@ export function HeatmapView({ campaignId, zones }: { campaignId: string; zones: 
 
   return (
     <div className="flex flex-col gap-4">
+      {zoneInsights ? <HighExposureZoneInsights insight={zoneInsights} surface="map" /> : null}
       <Panel className="border-edge-strong bg-raised/60 px-4 py-3" data-testid="heatmap-guide">
         <p className="text-ink text-sm font-medium">{selectedMetric.question}</p>
         <p className="text-muted mt-1 text-sm">

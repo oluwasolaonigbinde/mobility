@@ -18,14 +18,17 @@ export default async function CampaignMapPage({
   const { campaignId } = await params;
   const api = createApiClient(await getSessionToken());
 
-  let campaign, zones;
+  let campaign, zones, zoneInsights;
   try {
-    [{ data: campaign }, { data: zones }] = await Promise.all([
+    [{ data: campaign }, { data: zones }, { data: zoneInsights }] = await Promise.all([
       api.GET("/api/v1/advertiser/campaigns/{campaign_id}", {
         params: { path: { campaign_id: campaignId } },
       }),
       api.GET("/api/v1/advertiser/campaigns/{campaign_id}/zones", {
         params: { path: { campaign_id: campaignId }, query: { limit: 100 } },
+      }),
+      api.GET("/api/v1/advertiser/campaigns/{campaign_id}/zone-insights", {
+        params: { path: { campaign_id: campaignId } },
       }),
     ]);
   } catch (error) {
@@ -59,7 +62,11 @@ export default async function CampaignMapPage({
         campaign operated in.
       </p>
 
-      <HeatmapView campaignId={campaign.id} zones={zones?.items ?? []} />
+      <HeatmapView
+        campaignId={campaign.id}
+        zones={zones?.items ?? []}
+        zoneInsights={zoneInsights}
+      />
     </div>
   );
 }

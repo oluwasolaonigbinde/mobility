@@ -11,6 +11,7 @@ import { Stat } from "@/components/ui/stat";
 import { StatusChip } from "@/components/ui/status-chip";
 import { AreaTimeseries, BarTimeseries, type SeriesPoint } from "@/components/charts/timeseries";
 import { MeasurementHeadlineStats } from "./measurement-headline-stats";
+import { HighExposureZoneInsights } from "@/components/analytics/high-exposure-zone-insights";
 
 export const metadata: Metadata = { title: "Campaign Performance Analysis" };
 
@@ -115,6 +116,12 @@ export default async function CampaignReportPage({
           hint="Flagged delivery quality — billing is tracked separately"
         />
       </div>
+
+      {report.high_exposure_zone_insights ? (
+        <div className="mt-6">
+          <HighExposureZoneInsights insight={report.high_exposure_zone_insights} surface="report" />
+        </div>
+      ) : null}
 
       {/* Charts */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
