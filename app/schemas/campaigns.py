@@ -1,7 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
-from urllib.parse import urlsplit
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -15,6 +14,7 @@ from pydantic import (
 
 from app.models.campaign import CampaignStatus, CreativePlacement, CreativeStatus, CreativeType
 from app.models.organization import OrganizationStatus
+from app.models.stored_file import FileScanStatus
 from app.schemas.drivers import normalize_optional_text
 from app.schemas.vehicles import normalize_required_text
 
@@ -32,15 +32,6 @@ def ensure_timezone_aware(value: datetime | None) -> datetime | None:
     if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
         raise ValueError("Datetime must include timezone information")
     return value
-
-
-def trim_non_empty_optional(value: str | None, field_name: str) -> str | None:
-    if value is None:
-        return None
-    stripped = value.strip()
-    if not stripped:
-        raise ValueError(f"{field_name} must not be blank")
-    return stripped
 
 
 class DecimalStringMixin(BaseModel):
@@ -231,12 +222,10 @@ class CreativeCreate(BaseModel):
     name: str = Field(min_length=1)
     creative_type: CreativeType
     placement: CreativePlacement
-    asset_url: str | None = None
-    mime_type: str | None = None
+    stored_file_id: UUID
     width_px: int | None = Field(default=None, gt=0)
     height_px: int | None = Field(default=None, gt=0)
     duration_seconds: int | None = Field(default=None, gt=0)
-    checksum: str | None = None
     status: CreativeStatus = CreativeStatus.DRAFT
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -245,40 +234,16 @@ class CreativeCreate(BaseModel):
     def trim_name(cls, value: str) -> str:
         return normalize_required_text(value)
 
-    @field_validator("asset_url")
-    @classmethod
-    def validate_asset_url(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        stripped = value.strip()
-        parsed = urlsplit(stripped)
-        if not stripped or parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise ValueError("Asset URL must be an HTTP or HTTPS URL")
-        return stripped
-
-    @field_validator("mime_type")
-    @classmethod
-    def trim_mime_type(cls, value: str | None) -> str | None:
-        return trim_non_empty_optional(value, "mime_type")
-
-    @field_validator("checksum")
-    @classmethod
-    def trim_checksum(cls, value: str | None) -> str | None:
-        return normalize_optional_text(value)
-
-
 class CreativeUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(default=None, min_length=1)
     creative_type: CreativeType | None = None
     placement: CreativePlacement | None = None
-    asset_url: str | None = None
-    mime_type: str | None = None
+    stored_file_id: UUID | None = None
     width_px: int | None = Field(default=None, gt=0)
     height_px: int | None = Field(default=None, gt=0)
     duration_seconds: int | None = Field(default=None, gt=0)
-    checksum: str | None = None
     status: CreativeStatus | None = None
     metadata: dict[str, Any] | None = None
 
@@ -289,28 +254,6 @@ class CreativeUpdate(BaseModel):
             return None
         return normalize_required_text(value)
 
-    @field_validator("asset_url")
-    @classmethod
-    def validate_asset_url(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        stripped = value.strip()
-        parsed = urlsplit(stripped)
-        if not stripped or parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise ValueError("Asset URL must be an HTTP or HTTPS URL")
-        return stripped
-
-    @field_validator("mime_type")
-    @classmethod
-    def trim_mime_type(cls, value: str | None) -> str | None:
-        return trim_non_empty_optional(value, "mime_type")
-
-    @field_validator("checksum")
-    @classmethod
-    def trim_checksum(cls, value: str | None) -> str | None:
-        return normalize_optional_text(value)
-
-
 class CreativeRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -319,6 +262,9 @@ class CreativeRead(BaseModel):
     name: str
     creative_type: CreativeType
     placement: CreativePlacement
+    stored_file_id: UUID | None
+    asset_source: Literal["managed_file", "legacy_url"]
+    scan_status: FileScanStatus | None
     asset_url: str | None
     mime_type: str | None
     width_px: int | None

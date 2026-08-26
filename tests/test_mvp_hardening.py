@@ -14,7 +14,7 @@ from app.main import create_app
 from app.models.user import UserRole
 
 SNAPSHOT_PATH = Path("docs/api/openapi.snapshot.json")
-EXPECTED_ALEMBIC_HEAD = "0053_file_scanning"
+EXPECTED_ALEMBIC_HEAD = "0054_managed_creatives"
 EXPECTED_MIGRATIONS = {
     "0001_enable_extensions.py",
     "0002_identity_and_organizations.py",
@@ -69,6 +69,7 @@ EXPECTED_MIGRATIONS = {
     "0051_canonical_impression_authority.py",
     "0052_stored_files.py",
     "0053_file_scanning.py",
+    "0054_managed_creatives.py",
 }
 MAJOR_CONTRACT_PATHS = {
     "health": "/api/v1/health",

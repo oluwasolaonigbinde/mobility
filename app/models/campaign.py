@@ -13,12 +13,14 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.models.stored_file import StoredFile
 
 
 class CampaignStatus(StrEnum):
@@ -212,6 +214,11 @@ class CampaignCreative(Base):
             "duration_seconds IS NULL OR duration_seconds > 0",
             name="ck_campaign_creatives_duration_positive",
         ),
+        CheckConstraint(
+            "stored_file_id IS NULL OR asset_url IS NULL",
+            name="ck_campaign_creatives_managed_asset_url",
+        ),
+        UniqueConstraint("stored_file_id", name="uq_campaign_creatives_stored_file"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -227,6 +234,11 @@ class CampaignCreative(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     creative_type: Mapped[str] = mapped_column(String(32), nullable=False)
     placement: Mapped[str] = mapped_column(String(32), nullable=False)
+    stored_file_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("stored_files.id", ondelete="RESTRICT"),
+        index=False,
+    )
+    stored_file: Mapped[StoredFile | None] = relationship(lazy="selectin")
     asset_url: Mapped[str | None] = mapped_column(Text)
     mime_type: Mapped[str | None] = mapped_column(String(255))
     width_px: Mapped[int | None] = mapped_column(Integer)

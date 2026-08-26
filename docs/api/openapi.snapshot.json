@@ -5303,28 +5303,6 @@
       "CreativeCreate": {
         "additionalProperties": false,
         "properties": {
-          "asset_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Asset Url"
-          },
-          "checksum": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Checksum"
-          },
           "creative_type": {
             "$ref": "#/components/schemas/CreativeType"
           },
@@ -5357,17 +5335,6 @@
             "title": "Metadata",
             "type": "object"
           },
-          "mime_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Mime Type"
-          },
           "name": {
             "minLength": 1,
             "title": "Name",
@@ -5379,6 +5346,11 @@
           "status": {
             "$ref": "#/components/schemas/CreativeStatus",
             "default": "draft"
+          },
+          "stored_file_id": {
+            "format": "uuid",
+            "title": "Stored File Id",
+            "type": "string"
           },
           "width_px": {
             "anyOf": [
@@ -5396,7 +5368,8 @@
         "required": [
           "name",
           "creative_type",
-          "placement"
+          "placement",
+          "stored_file_id"
         ],
         "title": "CreativeCreate",
         "type": "object"
@@ -5445,6 +5418,14 @@
       },
       "CreativeRead": {
         "properties": {
+          "asset_source": {
+            "enum": [
+              "managed_file",
+              "legacy_url"
+            ],
+            "title": "Asset Source",
+            "type": "string"
+          },
           "asset_url": {
             "anyOf": [
               {
@@ -5530,8 +5511,30 @@
           "placement": {
             "$ref": "#/components/schemas/CreativePlacement"
           },
+          "scan_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileScanStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "$ref": "#/components/schemas/CreativeStatus"
+          },
+          "stored_file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stored File Id"
           },
           "updated_at": {
             "format": "date-time",
@@ -5556,6 +5559,9 @@
           "name",
           "creative_type",
           "placement",
+          "stored_file_id",
+          "asset_source",
+          "scan_status",
           "asset_url",
           "mime_type",
           "width_px",
@@ -5618,28 +5624,6 @@
       "CreativeUpdate": {
         "additionalProperties": false,
         "properties": {
-          "asset_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Asset Url"
-          },
-          "checksum": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Checksum"
-          },
           "creative_type": {
             "anyOf": [
               {
@@ -5686,17 +5670,6 @@
             ],
             "title": "Metadata"
           },
-          "mime_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Mime Type"
-          },
           "name": {
             "anyOf": [
               {
@@ -5728,6 +5701,18 @@
                 "type": "null"
               }
             ]
+          },
+          "stored_file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stored File Id"
           },
           "width_px": {
             "anyOf": [

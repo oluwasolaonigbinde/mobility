@@ -28,6 +28,7 @@ from app.models.campaign_assignment import (
 from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.payout import AssignmentRuleBinding, CampaignPayoutRuleRevision
+from app.models.stored_file import FilePurpose, FileScanStatus
 from app.models.trip_analytics import TripAnalytics, TripAnalyticsStatus
 from app.models.user import User
 from app.models.vehicle import Vehicle, VehicleStatus, VehicleType
@@ -952,7 +953,7 @@ def _creative_content_identity(creative: CampaignCreative) -> dict[str, object]:
         )
     content = {
         "checksum": creative.checksum.strip(),
-        "asset_url": creative.asset_url,
+        "stored_file_id": str(creative.stored_file_id),
         "mime_type": creative.mime_type,
         "width_px": creative.width_px,
         "height_px": creative.height_px,
@@ -1109,6 +1110,22 @@ async def build_offer_terms(
         raise AppError(
             "READY_CAMPAIGN_CREATIVE_REQUIRED",
             "A currently ready campaign creative must be selected for an offer",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    stored_file = creative.stored_file
+    if (
+        creative.stored_file_id is None
+        or stored_file is None
+        or stored_file.organization_id != campaign.organization_id
+        or stored_file.purpose != FilePurpose.CREATIVE.value
+        or stored_file.scan_status != FileScanStatus.CLEAN.value
+        or stored_file.checksum_sha256 != creative.checksum
+        or stored_file.content_type != creative.mime_type
+        or stored_file.actual_content_type != creative.mime_type
+    ):
+        raise AppError(
+            "MANAGED_CLEAN_CREATIVE_REQUIRED",
+            "A ready creative must remain bound to its clean managed file before offering",
             status_code=status.HTTP_409_CONFLICT,
         )
     if campaign.start_at is None or campaign.end_at is None:

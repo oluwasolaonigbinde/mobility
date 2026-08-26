@@ -49,23 +49,25 @@ describe("campaignBasicsSchema", () => {
 });
 
 describe("creativeSchema", () => {
-  it("accepts a creative with empty URL (optional)", () => {
+  it("accepts only a creative with a cleared managed file", () => {
     const parsed = creativeSchema.parse({
       name: "Full wrap",
       creative_type: "image",
       placement: "vehicle_exterior",
-      asset_url: "",
+      stored_file_id: "00000000-0000-4000-8000-000000000001",
+      original_filename: "wrap.png",
     });
-    expect(parsed.asset_url).toBeUndefined();
+    expect(parsed.stored_file_id).toBe("00000000-0000-4000-8000-000000000001");
   });
 
-  it("rejects invalid URLs and unknown enums", () => {
+  it("rejects missing managed files and unknown enums", () => {
     expect(
       creativeSchema.safeParse({
         name: "x",
         creative_type: "image",
         placement: "vehicle_exterior",
-        asset_url: "not-a-url",
+        stored_file_id: "",
+        original_filename: "",
       }).success,
     ).toBe(false);
     expect(
@@ -73,7 +75,8 @@ describe("creativeSchema", () => {
         name: "x",
         creative_type: "billboard",
         placement: "vehicle_exterior",
-        asset_url: "",
+        stored_file_id: "00000000-0000-4000-8000-000000000001",
+        original_filename: "wrap.png",
       }).success,
     ).toBe(false);
   });

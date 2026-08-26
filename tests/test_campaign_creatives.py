@@ -1,3 +1,5 @@
+# ruff: noqa: F401, F811
+
 from conftest import (
     auth_headers,
     create_test_campaign,
@@ -7,6 +9,7 @@ from conftest import (
     fetch_audit_events,
 )
 from starlette import status as http_status
+from test_file_scanning import confirm_png, file_boundaries, scan_file
 
 from app.models.organization import MembershipRole
 from app.models.user import UserRole
@@ -39,19 +42,17 @@ def create_advertiser_campaign(
     return advertiser, organization, campaign
 
 
-def creative_payload(**overrides):
+def creative_payload(stored_file_id: str, **overrides):
     payload = {
         "name": " Exterior Wrap Artwork ",
         "creative_type": "image",
         "placement": "vehicle_exterior",
-        "asset_url": " https://example.com/assets/wrap.png ",
-        "mime_type": " image/png ",
+        "stored_file_id": stored_file_id,
         "width_px": 1200,
         "height_px": 800,
         "duration_seconds": None,
-        "checksum": " sha256-placeholder ",
         "status": "draft",
-        "metadata": {"asset": "external-url-only"},
+        "metadata": {"asset": "managed-file"},
     }
     payload.update(overrides)
     return payload
@@ -60,45 +61,58 @@ def creative_payload(**overrides):
 def test_advertiser_owner_can_create_creative_metadata_with_audit(
     db_client,
     db_sessionmaker,
+    file_boundaries,
 ) -> None:
-    _, _, campaign = create_advertiser_campaign(
+    storage, scanner = file_boundaries
+    advertiser, _, campaign = create_advertiser_campaign(
         db_sessionmaker,
         email="owner@example.com",
     )
 
+    stored = confirm_png(db_client, storage, advertiser.email)
+    scan_file(db_sessionmaker, stored["id"], storage, scanner)
     response = db_client.post(
         f"/api/v1/advertiser/campaigns/{campaign.id}/creatives",
         headers=auth_headers(db_client, "owner@example.com", PASSWORD),
-        json=creative_payload(),
+        json=creative_payload(stored["id"]),
     )
 
     assert response.status_code == http_status.HTTP_201_CREATED
     data = response.json()
     assert data["campaign_id"] == str(campaign.id)
     assert data["name"] == "Exterior Wrap Artwork"
-    assert data["asset_url"] == "https://example.com/assets/wrap.png"
+    assert data["stored_file_id"] == stored["id"]
+    assert data["asset_source"] == "managed_file"
+    assert data["asset_url"] is None
     assert data["mime_type"] == "image/png"
-    assert data["checksum"] == "sha256-placeholder"
-    assert data["metadata"] == {"asset": "external-url-only"}
+    assert data["checksum"] == stored["checksum_sha256"]
+    assert data["metadata"] == {"asset": "managed-file"}
     assert "password_hash" not in response.text
 
     audit_events = fetch_audit_events(db_sessionmaker)
-    assert [event.action for event in audit_events] == [
-        "advertiser.campaign_creative.created"
-    ]
+    assert [
+        event.action
+        for event in audit_events
+        if event.action == "advertiser.campaign_creative.created"
+    ] == ["advertiser.campaign_creative.created"]
 
 
-def test_advertiser_manager_can_create_creative_metadata(db_client, db_sessionmaker) -> None:
-    _, _, campaign = create_advertiser_campaign(
+def test_advertiser_manager_can_create_creative_metadata(
+    db_client, db_sessionmaker, file_boundaries
+) -> None:
+    storage, scanner = file_boundaries
+    manager, _, campaign = create_advertiser_campaign(
         db_sessionmaker,
         email="manager@example.com",
         role=MembershipRole.MANAGER,
     )
 
+    stored = confirm_png(db_client, storage, manager.email)
+    scan_file(db_sessionmaker, stored["id"], storage, scanner)
     response = db_client.post(
         f"/api/v1/advertiser/campaigns/{campaign.id}/creatives",
         headers=auth_headers(db_client, "manager@example.com", PASSWORD),
-        json=creative_payload(),
+        json=creative_payload(stored["id"]),
     )
 
     assert response.status_code == http_status.HTTP_201_CREATED
@@ -116,7 +130,7 @@ def test_viewer_cannot_create_or_update_creative_metadata(db_client, db_sessionm
     create_response = db_client.post(
         f"/api/v1/advertiser/campaigns/{campaign.id}/creatives",
         headers=auth_headers(db_client, "viewer@example.com", PASSWORD),
-        json=creative_payload(),
+        json=creative_payload(str(campaign.id)),
     )
     update_response = db_client.patch(
         f"/api/v1/advertiser/campaigns/{campaign.id}/creatives/{creative.id}",
@@ -181,7 +195,7 @@ def test_creative_list_read_and_update_are_campaign_and_tenant_scoped(
     update_response = db_client.patch(
         f"/api/v1/advertiser/campaigns/{campaign.id}/creatives/{own_creative.id}",
         headers=headers,
-        json={"name": " Updated Creative ", "status": "ready", "metadata": {"ready": True}},
+        json={"name": " Updated Creative ", "metadata": {"ready": False}},
     )
 
     assert list_response.status_code == http_status.HTTP_200_OK
@@ -194,8 +208,8 @@ def test_creative_list_read_and_update_are_campaign_and_tenant_scoped(
     assert other_creative_response.status_code == http_status.HTTP_404_NOT_FOUND
     assert update_response.status_code == http_status.HTTP_200_OK
     assert update_response.json()["name"] == "Updated Creative"
-    assert update_response.json()["status"] == "ready"
-    assert update_response.json()["metadata"] == {"ready": True}
+    assert update_response.json()["status"] == "draft"
+    assert update_response.json()["metadata"] == {"ready": False}
 
     audit_events = fetch_audit_events(db_sessionmaker)
     assert [event.action for event in audit_events] == ["advertiser.campaign_creative.updated"]
@@ -208,7 +222,7 @@ def test_creative_create_rejects_cross_org_campaign(db_client, db_sessionmaker) 
     response = db_client.post(
         f"/api/v1/advertiser/campaigns/{other_campaign.id}/creatives",
         headers=auth_headers(db_client, "advertiser@example.com", PASSWORD),
-        json=creative_payload(),
+        json=creative_payload(str(other_campaign.id)),
     )
 
     assert response.status_code == http_status.HTTP_404_NOT_FOUND
@@ -222,18 +236,18 @@ def test_creative_create_validation_rejects_invalid_inputs(db_client, db_session
     )
     headers = auth_headers(db_client, "advertiser@example.com", PASSWORD)
     invalid_payloads = [
-        creative_payload(creative_type="audio"),
-        creative_payload(placement="roof"),
-        creative_payload(status="published"),
-        creative_payload(name="   "),
-        creative_payload(asset_url="ftp://example.com/wrap.png"),
-        creative_payload(asset_url="not-a-url"),
-        creative_payload(mime_type="   "),
-        creative_payload(width_px=0),
-        creative_payload(height_px=-1),
-        creative_payload(duration_seconds=0),
-        creative_payload(metadata=["not", "object"]),
-        creative_payload(binary_data="not-allowed"),
+        creative_payload(str(campaign.id), creative_type="audio"),
+        creative_payload(str(campaign.id), placement="roof"),
+        creative_payload(str(campaign.id), status="published"),
+        creative_payload(str(campaign.id), name="   "),
+        creative_payload("not-a-uuid"),
+        creative_payload(str(campaign.id), asset_url="https://example.com/wrap.png"),
+        creative_payload(str(campaign.id), mime_type="image/png"),
+        creative_payload(str(campaign.id), width_px=0),
+        creative_payload(str(campaign.id), height_px=-1),
+        creative_payload(str(campaign.id), duration_seconds=0),
+        creative_payload(str(campaign.id), metadata=["not", "object"]),
+        creative_payload(str(campaign.id), binary_data="not-allowed"),
     ]
 
     responses = [

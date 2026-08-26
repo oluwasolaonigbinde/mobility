@@ -9,13 +9,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from app.core.errors import AppError
-from app.models.campaign import Campaign, CampaignCreative, CampaignReviewEvent, CampaignStatus
+from app.models.campaign import (
+    Campaign,
+    CampaignCreative,
+    CampaignReviewEvent,
+    CampaignStatus,
+    CreativeStatus,
+    CreativeType,
+)
 from app.models.organization import (
     AdvertiserOrganization,
     MembershipRole,
     MembershipStatus,
     OrganizationMembership,
 )
+from app.models.stored_file import FilePurpose, FileScanStatus, StoredFile
 from app.schemas.campaigns import CampaignCreate, CampaignUpdate, CreativeCreate, CreativeUpdate
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
@@ -157,14 +165,16 @@ async def get_advertiser_campaign(
     *,
     user_id: UUID,
     campaign_id: UUID,
+    lock_campaign: bool = False,
 ) -> Campaign:
     organization, _ = await get_required_advertiser_context(session, user_id)
-    result = await session.execute(
-        select(Campaign).where(
-            Campaign.id == campaign_id,
-            Campaign.organization_id == organization.id,
-        )
+    statement = select(Campaign).where(
+        Campaign.id == campaign_id,
+        Campaign.organization_id == organization.id,
     )
+    if lock_campaign:
+        statement = statement.with_for_update()
+    result = await session.execute(statement)
     campaign = result.scalar_one_or_none()
     if campaign is None:
         raise AppError(
@@ -563,27 +573,129 @@ async def create_campaign_creative(
     user_id: UUID,
     campaign_id: UUID,
     payload: CreativeCreate,
-) -> CampaignCreative:
-    campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
-    await get_required_advertiser_context(session, user_id, require_write=True)
+) -> tuple[CampaignCreative, bool]:
+    organization, _ = await get_required_advertiser_context(
+        session, user_id, require_write=True
+    )
+    campaign = await session.scalar(
+        select(Campaign)
+        .where(Campaign.id == campaign_id, Campaign.organization_id == organization.id)
+        .with_for_update()
+    )
+    if campaign is None:
+        raise AppError(
+            "CAMPAIGN_NOT_FOUND",
+            "Campaign was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    if payload.status == CreativeStatus.READY:
+        raise AppError(
+            "CREATIVE_READY_REQUIRES_REVIEW",
+            "A managed creative can become ready only through creative review",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if payload.status != CreativeStatus.DRAFT:
+        raise AppError(
+            "CREATIVE_CREATE_STATUS_INVALID",
+            "New campaign creatives must start in draft",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    stored_file = await session.scalar(
+        select(StoredFile)
+        .where(
+            StoredFile.id == payload.stored_file_id,
+            StoredFile.organization_id == campaign.organization_id,
+            StoredFile.purpose == FilePurpose.CREATIVE.value,
+        )
+        .with_for_update()
+    )
+    if stored_file is None:
+        raise AppError(
+            "STORED_FILE_NOT_FOUND",
+            "Stored file was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    if stored_file.scan_status != FileScanStatus.CLEAN.value:
+        raise AppError(
+            "CREATIVE_FILE_NOT_CLEARED",
+            "The stored file must pass malware and content validation before binding",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    expected_type = _creative_type_for_content_type(stored_file.content_type)
+    if payload.creative_type.value != expected_type:
+        raise AppError(
+            "CREATIVE_TYPE_MISMATCH",
+            "Creative type does not match the validated stored-file content type",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    existing = await session.scalar(
+        select(CampaignCreative).where(
+            CampaignCreative.stored_file_id == stored_file.id
+        )
+    )
+    if existing is not None:
+        if _creative_create_matches(existing, campaign.id, payload, stored_file):
+            return existing, False
+        raise AppError(
+            "CREATIVE_FILE_ALREADY_BOUND",
+            "The stored file is already bound to a different creative definition",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     creative = CampaignCreative(
         campaign_id=campaign.id,
         name=payload.name,
         creative_type=payload.creative_type,
         placement=payload.placement,
-        asset_url=payload.asset_url,
-        mime_type=payload.mime_type,
+        stored_file_id=stored_file.id,
+        asset_url=None,
+        mime_type=stored_file.content_type,
         width_px=payload.width_px,
         height_px=payload.height_px,
         duration_seconds=payload.duration_seconds,
-        checksum=payload.checksum,
+        checksum=stored_file.checksum_sha256,
         status=payload.status,
         creative_metadata=payload.metadata,
     )
+    creative.stored_file = stored_file
     session.add(creative)
     await session.flush()
     await session.refresh(creative)
-    return creative
+    return creative, True
+
+
+def _creative_type_for_content_type(content_type: str) -> str:
+    normalized = content_type.lower()
+    if normalized.startswith("image/"):
+        return CreativeType.IMAGE.value
+    if normalized.startswith("video/"):
+        return CreativeType.VIDEO.value
+    if normalized == "text/html":
+        return CreativeType.HTML.value
+    if normalized.startswith("text/"):
+        return CreativeType.TEXT.value
+    return CreativeType.OTHER.value
+
+
+def _creative_create_matches(
+    creative: CampaignCreative,
+    campaign_id: UUID,
+    payload: CreativeCreate,
+    stored_file: StoredFile,
+) -> bool:
+    return (
+        creative.campaign_id == campaign_id
+        and creative.name == payload.name
+        and creative.creative_type == payload.creative_type.value
+        and creative.placement == payload.placement.value
+        and creative.stored_file_id == stored_file.id
+        and creative.mime_type == stored_file.content_type
+        and creative.checksum == stored_file.checksum_sha256
+        and creative.width_px == payload.width_px
+        and creative.height_px == payload.height_px
+        and creative.duration_seconds == payload.duration_seconds
+        and creative.status == payload.status.value
+        and creative.creative_metadata == payload.metadata
+    )
 
 
 async def list_campaign_creatives(
@@ -624,14 +736,21 @@ async def get_campaign_creative(
     user_id: UUID,
     campaign_id: UUID,
     creative_id: UUID,
+    lock_creative: bool = False,
 ) -> CampaignCreative:
-    campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
-    result = await session.execute(
-        select(CampaignCreative).where(
-            CampaignCreative.id == creative_id,
-            CampaignCreative.campaign_id == campaign.id,
-        )
+    campaign = await get_advertiser_campaign(
+        session,
+        user_id=user_id,
+        campaign_id=campaign_id,
+        lock_campaign=lock_creative,
     )
+    statement = select(CampaignCreative).where(
+        CampaignCreative.id == creative_id,
+        CampaignCreative.campaign_id == campaign.id,
+    )
+    if lock_creative:
+        statement = statement.with_for_update()
+    result = await session.execute(statement)
     creative = result.scalar_one_or_none()
     if creative is None:
         raise AppError(
@@ -656,9 +775,17 @@ async def update_campaign_creative(
         user_id=user_id,
         campaign_id=campaign_id,
         creative_id=creative_id,
+        lock_creative=True,
     )
     update_values = payload.model_dump(exclude_unset=True)
     changed_fields = list(update_values)
+
+    if update_values.get("status") == CreativeStatus.READY:
+        raise AppError(
+            "CREATIVE_READY_REQUIRES_REVIEW",
+            "A managed creative can become ready only through creative review",
+            status_code=status.HTTP_409_CONFLICT,
+        )
 
     for required_field in ["name", "creative_type", "placement", "status"]:
         if required_field in update_values and update_values[required_field] is None:
@@ -677,6 +804,77 @@ async def update_campaign_creative(
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
         creative.creative_metadata = metadata
+
+    if (
+        "creative_type" in update_values
+        and creative.stored_file is not None
+        and update_values["creative_type"].value
+        != _creative_type_for_content_type(creative.stored_file.content_type)
+    ):
+        raise AppError(
+            "CREATIVE_TYPE_MISMATCH",
+            "Creative type does not match the validated stored-file content type",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+    if "stored_file_id" in update_values:
+        stored_file_id = update_values.pop("stored_file_id")
+        if stored_file_id is None:
+            raise AppError(
+                "INVALID_CAMPAIGN_CREATIVE_UPDATE",
+                "stored_file_id cannot be null",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        campaign = await get_advertiser_campaign(
+            session, user_id=user_id, campaign_id=campaign_id
+        )
+        stored_file = await session.scalar(
+            select(StoredFile)
+            .where(
+                StoredFile.id == stored_file_id,
+                StoredFile.organization_id == campaign.organization_id,
+                StoredFile.purpose == FilePurpose.CREATIVE.value,
+            )
+            .with_for_update()
+        )
+        if stored_file is None:
+            raise AppError(
+                "STORED_FILE_NOT_FOUND",
+                "Stored file was not found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        if stored_file.scan_status != FileScanStatus.CLEAN.value:
+            raise AppError(
+                "CREATIVE_FILE_NOT_CLEARED",
+                "The stored file must pass malware and content validation before binding",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+        existing = await session.scalar(
+            select(CampaignCreative).where(
+                CampaignCreative.stored_file_id == stored_file.id,
+                CampaignCreative.id != creative.id,
+            )
+        )
+        if existing is not None:
+            raise AppError(
+                "CREATIVE_FILE_ALREADY_BOUND",
+                "The stored file is already bound to another creative",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+        requested_type = update_values.get("creative_type", creative.creative_type)
+        requested_type_value = getattr(requested_type, "value", requested_type)
+        if requested_type_value != _creative_type_for_content_type(stored_file.content_type):
+            raise AppError(
+                "CREATIVE_TYPE_MISMATCH",
+                "Creative type does not match the validated stored-file content type",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+        creative.stored_file_id = stored_file.id
+        creative.stored_file = stored_file
+        creative.asset_url = None
+        creative.mime_type = stored_file.content_type
+        creative.checksum = stored_file.checksum_sha256
+        creative.status = CreativeStatus.DRAFT.value
 
     for field, value in update_values.items():
         setattr(creative, field, value)

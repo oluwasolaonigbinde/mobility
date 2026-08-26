@@ -58,7 +58,7 @@ export async function createCampaignAction(
           name: creative.name,
           creative_type: creative.creative_type,
           placement: creative.placement,
-          asset_url: creative.asset_url ?? null,
+          stored_file_id: creative.stored_file_id,
           status: "draft",
         },
       });

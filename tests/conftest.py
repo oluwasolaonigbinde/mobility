@@ -53,6 +53,13 @@ from app.models.payout import (
     EarningsLedgerEntry,
     PayoutCalculation,
 )
+from app.models.stored_file import (
+    FilePurpose,
+    FileScanStatus,
+    FileUploadIntent,
+    StoredFile,
+    UploadIntentStatus,
+)
 from app.models.trip import (
     LocationPing,
     LocationPingBatch,
@@ -857,17 +864,65 @@ def create_test_campaign_creative(
 ) -> CampaignCreative:
     async def create() -> CampaignCreative:
         async with db_sessionmaker() as session:
+            managed_file = None
+            persisted_checksum = checksum
+            persisted_asset_url = asset_url
+            if creative_status == CreativeStatus.READY:
+                campaign = await session.get(Campaign, campaign_id)
+                assert campaign is not None
+                file_id = uuid4()
+                persisted_checksum = (
+                    checksum
+                    if checksum is not None and len(checksum) == 64
+                    else ("a" * 64)
+                )
+                intent = FileUploadIntent(
+                    organization_id=campaign.organization_id,
+                    uploader_user_id=campaign.created_by_user_id,
+                    client_request_id=uuid4(),
+                    request_fingerprint="b" * 64,
+                    purpose=FilePurpose.CREATIVE.value,
+                    original_filename="test-creative.png",
+                    declared_content_type=mime_type or "image/png",
+                    declared_size_bytes=128,
+                    declared_sha256=persisted_checksum,
+                    object_key=f"test-intents/{file_id}",
+                    expires_at=datetime.now(UTC) + timedelta(hours=1),
+                    status=UploadIntentStatus.CONFIRMED.value,
+                )
+                session.add(intent)
+                await session.flush()
+                managed_file = StoredFile(
+                    id=file_id,
+                    upload_intent_id=intent.id,
+                    organization_id=campaign.organization_id,
+                    uploader_user_id=campaign.created_by_user_id,
+                    purpose=FilePurpose.CREATIVE.value,
+                    original_filename="test-creative.png",
+                    storage_key=f"test-files/{file_id}",
+                    content_type=mime_type or "image/png",
+                    size_bytes=128,
+                    checksum_sha256=persisted_checksum,
+                    scan_status=FileScanStatus.CLEAN.value,
+                    actual_content_type=mime_type or "image/png",
+                    scan_attempts=1,
+                    scanned_at=datetime.now(UTC),
+                )
+                session.add(managed_file)
+                persisted_asset_url = None
+                await session.flush()
             creative = CampaignCreative(
                 campaign_id=campaign_id,
                 name=name,
                 creative_type=creative_type,
                 placement=placement,
-                asset_url=asset_url,
+                stored_file_id=managed_file.id if managed_file else None,
+                asset_url=persisted_asset_url,
                 mime_type=mime_type,
                 width_px=width_px,
                 height_px=height_px,
                 duration_seconds=duration_seconds,
-                checksum=checksum,
+                checksum=persisted_checksum,
                 status=creative_status,
                 creative_metadata=metadata or {},
             )

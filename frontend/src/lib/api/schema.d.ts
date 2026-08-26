@@ -4604,10 +4604,6 @@ export interface components {
         };
         /** CreativeCreate */
         CreativeCreate: {
-            /** Asset Url */
-            asset_url?: string | null;
-            /** Checksum */
-            checksum?: string | null;
             creative_type: components["schemas"]["CreativeType"];
             /** Duration Seconds */
             duration_seconds?: number | null;
@@ -4617,13 +4613,16 @@ export interface components {
             metadata?: {
                 [key: string]: unknown;
             };
-            /** Mime Type */
-            mime_type?: string | null;
             /** Name */
             name: string;
             placement: components["schemas"]["CreativePlacement"];
             /** @default draft */
             status: components["schemas"]["CreativeStatus"];
+            /**
+             * Stored File Id
+             * Format: uuid
+             */
+            stored_file_id: string;
             /** Width Px */
             width_px?: number | null;
         };
@@ -4645,6 +4644,11 @@ export interface components {
         CreativePlacement: "vehicle_exterior" | "vehicle_interior" | "digital_screen" | "print" | "other";
         /** CreativeRead */
         CreativeRead: {
+            /**
+             * Asset Source
+             * @enum {string}
+             */
+            asset_source: "managed_file" | "legacy_url";
             /** Asset Url */
             asset_url: string | null;
             /**
@@ -4678,7 +4682,10 @@ export interface components {
             /** Name */
             name: string;
             placement: components["schemas"]["CreativePlacement"];
+            scan_status: components["schemas"]["FileScanStatus"] | null;
             status: components["schemas"]["CreativeStatus"];
+            /** Stored File Id */
+            stored_file_id: string | null;
             /**
              * Updated At
              * Format: date-time
@@ -4722,10 +4729,6 @@ export interface components {
         CreativeType: "image" | "video" | "html" | "text" | "other";
         /** CreativeUpdate */
         CreativeUpdate: {
-            /** Asset Url */
-            asset_url?: string | null;
-            /** Checksum */
-            checksum?: string | null;
             creative_type?: components["schemas"]["CreativeType"] | null;
             /** Duration Seconds */
             duration_seconds?: number | null;
@@ -4735,12 +4738,12 @@ export interface components {
             metadata?: {
                 [key: string]: unknown;
             } | null;
-            /** Mime Type */
-            mime_type?: string | null;
             /** Name */
             name?: string | null;
             placement?: components["schemas"]["CreativePlacement"] | null;
             status?: components["schemas"]["CreativeStatus"] | null;
+            /** Stored File Id */
+            stored_file_id?: string | null;
             /** Width Px */
             width_px?: number | null;
         };

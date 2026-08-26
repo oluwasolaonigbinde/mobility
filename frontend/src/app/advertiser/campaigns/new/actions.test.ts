@@ -48,4 +48,41 @@ describe("createCampaignAction", () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/advertiser/campaigns");
     expect(mocks.redirect).toHaveBeenCalledWith(`/advertiser/campaigns/${CAMPAIGN_ID}`);
   });
+
+  it("binds creatives by managed file id and never sends a browser URL", async () => {
+    await createCampaignAction({
+      basics: {
+        name: "Managed campaign",
+        description: "",
+        start_at: "",
+        end_at: "",
+        budget_amount: "",
+        daily_budget_amount: "",
+      },
+      creatives: [
+        {
+          name: "Wrap",
+          creative_type: "image",
+          placement: "vehicle_exterior",
+          stored_file_id: "00000000-0000-4000-8000-000000000001",
+          original_filename: "wrap.png",
+        },
+      ],
+    });
+
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/advertiser/campaigns/{campaign_id}/creatives",
+      {
+        params: { path: { campaign_id: CAMPAIGN_ID } },
+        body: {
+          name: "Wrap",
+          creative_type: "image",
+          placement: "vehicle_exterior",
+          stored_file_id: "00000000-0000-4000-8000-000000000001",
+          status: "draft",
+        },
+      },
+    );
+  });
 });

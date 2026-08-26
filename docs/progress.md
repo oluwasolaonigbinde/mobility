@@ -63,11 +63,11 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 clarification corrects the prior false pause: missing production storage,
 scanner, KMS, email and phone inputs remain explicit live/deployment gates but
 do not block provider-neutral/local/synthetic implementation under D23.
-**Current checkpoint:** `PKG-04 / W2-02C` — replace arbitrary advertiser
-creative submission URLs with the shared managed, scan-cleared stored-file
-authority while preserving safe legacy reads. No creative approval, launch,
-production provider, live KYC, real-GPS, external-staging, physical-device or
-pilot evidence is claimed.
+**Current checkpoint:** `PKG-04 / W2-02D` — add versioned KYC/financial-
+identifier protection and provider-neutral key-custody/rewrap behavior through
+D17's single crypto port and ciphertext schema. No production KMS/custodian,
+creative approval, launch, live KYC, real-GPS, external-staging, physical-
+device or pilot evidence is claimed.
 
 ## Executable package queue
 
@@ -476,6 +476,28 @@ pilot evidence is claimed.
   `EXT-MALWARE-SCANNER` remains MISSING; the
   official local image runs under explicit amd64 emulation on ARM hosts and no
   production scanner, credential, live file or provider validation is claimed.
+- **W2-02C checkpoint evidence (26 Aug 2026):** migration `0054` preserves
+  readable legacy URL creatives while adding one unique restrictive managed-
+  file binding for new writes and blocking destructive downgrade when such
+  bindings exist. Campaign/file locks, tenant and purpose scope, exact clean-
+  scan state and server-derived MIME/checksum make identical retries converge,
+  changed reuse conflict, pending/infected/cross-tenant/URL-only writes fail
+  closed and advertiser `ready` claims reject. Creative reads identify managed
+  versus legacy sources; offer construction independently rejects legacy or
+  changed/non-clean authority without implementing the W2-03B approval gate.
+  The browser hashes locally, uses same-origin session BFF routes to obtain and
+  confirm an exact private POST, uploads directly to storage, polls scan state
+  with actionable retry/error copy, and submits only the cleared file ID.
+  Initial missing-migration collection failure provides red evidence; 73
+  focused backend/API/offer/migration/head/contract checks, 12 focused frontend
+  schema/action/BFF/upload checks, Ruff, typecheck, lint and the production
+  frontend build pass. Isolated PostgreSQL proofs confirm populated upgrade/
+  downgrade and concurrent same-file convergence; the pre-existing assignment
+  race test also passed on focused retry after one transient local database
+  connection timeout. A real isolated MinIO→ClamAV→creative flow passed and its
+  temporary containers/network were removed. `EXT-STORAGE-PROVIDER` and
+  `EXT-MALWARE-SCANNER` remain MISSING; no production provider, creative
+  approval, live upload, external staging or pilot validation is claimed.
 - **W2-03A checkpoint evidence (24 Aug 2026):** migration `0043` extends the campaign
   lifecycle and adds append-only, exact-submission-bound review evidence.
   Dedicated row-locked advertiser/admin actions enforce submit, approve,
@@ -940,7 +962,7 @@ verification, gates or required specialist review.
 | 27 | **W2-01E — advertiser-spend budget enforcement** | PKG-03 | BLOCKED — EXT-BUDGET-POLICY | Spend facts drive persisted alerts/pauses without using driver payout cost as a proxy. | leaf: W2-01A, W2-01B; external: EXT-BUDGET-POLICY |
 | 28 | **W2-02A — private object-storage foundation** | PKG-04 | DONE | Direct private uploads produce managed stored-file records; production adoption remains gated by EXT-STORAGE-PROVIDER. | none |
 | 29 | **W2-02B — malware scanning and purpose-scoped reads** | PKG-04 | DONE | Unsafe files fail closed and privileged downloads are short-lived/audited; production adoption remains gated by EXT-MALWARE-SCANNER. | leaf: W2-02A |
-| 30 | **W2-02C — advertiser creative upload** | PKG-04 | TODO | Campaign flows use managed scanned assets instead of arbitrary URLs. | leaf: W2-02B |
+| 30 | **W2-02C — advertiser creative upload** | PKG-04 | DONE | Campaign flows use managed scanned assets instead of arbitrary URLs; legacy URL rows remain readable but cannot authorize a new offer. | leaf: W2-02B |
 | 31 | **W2-02D — encrypted KYC and financial identifiers** | PKG-04 | TODO | Required documents/NIN/bank data reuse the crypto port and are protected/version-reviewed; production custody remains gated by EXT-KMS-CUSTODY. | leaf: W2-02B, MNY-10A |
 | 32 | **W2-02E — file/KYC lifecycle and incident operations** | PKG-04 | TODO | File/KYC purge plus scanner/key/vendor failures are tested and audited. | leaf: W2-02B, W2-02D |
 | 33 | **W2-03A — campaign submission and approval** | PKG-04 | DONE | Advertiser submits; admin approves/rejects; unapproved campaigns cannot schedule. | none |

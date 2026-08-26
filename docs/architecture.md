@@ -394,9 +394,11 @@ Every new endpoint must obey all of these:
    `uq_location_ping_batches_trip_idempotency_key`); replays return the recorded
    batch instead of double-counting. Apply the same pattern to any future
    retry-prone write (P9).
-7. **Creatives are metadata-only.** `campaign_creatives` stores `asset_url`,
-   mime type, dimensions, checksum — **no upload pipeline, no file storage**
-   until §19 is built (D7).
+7. **[BUILT — W2-02C] New creatives are managed-file records.** Each new
+   `campaign_creatives` row binds one tenant-owned, purpose-matched clean
+   `stored_files` row; MIME and checksum are server-derived. Nullable
+   `asset_url` remains only for readable legacy rows and cannot authorize a
+   new offer or activation (§19, D7).
 8. **Computation is versioned.** Analytics/impressions/payouts stamp a
    `formula_version` (`route_analytics_v1`, `impressions_v1`, `payout_v1`) from
    settings. Changing a formula means bumping its version, not silently changing
@@ -476,7 +478,7 @@ Demand side (campaigns):
 | Table | Purpose / key relationships |
 |-------|------------------------------|
 | `campaigns` | Owned by `advertiser_organizations`; budgets, dates, status; `created_by_user_id` |
-| `campaign_creatives` | Metadata-only creative records per campaign (see §6.4.7) |
+| `campaign_creatives` | Campaign creative metadata plus a unique clean managed-file binding for new writes; nullable URL is legacy-read-only (see §6.4.7/§19) |
 | `campaign_zones` | Geo targeting per campaign; **PostGIS `geometry(MultiPolygon,4326)`**; zone type (target/bonus/exclusion-style) |
 | `campaign_payout_rules` | Per-campaign payout rates (per-km, per-active-hour, zone bonuses, impression rate, fraud multipliers, min/max) |
 
@@ -1465,16 +1467,17 @@ remains the production-adoption gate.
 2. Client confirms completion → backend verifies object existence, size, and
    checksum (rejecting anything outside the declared caps), creates a
    `stored_files` row (storage key, mime, size, checksum, uploader,
-   scan status), and links it to its domain object.
+   scan status); the domain link is created only after step 3 clears it.
 3. **[BUILT — W2-02B]** A worker job validates the server-observed MIME and size, then performs a
    **mandatory malware scan**. Files remain quarantined and cannot be reviewed,
    approved, or served until the scan clears. The scanner/provider is an
    external deployment choice; admin review is never a substitute for this
    fail-closed gate (RM18).
-4. **[BUILT — W2-02B]** Serving: **time-limited signed GET URLs** issued by the backend; nothing in
-   the bucket is public. `campaign_creatives.asset_url` remains and now points
-   at (or is derived from) the managed object — external-URL creatives keep
-   working for backward compatibility.
+4. **[BUILT — W2-02B/W2-02C]** Serving: **time-limited signed GET URLs** issued
+   by the backend; nothing in the bucket is public. New creatives store only a
+   `stored_file_id`; no durable or public object URL crosses the creative
+   contract. Historical external-URL creatives remain readable and explicitly
+   marked legacy, but fail closed as offer/activation authority.
 
 Migration `0053` adds the fail-closed scan projection without creating a
 second file authority. The worker streams private managed bytes once through
@@ -1486,6 +1489,18 @@ unconfigured behind `EXT-MALWARE-SCANNER`. Advertiser campaign-preview and
 active-admin creative/security/incident reads are role-purpose scoped,
 tenant-safe, at most 60 seconds and audited with actor, subject, purpose,
 reason and request ID.
+
+Migration `0054` adds a nullable, unique, restrictive `stored_file_id` link to
+preserve historical URL rows without making them valid new-write authority.
+Advertiser create/update locks campaign then stored file, requires the same
+organization, `purpose=creative` and `scan_status=clean`, derives MIME/checksum,
+and rejects direct `ready` claims. Identical same-file create retries converge
+without duplicate creative audit; changed reuse conflicts. The campaign wizard
+hashes locally, obtains its condition-bound POST through a same-origin BFF,
+uploads bytes directly to private storage, confirms, polls scan state with
+actionable failure/retry copy, and sends only the cleared stored-file ID to the
+server action. Offer construction independently rechecks the managed clean
+binding so a legacy `ready` row cannot bypass the later W2-03B review gate.
 
 ### 19.3 Consumers of the same pattern
 
@@ -2366,6 +2381,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.58 | 2026-08-26 | **W2-02C managed advertiser creative upload delivered without claiming creative approval or live storage/scanner authority.** Migration `0054` preserves legacy URL rows while adding one unique restrictive stored-file binding for new creatives and refusing downgrade when managed links are populated. New writes lock and tenant-check a purpose-matched clean file, derive MIME/checksum, converge identical retries, conflict on changed reuse, reject advertiser `ready` claims and keep arbitrary URLs out of the write contract. The browser hashes locally, obtains the exact private POST through its session BFF, uploads directly, confirms and polls the fail-closed scan with actionable retry/error state before the server action submits only a cleared file ID. Creative reads label managed versus legacy sources, and offer construction independently rejects legacy or non-clean authority. Focused backend/API/migration/offer/frontend BFF/schema/action/upload tests and synchronized §9 contracts pass; production storage/scanner gates remain MISSING and W2-03B still owns admin creative approval. |
 | v1.57 | 2026-08-26 | **W2-02B fail-closed scanning and purpose-scoped private reads delivered without production-scanner authority.** Migration `0053` extends the one stored-file authority with actual MIME, scan attempts/retry timing and terminal clean/infected/rejected/error evidence. A streaming scanner port and local clamd INSTREAM adapter independently recount and magic-sniff bytes; a bounded row-locked worker retries outages and never clears unavailable, missing, spoofed, changed-size or infected content. Only exact clean files receive at-most-60-second GETs under tenant, active-admin and role-purpose checks, with actor/subject/purpose/reason/request audit. Focused protocol/API/service/worker/migration/head/audit/contract controls, an isolated populated PostgreSQL constraint round trip, Ruff, Compose parsing, real local ClamAV benign/EICAR and private MinIO signed-GET/unsigned-denial simulations pass. `EXT-MALWARE-SCANNER` remains MISSING; amd64 emulation is explicit for the official local image on ARM hosts, and no production scanner, credential, live file or provider validation is claimed. |
 | v1.56 | 2026-08-26 | **W2-02A private object-storage foundation delivered without production-provider authority.** Migration `0052` adds tenant-owned upload intents and private stored-file records with populated downgrade refusal. One S3-compatible port and local MinIO adapter provide exact condition-bound POSTs, streamed server-side checksum confirmation, idempotent private promotion and abandoned-object lifecycle cleanup; unconfigured/outage paths fail closed before persisting a new intent, public DTOs expose no bucket or managed key, and every confirmation is audited without filenames. Focused API/service/migration/worker/head controls, synchronized §9 artifacts, Ruff, Compose parsing and a real local MinIO POST→verify→promote flow pass, including a 403 unsigned GET. The production provider/account/region remains `EXT-STORAGE-PROVIDER` MISSING; no live upload, external staging, real KYC, device, route or pilot evidence is claimed. |
 | v1.55 | 2026-08-26 | **Package 6 offer/activity audit correction adopted onto the completed Package 7 W4-01A/B line.** A newly materialized DB-time offer expiry is committed by only its typed API transaction boundary before conflict, while generic application errors still roll back; accept/decline/cancel and the bounded sweep retain the campaign→assignment order and converge on one terminal event. List services no longer sweep and never expose an overdue row as currently offered beyond the route sweep bound. Activity authority now accepts only the configured current analytics formula and records that identity in evidence. Weekly/inactivity flags can move `opened → recovered → opened` on the same locked identity with event-scoped notices and preserved history. Malformed or failed cursor GET/SET/DELETE operations fail the worker visibly after already committed evaluations remain safely retryable. The reviewed correction adds no migration, public contract, Package 7 product change or external-gate change; W4-01A/B remain DONE and W4-01C remains dependency-blocked. |

@@ -58,11 +58,8 @@ export const creativeSchema = z.object({
   name: z.string().trim().min(1, "Creative name is required").max(255),
   creative_type: z.enum(["image", "video", "html", "text", "other"]),
   placement: z.enum(["vehicle_exterior", "vehicle_interior", "digital_screen", "print", "other"]),
-  asset_url: z
-    .string()
-    .trim()
-    .transform((v) => (v === "" ? undefined : v))
-    .pipe(z.string().url("Enter a valid URL (https://…)").optional()),
+  stored_file_id: z.string().uuid("Upload and clear a creative file before continuing"),
+  original_filename: z.string().trim().min(1, "Upload and clear a creative file before continuing"),
 });
 
 export const campaignWizardSchema = z.object({

@@ -262,7 +262,7 @@ export default async function CampaignDetailPage({
           </div>
           {creativeItems.length === 0 ? (
             <p className="text-muted px-6 py-10 text-center text-sm">
-              No creatives yet. Add creative metadata when you edit this campaign.
+              No creatives yet. Upload a private creative file when you edit this campaign.
             </p>
           ) : (
             <ul className="divide-edge/60 divide-y">
@@ -274,6 +274,9 @@ export default async function CampaignDetailPage({
                       {creativeTypeLabel[cr.creative_type] ?? cr.creative_type} ·{" "}
                       {placementLabel[cr.placement] ?? cr.placement}
                       {cr.width_px && cr.height_px ? ` · ${cr.width_px}×${cr.height_px}` : ""}
+                      {cr.asset_source === "managed_file"
+                        ? ` · security scan: ${cr.scan_status ?? "unavailable"}`
+                        : " · legacy URL (not launch-authoritative)"}
                     </p>
                   </div>
                   <StatusChip

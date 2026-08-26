@@ -126,6 +126,9 @@ def creative_response(creative: CampaignCreative) -> CreativeRead:
         name=creative.name,
         creative_type=creative.creative_type,
         placement=creative.placement,
+        stored_file_id=creative.stored_file_id,
+        asset_source="managed_file" if creative.stored_file_id else "legacy_url",
+        scan_status=creative.stored_file.scan_status if creative.stored_file else None,
         asset_url=creative.asset_url,
         mime_type=creative.mime_type,
         width_px=creative.width_px,
@@ -316,20 +319,21 @@ async def advertiser_create_campaign_creative(
     current_user: AdvertiserUserDependency,
     session: SessionDependency,
 ) -> CreativeRead:
-    creative = await create_campaign_creative(
+    creative, created = await create_campaign_creative(
         session,
         user_id=current_user.id,
         campaign_id=campaign_id,
         payload=payload,
     )
-    await create_audit_event(
-        session,
-        actor_user_id=current_user.id,
-        action="advertiser.campaign_creative.created",
-        entity_type="campaign_creative",
-        entity_id=str(creative.id),
-        metadata={"campaign_id": str(campaign_id), "status": creative.status},
-    )
+    if created:
+        await create_audit_event(
+            session,
+            actor_user_id=current_user.id,
+            action="advertiser.campaign_creative.created",
+            entity_type="campaign_creative",
+            entity_id=str(creative.id),
+            metadata={"campaign_id": str(campaign_id), "status": creative.status},
+        )
     await session.commit()
     return creative_response(creative)
 

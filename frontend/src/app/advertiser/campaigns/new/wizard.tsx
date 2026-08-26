@@ -13,6 +13,7 @@ import { createCampaignAction, type CreateCampaignState } from "./actions";
 import { Panel } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import { cx } from "@/lib/cx";
+import { uploadCreativeFile, type CreativeUploadPhase } from "@/lib/files/creative-upload";
 
 const STEPS = ["Basics", "Creatives", "Review"] as const;
 
@@ -48,6 +49,9 @@ const stepFields: Record<number, FieldPath<CampaignWizardInput>[]> = {
 export function CampaignWizard({ currency }: { currency: string }) {
   const [step, setStep] = useState(0);
   const [result, setResult] = useState<CreateCampaignState>({});
+  const [uploadState, setUploadState] = useState<
+    Record<string, { phase?: CreativeUploadPhase; error?: string }>
+  >({});
   const [submitting, startTransition] = useTransition();
 
   const form = useForm<CampaignWizardInput, unknown, CampaignWizardOutput>({
@@ -73,6 +77,32 @@ export function CampaignWizard({ currency }: { currency: string }) {
     const fields = stepFields[step];
     const valid = fields ? await form.trigger(fields) : true;
     if (valid) setStep((s) => Math.min(s + 1, STEPS.length - 1));
+  }
+
+  async function uploadCreative(index: number, fieldId: string, file: File | undefined) {
+    if (!file) return;
+    form.setValue(`creatives.${index}.stored_file_id`, "", { shouldValidate: true });
+    form.setValue(`creatives.${index}.original_filename`, file.name);
+    setUploadState((current) => ({ ...current, [fieldId]: { phase: "hashing" } }));
+    try {
+      const uploaded = await uploadCreativeFile(file, (phase) =>
+        setUploadState((current) => ({ ...current, [fieldId]: { phase } })),
+      );
+      form.setValue(`creatives.${index}.stored_file_id`, uploaded.storedFileId, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      form.setValue(`creatives.${index}.creative_type`, uploaded.creativeType, {
+        shouldDirty: true,
+      });
+    } catch (error) {
+      setUploadState((current) => ({
+        ...current,
+        [fieldId]: {
+          error: error instanceof Error ? error.message : "The upload failed. Retry the file.",
+        },
+      }));
+    }
   }
 
   function submit() {
@@ -229,8 +259,8 @@ export function CampaignWizard({ currency }: { currency: string }) {
         {step === 1 ? (
           <div className="flex flex-col gap-5">
             <p className="text-muted text-sm">
-              Register the creative assets this campaign will run. Files are referenced by URL for
-              now — the asset itself stays wherever it&apos;s hosted.
+              Upload each creative privately. A creative can be attached only after its file passes
+              the security scan.
             </p>
 
             {creatives.fields.map((field, i) => (
@@ -239,6 +269,9 @@ export function CampaignWizard({ currency }: { currency: string }) {
                   type="button"
                   aria-label={`Remove creative ${i + 1}`}
                   onClick={() => creatives.remove(i)}
+                  disabled={Boolean(
+                    uploadState[field.id]?.phase && uploadState[field.id]?.phase !== "clean",
+                  )}
                   className="micro text-faint hover:text-coral absolute top-4 right-4 transition-colors"
                 >
                   Remove
@@ -291,18 +324,36 @@ export function CampaignWizard({ currency }: { currency: string }) {
                     </select>
                   </div>
                   <div className="sm:col-span-2">
-                    <label htmlFor={`cr-url-${i}`} className={labelClass}>
-                      Asset URL
+                    <label htmlFor={`cr-file-${i}`} className={labelClass}>
+                      Creative file *
                     </label>
                     <input
-                      id={`cr-url-${i}`}
-                      type="url"
+                      id={`cr-file-${i}`}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,video/mp4,application/pdf"
+                      disabled={Boolean(
+                        uploadState[field.id]?.phase && uploadState[field.id]?.phase !== "clean",
+                      )}
                       className={cx(inputClass, "mt-1.5 font-mono text-xs")}
-                      placeholder="https://cdn.example.com/wrap-v2.png"
-                      {...form.register(`creatives.${i}.asset_url`)}
+                      onChange={(event) =>
+                        void uploadCreative(i, field.id, event.currentTarget.files?.[0])
+                      }
                     />
-                    {errors.creatives?.[i]?.asset_url ? (
-                      <p className={errorClass}>{errors.creatives[i]?.asset_url?.message}</p>
+                    <input type="hidden" {...form.register(`creatives.${i}.stored_file_id`)} />
+                    <input type="hidden" {...form.register(`creatives.${i}.original_filename`)} />
+                    {uploadState[field.id]?.phase ? (
+                      <p className="text-muted mt-1 text-xs" aria-live="polite">
+                        {uploadState[field.id]?.phase === "clean"
+                          ? `✓ ${form.getValues(`creatives.${i}.original_filename`)} passed security scan`
+                          : `${uploadState[field.id]?.phase}…`}
+                      </p>
+                    ) : null}
+                    {uploadState[field.id]?.error ? (
+                      <p className={errorClass} role="alert">
+                        {uploadState[field.id]?.error} Select the file again to retry.
+                      </p>
+                    ) : errors.creatives?.[i]?.stored_file_id ? (
+                      <p className={errorClass}>{errors.creatives[i]?.stored_file_id?.message}</p>
                     ) : null}
                   </div>
                 </div>
@@ -316,7 +367,8 @@ export function CampaignWizard({ currency }: { currency: string }) {
                   name: "",
                   creative_type: "image",
                   placement: "vehicle_exterior",
-                  asset_url: "",
+                  stored_file_id: "",
+                  original_filename: "",
                 })
               }
               className="border-edge text-muted hover:border-edge-strong hover:text-ink rounded-lg border border-dashed px-4 py-3.5 text-sm transition-colors"
