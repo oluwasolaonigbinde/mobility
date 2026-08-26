@@ -1144,6 +1144,23 @@ async def advertiser_campaign_report(
         created_at=run.created_at,
     )
     report.measurement_result = MeasurementResultRead.model_validate(run.result_manifest)
+    from app.models.exposure_score import ExposureScore
+    from app.services.exposure_scores import exposure_score_is_stale, exposure_score_read
+
+    score = await session.scalar(
+        select(ExposureScore)
+        .where(ExposureScore.measurement_run_id == run.id)
+        .order_by(ExposureScore.created_at.desc(), ExposureScore.id.desc())
+        .limit(1)
+    )
+    if score is not None:
+        if await exposure_score_is_stale(session, score):
+            raise AppError(
+                "EXPOSURE_SCORE_INTEGRITY_FAILURE",
+                "The issued exposure score no longer matches its immutable measurement run",
+                status_code=409,
+            )
+        report.exposure_score = await exposure_score_read(session, score)
     return report
 
 

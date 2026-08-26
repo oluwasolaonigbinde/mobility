@@ -19,6 +19,7 @@ from app.models.campaign_assignment import (
     CampaignActivationEventType,
     CampaignAssignment,
 )
+from app.models.exposure_score import ExposureScore
 from app.models.impression import ImpressionEstimate
 from app.models.installation_evidence import InstallationEvidenceSubmission
 from app.models.measurement import MeasurementRun, MeasurementRunProofBinding
@@ -492,7 +493,7 @@ async def issue_measurement_run(
         settings=settings.model_copy(update={"privacy_disclosure_synthetic_test_mode": True}),
     )
     report_snapshot = report.model_dump(
-        mode="json", exclude={"measurement_run", "measurement_result"}
+        mode="json", exclude={"measurement_run", "measurement_result", "exposure_score"}
     )
     latest = await session.scalar(
         select(MeasurementRun)
@@ -552,6 +553,9 @@ async def issue_measurement_run(
             )
         )
     await session.flush()
+    from app.services.exposure_scores import issue_exposure_score_for_run
+
+    await issue_exposure_score_for_run(session, run)
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,
@@ -572,6 +576,8 @@ async def issue_measurement_run(
 
 
 async def measurement_run_read(session: AsyncSession, run: MeasurementRun) -> MeasurementRunRead:
+    from app.services.exposure_scores import exposure_score_read
+
     bindings = list(
         (
             await session.scalars(
@@ -580,6 +586,12 @@ async def measurement_run_read(session: AsyncSession, run: MeasurementRun) -> Me
                 .order_by(MeasurementRunProofBinding.assignment_id)
             )
         ).all()
+    )
+    score = await session.scalar(
+        select(ExposureScore)
+        .where(ExposureScore.measurement_run_id == run.id)
+        .order_by(ExposureScore.created_at.desc(), ExposureScore.id.desc())
+        .limit(1)
     )
     return MeasurementRunRead(
         id=run.id,
@@ -614,5 +626,6 @@ async def measurement_run_read(session: AsyncSession, run: MeasurementRun) -> Me
             }
             for binding in bindings
         ],
+        exposure_score=(await exposure_score_read(session, score) if score is not None else None),
         reproducible=measurement_run_reproducible(run),
     )

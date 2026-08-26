@@ -4904,6 +4904,16 @@
             ],
             "title": "End At"
           },
+          "exposure_score": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExposureScoreRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "fraud_summary": {
             "$ref": "#/components/schemas/FraudFlagCounts"
           },
@@ -9720,6 +9730,383 @@
         "title": "EvidenceVerificationType",
         "type": "string"
       },
+      "ExposureScoreConstantsRead": {
+        "properties": {
+          "active_tracking_cap_seconds": {
+            "const": 3600,
+            "title": "Active Tracking Cap Seconds",
+            "type": "integer"
+          },
+          "active_tracking_weight": {
+            "const": "0.40",
+            "title": "Active Tracking Weight",
+            "type": "string"
+          },
+          "distance_cap_m": {
+            "const": "10000",
+            "title": "Distance Cap M",
+            "type": "string"
+          },
+          "distance_weight": {
+            "const": "0.60",
+            "title": "Distance Weight",
+            "type": "string"
+          }
+        },
+        "required": [
+          "distance_cap_m",
+          "active_tracking_cap_seconds",
+          "distance_weight",
+          "active_tracking_weight"
+        ],
+        "title": "ExposureScoreConstantsRead",
+        "type": "object"
+      },
+      "ExposureScoreFormulaRead": {
+        "properties": {
+          "campaign_calculation": {
+            "title": "Campaign Calculation",
+            "type": "string"
+          },
+          "constants": {
+            "$ref": "#/components/schemas/ExposureScoreConstantsRead"
+          },
+          "formula_version": {
+            "const": "exposure_v1",
+            "title": "Formula Version",
+            "type": "string"
+          },
+          "inputs": {
+            "items": {
+              "enum": [
+                "distance_m",
+                "active_tracking_seconds",
+                "quality_score"
+              ],
+              "type": "string"
+            },
+            "title": "Inputs",
+            "type": "array"
+          },
+          "missing_data": {
+            "title": "Missing Data",
+            "type": "string"
+          },
+          "range": {
+            "$ref": "#/components/schemas/ExposureScoreRangeRead"
+          },
+          "rounding": {
+            "const": "ROUND_HALF_UP to 2 decimal places",
+            "title": "Rounding",
+            "type": "string"
+          },
+          "route_calculation": {
+            "title": "Route Calculation",
+            "type": "string"
+          },
+          "scope": {
+            "const": "campaign_route",
+            "title": "Scope",
+            "type": "string"
+          },
+          "unit": {
+            "const": "points",
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "formula_version",
+          "scope",
+          "unit",
+          "range",
+          "inputs",
+          "constants",
+          "route_calculation",
+          "campaign_calculation",
+          "missing_data",
+          "rounding"
+        ],
+        "title": "ExposureScoreFormulaRead",
+        "type": "object"
+      },
+      "ExposureScoreProvenanceRead": {
+        "properties": {
+          "measurement_input_sha256": {
+            "title": "Measurement Input Sha256",
+            "type": "string"
+          },
+          "measurement_proof_sha256": {
+            "title": "Measurement Proof Sha256",
+            "type": "string"
+          },
+          "measurement_result_sha256": {
+            "title": "Measurement Result Sha256",
+            "type": "string"
+          },
+          "measurement_run_id": {
+            "format": "uuid",
+            "title": "Measurement Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "measurement_run_id",
+          "measurement_input_sha256",
+          "measurement_result_sha256",
+          "measurement_proof_sha256"
+        ],
+        "title": "ExposureScoreProvenanceRead",
+        "type": "object"
+      },
+      "ExposureScoreRangeRead": {
+        "properties": {
+          "maximum": {
+            "const": "100.00",
+            "title": "Maximum",
+            "type": "string"
+          },
+          "minimum": {
+            "const": "0.00",
+            "title": "Minimum",
+            "type": "string"
+          }
+        },
+        "required": [
+          "minimum",
+          "maximum"
+        ],
+        "title": "ExposureScoreRangeRead",
+        "type": "object"
+      },
+      "ExposureScoreRead": {
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "formula_fingerprint": {
+            "title": "Formula Fingerprint",
+            "type": "string"
+          },
+          "formula_version": {
+            "title": "Formula Version",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "input_fingerprint": {
+            "title": "Input Fingerprint",
+            "type": "string"
+          },
+          "issued_by_user_id": {
+            "format": "uuid",
+            "title": "Issued By User Id",
+            "type": "string"
+          },
+          "measurement_input_sha256": {
+            "title": "Measurement Input Sha256",
+            "type": "string"
+          },
+          "measurement_proof_sha256": {
+            "title": "Measurement Proof Sha256",
+            "type": "string"
+          },
+          "measurement_result_sha256": {
+            "title": "Measurement Result Sha256",
+            "type": "string"
+          },
+          "measurement_run_id": {
+            "format": "uuid",
+            "title": "Measurement Run Id",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "reissue_of_score_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reissue Of Score Id"
+          },
+          "reproducible": {
+            "title": "Reproducible",
+            "type": "boolean"
+          },
+          "result": {
+            "$ref": "#/components/schemas/ExposureScoreResultRead"
+          },
+          "result_fingerprint": {
+            "title": "Result Fingerprint",
+            "type": "string"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "organization_id",
+          "campaign_id",
+          "measurement_run_id",
+          "issued_by_user_id",
+          "formula_version",
+          "formula_fingerprint",
+          "input_fingerprint",
+          "result_fingerprint",
+          "measurement_input_sha256",
+          "measurement_result_sha256",
+          "measurement_proof_sha256",
+          "result",
+          "reissue_of_score_id",
+          "reproducible",
+          "stale",
+          "created_at"
+        ],
+        "title": "ExposureScoreRead",
+        "type": "object"
+      },
+      "ExposureScoreResultRead": {
+        "properties": {
+          "formula": {
+            "$ref": "#/components/schemas/ExposureScoreFormulaRead"
+          },
+          "formula_fingerprint": {
+            "title": "Formula Fingerprint",
+            "type": "string"
+          },
+          "formula_version": {
+            "const": "exposure_v1",
+            "title": "Formula Version",
+            "type": "string"
+          },
+          "input_fingerprint": {
+            "title": "Input Fingerprint",
+            "type": "string"
+          },
+          "label": {
+            "const": "Exposure score",
+            "title": "Label",
+            "type": "string"
+          },
+          "metric_class": {
+            "const": "operational_composite_index",
+            "title": "Metric Class",
+            "type": "string"
+          },
+          "missing_route_count": {
+            "title": "Missing Route Count",
+            "type": "integer"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/ExposureScoreProvenanceRead"
+          },
+          "range": {
+            "$ref": "#/components/schemas/ExposureScoreRangeRead"
+          },
+          "route_count": {
+            "title": "Route Count",
+            "type": "integer"
+          },
+          "route_scores": {
+            "items": {
+              "$ref": "#/components/schemas/RouteExposureScoreRead"
+            },
+            "title": "Route Scores",
+            "type": "array"
+          },
+          "schema_version": {
+            "const": "exposure-score-result-v1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "status": {
+            "enum": [
+              "scored",
+              "insufficient_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "uncertainty": {
+            "$ref": "#/components/schemas/ExposureScoreUncertaintyRead"
+          },
+          "unit": {
+            "const": "points",
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "label",
+          "metric_class",
+          "formula_version",
+          "formula_fingerprint",
+          "input_fingerprint",
+          "unit",
+          "range",
+          "status",
+          "score",
+          "route_count",
+          "missing_route_count",
+          "route_scores",
+          "formula",
+          "uncertainty",
+          "provenance"
+        ],
+        "title": "ExposureScoreResultRead",
+        "type": "object"
+      },
+      "ExposureScoreUncertaintyRead": {
+        "properties": {
+          "classification": {
+            "const": "synthetic_uncalibrated_index",
+            "title": "Classification",
+            "type": "string"
+          },
+          "statement": {
+            "title": "Statement",
+            "type": "string"
+          }
+        },
+        "required": [
+          "classification",
+          "statement"
+        ],
+        "title": "ExposureScoreUncertaintyRead",
+        "type": "object"
+      },
       "FileAccessPurpose": {
         "enum": [
           "campaign_preview",
@@ -12792,6 +13179,16 @@
             "format": "uuid",
             "title": "Created By User Id",
             "type": "string"
+          },
+          "exposure_score": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExposureScoreRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "formula_version": {
             "title": "Formula Version",
@@ -16352,6 +16749,31 @@
           "average_quality_score"
         ],
         "title": "RouteAnalyticsSummary",
+        "type": "object"
+      },
+      "RouteExposureScoreRead": {
+        "properties": {
+          "score": {
+            "title": "Score",
+            "type": "string"
+          },
+          "trip_analytics_id": {
+            "format": "uuid",
+            "title": "Trip Analytics Id",
+            "type": "string"
+          },
+          "trip_session_id": {
+            "format": "uuid",
+            "title": "Trip Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trip_analytics_id",
+          "trip_session_id",
+          "score"
+        ],
+        "title": "RouteExposureScoreRead",
         "type": "object"
       },
       "SensitiveRevealRequest": {

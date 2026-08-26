@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.models.measurement import MeasurementRunMode
 from app.schemas.campaigns import ensure_timezone_aware
+from app.schemas.exposure_scores import ExposureScoreRead
 
 
 class RoiMethodInput(BaseModel):
@@ -169,4 +170,5 @@ class MeasurementRunRead(MeasurementRunSummary):
     result_manifest: dict[str, Any]
     proof_manifest: dict[str, Any]
     proof_bindings: list[MeasurementProofBindingRead]
+    exposure_score: ExposureScoreRead | None = None
     reproducible: bool

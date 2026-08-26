@@ -5560,6 +5560,7 @@ export interface components {
             daily_metrics: components["schemas"]["DailyMetricItem"][];
             /** End At */
             end_at: string | null;
+            exposure_score?: components["schemas"]["ExposureScoreRead"] | null;
             fraud_summary: components["schemas"]["FraudFlagCounts"];
             impression_summary: components["schemas"]["ImpressionSummary"];
             measurement_result?: components["schemas"]["MeasurementResultRead"] | null;
@@ -7345,6 +7346,202 @@ export interface components {
          * @enum {string}
          */
         EvidenceVerificationType: "high_earner_renewal" | "concurrent_session" | "physical_spot_check";
+        /** ExposureScoreConstantsRead */
+        ExposureScoreConstantsRead: {
+            /**
+             * Active Tracking Cap Seconds
+             * @constant
+             */
+            active_tracking_cap_seconds: 3600;
+            /**
+             * Active Tracking Weight
+             * @constant
+             */
+            active_tracking_weight: "0.40";
+            /**
+             * Distance Cap M
+             * @constant
+             */
+            distance_cap_m: "10000";
+            /**
+             * Distance Weight
+             * @constant
+             */
+            distance_weight: "0.60";
+        };
+        /** ExposureScoreFormulaRead */
+        ExposureScoreFormulaRead: {
+            /** Campaign Calculation */
+            campaign_calculation: string;
+            constants: components["schemas"]["ExposureScoreConstantsRead"];
+            /**
+             * Formula Version
+             * @constant
+             */
+            formula_version: "exposure_v1";
+            /** Inputs */
+            inputs: ("distance_m" | "active_tracking_seconds" | "quality_score")[];
+            /** Missing Data */
+            missing_data: string;
+            range: components["schemas"]["ExposureScoreRangeRead"];
+            /**
+             * Rounding
+             * @constant
+             */
+            rounding: "ROUND_HALF_UP to 2 decimal places";
+            /** Route Calculation */
+            route_calculation: string;
+            /**
+             * Scope
+             * @constant
+             */
+            scope: "campaign_route";
+            /**
+             * Unit
+             * @constant
+             */
+            unit: "points";
+        };
+        /** ExposureScoreProvenanceRead */
+        ExposureScoreProvenanceRead: {
+            /** Measurement Input Sha256 */
+            measurement_input_sha256: string;
+            /** Measurement Proof Sha256 */
+            measurement_proof_sha256: string;
+            /** Measurement Result Sha256 */
+            measurement_result_sha256: string;
+            /**
+             * Measurement Run Id
+             * Format: uuid
+             */
+            measurement_run_id: string;
+        };
+        /** ExposureScoreRangeRead */
+        ExposureScoreRangeRead: {
+            /**
+             * Maximum
+             * @constant
+             */
+            maximum: "100.00";
+            /**
+             * Minimum
+             * @constant
+             */
+            minimum: "0.00";
+        };
+        /** ExposureScoreRead */
+        ExposureScoreRead: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Formula Fingerprint */
+            formula_fingerprint: string;
+            /** Formula Version */
+            formula_version: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Input Fingerprint */
+            input_fingerprint: string;
+            /**
+             * Issued By User Id
+             * Format: uuid
+             */
+            issued_by_user_id: string;
+            /** Measurement Input Sha256 */
+            measurement_input_sha256: string;
+            /** Measurement Proof Sha256 */
+            measurement_proof_sha256: string;
+            /** Measurement Result Sha256 */
+            measurement_result_sha256: string;
+            /**
+             * Measurement Run Id
+             * Format: uuid
+             */
+            measurement_run_id: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Reissue Of Score Id */
+            reissue_of_score_id: string | null;
+            /** Reproducible */
+            reproducible: boolean;
+            result: components["schemas"]["ExposureScoreResultRead"];
+            /** Result Fingerprint */
+            result_fingerprint: string;
+            /** Stale */
+            stale: boolean;
+        };
+        /** ExposureScoreResultRead */
+        ExposureScoreResultRead: {
+            formula: components["schemas"]["ExposureScoreFormulaRead"];
+            /** Formula Fingerprint */
+            formula_fingerprint: string;
+            /**
+             * Formula Version
+             * @constant
+             */
+            formula_version: "exposure_v1";
+            /** Input Fingerprint */
+            input_fingerprint: string;
+            /**
+             * Label
+             * @constant
+             */
+            label: "Exposure score";
+            /**
+             * Metric Class
+             * @constant
+             */
+            metric_class: "operational_composite_index";
+            /** Missing Route Count */
+            missing_route_count: number;
+            provenance: components["schemas"]["ExposureScoreProvenanceRead"];
+            range: components["schemas"]["ExposureScoreRangeRead"];
+            /** Route Count */
+            route_count: number;
+            /** Route Scores */
+            route_scores: components["schemas"]["RouteExposureScoreRead"][];
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "exposure-score-result-v1";
+            /** Score */
+            score: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "scored" | "insufficient_data";
+            uncertainty: components["schemas"]["ExposureScoreUncertaintyRead"];
+            /**
+             * Unit
+             * @constant
+             */
+            unit: "points";
+        };
+        /** ExposureScoreUncertaintyRead */
+        ExposureScoreUncertaintyRead: {
+            /**
+             * Classification
+             * @constant
+             */
+            classification: "synthetic_uncalibrated_index";
+            /** Statement */
+            statement: string;
+        };
         /**
          * FileAccessPurpose
          * @enum {string}
@@ -8654,6 +8851,7 @@ export interface components {
              * Format: uuid
              */
             created_by_user_id: string;
+            exposure_score?: components["schemas"]["ExposureScoreRead"] | null;
             /** Formula Version */
             formula_version: string;
             /**
@@ -10141,6 +10339,21 @@ export interface components {
             target_zone_distance_m: string | null;
             /** Total Distance M */
             total_distance_m: string | null;
+        };
+        /** RouteExposureScoreRead */
+        RouteExposureScoreRead: {
+            /** Score */
+            score: string;
+            /**
+             * Trip Analytics Id
+             * Format: uuid
+             */
+            trip_analytics_id: string;
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
         };
         /** SensitiveRevealRequest */
         SensitiveRevealRequest: {
