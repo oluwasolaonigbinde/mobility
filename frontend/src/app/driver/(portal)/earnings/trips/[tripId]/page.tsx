@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Trip earnings" };
 type LedgerStatus = components["schemas"]["EarningsLedgerEntryStatus"];
 type DriverFraudHold = components["schemas"]["DriverFraudHoldRead"];
 type DriverFraudPublicStatus = DriverFraudHold["public_status"];
-type DriverNoticeType = components["schemas"]["NotificationType"];
+type NotificationType = components["schemas"]["NotificationType"];
 
 const statusTone: Record<LedgerStatus, "green" | "amber" | "coral" | "default"> = {
   available: "green",
@@ -35,7 +35,12 @@ const holdStatus: Record<
   review_cleared: { label: "Review cleared", tone: "green" },
 };
 
-const noticeCopy: Record<DriverNoticeType, string> = {
+const noticeCopy: Partial<Record<NotificationType, string>> = {
+  assignment_offered: "A campaign assignment was offered to you.",
+  assignment_accepted: "Your campaign assignment acceptance was recorded.",
+  evidence_challenge_created: "New display evidence is required for this assignment.",
+  evidence_verified: "Your display evidence was verified.",
+  payout_released: "Your eligible earnings were released.",
   fraud_hold_raised: "This trip was placed under review.",
   fraud_review_resolved: "Staff completed their review of this trip.",
   fraud_dispute_replied: "Staff replied to your dispute.",
@@ -145,7 +150,9 @@ export default async function DriverTripEarningsPage({
                 <ul className="flex flex-col gap-2">
                   {hold.notices.map((notice) => (
                     <li key={notice.id} className="text-sm">
-                      <p>{noticeCopy[notice.type_key]}</p>
+                      <p>
+                        {noticeCopy[notice.type_key] ?? "A Cardvert account update was recorded."}
+                      </p>
                       <p className="micro text-faint mt-0.5">{formatDate(notice.created_at)}</p>
                     </li>
                   ))}

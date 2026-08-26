@@ -356,8 +356,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Admin Record Blocked Budget Evaluation */
-        post: operations["admin_record_blocked_budget_evaluation_api_v1_admin_campaigns__campaign_id__budget_policy_evaluation_post"];
+        /** Admin Record Budget Evaluation */
+        post: operations["admin_record_budget_evaluation_api_v1_admin_campaigns__campaign_id__budget_policy_evaluation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{campaign_id}/budget-policy-resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Resume Budget Paused Campaign */
+        post: operations["admin_resume_budget_paused_campaign_api_v1_admin_campaigns__campaign_id__budget_policy_resume_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1034,6 +1051,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/manual-driver-contact-tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Contact Tasks */
+        get: operations["admin_contact_tasks_api_v1_admin_manual_driver_contact_tasks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/manual-driver-contact-tasks/{task_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Complete Contact Task */
+        post: operations["admin_complete_contact_task_api_v1_admin_manual_driver_contact_tasks__task_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/measurement-runs": {
         parameters: {
             query?: never;
@@ -1499,6 +1550,40 @@ export interface paths {
          *     audit-coverage table remain consistent; it always answers 409.
          */
         post: operations["admin_recompute_payout_day_api_v1_admin_payouts_recompute_day_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/phone-verification-challenges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Phone Verification Work */
+        get: operations["admin_phone_verification_work_api_v1_admin_phone_verification_challenges_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/phone-verification/{challenge_id}/sent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Record Phone Verification Sent */
+        post: operations["admin_record_phone_verification_sent_api_v1_admin_phone_verification__challenge_id__sent_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2749,6 +2834,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/password-reset/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Password Reset Complete */
+        post: operations["password_reset_complete_api_v1_auth_password_reset_complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Password Reset Request */
+        post: operations["password_reset_request_api_v1_auth_password_reset_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/refresh": {
         parameters: {
             query?: never;
@@ -2934,6 +3053,108 @@ export interface paths {
         put?: never;
         /** Driver Submit Evidence */
         post: operations["driver_submit_evidence_api_v1_driver_campaign_assignments__assignment_id__installation_evidence_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Driver Contact State */
+        get: operations["driver_contact_state_api_v1_driver_contact_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/contact/phone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Driver Set Phone */
+        put: operations["driver_set_phone_api_v1_driver_contact_phone_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/contact/phone-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Driver Request Phone Verification */
+        post: operations["driver_request_phone_verification_api_v1_driver_contact_phone_verification_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/contact/phone-verification/{challenge_id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Driver Verify Phone */
+        post: operations["driver_verify_phone_api_v1_driver_contact_phone_verification__challenge_id__verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/contact/whatsapp-consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Driver Grant Whatsapp Consent */
+        post: operations["driver_grant_whatsapp_consent_api_v1_driver_contact_whatsapp_consent_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/contact/whatsapp-consent/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Driver Withdraw Whatsapp Consent */
+        post: operations["driver_withdraw_whatsapp_consent_api_v1_driver_contact_whatsapp_consent_withdraw_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3797,6 +4018,54 @@ export interface components {
             organization: components["schemas"]["AdvertiserOrganizationRead"];
             owner_membership: components["schemas"]["OrganizationMembershipRead"] | null;
         };
+        /** AdminPhoneChallengeListRead */
+        AdminPhoneChallengeListRead: {
+            /** Items */
+            items: components["schemas"]["AdminPhoneChallengeRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** AdminPhoneChallengeRead */
+        AdminPhoneChallengeRead: {
+            /** Attempt Count */
+            attempt_count: number;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Masked Phone */
+            masked_phone: string;
+            /** Max Attempts */
+            max_attempts: number;
+            /**
+             * Phone Version Id
+             * Format: uuid
+             */
+            phone_version_id: string;
+            /** Sent At */
+            sent_at: string | null;
+            /** Sent Channel */
+            sent_channel: string | null;
+            /** Status */
+            status: string;
+            /** Verified At */
+            verified_at: string | null;
+        };
         /** AdminVehicleListResponse */
         AdminVehicleListResponse: {
             /** Items */
@@ -4185,10 +4454,16 @@ export interface components {
         };
         /** BudgetEvaluationRead */
         BudgetEvaluationRead: {
+            /** Alert Applied */
+            alert_applied: boolean;
             /** Alert Threshold Amount */
             alert_threshold_amount: string | null;
+            /** Billing Fact Source */
+            billing_fact_source: string | null;
             /** Billing Spend Amount */
             billing_spend_amount: string | null;
+            /** Budget Basis */
+            budget_basis: string | null;
             /** Campaign Budget Amount */
             campaign_budget_amount: string | null;
             /** Campaign Daily Budget Amount */
@@ -4206,7 +4481,7 @@ export interface components {
              */
             evaluated_at: string;
             /** External Gate */
-            external_gate: string;
+            external_gate: string | null;
             /**
              * Id
              * Format: uuid
@@ -4216,8 +4491,56 @@ export interface components {
             pause_applied: boolean;
             /** Pause Threshold Amount */
             pause_threshold_amount: string | null;
+            /** Policy Id */
+            policy_id: string | null;
+            /** Policy Revision */
+            policy_revision: string | null;
+            /** Policy Source */
+            policy_source: string | null;
+            /** Resume Allowed */
+            resume_allowed: boolean;
+            /** Resume Threshold Amount */
+            resume_threshold_amount: string | null;
             /** State */
             state: string;
+        };
+        /** BudgetResumeCreate */
+        BudgetResumeCreate: {
+            /** Reason */
+            reason: string;
+        };
+        /** BudgetTransitionRead */
+        BudgetTransitionRead: {
+            /** Action */
+            action: string;
+            /** Actor User Id */
+            actor_user_id: string | null;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Evaluation Id
+             * Format: uuid
+             */
+            evaluation_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** New Status */
+            new_status: string;
+            /** Prior Status */
+            prior_status: string;
+            /** Reason */
+            reason: string | null;
         };
         /** CalculatePayoutRequest */
         CalculatePayoutRequest: {
@@ -6260,6 +6583,11 @@ export interface components {
             /** Totals By Currency */
             totals_by_currency: components["schemas"]["CampaignCostTotalRead"][];
         };
+        /** DriverContactStateRead */
+        DriverContactStateRead: {
+            phone: components["schemas"]["DriverPhoneVersionRead"] | null;
+            whatsapp_consent: components["schemas"]["WhatsappConsentRead"] | null;
+        };
         /** DriverEarningsCurrencySummary */
         DriverEarningsCurrencySummary: {
             /** Available Amount */
@@ -6486,6 +6814,32 @@ export interface components {
          * @enum {string}
          */
         DriverOnboardingStatus: "pending" | "active" | "suspended" | "rejected";
+        /** DriverPhoneUpdate */
+        DriverPhoneUpdate: {
+            /** Phone */
+            phone: string;
+        };
+        /** DriverPhoneVersionRead */
+        DriverPhoneVersionRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Masked Phone */
+            masked_phone: string;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Verified */
+            verified: boolean;
+            /** Verified At */
+            verified_at: string | null;
+            /** Version */
+            version: number;
+        };
         /** DriverProfileAdminUpdate */
         DriverProfileAdminUpdate: {
             /** Country Code */
@@ -7814,6 +8168,64 @@ export interface components {
             role: components["schemas"]["UserRole"];
             status: components["schemas"]["UserStatus"];
         };
+        /** ManualContactTaskComplete */
+        ManualContactTaskComplete: {
+            /** Note */
+            note: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "attempted" | "reached" | "failed";
+        };
+        /** ManualContactTaskListRead */
+        ManualContactTaskListRead: {
+            /** Items */
+            items: components["schemas"]["ManualContactTaskRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** ManualContactTaskRead */
+        ManualContactTaskRead: {
+            /** Completed At */
+            completed_at: string | null;
+            /** Completed By User Id */
+            completed_by_user_id: string | null;
+            /** Completion Outcome */
+            completion_outcome: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /** Event Key */
+            event_key: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Masked Phone */
+            masked_phone: string;
+            /**
+             * Provider Delivery Confirmed
+             * @default false
+             */
+            provider_delivery_confirmed: boolean;
+            /** Purpose */
+            purpose: string;
+            /** Status */
+            status: string;
+        };
         /** ManualInsightSourceCreate */
         ManualInsightSourceCreate: {
             /**
@@ -8264,7 +8676,7 @@ export interface components {
          * NotificationType
          * @enum {string}
          */
-        NotificationType: "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered";
+        NotificationType: "assignment_offered" | "assignment_accepted" | "campaign_approved" | "funding_confirmed" | "budget_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "evidence_challenge_created" | "evidence_verified" | "payout_released" | "password_reset_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered";
         /** NotificationUnreadCountRead */
         NotificationUnreadCountRead: {
             /** Unread Count */
@@ -8280,6 +8692,23 @@ export interface components {
          * @enum {string}
          */
         OrganizationStatus: "active" | "suspended" | "disabled";
+        /** PasswordResetComplete */
+        PasswordResetComplete: {
+            /** New Password */
+            new_password: string;
+            /** Token */
+            token: string;
+        };
+        /** PasswordResetRequest */
+        PasswordResetRequest: {
+            /** Email */
+            email: string;
+        };
+        /** PasswordResetResponse */
+        PasswordResetResponse: {
+            /** Message */
+            message: string;
+        };
         /** PayeeRead */
         PayeeRead: {
             /**
@@ -8699,6 +9128,53 @@ export interface components {
              */
             id: string;
             status: components["schemas"]["EarningsLedgerEntryStatus"];
+        };
+        /** PhoneChallengeRead */
+        PhoneChallengeRead: {
+            /** Attempt Count */
+            attempt_count: number;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Max Attempts */
+            max_attempts: number;
+            /**
+             * Phone Version Id
+             * Format: uuid
+             */
+            phone_version_id: string;
+            /** Sent At */
+            sent_at: string | null;
+            /** Sent Channel */
+            sent_channel: string | null;
+            /** Status */
+            status: string;
+            /** Verified At */
+            verified_at: string | null;
+        };
+        /** PhoneChallengeSent */
+        PhoneChallengeSent: {
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "whatsapp" | "voice";
+            /** Operator Evidence Reference */
+            operator_evidence_reference: string;
+            /** Provider Message Id */
+            provider_message_id: string;
+        };
+        /** PhoneChallengeVerify */
+        PhoneChallengeVerify: {
+            /** Code */
+            code: string;
         };
         /** PhysicalSpotCheckCreate */
         PhysicalSpotCheckCreate: {
@@ -10409,6 +10885,39 @@ export interface components {
              */
             source_type: "website-traffic";
         };
+        /** WhatsappConsentCreate */
+        WhatsappConsentCreate: {
+            /** Notice Version */
+            notice_version: string;
+            /** Purpose */
+            purpose: string;
+        };
+        /** WhatsappConsentRead */
+        WhatsappConsentRead: {
+            /**
+             * Granted At
+             * Format: date-time
+             */
+            granted_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Notice Version */
+            notice_version: string;
+            /**
+             * Phone Version Id
+             * Format: uuid
+             */
+            phone_version_id: string;
+            /** Purpose */
+            purpose: string;
+            /** Version */
+            version: number;
+            /** Withdrawn At */
+            withdrawn_at: string | null;
+        };
         /** ZoneTypeCounts */
         ZoneTypeCounts: {
             /**
@@ -11256,7 +11765,7 @@ export interface operations {
             };
         };
     };
-    admin_record_blocked_budget_evaluation_api_v1_admin_campaigns__campaign_id__budget_policy_evaluation_post: {
+    admin_record_budget_evaluation_api_v1_admin_campaigns__campaign_id__budget_policy_evaluation_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -11274,6 +11783,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BudgetEvaluationRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_resume_budget_paused_campaign_api_v1_admin_campaigns__campaign_id__budget_policy_resume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetResumeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetTransitionRead"];
                 };
             };
             /** @description Validation Error */
@@ -12747,6 +13291,73 @@ export interface operations {
             };
         };
     };
+    admin_contact_tasks_api_v1_admin_manual_driver_contact_tasks_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManualContactTaskListRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_complete_contact_task_api_v1_admin_manual_driver_contact_tasks__task_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualContactTaskComplete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManualContactTaskRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_issue_measurement_run_api_v1_admin_measurement_runs_post: {
         parameters: {
             query?: never;
@@ -13677,6 +14288,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecomputePayoutDayResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_phone_verification_work_api_v1_admin_phone_verification_challenges_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPhoneChallengeListRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_record_phone_verification_sent_api_v1_admin_phone_verification__challenge_id__sent_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                challenge_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneChallengeSent"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneChallengeRead"];
                 };
             };
             /** @description Validation Error */
@@ -16503,6 +17181,72 @@ export interface operations {
             };
         };
     };
+    password_reset_complete_api_v1_auth_password_reset_complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetComplete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    password_reset_request_api_v1_auth_password_reset_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     refresh_session_api_v1_auth_refresh_post: {
         parameters: {
             query?: never;
@@ -16877,6 +17621,167 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    driver_contact_state_api_v1_driver_contact_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverContactStateRead"];
+                };
+            };
+        };
+    };
+    driver_set_phone_api_v1_driver_contact_phone_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DriverPhoneUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverPhoneVersionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    driver_request_phone_verification_api_v1_driver_contact_phone_verification_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhoneChallengeRead"];
+                };
+            };
+        };
+    };
+    driver_verify_phone_api_v1_driver_contact_phone_verification__challenge_id__verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                challenge_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneChallengeVerify"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverPhoneVersionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    driver_grant_whatsapp_consent_api_v1_driver_contact_whatsapp_consent_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WhatsappConsentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhatsappConsentRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    driver_withdraw_whatsapp_consent_api_v1_driver_contact_whatsapp_consent_withdraw_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhatsappConsentRead"];
                 };
             };
         };
