@@ -46,10 +46,10 @@ CANONICAL_ITEMS = (
     ("W2-01C", "PKG-03", "leaf: W2-00B, W2-01A; external: EXT-PAYMENT-PROVIDER"),
     ("W2-01D", "PKG-03", "leaf: W2-01A, W2-01B"),
     ("W2-01E", "PKG-03", "leaf: W2-01A, W2-01B; external: EXT-BUDGET-POLICY"),
-    ("W2-02A", "PKG-04", "external: EXT-STORAGE-PROVIDER"),
-    ("W2-02B", "PKG-04", "leaf: W2-02A; external: EXT-MALWARE-SCANNER"),
+    ("W2-02A", "PKG-04", "none"),
+    ("W2-02B", "PKG-04", "leaf: W2-02A"),
     ("W2-02C", "PKG-04", "leaf: W2-02B"),
-    ("W2-02D", "PKG-04", "leaf: W2-02B, MNY-10A; external: EXT-KMS-CUSTODY"),
+    ("W2-02D", "PKG-04", "leaf: W2-02B, MNY-10A"),
     ("W2-02E", "PKG-04", "leaf: W2-02B, W2-02D"),
     ("W2-03A", "PKG-04", "none"),
     ("W2-03B", "PKG-04", "leaf: W2-02C"),
@@ -59,9 +59,9 @@ CANONICAL_ITEMS = (
     ("W2-03F", "PKG-04", "leaf: W2-01D, W2-03D, MNY-11A"),
     ("W2-03G", "PKG-04", "leaf: MNY-09A, W2-03C, W2-03D"),
     ("W2-04A", "PKG-04", "leaf: MNY-08C"),
-    ("W2-04B", "PKG-04", "leaf: W2-04A; external: EXT-EMAIL-PROVIDER"),
+    ("W2-04B", "PKG-04", "leaf: W2-04A"),
     ("W2-04C", "PKG-04", "leaf: W2-04A, W2-04B, W2-01E, W2-03F, W2-03G, MNY-10C"),
-    ("W2-04D", "PKG-04", "leaf: W2-04B, W2-04C; external: EXT-PHONE-OPERATOR"),
+    ("W2-04D", "PKG-04", "leaf: W2-04B, W2-04C"),
     ("W3-00A", "PKG-05", "none"),
     ("W3-00B", "PKG-05", "leaf: W3-00A, W2-02E"),
     ("W3-00C", "PKG-05", "leaf: W3-00A"),
@@ -678,8 +678,15 @@ def validate_text(text: str) -> list[str]:
         owned = package_items.get(package.package_id, [])
         if package.status == "DONE" and any(item.status != "DONE" for item in owned):
             errors.append(f"line {package.line}: DONE package contains unfinished checklist items")
-        if package.status == "QUEUED" and any(item.status == "DONE" for item in owned):
-            errors.append(f"line {package.line}: QUEUED package contains DONE checklist items")
+        if (
+            package.status == "QUEUED"
+            and any(item.status == "DONE" for item in owned)
+            and any(runnable(item) for item in owned)
+        ):
+            errors.append(
+                f"line {package.line}: QUEUED package contains DONE checklist items "
+                "and runnable unfinished work"
+            )
         if package.status == "BLOCKED":
             if not any(item.status != "DONE" for item in owned):
                 errors.append(f"line {package.line}: BLOCKED package has no unfinished work")

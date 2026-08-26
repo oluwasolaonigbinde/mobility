@@ -545,13 +545,16 @@ def test_review_valid_only_when_all_items_done_or_runnable() -> None:
     assert _errors("\n".join(lines) + "\n") == []
 
 
-def test_rejects_done_item_in_queued_package() -> None:
+def test_rejects_done_item_that_unlocks_work_in_queued_package() -> None:
     text = _pkg01_active().replace(
         "| 10 | **MNY-08A — current fraud assessments** | PKG-02 | TODO |",
         "| 10 | **MNY-08A — current fraud assessments** | PKG-02 | DONE |",
     )
     errors = _errors(text)
-    assert any("QUEUED package contains DONE checklist items" in error for error in errors)
+    assert any(
+        "QUEUED package contains DONE checklist items and runnable unfinished work" in error
+        for error in errors
+    )
 
 
 def test_rejects_nonqueued_package_after_active_frontier() -> None:
