@@ -16,7 +16,7 @@ from app.jobs.data_lifecycle import (
 )
 from app.jobs.disclosure_retention import purge_expired_disclosure_query_history
 from app.jobs.earnings_release import sweep_earnings_release_reviews
-from app.jobs.file_lifecycle import purge_orphaned_file_uploads
+from app.jobs.file_lifecycle import purge_expired_file_kyc, purge_orphaned_file_uploads
 from app.jobs.file_scanning import scan_pending_files
 from app.jobs.payment_gateway import (
     process_payment_gateway_event_job,
@@ -125,6 +125,7 @@ class WorkerSettings:
         cron(purge_expired_ping_partitions, hour={3}, minute={30}, unique=True),
         cron(purge_expired_disclosure_query_history, hour={4}, minute={40}, unique=True),
         cron(purge_orphaned_file_uploads, hour={5}, minute={50}, unique=True),
+        cron(purge_expired_file_kyc, hour={6}, minute={0}, unique=True),
     ]
     # Worker-level too: finish_failed_job stores max-retries failures under the
     # deterministic job id using this value (func-level keep_result not consulted).

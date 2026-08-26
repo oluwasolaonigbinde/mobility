@@ -72,6 +72,7 @@ x-backend-env: &backend-env
   OBJECT_STORAGE_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-cardvert-local-secret}
   MALWARE_SCANNER_HOST: clamav
   MALWARE_SCANNER_PORT: 3310
+  FILE_KYC_RETENTION_DAYS: ${FILE_KYC_RETENTION_DAYS:-}
 
 services:
   api:

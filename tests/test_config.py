@@ -280,6 +280,17 @@ def test_blank_payout_max_default_parses_as_unset() -> None:
     assert settings.payout_default_max_payout_per_trip is None
 
 
+def test_file_kyc_retention_has_no_default_and_blank_parses_as_unset() -> None:
+    assert Settings().file_kyc_retention_days is None
+    assert Settings(file_kyc_retention_days="").file_kyc_retention_days is None
+
+
+@pytest.mark.parametrize("invalid_value", [0, -1])
+def test_file_kyc_retention_must_be_positive_when_configured(invalid_value: int) -> None:
+    with pytest.raises(ValidationError):
+        Settings(file_kyc_retention_days=invalid_value)
+
+
 def test_payout_settings_load_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("PAYOUT_FORMULA_VERSION", "payout_v1")
     monkeypatch.setenv("PAYOUT_DEFAULT_BASE_RATE_PER_KM", "11.5")

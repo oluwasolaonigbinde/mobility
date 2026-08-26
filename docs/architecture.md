@@ -425,11 +425,11 @@ Every new endpoint must obey all of these:
    evidence, and its destruction is itself evidenced in `data_purge_audit`
    (§24.2.4). Idempotent replays perform no mutation and create no audit
    event.
-   Residual honesty note (discovered by the S4 coverage test, outside its
-   approved scope): `POST /auth/refresh`, `PATCH /driver/profile`, and the
-   driver assignment accept/activate/deactivate routes still write no audit
-   events — registered as KNOWN_UNAUDITED in the coverage test; closing them
-   is follow-up work, not license to copy.
+   **[BUILT — W2-02E]** The residual S4 gaps are closed: successful session
+   refresh, driver self-profile update, and driver assignment accept/decline/
+   deactivate mutations write actor/entity audit events in the same
+   transaction. Idempotent assignment retries do not amplify audit rows.
+   The coverage registry now has no known unaudited mutating route.
 
 ### 6.5 Background / async story **[BUILT]**
 
@@ -1538,6 +1538,27 @@ ciphertext schema from §16.3. W2-02D adds the provider-neutral custody seam and
 audited rewrap path while preserving that schema; production KMS/vault
 selection and adoption remain gated by `EXT-KMS-CUSTODY`.
 
+### 19.4 File/KYC lifecycle and incident boundary **[BUILT — W2-02E]**
+
+Rejected and expired driver-KYC and vehicle-evidence versions are eligible for
+retention purge only after the optional, positive `FILE_KYC_RETENTION_DAYS`
+setting is approved and configured. There is no production default. An
+active-admin endpoint is dry-run-first; the daily worker uses the same bounded
+service and remains visibly disabled while the policy is absent. Pending and
+approved evidence is never selected.
+
+Execution serializes under one PostgreSQL advisory transaction lock. It locks
+profile/vehicle/submission/document/file authority in stable order, removes
+domain links, and deletes only a private stored object with no remaining KYC,
+vehicle-evidence or creative reference. Every submission, file and completed
+run writes redacted audit evidence; filenames, identifiers, ciphertext and
+checksums do not enter retention audit metadata. A storage outage rolls the
+database transaction back. If the provider fails after an earlier idempotent
+object deletion in the same batch, terminal database links remain and the next
+run safely repeats deletion before committing the purge. Shared files remain.
+The operations runbook defines scanner, storage, key-loss, missing-policy and
+concurrent-run recovery without claiming a production provider or legal value.
+
 ## 20. Notifications
 
 Q34 is client-confirmed by D18: launch = in-app + **automated email for advertisers** +
@@ -2399,6 +2420,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.60 | 2026-08-26 | **W2-02E file/KYC lifecycle and incident operations delivered without inventing a legal retention period or production provider.** Terminal rejected/expired KYC and vehicle-evidence submissions are selected by an optional approved retention setting, planned through a dry-run-first active-admin API, and purged under one PostgreSQL advisory lock. Document links are removed before an unreferenced private object and its intent; shared campaign/KYC files survive, storage failure rolls database deletion back, and each submission/file/run is redacted and audited. The scheduled worker remains visibly disabled while `FILE_KYC_RETENTION_DAYS` is absent. Scanner, storage and key-custody outages remain fail closed, with bounded recovery guidance in the operations runbook. Session refresh, driver profile update and assignment accept/decline/deactivate close the five registered audit gaps without retry amplification. Focused API/service/worker/audit/contract checks and a real PostgreSQL concurrent-purge proof pass. `EXT-LEGAL-PRIVACY`, `EXT-STORAGE-PROVIDER`, `EXT-MALWARE-SCANNER` and `EXT-KMS-CUSTODY` remain MISSING; no live retention, provider, identity or pilot validation is claimed. |
 | v1.59 | 2026-08-26 | **W2-02D protected KYC/key-custody foundation delivered without production-custodian or approval authority.** Migration `0055` extends the one stored-file model with strict organization/driver scope and adds versioned driver-KYC/vehicle-evidence records. Clean subject-owned documents and the same-driver verified bank version bind under stable locks; NIN reuses D17's ciphertext/AAD schema, stays masked outside an active-admin purpose-audited reveal, and supports append-only DEK rewrap whose data ciphertext remains unchanged. The application crypto port is unchanged while an adapter-private custody backend permits local keyrings now and a later production KMS/vault without schema drift. Exact retries converge; cross-driver, uncleared, tampered and unavailable-custody paths fail closed. Focused tests, explicit scan-gate red/green evidence, real PostgreSQL migration/concurrency proofs, synchronized §9 contracts, frontend type/lint/build and a real isolated MinIO→ClamAV→encrypted-KYC flow pass. `EXT-KMS-CUSTODY` remains MISSING; W3-04B/C still own approval and work eligibility, and no live identity/provider/pilot validation is claimed. |
 | v1.58 | 2026-08-26 | **W2-02C managed advertiser creative upload delivered without claiming creative approval or live storage/scanner authority.** Migration `0054` preserves legacy URL rows while adding one unique restrictive stored-file binding for new creatives and refusing downgrade when managed links are populated. New writes lock and tenant-check a purpose-matched clean file, derive MIME/checksum, converge identical retries, conflict on changed reuse, reject advertiser `ready` claims and keep arbitrary URLs out of the write contract. The browser hashes locally, obtains the exact private POST through its session BFF, uploads directly, confirms and polls the fail-closed scan with actionable retry/error state before the server action submits only a cleared file ID. Creative reads label managed versus legacy sources, and offer construction independently rejects legacy or non-clean authority. Focused backend/API/migration/offer/frontend BFF/schema/action/upload tests and synchronized §9 contracts pass; production storage/scanner gates remain MISSING and W2-03B still owns admin creative approval. |
 | v1.57 | 2026-08-26 | **W2-02B fail-closed scanning and purpose-scoped private reads delivered without production-scanner authority.** Migration `0053` extends the one stored-file authority with actual MIME, scan attempts/retry timing and terminal clean/infected/rejected/error evidence. A streaming scanner port and local clamd INSTREAM adapter independently recount and magic-sniff bytes; a bounded row-locked worker retries outages and never clears unavailable, missing, spoofed, changed-size or infected content. Only exact clean files receive at-most-60-second GETs under tenant, active-admin and role-purpose checks, with actor/subject/purpose/reason/request audit. Focused protocol/API/service/worker/migration/head/audit/contract controls, an isolated populated PostgreSQL constraint round trip, Ruff, Compose parsing, real local ClamAV benign/EICAR and private MinIO signed-GET/unsigned-denial simulations pass. `EXT-MALWARE-SCANNER` remains MISSING; amd64 emulation is explicit for the official local image on ARM hosts, and no production scanner, credential, live file or provider validation is claimed. |

@@ -40,6 +40,7 @@ from app.schemas.campaign_assignments import (
     CampaignAssignmentTransition,
 )
 from app.schemas.drivers import normalize_optional_text
+from app.services.audit import create_audit_event
 from app.services.billing import (
     _active_admin,
     assert_campaign_production_authorized,
@@ -1494,6 +1495,14 @@ async def accept_driver_assignment(
         metadata=payload.metadata,
         occurred_at=now,
     )
+    await create_audit_event(
+        session,
+        actor_user_id=user_id,
+        action="driver.campaign_assignment.accepted",
+        entity_type="campaign_assignment",
+        entity_id=str(assignment.id),
+        metadata={"campaign_id": str(assignment.campaign_id)},
+    )
     await session.refresh(assignment)
     return assignment
 
@@ -1561,6 +1570,14 @@ async def decline_driver_assignment(
         previous_status=CampaignAssignmentStatus.OFFERED.value,
         metadata=payload.metadata,
         occurred_at=now,
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=user_id,
+        action="driver.campaign_assignment.declined",
+        entity_type="campaign_assignment",
+        entity_id=str(assignment.id),
+        metadata={"campaign_id": str(assignment.campaign_id)},
     )
     await session.refresh(assignment)
     return assignment
@@ -1772,6 +1789,14 @@ async def deactivate_driver_assignment(
         previous_status=previous_status,
         metadata=payload.metadata,
         occurred_at=now,
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=user_id,
+        action="driver.campaign_assignment.deactivated",
+        entity_type="campaign_assignment",
+        entity_id=str(assignment.id),
+        metadata={"campaign_id": str(assignment.campaign_id)},
     )
     await session.refresh(assignment)
     return assignment

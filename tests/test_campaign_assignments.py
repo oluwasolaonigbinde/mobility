@@ -999,6 +999,7 @@ def test_admin_can_create_list_read_and_cancel_assignment_with_events_and_audit(
     audit_events = fetch_audit_events(db_sessionmaker)
     assert [event.action for event in audit_events] == [
         "admin.campaign_assignment.created",
+        "driver.campaign_assignment.accepted",
         "admin.campaign_assignment.cancelled",
     ]
 
@@ -1265,6 +1266,9 @@ def test_driver_decides_offer_and_admin_activation_is_fail_closed(
         "assigned",
         "accepted",
     ]
+    assert [event.action for event in fetch_audit_events(db_sessionmaker)].count(
+        "driver.campaign_assignment.accepted"
+    ) == 1
 
 
 def test_driver_decline_is_idempotent_and_opposite_accept_conflicts(
@@ -1299,6 +1303,41 @@ def test_driver_decline_is_idempotent_and_opposite_accept_conflicts(
     assert accept.json()["error"]["code"] == "ASSIGNMENT_DECISION_CONFLICT"
     events = fetch_activation_events(db_sessionmaker)
     assert [event.event_type for event in events] == ["assigned", "declined"]
+    assert [event.action for event in fetch_audit_events(db_sessionmaker)].count(
+        "driver.campaign_assignment.declined"
+    ) == 1
+
+
+def test_driver_deactivation_is_audited_atomically(db_client, db_sessionmaker) -> None:
+    admin, campaign, driver, profile, vehicle = create_assignment_ready_graph(
+        db_sessionmaker,
+        campaign_status=CampaignStatus.ACTIVE,
+    )
+    now = datetime.now(UTC)
+    assignment = create_test_campaign_assignment(
+        db_sessionmaker,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        assigned_by_user_id=admin.id,
+        assignment_status=CampaignAssignmentStatus.ACTIVE,
+        offered_at=now - timedelta(hours=3),
+        accepted_at=now - timedelta(hours=2),
+        activated_at=now - timedelta(hours=1),
+    )
+
+    response = db_client.post(
+        f"/api/v1/driver/campaign-assignments/{assignment.id}/deactivate",
+        headers=driver_headers(db_client, driver.email),
+        json={"metadata": {"reason": "driver_requested"}},
+    )
+
+    assert response.status_code == http_status.HTTP_200_OK, response.text
+    assert response.json()["status"] == "deactivated"
+    audit_events = fetch_audit_events(db_sessionmaker)
+    assert [event.action for event in audit_events].count(
+        "driver.campaign_assignment.deactivated"
+    ) == 1
 
 
 def test_offer_expiry_materializes_before_post_expiry_decision(

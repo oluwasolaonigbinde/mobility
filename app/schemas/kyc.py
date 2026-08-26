@@ -64,3 +64,19 @@ class SensitiveRevealRequest(BaseModel):
 
 class NinRevealRead(BaseModel):
     nin: str
+
+
+class FileKycRetentionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    dry_run: bool = True
+    reason: str = Field(min_length=3, max_length=64, pattern=r"^[a-z][a-z0-9_]{2,63}$")
+
+
+class FileKycRetentionRead(BaseModel):
+    policy_configured: bool
+    dry_run: bool
+    lock_acquired: bool
+    eligible_submissions: int
+    purged_submissions: int
+    purged_files: int

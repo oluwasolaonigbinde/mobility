@@ -64,7 +64,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert gateway.name == "process_payment_gateway_event"
     assert gateway.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 12
+    assert len(WorkerSettings.cron_jobs) == 13
     cron_job = WorkerSettings.cron_jobs[0]
     assert isinstance(cron_job, CronJob)
     assert cron_job.coroutine is jobs.process_unprocessed_trips
@@ -118,13 +118,30 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
         data_lifecycle_jobs.purge_expired_ping_partitions,
         disclosure_retention_jobs.purge_expired_disclosure_query_history,
         file_lifecycle_jobs.purge_orphaned_file_uploads,
+        file_lifecycle_jobs.purge_expired_file_kyc,
     }
     for cron_job in lifecycle_crons.values():
         assert isinstance(cron_job, CronJob)
         assert cron_job.unique is True
         # Daily, staggered hours so lifecycle DDL never stacks.
         assert len(cron_job.hour) == 1
-    assert len({next(iter(job.hour)) for job in lifecycle_crons.values()}) == 5
+    assert len({next(iter(job.hour)) for job in lifecycle_crons.values()}) == 6
+
+
+def test_file_kyc_worker_stays_disabled_without_approved_policy(settings) -> None:
+    result = asyncio.run(
+        file_lifecycle_jobs.purge_expired_file_kyc(
+            {"settings": settings.model_copy(update={"file_kyc_retention_days": None})}
+        )
+    )
+
+    assert result == {
+        "policy_configured": False,
+        "lock_acquired": False,
+        "eligible_submissions": 0,
+        "purged_submissions": 0,
+        "purged_files": 0,
+    }
 
 
 def test_assignment_expiry_worker_commits_bounded_sweep(

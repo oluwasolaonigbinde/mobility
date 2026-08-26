@@ -30,6 +30,7 @@ from app.services.audit import create_audit_event
 AUDITED = {
     ("POST", "/api/v1/auth/login"): "auth.login.*",
     ("POST", "/api/v1/auth/change-password"): "auth.password.*",
+    ("POST", "/api/v1/auth/refresh"): "auth.session.refreshed",
     ("POST", "/api/v1/auth/register-driver"): "auth.driver_application.created",
     ("POST", "/api/v1/admin/users"): "admin.user.created",
     ("PATCH", "/api/v1/admin/users/{user_id}"): "admin.user.updated",
@@ -91,6 +92,19 @@ AUDITED = {
         "/api/v1/driver/files/uploads/{upload_id}/confirm",
     ): "stored_file.confirmed",
     ("POST", "/api/v1/driver/kyc/submissions"): "driver.kyc.submitted",
+    ("PATCH", "/api/v1/driver/profile"): "driver.profile.updated",
+    ("POST", "/api/v1/driver/campaign-assignments/{assignment_id}/accept"): (
+        "driver.campaign_assignment.accepted"
+    ),
+    ("POST", "/api/v1/driver/campaign-assignments/{assignment_id}/decline"): (
+        "driver.campaign_assignment.declined"
+    ),
+    ("POST", "/api/v1/driver/campaign-assignments/{assignment_id}/deactivate"): (
+        "driver.campaign_assignment.deactivated"
+    ),
+    ("POST", "/api/v1/admin/operations/file-kyc-retention"): (
+        "file_kyc.retention_*"
+    ),
     (
         "POST",
         "/api/v1/driver/vehicles/{vehicle_id}/evidence-submissions",
@@ -290,23 +304,7 @@ EXEMPT = {
     ),
 }
 
-KNOWN_UNAUDITED = {
-    # Pre-existing gaps discovered during S4, outside its approved backfill
-    # scope (§6.4.9's honesty note documented only trips/analytics/
-    # impressions). Recorded in the architecture residual note; closing
-    # them is follow-up work, not silent scope creep.
-    ("POST", "/api/v1/auth/refresh"): "session refresh writes no audit event",
-    ("PATCH", "/api/v1/driver/profile"): "driver self-update writes no audit event",
-    ("POST", "/api/v1/driver/campaign-assignments/{assignment_id}/accept"): (
-        "driver assignment acceptance writes no audit event"
-    ),
-    ("POST", "/api/v1/driver/campaign-assignments/{assignment_id}/decline"): (
-        "driver assignment decline writes no audit event"
-    ),
-    ("POST", "/api/v1/driver/campaign-assignments/{assignment_id}/deactivate"): (
-        "driver assignment deactivation writes no audit event"
-    ),
-}
+KNOWN_UNAUDITED: dict[tuple[str, str], str] = {}
 
 EXEMPT.update(
     {

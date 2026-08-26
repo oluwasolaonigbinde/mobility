@@ -22,7 +22,7 @@ def _parse_cors_origins(value: str | list[str]) -> list[str]:
     return [origin.strip() for origin in stripped.split(",") if origin.strip()]
 
 
-def _blank_to_none(value: str | float | None) -> str | float | None:
+def _blank_to_none(value: str | float | int | None) -> str | float | int | None:
     if isinstance(value, str) and not value.strip():
         return None
     return value
@@ -33,6 +33,7 @@ DEFAULT_JWT_SECRET = "change-me-local-development-secret-at-least-32-bytes"
 
 CorsOrigins = Annotated[list[str], BeforeValidator(_parse_cors_origins)]
 OptionalFloat = Annotated[float | None, BeforeValidator(_blank_to_none)]
+OptionalInt = Annotated[int | None, BeforeValidator(_blank_to_none)]
 
 
 class Settings(BaseSettings):
@@ -85,6 +86,9 @@ class Settings(BaseSettings):
     object_storage_presign_ttl_seconds: int = 300
     object_storage_orphan_ttl_hours: int = 24
     object_storage_download_ttl_seconds: int = 60
+    # No legal retention period is assumed. Execution remains disabled until
+    # an approved value is configured by the deployment environment.
+    file_kyc_retention_days: OptionalInt = None
     malware_scanner_host: str = ""
     malware_scanner_port: int = 3310
     malware_scanner_timeout_seconds: int = 30
@@ -250,6 +254,13 @@ class Settings(BaseSettings):
     def validate_positive_file_boundary_settings(cls, value: int) -> int:
         if value <= 0:
             raise ValueError("File-boundary numeric settings must be positive")
+        return value
+
+    @field_validator("file_kyc_retention_days")
+    @classmethod
+    def validate_file_kyc_retention_days(cls, value: int | None) -> int | None:
+        if value is not None and value <= 0:
+            raise ValueError("FILE_KYC_RETENTION_DAYS must be positive when configured")
         return value
 
     @field_validator(

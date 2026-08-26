@@ -78,6 +78,14 @@ async def patch_current_driver_profile(
     session: SessionDependency,
 ) -> DriverProfileRead:
     profile, user = await update_current_driver_profile(session, current_user.id, payload)
+    await create_audit_event(
+        session,
+        actor_user_id=current_user.id,
+        action="driver.profile.updated",
+        entity_type="driver_profile",
+        entity_id=str(profile.id),
+        metadata={"changed_fields": list(payload.model_dump(exclude_unset=True))},
+    )
     await session.commit()
     return driver_profile_response(profile, user)
 

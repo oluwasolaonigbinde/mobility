@@ -454,6 +454,46 @@ All hooks are inert when their DSN is empty. No Sentry account is created by thi
 
 Confirm an inert build before enabling a real DSN, use a non-production/dummy DSN for a controlled exception, and check that neither request bodies nor credentials appear in captured events.
 
+## Private file and KYC incidents
+
+Production storage, malware scanner and key-custody selections remain external
+deployment inputs. The local MinIO, ClamAV and keyring adapters prove the
+provider-neutral contracts; they are not production-provider approval.
+
+KYC retention execution is disabled unless an approved positive
+`FILE_KYC_RETENTION_DAYS` value is configured. Do not copy a local or synthetic
+test value into a live environment. After legal/privacy approval, an active
+admin must run the dry-run first and reconcile its eligible count before any
+execution:
+
+```text
+POST /api/v1/admin/operations/file-kyc-retention
+{"dry_run":true,"reason":"approved_retention_review_reference"}
+```
+
+Only rejected or expired submissions older than the configured cutoff are
+eligible. Pending and approved submissions remain untouched. The worker uses
+the same boundary once daily; without the setting it records
+`policy_configured=false` and deletes nothing. Execution removes document links
+before deleting an object, preserves any file still referenced by another KYC,
+vehicle-evidence or campaign record, and writes redacted submission/file/run
+audit events. A storage deletion error rolls the database transaction back and
+is safe to retry; the object store remains private throughout.
+
+| Failure | Fail-closed effect | Recovery evidence and action |
+|---|---|---|
+| Scanner unavailable or timing out | File stays quarantined; confirmation, download, creative/KYC use and approval cannot treat it as clean | Restore the configured scanner, verify the worker records a successful clean scan for the same stored-file ID, then retry the blocked workflow. Never edit scan status manually. |
+| Private storage unavailable | Upload confirmation, reads and retention object deletion return unavailable; no public URL or database-only purge is allowed | Restore the configured storage endpoint/credentials, verify a private signed read and an unsigned denial, then rerun the bounded operation. A retention retry may encounter an already-absent object after a partial external deletion; deletion remains idempotent. |
+| Active key unavailable or ciphertext authentication fails | NIN/bank reveal, new encryption and rewrap fail; masked records remain readable but plaintext is never substituted or logged | Restore the exact approved key version through the custody adapter and rerun a masked/reveal check under an audited purpose. If the key is irrecoverable, preserve the ciphertext and escalate to the privacy/security owner; do not overwrite it with guessed data or a new identity. |
+| Retention policy absent or invalid | Scheduled deletion is disabled and an execution request returns `FILE_KYC_RETENTION_POLICY_REQUIRED` | Obtain the missing legal/privacy decision, record its production configuration reference, configure the approved positive day count, run dry-run, then execute only after reconciliation. |
+| Concurrent retention run | One PostgreSQL advisory-lock holder proceeds; another reports `lock_acquired=false` and deletes nothing | Let the holder finish, inspect `file_kyc.retention_executed` audit counts, then rerun normally if eligible records remain. |
+
+Incident records must identify the environment, stored-file/submission IDs,
+time window, observed error code, operator and recovery evidence. Do not include
+filenames, NIN, bank values, object credentials, ciphertext keys or scanned
+file contents. Whole-platform breach, ROPA and DSR handling remains owned by
+W3-00A/B.
+
 ## Secret rotation
 
 Keep secrets in the host/platform secret store, not Git or image layers. Rotate one dependency at a time and retain a tested rollback value until health checks pass.

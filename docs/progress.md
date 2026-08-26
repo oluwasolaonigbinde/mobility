@@ -63,9 +63,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 clarification corrects the prior false pause: missing production storage,
 scanner, KMS, email and phone inputs remain explicit live/deployment gates but
 do not block provider-neutral/local/synthetic implementation under D23.
-**Current checkpoint:** `PKG-04 / W2-02E` — add file/KYC lifecycle and incident
-operations over the completed provider-neutral stored-file, scanner and
-encrypted-identifier foundations. No production storage/scanner/KMS provider,
+**Current checkpoint:** `PKG-04 / W2-03B` — add the admin creative review gate
+over the completed managed-file/scan foundation; W2-02E file/KYC lifecycle and
+incident operations are complete. No production storage/scanner/KMS provider,
 custodian, creative/KYC approval, launch, live KYC, real-GPS, external-staging,
 physical-device or pilot evidence is claimed.
 
@@ -525,6 +525,30 @@ physical-device or pilot evidence is claimed.
   still own person/payee and vehicle approval/work eligibility; no production
   custodian/provider, live identity check, approval or pilot evidence is
   claimed.
+- **W2-02E checkpoint evidence (26 Aug 2026):** optional positive
+  `FILE_KYC_RETENTION_DAYS` has no production default; absent policy disables
+  the worker and rejects execution while the active-admin API still supports
+  an audited readiness dry-run. Rejected/expired KYC and vehicle-evidence
+  versions purge under one PostgreSQL advisory lock; stable locks and reference
+  rechecks preserve pending/approved and shared KYC/creative files, while
+  private object deletion precedes row removal and remains idempotently
+  retryable after first-, mid-batch- or concurrent-provider failure. Every
+  submission/file/completed-run audit is redacted. Scanner outage, storage
+  outage and key-loss paths remain fail closed, and the operations runbook
+  records bounded recovery without inventing a provider, custodian or legal
+  value. Session refresh, driver self-profile update and assignment accept/
+  decline/deactivate now audit atomically; identical assignment retries create
+  no second decision audit, leaving no `KNOWN_UNAUDITED` mutating route. The
+  initial missing lifecycle module was observed red. A broad focused run
+  reached 210 passed/1 expected environment skip and exposed one misplaced
+  test-only assertion; its two-case correction and the final 20-check changed-
+  boundary gate pass. Ruff, Compose parsing, byte-stable regenerated §9
+  contracts, frontend type/lint/build, real PostgreSQL concurrent-purge proof,
+  and a real private MinIO→ClamAV→encrypted-KYC→dry-run→object purge flow pass;
+  the disposable local services were removed. There is no migration in this
+  checkpoint. `EXT-LEGAL-PRIVACY`, `EXT-STORAGE-PROVIDER`,
+  `EXT-MALWARE-SCANNER` and `EXT-KMS-CUSTODY` remain MISSING and no live
+  retention, provider, identity, approval or pilot validation is claimed.
 - **W2-03A checkpoint evidence (24 Aug 2026):** migration `0043` extends the campaign
   lifecycle and adds append-only, exact-submission-bound review evidence.
   Dedicated row-locked advertiser/admin actions enforce submit, approve,
@@ -991,7 +1015,7 @@ verification, gates or required specialist review.
 | 29 | **W2-02B — malware scanning and purpose-scoped reads** | PKG-04 | DONE | Unsafe files fail closed and privileged downloads are short-lived/audited; production adoption remains gated by EXT-MALWARE-SCANNER. | leaf: W2-02A |
 | 30 | **W2-02C — advertiser creative upload** | PKG-04 | DONE | Campaign flows use managed scanned assets instead of arbitrary URLs; legacy URL rows remain readable but cannot authorize a new offer. | leaf: W2-02B |
 | 31 | **W2-02D — encrypted KYC and financial identifiers** | PKG-04 | DONE | Required documents/NIN/bank data reuse the crypto port and are protected/version-reviewed; production custody remains gated by EXT-KMS-CUSTODY. | leaf: W2-02B, MNY-10A |
-| 32 | **W2-02E — file/KYC lifecycle and incident operations** | PKG-04 | TODO | File/KYC purge plus scanner/key/vendor failures are tested and audited. | leaf: W2-02B, W2-02D |
+| 32 | **W2-02E — file/KYC lifecycle and incident operations** | PKG-04 | DONE | File/KYC purge plus scanner/key/vendor failures are tested and audited. | leaf: W2-02B, W2-02D |
 | 33 | **W2-03A — campaign submission and approval** | PKG-04 | DONE | Advertiser submits; admin approves/rejects; unapproved campaigns cannot schedule. | none |
 | 34 | **W2-03B — creative review gate** | PKG-04 | TODO | Only admin-approved, scan-cleared creative can satisfy campaign launch. | leaf: W2-02C |
 | 35 | **W2-03C — installation evidence and proof-of-display** | PKG-04 | TODO | Assignment-bound evidence and nonce proof gate earning eligibility. | leaf: W2-02B |

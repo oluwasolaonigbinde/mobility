@@ -761,6 +761,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/operations/file-kyc-retention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Plan or execute terminal file/KYC retention */
+        post: operations["admin_file_kyc_retention_api_v1_admin_operations_file_kyc_retention_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payees/bank-account-versions/{version_id}/reveal": {
         parameters: {
             query?: never;
@@ -5663,6 +5680,31 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** FileKycRetentionRead */
+        FileKycRetentionRead: {
+            /** Dry Run */
+            dry_run: boolean;
+            /** Eligible Submissions */
+            eligible_submissions: number;
+            /** Lock Acquired */
+            lock_acquired: boolean;
+            /** Policy Configured */
+            policy_configured: boolean;
+            /** Purged Files */
+            purged_files: number;
+            /** Purged Submissions */
+            purged_submissions: number;
+        };
+        /** FileKycRetentionRequest */
+        FileKycRetentionRequest: {
+            /**
+             * Dry Run
+             * @default true
+             */
+            dry_run: boolean;
+            /** Reason */
+            reason: string;
+        };
         /**
          * FilePurpose
          * @enum {string}
@@ -10444,6 +10486,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriverKycSubmissionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_file_kyc_retention_api_v1_admin_operations_file_kyc_retention_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileKycRetentionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileKycRetentionRead"];
                 };
             };
             /** @description Validation Error */

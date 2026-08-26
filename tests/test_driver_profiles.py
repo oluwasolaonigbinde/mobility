@@ -180,6 +180,8 @@ def test_driver_can_retrieve_and_update_own_profile(db_client, db_sessionmaker) 
     assert data["country_code"] == "NG"
     assert data["onboarding_status"] == "active"
     assert "password_hash" not in patch_response.text
+    audit_events = fetch_audit_events(db_sessionmaker)
+    assert [event.action for event in audit_events].count("driver.profile.updated") == 1
 
 
 def test_driver_profile_missing_returns_standard_error(db_client, db_sessionmaker) -> None:

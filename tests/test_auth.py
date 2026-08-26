@@ -248,6 +248,9 @@ def test_refresh_preserves_authentication_and_returns_a_new_token(
     assert refreshed.json()["access_token"]
     refreshed_headers = {"Authorization": f"Bearer {refreshed.json()['access_token']}"}
     assert db_client.get("/api/v1/me", headers=refreshed_headers).status_code == 200
+    assert [event.action for event in fetch_auth_audit_events(db_sessionmaker)].count(
+        "auth.session.refreshed"
+    ) == 1
 
 
 def test_claimless_legacy_token_authenticates_but_cannot_refresh(

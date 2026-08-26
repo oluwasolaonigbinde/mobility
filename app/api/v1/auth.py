@@ -333,6 +333,7 @@ async def change_password(
 )
 async def refresh_session(
     current_user: CurrentUserDependency,
+    session: SessionDependency,
     token: Annotated[str, Depends(oauth2_scheme)],
     settings: SettingsDependency,
 ) -> LoginResponse:
@@ -357,4 +358,12 @@ async def refresh_session(
             "Session has reached its maximum lifetime",
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
+    await create_audit_event(
+        session,
+        actor_user_id=current_user.id,
+        action="auth.session.refreshed",
+        entity_type="user",
+        entity_id=str(current_user.id),
+    )
+    await session.commit()
     return login_response(current_user, settings, auth_time=auth_time, expires_at=expires_at)

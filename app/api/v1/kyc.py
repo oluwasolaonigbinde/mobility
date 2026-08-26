@@ -8,15 +8,19 @@ from app.api.v1.dependencies import (
     DriverUserDependency,
     SessionDependency,
     SettingsDependency,
+    StorageDependency,
 )
 from app.schemas.kyc import (
     DriverKycSubmissionCreate,
     DriverKycSubmissionRead,
+    FileKycRetentionRead,
+    FileKycRetentionRequest,
     NinRevealRead,
     SensitiveRevealRequest,
     VehicleEvidenceSubmissionCreate,
     VehicleEvidenceSubmissionRead,
 )
+from app.services.file_kyc_lifecycle import purge_terminal_file_kyc
 from app.services.kyc import (
     DriverKycView,
     VehicleEvidenceView,
@@ -188,3 +192,35 @@ async def admin_rewrap_driver_nin(
     )
     await session.commit()
     return _driver_response(view)
+
+
+@router.post(
+    "/admin/operations/file-kyc-retention",
+    response_model=FileKycRetentionRead,
+    summary="Plan or execute terminal file/KYC retention",
+)
+async def admin_file_kyc_retention(
+    payload: FileKycRetentionRequest,
+    user: AdminUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+    storage: StorageDependency,
+) -> FileKycRetentionRead:
+    result = await purge_terminal_file_kyc(
+        session,
+        storage=storage,
+        retention_days=settings.file_kyc_retention_days,
+        limit=settings.worker_sweep_batch_size,
+        dry_run=payload.dry_run,
+        actor_user_id=user.id,
+        reason=payload.reason,
+    )
+    await session.commit()
+    return FileKycRetentionRead(
+        policy_configured=result.policy_configured,
+        dry_run=result.dry_run,
+        lock_acquired=result.lock_acquired,
+        eligible_submissions=result.eligible_submissions,
+        purged_submissions=result.purged_submissions,
+        purged_files=result.purged_files,
+    )

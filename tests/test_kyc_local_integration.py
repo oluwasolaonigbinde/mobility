@@ -1,19 +1,25 @@
-"""Optional real MinIO + ClamAV upload-to-protected-KYC integration proof."""
+"""Optional real MinIO + ClamAV upload-to-protected-KYC lifecycle proof."""
 
+import asyncio
 import hashlib
 import os
-from uuid import uuid4
+from datetime import UTC, datetime, timedelta
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
 from conftest import auth_headers
+from sqlalchemy import select
 from test_file_scanning import scan_file
 from test_kyc import PASSWORD, _seed_driver_authority
 
 from app.adapters.scanner.clamav import ClamAVScanner
+from app.adapters.storage import StorageObjectNotFound
 from app.adapters.storage.s3 import S3StorageProvider
 from app.api.v1.dependencies import get_storage_provider
-from app.models.stored_file import FileScanStatus
+from app.core.config import get_settings
+from app.models.kyc import DriverKycSubmission, KycSubmissionStatus
+from app.models.stored_file import FileScanStatus, StoredFile
 
 
 @pytest.mark.skipif(
@@ -21,7 +27,7 @@ from app.models.stored_file import FileScanStatus
     reason="real local MinIO/ClamAV integration was not requested",
 )
 def test_real_private_upload_scan_and_protected_kyc_binding(
-    db_client, db_sessionmaker
+    db_client, db_sessionmaker, settings
 ) -> None:
     storage = S3StorageProvider(
         endpoint_url=os.environ["LOCAL_MINIO_ENDPOINT"],
@@ -38,7 +44,7 @@ def test_real_private_upload_scan_and_protected_kyc_binding(
     )
     db_client.app.dependency_overrides[get_storage_provider] = lambda: storage
     try:
-        _, driver, _, bank_id, _ = _seed_driver_authority(
+        admin, driver, _, bank_id, _ = _seed_driver_authority(
             db_sessionmaker, suffix="real-local"
         )
         headers = auth_headers(db_client, driver.email, PASSWORD)
@@ -92,5 +98,49 @@ def test_real_private_upload_scan_and_protected_kyc_binding(
         assert submitted.status_code == 201
         assert submitted.json()["masked_nin"] == "*******8901"
         assert submitted.json()["status"] == "pending_review"
+
+        async def make_terminal() -> list[str]:
+            async with db_sessionmaker() as session:
+                submission = await session.get(
+                    DriverKycSubmission, UUID(submitted.json()["id"])
+                )
+                assert submission is not None
+                submission.status = KycSubmissionStatus.REJECTED
+                submission.created_at = datetime.now(UTC) - timedelta(days=31)
+                keys = list(
+                    (
+                        await session.scalars(
+                            select(StoredFile.storage_key).where(
+                                StoredFile.id.in_(UUID(file_id) for file_id in file_ids.values())
+                            )
+                        )
+                    ).all()
+                )
+                await session.commit()
+                return keys
+
+        storage_keys = asyncio.run(make_terminal())
+        configured = settings.model_copy(update={"file_kyc_retention_days": 30})
+        db_client.app.dependency_overrides[get_settings] = lambda: configured
+        admin_auth = auth_headers(db_client, admin.email, PASSWORD)
+        planned = db_client.post(
+            "/api/v1/admin/operations/file-kyc-retention",
+            headers=admin_auth,
+            json={"dry_run": True, "reason": "real_local_retention_review"},
+        )
+        executed = db_client.post(
+            "/api/v1/admin/operations/file-kyc-retention",
+            headers=admin_auth,
+            json={"dry_run": False, "reason": "real_local_retention_execution"},
+        )
+        assert planned.status_code == 200
+        assert planned.json()["eligible_submissions"] == 1
+        assert executed.status_code == 200
+        assert executed.json()["purged_submissions"] == 1
+        assert executed.json()["purged_files"] == 3
+        for storage_key in storage_keys:
+            with pytest.raises(StorageObjectNotFound):
+                asyncio.run(storage.stat(storage_key))
     finally:
         db_client.app.dependency_overrides.pop(get_storage_provider, None)
+        db_client.app.dependency_overrides.pop(get_settings, None)

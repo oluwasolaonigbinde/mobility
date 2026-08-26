@@ -7803,6 +7803,66 @@
         "title": "FileDownloadRequest",
         "type": "object"
       },
+      "FileKycRetentionRead": {
+        "properties": {
+          "dry_run": {
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "eligible_submissions": {
+            "title": "Eligible Submissions",
+            "type": "integer"
+          },
+          "lock_acquired": {
+            "title": "Lock Acquired",
+            "type": "boolean"
+          },
+          "policy_configured": {
+            "title": "Policy Configured",
+            "type": "boolean"
+          },
+          "purged_files": {
+            "title": "Purged Files",
+            "type": "integer"
+          },
+          "purged_submissions": {
+            "title": "Purged Submissions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "policy_configured",
+          "dry_run",
+          "lock_acquired",
+          "eligible_submissions",
+          "purged_submissions",
+          "purged_files"
+        ],
+        "title": "FileKycRetentionRead",
+        "type": "object"
+      },
+      "FileKycRetentionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "dry_run": {
+            "default": true,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "reason": {
+            "maxLength": 64,
+            "minLength": 3,
+            "pattern": "^[a-z][a-z0-9_]{2,63}$",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "FileKycRetentionRequest",
+        "type": "object"
+      },
       "FilePurpose": {
         "enum": [
           "creative",
@@ -18948,6 +19008,52 @@
           }
         ],
         "summary": "Admin Rewrap Driver Nin",
+        "tags": [
+          "Protected KYC"
+        ]
+      }
+    },
+    "/api/v1/admin/operations/file-kyc-retention": {
+      "post": {
+        "operationId": "admin_file_kyc_retention_api_v1_admin_operations_file_kyc_retention_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileKycRetentionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileKycRetentionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Plan or execute terminal file/KYC retention",
         "tags": [
           "Protected KYC"
         ]
