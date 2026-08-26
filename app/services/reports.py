@@ -1161,6 +1161,15 @@ async def advertiser_campaign_report(
                 status_code=409,
             )
         report.exposure_score = await exposure_score_read(session, score)
+    from app.services.audience import high_exposure_zone_insights
+
+    report.high_exposure_zone_insights = await high_exposure_zone_insights(
+        session,
+        settings=settings,
+        actor_user_id=user_id,
+        campaign_id=campaign_id,
+        measurement_run_id=run.id,
+    )
     return report
 
 

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import select, text
@@ -13,6 +15,7 @@ from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.campaign import Campaign
 from app.models.campaign_zone import CampaignZone
+from app.models.exposure_score import ExposureScore
 from app.models.exposure_segment import ExposureSegment, ExposureSegmentCell
 from app.models.measurement import MeasurementRun
 from app.models.organization import (
@@ -36,8 +39,15 @@ from app.models.user import User, UserRole, UserStatus
 from app.schemas.exposure_segments import ExposureCellInput
 from app.schemas.retargeting_source_links import RetargetingSourceLinkCreate
 from app.schemas.retargeting_sources import RetargetingSourceCreate
+from app.schemas.zone_insights import (
+    HighExposureZoneInsightsRead,
+    HighExposureZoneItem,
+    HighExposureZoneProvenance,
+    ZoneInsightSegmentProvenance,
+)
 from app.services.audit import create_audit_event
 from app.services.disclosure import (
+    _approved_reference,
     ensure_disclosure_live_gate,
     exposure_cell_meets_disclosure_floor,
 )
@@ -49,6 +59,78 @@ def _canonical_hash(value: dict) -> str:
     return hashlib.sha256(
         json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
+
+
+HIGH_EXPOSURE_ZONE_FORMULA_VERSION = "high_exposure_zone_v1"
+HIGH_EXPOSURE_ZONE_FORMULA_CONTRACT = {
+    "formula_version": HIGH_EXPOSURE_ZONE_FORMULA_VERSION,
+    "scope": "campaign_target_zone",
+    "authority": (
+        "Latest immutable exposure segment per source link for one reproducible measurement "
+        "run, bound to its issued exposure_v1 score."
+    ),
+    "aggregation": (
+        "Deduplicate identical zone/cell/window/context facts, then sum frozen modelled "
+        "potential contacts and trip counts per target zone."
+    ),
+    "ordering": [
+        "modelled_potential_contacts descending",
+        "trip_count descending",
+        "zone_id ascending",
+    ],
+    "ties": "Equal measures receive stable consecutive ranks using zone_id ascending.",
+    "missing_data": (
+        "No issued run or segment is empty; a missing/insufficient exposure score is "
+        "unavailable; stale authority fails closed; any current k-floor failure suppresses "
+        "the entire result."
+    ),
+    "metric_separation": (
+        "The campaign exposure score is frozen provenance and context only. Ranking uses "
+        "modelled potential contacts and is not impressions, observed contacts, attribution, "
+        "financial ROI, or a new exposure score."
+    ),
+}
+HIGH_EXPOSURE_ZONE_FORMULA_FINGERPRINT = _canonical_hash(HIGH_EXPOSURE_ZONE_FORMULA_CONTRACT)
+HIGH_EXPOSURE_ZONE_DISCLAIMER = (
+    "Ranks disclosure-cleared zones by frozen modelled potential contacts. The campaign "
+    "exposure score is a separate uncalibrated operational index; exposure score, "
+    "impressions, potential contacts, attribution and ROI remain separate measures. "
+    "The ranking does not represent observed people or guaranteed outcomes."
+)
+
+
+@dataclass(frozen=True)
+class ZoneInsightTotal:
+    zone_id: UUID
+    modelled_potential_contacts: Decimal
+    trip_count: int
+
+
+@dataclass(frozen=True)
+class RankedZoneInsight(ZoneInsightTotal):
+    rank: int
+
+
+def rank_high_exposure_zones(
+    totals: list[ZoneInsightTotal],
+) -> list[RankedZoneInsight]:
+    ordered = sorted(
+        totals,
+        key=lambda item: (
+            -item.modelled_potential_contacts,
+            -item.trip_count,
+            item.zone_id,
+        ),
+    )
+    return [
+        RankedZoneInsight(
+            zone_id=item.zone_id,
+            modelled_potential_contacts=item.modelled_potential_contacts,
+            trip_count=item.trip_count,
+            rank=rank,
+        )
+        for rank, item in enumerate(ordered, start=1)
+    ]
 
 
 def _source_status(source: RetargetingSource, now: datetime) -> str:
@@ -847,6 +929,41 @@ async def materialize_exposure_segment(
             "Synthetic materialization cannot consume a live measurement run",
             status_code=status.HTTP_409_CONFLICT,
         )
+    from app.services.exposure_scores import exposure_score_is_stale
+
+    score = await session.scalar(
+        select(ExposureScore)
+        .where(
+            ExposureScore.measurement_run_id == run.id,
+            ExposureScore.formula_version == "exposure_v1",
+        )
+        .order_by(ExposureScore.created_at.desc(), ExposureScore.id.desc())
+        .limit(1)
+    )
+    if score is None:
+        raise AppError(
+            "ZONE_INSIGHT_EXPOSURE_SCORE_REQUIRED",
+            "An issued exposure_v1 score is required before exposure segments can carry "
+            "high-exposure zone authority",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if await exposure_score_is_stale(session, score):
+        raise AppError(
+            "ZONE_INSIGHT_EXPOSURE_SCORE_STALE",
+            "The issued exposure score no longer matches its immutable measurement run",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    zone_insight_authority = {
+        "formula_version": HIGH_EXPOSURE_ZONE_FORMULA_VERSION,
+        "formula_fingerprint": HIGH_EXPOSURE_ZONE_FORMULA_FINGERPRINT,
+        "exposure_score_id": str(score.id),
+        "exposure_formula_version": score.formula_version,
+        "exposure_formula_fingerprint": score.formula_fingerprint,
+        "exposure_input_fingerprint": score.input_fingerprint,
+        "exposure_result_fingerprint": score.result_fingerprint,
+        "exposure_score_status": score.result_snapshot.get("status"),
+        "campaign_exposure_score": score.result_snapshot.get("score"),
+    }
 
     normalized = sorted(
         (_cell_snapshot(cell) for cell in cells),
@@ -894,6 +1011,7 @@ async def materialize_exposure_segment(
         "measurement_input_sha256": run.input_manifest_sha256,
         "measurement_result_sha256": run.result_manifest_sha256,
         "measurement_proof_sha256": run.proof_manifest_sha256,
+        "zone_insight_authority": zone_insight_authority,
         "cells": normalized,
     }
     facts_fingerprint = _canonical_hash(facts)
@@ -926,6 +1044,7 @@ async def materialize_exposure_segment(
         "source_link_id": str(link.id),
         "measurement_run_id": str(run.id),
         "version": (latest.version + 1) if latest is not None else 1,
+        "zone_insight_authority": zone_insight_authority,
         "cells": releasable,
     }
     segment = ExposureSegment(
@@ -1021,4 +1140,264 @@ async def exposure_segment_is_stale(
         or run.result_manifest_sha256 != segment.measurement_result_sha256
         or run.proof_manifest_sha256 != segment.measurement_proof_sha256
         or not measurement_run_reproducible(run)
+    )
+
+
+def _zone_insight_response(*, campaign_id: UUID, state: str) -> HighExposureZoneInsightsRead:
+    return HighExposureZoneInsightsRead(
+        state=state,
+        campaign_id=campaign_id,
+        campaign_exposure_score=None,
+        items=[],
+        provenance=None,
+        uncertainty=None,
+        disclaimer=HIGH_EXPOSURE_ZONE_DISCLAIMER,
+    )
+
+
+def _zone_insight_uncertainty(run: MeasurementRun, score: ExposureScore) -> str:
+    contact_uncertainty: str | None = None
+    metrics = run.result_manifest.get("metrics")
+    if isinstance(metrics, list):
+        for metric in metrics:
+            if (
+                isinstance(metric, dict)
+                and metric.get("id") == "modelled_potential_contacts"
+                and isinstance(metric.get("uncertainty"), str)
+                and metric["uncertainty"].strip()
+            ):
+                contact_uncertainty = metric["uncertainty"].strip()
+                break
+    score_uncertainty = score.result_snapshot.get("uncertainty")
+    score_statement = (
+        score_uncertainty.get("statement") if isinstance(score_uncertainty, dict) else None
+    )
+    if (
+        not contact_uncertainty
+        or not isinstance(score_statement, str)
+        or not score_statement.strip()
+    ):
+        raise AppError(
+            "ZONE_INSIGHT_UNCERTAINTY_MISSING",
+            "Issued measurement and exposure-score uncertainty are required",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    return f"{contact_uncertainty} {score_statement.strip()}"
+
+
+async def high_exposure_zone_insights(
+    session: AsyncSession,
+    *,
+    settings: Settings,
+    actor_user_id: UUID,
+    campaign_id: UUID,
+    admin: bool = False,
+    measurement_run_id: UUID | None = None,
+) -> HighExposureZoneInsightsRead:
+    # The central disclosure gate is deliberately first: no membership,
+    # campaign, run, score, segment, zone label, or ranking fact is read before it.
+    await _privacy_gate(settings)
+    organization_id: UUID | None = None
+    if admin:
+        await _active_admin(session, actor_user_id)
+    else:
+        organization_id = (
+            await _advertiser_membership(session, actor_user_id=actor_user_id, write=False)
+        ).organization_id
+    campaign_filters = [Campaign.id == campaign_id]
+    if organization_id is not None:
+        campaign_filters.append(Campaign.organization_id == organization_id)
+    campaign = await session.scalar(select(Campaign).where(*campaign_filters))
+    if campaign is None:
+        raise AppError(
+            "CAMPAIGN_NOT_FOUND", "Campaign was not found", status_code=status.HTTP_404_NOT_FOUND
+        )
+
+    run_filters = [
+        MeasurementRun.campaign_id == campaign.id,
+        MeasurementRun.organization_id == campaign.organization_id,
+    ]
+    if measurement_run_id is not None:
+        run_filters.append(MeasurementRun.id == measurement_run_id)
+    else:
+        run_filters.append(
+            ~MeasurementRun.id.in_(
+                select(MeasurementRun.reissue_of_run_id).where(
+                    MeasurementRun.reissue_of_run_id.is_not(None)
+                )
+            )
+        )
+    run = await session.scalar(
+        select(MeasurementRun)
+        .where(*run_filters)
+        .order_by(MeasurementRun.created_at.desc(), MeasurementRun.id.desc())
+        .limit(1)
+    )
+    if run is None:
+        return _zone_insight_response(campaign_id=campaign.id, state="empty")
+    if not measurement_run_reproducible(run):
+        return _zone_insight_response(campaign_id=campaign.id, state="stale")
+    if not settings.privacy_disclosure_synthetic_test_mode and (
+        run.test_only
+        or not settings.measurement_live_issuance_authorized
+        or not _approved_reference(settings.measurement_report_method_reference)
+        or run.method_revision != settings.measurement_report_method_reference
+    ):
+        return _zone_insight_response(campaign_id=campaign.id, state="unavailable")
+
+    score = await session.scalar(
+        select(ExposureScore)
+        .where(
+            ExposureScore.measurement_run_id == run.id,
+            ExposureScore.formula_version == "exposure_v1",
+        )
+        .order_by(ExposureScore.created_at.desc(), ExposureScore.id.desc())
+        .limit(1)
+    )
+    if score is None:
+        return _zone_insight_response(campaign_id=campaign.id, state="unavailable")
+    from app.services.exposure_scores import exposure_score_is_stale
+
+    if await exposure_score_is_stale(session, score):
+        return _zone_insight_response(campaign_id=campaign.id, state="stale")
+    if score.result_snapshot.get("status") != "scored" or not isinstance(
+        score.result_snapshot.get("score"), str
+    ):
+        return _zone_insight_response(campaign_id=campaign.id, state="unavailable")
+
+    segment_rows = list(
+        await session.scalars(
+            select(ExposureSegment)
+            .where(
+                ExposureSegment.organization_id == campaign.organization_id,
+                ExposureSegment.campaign_id == campaign.id,
+                ExposureSegment.measurement_run_id == run.id,
+            )
+            .order_by(
+                ExposureSegment.source_link_id,
+                ExposureSegment.version.desc(),
+                ExposureSegment.id.desc(),
+            )
+        )
+    )
+    current_segments: list[ExposureSegment] = []
+    seen_links: set[UUID] = set()
+    for segment in segment_rows:
+        if segment.source_link_id not in seen_links:
+            seen_links.add(segment.source_link_id)
+            current_segments.append(segment)
+    if not current_segments:
+        return _zone_insight_response(campaign_id=campaign.id, state="empty")
+
+    expected_authority = {
+        "formula_version": HIGH_EXPOSURE_ZONE_FORMULA_VERSION,
+        "formula_fingerprint": HIGH_EXPOSURE_ZONE_FORMULA_FINGERPRINT,
+        "exposure_score_id": str(score.id),
+        "exposure_formula_version": score.formula_version,
+        "exposure_formula_fingerprint": score.formula_fingerprint,
+        "exposure_input_fingerprint": score.input_fingerprint,
+        "exposure_result_fingerprint": score.result_fingerprint,
+        "exposure_score_status": score.result_snapshot.get("status"),
+        "campaign_exposure_score": score.result_snapshot.get("score"),
+    }
+    for segment in current_segments:
+        if (
+            await exposure_segment_is_stale(session, segment)
+            or segment.snapshot.get("zone_insight_authority") != expected_authority
+        ):
+            return _zone_insight_response(campaign_id=campaign.id, state="stale")
+
+    governed_rows: list[tuple[ExposureSegment, ExposureSegmentCell]] = []
+    for segment in current_segments:
+        cells = await exposure_segment_cells(session, segment)
+        if any(
+            not exposure_cell_meets_disclosure_floor(
+                distinct_vehicle_count=cell.distinct_vehicle_count, settings=settings
+            )
+            for cell in cells
+        ):
+            return _zone_insight_response(campaign_id=campaign.id, state="suppressed")
+        governed_rows.extend((segment, cell) for cell in cells)
+    if not governed_rows:
+        return _zone_insight_response(campaign_id=campaign.id, state="suppressed")
+
+    deduplicated: dict[tuple[UUID, str, datetime, datetime, str], ExposureSegmentCell] = {}
+    for segment, cell in governed_rows:
+        identity = (
+            segment.zone_id,
+            cell.coverage_cell,
+            _as_utc(cell.window_start_at),
+            _as_utc(cell.window_end_at),
+            cell.context,
+        )
+        prior = deduplicated.get(identity)
+        if prior is not None and (
+            prior.distinct_vehicle_count != cell.distinct_vehicle_count
+            or prior.trip_count != cell.trip_count
+            or prior.modelled_potential_contacts != cell.modelled_potential_contacts
+        ):
+            return _zone_insight_response(campaign_id=campaign.id, state="stale")
+        deduplicated[identity] = cell
+
+    totals: dict[UUID, ZoneInsightTotal] = {}
+    for identity, cell in deduplicated.items():
+        zone_id = identity[0]
+        prior = totals.get(zone_id)
+        totals[zone_id] = ZoneInsightTotal(
+            zone_id=zone_id,
+            modelled_potential_contacts=(
+                (prior.modelled_potential_contacts if prior else Decimal("0"))
+                + cell.modelled_potential_contacts
+            ),
+            trip_count=(prior.trip_count if prior else 0) + cell.trip_count,
+        )
+    ranked = rank_high_exposure_zones(list(totals.values()))
+    zones = {
+        zone.id: zone
+        for zone in await session.scalars(
+            select(CampaignZone).where(
+                CampaignZone.campaign_id == campaign.id,
+                CampaignZone.id.in_([item.zone_id for item in ranked]),
+            )
+        )
+    }
+    if len(zones) != len(ranked) or any(
+        zones[item.zone_id].zone_type != "target" for item in ranked
+    ):
+        return _zone_insight_response(campaign_id=campaign.id, state="stale")
+
+    return HighExposureZoneInsightsRead(
+        state="ready",
+        campaign_id=campaign.id,
+        campaign_exposure_score=score.result_snapshot["score"],
+        items=[
+            HighExposureZoneItem(
+                rank=item.rank,
+                zone_id=item.zone_id,
+                zone_name=zones[item.zone_id].name,
+                modelled_potential_contacts=item.modelled_potential_contacts,
+                trip_count=item.trip_count,
+            )
+            for item in ranked
+        ],
+        provenance=HighExposureZoneProvenance(
+            formula_version=HIGH_EXPOSURE_ZONE_FORMULA_VERSION,
+            formula_fingerprint=HIGH_EXPOSURE_ZONE_FORMULA_FINGERPRINT,
+            measurement_run_id=run.id,
+            exposure_score_id=score.id,
+            exposure_formula_version=score.formula_version,
+            exposure_formula_fingerprint=score.formula_fingerprint,
+            exposure_input_fingerprint=score.input_fingerprint,
+            source_segments=[
+                ZoneInsightSegmentProvenance(
+                    segment_id=segment.id,
+                    segment_version=segment.version,
+                    segment_snapshot_sha256=segment.snapshot_sha256,
+                    reissue_of_segment_id=segment.reissue_of_segment_id,
+                )
+                for segment in sorted(current_segments, key=lambda item: item.id)
+            ],
+        ),
+        uncertainty=_zone_insight_uncertainty(run, score),
+        disclaimer=HIGH_EXPOSURE_ZONE_DISCLAIMER,
     )

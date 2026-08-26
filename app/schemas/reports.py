@@ -14,6 +14,7 @@ from app.models.trip_analytics import FraudFlagSeverity, FraudFlagStatus, TripAn
 from app.models.vehicle import VehicleType
 from app.schemas.exposure_scores import ExposureScoreRead
 from app.schemas.measurement import MeasurementResultRead, MeasurementRunSummary
+from app.schemas.zone_insights import HighExposureZoneInsightsRead
 
 
 class DecimalStringMixin(BaseModel):
@@ -264,6 +265,7 @@ class CampaignReportResponse(BaseModel):
     measurement_run: MeasurementRunSummary | None = None
     measurement_result: MeasurementResultRead | None = None
     exposure_score: ExposureScoreRead | None = None
+    high_exposure_zone_insights: HighExposureZoneInsightsRead | None = None
 
 
 CAMPAIGN_STATUSES = [status.value for status in CampaignStatus]

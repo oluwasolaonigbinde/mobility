@@ -4917,6 +4917,16 @@
           "fraud_summary": {
             "$ref": "#/components/schemas/FraudFlagCounts"
           },
+          "high_exposure_zone_insights": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HighExposureZoneInsightsRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "impression_summary": {
             "$ref": "#/components/schemas/ImpressionSummary"
           },
@@ -11114,6 +11124,168 @@
         ],
         "title": "HeatmapMetric",
         "type": "string"
+      },
+      "HighExposureZoneInsightsRead": {
+        "properties": {
+          "campaign_exposure_score": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Exposure Score"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "disclaimer": {
+            "title": "Disclaimer",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HighExposureZoneItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HighExposureZoneProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "enum": [
+              "empty",
+              "suppressed",
+              "ready",
+              "stale",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "uncertainty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uncertainty"
+          }
+        },
+        "required": [
+          "state",
+          "campaign_id",
+          "campaign_exposure_score",
+          "items",
+          "provenance",
+          "uncertainty",
+          "disclaimer"
+        ],
+        "title": "HighExposureZoneInsightsRead",
+        "type": "object"
+      },
+      "HighExposureZoneItem": {
+        "properties": {
+          "modelled_potential_contacts": {
+            "title": "Modelled Potential Contacts",
+            "type": "string"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "trip_count": {
+            "title": "Trip Count",
+            "type": "integer"
+          },
+          "zone_id": {
+            "format": "uuid",
+            "title": "Zone Id",
+            "type": "string"
+          },
+          "zone_name": {
+            "title": "Zone Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rank",
+          "zone_id",
+          "zone_name",
+          "modelled_potential_contacts",
+          "trip_count"
+        ],
+        "title": "HighExposureZoneItem",
+        "type": "object"
+      },
+      "HighExposureZoneProvenance": {
+        "properties": {
+          "exposure_formula_fingerprint": {
+            "title": "Exposure Formula Fingerprint",
+            "type": "string"
+          },
+          "exposure_formula_version": {
+            "title": "Exposure Formula Version",
+            "type": "string"
+          },
+          "exposure_input_fingerprint": {
+            "title": "Exposure Input Fingerprint",
+            "type": "string"
+          },
+          "exposure_score_id": {
+            "format": "uuid",
+            "title": "Exposure Score Id",
+            "type": "string"
+          },
+          "formula_fingerprint": {
+            "title": "Formula Fingerprint",
+            "type": "string"
+          },
+          "formula_version": {
+            "const": "high_exposure_zone_v1",
+            "title": "Formula Version",
+            "type": "string"
+          },
+          "measurement_run_id": {
+            "format": "uuid",
+            "title": "Measurement Run Id",
+            "type": "string"
+          },
+          "source_segments": {
+            "items": {
+              "$ref": "#/components/schemas/ZoneInsightSegmentProvenance"
+            },
+            "title": "Source Segments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "formula_version",
+          "formula_fingerprint",
+          "measurement_run_id",
+          "exposure_score_id",
+          "exposure_formula_version",
+          "exposure_formula_fingerprint",
+          "exposure_input_fingerprint",
+          "source_segments"
+        ],
+        "title": "HighExposureZoneProvenance",
+        "type": "object"
       },
       "ImpressionEstimateListResponse": {
         "properties": {
@@ -19419,6 +19591,43 @@
         "title": "WhatsappConsentRead",
         "type": "object"
       },
+      "ZoneInsightSegmentProvenance": {
+        "properties": {
+          "reissue_of_segment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reissue Of Segment Id"
+          },
+          "segment_id": {
+            "format": "uuid",
+            "title": "Segment Id",
+            "type": "string"
+          },
+          "segment_snapshot_sha256": {
+            "title": "Segment Snapshot Sha256",
+            "type": "string"
+          },
+          "segment_version": {
+            "title": "Segment Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "segment_id",
+          "segment_version",
+          "segment_snapshot_sha256",
+          "reissue_of_segment_id"
+        ],
+        "title": "ZoneInsightSegmentProvenance",
+        "type": "object"
+      },
       "ZoneTypeCounts": {
         "properties": {
           "bonus": {
@@ -21963,6 +22172,54 @@
         "summary": "List review history across organizations",
         "tags": [
           "Campaigns"
+        ]
+      }
+    },
+    "/api/v1/admin/campaigns/{campaign_id}/zone-insights": {
+      "get": {
+        "operationId": "admin_zone_insights_api_v1_admin_campaigns__campaign_id__zone_insights_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HighExposureZoneInsightsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Read governed admin high-exposure zone insights",
+        "tags": [
+          "Audience Recommendations and Delivery"
         ]
       }
     },
@@ -29839,6 +30096,54 @@
         "summary": "List advertiser campaign trip summaries",
         "tags": [
           "Advertiser Reports"
+        ]
+      }
+    },
+    "/api/v1/advertiser/campaigns/{campaign_id}/zone-insights": {
+      "get": {
+        "operationId": "advertiser_zone_insights_api_v1_advertiser_campaigns__campaign_id__zone_insights_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HighExposureZoneInsightsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Read governed advertiser high-exposure zone insights",
+        "tags": [
+          "Audience Recommendations and Delivery"
         ]
       }
     },

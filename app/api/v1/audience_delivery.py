@@ -16,6 +16,8 @@ from app.schemas.audience_delivery import (
     AudienceExportRead,
     RecommendationsRead,
 )
+from app.schemas.zone_insights import HighExposureZoneInsightsRead
+from app.services.audience import high_exposure_zone_insights
 from app.services.audience_delivery import (
     activate_exposure_segment,
     export_exposure_segment,
@@ -26,6 +28,45 @@ router = APIRouter(tags=["Audience Recommendations and Delivery"])
 IdempotencyKey = Annotated[
     str, Header(alias="Idempotency-Key", min_length=1, max_length=255)
 ]
+
+
+@router.get(
+    "/advertiser/campaigns/{campaign_id}/zone-insights",
+    response_model=HighExposureZoneInsightsRead,
+    summary="Read governed advertiser high-exposure zone insights",
+)
+async def advertiser_zone_insights(
+    campaign_id: UUID,
+    user: AdvertiserUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> HighExposureZoneInsightsRead:
+    return await high_exposure_zone_insights(
+        session,
+        settings=settings,
+        actor_user_id=user.id,
+        campaign_id=campaign_id,
+    )
+
+
+@router.get(
+    "/admin/campaigns/{campaign_id}/zone-insights",
+    response_model=HighExposureZoneInsightsRead,
+    summary="Read governed admin high-exposure zone insights",
+)
+async def admin_zone_insights(
+    campaign_id: UUID,
+    user: AdminUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> HighExposureZoneInsightsRead:
+    return await high_exposure_zone_insights(
+        session,
+        settings=settings,
+        actor_user_id=user.id,
+        campaign_id=campaign_id,
+        admin=True,
+    )
 
 
 @router.get(

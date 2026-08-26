@@ -537,6 +537,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/campaigns/{campaign_id}/zone-insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read governed admin high-exposure zone insights */
+        get: operations["admin_zone_insights_api_v1_admin_campaigns__campaign_id__zone_insights_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/creatives/pending-review": {
         parameters: {
             query?: never;
@@ -2473,6 +2490,23 @@ export interface paths {
          * @description List privacy-safe campaign trip summaries without raw GPS or driver PII.
          */
         get: operations["advertiser_list_campaign_trips_api_v1_advertiser_campaigns__campaign_id__trips_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/campaigns/{campaign_id}/zone-insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read governed advertiser high-exposure zone insights */
+        get: operations["advertiser_zone_insights_api_v1_advertiser_campaigns__campaign_id__zone_insights_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5562,6 +5596,7 @@ export interface components {
             end_at: string | null;
             exposure_score?: components["schemas"]["ExposureScoreRead"] | null;
             fraud_summary: components["schemas"]["FraudFlagCounts"];
+            high_exposure_zone_insights?: components["schemas"]["HighExposureZoneInsightsRead"] | null;
             impression_summary: components["schemas"]["ImpressionSummary"];
             measurement_result?: components["schemas"]["MeasurementResultRead"] | null;
             measurement_run?: components["schemas"]["MeasurementRunSummary"] | null;
@@ -7956,6 +7991,72 @@ export interface components {
          * @enum {string}
          */
         HeatmapMetric: "ping_count" | "trip_count" | "distance_m" | "estimated_impressions";
+        /** HighExposureZoneInsightsRead */
+        HighExposureZoneInsightsRead: {
+            /** Campaign Exposure Score */
+            campaign_exposure_score: string | null;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Disclaimer */
+            disclaimer: string;
+            /** Items */
+            items: components["schemas"]["HighExposureZoneItem"][];
+            provenance: components["schemas"]["HighExposureZoneProvenance"] | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "empty" | "suppressed" | "ready" | "stale" | "unavailable";
+            /** Uncertainty */
+            uncertainty: string | null;
+        };
+        /** HighExposureZoneItem */
+        HighExposureZoneItem: {
+            /** Modelled Potential Contacts */
+            modelled_potential_contacts: string;
+            /** Rank */
+            rank: number;
+            /** Trip Count */
+            trip_count: number;
+            /**
+             * Zone Id
+             * Format: uuid
+             */
+            zone_id: string;
+            /** Zone Name */
+            zone_name: string;
+        };
+        /** HighExposureZoneProvenance */
+        HighExposureZoneProvenance: {
+            /** Exposure Formula Fingerprint */
+            exposure_formula_fingerprint: string;
+            /** Exposure Formula Version */
+            exposure_formula_version: string;
+            /** Exposure Input Fingerprint */
+            exposure_input_fingerprint: string;
+            /**
+             * Exposure Score Id
+             * Format: uuid
+             */
+            exposure_score_id: string;
+            /** Formula Fingerprint */
+            formula_fingerprint: string;
+            /**
+             * Formula Version
+             * @constant
+             */
+            formula_version: "high_exposure_zone_v1";
+            /**
+             * Measurement Run Id
+             * Format: uuid
+             */
+            measurement_run_id: string;
+            /** Source Segments */
+            source_segments: components["schemas"]["ZoneInsightSegmentProvenance"][];
+        };
         /** ImpressionEstimateListResponse */
         ImpressionEstimateListResponse: {
             /** Items */
@@ -11334,6 +11435,20 @@ export interface components {
             /** Withdrawn At */
             withdrawn_at: string | null;
         };
+        /** ZoneInsightSegmentProvenance */
+        ZoneInsightSegmentProvenance: {
+            /** Reissue Of Segment Id */
+            reissue_of_segment_id: string | null;
+            /**
+             * Segment Id
+             * Format: uuid
+             */
+            segment_id: string;
+            /** Segment Snapshot Sha256 */
+            segment_snapshot_sha256: string;
+            /** Segment Version */
+            segment_version: number;
+        };
         /** ZoneTypeCounts */
         ZoneTypeCounts: {
             /**
@@ -12648,6 +12763,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignReviewEventListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_zone_insights_api_v1_admin_campaigns__campaign_id__zone_insights_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HighExposureZoneInsightsRead"];
                 };
             };
             /** @description Validation Error */
@@ -16764,6 +16910,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignTripsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advertiser_zone_insights_api_v1_advertiser_campaigns__campaign_id__zone_insights_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HighExposureZoneInsightsRead"];
                 };
             };
             /** @description Validation Error */

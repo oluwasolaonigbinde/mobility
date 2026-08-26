@@ -493,7 +493,13 @@ async def issue_measurement_run(
         settings=settings.model_copy(update={"privacy_disclosure_synthetic_test_mode": True}),
     )
     report_snapshot = report.model_dump(
-        mode="json", exclude={"measurement_run", "measurement_result", "exposure_score"}
+        mode="json",
+        exclude={
+            "measurement_run",
+            "measurement_result",
+            "exposure_score",
+            "high_exposure_zone_insights",
+        },
     )
     latest = await session.scalar(
         select(MeasurementRun)
