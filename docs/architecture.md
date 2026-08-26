@@ -1405,9 +1405,9 @@ nothing.
 ## 18. Approval workflows
 
 Q6, Q15, Q17 and Q18 are client-confirmed. Campaign and creative review,
-installation evidence and atomic assignment activation are [BUILT] through
-W2-03D and honour RM12/RM13's funded-liability, evidence and atomic-activation
-contracts.
+installation evidence, atomic assignment activation and governed mid-flight
+changes are [BUILT] through W2-03E and honour RM12/RM13's funded-liability,
+evidence and atomic-activation contracts.
 
 - **Campaign approval [BUILT — W2-03A]:** the campaign status enum and typed
   consumers include `pending_review`, `approved` and `rejected`. Dedicated,
@@ -1469,8 +1469,19 @@ contracts.
   fresh proof; receipt reversal uses the same lock chronology and therefore
   either follows a committed activation cutoff or makes new work fail closed.
   W2-03F still owns the later explicit cancellation cutoff/settlement command.
+- **Governed mid-flight changes [BUILT — W2-03E] (Q9/Q24):** one
+  effective-dated campaign-change authority stores immutable before/after
+  impact, classification and retry identity, then appends the revision in
+  force. Expansions serialize on the shared campaign lock and consume only
+  funded headroom after all accepted-assignment and prior-change liability is
+  reserved; insufficient funding remains pending rather than overauthorizing.
+  Reductions, assignment removals and all date changes require a reasoned admin
+  decision. Retroactive dates, changed retries and stale snapshots fail closed;
+  accepted bindings and event history are never rewritten. Advertiser and
+  admin surfaces expose the same governed request and decision evidence.
+  W2-03F owns cancellation cutoff, liability release, settlement and refunds.
 - Admin UI: one **approvals queue** section listing pending campaigns,
-  creatives, and activation evidence (§27).
+  creatives, activation evidence and campaign changes (§27).
 
 ## 19. Files — storage, creative pipeline, evidence, KYC docs
 
@@ -2467,6 +2478,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.64 | 2026-08-26 | **W2-03E governed mid-flight campaign changes delivered without rewriting accepted terms.** Migration `0058` adds immutable request/impact/retry evidence and append-only effective revisions. Expansions serialize on the shared campaign authority and apply only inside total funded headroom; insufficient funding waits for an exact reasoned retry. Reductions, removals and every date change require admin reason, retroactive/stale/changed retries fail closed, accepted assignment bindings remain unchanged, and interval reads resolve the revision then in force. Advertiser/admin UI and reasoned assignment removal move with synchronized §9 contracts. Focused PostgreSQL concurrency, liability, tenant, migration, audit, API and frontend/native-contract checks plus an isolated synthetic browser journey pass; no live funding, approval, campaign change, route, earning or pilot evidence is claimed. W2-03F is next. |
 | v1.63 | 2026-08-26 | **W2-03D atomic assignment activation delivered over the completed commercial, review and evidence authorities.** The admin command now serializes on the shared campaign authority and stable assignment/driver/vehicle rows, rechecks the exact approved campaign/creative/offer/binding, funded reserve, current production/new-work authority, evidence and vehicle exclusivity, then atomically records active state, timestamp, audit and a canonical digest-bound snapshot in the existing append-only activation event. Exact active retries recheck and converge; trip start requires the immutable snapshot plus current financial authority and proof. The prior all-gates 409 placeholder was observed red, a real synthetic admin→driver trip flow passes, and PostgreSQL proves activation-before-reversal chronology followed by fail-closed new work. No migration or §9 shape changed, and no live funding, production, approval, route, earning or pilot evidence is claimed; W2-03E is next. |
 | v1.62 | 2026-08-26 | **W2-03C assignment-bound installation evidence and start-of-shift display proof delivered without inventing production policy.** Migration `0057` adds immutable evidence revisions/photos, serialized admin review/expiry, digest-only one-use challenges, immutable fresh proofs and an exact proof FK on trip sessions while extending the shared subject-scoped scanned-file authority. Submission and approval recheck configured views, assignment/vehicle/driver/device identity and exact clean images; changed retry, cross-driver file, stale evidence, pre-challenge photo, device mismatch and nonce replay fail closed. Driver capture/proof surfaces and the combined admin queue use same-origin BFFs and audited purpose-scoped reads. Real PostgreSQL proves concurrent nonce single-winner behavior and populated migration/append-only controls; focused backend, frontend, contract, type/lint/build checks pass. Production uploader/views/renewal/proof values remain `EXT-EVIDENCE-POLICY` MISSING; W2-03D still owns atomic activation and W2-03G recurring challenges/spot checks, with no physical-device, real-route, launch, earning or pilot claim. |
 | v1.61 | 2026-08-26 | **W2-03B managed-creative review gate delivered over the existing private upload/scanner foundation.** Migration `0056` adds governed pending/approved/rejected states plus append-only exact-submission snapshots while retaining legacy `ready` only for compatibility. Advertiser writes cannot self-approve, pending/approved definitions freeze, rejected definitions can be corrected and resubmitted, and admin approve/reject decisions serialize under stable locks with reasoned audit and tenant-safe history. Approval rechecks the exact clean managed file. Offer creation and activation now require `approved`, so legacy `ready`, rejected, replaced or unsafe assets fail closed. The combined admin approvals page and advertiser detail surface expose the flow. Focused API/service/assignment/audit checks, a real PostgreSQL opposite-decision race, populated migration round trips, synchronized §9 contracts and frontend tests/type/lint/build pass. Production storage/scanner/KMS inputs remain MISSING, installation evidence/atomic activation remain W2-03C/D, and no live approval, launch, device, route or pilot evidence is claimed. |

@@ -228,6 +228,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/campaign-change-requests/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin List Pending Campaign Change Requests */
+        get: operations["admin_list_pending_campaign_change_requests_api_v1_admin_campaign_change_requests_pending_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaign-change-requests/{request_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Approve Campaign Change Request */
+        post: operations["admin_approve_campaign_change_request_api_v1_admin_campaign_change_requests__request_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaign-change-requests/{request_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Reject Campaign Change Request */
+        post: operations["admin_reject_campaign_change_request_api_v1_admin_campaign_change_requests__request_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/campaigns": {
         parameters: {
             query?: never;
@@ -1815,6 +1866,24 @@ export interface paths {
         head?: never;
         /** Update current advertiser campaign */
         patch: operations["advertiser_update_campaign_api_v1_advertiser_campaigns__campaign_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/advertiser/campaigns/{campaign_id}/change-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Advertiser List Campaign Change Requests */
+        get: operations["advertiser_list_campaign_change_requests_api_v1_advertiser_campaigns__campaign_id__change_requests_get"];
+        put?: never;
+        /** Advertiser Request Campaign Change */
+        post: operations["advertiser_request_campaign_change_api_v1_advertiser_campaigns__campaign_id__change_requests_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/advertiser/campaigns/{campaign_id}/commercial": {
@@ -3981,7 +4050,7 @@ export interface components {
                 [key: string]: unknown;
             };
             /** Reason */
-            reason?: string | null;
+            reason: string;
         };
         /** CampaignAssignmentCreate */
         CampaignAssignmentCreate: {
@@ -4233,6 +4302,93 @@ export interface components {
             metadata?: {
                 [key: string]: unknown;
             };
+        };
+        /** CampaignChangeCreate */
+        CampaignChangeCreate: {
+            /** Budget Amount */
+            budget_amount?: number | string | null;
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /** Daily Budget Amount */
+            daily_budget_amount?: number | string | null;
+            /** End At */
+            end_at?: string | null;
+            /** Reason */
+            reason: string;
+            /** Start At */
+            start_at?: string | null;
+        };
+        /** CampaignChangeDecision */
+        CampaignChangeDecision: {
+            /** Reason */
+            reason: string;
+        };
+        /** CampaignChangeList */
+        CampaignChangeList: {
+            /** Items */
+            items: components["schemas"]["CampaignChangeRead"][];
+        };
+        /** CampaignChangeRead */
+        CampaignChangeRead: {
+            /** Applied At */
+            applied_at: string | null;
+            /** Authorization Id */
+            authorization_id: string | null;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Classifications */
+            classifications: string[];
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Impact Preview */
+            impact_preview: {
+                [key: string]: unknown;
+            };
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Proposed Changes */
+            proposed_changes: {
+                [key: string]: unknown;
+            };
+            /**
+             * Requested By User Id
+             * Format: uuid
+             */
+            requested_by_user_id: string;
+            /** Requested Liability Amount */
+            requested_liability_amount: string;
+            /** Reserved Liability Amount */
+            reserved_liability_amount: string | null;
+            /** Review Reason */
+            review_reason: string | null;
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /** Reviewed By User Id */
+            reviewed_by_user_id: string | null;
+            /** Status */
+            status: string;
         };
         /** CampaignCommercialRead */
         CampaignCommercialRead: {
@@ -9927,6 +10083,96 @@ export interface operations {
             };
         };
     };
+    admin_list_pending_campaign_change_requests_api_v1_admin_campaign_change_requests_pending_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignChangeList"];
+                };
+            };
+        };
+    };
+    admin_approve_campaign_change_request_api_v1_admin_campaign_change_requests__request_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignChangeDecision"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignChangeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_reject_campaign_change_request_api_v1_admin_campaign_change_requests__request_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignChangeDecision"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignChangeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_list_campaigns_endpoint_api_v1_admin_campaigns_get: {
         parameters: {
             query?: {
@@ -13349,6 +13595,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advertiser_list_campaign_change_requests_api_v1_advertiser_campaigns__campaign_id__change_requests_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignChangeList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advertiser_request_campaign_change_api_v1_advertiser_campaigns__campaign_id__change_requests_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignChangeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignChangeRead"];
                 };
             };
             /** @description Validation Error */

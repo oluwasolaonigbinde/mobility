@@ -11,6 +11,7 @@ vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ POST: mocks.post }) }));
 
 import {
+  reviewCampaignChangeAction,
   reviewCampaignAction,
   reviewCreativeAction,
   reviewInstallationEvidenceAction,
@@ -19,6 +20,7 @@ import {
 const CAMPAIGN_ID = "00000000-0000-4000-8000-00000000000a";
 const CREATIVE_ID = "00000000-0000-4000-8000-00000000000b";
 const EVIDENCE_ID = "00000000-0000-4000-8000-00000000000c";
+const CHANGE_ID = "00000000-0000-4000-8000-00000000000f";
 
 function reviewForm(intent: "approve" | "reject", reason = ""): FormData {
   const form = new FormData();
@@ -73,6 +75,40 @@ describe("reviewCampaignAction", () => {
       error: "Campaign review state changed. Refresh and try again.",
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("reviewCampaignChangeAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.post.mockResolvedValue({ data: {} });
+  });
+
+  function changeForm(intent: "approve" | "reject", reason = "") {
+    const form = new FormData();
+    form.set("request_id", CHANGE_ID);
+    form.set("intent", intent);
+    form.set("reason", reason);
+    return form;
+  }
+
+  it("requires a reason for both decisions and uses the governed endpoints", async () => {
+    await expect(reviewCampaignChangeAction({}, changeForm("approve"))).resolves.toEqual({
+      error: "A decision reason is required",
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
+
+    await expect(
+      reviewCampaignChangeAction({}, changeForm("approve", "  Funded headroom verified  ")),
+    ).resolves.toEqual({ done: "Change approved" });
+    expect(mocks.post).toHaveBeenCalledWith(
+      "/api/v1/admin/campaign-change-requests/{request_id}/approve",
+      {
+        params: { path: { request_id: CHANGE_ID } },
+        body: { reason: "Funded headroom verified" },
+      },
+    );
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/approvals");
   });
 });
 

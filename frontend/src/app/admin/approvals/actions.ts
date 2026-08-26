@@ -11,6 +11,42 @@ export interface CampaignReviewActionState {
   done?: string;
 }
 
+const campaignChangeReviewSchema = z.object({
+  request_id: z.string().uuid(),
+  intent: z.enum(["approve", "reject"]),
+  reason: z.string().trim().min(1, "A decision reason is required").max(1000),
+});
+
+export async function reviewCampaignChangeAction(
+  _previous: CampaignReviewActionState,
+  formData: FormData,
+): Promise<CampaignReviewActionState> {
+  const parsed = campaignChangeReviewSchema.safeParse({
+    request_id: String(formData.get("request_id") ?? ""),
+    intent: String(formData.get("intent") ?? ""),
+    reason: String(formData.get("reason") ?? ""),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid campaign change decision." };
+  }
+  const endpoint =
+    parsed.data.intent === "approve"
+      ? "/api/v1/admin/campaign-change-requests/{request_id}/approve"
+      : "/api/v1/admin/campaign-change-requests/{request_id}/reject";
+  try {
+    const api = createApiClient(await getSessionToken());
+    await api.POST(endpoint, {
+      params: { path: { request_id: parsed.data.request_id } },
+      body: { reason: parsed.data.reason },
+    });
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    return { error: "Could not reach the server." };
+  }
+  revalidatePath("/admin/approvals");
+  return { done: parsed.data.intent === "approve" ? "Change approved" : "Change rejected" };
+}
+
 const reviewSchema = z.discriminatedUnion("intent", [
   z.object({ campaign_id: z.string().uuid(), intent: z.literal("approve") }),
   z.object({

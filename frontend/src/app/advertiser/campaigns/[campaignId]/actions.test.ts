@@ -10,10 +10,15 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ POST: mocks.post }) }));
 
-import { submitCampaignForReviewAction, submitCreativeForReviewAction } from "./actions";
+import {
+  requestCampaignChangeAction,
+  submitCampaignForReviewAction,
+  submitCreativeForReviewAction,
+} from "./actions";
 
 const CAMPAIGN_ID = "00000000-0000-4000-8000-00000000000a";
 const CREATIVE_ID = "00000000-0000-4000-8000-00000000000b";
+const CHANGE_REQUEST_ID = "00000000-0000-4000-8000-00000000000c";
 
 function submitForm(campaignId = CAMPAIGN_ID): FormData {
   const form = new FormData();
@@ -106,5 +111,47 @@ describe("submitCreativeForReviewAction", () => {
     await expect(submitCreativeForReviewAction({}, creativeSubmitForm())).resolves.toEqual({
       error: "Creative review state does not allow this operation",
     });
+  });
+});
+
+describe("requestCampaignChangeAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.post.mockResolvedValue({ data: {} });
+  });
+
+  it("sends only selected changes with a reason and refreshes both role surfaces", async () => {
+    const form = submitForm();
+    form.set("client_request_id", CHANGE_REQUEST_ID);
+    form.set("budget_amount", "1200.00");
+    form.set("end_at", "2026-09-30T18:00");
+    form.set("reason", "  Extend the approved campaign scope  ");
+
+    await expect(requestCampaignChangeAction({}, form)).resolves.toEqual({
+      done: "Campaign change recorded.",
+    });
+    expect(mocks.post).toHaveBeenCalledWith(
+      "/api/v1/advertiser/campaigns/{campaign_id}/change-requests",
+      {
+        params: { path: { campaign_id: CAMPAIGN_ID } },
+        body: {
+          client_request_id: CHANGE_REQUEST_ID,
+          budget_amount: "1200.00",
+          end_at: "2026-09-30T17:00:00.000Z",
+          reason: "Extend the approved campaign scope",
+        },
+      },
+    );
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/advertiser/campaigns/${CAMPAIGN_ID}`);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/approvals");
+  });
+
+  it("rejects an empty change or missing reason before calling the API", async () => {
+    const form = submitForm();
+    form.set("client_request_id", CHANGE_REQUEST_ID);
+    await expect(requestCampaignChangeAction({}, form)).resolves.toEqual({
+      error: "A reason is required",
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
   });
 });

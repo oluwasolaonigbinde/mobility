@@ -118,13 +118,19 @@ export async function createAssignmentAction(
   redirect("/admin/assignments");
 }
 
-export async function cancelAssignmentAction(assignmentId: string): Promise<AdminActionState> {
-  if (!z.string().uuid().safeParse(assignmentId).success) return { error: "Invalid assignment" };
+export async function cancelAssignmentAction(
+  assignmentId: string,
+  reason: string,
+): Promise<AdminActionState> {
+  const parsed = z
+    .object({ assignmentId: z.string().uuid(), reason: z.string().trim().min(1).max(1000) })
+    .safeParse({ assignmentId, reason });
+  if (!parsed.success) return { error: "A cancellation reason is required" };
   try {
     const api = createApiClient(await getSessionToken());
     await api.POST("/api/v1/admin/campaign-assignments/{assignment_id}/cancel", {
-      params: { path: { assignment_id: assignmentId } },
-      body: {},
+      params: { path: { assignment_id: parsed.data.assignmentId } },
+      body: { reason: parsed.data.reason },
     });
   } catch (error) {
     if (error instanceof ApiError) return { error: error.message };

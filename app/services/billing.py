@@ -1775,6 +1775,28 @@ async def _authorization_usable_liability(
     return min(Decimal(authorization.max_driver_liability), Decimal(active_sources or 0))
 
 
+async def reserved_campaign_liability_total(
+    session: AsyncSession,
+    *,
+    campaign_id: UUID,
+) -> Decimal:
+    from app.models.campaign_change import CampaignChangeRequest
+
+    assignment_total = await session.scalar(
+        select(func.coalesce(func.sum(CampaignLiabilityReservation.reserved_amount), 0)).where(
+            CampaignLiabilityReservation.campaign_id == campaign_id,
+            CampaignLiabilityReservation.status == "reserved",
+        )
+    )
+    change_total = await session.scalar(
+        select(func.coalesce(func.sum(CampaignChangeRequest.reserved_liability_amount), 0)).where(
+            CampaignChangeRequest.campaign_id == campaign_id,
+            CampaignChangeRequest.status == "applied",
+        )
+    )
+    return Decimal(assignment_total or 0) + Decimal(change_total or 0)
+
+
 async def reserve_assignment_liability(
     session: AsyncSession,
     *,
@@ -1825,14 +1847,9 @@ async def reserve_assignment_liability(
     authorization = await effective_financial_authorization(
         session, campaign_id=assignment.campaign_id, effective_at=now
     )
-    reserved_total = Decimal(
-        await session.scalar(
-            select(func.coalesce(func.sum(CampaignLiabilityReservation.reserved_amount), 0)).where(
-                CampaignLiabilityReservation.campaign_id == assignment.campaign_id,
-                CampaignLiabilityReservation.status == "reserved",
-            )
-        )
-        or 0
+    reserved_total = await reserved_campaign_liability_total(
+        session,
+        campaign_id=assignment.campaign_id,
     )
     usable = (
         await _authorization_usable_liability(session, authorization, effective_at=now)
@@ -2108,14 +2125,9 @@ async def assert_new_work_authorized(
             status_code=status.HTTP_409_CONFLICT,
         )
     usable = await _authorization_usable_liability(session, authorization)
-    reserved_total = Decimal(
-        await session.scalar(
-            select(func.coalesce(func.sum(CampaignLiabilityReservation.reserved_amount), 0)).where(
-                CampaignLiabilityReservation.campaign_id == campaign_id,
-                CampaignLiabilityReservation.status == "reserved",
-            )
-        )
-        or 0
+    reserved_total = await reserved_campaign_liability_total(
+        session,
+        campaign_id=campaign_id,
     )
     if usable < reserved_total:
         raise AppError(

@@ -10,6 +10,7 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { ReviewActions } from "./review-actions";
 import { CreativeReviewActions } from "./creative-review-actions";
 import { InstallationReviewActions } from "./installation-review-actions";
+import { CampaignChangeReviewActions } from "./campaign-change-review-actions";
 
 export const metadata: Metadata = { title: "Approvals" };
 
@@ -24,6 +25,9 @@ export default async function AdminApprovalsPage() {
     params: { query: { limit: PAGE_SIZE, offset: 0 } },
   });
   const { data: installationQueue } = await api.GET("/api/v1/admin/installation-evidence/pending");
+  const { data: campaignChangeQueue } = await api.GET(
+    "/api/v1/admin/campaign-change-requests/pending",
+  );
   const items = queue?.items ?? [];
   const histories = await Promise.all(
     items.map(async (campaign) => {
@@ -45,7 +49,12 @@ export default async function AdminApprovalsPage() {
   );
   const historyByCreativeId = new Map(creativeHistories);
   const installationItems = installationQueue?.items ?? [];
-  const totalPending = (queue?.total ?? 0) + (creativeQueue?.total ?? 0) + installationItems.length;
+  const campaignChangeItems = campaignChangeQueue?.items ?? [];
+  const totalPending =
+    (queue?.total ?? 0) +
+    (creativeQueue?.total ?? 0) +
+    installationItems.length +
+    campaignChangeItems.length;
 
   return (
     <div className="animate-rise mx-auto max-w-6xl">
@@ -54,13 +63,77 @@ export default async function AdminApprovalsPage() {
         eyebrow={`${totalPending} item${totalPending === 1 ? "" : "s"} awaiting review`}
       />
 
-      {items.length === 0 && creativeItems.length === 0 && installationItems.length === 0 ? (
+      {items.length === 0 &&
+      creativeItems.length === 0 &&
+      installationItems.length === 0 &&
+      campaignChangeItems.length === 0 ? (
         <EmptyState
           title="Nothing awaiting review"
           body="New submissions will appear here with their immutable review history."
         />
       ) : (
         <div className="flex flex-col gap-4">
+          {campaignChangeItems.length ? (
+            <h2 className="text-lg font-medium">Mid-flight campaign changes</h2>
+          ) : null}
+          {campaignChangeItems.map((request) => {
+            const before = request.impact_preview.before as Record<string, string | null>;
+            const after = request.impact_preview.after as Record<string, string | null>;
+            const currency = before.currency ?? "NGN";
+            return (
+              <Panel key={request.id} className="p-5" data-testid={`campaign-change-${request.id}`}>
+                <div className="flex flex-wrap items-start justify-between gap-5">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusChip tone="amber">{request.status.replaceAll("_", " ")}</StatusChip>
+                      <h3 className="font-medium">
+                        {before.campaign_name ?? `Campaign ${request.campaign_id}`}
+                      </h3>
+                    </div>
+                    <p className="text-muted mt-2 text-sm">
+                      {request.classifications.join(" · ")} · requested additional driver liability{" "}
+                      {formatMoney(request.requested_liability_amount, currency)}
+                    </p>
+                    <dl className="micro text-faint mt-3 grid gap-x-5 gap-y-1 sm:grid-cols-2">
+                      <div>
+                        <dt className="inline">Budget: </dt>
+                        <dd className="inline">
+                          {before.budget_amount ?? "—"} → {after.budget_amount ?? "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="inline">Daily budget: </dt>
+                        <dd className="inline">
+                          {before.daily_budget_amount ?? "—"} → {after.daily_budget_amount ?? "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="inline">Start: </dt>
+                        <dd className="inline">
+                          {before.start_at ? formatDate(before.start_at) : "—"} →{" "}
+                          {after.start_at ? formatDate(after.start_at) : "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="inline">End: </dt>
+                        <dd className="inline">
+                          {before.end_at ? formatDate(before.end_at) : "—"} →{" "}
+                          {after.end_at ? formatDate(after.end_at) : "—"}
+                        </dd>
+                      </div>
+                    </dl>
+                    <p className="mt-3 text-sm">
+                      Reason: {String(request.impact_preview.request_reason ?? "Unavailable")}
+                    </p>
+                  </div>
+                  <CampaignChangeReviewActions
+                    requestId={request.id}
+                    initialReason={request.review_reason ?? undefined}
+                  />
+                </div>
+              </Panel>
+            );
+          })}
           {items.length ? <h2 className="text-lg font-medium">Campaigns</h2> : null}
           {items.map((campaign) => {
             const history = historyByCampaignId.get(campaign.id) ?? [];

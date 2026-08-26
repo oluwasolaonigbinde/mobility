@@ -8,10 +8,14 @@ export function CancelAssignmentButton({ assignmentId }: { assignmentId: string 
   const [error, setError] = useState<string>();
 
   function run() {
+    const reason = window.prompt(
+      "Why is this assignment being removed? This reason is recorded permanently.",
+    );
+    if (!reason?.trim()) return;
     if (!window.confirm("Cancel this assignment? The driver stops earning from it.")) return;
     setError(undefined);
     startTransition(async () => {
-      const result = await cancelAssignmentAction(assignmentId);
+      const result = await cancelAssignmentAction(assignmentId, reason);
       if (result.error) setError(result.error);
     });
   }

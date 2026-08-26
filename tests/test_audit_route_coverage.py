@@ -49,6 +49,18 @@ AUDITED = {
         "admin.campaign_assignment.activated"
     ),
     ("POST", "/api/v1/advertiser/campaigns"): "advertiser.campaign.created",
+    (
+        "POST",
+        "/api/v1/advertiser/campaigns/{campaign_id}/change-requests",
+    ): "advertiser.campaign_change.requested|campaign.change.applied",
+    (
+        "POST",
+        "/api/v1/admin/campaign-change-requests/{request_id}/approve",
+    ): "campaign.change.applied|admin.campaign_change.pending_funding",
+    (
+        "POST",
+        "/api/v1/admin/campaign-change-requests/{request_id}/reject",
+    ): "admin.campaign_change.rejected",
     ("POST", "/api/v1/advertiser/retargeting-sources"): "retargeting_source.created",
     (
         "POST",

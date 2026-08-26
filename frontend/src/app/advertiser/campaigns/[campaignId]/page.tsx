@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
@@ -19,6 +20,7 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { StatusActions } from "./status-actions";
 import { CommercialPanel } from "./commercial-panel";
 import { CreativeStatusActions } from "./creative-status-actions";
+import { CampaignChangePanel } from "./campaign-change-panel";
 
 export const metadata: Metadata = { title: "Campaign" };
 
@@ -49,7 +51,7 @@ export default async function CampaignDetailPage({
   const query = await searchParams;
   const api = createApiClient(await getSessionToken());
 
-  let campaign, summary, creatives, commercial, reviewHistory;
+  let campaign, summary, creatives, commercial, reviewHistory, campaignChanges;
   try {
     [
       { data: campaign },
@@ -57,6 +59,7 @@ export default async function CampaignDetailPage({
       { data: creatives },
       { data: commercial },
       { data: reviewHistory },
+      { data: campaignChanges },
     ] = await Promise.all([
       api.GET("/api/v1/advertiser/campaigns/{campaign_id}", {
         params: { path: { campaign_id: campaignId } },
@@ -71,6 +74,9 @@ export default async function CampaignDetailPage({
         params: { path: { campaign_id: campaignId } },
       }),
       api.GET("/api/v1/advertiser/campaigns/{campaign_id}/review-history", {
+        params: { path: { campaign_id: campaignId } },
+      }),
+      api.GET("/api/v1/advertiser/campaigns/{campaign_id}/change-requests", {
         params: { path: { campaign_id: campaignId } },
       }),
     ]);
@@ -174,6 +180,13 @@ export default async function CampaignDetailPage({
           error={query.commercial_error}
         />
       ) : null}
+
+      <CampaignChangePanel
+        campaignId={campaign.id}
+        clientRequestId={randomUUID()}
+        currency={campaign.currency}
+        requests={campaignChanges?.items ?? []}
+      />
 
       <Panel className="mt-6 overflow-hidden" aria-label="Review history">
         <div className="border-edge border-b px-6 py-4">

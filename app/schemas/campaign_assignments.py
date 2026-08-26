@@ -81,13 +81,16 @@ class CampaignAssignmentOfferTerms(BaseModel):
 class CampaignAssignmentCancel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    reason: str | None = None
+    reason: str = Field(min_length=1, max_length=1000)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("reason")
     @classmethod
-    def trim_reason(cls, value: str | None) -> str | None:
-        return normalize_optional_text(value)
+    def trim_reason(cls, value: str) -> str:
+        normalized = normalize_optional_text(value)
+        if normalized is None:
+            raise ValueError("reason must not be empty")
+        return normalized
 
 
 class AssignmentCampaignSummary(BaseModel):

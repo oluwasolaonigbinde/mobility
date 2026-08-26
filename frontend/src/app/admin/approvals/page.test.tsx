@@ -13,6 +13,7 @@ const EVENT_ID = "00000000-0000-4000-8000-00000000000b";
 const CREATIVE_ID = "00000000-0000-4000-8000-00000000000d";
 const CREATIVE_EVENT_ID = "00000000-0000-4000-8000-00000000000e";
 const EVIDENCE_ID = "00000000-0000-4000-8000-00000000000f";
+const CHANGE_ID = "00000000-0000-4000-8000-000000000020";
 
 describe("AdminApprovalsPage", () => {
   beforeEach(() => get.mockReset());
@@ -95,6 +96,45 @@ describe("AdminApprovalsPage", () => {
         data: {
           items: [
             {
+              id: CHANGE_ID,
+              campaign_id: CAMPAIGN_ID,
+              organization_id: "00000000-0000-4000-8000-000000000021",
+              requested_by_user_id: "00000000-0000-4000-8000-000000000022",
+              client_request_id: "00000000-0000-4000-8000-000000000023",
+              proposed_changes: { budget_amount: "650000.00" },
+              classifications: ["reduction"],
+              impact_preview: {
+                before: {
+                  budget_amount: "700000.00",
+                  daily_budget_amount: "50000.00",
+                  start_at: "2026-09-01T08:00:00Z",
+                  end_at: "2026-09-30T20:00:00Z",
+                },
+                after: {
+                  budget_amount: "650000.00",
+                  daily_budget_amount: "50000.00",
+                  start_at: "2026-09-01T08:00:00Z",
+                  end_at: "2026-09-30T20:00:00Z",
+                },
+                request_reason: "Reduce media scope",
+              },
+              status: "pending_admin",
+              requested_liability_amount: "0.00",
+              reserved_liability_amount: null,
+              authorization_id: null,
+              reviewed_by_user_id: null,
+              reviewed_at: null,
+              review_reason: null,
+              applied_at: null,
+              created_at: "2026-08-24T10:08:00Z",
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          items: [
+            {
               id: EVENT_ID,
               campaign_id: CAMPAIGN_ID,
               actor_user_id: "00000000-0000-4000-8000-00000000000c",
@@ -154,6 +194,12 @@ describe("AdminApprovalsPage", () => {
     expect(
       within(installationCard).getByRole("button", { name: "View front" }),
     ).toBeInTheDocument();
+    const changeCard = screen.getByTestId(`campaign-change-${CHANGE_ID}`);
+    expect(within(changeCard).getByText(/Reduce media scope/)).toBeInTheDocument();
+    expect(
+      within(changeCard).getByLabelText("Campaign change decision reason"),
+    ).toBeInTheDocument();
+    expect(within(changeCard).getByRole("button", { name: "Approve change" })).toBeInTheDocument();
     expect(get).toHaveBeenNthCalledWith(1, "/api/v1/admin/campaigns/pending-review", {
       params: { query: { limit: 25, offset: 0 } },
     });
@@ -161,10 +207,11 @@ describe("AdminApprovalsPage", () => {
       params: { query: { limit: 25, offset: 0 } },
     });
     expect(get).toHaveBeenNthCalledWith(3, "/api/v1/admin/installation-evidence/pending");
-    expect(get).toHaveBeenNthCalledWith(4, "/api/v1/admin/campaigns/{campaign_id}/review-history", {
+    expect(get).toHaveBeenNthCalledWith(4, "/api/v1/admin/campaign-change-requests/pending");
+    expect(get).toHaveBeenNthCalledWith(5, "/api/v1/admin/campaigns/{campaign_id}/review-history", {
       params: { path: { campaign_id: CAMPAIGN_ID }, query: { limit: 10, offset: 0 } },
     });
-    expect(get).toHaveBeenNthCalledWith(5, "/api/v1/admin/creatives/{creative_id}/review-history", {
+    expect(get).toHaveBeenNthCalledWith(6, "/api/v1/admin/creatives/{creative_id}/review-history", {
       params: { path: { creative_id: CREATIVE_ID }, query: { limit: 10, offset: 0 } },
     });
   });
@@ -175,6 +222,6 @@ describe("AdminApprovalsPage", () => {
     render(await AdminApprovalsPage());
 
     expect(screen.getByText("Nothing awaiting review")).toBeInTheDocument();
-    expect(get).toHaveBeenCalledTimes(3);
+    expect(get).toHaveBeenCalledTimes(4);
   });
 });

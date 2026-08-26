@@ -63,9 +63,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 clarification corrects the prior false pause: missing production storage,
 scanner, KMS, email and phone inputs remain explicit live/deployment gates but
 do not block provider-neutral/local/synthetic implementation under D23.
-**Current checkpoint:** `PKG-04 / W2-03E` — build governed effective-dated
-mid-flight campaign changes over the completed atomic activation and funded-
-liability authorities. No production storage/scanner/KMS
+**Current checkpoint:** `PKG-04 / W2-03F` — build the idempotent campaign
+cancellation cutoff, settlement and refund boundary over the completed atomic
+activation and funded-liability authorities. No production storage/scanner/KMS
 provider, custodian, live
 creative/KYC/evidence approval, launch, live KYC, real-GPS, external-staging,
 physical-device or pilot evidence is claimed.
@@ -621,6 +621,24 @@ physical-device or pilot evidence is claimed.
   cancel/deactivate/trip serialization. No migration or §9 shape change was
   required. This is provider-neutral build evidence only: no live funding,
   production start, installation approval, route, earning or pilot claim.
+- **W2-03E checkpoint evidence (26 Aug 2026):** migration `0058` adds governed
+  campaign-change requests and append-only effective revisions with stable
+  retry identity, immutable before/after impact and explicit expansion,
+  reduction and date-change classification. Expansions apply only under the
+  shared campaign authority when funded headroom covers all assignment and
+  change liability; insufficient funding waits visibly. Reductions, removals
+  and every date change require a reasoned admin decision, while retroactive
+  dates and changed retries fail closed. Accepted assignment bindings remain
+  immutable, interval reads resolve the revision then in force, and reasoned
+  assignment removal preserves its event history. PostgreSQL proves exact
+  approval retries, funding-versus-change serialization, reservation
+  conservation, tenant isolation, populated migration guards and append-only
+  enforcement. Focused campaign/change/assignment/migration/audit, billing and
+  OpenAPI checks pass, as do 86 frontend and preserved R14-B tests, Ruff,
+  type/lint/build and byte-stable regenerated §9 contracts. An isolated
+  synthetic advertiser expansion→admin-approved reduction browser journey
+  passes; its disposable database was removed. No live funding, production
+  change, approval, route, earning or pilot evidence is claimed.
 - **Corrected-authority seam evidence (24 Aug 2026):** Package 4 migration
   `0043` now descends from Package 3 head `0042`. The adopted Package 3
   campaign/terms currency lock initially exposed one stale-update ordering
@@ -1078,7 +1096,7 @@ verification, gates or required specialist review.
 | 34 | **W2-03B — creative review gate** | PKG-04 | DONE | Only admin-approved, scan-cleared creative can satisfy campaign launch. | leaf: W2-02C |
 | 35 | **W2-03C — installation evidence and proof-of-display** | PKG-04 | DONE | Assignment-bound evidence and nonce proof gate earning eligibility. | leaf: W2-02B |
 | 36 | **W2-03D — atomic activation** | PKG-04 | DONE | One admin command locks/rechecks every commercial and operational prerequisite, including valid standard-wait or expedited-waiver production authority. | leaf: W2-00C, W2-01A, W2-01B, W2-03A, W2-03B, W2-03C |
-| 37 | **W2-03E — governed mid-flight changes** | PKG-04 | TODO | Expansions honor funded headroom; reductions need approval and effective revisions. | leaf: W2-00A, W2-00C, W2-03D |
+| 37 | **W2-03E — governed mid-flight changes** | PKG-04 | DONE | Expansions honor funded headroom; reductions need approval and effective revisions. | leaf: W2-00A, W2-00C, W2-03D |
 | 38 | **W2-03F — cancellation cutoff and settlement** | PKG-04 | TODO | One idempotent cutoff stops new work, clips pay and applies the standard-boundary or actual-waived-start refund rule. | leaf: W2-01D, W2-03D, MNY-11A |
 | 39 | **W2-03G — proof challenges and spot checks** | PKG-04 | TODO | Missed challenges and physical verification feed the authoritative fraud hold. | leaf: MNY-09A, W2-03C, W2-03D |
 | 40 | **W2-04A — notification core and role surfaces** | PKG-04 | DONE | W1 in-app notices become the shared outbox/list/unread-preference system. | leaf: MNY-08C |

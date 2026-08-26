@@ -957,6 +957,21 @@ def test_assignment_rejects_stale_recommendation_but_manual_payload_stays_compat
     assert manual.status_code == http_status.HTTP_201_CREATED
 
 
+def test_admin_assignment_removal_requires_a_reason(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    _, campaign, _, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
+    assignment = post_assignment(db_client, campaign, profile, vehicle)
+    response = db_client.post(
+        f"/api/v1/admin/campaign-assignments/{assignment.json()['id']}/cancel",
+        headers=admin_headers(db_client),
+        json={},
+    )
+
+    assert response.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
 def test_admin_can_create_list_read_and_cancel_assignment_with_events_and_audit(
     db_client,
     db_sessionmaker,
@@ -986,7 +1001,7 @@ def test_admin_can_create_list_read_and_cancel_assignment_with_events_and_audit(
     cancel_again = db_client.post(
         f"/api/v1/admin/campaign-assignments/{assignment_id}/cancel",
         headers=admin_headers(db_client),
-        json={"metadata": {}},
+        json={"reason": "repeat cancellation", "metadata": {}},
     )
 
     assert create_response.status_code == http_status.HTTP_201_CREATED
@@ -1067,10 +1082,10 @@ def test_admin_assignment_creation_validates_eligibility_and_duplicates(
         headers=driver_headers(db_client),
         json={"metadata": {}},
     )
-    db_client.post(
+    cancel_response = db_client.post(
         f"/api/v1/admin/campaign-assignments/{fetch_assignments(db_sessionmaker)[0].id}/cancel",
         headers=admin_headers(db_client),
-        json={"metadata": {}},
+        json={"reason": "replace cancelled placement", "metadata": {}},
     )
     allowed_after_cancel = post_assignment(db_client, campaign, profile, vehicle)
 
@@ -1079,6 +1094,7 @@ def test_admin_assignment_creation_validates_eligibility_and_duplicates(
     assert missing_offer_response.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
     assert invalid_metadata.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
     assert accepted.status_code == http_status.HTTP_200_OK
+    assert cancel_response.status_code == http_status.HTTP_200_OK
     assert allowed_after_cancel.status_code == http_status.HTTP_201_CREATED
 
     for rejected_status in [
