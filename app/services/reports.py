@@ -7,14 +7,17 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
+from app.core.errors import AppError
 from app.models.campaign import Campaign, CampaignCreative
 from app.models.campaign_assignment import CampaignAssignment
 from app.models.campaign_zone import CampaignZone
 from app.models.impression import ImpressionEstimate, ImpressionEstimateStatus
+from app.models.measurement import MeasurementRun
 from app.models.payout import EarningsLedgerEntry, PayoutCalculation, PayoutCalculationStatus
 from app.models.trip import TripSession, TripSessionStatus
 from app.models.trip_analytics import FraudFlag, FraudFlagSeverity, FraudFlagStatus, TripAnalytics
 from app.models.vehicle import Vehicle
+from app.schemas.measurement import MeasurementResultRead, MeasurementRunSummary
 from app.schemas.reports import (
     ASSIGNMENT_STATUSES,
     CAMPAIGN_STATUSES,
@@ -50,7 +53,7 @@ from app.schemas.reports import (
     ZoneTypeCounts,
 )
 from app.services.campaigns import get_advertiser_campaign, get_required_advertiser_context
-from app.services.disclosure import require_governed_advertiser_output
+from app.services.disclosure import _approved_reference, require_governed_advertiser_output
 from app.services.impressions import current_authoritative_estimates
 from app.services.payouts import latest_payout_calculation_ids
 
@@ -1056,6 +1059,95 @@ async def advertiser_campaign_trips(
 
 
 async def advertiser_campaign_report(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    campaign_id: UUID,
+    start_at: datetime | None,
+    end_at: datetime | None,
+    settings: Settings,
+) -> CampaignReportResponse:
+    await require_governed_advertiser_output(
+        session,
+        settings=settings,
+        route_id="advertiser.campaign.report",
+        user_id=user_id,
+        requires_measurement_run=False,
+    )
+    await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
+    filters = [MeasurementRun.campaign_id == campaign_id]
+    if start_at is not None:
+        filters.append(MeasurementRun.period_start_at == start_at)
+    if end_at is not None:
+        filters.append(MeasurementRun.period_end_at == end_at)
+    run = await session.scalar(
+        select(MeasurementRun)
+        .where(
+            *filters,
+            ~MeasurementRun.id.in_(
+                select(MeasurementRun.reissue_of_run_id).where(
+                    MeasurementRun.reissue_of_run_id.is_not(None)
+                )
+            ),
+        )
+        .order_by(MeasurementRun.created_at.desc(), MeasurementRun.id.desc())
+        .limit(1)
+    )
+    if run is None:
+        if settings.privacy_disclosure_synthetic_test_mode:
+            return await build_dynamic_campaign_report(
+                session,
+                user_id=user_id,
+                campaign_id=campaign_id,
+                start_at=start_at,
+                end_at=end_at,
+                settings=settings,
+            )
+        raise AppError(
+            "SAFE_MEASUREMENT_RUN_REQUIRED",
+            "An immutable measurement run is required for this report",
+            status_code=503,
+        )
+    if not settings.privacy_disclosure_synthetic_test_mode and (
+        run.test_only
+        or not settings.measurement_live_issuance_authorized
+        or not _approved_reference(settings.measurement_report_method_reference)
+        or run.method_revision != settings.measurement_report_method_reference
+    ):
+        raise AppError(
+            "MEASUREMENT_LIVE_ISSUANCE_BLOCKED",
+            "Live measurement issuance is not authorized for this deployment",
+            status_code=503,
+        )
+    from app.services.measurement import measurement_run_reproducible
+
+    if not measurement_run_reproducible(run):
+        raise AppError(
+            "MEASUREMENT_RUN_INTEGRITY_FAILURE",
+            "The frozen measurement run failed reproducibility verification",
+            status_code=409,
+        )
+    report = CampaignReportResponse.model_validate(run.report_snapshot)
+    report.measurement_run = MeasurementRunSummary(
+        id=run.id,
+        mode=run.mode,
+        formula_version=run.formula_version,
+        method_revision=run.method_revision,
+        roi_method_revision=run.roi_method_revision,
+        period_start_at=run.period_start_at,
+        period_end_at=run.period_end_at,
+        input_manifest_sha256=run.input_manifest_sha256,
+        result_manifest_sha256=run.result_manifest_sha256,
+        proof_manifest_sha256=run.proof_manifest_sha256,
+        report_snapshot_sha256=run.report_snapshot_sha256,
+        reissue_of_run_id=run.reissue_of_run_id,
+        created_at=run.created_at,
+    )
+    report.measurement_result = MeasurementResultRead.model_validate(run.result_manifest)
+    return report
+
+
+async def build_dynamic_campaign_report(
     session: AsyncSession,
     *,
     user_id: UUID,

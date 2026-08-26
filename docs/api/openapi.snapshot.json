@@ -3036,6 +3036,24 @@
         "title": "CampaignCommercialRead",
         "type": "object"
       },
+      "CampaignCostTotalRead": {
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "value"
+        ],
+        "title": "CampaignCostTotalRead",
+        "type": "object"
+      },
       "CampaignCreate": {
         "additionalProperties": false,
         "properties": {
@@ -4446,6 +4464,26 @@
           },
           "impression_summary": {
             "$ref": "#/components/schemas/ImpressionSummary"
+          },
+          "measurement_result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeasurementResultRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "measurement_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeasurementRunSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "start_at": {
             "anyOf": [
@@ -7496,6 +7534,40 @@
           "application_reference"
         ],
         "title": "DriverApplicationSubmitResponse",
+        "type": "object"
+      },
+      "DriverCampaignCostMetricRead": {
+        "properties": {
+          "class": {
+            "const": "measured_financial_fact",
+            "title": "Class",
+            "type": "string"
+          },
+          "id": {
+            "const": "driver_campaign_cost",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "const": "Driver campaign cost",
+            "title": "Label",
+            "type": "string"
+          },
+          "totals_by_currency": {
+            "items": {
+              "$ref": "#/components/schemas/CampaignCostTotalRead"
+            },
+            "title": "Totals By Currency",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "class",
+          "totals_by_currency"
+        ],
+        "title": "DriverCampaignCostMetricRead",
         "type": "object"
       },
       "DriverEarningsCurrencySummary": {
@@ -11721,6 +11793,541 @@
         "title": "MeResponse",
         "type": "object"
       },
+      "MeasurementPeriodRead": {
+        "properties": {
+          "end_at": {
+            "format": "date-time",
+            "title": "End At",
+            "type": "string"
+          },
+          "start_at": {
+            "format": "date-time",
+            "title": "Start At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start_at",
+          "end_at"
+        ],
+        "title": "MeasurementPeriodRead",
+        "type": "object"
+      },
+      "MeasurementProofBindingRead": {
+        "properties": {
+          "activation_event_id": {
+            "format": "uuid",
+            "title": "Activation Event Id",
+            "type": "string"
+          },
+          "activation_snapshot_sha256": {
+            "title": "Activation Snapshot Sha256",
+            "type": "string"
+          },
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "binding_fingerprint": {
+            "title": "Binding Fingerprint",
+            "type": "string"
+          },
+          "creative_id": {
+            "format": "uuid",
+            "title": "Creative Id",
+            "type": "string"
+          },
+          "installation_evidence_submission_id": {
+            "format": "uuid",
+            "title": "Installation Evidence Submission Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assignment_id",
+          "activation_event_id",
+          "creative_id",
+          "installation_evidence_submission_id",
+          "activation_snapshot_sha256",
+          "binding_fingerprint"
+        ],
+        "title": "MeasurementProofBindingRead",
+        "type": "object"
+      },
+      "MeasurementResultRead": {
+        "properties": {
+          "formula_version": {
+            "title": "Formula Version",
+            "type": "string"
+          },
+          "method_revision": {
+            "title": "Method Revision",
+            "type": "string"
+          },
+          "metrics": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "driver_campaign_cost": "#/components/schemas/DriverCampaignCostMetricRead",
+                  "modelled_potential_contacts": "#/components/schemas/ModelledContactsMetricRead",
+                  "verified_vehicle_movement": "#/components/schemas/VerifiedMovementMetricRead"
+                },
+                "propertyName": "id"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/VerifiedMovementMetricRead"
+                },
+                {
+                  "$ref": "#/components/schemas/ModelledContactsMetricRead"
+                },
+                {
+                  "$ref": "#/components/schemas/DriverCampaignCostMetricRead"
+                }
+              ]
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/MeasurementRunMode"
+          },
+          "period": {
+            "$ref": "#/components/schemas/MeasurementPeriodRead"
+          },
+          "proof_manifest_sha256": {
+            "title": "Proof Manifest Sha256",
+            "type": "string"
+          },
+          "roi": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeasurementRoiRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "roi_gate": {
+            "discriminator": {
+              "mapping": {
+                "INCLUDE": "#/components/schemas/MeasurementRoiIncludedRead",
+                "OMIT": "#/components/schemas/MeasurementRoiOmittedRead"
+              },
+              "propertyName": "decision"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MeasurementRoiOmittedRead"
+              },
+              {
+                "$ref": "#/components/schemas/MeasurementRoiIncludedRead"
+              }
+            ],
+            "title": "Roi Gate"
+          },
+          "schema_version": {
+            "const": "measurement-result-v1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "title": {
+            "const": "Campaign Performance Analysis",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "title",
+          "mode",
+          "formula_version",
+          "method_revision",
+          "period",
+          "metrics",
+          "proof_manifest_sha256",
+          "roi",
+          "roi_gate"
+        ],
+        "title": "MeasurementResultRead",
+        "type": "object"
+      },
+      "MeasurementRoiIncludedRead": {
+        "properties": {
+          "decision": {
+            "const": "INCLUDE",
+            "title": "Decision",
+            "type": "string"
+          },
+          "test_only": {
+            "title": "Test Only",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "decision",
+          "test_only"
+        ],
+        "title": "MeasurementRoiIncludedRead",
+        "type": "object"
+      },
+      "MeasurementRoiOmittedRead": {
+        "properties": {
+          "decision": {
+            "const": "OMIT",
+            "title": "Decision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "title": "MeasurementRoiOmittedRead",
+        "type": "object"
+      },
+      "MeasurementRoiRead": {
+        "properties": {
+          "class": {
+            "const": "conditional_financial_measure",
+            "title": "Class",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "label": {
+            "const": "Return on investment",
+            "title": "Label",
+            "type": "string"
+          },
+          "method_revision": {
+            "title": "Method Revision",
+            "type": "string"
+          },
+          "percent": {
+            "title": "Percent",
+            "type": "string"
+          },
+          "ratio": {
+            "title": "Ratio",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "class",
+          "ratio",
+          "percent",
+          "currency",
+          "method_revision"
+        ],
+        "title": "MeasurementRoiRead",
+        "type": "object"
+      },
+      "MeasurementRunCreate": {
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/MeasurementRunMode",
+            "default": "performance_only"
+          },
+          "period_end_at": {
+            "format": "date-time",
+            "title": "Period End At",
+            "type": "string"
+          },
+          "period_start_at": {
+            "format": "date-time",
+            "title": "Period Start At",
+            "type": "string"
+          },
+          "roi": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoiInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "test_only": {
+            "default": false,
+            "title": "Test Only",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "client_request_id",
+          "period_start_at",
+          "period_end_at"
+        ],
+        "title": "MeasurementRunCreate",
+        "type": "object"
+      },
+      "MeasurementRunMode": {
+        "enum": [
+          "performance_only",
+          "roi_enabled"
+        ],
+        "title": "MeasurementRunMode",
+        "type": "string"
+      },
+      "MeasurementRunRead": {
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by_user_id": {
+            "format": "uuid",
+            "title": "Created By User Id",
+            "type": "string"
+          },
+          "formula_version": {
+            "title": "Formula Version",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "input_manifest": {
+            "additionalProperties": true,
+            "title": "Input Manifest",
+            "type": "object"
+          },
+          "input_manifest_sha256": {
+            "title": "Input Manifest Sha256",
+            "type": "string"
+          },
+          "method_revision": {
+            "title": "Method Revision",
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/MeasurementRunMode"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "period_end_at": {
+            "format": "date-time",
+            "title": "Period End At",
+            "type": "string"
+          },
+          "period_start_at": {
+            "format": "date-time",
+            "title": "Period Start At",
+            "type": "string"
+          },
+          "proof_bindings": {
+            "items": {
+              "$ref": "#/components/schemas/MeasurementProofBindingRead"
+            },
+            "title": "Proof Bindings",
+            "type": "array"
+          },
+          "proof_manifest": {
+            "additionalProperties": true,
+            "title": "Proof Manifest",
+            "type": "object"
+          },
+          "proof_manifest_sha256": {
+            "title": "Proof Manifest Sha256",
+            "type": "string"
+          },
+          "reissue_of_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reissue Of Run Id"
+          },
+          "report_snapshot_sha256": {
+            "title": "Report Snapshot Sha256",
+            "type": "string"
+          },
+          "reproducible": {
+            "title": "Reproducible",
+            "type": "boolean"
+          },
+          "result_manifest": {
+            "additionalProperties": true,
+            "title": "Result Manifest",
+            "type": "object"
+          },
+          "result_manifest_sha256": {
+            "title": "Result Manifest Sha256",
+            "type": "string"
+          },
+          "roi_method_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roi Method Revision"
+          },
+          "test_only": {
+            "title": "Test Only",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "mode",
+          "formula_version",
+          "method_revision",
+          "roi_method_revision",
+          "period_start_at",
+          "period_end_at",
+          "input_manifest_sha256",
+          "result_manifest_sha256",
+          "proof_manifest_sha256",
+          "report_snapshot_sha256",
+          "reissue_of_run_id",
+          "created_at",
+          "organization_id",
+          "campaign_id",
+          "created_by_user_id",
+          "client_request_id",
+          "test_only",
+          "input_manifest",
+          "result_manifest",
+          "proof_manifest",
+          "proof_bindings",
+          "reproducible"
+        ],
+        "title": "MeasurementRunRead",
+        "type": "object"
+      },
+      "MeasurementRunSummary": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "formula_version": {
+            "title": "Formula Version",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "input_manifest_sha256": {
+            "title": "Input Manifest Sha256",
+            "type": "string"
+          },
+          "method_revision": {
+            "title": "Method Revision",
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/MeasurementRunMode"
+          },
+          "period_end_at": {
+            "format": "date-time",
+            "title": "Period End At",
+            "type": "string"
+          },
+          "period_start_at": {
+            "format": "date-time",
+            "title": "Period Start At",
+            "type": "string"
+          },
+          "proof_manifest_sha256": {
+            "title": "Proof Manifest Sha256",
+            "type": "string"
+          },
+          "reissue_of_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reissue Of Run Id"
+          },
+          "report_snapshot_sha256": {
+            "title": "Report Snapshot Sha256",
+            "type": "string"
+          },
+          "result_manifest_sha256": {
+            "title": "Result Manifest Sha256",
+            "type": "string"
+          },
+          "roi_method_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roi Method Revision"
+          }
+        },
+        "required": [
+          "id",
+          "mode",
+          "formula_version",
+          "method_revision",
+          "roi_method_revision",
+          "period_start_at",
+          "period_end_at",
+          "input_manifest_sha256",
+          "result_manifest_sha256",
+          "proof_manifest_sha256",
+          "report_snapshot_sha256",
+          "reissue_of_run_id",
+          "created_at"
+        ],
+        "title": "MeasurementRunSummary",
+        "type": "object"
+      },
       "MembershipRole": {
         "enum": [
           "owner",
@@ -11738,6 +12345,50 @@
         ],
         "title": "MembershipStatus",
         "type": "string"
+      },
+      "ModelledContactsMetricRead": {
+        "properties": {
+          "class": {
+            "const": "modelled_measure",
+            "title": "Class",
+            "type": "string"
+          },
+          "formula_versions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Formula Versions",
+            "type": "array"
+          },
+          "id": {
+            "const": "modelled_potential_contacts",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "const": "Modelled potential contacts",
+            "title": "Label",
+            "type": "string"
+          },
+          "uncertainty": {
+            "title": "Uncertainty",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "class",
+          "value",
+          "formula_versions",
+          "uncertainty"
+        ],
+        "title": "ModelledContactsMetricRead",
+        "type": "object"
       },
       "NinRevealRead": {
         "properties": {
@@ -14482,6 +15133,141 @@
         "title": "RetargetingSourceRead",
         "type": "object"
       },
+      "RoiInput": {
+        "properties": {
+          "approved_cost_basis": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Approved Cost Basis"
+          },
+          "attributed_revenue": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Attributed Revenue"
+          },
+          "conversion_provenance": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Conversion Provenance",
+            "type": "string"
+          },
+          "currency": {
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          },
+          "method": {
+            "$ref": "#/components/schemas/RoiMethodInput"
+          },
+          "reporting_cutoff": {
+            "format": "date-time",
+            "title": "Reporting Cutoff",
+            "type": "string"
+          },
+          "revenue_provenance": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Revenue Provenance",
+            "type": "string"
+          },
+          "synthetic": {
+            "default": false,
+            "title": "Synthetic",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "attributed_revenue",
+          "approved_cost_basis",
+          "currency",
+          "conversion_provenance",
+          "revenue_provenance",
+          "reporting_cutoff",
+          "method"
+        ],
+        "title": "RoiInput",
+        "type": "object"
+      },
+      "RoiMethodInput": {
+        "properties": {
+          "approval_reference": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Approval Reference",
+            "type": "string"
+          },
+          "attribution_rule": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Attribution Rule",
+            "type": "string"
+          },
+          "attribution_window": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Attribution Window",
+            "type": "string"
+          },
+          "corrections": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Corrections",
+            "type": "string"
+          },
+          "cost_basis": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Cost Basis",
+            "type": "string"
+          },
+          "exclusions": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Exclusions",
+            "type": "string"
+          },
+          "late_data": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Late Data",
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "approval_reference",
+          "attribution_rule",
+          "attribution_window",
+          "cost_basis",
+          "exclusions",
+          "corrections",
+          "late_data"
+        ],
+        "title": "RoiMethodInput",
+        "type": "object"
+      },
       "RouteAnalyticsSummary": {
         "properties": {
           "analyzed_trip_count": {
@@ -16932,6 +17718,47 @@
           "verification_reference"
         ],
         "title": "VerifiedBankAccountCreate",
+        "type": "object"
+      },
+      "VerifiedMovementMetricRead": {
+        "properties": {
+          "active_tracking_seconds": {
+            "title": "Active Tracking Seconds",
+            "type": "integer"
+          },
+          "class": {
+            "const": "measured_operational_fact",
+            "title": "Class",
+            "type": "string"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "string"
+          },
+          "id": {
+            "const": "verified_vehicle_movement",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "const": "Verified vehicle movement",
+            "title": "Label",
+            "type": "string"
+          },
+          "trip_count": {
+            "title": "Trip Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "class",
+          "trip_count",
+          "distance_m",
+          "active_tracking_seconds"
+        ],
+        "title": "VerifiedMovementMetricRead",
         "type": "object"
       },
       "WaiverCreate": {
@@ -21672,6 +22499,100 @@
         ]
       }
     },
+    "/api/v1/admin/measurement-runs": {
+      "post": {
+        "operationId": "admin_issue_measurement_run_api_v1_admin_measurement_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeasurementRunCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeasurementRunRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Issue an immutable campaign measurement run",
+        "tags": [
+          "Measurement"
+        ]
+      }
+    },
+    "/api/v1/admin/measurement-runs/{run_id}": {
+      "get": {
+        "operationId": "admin_get_measurement_run_api_v1_admin_measurement_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeasurementRunRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Read and reproduce an immutable measurement run",
+        "tags": [
+          "Measurement"
+        ]
+      }
+    },
     "/api/v1/admin/operations/file-kyc-retention": {
       "post": {
         "operationId": "admin_file_kyc_retention_api_v1_admin_operations_file_kyc_retention_post",
@@ -23157,7 +24078,7 @@
     },
     "/api/v1/admin/payouts/recompute-day": {
       "post": {
-        "description": "PR7: the direct execute path is retired. Every retroactive recompute —\nregardless of delta sign — runs through an approved maker-checker\ncorrection order. The route stays registered so the contract and the\naudit-coverage table remain consistent; it always answers 409.",
+        "description": "PR7: the direct execute path is retired. Every retroactive recompute \u2014\nregardless of delta sign \u2014 runs through an approved maker-checker\ncorrection order. The route stays registered so the contract and the\naudit-coverage table remain consistent; it always answers 409.",
         "operationId": "admin_recompute_payout_day_api_v1_admin_payouts_recompute_day_post",
         "requestBody": {
           "content": {
@@ -30257,7 +31178,7 @@
     },
     "/api/v1/health/partitions": {
       "get": {
-        "description": "503 when no partition covers now() + 1 month — the API-side detector\nfor the write-outage failure mode (catches a dead worker, which no\nworker-side check can). Deliberately separate from /ready: a partition\ngap a month out must not drop live API traffic.",
+        "description": "503 when no partition covers now() + 1 month \u2014 the API-side detector\nfor the write-outage failure mode (catches a dead worker, which no\nworker-side check can). Deliberately separate from /ready: a partition\ngap a month out must not drop live API traffic.",
         "operationId": "partitions_api_v1_health_partitions_get",
         "responses": {
           "200": {

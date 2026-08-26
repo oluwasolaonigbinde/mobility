@@ -20,6 +20,7 @@ from app.api.v1.impressions import router as impressions_router
 from app.api.v1.installation_evidence import router as installation_evidence_router
 from app.api.v1.kyc import router as kyc_router
 from app.api.v1.me import router as me_router
+from app.api.v1.measurement import router as measurement_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.payees import router as payees_router
 from app.api.v1.payouts import router as payouts_router
@@ -36,6 +37,7 @@ api_router = APIRouter()
 api_router.include_router(auth_router)
 api_router.include_router(billing_router)
 api_router.include_router(me_router)
+api_router.include_router(measurement_router)
 api_router.include_router(notifications_router)
 api_router.include_router(privacy_dsr_router)
 api_router.include_router(payees_router)

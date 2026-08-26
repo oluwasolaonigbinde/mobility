@@ -150,6 +150,14 @@ _DATABASE_COUNTS = {
     "privacy_request_evidence": (
         "SELECT count(*) FROM data_subject_requests WHERE subject_user_id = :subject_user_id"
     ),
+    "measurement_evidence": (
+        "SELECT (SELECT count(*) FROM measurement_runs "
+        "WHERE created_by_user_id = :subject_user_id) + "
+        "(SELECT count(*) FROM measurement_run_proof_bindings b "
+        "JOIN campaign_assignments a ON a.id = b.assignment_id "
+        "JOIN driver_profiles d ON d.id = a.driver_profile_id "
+        "WHERE d.user_id = :subject_user_id)"
+    ),
 }
 
 _ALL_LOCATIONS = set(DataSubjectLocation)

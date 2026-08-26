@@ -92,7 +92,8 @@
     "issued_history": "immutable",
     "rule": "A changed input, source vintage, formula, approval, or correction creates a new run and reissue lineage; never mutate an issued result in place.",
     "implementation_owner": "W3-00E",
-    "current_slice_limit": "This contract defines the rule but does not issue or persist measurement runs."
+    "implementation_status": "BUILT_PROVIDER_NEUTRAL",
+    "live_use_limit": "Immutable runs and reissue lineage are built; live issuance remains disabled until the recorded method and privacy gates are approved."
   },
   "prohibited_claims": [
     "attribution report",

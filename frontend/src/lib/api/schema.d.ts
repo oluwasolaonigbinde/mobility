@@ -1034,6 +1034,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/measurement-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Issue an immutable campaign measurement run */
+        post: operations["admin_issue_measurement_run_api_v1_admin_measurement_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/measurement-runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read and reproduce an immutable measurement run */
+        get: operations["admin_get_measurement_run_api_v1_admin_measurement_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/operations/file-kyc-retention": {
         parameters: {
             query?: never;
@@ -4663,6 +4697,13 @@ export interface components {
             terms: components["schemas"]["CommercialTermsRead"] | null;
             waiver: components["schemas"]["WaiverRead"] | null;
         };
+        /** CampaignCostTotalRead */
+        CampaignCostTotalRead: {
+            /** Currency */
+            currency: string;
+            /** Value */
+            value: string;
+        };
         /** CampaignCreate */
         CampaignCreate: {
             /** Budget Amount */
@@ -5044,6 +5085,8 @@ export interface components {
             end_at: string | null;
             fraud_summary: components["schemas"]["FraudFlagCounts"];
             impression_summary: components["schemas"]["ImpressionSummary"];
+            measurement_result?: components["schemas"]["MeasurementResultRead"] | null;
+            measurement_run?: components["schemas"]["MeasurementRunSummary"] | null;
             /** Start At */
             start_at: string | null;
             summary: components["schemas"]["CampaignReadSummary"];
@@ -6196,6 +6239,26 @@ export interface components {
              * @constant
              */
             status: "pending";
+        };
+        /** DriverCampaignCostMetricRead */
+        DriverCampaignCostMetricRead: {
+            /**
+             * Class
+             * @constant
+             */
+            class: "measured_financial_fact";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            id: "driver_campaign_cost";
+            /**
+             * Label
+             * @constant
+             */
+            label: "Driver campaign cost";
+            /** Totals By Currency */
+            totals_by_currency: components["schemas"]["CampaignCostTotalRead"][];
         };
         /** DriverEarningsCurrencySummary */
         DriverEarningsCurrencySummary: {
@@ -7862,6 +7925,265 @@ export interface components {
             advertiser_organization: components["schemas"]["MeAdvertiserOrganization"] | null;
             user: components["schemas"]["UserRead"];
         };
+        /** MeasurementPeriodRead */
+        MeasurementPeriodRead: {
+            /**
+             * End At
+             * Format: date-time
+             */
+            end_at: string;
+            /**
+             * Start At
+             * Format: date-time
+             */
+            start_at: string;
+        };
+        /** MeasurementProofBindingRead */
+        MeasurementProofBindingRead: {
+            /**
+             * Activation Event Id
+             * Format: uuid
+             */
+            activation_event_id: string;
+            /** Activation Snapshot Sha256 */
+            activation_snapshot_sha256: string;
+            /**
+             * Assignment Id
+             * Format: uuid
+             */
+            assignment_id: string;
+            /** Binding Fingerprint */
+            binding_fingerprint: string;
+            /**
+             * Creative Id
+             * Format: uuid
+             */
+            creative_id: string;
+            /**
+             * Installation Evidence Submission Id
+             * Format: uuid
+             */
+            installation_evidence_submission_id: string;
+        };
+        /** MeasurementResultRead */
+        MeasurementResultRead: {
+            /** Formula Version */
+            formula_version: string;
+            /** Method Revision */
+            method_revision: string;
+            /** Metrics */
+            metrics: (components["schemas"]["VerifiedMovementMetricRead"] | components["schemas"]["ModelledContactsMetricRead"] | components["schemas"]["DriverCampaignCostMetricRead"])[];
+            mode: components["schemas"]["MeasurementRunMode"];
+            period: components["schemas"]["MeasurementPeriodRead"];
+            /** Proof Manifest Sha256 */
+            proof_manifest_sha256: string;
+            roi: components["schemas"]["MeasurementRoiRead"] | null;
+            /** Roi Gate */
+            roi_gate: components["schemas"]["MeasurementRoiOmittedRead"] | components["schemas"]["MeasurementRoiIncludedRead"];
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "measurement-result-v1";
+            /**
+             * Title
+             * @constant
+             */
+            title: "Campaign Performance Analysis";
+        };
+        /** MeasurementRoiIncludedRead */
+        MeasurementRoiIncludedRead: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            decision: "INCLUDE";
+            /** Test Only */
+            test_only: boolean;
+        };
+        /** MeasurementRoiOmittedRead */
+        MeasurementRoiOmittedRead: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            decision: "OMIT";
+        };
+        /** MeasurementRoiRead */
+        MeasurementRoiRead: {
+            /**
+             * Class
+             * @constant
+             */
+            class: "conditional_financial_measure";
+            /** Currency */
+            currency: string;
+            /**
+             * Label
+             * @constant
+             */
+            label: "Return on investment";
+            /** Method Revision */
+            method_revision: string;
+            /** Percent */
+            percent: string;
+            /** Ratio */
+            ratio: string;
+        };
+        /** MeasurementRunCreate */
+        MeasurementRunCreate: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /** @default performance_only */
+            mode: components["schemas"]["MeasurementRunMode"];
+            /**
+             * Period End At
+             * Format: date-time
+             */
+            period_end_at: string;
+            /**
+             * Period Start At
+             * Format: date-time
+             */
+            period_start_at: string;
+            roi?: components["schemas"]["RoiInput"] | null;
+            /**
+             * Test Only
+             * @default false
+             */
+            test_only: boolean;
+        };
+        /**
+         * MeasurementRunMode
+         * @enum {string}
+         */
+        MeasurementRunMode: "performance_only" | "roi_enabled";
+        /** MeasurementRunRead */
+        MeasurementRunRead: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Created By User Id
+             * Format: uuid
+             */
+            created_by_user_id: string;
+            /** Formula Version */
+            formula_version: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Input Manifest */
+            input_manifest: {
+                [key: string]: unknown;
+            };
+            /** Input Manifest Sha256 */
+            input_manifest_sha256: string;
+            /** Method Revision */
+            method_revision: string;
+            mode: components["schemas"]["MeasurementRunMode"];
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /**
+             * Period End At
+             * Format: date-time
+             */
+            period_end_at: string;
+            /**
+             * Period Start At
+             * Format: date-time
+             */
+            period_start_at: string;
+            /** Proof Bindings */
+            proof_bindings: components["schemas"]["MeasurementProofBindingRead"][];
+            /** Proof Manifest */
+            proof_manifest: {
+                [key: string]: unknown;
+            };
+            /** Proof Manifest Sha256 */
+            proof_manifest_sha256: string;
+            /** Reissue Of Run Id */
+            reissue_of_run_id: string | null;
+            /** Report Snapshot Sha256 */
+            report_snapshot_sha256: string;
+            /** Reproducible */
+            reproducible: boolean;
+            /** Result Manifest */
+            result_manifest: {
+                [key: string]: unknown;
+            };
+            /** Result Manifest Sha256 */
+            result_manifest_sha256: string;
+            /** Roi Method Revision */
+            roi_method_revision: string | null;
+            /** Test Only */
+            test_only: boolean;
+        };
+        /** MeasurementRunSummary */
+        MeasurementRunSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Formula Version */
+            formula_version: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Input Manifest Sha256 */
+            input_manifest_sha256: string;
+            /** Method Revision */
+            method_revision: string;
+            mode: components["schemas"]["MeasurementRunMode"];
+            /**
+             * Period End At
+             * Format: date-time
+             */
+            period_end_at: string;
+            /**
+             * Period Start At
+             * Format: date-time
+             */
+            period_start_at: string;
+            /** Proof Manifest Sha256 */
+            proof_manifest_sha256: string;
+            /** Reissue Of Run Id */
+            reissue_of_run_id: string | null;
+            /** Report Snapshot Sha256 */
+            report_snapshot_sha256: string;
+            /** Result Manifest Sha256 */
+            result_manifest_sha256: string;
+            /** Roi Method Revision */
+            roi_method_revision: string | null;
+        };
         /**
          * MembershipRole
          * @enum {string}
@@ -7872,6 +8194,30 @@ export interface components {
          * @enum {string}
          */
         MembershipStatus: "active" | "invited" | "disabled";
+        /** ModelledContactsMetricRead */
+        ModelledContactsMetricRead: {
+            /**
+             * Class
+             * @constant
+             */
+            class: "modelled_measure";
+            /** Formula Versions */
+            formula_versions: string[];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            id: "modelled_potential_contacts";
+            /**
+             * Label
+             * @constant
+             */
+            label: "Modelled potential contacts";
+            /** Uncertainty */
+            uncertainty: string;
+            /** Value */
+            value: string;
+        };
         /** NinRevealRead */
         NinRevealRead: {
             /** Nin */
@@ -9059,6 +9405,49 @@ export interface components {
              */
             status: "active" | "expired" | "deactivated";
         };
+        /** RoiInput */
+        RoiInput: {
+            /** Approved Cost Basis */
+            approved_cost_basis: number | string;
+            /** Attributed Revenue */
+            attributed_revenue: number | string;
+            /** Conversion Provenance */
+            conversion_provenance: string;
+            /** Currency */
+            currency: string;
+            method: components["schemas"]["RoiMethodInput"];
+            /**
+             * Reporting Cutoff
+             * Format: date-time
+             */
+            reporting_cutoff: string;
+            /** Revenue Provenance */
+            revenue_provenance: string;
+            /**
+             * Synthetic
+             * @default false
+             */
+            synthetic: boolean;
+        };
+        /** RoiMethodInput */
+        RoiMethodInput: {
+            /** Approval Reference */
+            approval_reference: string;
+            /** Attribution Rule */
+            attribution_rule: string;
+            /** Attribution Window */
+            attribution_window: string;
+            /** Corrections */
+            corrections: string;
+            /** Cost Basis */
+            cost_basis: string;
+            /** Exclusions */
+            exclusions: string;
+            /** Late Data */
+            late_data: string;
+            /** Revision */
+            revision: string;
+        };
         /** RouteAnalyticsSummary */
         RouteAnalyticsSummary: {
             /** Analyzed Trip Count */
@@ -9911,6 +10300,30 @@ export interface components {
              * Format: password
              */
             verification_reference: string;
+        };
+        /** VerifiedMovementMetricRead */
+        VerifiedMovementMetricRead: {
+            /** Active Tracking Seconds */
+            active_tracking_seconds: number;
+            /**
+             * Class
+             * @constant
+             */
+            class: "measured_operational_fact";
+            /** Distance M */
+            distance_m: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            id: "verified_vehicle_movement";
+            /**
+             * Label
+             * @constant
+             */
+            label: "Verified vehicle movement";
+            /** Trip Count */
+            trip_count: number;
         };
         /** WaiverCreate */
         WaiverCreate: {
@@ -12321,6 +12734,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriverKycSubmissionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_issue_measurement_run_api_v1_admin_measurement_runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeasurementRunCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeasurementRunRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_get_measurement_run_api_v1_admin_measurement_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeasurementRunRead"];
                 };
             };
             /** @description Validation Error */

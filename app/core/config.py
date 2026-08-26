@@ -188,6 +188,12 @@ class Settings(BaseSettings):
     privacy_disclosure_config_reference: str = ""
     privacy_query_history_retention_reference: str = ""
     privacy_query_history_retention_days: int = 30
+    # Provider-neutral issuance controls. Production stays denied until an
+    # approved report method is configured; local/test synthetic runs remain
+    # explicitly labelled test-only.
+    measurement_live_issuance_authorized: bool = False
+    measurement_report_method_reference: str = ""
+    measurement_roi_method_reference: str = ""
     privacy_min_vehicles_per_cell: int = 3
     privacy_min_trips_per_cell: int = 5
     privacy_min_days_per_cell: int = 2
@@ -551,6 +557,17 @@ class Settings(BaseSettings):
         normalized = value.strip().lower()
         if normalized not in {"", "smtp"}:
             raise ValueError("EMAIL_PROVIDER must be blank or smtp")
+        return normalized
+
+    @field_validator(
+        "measurement_report_method_reference",
+        "measurement_roi_method_reference",
+    )
+    @classmethod
+    def validate_measurement_method_reference(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) > 255:
+            raise ValueError("Measurement method references must be at most 255 characters")
         return normalized
 
     @field_validator("dsr_approved_exception_references")

@@ -45,7 +45,7 @@ CANONICAL_ITEMS = (
     ("W2-00C", "PKG-03", "leaf: W2-01B, MNY-11A"),
     ("W2-01C", "PKG-03", "leaf: W2-00B, W2-01A; external: EXT-PAYMENT-PROVIDER"),
     ("W2-01D", "PKG-03", "leaf: W2-01A, W2-01B"),
-    ("W2-01E", "PKG-03", "leaf: W2-01A, W2-01B; external: EXT-BUDGET-POLICY"),
+    ("W2-01E", "PKG-03", "leaf: W2-01A, W2-01B"),
     ("W2-02A", "PKG-04", "none"),
     ("W2-02B", "PKG-04", "leaf: W2-02A"),
     ("W2-02C", "PKG-04", "leaf: W2-02B"),
