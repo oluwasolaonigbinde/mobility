@@ -9,6 +9,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { ReviewActions } from "./review-actions";
 import { CreativeReviewActions } from "./creative-review-actions";
+import { InstallationReviewActions } from "./installation-review-actions";
 
 export const metadata: Metadata = { title: "Approvals" };
 
@@ -22,6 +23,7 @@ export default async function AdminApprovalsPage() {
   const { data: creativeQueue } = await api.GET("/api/v1/admin/creatives/pending-review", {
     params: { query: { limit: PAGE_SIZE, offset: 0 } },
   });
+  const { data: installationQueue } = await api.GET("/api/v1/admin/installation-evidence/pending");
   const items = queue?.items ?? [];
   const histories = await Promise.all(
     items.map(async (campaign) => {
@@ -42,16 +44,17 @@ export default async function AdminApprovalsPage() {
     }),
   );
   const historyByCreativeId = new Map(creativeHistories);
-  const totalPending = (queue?.total ?? 0) + (creativeQueue?.total ?? 0);
+  const installationItems = installationQueue?.items ?? [];
+  const totalPending = (queue?.total ?? 0) + (creativeQueue?.total ?? 0) + installationItems.length;
 
   return (
     <div className="animate-rise mx-auto max-w-6xl">
       <PageHeader
         title="Approvals"
-        eyebrow={`${totalPending} campaign or creative item${totalPending === 1 ? "" : "s"} awaiting review`}
+        eyebrow={`${totalPending} item${totalPending === 1 ? "" : "s"} awaiting review`}
       />
 
-      {items.length === 0 && creativeItems.length === 0 ? (
+      {items.length === 0 && creativeItems.length === 0 && installationItems.length === 0 ? (
         <EmptyState
           title="Nothing awaiting review"
           body="New submissions will appear here with their immutable review history."
@@ -185,6 +188,44 @@ export default async function AdminApprovalsPage() {
               </Panel>
             );
           })}
+          {installationItems.length ? (
+            <h2 className="mt-4 text-lg font-medium">Vehicle installation evidence</h2>
+          ) : null}
+          {installationItems.map((evidence) => (
+            <Panel
+              key={evidence.id}
+              className="p-5"
+              data-testid={`installation-approval-${evidence.id}`}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-5">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusChip tone="amber">Pending review</StatusChip>
+                    <h3 className="font-medium">Installation revision {evidence.revision}</h3>
+                  </div>
+                  <dl className="micro text-faint mt-3 grid gap-x-5 gap-y-1 sm:grid-cols-2">
+                    <div>
+                      <dt className="inline">Assignment: </dt>
+                      <dd className="inline font-mono">{evidence.assignment_id}</dd>
+                    </div>
+                    <div>
+                      <dt className="inline">Vehicle: </dt>
+                      <dd className="inline font-mono">{evidence.vehicle_id}</dd>
+                    </div>
+                    <div>
+                      <dt className="inline">Captured: </dt>
+                      <dd className="inline">{formatDate(evidence.captured_at)}</dd>
+                    </div>
+                    <div>
+                      <dt className="inline">Submitted: </dt>
+                      <dd className="inline">{formatDate(evidence.submitted_at)}</dd>
+                    </div>
+                  </dl>
+                </div>
+                <InstallationReviewActions submissionId={evidence.id} photos={evidence.photos} />
+              </div>
+            </Panel>
+          ))}
         </div>
       )}
       <p className="micro text-faint mt-6">

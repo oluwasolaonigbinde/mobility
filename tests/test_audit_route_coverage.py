@@ -91,6 +91,38 @@ AUDITED = {
         "POST",
         "/api/v1/driver/files/uploads/{upload_id}/confirm",
     ): "stored_file.confirmed",
+    (
+        "POST",
+        "/api/v1/admin/campaign-assignments/{assignment_id}/files/uploads",
+    ): "stored_file.upload_requested",
+    (
+        "POST",
+        "/api/v1/admin/campaign-assignments/{assignment_id}/files/uploads/{upload_id}/confirm",
+    ): "stored_file.confirmed",
+    (
+        "POST",
+        "/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence",
+    ): "installation_evidence.submitted",
+    (
+        "POST",
+        "/api/v1/admin/campaign-assignments/{assignment_id}/installation-evidence",
+    ): "installation_evidence.submitted",
+    (
+        "POST",
+        "/api/v1/admin/installation-evidence/{submission_id}/approve",
+    ): "installation_evidence.approved",
+    (
+        "POST",
+        "/api/v1/admin/installation-evidence/{submission_id}/reject",
+    ): "installation_evidence.rejected",
+    (
+        "POST",
+        "/api/v1/driver/campaign-assignments/{assignment_id}/display-proof/challenge",
+    ): "display_proof.challenge_issued",
+    (
+        "POST",
+        "/api/v1/driver/campaign-assignments/{assignment_id}/display-proof",
+    ): "display_proof.verified",
     ("POST", "/api/v1/driver/kyc/submissions"): "driver.kyc.submitted",
     ("PATCH", "/api/v1/driver/profile"): "driver.profile.updated",
     ("POST", "/api/v1/driver/campaign-assignments/{assignment_id}/accept"): (

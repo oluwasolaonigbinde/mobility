@@ -71,6 +71,7 @@ class TripSession(Base):
         Index("ix_trip_sessions_campaign_id", "campaign_id"),
         Index("ix_trip_sessions_driver_profile_id", "driver_profile_id"),
         Index("ix_trip_sessions_vehicle_id", "vehicle_id"),
+        Index("ix_trip_sessions_display_proof_id", "display_proof_id"),
         Index("ix_trip_sessions_driver_status", "driver_profile_id", "status"),
         Index("ix_trip_sessions_vehicle_status", "vehicle_id", "status"),
         Index("ix_trip_sessions_campaign_started_at", "campaign_id", "started_at"),
@@ -110,6 +111,9 @@ class TripSession(Base):
     vehicle_id: Mapped[UUID] = mapped_column(
         ForeignKey("vehicles.id", ondelete="CASCADE"),
         nullable=False,
+    )
+    display_proof_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("display_proofs.id", ondelete="RESTRICT")
     )
     started_by_user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -219,8 +223,7 @@ class QuarantinedPingBatch(Base):
         # Resolution facts travel together: a resolved row always names its
         # actor and note, and only applied rows carry an applied batch.
         CheckConstraint(
-            "(status = 'quarantined') = "
-            "(resolved_by_user_id IS NULL AND resolution_note IS NULL)",
+            "(status = 'quarantined') = (resolved_by_user_id IS NULL AND resolution_note IS NULL)",
             name="ck_quarantined_ping_batches_resolution_actor",
         ),
         CheckConstraint(

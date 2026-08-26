@@ -6372,6 +6372,165 @@
         "title": "DigitalCampaignAudienceSourceCreate",
         "type": "object"
       },
+      "DisplayProofChallengeCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id"
+        ],
+        "title": "DisplayProofChallengeCreate",
+        "type": "object"
+      },
+      "DisplayProofChallengeRead": {
+        "properties": {
+          "challenge_id": {
+            "format": "uuid",
+            "title": "Challenge Id",
+            "type": "string"
+          },
+          "evidence_submission_id": {
+            "format": "uuid",
+            "title": "Evidence Submission Id",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "nonce": {
+            "title": "Nonce",
+            "type": "string"
+          }
+        },
+        "required": [
+          "challenge_id",
+          "nonce",
+          "evidence_submission_id",
+          "expires_at"
+        ],
+        "title": "DisplayProofChallengeRead",
+        "type": "object"
+      },
+      "DisplayProofCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "challenge_id": {
+            "format": "uuid",
+            "title": "Challenge Id",
+            "type": "string"
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "nonce": {
+            "maxLength": 256,
+            "minLength": 32,
+            "title": "Nonce",
+            "type": "string"
+          },
+          "stored_file_id": {
+            "format": "uuid",
+            "title": "Stored File Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "challenge_id",
+          "nonce",
+          "device_id",
+          "stored_file_id"
+        ],
+        "title": "DisplayProofCreate",
+        "type": "object"
+      },
+      "DisplayProofRead": {
+        "properties": {
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "challenge_id": {
+            "format": "uuid",
+            "title": "Challenge Id",
+            "type": "string"
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "evidence_submission_id": {
+            "format": "uuid",
+            "title": "Evidence Submission Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "stored_file_id": {
+            "format": "uuid",
+            "title": "Stored File Id",
+            "type": "string"
+          },
+          "valid_until": {
+            "format": "date-time",
+            "title": "Valid Until",
+            "type": "string"
+          },
+          "vehicle_id": {
+            "format": "uuid",
+            "title": "Vehicle Id",
+            "type": "string"
+          },
+          "verified_at": {
+            "format": "date-time",
+            "title": "Verified At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "challenge_id",
+          "assignment_id",
+          "evidence_submission_id",
+          "driver_profile_id",
+          "vehicle_id",
+          "device_id",
+          "stored_file_id",
+          "verified_at",
+          "valid_until",
+          "metadata"
+        ],
+        "title": "DisplayProofRead",
+        "type": "object"
+      },
       "DriverApplicationAdminListResponse": {
         "properties": {
           "items": {
@@ -7950,6 +8109,7 @@
           "campaign_preview",
           "creative_review",
           "kyc_review",
+          "installation_review",
           "security_review",
           "incident_response"
         ],
@@ -8058,7 +8218,8 @@
         "enum": [
           "creative",
           "driver_kyc",
-          "vehicle_evidence"
+          "vehicle_evidence",
+          "installation_evidence"
         ],
         "title": "FilePurpose",
         "type": "string"
@@ -9260,6 +9421,332 @@
           "average_confidence_score"
         ],
         "title": "ImpressionSummary",
+        "type": "object"
+      },
+      "InstallationEvidenceCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "photos": {
+            "items": {
+              "$ref": "#/components/schemas/InstallationPhotoCreate"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Photos",
+            "type": "array"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "device_id",
+          "captured_at",
+          "photos"
+        ],
+        "title": "InstallationEvidenceCreate",
+        "type": "object"
+      },
+      "InstallationEvidenceDecision": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "title": "InstallationEvidenceDecision",
+        "type": "object"
+      },
+      "InstallationEvidenceList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InstallationEvidenceRead"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "InstallationEvidenceList",
+        "type": "object"
+      },
+      "InstallationEvidencePhotoRead": {
+        "properties": {
+          "stored_file_id": {
+            "format": "uuid",
+            "title": "Stored File Id",
+            "type": "string"
+          },
+          "view": {
+            "title": "View",
+            "type": "string"
+          }
+        },
+        "required": [
+          "view",
+          "stored_file_id"
+        ],
+        "title": "InstallationEvidencePhotoRead",
+        "type": "object"
+      },
+      "InstallationEvidencePolicyRead": {
+        "properties": {
+          "can_upload": {
+            "title": "Can Upload",
+            "type": "boolean"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "display_proof_challenge_ttl_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Proof Challenge Ttl Seconds"
+          },
+          "display_proof_validity_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Proof Validity Seconds"
+          },
+          "evidence_validity_hours": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Validity Hours"
+          },
+          "required_views": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Views",
+            "type": "array"
+          }
+        },
+        "required": [
+          "configured",
+          "can_upload",
+          "required_views",
+          "evidence_validity_hours",
+          "display_proof_challenge_ttl_seconds",
+          "display_proof_validity_seconds"
+        ],
+        "title": "InstallationEvidencePolicyRead",
+        "type": "object"
+      },
+      "InstallationEvidenceRead": {
+        "properties": {
+          "approved_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved Until"
+          },
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "device_id": {
+            "format": "uuid",
+            "title": "Device Id",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "photos": {
+            "items": {
+              "$ref": "#/components/schemas/InstallationEvidencePhotoRead"
+            },
+            "title": "Photos",
+            "type": "array"
+          },
+          "rejection_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejection Reason"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By User Id"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/InstallationEvidenceStatus"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          },
+          "submitted_by_user_id": {
+            "format": "uuid",
+            "title": "Submitted By User Id",
+            "type": "string"
+          },
+          "vehicle_id": {
+            "format": "uuid",
+            "title": "Vehicle Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "assignment_id",
+          "campaign_id",
+          "driver_profile_id",
+          "vehicle_id",
+          "submitted_by_user_id",
+          "reviewed_by_user_id",
+          "revision",
+          "device_id",
+          "captured_at",
+          "status",
+          "rejection_reason",
+          "reviewed_at",
+          "approved_until",
+          "photos",
+          "metadata",
+          "submitted_at"
+        ],
+        "title": "InstallationEvidenceRead",
+        "type": "object"
+      },
+      "InstallationEvidenceStatus": {
+        "enum": [
+          "pending_review",
+          "approved",
+          "rejected",
+          "expired"
+        ],
+        "title": "InstallationEvidenceStatus",
+        "type": "string"
+      },
+      "InstallationPhotoCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "stored_file_id": {
+            "format": "uuid",
+            "title": "Stored File Id",
+            "type": "string"
+          },
+          "view": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "View",
+            "type": "string"
+          }
+        },
+        "required": [
+          "view",
+          "stored_file_id"
+        ],
+        "title": "InstallationPhotoCreate",
         "type": "object"
       },
       "InvoiceCorrectionCreate": {
@@ -14344,6 +14831,18 @@
             "title": "Created At",
             "type": "string"
           },
+          "display_proof_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Proof Id"
+          },
           "driver_profile_id": {
             "format": "uuid",
             "title": "Driver Profile Id",
@@ -14458,6 +14957,7 @@
           "campaign_id",
           "driver_profile_id",
           "vehicle_id",
+          "display_proof_id",
           "status",
           "started_at",
           "ended_at",
@@ -16572,6 +17072,226 @@
         "summary": "Cancel a campaign assignment",
         "tags": [
           "Campaign Assignments"
+        ]
+      }
+    },
+    "/api/v1/admin/campaign-assignments/{assignment_id}/files/uploads": {
+      "post": {
+        "operationId": "admin_create_evidence_upload_api_v1_admin_campaign_assignments__assignment_id__files_uploads_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileUploadCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileUploadRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Create Evidence Upload",
+        "tags": [
+          "Installation evidence"
+        ]
+      }
+    },
+    "/api/v1/admin/campaign-assignments/{assignment_id}/files/uploads/{upload_id}/confirm": {
+      "post": {
+        "operationId": "admin_confirm_evidence_upload_api_v1_admin_campaign_assignments__assignment_id__files_uploads__upload_id__confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "upload_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Upload Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredFileRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Confirm Evidence Upload",
+        "tags": [
+          "Installation evidence"
+        ]
+      }
+    },
+    "/api/v1/admin/campaign-assignments/{assignment_id}/installation-evidence": {
+      "get": {
+        "operationId": "admin_evidence_history_api_v1_admin_campaign_assignments__assignment_id__installation_evidence_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallationEvidenceList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Evidence History",
+        "tags": [
+          "Installation evidence"
+        ]
+      },
+      "post": {
+        "operationId": "admin_submit_evidence_api_v1_admin_campaign_assignments__assignment_id__installation_evidence_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstallationEvidenceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallationEvidenceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Submit Evidence",
+        "tags": [
+          "Installation evidence"
         ]
       }
     },
@@ -19125,6 +19845,148 @@
         "summary": "List impression estimates",
         "tags": [
           "Impressions"
+        ]
+      }
+    },
+    "/api/v1/admin/installation-evidence/pending": {
+      "get": {
+        "operationId": "admin_pending_evidence_api_v1_admin_installation_evidence_pending_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallationEvidenceList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Pending Evidence",
+        "tags": [
+          "Installation evidence"
+        ]
+      }
+    },
+    "/api/v1/admin/installation-evidence/{submission_id}/approve": {
+      "post": {
+        "operationId": "admin_approve_evidence_api_v1_admin_installation_evidence__submission_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstallationEvidenceDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallationEvidenceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Approve Evidence",
+        "tags": [
+          "Installation evidence"
+        ]
+      }
+    },
+    "/api/v1/admin/installation-evidence/{submission_id}/reject": {
+      "post": {
+        "operationId": "admin_reject_evidence_api_v1_admin_installation_evidence__submission_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstallationEvidenceDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallationEvidenceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Reject Evidence",
+        "tags": [
+          "Installation evidence"
         ]
       }
     },
@@ -26196,6 +27058,226 @@
         ]
       }
     },
+    "/api/v1/driver/campaign-assignments/{assignment_id}/display-proof": {
+      "post": {
+        "operationId": "driver_submit_display_proof_api_v1_driver_campaign_assignments__assignment_id__display_proof_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisplayProofCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisplayProofRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Driver Submit Display Proof",
+        "tags": [
+          "Installation evidence"
+        ]
+      }
+    },
+    "/api/v1/driver/campaign-assignments/{assignment_id}/display-proof/challenge": {
+      "post": {
+        "operationId": "driver_create_proof_challenge_api_v1_driver_campaign_assignments__assignment_id__display_proof_challenge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisplayProofChallengeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisplayProofChallengeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Driver Create Proof Challenge",
+        "tags": [
+          "Installation evidence"
+        ]
+      }
+    },
+    "/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence": {
+      "get": {
+        "operationId": "driver_list_evidence_api_v1_driver_campaign_assignments__assignment_id__installation_evidence_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallationEvidenceList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Driver List Evidence",
+        "tags": [
+          "Installation evidence"
+        ]
+      },
+      "post": {
+        "operationId": "driver_submit_evidence_api_v1_driver_campaign_assignments__assignment_id__installation_evidence_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstallationEvidenceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallationEvidenceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Driver Submit Evidence",
+        "tags": [
+          "Installation evidence"
+        ]
+      }
+    },
     "/api/v1/driver/earnings/ledger": {
       "get": {
         "operationId": "driver_list_earnings_ledger_api_v1_driver_earnings_ledger_get",
@@ -26611,6 +27693,32 @@
         "summary": "Driver Create Fraud Dispute",
         "tags": [
           "Fraud disputes"
+        ]
+      }
+    },
+    "/api/v1/driver/installation-evidence/policy": {
+      "get": {
+        "operationId": "driver_evidence_policy_api_v1_driver_installation_evidence_policy_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallationEvidencePolicyRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Driver Evidence Policy",
+        "tags": [
+          "Installation evidence"
         ]
       }
     },

@@ -10,10 +10,15 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ POST: mocks.post }) }));
 
-import { reviewCampaignAction, reviewCreativeAction } from "./actions";
+import {
+  reviewCampaignAction,
+  reviewCreativeAction,
+  reviewInstallationEvidenceAction,
+} from "./actions";
 
 const CAMPAIGN_ID = "00000000-0000-4000-8000-00000000000a";
 const CREATIVE_ID = "00000000-0000-4000-8000-00000000000b";
+const EVIDENCE_ID = "00000000-0000-4000-8000-00000000000c";
 
 function reviewForm(intent: "approve" | "reject", reason = ""): FormData {
   const form = new FormData();
@@ -107,5 +112,39 @@ describe("reviewCreativeAction", () => {
       body: { reason: "Replace the low-resolution asset." },
     });
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/approvals");
+  });
+});
+
+describe("reviewInstallationEvidenceAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.post.mockResolvedValue({ data: {} });
+  });
+
+  function evidenceForm(intent: "approve" | "reject", reason = ""): FormData {
+    const form = new FormData();
+    form.set("submission_id", EVIDENCE_ID);
+    form.set("intent", intent);
+    form.set("reason", reason);
+    return form;
+  }
+
+  it("uses governed evidence decisions and rejects an empty rejection reason", async () => {
+    await expect(reviewInstallationEvidenceAction({}, evidenceForm("approve"))).resolves.toEqual({
+      done: "Installation approved",
+    });
+    expect(mocks.post).toHaveBeenCalledWith(
+      "/api/v1/admin/installation-evidence/{submission_id}/approve",
+      {
+        params: { path: { submission_id: EVIDENCE_ID } },
+        body: {},
+      },
+    );
+
+    vi.clearAllMocks();
+    await expect(
+      reviewInstallationEvidenceAction({}, evidenceForm("reject", "   ")),
+    ).resolves.toEqual({ error: "A rejection reason is required" });
+    expect(mocks.post).not.toHaveBeenCalled();
   });
 });

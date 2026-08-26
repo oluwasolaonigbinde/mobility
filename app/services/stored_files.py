@@ -21,6 +21,7 @@ from app.adapters.storage import (
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.middleware import get_request_id
+from app.models.campaign_assignment import CampaignAssignment
 from app.models.driver import DriverProfile
 from app.models.organization import (
     MembershipRole,
@@ -191,13 +192,66 @@ async def create_driver_upload_intent(
     storage: StorageProvider,
     settings: Settings,
 ) -> tuple[FileUploadIntent, PresignedPost]:
-    if payload.purpose not in {FilePurpose.DRIVER_KYC, FilePurpose.VEHICLE_EVIDENCE}:
+    allowed_purposes = {FilePurpose.DRIVER_KYC, FilePurpose.VEHICLE_EVIDENCE}
+    if "driver" in settings.installation_evidence_uploaders:
+        allowed_purposes.add(FilePurpose.INSTALLATION_EVIDENCE)
+    if payload.purpose not in allowed_purposes:
         raise _error(
             "FILE_PURPOSE_FORBIDDEN",
             "The requested file purpose is not allowed for this role",
             status.HTTP_403_FORBIDDEN,
         )
     scope = await _driver_scope(session, actor_user_id=actor_user_id, write=True)
+    return await _create_upload_intent(
+        session,
+        actor_user_id=actor_user_id,
+        payload=payload,
+        scope=scope,
+        stored_filename=_safe_subject_filename(payload),
+        storage=storage,
+        settings=settings,
+    )
+
+
+async def _assignment_subject_scope(
+    session: AsyncSession,
+    *,
+    assignment_id: UUID,
+) -> _FileScope:
+    subject_user_id = await session.scalar(
+        select(DriverProfile.user_id)
+        .join(CampaignAssignment, CampaignAssignment.driver_profile_id == DriverProfile.id)
+        .where(CampaignAssignment.id == assignment_id)
+    )
+    if subject_user_id is None:
+        raise _error(
+            "CAMPAIGN_ASSIGNMENT_NOT_FOUND",
+            "Campaign assignment was not found",
+            status.HTTP_404_NOT_FOUND,
+        )
+    return _FileScope(organization_id=None, subject_user_id=subject_user_id)
+
+
+async def create_admin_installation_upload_intent(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    assignment_id: UUID,
+    payload: FileUploadCreate,
+    storage: StorageProvider,
+    settings: Settings,
+) -> tuple[FileUploadIntent, PresignedPost]:
+    await require_active_admin(session, actor_user_id)
+    if (
+        "admin" not in settings.installation_evidence_uploaders
+        or payload.purpose != FilePurpose.INSTALLATION_EVIDENCE
+    ):
+        raise _error(
+            "FILE_PURPOSE_FORBIDDEN",
+            "The requested file purpose is not allowed for this role",
+            status.HTTP_403_FORBIDDEN,
+        )
+    scope = await _assignment_subject_scope(session, assignment_id=assignment_id)
     return await _create_upload_intent(
         session,
         actor_user_id=actor_user_id,
@@ -389,6 +443,44 @@ async def confirm_driver_upload(
     storage: StorageProvider,
 ) -> StoredFile:
     scope = await _driver_scope(session, actor_user_id=actor_user_id, write=True)
+    return await _confirm_upload(
+        session,
+        actor_user_id=actor_user_id,
+        upload_id=upload_id,
+        scope=scope,
+        storage=storage,
+    )
+
+
+async def confirm_admin_installation_upload(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    assignment_id: UUID,
+    upload_id: UUID,
+    storage: StorageProvider,
+    settings: Settings,
+) -> StoredFile:
+    await require_active_admin(session, actor_user_id)
+    if "admin" not in settings.installation_evidence_uploaders:
+        raise _error(
+            "FILE_PURPOSE_FORBIDDEN",
+            "The requested file purpose is not allowed for this role",
+            status.HTTP_403_FORBIDDEN,
+        )
+    scope = await _assignment_subject_scope(session, assignment_id=assignment_id)
+    intent = await session.scalar(
+        select(FileUploadIntent).where(
+            FileUploadIntent.id == upload_id,
+            *_scope_filters(FileUploadIntent, scope),
+            FileUploadIntent.uploader_user_id == actor_user_id,
+            FileUploadIntent.purpose == FilePurpose.INSTALLATION_EVIDENCE.value,
+        )
+    )
+    if intent is None:
+        raise _error(
+            "FILE_UPLOAD_NOT_FOUND", "File upload was not found", status.HTTP_404_NOT_FOUND
+        )
     return await _confirm_upload(
         session,
         actor_user_id=actor_user_id,
@@ -741,6 +833,7 @@ async def issue_admin_file_download(
     if access_purpose not in {
         "creative_review",
         "kyc_review",
+        "installation_review",
         "security_review",
         "incident_response",
     }:
@@ -755,11 +848,15 @@ async def issue_admin_file_download(
             "STORED_FILE_NOT_FOUND", "Stored file was not found", status.HTTP_404_NOT_FOUND
         )
     if (
-        access_purpose == "creative_review"
-        and stored_file.purpose != FilePurpose.CREATIVE
-    ) or (
-        access_purpose == "kyc_review"
-        and stored_file.purpose not in {FilePurpose.DRIVER_KYC, FilePurpose.VEHICLE_EVIDENCE}
+        (access_purpose == "creative_review" and stored_file.purpose != FilePurpose.CREATIVE)
+        or (
+            access_purpose == "kyc_review"
+            and stored_file.purpose not in {FilePurpose.DRIVER_KYC, FilePurpose.VEHICLE_EVIDENCE}
+        )
+        or (
+            access_purpose == "installation_review"
+            and stored_file.purpose != FilePurpose.INSTALLATION_EVIDENCE
+        )
     ):
         raise _error(
             "FILE_ACCESS_PURPOSE_FORBIDDEN",

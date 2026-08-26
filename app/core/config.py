@@ -89,6 +89,14 @@ class Settings(BaseSettings):
     # No legal retention period is assumed. Execution remains disabled until
     # an approved value is configured by the deployment environment.
     file_kyc_retention_days: OptionalInt = None
+    # Q15/Q17 implementation inputs were requested but not supplied. These
+    # remain empty in production until Terrax selects uploader roles, required
+    # views and renewal windows; the evidence/proof services fail closed.
+    installation_evidence_uploader_roles: str = ""
+    installation_evidence_required_views: str = ""
+    installation_evidence_validity_hours: OptionalInt = None
+    display_proof_challenge_ttl_seconds: OptionalInt = None
+    display_proof_validity_seconds: OptionalInt = None
     malware_scanner_host: str = ""
     malware_scanner_port: int = 3310
     malware_scanner_timeout_seconds: int = 30
@@ -262,6 +270,42 @@ class Settings(BaseSettings):
         if value is not None and value <= 0:
             raise ValueError("FILE_KYC_RETENTION_DAYS must be positive when configured")
         return value
+
+    @field_validator(
+        "installation_evidence_validity_hours",
+        "display_proof_challenge_ttl_seconds",
+        "display_proof_validity_seconds",
+    )
+    @classmethod
+    def validate_optional_evidence_windows(cls, value: int | None) -> int | None:
+        if value is not None and value <= 0:
+            raise ValueError("Installation evidence windows must be positive when configured")
+        return value
+
+    @field_validator("installation_evidence_uploader_roles")
+    @classmethod
+    def validate_installation_evidence_uploader_roles(cls, value: str) -> str:
+        roles = [part.strip().lower() for part in value.split(",") if part.strip()]
+        if len(roles) != len(set(roles)) or not set(roles) <= {"driver", "admin"}:
+            raise ValueError(
+                "INSTALLATION_EVIDENCE_UPLOADER_ROLES must contain unique driver/admin values"
+            )
+        return ",".join(roles)
+
+    @field_validator("installation_evidence_required_views")
+    @classmethod
+    def validate_installation_evidence_required_views(cls, value: str) -> str:
+        views = [part.strip().lower() for part in value.split(",") if part.strip()]
+        if len(views) != len(set(views)) or any(
+            len(view) > 64
+            or not view
+            or any(character not in "abcdefghijklmnopqrstuvwxyz0123456789_-" for character in view)
+            for view in views
+        ):
+            raise ValueError(
+                "INSTALLATION_EVIDENCE_REQUIRED_VIEWS must contain unique safe view codes"
+            )
+        return ",".join(views)
 
     @field_validator(
         "max_location_pings_per_batch",
@@ -528,6 +572,16 @@ class Settings(BaseSettings):
             int(version): base64.b64decode(encoded, validate=True)
             for version, encoded in raw.items()
         }
+
+    @property
+    def installation_evidence_uploaders(self) -> frozenset[str]:
+        return frozenset(
+            part for part in self.installation_evidence_uploader_roles.split(",") if part
+        )
+
+    @property
+    def installation_evidence_views(self) -> tuple[str, ...]:
+        return tuple(part for part in self.installation_evidence_required_views.split(",") if part)
 
     @model_validator(mode="after")
     def validate_impression_confidence_bounds(self) -> "Settings":

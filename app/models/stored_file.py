@@ -22,6 +22,7 @@ class FilePurpose(StrEnum):
     CREATIVE = "creative"
     DRIVER_KYC = "driver_kyc"
     VEHICLE_EVIDENCE = "vehicle_evidence"
+    INSTALLATION_EVIDENCE = "installation_evidence"
 
 
 class UploadIntentStatus(StrEnum):
@@ -42,13 +43,13 @@ class FileUploadIntent(Base):
     __tablename__ = "file_upload_intents"
     __table_args__ = (
         CheckConstraint(
-            "purpose IN ('creative', 'driver_kyc', 'vehicle_evidence')",
+            "purpose IN ('creative', 'driver_kyc', 'vehicle_evidence', 'installation_evidence')",
             name="ck_file_upload_intents_purpose",
         ),
         CheckConstraint(
             "(purpose = 'creative' AND organization_id IS NOT NULL "
             "AND subject_user_id IS NULL) OR "
-            "(purpose IN ('driver_kyc', 'vehicle_evidence') "
+            "(purpose IN ('driver_kyc', 'vehicle_evidence', 'installation_evidence') "
             "AND organization_id IS NULL AND subject_user_id IS NOT NULL)",
             name="ck_file_upload_intents_scope",
         ),
@@ -114,13 +115,13 @@ class StoredFile(Base):
     __tablename__ = "stored_files"
     __table_args__ = (
         CheckConstraint(
-            "purpose IN ('creative', 'driver_kyc', 'vehicle_evidence')",
+            "purpose IN ('creative', 'driver_kyc', 'vehicle_evidence', 'installation_evidence')",
             name="ck_stored_files_purpose",
         ),
         CheckConstraint(
             "(purpose = 'creative' AND organization_id IS NOT NULL "
             "AND subject_user_id IS NULL) OR "
-            "(purpose IN ('driver_kyc', 'vehicle_evidence') "
+            "(purpose IN ('driver_kyc', 'vehicle_evidence', 'installation_evidence') "
             "AND organization_id IS NULL AND subject_user_id IS NOT NULL)",
             name="ck_stored_files_scope",
         ),

@@ -8,6 +8,7 @@ from conftest import (
     auth_headers,
     create_test_campaign,
     create_test_campaign_assignment,
+    create_test_display_proof,
     create_test_driver_profile,
     create_test_organization,
     create_test_user,
@@ -103,6 +104,12 @@ def create_trip_ready_graph(
         if assignment_status == CampaignAssignmentStatus.ACTIVE
         else None,
     )
+    if assignment_status == CampaignAssignmentStatus.ACTIVE:
+        create_test_display_proof(
+            db_sessionmaker,
+            assignment_id=assignment.id,
+            reviewed_by_user_id=admin.id,
+        )
 
     async def add_financial_authority(payout_revision) -> None:
         async with db_sessionmaker() as session:
@@ -328,6 +335,7 @@ def test_driver_can_start_get_current_read_and_end_trip(db_client, db_sessionmak
     assert created["campaign_id"] == str(campaign.id)
     assert created["driver_profile_id"] == str(profile.id)
     assert created["vehicle_id"] == str(vehicle.id)
+    assert created["display_proof_id"] is not None
     assert created["status"] == "active"
     assert created["ping_count"] == 0
     assert created["metadata"] == {"shift": "morning"}

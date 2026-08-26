@@ -512,12 +512,14 @@ async def admin_activate_campaign_assignment(
     payload: CampaignAssignmentTransition,
     current_user: AdminUserDependency,
     session: SessionDependency,
+    settings: SettingsDependency,
 ) -> CampaignAssignmentRead:
     assignment = await activate_admin_assignment(
         session,
         admin_user_id=current_user.id,
         assignment_id=assignment_id,
         payload=payload,
+        settings=settings,
     )
     await create_audit_event(
         session,

@@ -17,6 +17,9 @@ EXPECTED_UNIQUE_CONSTRAINTS = frozenset(
         "uq_campaign_assignments_campaign_vehicle_non_terminal",
         "uq_trip_sessions_driver_profile_active",
         "uq_trip_sessions_vehicle_active",
+        "uq_installation_evidence_request",
+        "uq_installation_evidence_assignment_pending",
+        "uq_installation_evidence_photo_file",
     }
 )
 
@@ -59,6 +62,15 @@ _SQLITE_UNIQUE_COLUMNS = {
     (
         "trip_sessions.vehicle_id",
     ): "uq_trip_sessions_vehicle_active",
+    (
+        "installation_evidence_submissions.assignment_id",
+        "installation_evidence_submissions.submitted_by_user_id",
+        "installation_evidence_submissions.client_request_id",
+    ): "uq_installation_evidence_request",
+    (
+        "installation_evidence_submissions.assignment_id",
+    ): "uq_installation_evidence_assignment_pending",
+    ("installation_evidence_photos.stored_file_id",): "uq_installation_evidence_photo_file",
 }
 
 _QUOTED_CONSTRAINT_RE = re.compile(r'(?:constraint|index) ["\']([^"\']+)["\']', re.I)

@@ -176,6 +176,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/campaign-assignments/{assignment_id}/files/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Create Evidence Upload */
+        post: operations["admin_create_evidence_upload_api_v1_admin_campaign_assignments__assignment_id__files_uploads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaign-assignments/{assignment_id}/files/uploads/{upload_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Confirm Evidence Upload */
+        post: operations["admin_confirm_evidence_upload_api_v1_admin_campaign_assignments__assignment_id__files_uploads__upload_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaign-assignments/{assignment_id}/installation-evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Evidence History */
+        get: operations["admin_evidence_history_api_v1_admin_campaign_assignments__assignment_id__installation_evidence_get"];
+        put?: never;
+        /** Admin Submit Evidence */
+        post: operations["admin_submit_evidence_api_v1_admin_campaign_assignments__assignment_id__installation_evidence_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/campaigns": {
         parameters: {
             query?: never;
@@ -721,6 +773,57 @@ export interface paths {
         get: operations["admin_list_impression_estimates_api_v1_admin_impression_estimates_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/installation-evidence/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Pending Evidence */
+        get: operations["admin_pending_evidence_api_v1_admin_installation_evidence_pending_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/installation-evidence/{submission_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Approve Evidence */
+        post: operations["admin_approve_evidence_api_v1_admin_installation_evidence__submission_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/installation-evidence/{submission_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Reject Evidence */
+        post: operations["admin_reject_evidence_api_v1_admin_installation_evidence__submission_id__reject_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2529,6 +2632,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/driver/campaign-assignments/{assignment_id}/display-proof": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Driver Submit Display Proof */
+        post: operations["driver_submit_display_proof_api_v1_driver_campaign_assignments__assignment_id__display_proof_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/campaign-assignments/{assignment_id}/display-proof/challenge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Driver Create Proof Challenge */
+        post: operations["driver_create_proof_challenge_api_v1_driver_campaign_assignments__assignment_id__display_proof_challenge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Driver List Evidence */
+        get: operations["driver_list_evidence_api_v1_driver_campaign_assignments__assignment_id__installation_evidence_get"];
+        put?: never;
+        /** Driver Submit Evidence */
+        post: operations["driver_submit_evidence_api_v1_driver_campaign_assignments__assignment_id__installation_evidence_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/driver/earnings/ledger": {
         parameters: {
             query?: never;
@@ -2642,6 +2797,23 @@ export interface paths {
         put?: never;
         /** Driver Create Fraud Dispute */
         post: operations["driver_create_fraud_dispute_api_v1_driver_fraud_holds__flag_id__disputes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/installation-evidence/policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Driver Evidence Policy */
+        get: operations["driver_evidence_policy_api_v1_driver_installation_evidence_policy_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5276,6 +5448,115 @@ export interface components {
              */
             source_type: "digital-campaign-audience";
         };
+        /** DisplayProofChallengeCreate */
+        DisplayProofChallengeCreate: {
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+        };
+        /** DisplayProofChallengeRead */
+        DisplayProofChallengeRead: {
+            /**
+             * Challenge Id
+             * Format: uuid
+             */
+            challenge_id: string;
+            /**
+             * Evidence Submission Id
+             * Format: uuid
+             */
+            evidence_submission_id: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Nonce */
+            nonce: string;
+        };
+        /** DisplayProofCreate */
+        DisplayProofCreate: {
+            /**
+             * Challenge Id
+             * Format: uuid
+             */
+            challenge_id: string;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Nonce */
+            nonce: string;
+            /**
+             * Stored File Id
+             * Format: uuid
+             */
+            stored_file_id: string;
+        };
+        /** DisplayProofRead */
+        DisplayProofRead: {
+            /**
+             * Assignment Id
+             * Format: uuid
+             */
+            assignment_id: string;
+            /**
+             * Challenge Id
+             * Format: uuid
+             */
+            challenge_id: string;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /**
+             * Evidence Submission Id
+             * Format: uuid
+             */
+            evidence_submission_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Metadata */
+            metadata: {
+                [key: string]: unknown;
+            };
+            /**
+             * Stored File Id
+             * Format: uuid
+             */
+            stored_file_id: string;
+            /**
+             * Valid Until
+             * Format: date-time
+             */
+            valid_until: string;
+            /**
+             * Vehicle Id
+             * Format: uuid
+             */
+            vehicle_id: string;
+            /**
+             * Verified At
+             * Format: date-time
+             */
+            verified_at: string;
+        };
         /** DriverApplicationAdminListResponse */
         DriverApplicationAdminListResponse: {
             /** Items */
@@ -5837,7 +6118,7 @@ export interface components {
          * FileAccessPurpose
          * @enum {string}
          */
-        FileAccessPurpose: "campaign_preview" | "creative_review" | "kyc_review" | "security_review" | "incident_response";
+        FileAccessPurpose: "campaign_preview" | "creative_review" | "kyc_review" | "installation_review" | "security_review" | "incident_response";
         /** FileDownloadRead */
         FileDownloadRead: {
             /** Expires In Seconds */
@@ -5880,7 +6161,7 @@ export interface components {
          * FilePurpose
          * @enum {string}
          */
-        FilePurpose: "creative" | "driver_kyc" | "vehicle_evidence";
+        FilePurpose: "creative" | "driver_kyc" | "vehicle_evidence" | "installation_evidence";
         /**
          * FileScanStatus
          * @enum {string}
@@ -6364,6 +6645,145 @@ export interface components {
             excluded_trip_count: number;
             /** Insufficient Data Trip Count */
             insufficient_data_trip_count: number;
+        };
+        /** InstallationEvidenceCreate */
+        InstallationEvidenceCreate: {
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Photos */
+            photos: components["schemas"]["InstallationPhotoCreate"][];
+        };
+        /** InstallationEvidenceDecision */
+        InstallationEvidenceDecision: {
+            /** Reason */
+            reason?: string | null;
+        };
+        /** InstallationEvidenceList */
+        InstallationEvidenceList: {
+            /** Items */
+            items: components["schemas"]["InstallationEvidenceRead"][];
+        };
+        /** InstallationEvidencePhotoRead */
+        InstallationEvidencePhotoRead: {
+            /**
+             * Stored File Id
+             * Format: uuid
+             */
+            stored_file_id: string;
+            /** View */
+            view: string;
+        };
+        /** InstallationEvidencePolicyRead */
+        InstallationEvidencePolicyRead: {
+            /** Can Upload */
+            can_upload: boolean;
+            /** Configured */
+            configured: boolean;
+            /** Display Proof Challenge Ttl Seconds */
+            display_proof_challenge_ttl_seconds: number | null;
+            /** Display Proof Validity Seconds */
+            display_proof_validity_seconds: number | null;
+            /** Evidence Validity Hours */
+            evidence_validity_hours: number | null;
+            /** Required Views */
+            required_views: string[];
+        };
+        /** InstallationEvidenceRead */
+        InstallationEvidenceRead: {
+            /** Approved Until */
+            approved_until: string | null;
+            /**
+             * Assignment Id
+             * Format: uuid
+             */
+            assignment_id: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /**
+             * Device Id
+             * Format: uuid
+             */
+            device_id: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Metadata */
+            metadata: {
+                [key: string]: unknown;
+            };
+            /** Photos */
+            photos: components["schemas"]["InstallationEvidencePhotoRead"][];
+            /** Rejection Reason */
+            rejection_reason: string | null;
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /** Reviewed By User Id */
+            reviewed_by_user_id: string | null;
+            /** Revision */
+            revision: number;
+            status: components["schemas"]["InstallationEvidenceStatus"];
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /**
+             * Submitted By User Id
+             * Format: uuid
+             */
+            submitted_by_user_id: string;
+            /**
+             * Vehicle Id
+             * Format: uuid
+             */
+            vehicle_id: string;
+        };
+        /**
+         * InstallationEvidenceStatus
+         * @enum {string}
+         */
+        InstallationEvidenceStatus: "pending_review" | "approved" | "rejected" | "expired";
+        /** InstallationPhotoCreate */
+        InstallationPhotoCreate: {
+            /**
+             * Stored File Id
+             * Format: uuid
+             */
+            stored_file_id: string;
+            /** View */
+            view: string;
         };
         /** InvoiceCorrectionCreate */
         InvoiceCorrectionCreate: {
@@ -8392,6 +8812,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Display Proof Id */
+            display_proof_id: string | null;
             /**
              * Driver Profile Id
              * Format: uuid
@@ -9359,6 +9781,139 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignAssignmentRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_create_evidence_upload_api_v1_admin_campaign_assignments__assignment_id__files_uploads_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileUploadCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileUploadRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_confirm_evidence_upload_api_v1_admin_campaign_assignments__assignment_id__files_uploads__upload_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredFileRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_evidence_history_api_v1_admin_campaign_assignments__assignment_id__installation_evidence_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallationEvidenceList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_submit_evidence_api_v1_admin_campaign_assignments__assignment_id__installation_evidence_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstallationEvidenceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallationEvidenceRead"];
                 };
             };
             /** @description Validation Error */
@@ -10587,6 +11142,96 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImpressionEstimateListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_pending_evidence_api_v1_admin_installation_evidence_pending_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallationEvidenceList"];
+                };
+            };
+        };
+    };
+    admin_approve_evidence_api_v1_admin_installation_evidence__submission_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstallationEvidenceDecision"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallationEvidenceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_reject_evidence_api_v1_admin_installation_evidence__submission_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstallationEvidenceDecision"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallationEvidenceRead"];
                 };
             };
             /** @description Validation Error */
@@ -14473,6 +15118,142 @@ export interface operations {
             };
         };
     };
+    driver_submit_display_proof_api_v1_driver_campaign_assignments__assignment_id__display_proof_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisplayProofCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DisplayProofRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    driver_create_proof_challenge_api_v1_driver_campaign_assignments__assignment_id__display_proof_challenge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DisplayProofChallengeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DisplayProofChallengeRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    driver_list_evidence_api_v1_driver_campaign_assignments__assignment_id__installation_evidence_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallationEvidenceList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    driver_submit_evidence_api_v1_driver_campaign_assignments__assignment_id__installation_evidence_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstallationEvidenceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallationEvidenceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     driver_list_earnings_ledger_api_v1_driver_earnings_ledger_get: {
         parameters: {
             query?: {
@@ -14696,6 +15477,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    driver_evidence_policy_api_v1_driver_installation_evidence_policy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallationEvidencePolicyRead"];
                 };
             };
         };

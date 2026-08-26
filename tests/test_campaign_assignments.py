@@ -11,6 +11,7 @@ from conftest import (
     create_test_campaign_creative,
     create_test_campaign_payout_revision,
     create_test_campaign_zone,
+    create_test_display_proof,
     create_test_driver_profile,
     create_test_organization,
     create_test_trip_analytics,
@@ -2069,6 +2070,7 @@ def test_admin_activation_checks_campaign_and_driver_gates(
         ("funding", "ASSIGNMENT_FUNDING_REQUIRED"),
         ("production", "PRODUCTION_FINANCIAL_AUTHORITY_REQUIRED"),
         ("new_work", "NEW_WORK_NOT_FINANCIALLY_AUTHORIZED"),
+        ("evidence", "APPROVED_INSTALLATION_EVIDENCE_REQUIRED"),
         ("unavailable", "ACTIVATION_APPROVAL_GATES_UNAVAILABLE"),
     ],
 )
@@ -2080,7 +2082,7 @@ def test_admin_activation_rejects_each_built_and_unavailable_gate(
     expected_code,
 ) -> None:
     suffix = gate.replace("_", "-")
-    _, campaign, _, profile, vehicle = create_assignment_ready_graph(
+    admin, campaign, _, profile, vehicle = create_assignment_ready_graph(
         db_sessionmaker,
         campaign_status=CampaignStatus.ACTIVE,
         start_at=PAST,
@@ -2167,6 +2169,12 @@ def test_admin_activation_rejects_each_built_and_unavailable_gate(
                 "assert_new_work_authorized",
                 production_passes,
             )
+            if gate == "unavailable":
+                create_test_display_proof(
+                    db_sessionmaker,
+                    assignment_id=UUID(assignment_id),
+                    reviewed_by_user_id=admin.id,
+                )
 
     response = db_client.post(
         f"/api/v1/admin/campaign-assignments/{assignment_id}/activate",

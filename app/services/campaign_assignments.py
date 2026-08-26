@@ -49,6 +49,7 @@ from app.services.billing import (
 )
 from app.services.campaigns import comparable_campaign_datetime
 from app.services.drivers import get_driver_profile_by_user_id
+from app.services.installation_evidence import ensure_current_approved_installation_evidence
 from app.services.payout_eligibility import (
     D22_ROLLING_CONFIRMATION_WINDOWS,
     D22_ROLLING_MAX_DISPLACEMENT_M,
@@ -1589,7 +1590,9 @@ async def activate_admin_assignment(
     admin_user_id: UUID,
     assignment_id: UUID,
     payload: CampaignAssignmentTransition,
+    settings: Settings | None = None,
 ) -> CampaignAssignment:
+    settings = settings or get_settings()
     await _active_admin(session, admin_user_id)
     campaign_id = await session.scalar(
         select(CampaignAssignment.campaign_id).where(CampaignAssignment.id == assignment_id)
@@ -1717,13 +1720,18 @@ async def activate_admin_assignment(
     await assert_new_work_authorized(
         session, campaign_id=campaign.id, assignment_id=assignment.id
     )
-    # The Package 4 approved-creative and installation-evidence authorities
-    # are not present in this repository. READY is advertiser-controlled and
-    # cannot stand in for those approval gates; fail closed atomically.
+    await ensure_current_approved_installation_evidence(
+        session,
+        assignment=assignment,
+        settings=settings,
+        now=now,
+        lock=True,
+    )
+    # W2-03C installs and rechecks the evidence authority. W2-03D still owns
+    # the single atomic activation command and immutable launch snapshot.
     raise AppError(
         "ACTIVATION_APPROVAL_GATES_UNAVAILABLE",
-        "Activation is unavailable until approved-creative and "
-        "installation-evidence authorities are installed",
+        "Activation is unavailable until the atomic activation authority is installed",
         status_code=status.HTTP_409_CONFLICT,
     )
 

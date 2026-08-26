@@ -6,6 +6,7 @@ import { formatDate, formatDateRange } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { AssignmentActions } from "./assignment-actions";
+import { InstallationEvidenceActions } from "./installation-evidence-actions";
 import type { components } from "@/lib/api/schema";
 
 export const metadata: Metadata = { title: "Jobs" };
@@ -36,6 +37,19 @@ export default async function DriverAssignmentsPage() {
     });
 
   const items = data?.items ?? [];
+  const { data: evidencePolicy } = await api.GET("/api/v1/driver/installation-evidence/policy");
+  const evidenceHistories = evidencePolicy?.configured
+    ? await Promise.all(
+        items.map(async (assignment) => {
+          const { data: history } = await api.GET(
+            "/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence",
+            { params: { path: { assignment_id: assignment.id } } },
+          );
+          return [assignment.id, history?.items ?? []] as const;
+        }),
+      )
+    : [];
+  const evidenceByAssignment = new Map(evidenceHistories);
   const activeCount = items.filter((item) => item.status === "active").length;
   const offeredCount = items.filter((item) => item.status === "offered").length;
   const completedCount = items.filter((item) => item.status === "completed").length;
@@ -187,6 +201,18 @@ export default async function DriverAssignmentsPage() {
               </p>
             ) : null}
             <AssignmentActions assignmentId={a.id} status={a.status} />
+            {evidencePolicy?.configured && evidencePolicy.can_upload ? (
+              <InstallationEvidenceActions
+                assignmentId={a.id}
+                status={a.status}
+                requiredViews={evidencePolicy.required_views}
+                latestEvidenceStatus={evidenceByAssignment.get(a.id)?.at(-1)?.status}
+              />
+            ) : ["accepted", "active", "deactivated"].includes(a.status) ? (
+              <p className="text-muted border-edge mt-4 border-t pt-3 text-xs">
+                Installation evidence is waiting for the operations policy to be configured.
+              </p>
+            ) : null}
           </Panel>
         ))
       )}

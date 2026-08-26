@@ -19,6 +19,7 @@ import app.models.driver_application  # noqa: E402,F401
 import app.models.fraud_assessment  # noqa: E402,F401
 import app.models.fraud_dispute  # noqa: E402,F401
 import app.models.impression  # noqa: E402,F401
+import app.models.installation_evidence  # noqa: E402,F401
 import app.models.kyc  # noqa: E402,F401
 import app.models.notification  # noqa: E402,F401
 import app.models.organization  # noqa: E402,F401

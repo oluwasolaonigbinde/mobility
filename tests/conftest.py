@@ -40,6 +40,13 @@ from app.models.campaign_assignment import (
 from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.impression import ImpressionEstimate, TrafficDensityProfile
+from app.models.installation_evidence import (
+    DisplayProof,
+    DisplayProofChallenge,
+    InstallationEvidencePhoto,
+    InstallationEvidenceStatus,
+    InstallationEvidenceSubmission,
+)
 from app.models.organization import (
     AdvertiserOrganization,
     MembershipRole,
@@ -91,6 +98,11 @@ def settings() -> Settings:
         privacy_min_days_per_cell=1,
         privacy_max_contributor_share=1.0,
         privacy_min_resolution_m=50,
+        installation_evidence_uploader_roles="driver,admin",
+        installation_evidence_required_views="front,close_up",
+        installation_evidence_validity_hours=24,
+        display_proof_challenge_ttl_seconds=120,
+        display_proof_validity_seconds=3600,
     )
 
 
@@ -495,6 +507,125 @@ def create_test_campaign_assignment(
             await session.commit()
             await session.refresh(assignment)
             return assignment
+
+    return asyncio.run(create())
+
+
+def create_test_display_proof(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    assignment_id: UUID,
+    reviewed_by_user_id: UUID,
+) -> DisplayProof:
+    """Seed explicit synthetic W2-03C authority for tests outside that boundary."""
+
+    async def create() -> DisplayProof:
+        async with db_sessionmaker() as session:
+            assignment = await session.get(CampaignAssignment, assignment_id)
+            assert assignment is not None
+            profile = await session.get(DriverProfile, assignment.driver_profile_id)
+            assert profile is not None
+            now = datetime.now(UTC)
+
+            async def managed_image(label: str) -> StoredFile:
+                file_id = uuid4()
+                intent = FileUploadIntent(
+                    subject_user_id=profile.user_id,
+                    uploader_user_id=profile.user_id,
+                    client_request_id=uuid4(),
+                    request_fingerprint="c" * 64,
+                    purpose=FilePurpose.INSTALLATION_EVIDENCE.value,
+                    original_filename=f"{label}.png",
+                    declared_content_type="image/png",
+                    declared_size_bytes=128,
+                    declared_sha256="d" * 64,
+                    object_key=f"test-intents/{file_id}",
+                    expires_at=now + timedelta(hours=1),
+                    status=UploadIntentStatus.CONFIRMED.value,
+                )
+                session.add(intent)
+                await session.flush()
+                stored = StoredFile(
+                    id=file_id,
+                    upload_intent_id=intent.id,
+                    subject_user_id=profile.user_id,
+                    uploader_user_id=profile.user_id,
+                    purpose=FilePurpose.INSTALLATION_EVIDENCE.value,
+                    original_filename=f"{label}.png",
+                    storage_key=f"test-files/{file_id}",
+                    content_type="image/png",
+                    size_bytes=128,
+                    checksum_sha256="d" * 64,
+                    scan_status=FileScanStatus.CLEAN.value,
+                    actual_content_type="image/png",
+                    scan_attempts=1,
+                    scanned_at=now,
+                    created_at=now,
+                )
+                session.add(stored)
+                await session.flush()
+                return stored
+
+            evidence_file = await managed_image("installation")
+            proof_file = await managed_image("display-proof")
+            device_id = uuid4()
+            evidence = InstallationEvidenceSubmission(
+                assignment_id=assignment.id,
+                campaign_id=assignment.campaign_id,
+                driver_profile_id=assignment.driver_profile_id,
+                vehicle_id=assignment.vehicle_id,
+                submitted_by_user_id=profile.user_id,
+                reviewed_by_user_id=reviewed_by_user_id,
+                revision=1,
+                client_request_id=uuid4(),
+                request_fingerprint="e" * 64,
+                device_id=device_id,
+                captured_at=now,
+                required_views=["front"],
+                status=InstallationEvidenceStatus.APPROVED.value,
+                reviewed_at=now,
+                approved_until=now + timedelta(days=1),
+                evidence_metadata={"synthetic_test": True},
+                submitted_at=now,
+            )
+            session.add(evidence)
+            await session.flush()
+            session.add(
+                InstallationEvidencePhoto(
+                    submission_id=evidence.id,
+                    view_code="front",
+                    stored_file_id=evidence_file.id,
+                )
+            )
+            challenge = DisplayProofChallenge(
+                assignment_id=assignment.id,
+                evidence_submission_id=evidence.id,
+                driver_profile_id=assignment.driver_profile_id,
+                vehicle_id=assignment.vehicle_id,
+                device_id=device_id,
+                nonce_sha256=uuid4().hex * 2,
+                expires_at=now + timedelta(minutes=5),
+                consumed_at=now,
+                created_at=now,
+            )
+            session.add(challenge)
+            await session.flush()
+            proof = DisplayProof(
+                challenge_id=challenge.id,
+                assignment_id=assignment.id,
+                evidence_submission_id=evidence.id,
+                driver_profile_id=assignment.driver_profile_id,
+                vehicle_id=assignment.vehicle_id,
+                device_id=device_id,
+                stored_file_id=proof_file.id,
+                verified_at=now,
+                valid_until=now + timedelta(hours=1),
+                proof_metadata={"synthetic_test": True},
+            )
+            session.add(proof)
+            await session.commit()
+            await session.refresh(proof)
+            return proof
 
     return asyncio.run(create())
 

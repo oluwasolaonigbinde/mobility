@@ -94,3 +94,48 @@ export async function reviewCreativeAction(
   revalidatePath("/admin/approvals");
   return { done: parsed.data.intent === "approve" ? "Creative approved" : "Creative rejected" };
 }
+
+const installationReviewSchema = z.discriminatedUnion("intent", [
+  z.object({ submission_id: z.string().uuid(), intent: z.literal("approve") }),
+  z.object({
+    submission_id: z.string().uuid(),
+    intent: z.literal("reject"),
+    reason: z.string().trim().min(1, "A rejection reason is required").max(2000),
+  }),
+]);
+
+export async function reviewInstallationEvidenceAction(
+  _previous: CampaignReviewActionState,
+  formData: FormData,
+): Promise<CampaignReviewActionState> {
+  const parsed = installationReviewSchema.safeParse({
+    submission_id: String(formData.get("submission_id") ?? ""),
+    intent: String(formData.get("intent") ?? ""),
+    reason: String(formData.get("reason") ?? ""),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid evidence review request." };
+  }
+  const api = createApiClient(await getSessionToken());
+  const path = { params: { path: { submission_id: parsed.data.submission_id } } };
+  try {
+    if (parsed.data.intent === "approve") {
+      await api.POST("/api/v1/admin/installation-evidence/{submission_id}/approve", {
+        ...path,
+        body: {},
+      });
+    } else {
+      await api.POST("/api/v1/admin/installation-evidence/{submission_id}/reject", {
+        ...path,
+        body: { reason: parsed.data.reason },
+      });
+    }
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    return { error: "Could not reach the server." };
+  }
+  revalidatePath("/admin/approvals");
+  return {
+    done: parsed.data.intent === "approve" ? "Installation approved" : "Installation rejected",
+  };
+}

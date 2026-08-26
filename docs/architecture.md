@@ -1436,13 +1436,22 @@ activation contracts.
   `approved` and independently recheck the managed clean identity, so legacy
   `ready`, rejected, replaced or unsafe assets fail closed. Creative approval
   alone does not activate work; W2-03C/D remain required.
-- **Activation gate (Q15/Q17):** a campaign-assignment may require evidence
+- **Installation evidence gate [BUILT — W2-03C] (Q15/Q17):** a campaign-
+  assignment requires evidence
   before the vehicle starts earning — installation photo(s) uploaded by the
   configured pilot operator/driver role, reviewed by admin, recorded against
   the assignment (§19.3). Exact uploader/views/renewal values are settings/
   operations inputs, not a different lifecycle.
-  Gate = predicate on the existing assignment activation transition, not a new
-  state machine.
+  Migration `0057` stores immutable revisions and exact clean-file view links,
+  with serialized admin approval and expiry. A driver on the evidence-bound
+  device obtains a one-use server nonce only for an active assignment, uploads
+  a fresh clean image after issuance, and consumes it into an immutable proof
+  bound to the same assignment, campaign, driver, vehicle, device and evidence
+  revision. Trip start rechecks freshness and stores the exact proof ID. Missing
+  policy, approval or proof fails closed. This is a predicate on activation and
+  earning, not a parallel assignment state machine; W2-03D still owns the one
+  atomic activation command and snapshot, and W2-03G owns recurring/missed
+  challenges and physical spot checks.
 - Admin UI: one **approvals queue** section listing pending campaigns,
   creatives, and activation evidence (§27).
 
@@ -1529,6 +1538,16 @@ reads mask NIN; active-admin reveal and at-most-60-second KYC document reads
 require a declared purpose and append redacted audit evidence. These records
 are pending-review foundations only: W3-04B/C retain approval and work-
 eligibility authority.
+
+Migration `0057` adds `installation_evidence` to that same subject-user file
+scope. Driver or configured active-admin uploads still use the one private
+storage/scanner flow. Evidence photos become immutable assignment revisions;
+admin review rechecks the exact clean image set, and installation-purpose reads
+require an audited `installation_review` reason. Challenge rows retain only a
+nonce digest and allow one null-to-consumed transition; proofs and photo links
+are append-only. Deployment values for uploader roles, required views, evidence
+validity and challenge/proof validity remain empty under
+`EXT-EVIDENCE-POLICY`; local/synthetic tests inject explicit values.
 
 ### 19.3 Consumers of the same pattern
 
@@ -2431,6 +2450,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.62 | 2026-08-26 | **W2-03C assignment-bound installation evidence and start-of-shift display proof delivered without inventing production policy.** Migration `0057` adds immutable evidence revisions/photos, serialized admin review/expiry, digest-only one-use challenges, immutable fresh proofs and an exact proof FK on trip sessions while extending the shared subject-scoped scanned-file authority. Submission and approval recheck configured views, assignment/vehicle/driver/device identity and exact clean images; changed retry, cross-driver file, stale evidence, pre-challenge photo, device mismatch and nonce replay fail closed. Driver capture/proof surfaces and the combined admin queue use same-origin BFFs and audited purpose-scoped reads. Real PostgreSQL proves concurrent nonce single-winner behavior and populated migration/append-only controls; focused backend, frontend, contract, type/lint/build checks pass. Production uploader/views/renewal/proof values remain `EXT-EVIDENCE-POLICY` MISSING; W2-03D still owns atomic activation and W2-03G recurring challenges/spot checks, with no physical-device, real-route, launch, earning or pilot claim. |
 | v1.61 | 2026-08-26 | **W2-03B managed-creative review gate delivered over the existing private upload/scanner foundation.** Migration `0056` adds governed pending/approved/rejected states plus append-only exact-submission snapshots while retaining legacy `ready` only for compatibility. Advertiser writes cannot self-approve, pending/approved definitions freeze, rejected definitions can be corrected and resubmitted, and admin approve/reject decisions serialize under stable locks with reasoned audit and tenant-safe history. Approval rechecks the exact clean managed file. Offer creation and activation now require `approved`, so legacy `ready`, rejected, replaced or unsafe assets fail closed. The combined admin approvals page and advertiser detail surface expose the flow. Focused API/service/assignment/audit checks, a real PostgreSQL opposite-decision race, populated migration round trips, synchronized §9 contracts and frontend tests/type/lint/build pass. Production storage/scanner/KMS inputs remain MISSING, installation evidence/atomic activation remain W2-03C/D, and no live approval, launch, device, route or pilot evidence is claimed. |
 | v1.60 | 2026-08-26 | **W2-02E file/KYC lifecycle and incident operations delivered without inventing a legal retention period or production provider.** Terminal rejected/expired KYC and vehicle-evidence submissions are selected by an optional approved retention setting, planned through a dry-run-first active-admin API, and purged under one PostgreSQL advisory lock. Document links are removed before an unreferenced private object and its intent; shared campaign/KYC files survive, storage failure rolls database deletion back, and each submission/file/run is redacted and audited. The scheduled worker remains visibly disabled while `FILE_KYC_RETENTION_DAYS` is absent. Scanner, storage and key-custody outages remain fail closed, with bounded recovery guidance in the operations runbook. Session refresh, driver profile update and assignment accept/decline/deactivate close the five registered audit gaps without retry amplification. Focused API/service/worker/audit/contract checks and a real PostgreSQL concurrent-purge proof pass. `EXT-LEGAL-PRIVACY`, `EXT-STORAGE-PROVIDER`, `EXT-MALWARE-SCANNER` and `EXT-KMS-CUSTODY` remain MISSING; no live retention, provider, identity or pilot validation is claimed. |
 | v1.59 | 2026-08-26 | **W2-02D protected KYC/key-custody foundation delivered without production-custodian or approval authority.** Migration `0055` extends the one stored-file model with strict organization/driver scope and adds versioned driver-KYC/vehicle-evidence records. Clean subject-owned documents and the same-driver verified bank version bind under stable locks; NIN reuses D17's ciphertext/AAD schema, stays masked outside an active-admin purpose-audited reveal, and supports append-only DEK rewrap whose data ciphertext remains unchanged. The application crypto port is unchanged while an adapter-private custody backend permits local keyrings now and a later production KMS/vault without schema drift. Exact retries converge; cross-driver, uncleared, tampered and unavailable-custody paths fail closed. Focused tests, explicit scan-gate red/green evidence, real PostgreSQL migration/concurrency proofs, synchronized §9 contracts, frontend type/lint/build and a real isolated MinIO→ClamAV→encrypted-KYC flow pass. `EXT-KMS-CUSTODY` remains MISSING; W3-04B/C still own approval and work eligibility, and no live identity/provider/pilot validation is claimed. |

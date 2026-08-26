@@ -43,6 +43,7 @@ from app.services.campaign_assignments import (
     ensure_vehicle_belongs_to_driver,
     get_driver_profile_for_user,
 )
+from app.services.installation_evidence import ensure_current_display_proof
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 
 # FND-07 (RM7): a lost race on either trip-exclusivity index returns the same
@@ -189,7 +190,12 @@ async def start_driver_trip(
     *,
     user_id: UUID,
     payload: TripStartRequest,
+    settings: Settings | None = None,
 ) -> TripSession:
+    if settings is None:
+        from app.core.config import get_settings
+
+        settings = get_settings()
     # The profile lookup establishes ownership without locking it.  The
     # mutation path below then takes the shared terms authority, campaign,
     # assignment, profile, and vehicle locks in that single deterministic
@@ -255,12 +261,20 @@ async def start_driver_trip(
         driver_profile_id=driver_profile.id,
         vehicle_id=vehicle.id,
     )
+    display_proof = await ensure_current_display_proof(
+        session,
+        assignment=assignment,
+        settings=settings,
+        now=now,
+        lock=True,
+    )
 
     trip = TripSession(
         assignment_id=assignment.id,
         campaign_id=assignment.campaign_id,
         driver_profile_id=driver_profile.id,
         vehicle_id=vehicle.id,
+        display_proof_id=display_proof.id,
         started_by_user_id=user_id,
         status=TripSessionStatus.ACTIVE.value,
         started_at=now,

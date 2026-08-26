@@ -63,9 +63,10 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 clarification corrects the prior false pause: missing production storage,
 scanner, KMS, email and phone inputs remain explicit live/deployment gates but
 do not block provider-neutral/local/synthetic implementation under D23.
-**Current checkpoint:** `PKG-04 / W2-03C` — add assignment-bound installation
-evidence and proof-of-display over the completed managed-file/scan and creative-
-review foundation. No production storage/scanner/KMS provider, custodian, live
+**Current checkpoint:** `PKG-04 / W2-03D` — build the single atomic activation
+command over the completed funding, campaign/creative review and assignment-
+bound installation-evidence authorities. No production storage/scanner/KMS
+provider, custodian, live
 creative/KYC/evidence approval, launch, live KYC, real-GPS, external-staging,
 physical-device or pilot evidence is claimed.
 
@@ -583,6 +584,26 @@ physical-device or pilot evidence is claimed.
   typecheck, lint and the production frontend build. Regenerated §9 contracts
   are byte-stable. W2-02C's real local MinIO→ClamAV foundation remains the file
   boundary; this checkpoint adds no production provider or live approval claim.
+- **W2-03C checkpoint evidence (26 Aug 2026):** migration `0057` extends the
+  shared subject-scoped file authority with immutable assignment/vehicle/
+  driver/device-bound installation revisions, admin review, one-use hashed
+  server-nonce challenges and fresh display proofs. Exact configured views and
+  clean scanned images are rechecked at submission and approval; changed
+  retries, cross-driver files, stale approval, device mismatch, pre-challenge
+  photos and nonce replay fail closed. Trip start requires and stores the exact
+  current proof. Driver capture/proof actions and the combined admin approvals
+  queue use same-origin BFFs and audited, purpose-scoped photo reads. Uploader,
+  view, renewal and challenge/proof windows have no production defaults; absent
+  policy remains visibly unavailable under `EXT-EVIDENCE-POLICY`. The initial
+  route 404 and absent-policy 503 were observed before the implementation.
+  Thirty-three focused evidence/file/trip/migration checks pass; real
+  PostgreSQL proves one winner under concurrent nonce consumption and populated
+  migration round trips/append-only guards. Eight audit/OpenAPI checks and 11
+  focused frontend tests pass with typecheck, lint and a production build; §9
+  contracts are synchronized. W2-03D still owns atomic activation and W2-03G
+  owns missed/periodic challenges and spot checks. No production policy,
+  physical-device, real-route, live-staging, launch, earning or pilot evidence
+  is claimed.
 - **Corrected-authority seam evidence (24 Aug 2026):** Package 4 migration
   `0043` now descends from Package 3 head `0042`. The adopted Package 3
   campaign/terms currency lock initially exposed one stale-update ordering
@@ -1038,7 +1059,7 @@ verification, gates or required specialist review.
 | 32 | **W2-02E — file/KYC lifecycle and incident operations** | PKG-04 | DONE | File/KYC purge plus scanner/key/vendor failures are tested and audited. | leaf: W2-02B, W2-02D |
 | 33 | **W2-03A — campaign submission and approval** | PKG-04 | DONE | Advertiser submits; admin approves/rejects; unapproved campaigns cannot schedule. | none |
 | 34 | **W2-03B — creative review gate** | PKG-04 | DONE | Only admin-approved, scan-cleared creative can satisfy campaign launch. | leaf: W2-02C |
-| 35 | **W2-03C — installation evidence and proof-of-display** | PKG-04 | TODO | Assignment-bound evidence and nonce proof gate earning eligibility. | leaf: W2-02B |
+| 35 | **W2-03C — installation evidence and proof-of-display** | PKG-04 | DONE | Assignment-bound evidence and nonce proof gate earning eligibility. | leaf: W2-02B |
 | 36 | **W2-03D — atomic activation** | PKG-04 | TODO | One admin command locks/rechecks every commercial and operational prerequisite, including valid standard-wait or expedited-waiver production authority. | leaf: W2-00C, W2-01A, W2-01B, W2-03A, W2-03B, W2-03C |
 | 37 | **W2-03E — governed mid-flight changes** | PKG-04 | TODO | Expansions honor funded headroom; reductions need approval and effective revisions. | leaf: W2-00A, W2-00C, W2-03D |
 | 38 | **W2-03F — cancellation cutoff and settlement** | PKG-04 | TODO | One idempotent cutoff stops new work, clips pay and applies the standard-boundary or actual-waived-start refund rule. | leaf: W2-01D, W2-03D, MNY-11A |

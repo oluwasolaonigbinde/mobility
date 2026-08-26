@@ -12,6 +12,7 @@ const CAMPAIGN_ID = "00000000-0000-4000-8000-00000000000a";
 const EVENT_ID = "00000000-0000-4000-8000-00000000000b";
 const CREATIVE_ID = "00000000-0000-4000-8000-00000000000d";
 const CREATIVE_EVENT_ID = "00000000-0000-4000-8000-00000000000e";
+const EVIDENCE_ID = "00000000-0000-4000-8000-00000000000f";
 
 describe("AdminApprovalsPage", () => {
   beforeEach(() => get.mockReset());
@@ -58,6 +59,36 @@ describe("AdminApprovalsPage", () => {
           total: 1,
           limit: 25,
           offset: 0,
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          items: [
+            {
+              id: EVIDENCE_ID,
+              assignment_id: "00000000-0000-4000-8000-000000000010",
+              campaign_id: CAMPAIGN_ID,
+              driver_profile_id: "00000000-0000-4000-8000-000000000011",
+              vehicle_id: "00000000-0000-4000-8000-000000000012",
+              submitted_by_user_id: "00000000-0000-4000-8000-000000000013",
+              reviewed_by_user_id: null,
+              revision: 1,
+              device_id: "00000000-0000-4000-8000-000000000014",
+              captured_at: "2026-08-24T10:06:00Z",
+              status: "pending_review",
+              rejection_reason: null,
+              reviewed_at: null,
+              approved_until: null,
+              photos: [
+                {
+                  view: "front",
+                  stored_file_id: "00000000-0000-4000-8000-000000000015",
+                },
+              ],
+              metadata: {},
+              submitted_at: "2026-08-24T10:07:00Z",
+            },
+          ],
         },
       })
       .mockResolvedValueOnce({
@@ -118,16 +149,22 @@ describe("AdminApprovalsPage", () => {
     expect(within(creativeCard).getByText("Rainy season launch")).toBeInTheDocument();
     expect(within(creativeCard).getByRole("button", { name: "Approve" })).toBeInTheDocument();
     expect(within(creativeCard).getByRole("button", { name: "Reject" })).toBeInTheDocument();
+    const installationCard = screen.getByTestId(`installation-approval-${EVIDENCE_ID}`);
+    expect(within(installationCard).getByText("Installation revision 1")).toBeInTheDocument();
+    expect(
+      within(installationCard).getByRole("button", { name: "View front" }),
+    ).toBeInTheDocument();
     expect(get).toHaveBeenNthCalledWith(1, "/api/v1/admin/campaigns/pending-review", {
       params: { query: { limit: 25, offset: 0 } },
     });
     expect(get).toHaveBeenNthCalledWith(2, "/api/v1/admin/creatives/pending-review", {
       params: { query: { limit: 25, offset: 0 } },
     });
-    expect(get).toHaveBeenNthCalledWith(3, "/api/v1/admin/campaigns/{campaign_id}/review-history", {
+    expect(get).toHaveBeenNthCalledWith(3, "/api/v1/admin/installation-evidence/pending");
+    expect(get).toHaveBeenNthCalledWith(4, "/api/v1/admin/campaigns/{campaign_id}/review-history", {
       params: { path: { campaign_id: CAMPAIGN_ID }, query: { limit: 10, offset: 0 } },
     });
-    expect(get).toHaveBeenNthCalledWith(4, "/api/v1/admin/creatives/{creative_id}/review-history", {
+    expect(get).toHaveBeenNthCalledWith(5, "/api/v1/admin/creatives/{creative_id}/review-history", {
       params: { path: { creative_id: CREATIVE_ID }, query: { limit: 10, offset: 0 } },
     });
   });
@@ -138,6 +175,6 @@ describe("AdminApprovalsPage", () => {
     render(await AdminApprovalsPage());
 
     expect(screen.getByText("Nothing awaiting review")).toBeInTheDocument();
-    expect(get).toHaveBeenCalledTimes(2);
+    expect(get).toHaveBeenCalledTimes(3);
   });
 });

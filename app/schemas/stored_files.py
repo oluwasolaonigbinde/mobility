@@ -74,6 +74,7 @@ class FileAccessPurpose(StrEnum):
     CAMPAIGN_PREVIEW = "campaign_preview"
     CREATIVE_REVIEW = "creative_review"
     KYC_REVIEW = "kyc_review"
+    INSTALLATION_REVIEW = "installation_review"
     SECURITY_REVIEW = "security_review"
     INCIDENT_RESPONSE = "incident_response"
 

@@ -47,6 +47,7 @@ def trip_response(summary: TripSummary) -> TripRead:
         campaign_id=trip.campaign_id,
         driver_profile_id=trip.driver_profile_id,
         vehicle_id=trip.vehicle_id,
+        display_proof_id=trip.display_proof_id,
         status=trip.status,
         started_at=trip.started_at,
         ended_at=trip.ended_at,
@@ -72,8 +73,11 @@ async def driver_start_trip(
     payload: TripStartRequest,
     current_user: DriverUserDependency,
     session: SessionDependency,
+    settings: SettingsDependency,
 ) -> TripRead:
-    trip = await start_driver_trip(session, user_id=current_user.id, payload=payload)
+    trip = await start_driver_trip(
+        session, user_id=current_user.id, payload=payload, settings=settings
+    )
     await create_audit_event(
         session,
         actor_user_id=current_user.id,

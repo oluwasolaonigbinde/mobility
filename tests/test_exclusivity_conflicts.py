@@ -19,6 +19,7 @@ from conftest import (
     create_test_campaign_creative,
     create_test_campaign_payout_revision,
     create_test_campaign_zone,
+    create_test_display_proof,
     create_test_driver_profile,
     create_test_organization,
     create_test_trip_analytics,
@@ -319,6 +320,7 @@ def test_cancel_and_driver_deactivation_serialize_postgres(
 def test_cancel_and_trip_start_serialize_postgres(
     postgis_db_sessionmaker,
     monkeypatch,
+    settings,
 ) -> None:
     admin, campaigns, driver, profile, vehicle = build_graph(postgis_db_sessionmaker, "cancel-trip")
     assignment = create_test_campaign_assignment(
@@ -330,6 +332,11 @@ def test_cancel_and_trip_start_serialize_postgres(
         assignment_status=CampaignAssignmentStatus.ACTIVE,
         accepted_at=datetime.now(UTC),
         activated_at=datetime.now(UTC),
+    )
+    create_test_display_proof(
+        postgis_db_sessionmaker,
+        assignment_id=assignment.id,
+        reviewed_by_user_id=admin.id,
     )
     monkeypatch.setattr(trips_service, "assert_new_work_authorized", _noop_precheck)
     original_lock = assignments_service.acquire_campaign_terms_lock
@@ -369,6 +376,7 @@ def test_cancel_and_trip_start_serialize_postgres(
                     session,
                     user_id=driver.id,
                     payload=TripStartRequest(assignment_id=assignment.id, metadata={}),
+                    settings=settings,
                 )
                 await session.commit()
                 return "started"
@@ -392,6 +400,7 @@ def test_cancel_and_trip_start_serialize_postgres(
 def test_deactivation_and_funded_trip_start_serialize_postgres(
     postgis_db_sessionmaker,
     monkeypatch,
+    settings,
 ) -> None:
     admin, _campaign, driver, _profile, _vehicle, assignment = create_trip_ready_graph(
         postgis_db_sessionmaker,
@@ -438,6 +447,7 @@ def test_deactivation_and_funded_trip_start_serialize_postgres(
                     session,
                     user_id=driver.id,
                     payload=TripStartRequest(assignment_id=assignment.id, metadata={}),
+                    settings=settings,
                 )
                 await session.commit()
                 return "started"
@@ -542,6 +552,11 @@ def test_lost_trip_start_race_returns_active_trip_envelope(
         accepted_at=datetime.now(UTC),
         activated_at=datetime.now(UTC),
     )
+    create_test_display_proof(
+        db_sessionmaker,
+        assignment_id=assignment.id,
+        reviewed_by_user_id=admin.id,
+    )
     if same_driver:
         # Same driver already tracking on a second vehicle: only the driver
         # exclusivity index can fire.
@@ -619,7 +634,7 @@ def test_unrelated_integrity_failure_still_raises(db_sessionmaker) -> None:
         asyncio.run(violate_check_constraint())
 
 
-def _start_trip_outcome(sessionmaker, *, user_id, assignment_id):
+def _start_trip_outcome(sessionmaker, *, user_id, assignment_id, settings):
     async def run_one() -> str:
         async with sessionmaker() as session:
             try:
@@ -627,6 +642,7 @@ def _start_trip_outcome(sessionmaker, *, user_id, assignment_id):
                     session,
                     user_id=user_id,
                     payload=TripStartRequest(assignment_id=assignment_id, metadata={}),
+                    settings=settings,
                 )
                 await session.commit()
                 return "started"
@@ -637,7 +653,9 @@ def _start_trip_outcome(sessionmaker, *, user_id, assignment_id):
     return run_one
 
 
-def test_concurrent_trip_starts_one_winner_postgis(postgis_db_sessionmaker, monkeypatch) -> None:
+def test_concurrent_trip_starts_one_winner_postgis(
+    postgis_db_sessionmaker, monkeypatch, settings
+) -> None:
     monkeypatch.setattr(trips_service, "assert_new_work_authorized", _noop_precheck)
     admin, campaigns, driver, profile, vehicle = build_graph(postgis_db_sessionmaker, "pg-trip")
     assignment = create_test_campaign_assignment(
@@ -650,13 +668,24 @@ def test_concurrent_trip_starts_one_winner_postgis(postgis_db_sessionmaker, monk
         accepted_at=datetime.now(UTC),
         activated_at=datetime.now(UTC),
     )
+    create_test_display_proof(
+        postgis_db_sessionmaker,
+        assignment_id=assignment.id,
+        reviewed_by_user_id=admin.id,
+    )
 
     async def race() -> list[str]:
         one = _start_trip_outcome(
-            postgis_db_sessionmaker, user_id=driver.id, assignment_id=assignment.id
+            postgis_db_sessionmaker,
+            user_id=driver.id,
+            assignment_id=assignment.id,
+            settings=settings,
         )
         two = _start_trip_outcome(
-            postgis_db_sessionmaker, user_id=driver.id, assignment_id=assignment.id
+            postgis_db_sessionmaker,
+            user_id=driver.id,
+            assignment_id=assignment.id,
+            settings=settings,
         )
         return list(await asyncio.gather(one(), two()))
 
