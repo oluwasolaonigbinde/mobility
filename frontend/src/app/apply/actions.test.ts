@@ -57,12 +57,20 @@ describe("driver application actions", () => {
 
   it("shows one pending status envelope for a reference", async () => {
     mocks.get.mockResolvedValue({
-      data: { status: "pending", message: "Application status is pending review." },
+      data: {
+        status: "pending",
+        message: "Application status is pending review.",
+        person_payee: { status: "rejected" },
+      },
     });
     const form = new FormData();
     form.set("reference", "reference-secret");
 
-    await expect(checkDriverApplicationStatusAction({}, form)).resolves.toEqual({ pending: true });
+    await expect(checkDriverApplicationStatusAction({}, form)).resolves.toEqual({
+      pending: true,
+      reference: "reference-secret",
+      personPayeeStatus: "rejected",
+    });
     expect(mocks.get).toHaveBeenCalledWith("/api/v1/auth/driver-application-status/{reference}", {
       params: { path: { reference: "reference-secret" } },
     });

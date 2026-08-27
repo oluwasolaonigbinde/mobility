@@ -656,6 +656,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/driver-applications/{application_id}/person-payee-decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Review Driver Person Payee */
+        post: operations["admin_review_driver_person_payee_api_v1_admin_driver_applications__application_id__person_payee_decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/drivers": {
         parameters: {
             query?: never;
@@ -2916,6 +2933,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/driver-onboarding/files/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Driver Onboarding Upload */
+        post: operations["create_driver_onboarding_upload_api_v1_auth_driver_onboarding_files_uploads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/driver-onboarding/files/uploads/{upload_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Driver Onboarding Upload */
+        post: operations["confirm_driver_onboarding_upload_api_v1_auth_driver_onboarding_files_uploads__upload_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/driver-onboarding/files/{file_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Get Driver Onboarding File Status */
+        post: operations["get_driver_onboarding_file_status_api_v1_auth_driver_onboarding_files__file_id__status_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/driver-onboarding/person-payee": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit Driver Onboarding Person Payee */
+        post: operations["submit_driver_onboarding_person_payee_api_v1_auth_driver_onboarding_person_payee_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -4120,6 +4205,38 @@ export interface components {
             organization: components["schemas"]["AdvertiserOrganizationRead"];
             owner_membership: components["schemas"]["OrganizationMembershipRead"] | null;
         };
+        /** AdminPersonPayeeStageRead */
+        AdminPersonPayeeStageRead: {
+            /**
+             * Bank Account Verified
+             * @default false
+             */
+            bank_account_verified: boolean;
+            /** Bank Account Version Id */
+            bank_account_version_id?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Decided At */
+            decided_at?: string | null;
+            /** Decided By User Id */
+            decided_by_user_id?: string | null;
+            /** Document File Ids */
+            document_file_ids?: {
+                [key: string]: string;
+            };
+            /** Encryption Algorithm */
+            encryption_algorithm?: string | null;
+            /** Encryption Key Version */
+            encryption_key_version?: number | null;
+            /** Masked Nin */
+            masked_nin?: string | null;
+            reason_code?: components["schemas"]["KycReviewReason"] | null;
+            status: components["schemas"]["PersonPayeeStageStatus"];
+            /** Submission Id */
+            submission_id?: string | null;
+            /** Version */
+            version?: number | null;
+        };
         /** AdminPhoneChallengeListRead */
         AdminPhoneChallengeListRead: {
             /** Items */
@@ -4399,6 +4516,47 @@ export interface components {
             metadata?: {
                 [key: string]: unknown;
             };
+        };
+        /** ApplicantFileUploadConfirm */
+        ApplicantFileUploadConfirm: {
+            /**
+             * Application Reference
+             * Format: password
+             */
+            application_reference: string;
+        };
+        /** ApplicantFileUploadCreate */
+        ApplicantFileUploadCreate: {
+            /**
+             * Application Reference
+             * Format: password
+             */
+            application_reference: string;
+            upload: components["schemas"]["FileUploadCreate"];
+        };
+        /** ApplicantFileUploadRead */
+        ApplicantFileUploadRead: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            upload: components["schemas"]["PresignedPostRead"];
+            /**
+             * Upload Id
+             * Format: uuid
+             */
+            upload_id: string;
+        };
+        /** ApplicantStoredFileRead */
+        ApplicantStoredFileRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Scan Status */
+            scan_status: string;
         };
         /**
          * AssignmentActivityFlagRead
@@ -6769,6 +6927,7 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            person_payee?: components["schemas"]["AdminPersonPayeeStageRead"];
             /** Phone */
             phone: string | null;
             /** Service City */
@@ -6807,6 +6966,7 @@ export interface components {
         DriverApplicationStatusResponse: {
             /** Message */
             message: string;
+            person_payee?: components["schemas"]["PersonPayeeStageRead"];
             /**
              * Status
              * @default pending
@@ -8585,6 +8745,11 @@ export interface components {
          */
         IssuerVerificationStatus: "synthetic" | "verified";
         /**
+         * KycReviewReason
+         * @enum {string}
+         */
+        KycReviewReason: "complete_current_evidence" | "missing_evidence" | "rejected_evidence" | "expired_evidence" | "unsafe_evidence" | "identity_mismatch" | "bank_account_mismatch" | "unreadable_evidence";
+        /**
          * KycSubmissionStatus
          * @enum {string}
          */
@@ -9655,6 +9820,109 @@ export interface components {
              */
             id: string;
             status: components["schemas"]["EarningsLedgerEntryStatus"];
+        };
+        /** PersonPayeeReviewDecisionCreate */
+        PersonPayeeReviewDecisionCreate: {
+            /**
+             * Bank Account Match Confirmed
+             * @default false
+             */
+            bank_account_match_confirmed: boolean;
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            decision: components["schemas"]["KycSubmissionStatus"];
+            /**
+             * Documents Readable Confirmed
+             * @default false
+             */
+            documents_readable_confirmed: boolean;
+            /**
+             * Identity Match Confirmed
+             * @default false
+             */
+            identity_match_confirmed: boolean;
+            reason_code: components["schemas"]["KycReviewReason"];
+        };
+        /** PersonPayeeStageRead */
+        PersonPayeeStageRead: {
+            /**
+             * Bank Account Verified
+             * @default false
+             */
+            bank_account_verified: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /** Decided At */
+            decided_at?: string | null;
+            /** Masked Nin */
+            masked_nin?: string | null;
+            reason_code?: components["schemas"]["KycReviewReason"] | null;
+            status: components["schemas"]["PersonPayeeStageStatus"];
+            /** Submission Id */
+            submission_id?: string | null;
+            /** Version */
+            version?: number | null;
+        };
+        /**
+         * PersonPayeeStageStatus
+         * @enum {string}
+         */
+        PersonPayeeStageStatus: "not_submitted" | "pending_review" | "approved" | "rejected" | "expired";
+        /** PersonPayeeSubmissionCreate */
+        PersonPayeeSubmissionCreate: {
+            /**
+             * Account Name
+             * Format: password
+             */
+            account_name: string;
+            /**
+             * Account Number
+             * Format: password
+             */
+            account_number: string;
+            /**
+             * Application Reference
+             * Format: password
+             */
+            application_reference: string;
+            /**
+             * Bank Code
+             * Format: password
+             */
+            bank_code: string;
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /**
+             * Driver License File Id
+             * Format: uuid
+             */
+            driver_license_file_id: string;
+            /**
+             * Driver Photo File Id
+             * Format: uuid
+             */
+            driver_photo_file_id: string;
+            /**
+             * Nin
+             * Format: password
+             */
+            nin: string;
+            /**
+             * Signed Agreement File Id
+             * Format: uuid
+             */
+            signed_agreement_file_id: string;
+            /**
+             * Verification Reference
+             * Format: password
+             */
+            verification_reference: string;
         };
         /** PhoneChallengeRead */
         PhoneChallengeRead: {
@@ -13065,6 +13333,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriverApplicationAdminListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_review_driver_person_payee_api_v1_admin_driver_applications__application_id__person_payee_decision_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonPayeeReviewDecisionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPersonPayeeStageRead"];
                 };
             };
             /** @description Validation Error */
@@ -17938,6 +18241,142 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriverApplicationStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_driver_onboarding_upload_api_v1_auth_driver_onboarding_files_uploads_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicantFileUploadCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicantFileUploadRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_driver_onboarding_upload_api_v1_auth_driver_onboarding_files_uploads__upload_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicantFileUploadConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicantStoredFileRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_driver_onboarding_file_status_api_v1_auth_driver_onboarding_files__file_id__status_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                file_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicantFileUploadConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicantStoredFileRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_driver_onboarding_person_payee_api_v1_auth_driver_onboarding_person_payee_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonPayeeSubmissionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonPayeeStageRead"];
                 };
             };
             /** @description Validation Error */

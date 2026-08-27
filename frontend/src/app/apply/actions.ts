@@ -34,6 +34,8 @@ export interface DriverApplicationState {
 export interface DriverApplicationStatusState {
   error?: string;
   pending?: boolean;
+  reference?: string;
+  personPayeeStatus?: string;
 }
 
 export async function submitDriverApplicationAction(
@@ -92,7 +94,11 @@ export async function checkDriverApplicationStatusAction(
       { params: { path: { reference: parsed.data.reference } } },
     );
     return data?.status === "pending"
-      ? { pending: true }
+      ? {
+          pending: true,
+          reference: parsed.data.reference,
+          personPayeeStatus: (data.person_payee?.status ?? "not_submitted").replaceAll("_", " "),
+        }
       : { error: "Application status is unavailable right now." };
   } catch (error) {
     return {

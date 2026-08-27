@@ -29,6 +29,14 @@ describe("AdminDriverApplicationsPage", () => {
             country_code: "NG",
             created_at: "2026-08-25T10:00:00Z",
             updated_at: "2026-08-25T10:00:00Z",
+            person_payee: {
+              status: "pending_review",
+              submission_id: "00000000-0000-4000-8000-00000000000d",
+              version: 1,
+              masked_nin: "*******8901",
+              bank_account_verified: true,
+              document_file_ids: {},
+            },
           },
         ],
         total: 26,
@@ -44,6 +52,9 @@ describe("AdminDriverApplicationsPage", () => {
     expect(within(row).getByText("driver@example.com")).toBeInTheDocument();
     expect(within(row).getByText("Lagos · NG")).toBeInTheDocument();
     expect(within(row).getByText("pending")).toBeInTheDocument();
+    expect(within(row).getByText("pending review")).toBeInTheDocument();
+    expect(within(row).getByText("v1 · *******8901")).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Approve" })).toBeInTheDocument();
     expect(screen.queryByText(/password|reference_sha|ratelimit/i)).not.toBeInTheDocument();
     expect(get).toHaveBeenCalledWith("/api/v1/admin/driver-applications", {
       params: { query: { limit: 25, offset: 0 } },
