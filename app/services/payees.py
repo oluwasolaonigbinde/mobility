@@ -584,6 +584,7 @@ async def rewrap_bank_account(
     current = await _current_bank_account_version(session, account.id)
     if current.encryption_key_version == crypto.active_key_version:
         return current
+    payout_verification = await bank_account_payout_verification(session, current.id)
 
     envelope = _parse_envelope(current.encrypted_details)
     aad = AssociatedData(
@@ -613,6 +614,13 @@ async def rewrap_bank_account(
     )
     session.add(new_version)
     await session.flush()
+    if payout_verification is not None:
+        await _record_payout_verification(
+            session,
+            account_version=new_version,
+            verification_hash=payout_verification.verification_reference_sha256,
+            actor_user_id=payout_verification.verified_by_user_id,
+        )
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,

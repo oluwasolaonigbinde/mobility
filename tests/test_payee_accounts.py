@@ -1,6 +1,6 @@
 import asyncio
 from collections import Counter
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from conftest import create_test_driver_profile, create_test_user
@@ -13,14 +13,19 @@ from app.models.driver import DriverOnboardingStatus
 from app.models.payee import (
     Payee,
     PayeeBankAccount,
+    PayeeBankAccountPayoutVerification,
     PayeeBankAccountVersion,
     PayeeType,
     PayeeVersion,
 )
 from app.models.user import UserRole
+from app.services.disbursements import _frozen_payee_authority
 from app.services.payees import (
     VerifiedBankAccountDetails,
+    add_applicant_bank_account_version,
     add_verified_bank_account_version,
+    bank_account_payout_verification,
+    create_applicant_payee,
     create_pilot_payee,
     read_verified_bank_account,
     rewrap_bank_account,
@@ -267,6 +272,13 @@ def test_rewrap_is_append_only_and_exact_retry_converges(db_sessionmaker) -> Non
                 actor_user_id=admin.id,
                 crypto=rotating_crypto,
             )
+            source_verification = await bank_account_payout_verification(session, original.id)
+            rotated_verification = await bank_account_payout_verification(session, rotated.id)
+            _, payout_version = await _frozen_payee_authority(
+                session,
+                None,
+                payee,  # type: ignore[arg-type]
+            )
             await session.commit()
             versions = list(
                 (
@@ -285,9 +297,37 @@ def test_rewrap_is_append_only_and_exact_retry_converges(db_sessionmaker) -> Non
                 )
                 or 0
             )
-            return original, rotated, retried, versions, rewrap_audits
+            rotated_verifications = int(
+                await session.scalar(
+                    select(func.count(PayeeBankAccountPayoutVerification.id)).where(
+                        PayeeBankAccountPayoutVerification.bank_account_version_id == rotated.id
+                    )
+                )
+                or 0
+            )
+            return (
+                original,
+                rotated,
+                retried,
+                versions,
+                source_verification,
+                rotated_verification,
+                payout_version,
+                rewrap_audits,
+                rotated_verifications,
+            )
 
-    original, rotated, retried, versions, rewrap_audits = asyncio.run(exercise())
+    (
+        original,
+        rotated,
+        retried,
+        versions,
+        source_verification,
+        rotated_verification,
+        payout_version,
+        rewrap_audits,
+        rotated_verifications,
+    ) = asyncio.run(exercise())
 
     assert [version.version for version in versions] == [1, 2]
     assert rotated.id == retried.id
@@ -301,7 +341,65 @@ def test_rewrap_is_append_only_and_exact_retry_converges(db_sessionmaker) -> Non
         versions[0].encrypted_details["wrapped_key_b64"]
         != versions[1].encrypted_details["wrapped_key_b64"]
     )
+    assert source_verification is not None
+    assert rotated_verification is not None
+    assert rotated_verification.verification_reference_sha256 == (
+        source_verification.verification_reference_sha256
+    )
+    assert rotated_verification.verified_by_user_id == source_verification.verified_by_user_id
+    assert payout_version.id == rotated.id
+    assert rotated_verifications == 1
     assert rewrap_audits == 1
+
+
+def test_unverified_applicant_account_stays_payout_blocked_after_rewrap(db_sessionmaker) -> None:
+    admin, driver, profile = _seed_actor_and_driver(db_sessionmaker)
+    old_crypto = EnvelopeCryptoProvider(keys={1: b"j" * 32}, active_key_version=1)
+    rotating_crypto = EnvelopeCryptoProvider(
+        keys={1: b"j" * 32, 2: b"k" * 32}, active_key_version=2
+    )
+
+    async def exercise() -> tuple[str, int]:
+        async with db_sessionmaker() as session:
+            payee, _ = await create_applicant_payee(
+                session,
+                driver_profile_id=profile.id,
+                actor_user_id=driver.id,
+            )
+            captured = await add_applicant_bank_account_version(
+                session,
+                payee_id=payee.id,
+                details=DETAILS,
+                verification_reference=VERIFICATION_REFERENCE,
+                actor_user_id=driver.id,
+                crypto=old_crypto,
+            )
+            account_id = captured.bank_account_id
+            await session.commit()
+
+        async with db_sessionmaker() as session:
+            rotated = await rewrap_bank_account(
+                session,
+                bank_account_id=account_id,
+                actor_user_id=admin.id,
+                crypto=rotating_crypto,
+            )
+            payee = await session.scalar(select(Payee).where(Payee.id == payee.id))
+            assert payee is not None
+            with pytest.raises(AppError) as payout_error:
+                await _frozen_payee_authority(session, None, payee)  # type: ignore[arg-type]
+            verification_count = int(
+                await session.scalar(
+                    select(func.count(PayeeBankAccountPayoutVerification.id)).where(
+                        PayeeBankAccountPayoutVerification.bank_account_version_id == rotated.id
+                    )
+                )
+                or 0
+            )
+            await session.commit()
+            return payout_error.value.code, verification_count
+
+    assert asyncio.run(exercise()) == ("PAYOUT_BANK_ACCOUNT_UNVERIFIED", 0)
 
 
 def test_create_and_audit_roll_back_together(db_sessionmaker) -> None:
@@ -378,6 +476,74 @@ def test_postgres_concurrent_first_and_later_versions_serialize(postgis_db_sessi
             return account_count, versions
 
     assert asyncio.run(counts()) == (1, [1, 2, 3, 4])
+
+
+def test_postgres_concurrent_rewrap_preserves_one_payout_verification(
+    postgis_db_sessionmaker,
+) -> None:
+    admin, _, profile = _seed_actor_and_driver(postgis_db_sessionmaker)
+    old_crypto = EnvelopeCryptoProvider(keys={1: b"l" * 32}, active_key_version=1)
+    rotating_crypto = EnvelopeCryptoProvider(
+        keys={1: b"l" * 32, 2: b"m" * 32}, active_key_version=2
+    )
+
+    async def setup() -> UUID:
+        async with postgis_db_sessionmaker() as session:
+            payee, _ = await create_pilot_payee(
+                session, driver_profile_id=profile.id, actor_user_id=admin.id
+            )
+            original = await add_verified_bank_account_version(
+                session,
+                payee_id=payee.id,
+                details=DETAILS,
+                verification_reference=VERIFICATION_REFERENCE,
+                actor_user_id=admin.id,
+                crypto=old_crypto,
+            )
+            await session.commit()
+            return original.bank_account_id
+
+    account_id = asyncio.run(setup())
+
+    async def rewrap() -> UUID:
+        async with postgis_db_sessionmaker() as session:
+            rotated = await rewrap_bank_account(
+                session,
+                bank_account_id=account_id,
+                actor_user_id=admin.id,
+                crypto=rotating_crypto,
+            )
+            await session.commit()
+            return rotated.id
+
+    async def run_pair() -> list[UUID]:
+        return await asyncio.gather(rewrap(), rewrap())
+
+    rotated_ids = asyncio.run(run_pair())
+    assert rotated_ids[0] == rotated_ids[1]
+
+    async def evidence() -> tuple[list[int], int]:
+        async with postgis_db_sessionmaker() as session:
+            versions = list(
+                (
+                    await session.scalars(
+                        select(PayeeBankAccountVersion.version)
+                        .where(PayeeBankAccountVersion.bank_account_id == account_id)
+                        .order_by(PayeeBankAccountVersion.version)
+                    )
+                ).all()
+            )
+            verifications = int(
+                await session.scalar(
+                    select(func.count(PayeeBankAccountPayoutVerification.id)).where(
+                        PayeeBankAccountPayoutVerification.bank_account_version_id == rotated_ids[0]
+                    )
+                )
+                or 0
+            )
+            return versions, verifications
+
+    assert asyncio.run(evidence()) == ([1, 2], 1)
 
 
 def test_models_have_no_plaintext_bank_columns() -> None:
