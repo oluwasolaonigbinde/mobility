@@ -7,6 +7,7 @@ from starlette import status
 
 from app.core.errors import AppError
 from app.models.driver import DriverProfile
+from app.models.driver_application import DriverApplication
 from app.models.user import User, UserRole
 from app.schemas.drivers import (
     DriverProfileAdminUpdate,
@@ -168,6 +169,16 @@ async def update_driver_profile(
             "Onboarding status cannot be null",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+    if update_values.get("onboarding_status") == "active":
+        public_application_id = await session.scalar(
+            select(DriverApplication.id).where(DriverApplication.driver_profile_id == profile.id)
+        )
+        if public_application_id is not None:
+            raise AppError(
+                "DRIVER_WORK_ELIGIBILITY_INCOMPLETE",
+                "Public applicants require approved person/payee and active vehicle evidence",
+                status_code=status.HTTP_409_CONFLICT,
+            )
     if "metadata" in update_values:
         metadata = update_values.pop("metadata")
         if metadata is None:

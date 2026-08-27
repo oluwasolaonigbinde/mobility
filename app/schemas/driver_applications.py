@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.driver_application import DriverApplicationStatus
+from app.schemas.driver_onboarding import AdminPersonPayeeStageRead, PersonPayeeStageRead
 from app.services.users import normalize_email
 
 
@@ -61,6 +62,9 @@ class DriverApplicationSubmitResponse(BaseModel):
 class DriverApplicationStatusResponse(BaseModel):
     status: Literal[DriverApplicationStatus.PENDING.value] = DriverApplicationStatus.PENDING.value
     message: str
+    person_payee: PersonPayeeStageRead = Field(
+        default_factory=lambda: PersonPayeeStageRead(status="not_submitted")
+    )
 
 
 class DriverApplicationAdminRead(BaseModel):
@@ -77,6 +81,9 @@ class DriverApplicationAdminRead(BaseModel):
     country_code: str | None
     created_at: datetime
     updated_at: datetime
+    person_payee: AdminPersonPayeeStageRead = Field(
+        default_factory=lambda: AdminPersonPayeeStageRead(status="not_submitted")
+    )
 
 
 class DriverApplicationAdminListResponse(BaseModel):

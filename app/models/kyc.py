@@ -26,6 +26,17 @@ class KycSubmissionStatus(StrEnum):
     EXPIRED = "expired"
 
 
+class KycReviewReason(StrEnum):
+    COMPLETE_CURRENT_EVIDENCE = "complete_current_evidence"
+    MISSING_EVIDENCE = "missing_evidence"
+    REJECTED_EVIDENCE = "rejected_evidence"
+    EXPIRED_EVIDENCE = "expired_evidence"
+    UNSAFE_EVIDENCE = "unsafe_evidence"
+    IDENTITY_MISMATCH = "identity_mismatch"
+    BANK_ACCOUNT_MISMATCH = "bank_account_mismatch"
+    UNREADABLE_EVIDENCE = "unreadable_evidence"
+
+
 class DriverKycDocumentType(StrEnum):
     DRIVER_LICENSE = "driver_license"
     DRIVER_PHOTO = "driver_photo"
@@ -115,6 +126,60 @@ class DriverKycDocument(Base):
         ForeignKey("stored_files.id", ondelete="RESTRICT"), nullable=False
     )
     document_type: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+class DriverKycReviewDecision(Base):
+    """Immutable authorized decision over one exact person/payee submission."""
+
+    __tablename__ = "driver_kyc_review_decisions"
+    __table_args__ = (
+        CheckConstraint(
+            "decision IN ('approved', 'rejected', 'expired')",
+            name="ck_driver_kyc_review_decisions_decision",
+        ),
+        CheckConstraint(
+            "reason_code IN ('complete_current_evidence', 'missing_evidence', "
+            "'rejected_evidence', 'expired_evidence', 'unsafe_evidence', "
+            "'identity_mismatch', 'bank_account_mismatch', 'unreadable_evidence')",
+            name="ck_driver_kyc_review_decisions_reason",
+        ),
+        CheckConstraint(
+            "length(request_fingerprint) = 64",
+            name="ck_driver_kyc_review_decisions_fingerprint",
+        ),
+        CheckConstraint(
+            "(decision = 'approved' AND reason_code = 'complete_current_evidence' "
+            "AND identity_match_confirmed AND bank_account_match_confirmed "
+            "AND documents_readable_confirmed) OR "
+            "(decision IN ('rejected', 'expired') "
+            "AND reason_code <> 'complete_current_evidence')",
+            name="ck_driver_kyc_review_decisions_facts",
+        ),
+        UniqueConstraint("submission_id", name="uq_driver_kyc_review_decisions_submission"),
+        UniqueConstraint("client_request_id", name="uq_driver_kyc_review_decisions_client_request"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    submission_id: Mapped[UUID] = mapped_column(
+        ForeignKey("driver_kyc_submissions.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    client_request_id: Mapped[UUID] = mapped_column(nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    decision: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    identity_match_confirmed: Mapped[bool] = mapped_column(nullable=False)
+    bank_account_match_confirmed: Mapped[bool] = mapped_column(nullable=False)
+    documents_readable_confirmed: Mapped[bool] = mapped_column(nullable=False)
+    decided_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
 
 class VehicleEvidenceSubmission(Base):

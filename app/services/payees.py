@@ -57,7 +57,6 @@ async def create_pilot_payee(
             "Only driver payees are supported during the pilot",
             status_code=status.HTTP_409_CONFLICT,
         )
-
     profile = await session.scalar(
         select(DriverProfile).where(DriverProfile.id == driver_profile_id).with_for_update()
     )
@@ -74,6 +73,59 @@ async def create_pilot_payee(
             "Pilot payees require a driver profile owned by a driver user",
             status_code=status.HTTP_409_CONFLICT,
         )
+
+    return await _create_driver_payee_locked(
+        session,
+        profile=profile,
+        driver_user=driver_user,
+        actor_user_id=actor_user_id,
+        audit_action="admin.payee.created",
+    )
+
+
+async def create_applicant_payee(
+    session: AsyncSession,
+    *,
+    driver_profile_id: UUID,
+    actor_user_id: UUID,
+) -> tuple[Payee, PayeeVersion]:
+    """Create the same pilot payee after a public-application capability check."""
+
+    profile = await session.scalar(
+        select(DriverProfile).where(DriverProfile.id == driver_profile_id).with_for_update()
+    )
+    driver_user = await session.scalar(
+        select(User).where(User.id == actor_user_id).with_for_update()
+    )
+    if (
+        profile is None
+        or profile.user_id != actor_user_id
+        or driver_user is None
+        or driver_user.role != UserRole.DRIVER
+        or driver_user.status not in {UserStatus.INVITED, UserStatus.ACTIVE}
+    ):
+        raise AppError(
+            "PAYEE_SUBJECT_INVALID",
+            "Pilot payees require the referenced driver application",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    return await _create_driver_payee_locked(
+        session,
+        profile=profile,
+        driver_user=driver_user,
+        actor_user_id=actor_user_id,
+        audit_action="driver_application.payee.created",
+    )
+
+
+async def _create_driver_payee_locked(
+    session: AsyncSession,
+    *,
+    profile: DriverProfile,
+    driver_user: User,
+    actor_user_id: UUID,
+    audit_action: str,
+) -> tuple[Payee, PayeeVersion]:
 
     payee = await session.scalar(
         select(Payee).where(
@@ -106,7 +158,7 @@ async def create_pilot_payee(
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,
-        action="admin.payee.created",
+        action=audit_action,
         entity_type="payee",
         entity_id=str(payee.id),
         metadata={"payee_type": PayeeType.DRIVER, "payee_version": 1},
@@ -126,9 +178,71 @@ async def add_verified_bank_account_version(
     """Append an encrypted verified account version under the stable payee lock."""
 
     await _require_active_admin(session, actor_user_id)
-    normalized_details = _validate_details(details)
-    verification_hash = _verification_reference_hash(verification_reference)
+    return await _add_verified_bank_account_version_authorized(
+        session,
+        payee_id=payee_id,
+        details=details,
+        verification_reference=verification_reference,
+        actor_user_id=actor_user_id,
+        crypto=crypto,
+        audit_action="admin.bank_account.verified",
+    )
+
+
+async def add_applicant_verified_bank_account_version(
+    session: AsyncSession,
+    *,
+    payee_id: UUID,
+    details: VerifiedBankAccountDetails,
+    verification_reference: str,
+    actor_user_id: UUID,
+    crypto: CryptoProvider,
+) -> PayeeBankAccountVersion:
+    """Append a verified account only for its capability-authorized driver."""
+
+    actor = await session.scalar(select(User).where(User.id == actor_user_id).with_for_update())
     payee = await session.scalar(select(Payee).where(Payee.id == payee_id).with_for_update())
+    if (
+        actor is None
+        or actor.role != UserRole.DRIVER
+        or actor.status not in {UserStatus.INVITED, UserStatus.ACTIVE}
+        or payee is None
+        or payee.tenant_id != actor_user_id
+        or payee.payee_type != PayeeType.DRIVER
+    ):
+        raise AppError(
+            "PAYEE_ACCESS_FORBIDDEN",
+            "The referenced application does not own this payee",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+    return await _add_verified_bank_account_version_authorized(
+        session,
+        payee_id=payee_id,
+        details=details,
+        verification_reference=verification_reference,
+        actor_user_id=actor_user_id,
+        crypto=crypto,
+        audit_action="driver_application.bank_account.verified",
+        locked_payee=payee,
+    )
+
+
+async def _add_verified_bank_account_version_authorized(
+    session: AsyncSession,
+    *,
+    payee_id: UUID,
+    details: VerifiedBankAccountDetails,
+    verification_reference: str,
+    actor_user_id: UUID,
+    crypto: CryptoProvider,
+    audit_action: str,
+    locked_payee: Payee | None = None,
+) -> PayeeBankAccountVersion:
+    normalized_details = _validate_details(details)
+    verification_hash = verification_reference_hash(verification_reference)
+    payee = locked_payee or await session.scalar(
+        select(Payee).where(Payee.id == payee_id).with_for_update()
+    )
     if payee is None:
         raise AppError(
             "PAYEE_NOT_FOUND", "Payee was not found", status_code=status.HTTP_404_NOT_FOUND
@@ -190,7 +304,7 @@ async def add_verified_bank_account_version(
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,
-        action="admin.bank_account.verified",
+        action=audit_action,
         entity_type="payee_bank_account",
         entity_id=str(account.id),
         metadata={
@@ -214,6 +328,67 @@ async def read_verified_bank_account(
     """Return plaintext only after service-level RBAC and stage a redacted audit."""
 
     await _require_active_admin(session, actor_user_id)
+    return await _read_verified_bank_account_authorized(
+        session,
+        bank_account_version_id=bank_account_version_id,
+        actor_user_id=actor_user_id,
+        crypto=crypto,
+        purpose=purpose,
+        audit_action="admin.bank_account.read",
+    )
+
+
+async def read_applicant_verified_bank_account(
+    session: AsyncSession,
+    *,
+    bank_account_version_id: UUID,
+    actor_user_id: UUID,
+    crypto: CryptoProvider,
+    purpose: str,
+) -> VerifiedBankAccountDetails:
+    actor = await session.scalar(select(User).where(User.id == actor_user_id))
+    owned = await session.scalar(
+        select(PayeeBankAccountVersion.id)
+        .join(
+            PayeeBankAccount,
+            PayeeBankAccount.id == PayeeBankAccountVersion.bank_account_id,
+        )
+        .join(Payee, Payee.id == PayeeBankAccount.payee_id)
+        .where(
+            PayeeBankAccountVersion.id == bank_account_version_id,
+            Payee.tenant_id == actor_user_id,
+        )
+    )
+    if (
+        actor is None
+        or actor.role != UserRole.DRIVER
+        or actor.status not in {UserStatus.INVITED, UserStatus.ACTIVE}
+        or owned is None
+    ):
+        raise AppError(
+            "PAYEE_ACCESS_FORBIDDEN",
+            "The referenced application does not own this bank account",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+    return await _read_verified_bank_account_authorized(
+        session,
+        bank_account_version_id=bank_account_version_id,
+        actor_user_id=actor_user_id,
+        crypto=crypto,
+        purpose=purpose,
+        audit_action="driver_application.bank_account.retry_read",
+    )
+
+
+async def _read_verified_bank_account_authorized(
+    session: AsyncSession,
+    *,
+    bank_account_version_id: UUID,
+    actor_user_id: UUID,
+    crypto: CryptoProvider,
+    purpose: str,
+    audit_action: str,
+) -> VerifiedBankAccountDetails:
     purpose = _normalize_purpose(purpose)
     result = await session.execute(
         select(PayeeBankAccountVersion, PayeeBankAccount, Payee)
@@ -256,7 +431,7 @@ async def read_verified_bank_account(
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,
-        action="admin.bank_account.read",
+        action=audit_action,
         entity_type="payee_bank_account",
         entity_id=str(account.id),
         metadata={
@@ -402,7 +577,7 @@ def _validate_details(details: VerifiedBankAccountDetails) -> VerifiedBankAccoun
     )
 
 
-def _verification_reference_hash(reference: str) -> str:
+def verification_reference_hash(reference: str) -> str:
     try:
         encoded = reference.encode("utf-8")
     except (AttributeError, UnicodeError):

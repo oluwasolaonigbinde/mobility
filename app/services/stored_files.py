@@ -96,9 +96,7 @@ async def _advertiser_scope(session: AsyncSession, *, actor_user_id: UUID, write
     return organization.id
 
 
-async def _driver_scope(
-    session: AsyncSession, *, actor_user_id: UUID, write: bool
-) -> _FileScope:
+async def _driver_scope(session: AsyncSession, *, actor_user_id: UUID, write: bool) -> _FileScope:
     user_query = select(User).where(User.id == actor_user_id)
     profile_query = select(DriverProfile).where(DriverProfile.user_id == actor_user_id)
     if write:
@@ -205,6 +203,45 @@ async def create_driver_upload_intent(
     return await _create_upload_intent(
         session,
         actor_user_id=actor_user_id,
+        payload=payload,
+        scope=scope,
+        stored_filename=_safe_subject_filename(payload),
+        storage=storage,
+        settings=settings,
+    )
+
+
+async def create_application_driver_upload_intent(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    payload: FileUploadCreate,
+    storage: StorageProvider,
+    settings: Settings,
+) -> tuple[FileUploadIntent, PresignedPost]:
+    """Use the shared private upload authority for a referenced invited driver."""
+
+    if payload.purpose != FilePurpose.DRIVER_KYC:
+        raise _error(
+            "FILE_PURPOSE_FORBIDDEN",
+            "Public onboarding accepts driver KYC files only",
+            status.HTTP_403_FORBIDDEN,
+        )
+    user = await session.scalar(select(User).where(User.id == actor_user_id).with_for_update())
+    profile = await session.scalar(
+        select(DriverProfile).where(DriverProfile.user_id == actor_user_id).with_for_update()
+    )
+    if (
+        user is None
+        or user.role != UserRole.DRIVER
+        or user.status != UserStatus.INVITED
+        or profile is None
+    ):
+        raise _error("FILE_SCOPE_NOT_FOUND", "File scope was not found", status.HTTP_404_NOT_FOUND)
+    scope = _FileScope(organization_id=None, subject_user_id=user.id)
+    return await _create_upload_intent(
+        session,
+        actor_user_id=user.id,
         payload=payload,
         scope=scope,
         stored_filename=_safe_subject_filename(payload),
@@ -450,6 +487,63 @@ async def confirm_driver_upload(
         scope=scope,
         storage=storage,
     )
+
+
+async def confirm_application_driver_upload(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    upload_id: UUID,
+    storage: StorageProvider,
+) -> StoredFile:
+    user = await session.scalar(select(User).where(User.id == actor_user_id))
+    profile = await session.scalar(
+        select(DriverProfile).where(DriverProfile.user_id == actor_user_id)
+    )
+    if (
+        user is None
+        or user.role != UserRole.DRIVER
+        or user.status != UserStatus.INVITED
+        or profile is None
+    ):
+        raise _error("FILE_SCOPE_NOT_FOUND", "File scope was not found", status.HTTP_404_NOT_FOUND)
+    return await _confirm_upload(
+        session,
+        actor_user_id=user.id,
+        upload_id=upload_id,
+        scope=_FileScope(organization_id=None, subject_user_id=user.id),
+        storage=storage,
+    )
+
+
+async def get_application_driver_file(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    file_id: UUID,
+) -> StoredFile:
+    user = await session.scalar(select(User).where(User.id == actor_user_id))
+    profile = await session.scalar(
+        select(DriverProfile).where(DriverProfile.user_id == actor_user_id)
+    )
+    if (
+        user is None
+        or user.role != UserRole.DRIVER
+        or user.status != UserStatus.INVITED
+        or profile is None
+    ):
+        raise _error("FILE_SCOPE_NOT_FOUND", "File scope was not found", status.HTTP_404_NOT_FOUND)
+    stored_file = await session.scalar(
+        select(StoredFile).where(
+            StoredFile.id == file_id,
+            StoredFile.subject_user_id == actor_user_id,
+            StoredFile.organization_id.is_(None),
+            StoredFile.purpose == FilePurpose.DRIVER_KYC,
+        )
+    )
+    if stored_file is None:
+        raise _error("FILE_NOT_FOUND", "Managed file was not found", status.HTTP_404_NOT_FOUND)
+    return stored_file
 
 
 async def confirm_admin_installation_upload(

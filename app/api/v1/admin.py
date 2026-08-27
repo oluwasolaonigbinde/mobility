@@ -3,20 +3,52 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 
+from app.adapters.crypto import EnvelopeCryptoProvider
 from app.api.v1.dependencies import AdminUserDependency, SessionDependency, SettingsDependency
+from app.core.errors import AppError
 from app.models.user import UserRole, UserStatus
 from app.schemas.driver_applications import (
     DriverApplicationAdminListResponse,
     DriverApplicationAdminRead,
 )
+from app.schemas.driver_onboarding import (
+    AdminPersonPayeeStageRead,
+    PersonPayeeReviewDecisionCreate,
+)
 from app.schemas.organizations import AdminOrganizationCreateResponse, AdvertiserOrganizationCreate
 from app.schemas.users import UserCreate, UserListResponse, UserRead, UserUpdate
 from app.services.audit import create_audit_event
 from app.services.driver_applications import list_driver_applications
+from app.services.driver_onboarding import (
+    application_person_payee_view,
+    review_application_person_payee,
+)
 from app.services.organizations import create_advertiser_organization
 from app.services.users import create_user, list_users, update_user
 
 router = APIRouter(prefix="/admin", tags=["Admin Users"])
+
+
+def _admin_person_payee_response(view) -> AdminPersonPayeeStageRead:
+    submission = view.submission
+    decision = view.decision
+    if submission is None:
+        return AdminPersonPayeeStageRead(status="not_submitted")
+    return AdminPersonPayeeStageRead(
+        status=submission.status,
+        submission_id=submission.id,
+        version=submission.version,
+        masked_nin=f"*******{submission.nin_last_four}",
+        bank_account_verified=True,
+        reason_code=decision.reason_code if decision else None,
+        created_at=submission.created_at,
+        decided_at=decision.created_at if decision else None,
+        document_file_ids=view.document_file_ids,
+        bank_account_version_id=submission.bank_account_version_id,
+        encryption_algorithm=submission.encryption_algorithm,
+        encryption_key_version=submission.encryption_key_version,
+        decided_by_user_id=decision.decided_by_user_id if decision else None,
+    )
 
 
 @router.post(
@@ -86,14 +118,52 @@ async def admin_list_driver_applications(
         limit=limit,
         offset=offset,
     )
+    items = []
+    for application in applications:
+        person_payee = await application_person_payee_view(session, application=application)
+        items.append(
+            DriverApplicationAdminRead.model_validate(application).model_copy(
+                update={"person_payee": _admin_person_payee_response(person_payee)}
+            )
+        )
     return DriverApplicationAdminListResponse(
-        items=[
-            DriverApplicationAdminRead.model_validate(application) for application in applications
-        ],
+        items=items,
         total=total,
         limit=limit,
         offset=offset,
     )
+
+
+@router.post(
+    "/driver-applications/{application_id}/person-payee-decision",
+    response_model=AdminPersonPayeeStageRead,
+)
+async def admin_review_driver_person_payee(
+    application_id: UUID,
+    payload: PersonPayeeReviewDecisionCreate,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> AdminPersonPayeeStageRead:
+    try:
+        view = await review_application_person_payee(
+            session,
+            application_id=application_id,
+            actor_user_id=current_user.id,
+            payload=payload,
+            crypto=EnvelopeCryptoProvider(
+                keys=settings.payout_crypto_keys,
+                active_key_version=settings.payout_crypto_key_version,
+            ),
+        )
+    except AppError as exc:
+        # If the NIN authenticated before bank decryption failed, retain that
+        # authorized redacted read audit without writing a decision.
+        if exc.code == "BANK_ACCOUNT_DECRYPTION_FAILED":
+            await session.commit()
+        raise
+    await session.commit()
+    return _admin_person_payee_response(view)
 
 
 @router.patch("/users/{user_id}", response_model=UserRead, summary="Update a user")

@@ -1,15 +1,18 @@
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
 from starlette import status
 
+from app.adapters.crypto import EnvelopeCryptoProvider
 from app.api.v1.dependencies import (
     CurrentUserDependency,
     RateLimiterDependency,
     RegistrationRateLimiterDependency,
     SessionDependency,
     SettingsDependency,
+    StorageDependency,
     oauth2_scheme,
 )
 from app.core.config import Settings
@@ -36,6 +39,14 @@ from app.schemas.driver_applications import (
     DriverApplicationStatusResponse,
     DriverApplicationSubmitResponse,
 )
+from app.schemas.driver_onboarding import (
+    ApplicantFileUploadConfirm,
+    ApplicantFileUploadCreate,
+    ApplicantFileUploadRead,
+    ApplicantStoredFileRead,
+    PersonPayeeStageRead,
+    PersonPayeeSubmissionCreate,
+)
 from app.services.account_recovery import (
     PASSWORD_RESET_RESPONSE,
     complete_password_reset,
@@ -50,9 +61,43 @@ from app.services.driver_applications import (
     application_status_exists,
     submit_driver_application,
 )
+from app.services.driver_onboarding import (
+    application_from_reference,
+    person_payee_status_by_reference,
+    submit_application_person_payee,
+)
+from app.services.stored_files import (
+    confirm_application_driver_upload,
+    create_application_driver_upload_intent,
+    get_application_driver_file,
+)
 from app.services.users import validate_password_length
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+
+def _onboarding_crypto(settings: Settings) -> EnvelopeCryptoProvider:
+    return EnvelopeCryptoProvider(
+        keys=settings.payout_crypto_keys,
+        active_key_version=settings.payout_crypto_key_version,
+    )
+
+
+def _person_payee_response(view) -> PersonPayeeStageRead:
+    submission = view.submission
+    decision = view.decision
+    if submission is None:
+        return PersonPayeeStageRead(status="not_submitted")
+    return PersonPayeeStageRead(
+        status=submission.status,
+        submission_id=submission.id,
+        version=submission.version,
+        masked_nin=f"*******{submission.nin_last_four}",
+        bank_account_verified=True,
+        reason_code=decision.reason_code if decision else None,
+        created_at=submission.created_at,
+        decided_at=decision.created_at if decision else None,
+    )
 
 
 def require_driver_registration_enabled(settings: Settings) -> None:
@@ -292,9 +337,124 @@ async def driver_application_status(
 ) -> DriverApplicationStatusResponse:
     require_driver_registration_enabled(settings)
     await application_status_exists(session, reference)
+    person_payee = await person_payee_status_by_reference(session, reference=reference)
     # Deliberately do not branch on existence: W3-04A has one public pending
     # state and unknown references must have the same visible envelope.
-    return DriverApplicationStatusResponse(message=PUBLIC_STATUS_MESSAGE)
+    return DriverApplicationStatusResponse(
+        message=PUBLIC_STATUS_MESSAGE,
+        person_payee=_person_payee_response(person_payee),
+    )
+
+
+@router.post(
+    "/driver-onboarding/files/uploads",
+    response_model=ApplicantFileUploadRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_driver_onboarding_upload(
+    payload: ApplicantFileUploadCreate,
+    session: SessionDependency,
+    settings: SettingsDependency,
+    storage: StorageDependency,
+) -> ApplicantFileUploadRead:
+    require_driver_registration_enabled(settings)
+    application = await application_from_reference(
+        session,
+        reference=payload.application_reference.get_secret_value(),
+        lock=True,
+    )
+    intent, post = await create_application_driver_upload_intent(
+        session,
+        actor_user_id=application.user_id,
+        payload=payload.upload,
+        storage=storage,
+        settings=settings,
+    )
+    await session.commit()
+    return ApplicantFileUploadRead(
+        upload_id=intent.id,
+        expires_at=intent.expires_at,
+        upload={"url": post.url, "fields": post.fields},
+    )
+
+
+@router.post(
+    "/driver-onboarding/files/uploads/{upload_id}/confirm",
+    response_model=ApplicantStoredFileRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def confirm_driver_onboarding_upload(
+    upload_id: UUID,
+    payload: ApplicantFileUploadConfirm,
+    session: SessionDependency,
+    settings: SettingsDependency,
+    storage: StorageDependency,
+) -> ApplicantStoredFileRead:
+    require_driver_registration_enabled(settings)
+    application = await application_from_reference(
+        session,
+        reference=payload.application_reference.get_secret_value(),
+        lock=True,
+    )
+    stored_file = await confirm_application_driver_upload(
+        session,
+        actor_user_id=application.user_id,
+        upload_id=upload_id,
+        storage=storage,
+    )
+    await session.commit()
+    return ApplicantStoredFileRead(id=stored_file.id, scan_status=stored_file.scan_status)
+
+
+@router.post(
+    "/driver-onboarding/files/{file_id}/status",
+    response_model=ApplicantStoredFileRead,
+)
+async def get_driver_onboarding_file_status(
+    file_id: UUID,
+    payload: ApplicantFileUploadConfirm,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> ApplicantStoredFileRead:
+    require_driver_registration_enabled(settings)
+    application = await application_from_reference(
+        session,
+        reference=payload.application_reference.get_secret_value(),
+        lock=False,
+    )
+    stored_file = await get_application_driver_file(
+        session,
+        actor_user_id=application.user_id,
+        file_id=file_id,
+    )
+    return ApplicantStoredFileRead(id=stored_file.id, scan_status=stored_file.scan_status)
+
+
+@router.post(
+    "/driver-onboarding/person-payee",
+    response_model=PersonPayeeStageRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def submit_driver_onboarding_person_payee(
+    payload: PersonPayeeSubmissionCreate,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> PersonPayeeStageRead:
+    require_driver_registration_enabled(settings)
+    try:
+        view = await submit_application_person_payee(
+            session,
+            payload=payload,
+            crypto=_onboarding_crypto(settings),
+        )
+    except AppError as exc:
+        # Exact-retry comparison decrypts only after capability authorization.
+        # Preserve its redacted read audit even when the compared payload conflicts.
+        if exc.code in {"PERSON_PAYEE_RETRY_CONFLICT", "KYC_RETRY_CONFLICT"}:
+            await session.commit()
+        raise
+    await session.commit()
+    return _person_payee_response(view)
 
 
 @router.post(

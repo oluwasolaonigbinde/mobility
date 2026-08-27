@@ -62,7 +62,11 @@ def _purpose(value: str) -> str:
 
 
 async def _driver_profile(
-    session: AsyncSession, *, actor_user_id: UUID, lock: bool
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    lock: bool,
+    allow_invited: bool = False,
 ) -> DriverProfile:
     user_query = select(User).where(User.id == actor_user_id)
     query = select(DriverProfile).where(DriverProfile.user_id == actor_user_id)
@@ -71,10 +75,13 @@ async def _driver_profile(
         query = query.with_for_update()
     user = await session.scalar(user_query)
     profile = await session.scalar(query)
+    allowed_statuses = {UserStatus.ACTIVE}
+    if allow_invited:
+        allowed_statuses.add(UserStatus.INVITED)
     if (
         user is None
         or user.role != UserRole.DRIVER
-        or user.status != UserStatus.ACTIVE
+        or user.status not in allowed_statuses
         or profile is None
     ):
         raise _error("KYC_SCOPE_NOT_FOUND", "KYC scope was not found", status.HTTP_404_NOT_FOUND)
@@ -161,24 +168,18 @@ def _envelope(value: dict) -> CiphertextEnvelope:
         ) from None
 
 
-async def _driver_documents(
-    session: AsyncSession, submission_id: UUID
-) -> dict[str, UUID]:
+async def _driver_documents(session: AsyncSession, submission_id: UUID) -> dict[str, UUID]:
     rows = list(
         (
             await session.scalars(
-                select(DriverKycDocument).where(
-                    DriverKycDocument.submission_id == submission_id
-                )
+                select(DriverKycDocument).where(DriverKycDocument.submission_id == submission_id)
             )
         ).all()
     )
     return {row.document_type: row.stored_file_id for row in rows}
 
 
-async def _vehicle_documents(
-    session: AsyncSession, submission_id: UUID
-) -> dict[str, UUID]:
+async def _vehicle_documents(session: AsyncSession, submission_id: UUID) -> dict[str, UUID]:
     rows = list(
         (
             await session.scalars(
@@ -200,13 +201,19 @@ async def submit_driver_kyc(
     bank_account_version_id: UUID,
     document_file_ids: dict[str, UUID],
     crypto: CryptoProvider,
+    allow_invited_actor: bool = False,
 ) -> DriverKycView:
     if len(nin) != 11 or not nin.isascii() or not nin.isdigit():
         raise _error("KYC_NIN_INVALID", "NIN must contain exactly 11 digits", 422)
     required = {item.value for item in DriverKycDocumentType}
     if set(document_file_ids) != required:
         raise _error("KYC_DOCUMENTS_INVALID", "All required KYC documents are required", 422)
-    profile = await _driver_profile(session, actor_user_id=actor_user_id, lock=True)
+    profile = await _driver_profile(
+        session,
+        actor_user_id=actor_user_id,
+        lock=True,
+        allow_invited=allow_invited_actor,
+    )
     existing = await session.scalar(
         select(DriverKycSubmission).where(
             DriverKycSubmission.driver_profile_id == profile.id,
@@ -230,6 +237,14 @@ async def submit_driver_kyc(
                 "KYC identity data could not be authenticated",
                 status.HTTP_409_CONFLICT,
             ) from None
+        await create_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action="driver.kyc.retry_read",
+            entity_type="driver_kyc_submission",
+            entity_id=str(existing.id),
+            metadata={"version": existing.version},
+        )
         if (
             existing_nin != nin
             or existing.bank_account_version_id != bank_account_version_id
@@ -311,9 +326,37 @@ async def submit_driver_kyc(
     return DriverKycView(submission, document_file_ids)
 
 
-async def current_driver_kyc(
-    session: AsyncSession, *, actor_user_id: UUID
-) -> DriverKycView:
+async def validate_driver_kyc_for_approval(
+    session: AsyncSession,
+    *,
+    submission: DriverKycSubmission,
+    profile: DriverProfile,
+) -> dict[str, UUID]:
+    """Recheck current clean owned evidence and payee binding under caller locks."""
+
+    documents = await _driver_documents(session, submission.id)
+    required = {item.value for item in DriverKycDocumentType}
+    if set(documents) != required:
+        raise _error(
+            "PERSON_PAYEE_INCOMPLETE",
+            "All current person/payee evidence is required",
+            status.HTTP_409_CONFLICT,
+        )
+    await _require_files(
+        session,
+        file_ids=documents,
+        actor_user_id=profile.user_id,
+        purpose=FilePurpose.DRIVER_KYC,
+    )
+    await _require_driver_bank_version(
+        session,
+        bank_account_version_id=submission.bank_account_version_id,
+        profile=profile,
+    )
+    return documents
+
+
+async def current_driver_kyc(session: AsyncSession, *, actor_user_id: UUID) -> DriverKycView:
     profile = await _driver_profile(session, actor_user_id=actor_user_id, lock=False)
     submission = await session.scalar(
         select(DriverKycSubmission)
@@ -407,9 +450,7 @@ async def current_vehicle_evidence(
 ) -> VehicleEvidenceView:
     profile = await _driver_profile(session, actor_user_id=actor_user_id, lock=False)
     vehicle = await session.scalar(
-        select(Vehicle).where(
-            Vehicle.id == vehicle_id, Vehicle.driver_profile_id == profile.id
-        )
+        select(Vehicle).where(Vehicle.id == vehicle_id, Vehicle.driver_profile_id == profile.id)
     )
     if vehicle is None:
         raise _error("VEHICLE_NOT_FOUND", "Vehicle was not found", status.HTTP_404_NOT_FOUND)
@@ -488,9 +529,7 @@ async def rewrap_driver_nin(
     if probe is None:
         raise _error("KYC_NOT_FOUND", "KYC submission was not found", status.HTTP_404_NOT_FOUND)
     profile = await session.scalar(
-        select(DriverProfile)
-        .where(DriverProfile.id == probe.driver_profile_id)
-        .with_for_update()
+        select(DriverProfile).where(DriverProfile.id == probe.driver_profile_id).with_for_update()
     )
     if profile is None:  # pragma: no cover
         raise RuntimeError("KYC profile authority disappeared")
@@ -538,7 +577,14 @@ async def rewrap_driver_nin(
         nin_record_id=current.nin_record_id,
         version=(latest_version or 0) + 1,
         client_request_id=uuid4(),
-        status=current.status,
+        # A new ciphertext-bearing version becomes the current authority. An
+        # earlier approval remains immutable history but cannot silently cover
+        # the new record; approval must be re-established against this version.
+        status=(
+            KycSubmissionStatus.PENDING_REVIEW
+            if current.status == KycSubmissionStatus.APPROVED
+            else current.status
+        ),
         encrypted_nin=rotated.to_mapping(),
         encryption_algorithm=rotated.data_algorithm,
         encryption_key_version=rotated.key_version,
@@ -568,6 +614,7 @@ async def rewrap_driver_nin(
             "to_version": new_submission.version,
             "from_key_version": current.encryption_key_version,
             "to_key_version": new_submission.encryption_key_version,
+            "review_reset": current.status == KycSubmissionStatus.APPROVED,
         },
     )
     return DriverKycView(new_submission, current_docs)
