@@ -24,8 +24,8 @@ export default function DriverApplicationPage() {
         </div>
         <DriverApplicationForms />
         <p className="micro text-faint mt-6">
-          No password, work access, assignment, payout, vehicle or document access is created by
-          this form.
+          No password, work access, assignment, payout or document access is created by these forms.
+          Vehicle approval never assigns campaign work automatically.
         </p>
       </div>
     </main>

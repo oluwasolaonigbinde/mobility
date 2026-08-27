@@ -12,6 +12,8 @@ vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ POST: mocks.post 
 import {
   reviewPersonPayeeAction,
   reviewPersonPayeeEvidenceAction,
+  reviewVehicleAction,
+  reviewVehicleEvidenceAction,
   verifyPersonPayeeAccountAction,
 } from "./actions";
 
@@ -19,6 +21,7 @@ const APPLICATION_ID = "00000000-0000-4000-8000-00000000000a";
 const SUBMISSION_ID = "00000000-0000-4000-8000-00000000000b";
 const VERSION_ID = "00000000-0000-4000-8000-00000000000c";
 const FILE_ID = "00000000-0000-4000-8000-00000000000d";
+const VEHICLE_ID = "00000000-0000-4000-8000-00000000000e";
 
 function form(intent: "approve" | "reject" | "expire", checks = true): FormData {
   const data = new FormData();
@@ -143,5 +146,61 @@ describe("reviewPersonPayeeAction", () => {
       bank_account_match_confirmed: false,
       documents_readable_confirmed: false,
     });
+  });
+
+  it("audits exact vehicle evidence and requires every approval fact", async () => {
+    mocks.post.mockResolvedValueOnce({ data: { url: "https://private.test/vehicle" } });
+    const evidence = new FormData();
+    evidence.set("file_id", FILE_ID);
+    evidence.set("submission_id", SUBMISSION_ID);
+    await expect(reviewVehicleEvidenceAction({}, evidence)).resolves.toEqual({
+      done: "Vehicle evidence read audited.",
+      downloadUrl: "https://private.test/vehicle",
+    });
+    expect(mocks.post).toHaveBeenLastCalledWith("/api/v1/admin/files/{file_id}/download", {
+      params: { path: { file_id: FILE_ID } },
+      body: { purpose: "kyc_review", reason: `vehicle_approval:${SUBMISSION_ID}` },
+    });
+
+    const decision = new FormData();
+    decision.set("application_id", APPLICATION_ID);
+    decision.set("vehicle_id", VEHICLE_ID);
+    decision.set("submission_id", SUBMISSION_ID);
+    decision.set("client_request_id", "00000000-0000-4000-8000-0000000000aa");
+    decision.set("intent", "approve");
+    decision.set("valid_until", "2099-01-01T00:00");
+    await expect(reviewVehicleAction({}, decision)).resolves.toEqual({
+      error: "Complete every vehicle approval confirmation.",
+    });
+    for (const name of [
+      "owner_match_confirmed",
+      "vehicle_identity_confirmed",
+      "roadworthy_confirmed",
+      "pilot_car_confirmed",
+      "documents_readable_confirmed",
+    ])
+      decision.set(name, "on");
+    mocks.post.mockResolvedValueOnce({ data: { status: "approved" } });
+    await expect(reviewVehicleAction({}, decision)).resolves.toEqual({
+      done: "Vehicle evidence approved.",
+    });
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      "/api/v1/admin/driver-applications/{application_id}/vehicles/{vehicle_id}/submissions/{submission_id}/decision",
+      expect.objectContaining({
+        params: {
+          path: {
+            application_id: APPLICATION_ID,
+            vehicle_id: VEHICLE_ID,
+            submission_id: SUBMISSION_ID,
+          },
+        },
+        body: expect.objectContaining({
+          decision: "approved",
+          reason_code: "complete_current_evidence",
+          owner_match_confirmed: true,
+          documents_readable_confirmed: true,
+        }),
+      }),
+    );
   });
 });

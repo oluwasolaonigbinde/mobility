@@ -42,6 +42,18 @@ describe("AdminDriverApplicationsPage", () => {
                 signed_agreement: "00000000-0000-4000-8000-000000000011",
               },
             },
+            vehicle: {
+              status: "pending_review",
+              vehicle_id: "00000000-0000-4000-8000-000000000012",
+              submission_id: "00000000-0000-4000-8000-000000000013",
+              version: 1,
+              plate_number: "ABC-123-XY",
+              document_file_ids: {
+                registration: "00000000-0000-4000-8000-000000000014",
+                insurance: "00000000-0000-4000-8000-000000000015",
+                vehicle_photo: "00000000-0000-4000-8000-000000000016",
+              },
+            },
           },
         ],
         total: 26,
@@ -57,12 +69,14 @@ describe("AdminDriverApplicationsPage", () => {
     expect(within(row).getByText("driver@example.com")).toBeInTheDocument();
     expect(within(row).getByText("Lagos · NG")).toBeInTheDocument();
     expect(within(row).getByText("pending")).toBeInTheDocument();
-    expect(within(row).getByText("pending review")).toBeInTheDocument();
+    expect(within(row).getAllByText("pending review")).toHaveLength(2);
     expect(within(row).getByText("v1 · *******8901")).toBeInTheDocument();
-    expect(within(row).getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(within(row).getByText("v1 · ABC-123-XY")).toBeInTheDocument();
+    expect(within(row).getAllByRole("button", { name: "Approve" })).toHaveLength(2);
     expect(within(row).getByRole("button", { name: "Reveal NIN" })).toBeInTheDocument();
     expect(within(row).getByRole("button", { name: "Reveal account" })).toBeInTheDocument();
     expect(within(row).getByRole("button", { name: "Review driver license" })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Review registration" })).toBeInTheDocument();
     expect(within(row).getByText("Exact account version is payout-verified.")).toBeInTheDocument();
     expect(screen.queryByText(/password|reference_sha|ratelimit/i)).not.toBeInTheDocument();
     expect(get).toHaveBeenCalledWith("/api/v1/admin/driver-applications", {

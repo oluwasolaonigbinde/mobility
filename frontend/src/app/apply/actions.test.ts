@@ -61,6 +61,7 @@ describe("driver application actions", () => {
         status: "pending",
         message: "Application status is pending review.",
         person_payee: { status: "rejected" },
+        vehicle: { status: "pending_review" },
       },
     });
     const form = new FormData();
@@ -70,6 +71,7 @@ describe("driver application actions", () => {
       pending: true,
       reference: "reference-secret",
       personPayeeStatus: "rejected",
+      vehicleStatus: "pending review",
     });
     expect(mocks.get).toHaveBeenCalledWith("/api/v1/auth/driver-application-status/{reference}", {
       params: { path: { reference: "reference-secret" } },

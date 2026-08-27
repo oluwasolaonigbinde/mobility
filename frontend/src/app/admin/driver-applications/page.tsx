@@ -8,6 +8,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { PersonPayeeDecisionActions } from "./person-payee-decision-actions";
+import { VehicleDecisionActions } from "./vehicle-decision-actions";
 
 export const metadata: Metadata = { title: "Driver applications" };
 const PAGE_SIZE = 25;
@@ -41,7 +42,7 @@ export default async function AdminDriverApplicationsPage({
       ) : (
         <Panel className="overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] text-sm">
+            <table className="w-full min-w-[1500px] text-sm">
               <thead>
                 <tr className="border-edge micro text-muted border-b text-left">
                   <th className="px-5 py-3.5 font-normal">Applicant</th>
@@ -49,6 +50,7 @@ export default async function AdminDriverApplicationsPage({
                   <th className="px-5 py-3.5 font-normal">Location</th>
                   <th className="px-5 py-3.5 font-normal">Status</th>
                   <th className="px-5 py-3.5 font-normal">Person &amp; payee</th>
+                  <th className="px-5 py-3.5 font-normal">Vehicle</th>
                   <th className="px-5 py-3.5 font-normal">Received</th>
                   <th className="px-5 py-3.5 font-normal">Review</th>
                 </tr>
@@ -57,6 +59,8 @@ export default async function AdminDriverApplicationsPage({
                 {items.map((application) => {
                   const personPayee = application.person_payee;
                   const personPayeeStatus = personPayee?.status ?? "not_submitted";
+                  const vehicle = application.vehicle;
+                  const vehicleStatus = vehicle?.status ?? "not_submitted";
                   return (
                     <tr
                       key={application.id}
@@ -99,23 +103,56 @@ export default async function AdminDriverApplicationsPage({
                           </p>
                         ) : null}
                       </td>
+                      <td className="px-5 py-3.5">
+                        <StatusChip
+                          tone={
+                            vehicleStatus === "approved"
+                              ? "green"
+                              : vehicleStatus === "pending_review"
+                                ? "amber"
+                                : "default"
+                          }
+                        >
+                          {vehicleStatus.replaceAll("_", " ")}
+                        </StatusChip>
+                        {vehicle?.plate_number ? (
+                          <p className="text-muted mt-1 font-mono text-xs">
+                            v{vehicle.version} · {vehicle.plate_number}
+                          </p>
+                        ) : null}
+                      </td>
                       <td className="text-muted px-5 py-3.5 whitespace-nowrap">
                         {formatDate(application.created_at)}
                       </td>
                       <td className="px-5 py-3.5">
-                        {personPayeeStatus === "pending_review" &&
-                        personPayee?.submission_id &&
-                        personPayee.bank_account_version_id ? (
-                          <PersonPayeeDecisionActions
-                            applicationId={application.id}
-                            submissionId={personPayee.submission_id}
-                            bankAccountVersionId={personPayee.bank_account_version_id}
-                            bankAccountVerified={personPayee.bank_account_verified}
-                            documentFileIds={personPayee.document_file_ids ?? {}}
-                          />
-                        ) : (
-                          <span className="text-faint text-xs">No pending review</span>
-                        )}
+                        <div className="flex flex-col gap-4">
+                          {personPayeeStatus === "pending_review" &&
+                          personPayee?.submission_id &&
+                          personPayee.bank_account_version_id ? (
+                            <PersonPayeeDecisionActions
+                              applicationId={application.id}
+                              submissionId={personPayee.submission_id}
+                              bankAccountVersionId={personPayee.bank_account_version_id}
+                              bankAccountVerified={personPayee.bank_account_verified}
+                              documentFileIds={personPayee.document_file_ids ?? {}}
+                            />
+                          ) : (
+                            <span className="text-faint text-xs">No person/payee review</span>
+                          )}
+                          {(vehicleStatus === "pending_review" || vehicleStatus === "approved") &&
+                          vehicle?.vehicle_id &&
+                          vehicle.submission_id ? (
+                            <VehicleDecisionActions
+                              applicationId={application.id}
+                              vehicleId={vehicle.vehicle_id}
+                              submissionId={vehicle.submission_id}
+                              documentFileIds={vehicle.document_file_ids ?? {}}
+                              status={vehicleStatus}
+                            />
+                          ) : (
+                            <span className="text-faint text-xs">No vehicle review</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

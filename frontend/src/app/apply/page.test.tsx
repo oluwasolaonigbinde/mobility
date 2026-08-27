@@ -9,8 +9,9 @@ describe("public driver application page", () => {
     expect(screen.getByText("Cardvert // driver network")).toBeInTheDocument();
     expect(screen.queryByText(/Vantage/i)).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Start an application" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Submit your pilot vehicle" })).toBeInTheDocument();
     expect(
-      screen.getByText(/No password, work access, assignment, payout, vehicle or document access/),
+      screen.getByText(/Vehicle approval never assigns campaign work automatically/),
     ).toBeInTheDocument();
   });
 });

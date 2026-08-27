@@ -673,6 +673,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/driver-applications/{application_id}/vehicles/{vehicle_id}/submissions/{submission_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Review Driver Vehicle */
+        post: operations["admin_review_driver_vehicle_api_v1_admin_driver_applications__application_id__vehicles__vehicle_id__submissions__submission_id__decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/drivers": {
         parameters: {
             query?: never;
@@ -3018,6 +3035,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/driver-onboarding/vehicle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit Driver Onboarding Vehicle */
+        post: operations["submit_driver_onboarding_vehicle_api_v1_auth_driver_onboarding_vehicle_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -4357,6 +4391,46 @@ export interface components {
             /** Year */
             year: number | null;
         };
+        /** AdminVehicleStageRead */
+        AdminVehicleStageRead: {
+            /** Color */
+            color?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Decided At */
+            decided_at?: string | null;
+            /** Decided By User Id */
+            decided_by_user_id?: string | null;
+            /** Document File Ids */
+            document_file_ids?: {
+                [key: string]: string;
+            };
+            /** Make */
+            make?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Plate Country Code */
+            plate_country_code?: string | null;
+            /** Plate Number */
+            plate_number?: string | null;
+            reason_code?: components["schemas"]["VehicleReviewReason"] | null;
+            /**
+             * Status
+             * @default not_submitted
+             */
+            status: string;
+            /** Submission Id */
+            submission_id?: string | null;
+            /** Valid Until */
+            valid_until?: string | null;
+            /** Vehicle Id */
+            vehicle_id?: string | null;
+            vehicle_type?: components["schemas"]["VehicleType"] | null;
+            /** Version */
+            version?: number | null;
+            /** Year */
+            year?: number | null;
+        };
         /** AdvertiserDashboardSummary */
         AdvertiserDashboardSummary: {
             assignments: components["schemas"]["AssignmentStatusCounts"];
@@ -4574,6 +4648,49 @@ export interface components {
             id: string;
             /** Scan Status */
             scan_status: string;
+        };
+        /** ApplicantVehicleSubmissionCreate */
+        ApplicantVehicleSubmissionCreate: {
+            /**
+             * Application Access Token
+             * Format: password
+             */
+            application_access_token: string;
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /** Color */
+            color?: string | null;
+            /**
+             * Insurance File Id
+             * Format: uuid
+             */
+            insurance_file_id: string;
+            /** Make */
+            make?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Plate Country Code */
+            plate_country_code: string;
+            /** Plate Number */
+            plate_number: string;
+            /**
+             * Registration File Id
+             * Format: uuid
+             */
+            registration_file_id: string;
+            /** Vehicle Id */
+            vehicle_id?: string | null;
+            /**
+             * Vehicle Photo File Id
+             * Format: uuid
+             */
+            vehicle_photo_file_id: string;
+            vehicle_type: components["schemas"]["VehicleType"];
+            /** Year */
+            year?: number | null;
         };
         /**
          * AssignmentActivityFlagRead
@@ -6975,6 +7092,7 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
+            vehicle?: components["schemas"]["AdminVehicleStageRead"];
         };
         /** DriverApplicationCreate */
         DriverApplicationCreate: {
@@ -7005,6 +7123,7 @@ export interface components {
              * @constant
              */
             status: "pending";
+            vehicle?: components["schemas"]["VehicleStageRead"];
         };
         /** DriverApplicationSubmitResponse */
         DriverApplicationSubmitResponse: {
@@ -11536,6 +11655,8 @@ export interface components {
         };
         /** VehicleEvidenceSubmissionRead */
         VehicleEvidenceSubmissionRead: {
+            /** Color */
+            color: string | null;
             /**
              * Created At
              * Format: date-time
@@ -11550,14 +11671,28 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Make */
+            make: string | null;
+            /** Model */
+            model: string | null;
+            /** Plate Country Code */
+            plate_country_code: string;
+            /** Plate Number */
+            plate_number: string;
+            /** Snapshot Trusted */
+            snapshot_trusted: boolean;
             status: components["schemas"]["KycSubmissionStatus"];
             /**
              * Vehicle Id
              * Format: uuid
              */
             vehicle_id: string;
+            /** Vehicle Type */
+            vehicle_type: string;
             /** Version */
             version: number;
+            /** Year */
+            year: number | null;
         };
         /** VehicleListResponse */
         VehicleListResponse: {
@@ -11608,6 +11743,82 @@ export interface components {
             vehicle_type: components["schemas"]["VehicleType"];
             /** Year */
             year: number | null;
+        };
+        /** VehicleReviewDecisionCreate */
+        VehicleReviewDecisionCreate: {
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            decision: components["schemas"]["KycSubmissionStatus"];
+            /**
+             * Documents Readable Confirmed
+             * @default false
+             */
+            documents_readable_confirmed: boolean;
+            /**
+             * Owner Match Confirmed
+             * @default false
+             */
+            owner_match_confirmed: boolean;
+            /**
+             * Pilot Car Confirmed
+             * @default false
+             */
+            pilot_car_confirmed: boolean;
+            reason_code: components["schemas"]["VehicleReviewReason"];
+            /**
+             * Roadworthy Confirmed
+             * @default false
+             */
+            roadworthy_confirmed: boolean;
+            /** Valid Until */
+            valid_until?: string | null;
+            /**
+             * Vehicle Identity Confirmed
+             * @default false
+             */
+            vehicle_identity_confirmed: boolean;
+        };
+        /**
+         * VehicleReviewReason
+         * @enum {string}
+         */
+        VehicleReviewReason: "complete_current_evidence" | "missing_evidence" | "unsafe_evidence" | "expired_evidence" | "owner_mismatch" | "vehicle_identity_mismatch" | "not_roadworthy" | "not_pilot_eligible" | "unreadable_evidence";
+        /** VehicleStageRead */
+        VehicleStageRead: {
+            /** Color */
+            color?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Decided At */
+            decided_at?: string | null;
+            /** Make */
+            make?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Plate Country Code */
+            plate_country_code?: string | null;
+            /** Plate Number */
+            plate_number?: string | null;
+            reason_code?: components["schemas"]["VehicleReviewReason"] | null;
+            /**
+             * Status
+             * @default not_submitted
+             */
+            status: string;
+            /** Submission Id */
+            submission_id?: string | null;
+            /** Valid Until */
+            valid_until?: string | null;
+            /** Vehicle Id */
+            vehicle_id?: string | null;
+            vehicle_type?: components["schemas"]["VehicleType"] | null;
+            /** Version */
+            version?: number | null;
+            /** Year */
+            year?: number | null;
         };
         /**
          * VehicleStatus
@@ -13395,6 +13606,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminPersonPayeeStageRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_review_driver_vehicle_api_v1_admin_driver_applications__application_id__vehicles__vehicle_id__submissions__submission_id__decision_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                application_id: string;
+                vehicle_id: string;
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VehicleReviewDecisionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminVehicleStageRead"];
                 };
             };
             /** @description Validation Error */
@@ -18439,6 +18687,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PersonPayeeStageRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_driver_onboarding_vehicle_api_v1_auth_driver_onboarding_vehicle_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicantVehicleSubmissionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleStageRead"];
                 };
             };
             /** @description Validation Error */

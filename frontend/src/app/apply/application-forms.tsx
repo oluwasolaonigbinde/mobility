@@ -11,6 +11,7 @@ import {
   type DriverApplicationStatusState,
 } from "./actions";
 import { PersonPayeeForm } from "./person-payee-form";
+import { VehicleForm } from "./vehicle-form";
 
 const initialApplicationState: DriverApplicationState = {};
 const initialStatusState: DriverApplicationStatusState = {};
@@ -125,7 +126,7 @@ export function DriverApplicationForms() {
                 className="border-amber/40 bg-amber/10 text-amber rounded-lg border px-3.5 py-2.5 text-sm"
               >
                 Application status: pending review. Person/payee stage:{" "}
-                {statusState.personPayeeStatus}.
+                {statusState.personPayeeStatus}. Vehicle stage: {statusState.vehicleStatus}.
               </p>
             ) : null}
             <Button type="submit" variant="ghost" disabled={checking}>
@@ -135,6 +136,7 @@ export function DriverApplicationForms() {
         </Panel>
       </div>
       <PersonPayeeForm />
+      <VehicleForm />
     </div>
   );
 }
