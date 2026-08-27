@@ -59,10 +59,11 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 ### Current control pointer
 
 **Controller state:** `ACTIVE`
-**Control package:** `PKG-06` — PKG-03 has no remaining runnable work while
-`EXT-PAYMENT-PROVIDER` is missing, and PKG-04/05 are complete.
-**Current checkpoint:** `PKG-06 / W3-04C` — driver vehicle profile and approval
-is promoted after the reviewed W3-04B person/payee authority closed.
+**Control package:** `PKG-07` — PKG-03 has no remaining runnable work while
+`EXT-PAYMENT-PROVIDER` is missing, PKG-04/05/06 are complete, and W4-01A/B are
+already verified.
+**Current checkpoint:** `PKG-07 / W4-01C` — the PWA onboarding and campaign
+journey is promoted after the reviewed W3-04C vehicle authority closed.
 
 ## Executable package queue
 
@@ -73,8 +74,8 @@ is promoted after the reviewed W3-04B person/payee authority closed.
 | 3 | **PKG-03 — commercial contracts and billing** | **BLOCKED** | Synthetic/provider-neutral commercial flow and configurable budget enforcement are verified; only `W2-01C BLOCKED — EXT-PAYMENT-PROVIDER` remains unfinished. | none — checklist DAG gates entry |
 | 4 | **PKG-04 — secure evidence, activation and communications** | **DONE** | Provider-neutral storage/KYC/activation, shared notifications, business triggers, audited driver contact and account recovery are verified; live providers remain gated. | none — checklist DAG gates entry |
 | 5 | **PKG-05 — privacy, measurement and retargeting** | **DONE** | Privacy controls and reproducible measurement govern aggregate retargeting, exposure scores and advertiser insights; live privacy/methodology/platform inputs remain gated. | none — checklist DAG gates entry |
-| 6 | **PKG-06 — matching and driver onboarding** | **IN PROGRESS** | Recommendations, offers, activity, public application and person/payee approval are verified; W3-04C is the next executable checkpoint. | none — checklist DAG gates entry |
-| 7 | **PKG-07 — production driver PWA** | QUEUED | The pilot PWA safely tracks, syncs, explains earnings and supports release across the device matrix. | none — checklist DAG gates entry |
+| 6 | **PKG-06 — matching and driver onboarding** | **DONE** | Recommendations, offers, activity, public application, person/payee onboarding and governed vehicle approval form one verified work-eligibility journey. | none — checklist DAG gates entry |
+| 7 | **PKG-07 — production driver PWA** | **IN PROGRESS** | The pilot PWA safely tracks, syncs, explains earnings and supports release across the device matrix; W4-01C is the next executable checkpoint. | none — checklist DAG gates entry |
 | 8 | **PKG-08 — governed reporting and pilot readiness** | QUEUED | Safe reports, release infrastructure and one complete pilot acceptance gate are ready. | none — checklist DAG gates entry |
 | 9 | **PKG-09 — controlled pilot, training and handover** | QUEUED | Run the pilot, stabilize it, train roles and close operational handover. | none — checklist DAG gates entry |
 
@@ -1068,6 +1069,24 @@ is promoted after the reviewed W3-04B person/payee authority closed.
   with focused regressions and the original findings closed. Live legal/privacy,
   KYC/bank provider, email, storage/scanner and key-custody facts remain external
   go-live gates and are not claimed.
+- **W3-04C evidence (27 Aug 2026):** migration `0070` adds one owner-scoped,
+  versioned vehicle profile and immutable pending/approved/rejected/expired
+  evidence and decisions while reusing the managed-file, person/payee,
+  assignment and trip authorities. Material revisions and expiry close work
+  eligibility without rewriting history; only a current approved active owned
+  vehicle can receive or activate an assignment or start a trip. Sensitive
+  reads require an authoritative storage object and produce exact audited
+  evidence; missing/unavailable objects fail closed. Identical concurrent
+  decisions converge after serialization, and person/payee/NIN producers share
+  eligibility-lock-before-profile ordering with assignment/trip consumers.
+  Observed red/green regressions, 119 focused backend/PostgreSQL/security
+  checks, 14 final vehicle/migration/contract checks, populated migration and
+  append-only guards, 311 frontend tests, type/lint/build, byte-stable §9
+  contracts and the rendered application vehicle flow passed. The independent
+  security/concurrency review found three authority defects; all were corrected
+  in `fe5d1ca` with focused regression evidence and the same reviewer returned
+  PASS. Live legal/privacy, storage/scanner, key-custody and physical approval
+  facts remain external go-live gates and are not claimed.
 - **W3-03B/C audit-correction evidence (25 Aug 2026):** a newly materialized
   DB-time expiry is durably committed only through its typed transaction
   boundary, while generic errors roll back and list pages use statement-time
@@ -1160,12 +1179,13 @@ is promoted after the reviewed W3-04B person/payee authority closed.
 - **Owns:** checklist 61–64. Installability/session safety, screen-on tracking,
   durable sync, onboarding/campaign use, earnings/disputes and release evidence
   ship together.
-- **Package plan (activated 25 Aug 2026, canonical branch `feat/pkg-07`):**
+- **Package plan (activated 25 Aug 2026, canonical programme line
+  `feat/pkg-04-build-first`):**
   W4-01A hardens the installable shell, same-origin BFF session and live-held
   ADR 014 runtime/storage/writer gates before W4-01B composes the complete
   screen-on Start/capture/flush/End flow. A focused PWA/security/data-loss gate
-  follows W4-01B. W4-01C remains dependency-blocked by W3-04C and W2-03D; no
-  KYC/vehicle evidence is invented and Package 8 is not admitted by this plan.
+  follows W4-01B. W4-01C is now executable after W3-04C and W2-03D closed; it
+  owns client integration only and cannot invent live KYC/vehicle evidence.
 - **Entry correction:** PKG02-C2 is mandatory before W4-01A becomes
   authoritative or any real GPS is collected: the tracker enforces ADR 014
   capability/session gates, stale writer-lock state is recoverable, and
@@ -1208,12 +1228,11 @@ is promoted after the reviewed W3-04B person/payee authority closed.
   without sequence/watermark collision; deterministic red/green regressions and
   two bounded rechecks passed. Architecture §8 now matches the built Cardvert
   session, encrypted queue, cache and writer/End behavior.
-- **Blocked frontier (25 Aug 2026):** W4-01A/B are complete, but W4-01C cannot
-  start until W3-04C and W2-03D are DONE. Their transitive Package 4 chain still
-  requires `EXT-STORAGE-PROVIDER`, `EXT-MALWARE-SCANNER` and
-  `EXT-KMS-CUSTODY`; no KYC, vehicle, creative, installation or activation
-  evidence is invented. W4-01D therefore also remains blocked. Package 7 is
-  BLOCKED, not DONE; Package 8 remains QUEUED under the owner's explicit limit.
+- **Promoted frontier (27 Aug 2026):** W4-01A/B, W3-04C and W2-03D are complete,
+  so W4-01C is runnable. `EXT-STORAGE-PROVIDER`, `EXT-MALWARE-SCANNER` and
+  `EXT-KMS-CUSTODY` continue to gate live use, not provider-neutral/synthetic
+  PWA integration; no live KYC, vehicle, creative, installation or activation
+  evidence may be invented.
 - **Closure:** Android/iOS browser/device matrix, permission/visibility,
   battery/data-loss/security and full journey tests pass against the frozen
   backend contracts.
@@ -1335,7 +1354,7 @@ verification, gates or required specialist review.
 | 57 | **W3-03C — activity floor and inactivity handling** | PKG-06 | DONE | Verified-hours/inactivity sweeps create reviewable ops flags and notices. | leaf: W3-03B, W2-04A |
 | 58 | **W3-04A — public driver application** | PKG-06 | DONE | Abuse-resistant registration creates a pending, non-work-eligible application. | none |
 | 59 | **W3-04B — KYC/bank onboarding approval** | PKG-06 | DONE | Person/payee KYC is approved but remains non-work-eligible pending W3-04C vehicle approval. | leaf: W3-04A, W2-02D, MNY-10A |
-| 60 | **W3-04C — driver vehicle profile and approval** | PKG-06 | TODO | Identity/KYC-approved applicants add vehicle evidence; admin approval grants work eligibility. | leaf: W3-04B, W2-02B, W2-02D |
+| 60 | **W3-04C — driver vehicle profile and approval** | PKG-06 | DONE | Identity/KYC-approved applicants add vehicle evidence; admin approval grants work eligibility. | leaf: W3-04B, W2-02B, W2-02D |
 | 61 | **W4-01A — PWA foundation and session security** | PKG-07 | DONE | The installable production client uses the BFF session safely and fails closed on unsupported permission/storage/lock states. | leaf: R14-A, R14-B; external: EXT-PKG07-OWNER-RELEASE |
 | 62 | **W4-01B — screen-on tracking and durable sync** | PKG-07 | DONE | Explicit Start/End tracking survives reload/network interruption, reports visibility degradation and never claims unsupported background capture. | leaf: W4-01A, R14-B |
 | 63 | **W4-01C — PWA onboarding and campaign journey** | PKG-07 | TODO | Onboarding, vehicle, offers, activation and tracking integrate through governed BFF/API contracts. | leaf: W4-01B, W3-04C, W3-03B, W2-03D |
