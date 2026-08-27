@@ -62,8 +62,8 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 **Control package:** `PKG-07` — PKG-03 has no remaining runnable work while
 `EXT-PAYMENT-PROVIDER` is missing, PKG-04/05/06 are complete, and W4-01A/B are
 already verified.
-**Current checkpoint:** `PKG-07 / W4-01C` — the PWA onboarding and campaign
-journey is promoted after the reviewed W3-04C vehicle authority closed.
+**Current checkpoint:** `PKG-07 / W4-01D` — earnings, disputes and release
+rehearsal is promoted after the reviewed W4-01C campaign journey closed.
 
 ## Executable package queue
 
@@ -75,7 +75,7 @@ journey is promoted after the reviewed W3-04C vehicle authority closed.
 | 4 | **PKG-04 — secure evidence, activation and communications** | **DONE** | Provider-neutral storage/KYC/activation, shared notifications, business triggers, audited driver contact and account recovery are verified; live providers remain gated. | none — checklist DAG gates entry |
 | 5 | **PKG-05 — privacy, measurement and retargeting** | **DONE** | Privacy controls and reproducible measurement govern aggregate retargeting, exposure scores and advertiser insights; live privacy/methodology/platform inputs remain gated. | none — checklist DAG gates entry |
 | 6 | **PKG-06 — matching and driver onboarding** | **DONE** | Recommendations, offers, activity, public application, person/payee onboarding and governed vehicle approval form one verified work-eligibility journey. | none — checklist DAG gates entry |
-| 7 | **PKG-07 — production driver PWA** | **IN PROGRESS** | The pilot PWA safely tracks, syncs, explains earnings and supports release across the device matrix; W4-01C is the next executable checkpoint. | none — checklist DAG gates entry |
+| 7 | **PKG-07 — production driver PWA** | **IN PROGRESS** | The pilot PWA safely tracks, syncs and completes the governed onboarding/campaign journey; W4-01D is the next executable checkpoint for earnings, disputes and release rehearsal. | none — checklist DAG gates entry |
 | 8 | **PKG-08 — governed reporting and pilot readiness** | QUEUED | Safe reports, release infrastructure and one complete pilot acceptance gate are ready. | none — checklist DAG gates entry |
 | 9 | **PKG-09 — controlled pilot, training and handover** | QUEUED | Run the pilot, stabilize it, train roles and close operational handover. | none — checklist DAG gates entry |
 
@@ -1228,8 +1228,23 @@ journey is promoted after the reviewed W3-04C vehicle authority closed.
   without sequence/watermark collision; deterministic red/green regressions and
   two bounded rechecks passed. Architecture §8 now matches the built Cardvert
   session, encrypted queue, cache and writer/End behavior.
-- **Promoted frontier (27 Aug 2026):** W4-01A/B, W3-04C and W2-03D are complete,
-  so W4-01C is runnable. `EXT-STORAGE-PROVIDER`, `EXT-MALWARE-SCANNER` and
+- **W4-01C evidence (DONE 27 Aug 2026):** commit `56d855d` composes the
+  canonical application, person/payee, vehicle, offer, activation and current-
+  trip authorities into one server-projected PWA journey without adding a
+  client readiness truth or changing backend contracts. Pending, rejected,
+  expired, conflict, unavailable and degraded states fail closed; privileged
+  operations retain the same-origin BFF/session boundary, and explicit Start/
+  End retains W4-01A/B encryption, single-writer, retry and foreground-only
+  tracking. Two observed red cases exposed the former hard-coded readiness and
+  missing onboarding bridge. The corrected checkpoint passed 339 frontend
+  tests across 67 files, typecheck, full lint, scoped format, production build,
+  synthetic Pixel 7 READY→Start→active→End and iPhone-sized degraded-evidence
+  no-Start/public-bridge journeys, plus a clean-context post-build review PASS.
+  No backend, API, schema, migration or §9 baseline changed. Physical devices
+  and live storage/scanner/KMS/provider/legal authorization remain external
+  gates and are not claimed.
+- **Promoted frontier (27 Aug 2026):** W4-01A/B/C, W3-04C and W2-03D are
+  complete, so W4-01D is runnable. `EXT-STORAGE-PROVIDER`, `EXT-MALWARE-SCANNER` and
   `EXT-KMS-CUSTODY` continue to gate live use, not provider-neutral/synthetic
   PWA integration; no live KYC, vehicle, creative, installation or activation
   evidence may be invented.
@@ -1357,7 +1372,7 @@ verification, gates or required specialist review.
 | 60 | **W3-04C — driver vehicle profile and approval** | PKG-06 | DONE | Identity/KYC-approved applicants add vehicle evidence; admin approval grants work eligibility. | leaf: W3-04B, W2-02B, W2-02D |
 | 61 | **W4-01A — PWA foundation and session security** | PKG-07 | DONE | The installable production client uses the BFF session safely and fails closed on unsupported permission/storage/lock states. | leaf: R14-A, R14-B; external: EXT-PKG07-OWNER-RELEASE |
 | 62 | **W4-01B — screen-on tracking and durable sync** | PKG-07 | DONE | Explicit Start/End tracking survives reload/network interruption, reports visibility degradation and never claims unsupported background capture. | leaf: W4-01A, R14-B |
-| 63 | **W4-01C — PWA onboarding and campaign journey** | PKG-07 | TODO | Onboarding, vehicle, offers, activation and tracking integrate through governed BFF/API contracts. | leaf: W4-01B, W3-04C, W3-03B, W2-03D |
+| 63 | **W4-01C — PWA onboarding and campaign journey** | PKG-07 | DONE | Onboarding, vehicle, offers, activation and tracking integrate through governed BFF/API contracts. | leaf: W4-01B, W3-04C, W3-03B, W2-03D |
 | 64 | **W4-01D — PWA earnings, disputes and release rehearsal** | PKG-07 | TODO | History, earnings, disputes, notifications, installability and production-PWA release evidence are complete. | leaf: W4-01C, MNY-08C, MNY-11A, W2-04A, W2-04C |
 | 65 | **W4-02A — governed maps and report experience** | PKG-08 | TODO | Existing maps/reports consume safe runs; performance analysis is standard and ROI is absent unless its data/method gate passes. | leaf: W3-00C, W3-00D, W3-00E, W3-01D, W3-02A, W3-02B; external: EXT-BASEMAP |
 | 66 | **W4-02B — bounded CSV/PDF issuance** | PKG-08 | TODO | Async hashed exports reproduce the frozen performance/conditional-ROI decision and honor privacy/legal gates. | leaf: W4-02A |
