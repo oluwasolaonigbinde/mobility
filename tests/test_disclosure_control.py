@@ -29,7 +29,13 @@ from app.jobs.disclosure_retention import purge_expired_disclosure_query_history
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.disclosure import DisclosureQueryDecision
 from app.models.driver import DriverOnboardingStatus
-from app.models.organization import MembershipRole, MembershipStatus, OrganizationMembership
+from app.models.organization import (
+    AdvertiserOrganization,
+    MembershipRole,
+    MembershipStatus,
+    OrganizationMembership,
+    OrganizationStatus,
+)
 from app.models.trip import TripSessionStatus
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
@@ -209,6 +215,128 @@ def test_governed_output_selects_latest_active_membership_deterministically(
             assert selected == expected_organization_id
 
     asyncio.run(run())
+
+
+def test_advertiser_reads_keep_the_disclosure_authorized_tenant(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    _admin, advertiser, authorized_org, campaign, *_ = create_heatmap_graph(
+        db_sessionmaker,
+        advertiser_email="disclosure-authority@example.com",
+        driver_email="disclosure-authority-driver@example.com",
+        plate_number="DISC-AUTH",
+    )
+    unauthorized_org, unauthorized_membership = create_test_organization(
+        db_sessionmaker,
+        name="Unauthorized newer organization",
+        owner_user_id=advertiser.id,
+        membership_status=MembershipStatus.INVITED,
+    )
+    assert unauthorized_membership is not None
+    headers = auth_headers(db_client, advertiser.email, PASSWORD)
+
+    def assert_authorized_reads() -> None:
+        responses = {
+            "dashboard": db_client.get(
+                "/api/v1/advertiser/dashboard/summary", headers=headers
+            ),
+            "summary": db_client.get(
+                f"/api/v1/advertiser/campaigns/{campaign.id}/summary", headers=headers
+            ),
+            "daily_metrics": db_client.get(
+                f"/api/v1/advertiser/campaigns/{campaign.id}/daily-metrics", headers=headers
+            ),
+            "trips": db_client.get(
+                f"/api/v1/advertiser/campaigns/{campaign.id}/trips", headers=headers
+            ),
+            "report": db_client.get(
+                f"/api/v1/advertiser/campaigns/{campaign.id}/report", headers=headers
+            ),
+            "score": db_client.get(
+                f"/api/v1/advertiser/campaigns/{campaign.id}/zone-insights", headers=headers
+            ),
+            "impressions": db_client.get(
+                f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
+                headers=headers,
+            ),
+            "heatmap": db_client.get(
+                f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
+                headers=headers,
+                params={"bbox": BBOX},
+            ),
+        }
+        assert {
+            name: (response.status_code, response.text)
+            for name, response in responses.items()
+            if response.status_code != status.HTTP_200_OK
+            and not (
+                name == "heatmap"
+                and response.status_code == status.HTTP_400_BAD_REQUEST
+                and response.json()["error"]["code"] == "POSTGIS_REQUIRED"
+            )
+        } == {}
+        assert responses["dashboard"].json()["organization_id"] == str(authorized_org.id)
+        assert responses["summary"].json()["campaign"]["id"] == str(campaign.id)
+        for name in ("daily_metrics", "trips", "report", "score", "impressions"):
+            assert responses[name].json()["campaign_id"] == str(campaign.id)
+
+    async def set_membership_authority(
+        *,
+        tied: bool,
+        unauthorized_membership_status: MembershipStatus,
+        unauthorized_organization_status: OrganizationStatus,
+    ) -> None:
+        async with db_sessionmaker() as session:
+            memberships = list(
+                await session.scalars(
+                    select(OrganizationMembership).where(
+                        OrganizationMembership.user_id == advertiser.id
+                    )
+                )
+            )
+            by_organization = {row.organization_id: row for row in memberships}
+            authorized = by_organization[authorized_org.id]
+            unauthorized = by_organization[unauthorized_org.id]
+            authorized.created_at = datetime(2026, 1, 1, tzinfo=UTC)
+            unauthorized.created_at = (
+                authorized.created_at
+                if tied
+                else datetime(2026, 1, 2, tzinfo=UTC)
+            )
+            authorized.status = MembershipStatus.ACTIVE
+            unauthorized.status = unauthorized_membership_status
+            unauthorized_db = await session.get(AdvertiserOrganization, unauthorized_org.id)
+            assert unauthorized_db is not None
+            unauthorized_db.status = unauthorized_organization_status
+            await session.commit()
+
+    asyncio.run(
+        set_membership_authority(
+            tied=False,
+            unauthorized_membership_status=MembershipStatus.INVITED,
+            unauthorized_organization_status=OrganizationStatus.ACTIVE,
+        )
+    )
+    assert_authorized_reads()
+
+    asyncio.run(
+        set_membership_authority(
+            tied=True,
+            unauthorized_membership_status=MembershipStatus.INVITED,
+            unauthorized_organization_status=OrganizationStatus.ACTIVE,
+        )
+    )
+    assert_authorized_reads()
+
+    asyncio.run(
+        set_membership_authority(
+            tied=False,
+            unauthorized_membership_status=MembershipStatus.ACTIVE,
+            unauthorized_organization_status=OrganizationStatus.DISABLED,
+        )
+    )
+    assert_authorized_reads()
 
 
 def test_every_current_output_is_default_denied_without_history_writes(

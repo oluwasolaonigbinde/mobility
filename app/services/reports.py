@@ -1145,7 +1145,10 @@ async def advertiser_campaign_report(
     )
     report.measurement_result = MeasurementResultRead.model_validate(run.result_manifest)
     from app.models.exposure_score import ExposureScore
-    from app.services.exposure_scores import exposure_score_is_stale, exposure_score_read
+    from app.services.exposure_scores import (
+        advertiser_exposure_score_read,
+        exposure_score_is_stale,
+    )
 
     score = await session.scalar(
         select(ExposureScore)
@@ -1160,7 +1163,7 @@ async def advertiser_campaign_report(
                 "The issued exposure score no longer matches its immutable measurement run",
                 status_code=409,
             )
-        report.exposure_score = await exposure_score_read(session, score)
+        report.exposure_score = await advertiser_exposure_score_read(session, score)
     from app.services.audience import high_exposure_zone_insights
 
     report.high_exposure_zone_insights = await high_exposure_zone_insights(

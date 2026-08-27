@@ -13,6 +13,7 @@ from app.models.organization import (
     MembershipRole,
     MembershipStatus,
     OrganizationMembership,
+    OrganizationStatus,
 )
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.organizations import AdvertiserOrganizationCreate
@@ -247,11 +248,13 @@ async def get_advertiser_organization_for_user(
         )
         .where(
             OrganizationMembership.user_id == user_id,
-            OrganizationMembership.status.in_(
-                [MembershipStatus.ACTIVE, MembershipStatus.INVITED]
-            ),
+            OrganizationMembership.status == MembershipStatus.ACTIVE,
+            AdvertiserOrganization.status == OrganizationStatus.ACTIVE,
         )
-        .order_by(OrganizationMembership.created_at.desc())
+        .order_by(
+            OrganizationMembership.created_at.desc(),
+            OrganizationMembership.id.desc(),
+        )
         .limit(1)
     )
     row = result.first()

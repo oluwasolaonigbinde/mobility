@@ -158,10 +158,57 @@ def test_score_retries_reissue_without_rescoring_history_and_drives_report(
     )
     assert report.status_code == 200, report.text
     body = report.json()
-    assert body["exposure_score"]["id"] == second_score["id"]
     assert body["exposure_score"]["result"]["label"] == "Exposure score"
+    assert body["exposure_score"]["result"]["score"] == "46.67"
+    assert body["exposure_score"]["result"]["route_count"] == 1
+    assert body["exposure_score"]["result"]["missing_route_count"] == 0
+    assert body["exposure_score"]["reproducible"] is True
     assert body["measurement_result"]["metrics"][1]["label"] == "Modelled potential contacts"
     assert body["measurement_result"]["roi"] is None
+
+    def recursive_keys(value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                yield key
+                yield from recursive_keys(child)
+        elif isinstance(value, list):
+            for child in value:
+                yield from recursive_keys(child)
+
+    forbidden = {
+        "trip_analytics_id",
+        "trip_session_id",
+        "route_scores",
+        "issued_by_user_id",
+    }
+    assert forbidden.isdisjoint(recursive_keys(body["exposure_score"]))
+
+    schema = db_client.get("/openapi.json").json()
+    report_schema = schema["components"]["schemas"]["CampaignReportResponse"]
+    exposure_schema = report_schema["properties"]["exposure_score"]
+    exposure_ref = next(
+        item["$ref"] for item in exposure_schema["anyOf"] if "$ref" in item
+    )
+    assert exposure_ref.endswith("/AdvertiserExposureScoreRead")
+    components = schema["components"]["schemas"]
+
+    def recursive_schema_keys(value, seen=frozenset()):
+        if isinstance(value, dict):
+            reference = value.get("$ref")
+            if reference is not None:
+                name = reference.rsplit("/", 1)[-1]
+                if name not in seen:
+                    yield from recursive_schema_keys(components[name], seen | {name})
+            for key, child in value.items():
+                yield key
+                yield from recursive_schema_keys(child, seen)
+        elif isinstance(value, list):
+            for child in value:
+                yield from recursive_schema_keys(child, seen)
+
+    assert forbidden.isdisjoint(
+        recursive_schema_keys(components["AdvertiserExposureScoreRead"])
+    )
 
 
 def test_score_authorization_tenant_and_stale_parent_fail_closed(

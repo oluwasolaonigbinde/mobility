@@ -12,7 +12,12 @@ from starlette import status
 from app.core.errors import AppError
 from app.models.exposure_score import ExposureScore
 from app.models.measurement import MeasurementRun
-from app.schemas.exposure_scores import ExposureScoreRead
+from app.schemas.exposure_scores import (
+    AdvertiserExposureScoreRead,
+    AdvertiserExposureScoreResultRead,
+    ExposureScoreRead,
+    ExposureScoreResultRead,
+)
 from app.services.measurement import canonical_sha256, measurement_run_reproducible
 
 EXPOSURE_V1_FORMULA_VERSION = "exposure_v1"
@@ -329,5 +334,26 @@ async def exposure_score_read(session: AsyncSession, score: ExposureScore) -> Ex
         reissue_of_score_id=score.reissue_of_score_id,
         reproducible=exposure_score_reproducible(score),
         stale=stale,
+        created_at=score.created_at,
+    )
+
+
+async def advertiser_exposure_score_read(
+    session: AsyncSession, score: ExposureScore
+) -> AdvertiserExposureScoreRead:
+    internal_result = ExposureScoreResultRead.model_validate(score.result_snapshot)
+    return AdvertiserExposureScoreRead(
+        formula_version=score.formula_version,
+        formula_fingerprint=score.formula_fingerprint,
+        input_fingerprint=score.input_fingerprint,
+        result_fingerprint=score.result_fingerprint,
+        measurement_input_sha256=score.measurement_input_sha256,
+        measurement_result_sha256=score.measurement_result_sha256,
+        measurement_proof_sha256=score.measurement_proof_sha256,
+        result=AdvertiserExposureScoreResultRead.model_validate(
+            internal_result.model_dump(exclude={"route_scores"})
+        ),
+        reproducible=exposure_score_reproducible(score),
+        stale=await exposure_score_is_stale(session, score),
         created_at=score.created_at,
     )

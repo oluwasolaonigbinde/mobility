@@ -17,6 +17,7 @@ from app.core.errors import AppError
 from app.models.audit import AuditEvent
 from app.models.campaign import Campaign
 from app.models.campaign_zone import CampaignZone, CampaignZoneType
+from app.models.organization import MembershipStatus, OrganizationMembership
 from app.models.retargeting_source import RetargetingSource
 from app.models.retargeting_source_link import (
     RetargetingSourceLink,
@@ -311,6 +312,168 @@ def test_link_gate_runs_before_any_database_read() -> None:
         assert blocked.value.code == "PRIVACY_LIVE_USE_BLOCKED"
 
     asyncio.run(scenario())
+
+
+def test_source_and_link_replays_are_bound_to_the_current_tenant(
+    db_sessionmaker,
+) -> None:
+    advertiser = create_test_user(
+        db_sessionmaker,
+        email="tenant-replay@example.com",
+        password=PASSWORD,
+        role=UserRole.ADVERTISER,
+    )
+    first_org, _ = create_test_organization(
+        db_sessionmaker,
+        name="Replay tenant A",
+        owner_user_id=advertiser.id,
+    )
+    second_org, _ = create_test_organization(
+        db_sessionmaker,
+        name="Replay tenant B",
+        owner_user_id=advertiser.id,
+        membership_status=MembershipStatus.INVITED,
+    )
+    start_at = datetime.now(UTC) + timedelta(days=2)
+    end_at = start_at + timedelta(days=2)
+    campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=first_org.id,
+        created_by_user_id=advertiser.id,
+        start_at=start_at - timedelta(days=1),
+        end_at=end_at + timedelta(days=1),
+    )
+    settings = Settings(environment="test", privacy_disclosure_synthetic_test_mode=True)
+    source_input = TypeAdapter(RetargetingSourceCreate).validate_python(
+        source_payload(end_at + timedelta(days=5))
+    )
+
+    async def prepare() -> tuple[UUID, UUID, RetargetingSourceLinkCreate]:
+        async with db_sessionmaker() as session:
+            zone = CampaignZone(
+                campaign_id=campaign.id,
+                created_by_user_id=advertiser.id,
+                name="Replay target",
+                zone_type=CampaignZoneType.TARGET,
+                geom="MULTIPOLYGON(((3 6,3.1 6,3.1 6.1,3 6.1,3 6)))",
+            )
+            session.add(zone)
+            await session.flush()
+            source = await create_retargeting_source(
+                session,
+                settings=settings,
+                actor_user_id=advertiser.id,
+                payload=source_input,
+                idempotency_key="tenant-source-create",
+            )
+            deactivated_source = await create_retargeting_source(
+                session,
+                settings=settings,
+                actor_user_id=advertiser.id,
+                payload=source_input.model_copy(
+                    update={"confidence_band": "high"}
+                ),
+                idempotency_key="tenant-source-deactivate-create",
+            )
+            link_input = RetargetingSourceLinkCreate(
+                source_id=source.id,
+                campaign_id=campaign.id,
+                zone_id=zone.id,
+                start_at=start_at,
+                end_at=end_at,
+            )
+            link = await create_retargeting_source_link(
+                session,
+                settings=settings,
+                actor_user_id=advertiser.id,
+                payload=link_input,
+                idempotency_key="tenant-link-create",
+            )
+            await remove_retargeting_source_link(
+                session,
+                settings=settings,
+                actor_user_id=advertiser.id,
+                link_id=link.id,
+                idempotency_key="tenant-link-remove",
+            )
+            await deactivate_retargeting_source(
+                session,
+                settings=settings,
+                actor_user_id=advertiser.id,
+                source_id=deactivated_source.id,
+                idempotency_key="tenant-source-deactivate",
+            )
+            await session.commit()
+            return deactivated_source.id, link.id, link_input
+
+    deactivated_source_id, link_id, link_input = asyncio.run(prepare())
+
+    async def set_memberships(*, second_status: MembershipStatus) -> None:
+        async with db_sessionmaker() as session:
+            memberships = list(
+                await session.scalars(
+                    select(OrganizationMembership).where(
+                        OrganizationMembership.user_id == advertiser.id
+                    )
+                )
+            )
+            by_org = {membership.organization_id: membership for membership in memberships}
+            by_org[first_org.id].status = MembershipStatus.DISABLED
+            by_org[second_org.id].status = second_status
+            await session.commit()
+
+    asyncio.run(set_memberships(second_status=MembershipStatus.ACTIVE))
+
+    async def assert_replays(error_codes: tuple[str, str, str, str]) -> None:
+        async with db_sessionmaker() as session:
+            calls = (
+                lambda: create_retargeting_source(
+                    session,
+                    settings=settings,
+                    actor_user_id=advertiser.id,
+                    payload=source_input,
+                    idempotency_key="tenant-source-create",
+                ),
+                lambda: deactivate_retargeting_source(
+                    session,
+                    settings=settings,
+                    actor_user_id=advertiser.id,
+                    source_id=deactivated_source_id,
+                    idempotency_key="tenant-source-deactivate",
+                ),
+                lambda: create_retargeting_source_link(
+                    session,
+                    settings=settings,
+                    actor_user_id=advertiser.id,
+                    payload=link_input,
+                    idempotency_key="tenant-link-create",
+                ),
+                lambda: remove_retargeting_source_link(
+                    session,
+                    settings=settings,
+                    actor_user_id=advertiser.id,
+                    link_id=link_id,
+                    idempotency_key="tenant-link-remove",
+                ),
+            )
+            for call, error_code in zip(calls, error_codes, strict=True):
+                with pytest.raises(AppError) as rejected:
+                    await call()
+                assert rejected.value.code == error_code
+
+    asyncio.run(
+        assert_replays(
+            (
+                "RETARGETING_SOURCE_IDEMPOTENCY_CONFLICT",
+                "RETARGETING_SOURCE_IDEMPOTENCY_CONFLICT",
+                "RETARGETING_SOURCE_LINK_IDEMPOTENCY_CONFLICT",
+                "RETARGETING_SOURCE_LINK_IDEMPOTENCY_CONFLICT",
+            )
+        )
+    )
+
+    asyncio.run(set_memberships(second_status=MembershipStatus.DISABLED))
+    asyncio.run(assert_replays(("ADVERTISER_ORGANIZATION_NOT_FOUND",) * 4))
 
 
 def test_concurrent_link_create_and_remove_retries_converge_on_postgres(

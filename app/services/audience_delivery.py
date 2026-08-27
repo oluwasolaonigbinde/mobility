@@ -279,6 +279,16 @@ async def _recommendations_for_segment(
     link: RetargetingSourceLink,
     settings: Settings,
 ) -> RecommendationsRead:
+    if link.status != "active" or await exposure_segment_is_stale(session, segment):
+        return RecommendationsRead(
+            state="stale",
+            segment_id=segment.id,
+            campaign_id=segment.campaign_id,
+            recommendations=[],
+            provenance=None,
+            disclaimer=RECOMMENDATION_DISCLAIMER,
+            uncertainty=None,
+        )
     run = await session.get(MeasurementRun, segment.measurement_run_id)
     if run is None:
         raise AppError(
@@ -296,8 +306,7 @@ async def _recommendations_for_segment(
             row.window_start_at,
         ),
     )
-    stale = link.status != "active" or await exposure_segment_is_stale(session, segment)
-    state = "stale" if stale else ("ready" if ranked else "suppressed")
+    state = "ready" if ranked else "suppressed"
     return RecommendationsRead(
         state=state,
         segment_id=segment.id,

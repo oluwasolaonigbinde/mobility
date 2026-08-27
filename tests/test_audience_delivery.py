@@ -1,17 +1,23 @@
 import asyncio
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
 from conftest import auth_headers
 from pydantic import TypeAdapter
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from test_exposure_segments import PASSWORD, _create_link_and_run, cells
 
 from app.api.v1.dependencies import get_ad_platform_adapter
 from app.core.errors import AppError
 from app.models.audience_delivery import AudienceDelivery
 from app.models.audit import AuditEvent
+from app.models.campaign import Campaign
+from app.models.campaign_zone import CampaignZone
+from app.models.exposure_segment import ExposureSegment
 from app.models.measurement import MeasurementRun
+from app.models.retargeting_source import RetargetingSource
+from app.models.retargeting_source_link import RetargetingSourceLink
 from app.models.user import User
 from app.schemas.exposure_segments import ExposureCellInput
 from app.services.audience import materialize_exposure_segment
@@ -181,6 +187,103 @@ def test_empty_and_suppressed_recommendation_states(
     )
     assert export.status_code == 409
     assert export.json()["error"]["code"] == "AUDIENCE_AGGREGATE_SUPPRESSED"
+
+
+@pytest.mark.parametrize(
+    "parent_cause",
+    [
+        "link_status",
+        "link_snapshot",
+        "source_status",
+        "campaign_status",
+        "zone_revision",
+        "run_input",
+        "run_result",
+        "run_proof",
+    ],
+)
+def test_stale_recommendations_redact_cells_and_governed_provenance(
+    db_client,
+    db_sessionmaker,
+    settings,
+    parent_cause: str,
+) -> None:
+    advertiser, _other, admin, link_id, run_id, segment_id = _issued_segment(
+        db_client, db_sessionmaker, settings
+    )
+
+    async def make_stale() -> UUID:
+        async with db_sessionmaker() as session:
+            segment = await session.get(ExposureSegment, segment_id)
+            link = await session.get(RetargetingSourceLink, link_id)
+            assert segment is not None and link is not None
+            if parent_cause == "link_status":
+                link.status = "removed"
+                link.removed_at = datetime.now(UTC)
+            elif parent_cause == "link_snapshot":
+                link.snapshot_sha256 = "f" * 64
+            elif parent_cause == "source_status":
+                source = await session.get(RetargetingSource, link.source_id)
+                assert source is not None
+                source.status = "deactivated"
+                source.deactivated_at = datetime.now(UTC)
+            elif parent_cause == "campaign_status":
+                campaign = await session.get(Campaign, link.campaign_id)
+                assert campaign is not None
+                campaign.status = "paused"
+            elif parent_cause == "zone_revision":
+                zone = await session.get(CampaignZone, link.zone_id)
+                assert zone is not None
+                zone.updated_at = datetime.now(UTC) + timedelta(seconds=1)
+            else:
+                column = {
+                    "run_input": MeasurementRun.input_manifest_sha256,
+                    "run_result": MeasurementRun.result_manifest_sha256,
+                    "run_proof": MeasurementRun.proof_manifest_sha256,
+                }[parent_cause]
+                await session.execute(
+                    update(MeasurementRun)
+                    .where(MeasurementRun.id == run_id)
+                    .values({column.key: "f" * 64})
+                )
+            await session.commit()
+            return segment.campaign_id
+
+    campaign_id = asyncio.run(make_stale())
+    for path, user in (
+        (
+            f"/api/v1/advertiser/retargeting-source-links/{link_id}/recommendations",
+            advertiser,
+        ),
+        (f"/api/v1/admin/retargeting-source-links/{link_id}/recommendations", admin),
+    ):
+        response = db_client.get(path, headers=auth_headers(db_client, user.email, PASSWORD))
+        assert response.status_code == 200, response.text
+        assert response.json() == {
+            "state": "stale",
+            "segment_id": str(segment_id),
+            "campaign_id": str(campaign_id),
+            "recommendations": [],
+            "provenance": None,
+            "disclaimer": response.json()["disclaimer"],
+            "uncertainty": None,
+        }
+
+    export = db_client.post(
+        f"/api/v1/advertiser/exposure-segments/{segment_id}/exports",
+        headers=auth_headers(db_client, advertiser.email, PASSWORD)
+        | {"Idempotency-Key": f"stale-export-{parent_cause}"},
+        json={},
+    )
+    activation = db_client.post(
+        f"/api/v1/admin/exposure-segments/{segment_id}/activations",
+        headers=auth_headers(db_client, admin.email, PASSWORD)
+        | {"Idempotency-Key": f"stale-activation-{parent_cause}"},
+        json={},
+    )
+    for response in (export, activation):
+        assert response.status_code == 409
+        assert response.json()["error"]["code"] == "EXPOSURE_SEGMENT_STALE"
 
 
 def test_current_disclosure_floor_is_rechecked_before_output(

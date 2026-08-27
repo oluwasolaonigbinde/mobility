@@ -225,7 +225,13 @@ async def _idempotency_lock(
 
 
 async def _idempotency_replay(
-    session: AsyncSession, *, actor_user_id: UUID, operation: str, key: str, fingerprint: str
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    organization_id: UUID,
+    operation: str,
+    key: str,
+    fingerprint: str,
 ) -> RetargetingSource | None:
     record = await session.scalar(
         select(RetargetingSourceIdempotency).where(
@@ -245,6 +251,12 @@ async def _idempotency_replay(
     source = await session.get(RetargetingSource, record.source_id)
     if source is None:  # defensive fail-closed guard for an invalid authority row
         raise RuntimeError("Retargeting source idempotency row has no source")
+    if source.organization_id != organization_id:
+        raise AppError(
+            "RETARGETING_SOURCE_IDEMPOTENCY_CONFLICT",
+            "Idempotency key belongs to a different advertiser organization",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     return source
 
 
@@ -266,6 +278,7 @@ async def create_retargeting_source(
     replay = await _idempotency_replay(
         session,
         actor_user_id=actor_user_id,
+        organization_id=membership.organization_id,
         operation="create",
         key=idempotency_key,
         fingerprint=fingerprint,
@@ -383,6 +396,7 @@ async def deactivate_retargeting_source(
     replay = await _idempotency_replay(
         session,
         actor_user_id=actor_user_id,
+        organization_id=membership.organization_id,
         operation="deactivate",
         key=idempotency_key,
         fingerprint=fingerprint,
@@ -526,7 +540,12 @@ async def _link_idempotency_lock(
 
 
 async def _link_replay(
-    session: AsyncSession, actor_user_id: UUID, operation: str, key: str, fingerprint: str
+    session: AsyncSession,
+    actor_user_id: UUID,
+    organization_id: UUID,
+    operation: str,
+    key: str,
+    fingerprint: str,
 ) -> RetargetingSourceLink | None:
     row = await session.scalar(
         select(RetargetingSourceLinkIdempotency).where(
@@ -546,6 +565,12 @@ async def _link_replay(
     link = await session.get(RetargetingSourceLink, row.link_id)
     if link is None:
         raise RuntimeError("Retargeting link idempotency row has no link")
+    if link.organization_id != organization_id:
+        raise AppError(
+            "RETARGETING_SOURCE_LINK_IDEMPOTENCY_CONFLICT",
+            "Idempotency key belongs to a different advertiser organization",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     return link
 
 
@@ -562,7 +587,14 @@ async def create_retargeting_source_link(
     request = payload.model_dump(mode="json")
     fingerprint = _canonical_hash(request)
     await _link_idempotency_lock(session, actor_user_id, "create", idempotency_key)
-    replay = await _link_replay(session, actor_user_id, "create", idempotency_key, fingerprint)
+    replay = await _link_replay(
+        session,
+        actor_user_id,
+        membership.organization_id,
+        "create",
+        idempotency_key,
+        fingerprint,
+    )
     if replay is not None:
         return replay
     source = await session.scalar(
@@ -776,7 +808,14 @@ async def remove_retargeting_source_link(
     membership = await _advertiser_membership(session, actor_user_id=actor_user_id, write=True)
     fingerprint = _canonical_hash({"link_id": str(link_id)})
     await _link_idempotency_lock(session, actor_user_id, "remove", idempotency_key)
-    replay = await _link_replay(session, actor_user_id, "remove", idempotency_key, fingerprint)
+    replay = await _link_replay(
+        session,
+        actor_user_id,
+        membership.organization_id,
+        "remove",
+        idempotency_key,
+        fingerprint,
+    )
     if replay is not None:
         return replay
     source = await session.scalar(

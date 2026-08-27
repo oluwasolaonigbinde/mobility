@@ -85,3 +85,35 @@ class ExposureScoreRead(BaseModel):
     reproducible: bool
     stale: bool
     created_at: datetime
+
+
+class AdvertiserExposureScoreResultRead(BaseModel):
+    schema_version: Literal["exposure-score-result-v1"]
+    label: Literal["Exposure score"]
+    metric_class: Literal["operational_composite_index"]
+    formula_version: Literal["exposure_v1"]
+    formula_fingerprint: str
+    input_fingerprint: str
+    unit: Literal["points"]
+    range: ExposureScoreRangeRead
+    status: Literal["scored", "insufficient_data"]
+    score: str | None
+    route_count: int
+    missing_route_count: int
+    formula: ExposureScoreFormulaRead
+    uncertainty: ExposureScoreUncertaintyRead
+    provenance: ExposureScoreProvenanceRead
+
+
+class AdvertiserExposureScoreRead(BaseModel):
+    formula_version: str
+    formula_fingerprint: str
+    input_fingerprint: str
+    result_fingerprint: str
+    measurement_input_sha256: str
+    measurement_result_sha256: str
+    measurement_proof_sha256: str
+    result: AdvertiserExposureScoreResultRead
+    reproducible: bool
+    stale: bool
+    created_at: datetime
