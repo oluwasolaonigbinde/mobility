@@ -171,20 +171,23 @@ export default async function PlanningSourcesPage() {
                             </form>
                           ) : null}
                         </div>
-                        {recommendation?.recommendations.slice(0, 3).map((item) => (
-                          <p
-                            key={`${item.coverage_cell}-${item.window_start_at}`}
-                            className="micro mt-2"
-                          >
-                            #{item.rank} {item.coverage_cell} · {formatDate(item.window_start_at)} →{" "}
-                            {formatDate(item.window_end_at)}
-                          </p>
-                        ))}
-                        {recommendation?.uncertainty ? (
+                        {recommendation?.state === "ready"
+                          ? recommendation.recommendations.slice(0, 3).map((item) => (
+                              <p
+                                key={`${item.coverage_cell}-${item.window_start_at}`}
+                                className="micro mt-2"
+                              >
+                                #{item.rank} {item.coverage_cell} ·{" "}
+                                {formatDate(item.window_start_at)} →{" "}
+                                {formatDate(item.window_end_at)}
+                              </p>
+                            ))
+                          : null}
+                        {recommendation?.state === "ready" && recommendation.uncertainty ? (
                           <p className="micro text-faint mt-3">{recommendation.uncertainty}</p>
                         ) : null}
                         <p className="micro text-faint mt-1">{recommendation?.disclaimer}</p>
-                        {recommendation?.provenance ? (
+                        {recommendation?.state === "ready" && recommendation.provenance ? (
                           <p className="micro text-faint mt-2 font-mono">
                             Segment v{recommendation.provenance.segment_version} · Evidence{" "}
                             {recommendation.provenance.segment_snapshot_sha256}

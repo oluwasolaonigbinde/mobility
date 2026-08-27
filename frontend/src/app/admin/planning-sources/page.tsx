@@ -147,7 +147,8 @@ export default async function AdminPlanningSourcesPage() {
                           >
                             {recommendation?.state ?? "empty"}
                           </StatusChip>
-                          {recommendation?.recommendations[0] ? (
+                          {recommendation?.state === "ready" &&
+                          recommendation.recommendations[0] ? (
                             <p className="mt-2 font-mono">
                               {recommendation.recommendations[0].coverage_cell}
                             </p>

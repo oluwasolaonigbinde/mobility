@@ -991,6 +991,164 @@
         "title": "AdvertiserDashboardSummary",
         "type": "object"
       },
+      "AdvertiserExposureScoreRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "formula_fingerprint": {
+            "title": "Formula Fingerprint",
+            "type": "string"
+          },
+          "formula_version": {
+            "title": "Formula Version",
+            "type": "string"
+          },
+          "input_fingerprint": {
+            "title": "Input Fingerprint",
+            "type": "string"
+          },
+          "measurement_input_sha256": {
+            "title": "Measurement Input Sha256",
+            "type": "string"
+          },
+          "measurement_proof_sha256": {
+            "title": "Measurement Proof Sha256",
+            "type": "string"
+          },
+          "measurement_result_sha256": {
+            "title": "Measurement Result Sha256",
+            "type": "string"
+          },
+          "reproducible": {
+            "title": "Reproducible",
+            "type": "boolean"
+          },
+          "result": {
+            "$ref": "#/components/schemas/AdvertiserExposureScoreResultRead"
+          },
+          "result_fingerprint": {
+            "title": "Result Fingerprint",
+            "type": "string"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "formula_version",
+          "formula_fingerprint",
+          "input_fingerprint",
+          "result_fingerprint",
+          "measurement_input_sha256",
+          "measurement_result_sha256",
+          "measurement_proof_sha256",
+          "result",
+          "reproducible",
+          "stale",
+          "created_at"
+        ],
+        "title": "AdvertiserExposureScoreRead",
+        "type": "object"
+      },
+      "AdvertiserExposureScoreResultRead": {
+        "properties": {
+          "formula": {
+            "$ref": "#/components/schemas/ExposureScoreFormulaRead"
+          },
+          "formula_fingerprint": {
+            "title": "Formula Fingerprint",
+            "type": "string"
+          },
+          "formula_version": {
+            "const": "exposure_v1",
+            "title": "Formula Version",
+            "type": "string"
+          },
+          "input_fingerprint": {
+            "title": "Input Fingerprint",
+            "type": "string"
+          },
+          "label": {
+            "const": "Exposure score",
+            "title": "Label",
+            "type": "string"
+          },
+          "metric_class": {
+            "const": "operational_composite_index",
+            "title": "Metric Class",
+            "type": "string"
+          },
+          "missing_route_count": {
+            "title": "Missing Route Count",
+            "type": "integer"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/ExposureScoreProvenanceRead"
+          },
+          "range": {
+            "$ref": "#/components/schemas/ExposureScoreRangeRead"
+          },
+          "route_count": {
+            "title": "Route Count",
+            "type": "integer"
+          },
+          "schema_version": {
+            "const": "exposure-score-result-v1",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "status": {
+            "enum": [
+              "scored",
+              "insufficient_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "uncertainty": {
+            "$ref": "#/components/schemas/ExposureScoreUncertaintyRead"
+          },
+          "unit": {
+            "const": "points",
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "label",
+          "metric_class",
+          "formula_version",
+          "formula_fingerprint",
+          "input_fingerprint",
+          "unit",
+          "range",
+          "status",
+          "score",
+          "route_count",
+          "missing_route_count",
+          "formula",
+          "uncertainty",
+          "provenance"
+        ],
+        "title": "AdvertiserExposureScoreResultRead",
+        "type": "object"
+      },
       "AdvertiserNotificationPreferenceRead": {
         "properties": {
           "in_app_enabled": {
@@ -4907,7 +5065,7 @@
           "exposure_score": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ExposureScoreRead"
+                "$ref": "#/components/schemas/AdvertiserExposureScoreRead"
               },
               {
                 "type": "null"

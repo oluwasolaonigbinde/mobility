@@ -4243,6 +4243,80 @@ export interface components {
             start_at: string | null;
             trips: components["schemas"]["TripStatusCounts"];
         };
+        /** AdvertiserExposureScoreRead */
+        AdvertiserExposureScoreRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Formula Fingerprint */
+            formula_fingerprint: string;
+            /** Formula Version */
+            formula_version: string;
+            /** Input Fingerprint */
+            input_fingerprint: string;
+            /** Measurement Input Sha256 */
+            measurement_input_sha256: string;
+            /** Measurement Proof Sha256 */
+            measurement_proof_sha256: string;
+            /** Measurement Result Sha256 */
+            measurement_result_sha256: string;
+            /** Reproducible */
+            reproducible: boolean;
+            result: components["schemas"]["AdvertiserExposureScoreResultRead"];
+            /** Result Fingerprint */
+            result_fingerprint: string;
+            /** Stale */
+            stale: boolean;
+        };
+        /** AdvertiserExposureScoreResultRead */
+        AdvertiserExposureScoreResultRead: {
+            formula: components["schemas"]["ExposureScoreFormulaRead"];
+            /** Formula Fingerprint */
+            formula_fingerprint: string;
+            /**
+             * Formula Version
+             * @constant
+             */
+            formula_version: "exposure_v1";
+            /** Input Fingerprint */
+            input_fingerprint: string;
+            /**
+             * Label
+             * @constant
+             */
+            label: "Exposure score";
+            /**
+             * Metric Class
+             * @constant
+             */
+            metric_class: "operational_composite_index";
+            /** Missing Route Count */
+            missing_route_count: number;
+            provenance: components["schemas"]["ExposureScoreProvenanceRead"];
+            range: components["schemas"]["ExposureScoreRangeRead"];
+            /** Route Count */
+            route_count: number;
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "exposure-score-result-v1";
+            /** Score */
+            score: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "scored" | "insufficient_data";
+            uncertainty: components["schemas"]["ExposureScoreUncertaintyRead"];
+            /**
+             * Unit
+             * @constant
+             */
+            unit: "points";
+        };
         /** AdvertiserNotificationPreferenceRead */
         AdvertiserNotificationPreferenceRead: {
             /**
@@ -5594,7 +5668,7 @@ export interface components {
             daily_metrics: components["schemas"]["DailyMetricItem"][];
             /** End At */
             end_at: string | null;
-            exposure_score?: components["schemas"]["ExposureScoreRead"] | null;
+            exposure_score?: components["schemas"]["AdvertiserExposureScoreRead"] | null;
             fraud_summary: components["schemas"]["FraudFlagCounts"];
             high_exposure_zone_insights?: components["schemas"]["HighExposureZoneInsightsRead"] | null;
             impression_summary: components["schemas"]["ImpressionSummary"];
