@@ -70,3 +70,33 @@ class DriverApplication(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+
+class DriverApplicationAccessToken(Base):
+    """Digest-only, expiring mutation authority delivered to the applicant email."""
+
+    __tablename__ = "driver_application_access_tokens"
+    __table_args__ = (
+        CheckConstraint(
+            "length(token_sha256) = 64",
+            name="ck_driver_application_access_tokens_hash",
+        ),
+        UniqueConstraint("token_sha256", name="uq_driver_application_access_tokens_hash"),
+        Index(
+            "ix_driver_application_access_tokens_application_created",
+            "application_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    application_id: Mapped[UUID] = mapped_column(
+        ForeignKey("driver_applications.id", ondelete="RESTRICT"), nullable=False
+    )
+    token_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

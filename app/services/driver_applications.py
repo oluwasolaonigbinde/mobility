@@ -1,17 +1,25 @@
+import base64
 import hashlib
+import hmac
 import secrets
 from dataclasses import dataclass
-from uuid import UUID
+from datetime import UTC, datetime, timedelta
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
+from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.security import hash_password
 from app.models.driver import DriverOnboardingStatus, DriverProfile
-from app.models.driver_application import DriverApplication, DriverApplicationStatus
+from app.models.driver_application import (
+    DriverApplication,
+    DriverApplicationAccessToken,
+    DriverApplicationStatus,
+)
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.driver_applications import DriverApplicationCreate
 from app.services.users import get_user_by_email
@@ -25,6 +33,7 @@ PUBLIC_NOT_FOUND_MESSAGE = "Application status is unavailable."
 class DriverApplicationSubmission:
     application: DriverApplication | None
     reference: str | None
+    access_application: DriverApplication | None
 
 
 def status_reference_hash(reference: str) -> str:
@@ -33,6 +42,131 @@ def status_reference_hash(reference: str) -> str:
 
 def _unreachable_password_hash() -> str:
     return hash_password(secrets.token_urlsafe(96))
+
+
+def _access_token_value(access: DriverApplicationAccessToken, settings: Settings) -> str:
+    expires_at = (
+        access.expires_at.replace(tzinfo=UTC)
+        if access.expires_at.tzinfo is None
+        else access.expires_at.astimezone(UTC)
+    )
+    expires = int(expires_at.timestamp())
+    payload = f"{access.id}:{access.application_id}:{expires}"
+    signature = hmac.new(
+        settings.jwt_secret_key.encode(),
+        f"driver-onboarding-access:v1:{payload}".encode(),
+        hashlib.sha256,
+    ).digest()
+    encoded = base64.urlsafe_b64encode(signature).decode().rstrip("=")
+    return f"{access.id}.{encoded}"
+
+
+def driver_application_access_token_for_delivery(
+    access: DriverApplicationAccessToken, settings: Settings
+) -> str:
+    token = _access_token_value(access, settings)
+    if not hmac.compare_digest(hashlib.sha256(token.encode()).hexdigest(), access.token_sha256):
+        raise RuntimeError("driver onboarding access-token evidence mismatch")
+    return token
+
+
+def synthetic_driver_application_access_token(
+    access: DriverApplicationAccessToken,
+    settings: Settings,
+    *,
+    synthetic_test_authority: bool,
+) -> str:
+    if not synthetic_test_authority or settings.environment not in {"test", "testing"}:
+        raise RuntimeError("synthetic driver onboarding access authority is test-only")
+    return driver_application_access_token_for_delivery(access, settings)
+
+
+async def issue_driver_application_access(
+    session: AsyncSession,
+    *,
+    application: DriverApplication,
+    settings: Settings,
+) -> DriverApplicationAccessToken:
+    access = DriverApplicationAccessToken(
+        id=uuid4(),
+        application_id=application.id,
+        token_sha256="0" * 64,
+        expires_at=datetime.now(UTC)
+        + timedelta(seconds=settings.driver_onboarding_access_ttl_seconds),
+    )
+    token = _access_token_value(access, settings)
+    access.token_sha256 = hashlib.sha256(token.encode()).hexdigest()
+    session.add(access)
+    await session.flush()
+    user = await session.get(User, application.user_id)
+    if user is None:  # pragma: no cover - protected by FK
+        raise RuntimeError("driver onboarding access recipient disappeared")
+    from app.services.notifications import create_driver_onboarding_access_notification
+
+    await create_driver_onboarding_access_notification(session, user=user, access=access)
+    return access
+
+
+def _access_token_id(token: str) -> UUID | None:
+    try:
+        raw_id, signature = token.split(".", 1)
+        if not signature:
+            return None
+        return UUID(raw_id)
+    except (ValueError, AttributeError):
+        return None
+
+
+def _utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
+async def application_from_access_token(
+    session: AsyncSession,
+    *,
+    token: str,
+    settings: Settings,
+    lock: bool,
+) -> DriverApplication:
+    token_id = _access_token_id(token.strip())
+    query = select(DriverApplicationAccessToken).where(DriverApplicationAccessToken.id == token_id)
+    if lock:
+        query = query.with_for_update()
+    access = await session.scalar(query) if token_id is not None else None
+    application = (
+        await session.get(DriverApplication, access.application_id) if access is not None else None
+    )
+    supplied_hash = hashlib.sha256(token.strip().encode()).hexdigest()
+    if (
+        access is None
+        or application is None
+        or application.status != DriverApplicationStatus.PENDING.value
+        or datetime.now(UTC) >= _utc(access.expires_at)
+        or not hmac.compare_digest(supplied_hash, access.token_sha256)
+    ):
+        raise AppError(
+            "ONBOARDING_ACCESS_INVALID",
+            "Driver onboarding access is unavailable",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    return application
+
+
+async def _eligible_access_application(
+    session: AsyncSession, user: User | None
+) -> DriverApplication | None:
+    if (
+        user is None
+        or user.role != UserRole.DRIVER.value
+        or user.status != UserStatus.INVITED.value
+    ):
+        return None
+    return await session.scalar(
+        select(DriverApplication).where(
+            DriverApplication.user_id == user.id,
+            DriverApplication.status == DriverApplicationStatus.PENDING.value,
+        )
+    )
 
 
 def _is_user_email_conflict(exc: IntegrityError) -> bool:
@@ -66,7 +200,11 @@ async def submit_driver_application(
     reference = secrets.token_urlsafe(32)
     existing_user = await get_user_by_email(session, payload.email)
     if existing_user is not None:
-        return DriverApplicationSubmission(application=None, reference=reference)
+        return DriverApplicationSubmission(
+            application=None,
+            reference=reference,
+            access_application=await _eligible_access_application(session, existing_user),
+        )
 
     user = User(
         email=payload.email,
@@ -83,7 +221,12 @@ async def submit_driver_application(
     except IntegrityError as exc:
         await session.rollback()
         if _is_user_email_conflict(exc):
-            return DriverApplicationSubmission(application=None, reference=reference)
+            existing_user = await get_user_by_email(session, payload.email)
+            return DriverApplicationSubmission(
+                application=None,
+                reference=reference,
+                access_application=await _eligible_access_application(session, existing_user),
+            )
         raise
 
     profile = DriverProfile(
@@ -108,7 +251,11 @@ async def submit_driver_application(
     )
     session.add(application)
     await session.flush()
-    return DriverApplicationSubmission(application=application, reference=reference)
+    return DriverApplicationSubmission(
+        application=application,
+        reference=reference,
+        access_application=application,
+    )
 
 
 async def _require_active_admin(session: AsyncSession, admin_user_id: UUID) -> User:

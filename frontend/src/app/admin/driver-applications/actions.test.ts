@@ -9,9 +9,16 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "admin-token") }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ POST: mocks.post }) }));
 
-import { reviewPersonPayeeAction } from "./actions";
+import {
+  reviewPersonPayeeAction,
+  reviewPersonPayeeEvidenceAction,
+  verifyPersonPayeeAccountAction,
+} from "./actions";
 
 const APPLICATION_ID = "00000000-0000-4000-8000-00000000000a";
+const SUBMISSION_ID = "00000000-0000-4000-8000-00000000000b";
+const VERSION_ID = "00000000-0000-4000-8000-00000000000c";
+const FILE_ID = "00000000-0000-4000-8000-00000000000d";
 
 function form(intent: "approve" | "reject" | "expire", checks = true): FormData {
   const data = new FormData();
@@ -31,6 +38,72 @@ describe("reviewPersonPayeeAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.post.mockResolvedValue({ data: { status: "approved" } });
+  });
+
+  it("performs explicit audited reads of the exact identity, account and document", async () => {
+    mocks.post
+      .mockResolvedValueOnce({ data: { nin: "12345678901" } })
+      .mockResolvedValueOnce({
+        data: { account_name: "Test Driver", bank_code: "058", account_number: "0123456789" },
+      })
+      .mockResolvedValueOnce({ data: { url: "https://private.test/review" } });
+    const nin = new FormData();
+    nin.set("kind", "nin");
+    nin.set("submission_id", SUBMISSION_ID);
+    const account = new FormData();
+    account.set("kind", "account");
+    account.set("bank_account_version_id", VERSION_ID);
+    const document = new FormData();
+    document.set("kind", "document");
+    document.set("submission_id", SUBMISSION_ID);
+    document.set("file_id", FILE_ID);
+
+    await expect(reviewPersonPayeeEvidenceAction({}, nin)).resolves.toMatchObject({
+      done: "NIN read audited.",
+      sensitiveValue: "12345678901",
+    });
+    await expect(reviewPersonPayeeEvidenceAction({}, account)).resolves.toMatchObject({
+      done: "Account read audited.",
+      sensitiveValue: "Test Driver · 058 · 0123456789",
+    });
+    await expect(reviewPersonPayeeEvidenceAction({}, document)).resolves.toMatchObject({
+      done: "Document read audited.",
+      downloadUrl: "https://private.test/review",
+    });
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/admin/kyc/submissions/{submission_id}/nin/reveal",
+      {
+        params: { path: { submission_id: SUBMISSION_ID } },
+        body: { purpose: "person_payee_approval" },
+      },
+    );
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/admin/payees/bank-account-versions/{version_id}/reveal",
+      { params: { path: { version_id: VERSION_ID } }, body: { purpose: "person_payee_approval" } },
+    );
+    expect(mocks.post).toHaveBeenNthCalledWith(3, "/api/v1/admin/files/{file_id}/download", {
+      params: { path: { file_id: FILE_ID } },
+      body: { purpose: "kyc_review", reason: `person_payee_approval:${SUBMISSION_ID}` },
+    });
+  });
+
+  it("promotes only the exact account version with an authorized reference", async () => {
+    const data = new FormData();
+    data.set("bank_account_version_id", VERSION_ID);
+    data.set("verification_reference", "provider-authority-reference-001");
+
+    await expect(verifyPersonPayeeAccountAction({}, data)).resolves.toEqual({
+      done: "Exact account version verified for payout review.",
+    });
+    expect(mocks.post).toHaveBeenCalledWith(
+      "/api/v1/admin/payees/bank-account-versions/{version_id}/payout-verification",
+      {
+        params: { path: { version_id: VERSION_ID } },
+        body: { verification_reference: "provider-authority-reference-001" },
+      },
+    );
   });
 
   it("requires all explicit approval facts before the governed decision endpoint", async () => {

@@ -8,9 +8,11 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
+    event,
     func,
     text,
 )
@@ -107,7 +109,7 @@ class PayeeBankAccount(Base):
 
 
 class PayeeBankAccountVersion(Base):
-    """Immutable verified and encrypted account snapshot."""
+    """Immutable encrypted account snapshot; payout verification is separate."""
 
     __tablename__ = "payee_bank_account_versions"
     __table_args__ = (
@@ -156,3 +158,48 @@ class PayeeBankAccountVersion(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class PayeeBankAccountPayoutVerification(Base):
+    """Immutable authorized payout authority for one exact encrypted version."""
+
+    __tablename__ = "payee_bank_account_payout_verifications"
+    __table_args__ = (
+        CheckConstraint(
+            "length(verification_reference_sha256) = 64",
+            name="ck_payee_bank_account_payout_verifications_hash",
+        ),
+        UniqueConstraint(
+            "bank_account_version_id",
+            name="uq_payee_bank_account_payout_verifications_version",
+        ),
+        Index(
+            "ix_payee_payout_verifications_version",
+            "bank_account_version_id",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    bank_account_version_id: Mapped[UUID] = mapped_column(
+        ForeignKey("payee_bank_account_versions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    verification_reference_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    verified_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+@event.listens_for(PayeeBankAccountPayoutVerification, "before_update")
+def reject_payout_verification_update(_mapper, _connection, _target) -> None:
+    raise ValueError("payout bank-account verification is immutable")
+
+
+@event.listens_for(PayeeBankAccountPayoutVerification, "before_delete")
+def reject_payout_verification_delete(_mapper, _connection, _target) -> None:
+    raise ValueError("payout bank-account verification is append-only")

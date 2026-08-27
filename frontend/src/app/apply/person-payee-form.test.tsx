@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PersonPayeeForm } from "./person-payee-form";
 
-const REFERENCE = "reference-capability-secret";
+const ACCESS_TOKEN = "application-access-capability-secret";
 
 describe("PersonPayeeForm", () => {
   beforeEach(() => {
@@ -44,15 +44,12 @@ describe("PersonPayeeForm", () => {
 
   it("uploads three private files, waits for clean scans and shows only masked identity", async () => {
     const user = userEvent.setup();
-    render(<PersonPayeeForm reference={REFERENCE} />);
+    render(<PersonPayeeForm />);
+    await user.type(screen.getByLabelText("Onboarding access code"), ACCESS_TOKEN);
     await user.type(screen.getByLabelText("NIN"), "12345678901");
     await user.type(screen.getByLabelText("Verified account name"), "Test Driver");
     await user.type(screen.getByLabelText("Bank account number"), "0123456789");
     await user.type(screen.getByLabelText("Bank code"), "058");
-    await user.type(
-      screen.getByLabelText("Provider verification reference"),
-      "provider-neutral-synthetic-verification-000001",
-    );
     await user.upload(
       screen.getByLabelText("Driver licence"),
       new File(["licence"], "licence.png", { type: "image/png" }),
@@ -72,5 +69,13 @@ describe("PersonPayeeForm", () => {
     );
     expect(screen.queryByText("12345678901")).not.toBeInTheDocument();
     expect(screen.queryByText("0123456789")).not.toBeInTheDocument();
+    const calls = vi.mocked(fetch).mock.calls;
+    const mutationBodies = calls
+      .map(([, init]) => (typeof init?.body === "string" ? JSON.parse(init.body) : null))
+      .filter(Boolean);
+    expect(mutationBodies).toEqual(
+      expect.arrayContaining([expect.objectContaining({ application_access_token: ACCESS_TOKEN })]),
+    );
+    expect(mutationBodies.some((body) => "application_reference" in body)).toBe(false);
   });
 });

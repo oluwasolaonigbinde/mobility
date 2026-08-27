@@ -23,7 +23,13 @@ from app.models.disbursement import (
     PayoutBatchStatus,
     PayoutLineReconciliationEvent,
 )
-from app.models.payee import Payee, PayeeBankAccount, PayeeBankAccountVersion, PayeeVersion
+from app.models.payee import (
+    Payee,
+    PayeeBankAccount,
+    PayeeBankAccountPayoutVerification,
+    PayeeBankAccountVersion,
+    PayeeVersion,
+)
 from app.models.payout import (
     EarningsLedgerEntry,
     EarningsLedgerEntryStatus,
@@ -126,6 +132,16 @@ async def _frozen_payee_authority(
         raise _error(
             "PAYOUT_PAYEE_VERSION_STALE",
             "The verified account does not bind the current payee version",
+        )
+    payout_verification = await session.scalar(
+        select(PayeeBankAccountPayoutVerification.id).where(
+            PayeeBankAccountPayoutVerification.bank_account_version_id == account_version.id
+        )
+    )
+    if payout_verification is None:
+        raise _error(
+            "PAYOUT_BANK_ACCOUNT_UNVERIFIED",
+            "The current bank-account version has no authorized payout verification",
         )
     return payee_version, account_version
 

@@ -3,9 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 
-from app.adapters.crypto import EnvelopeCryptoProvider
 from app.api.v1.dependencies import AdminUserDependency, SessionDependency, SettingsDependency
-from app.core.errors import AppError
 from app.models.user import UserRole, UserStatus
 from app.schemas.driver_applications import (
     DriverApplicationAdminListResponse,
@@ -39,7 +37,7 @@ def _admin_person_payee_response(view) -> AdminPersonPayeeStageRead:
         submission_id=submission.id,
         version=submission.version,
         masked_nin=f"*******{submission.nin_last_four}",
-        bank_account_verified=True,
+        bank_account_verified=view.bank_account_verified,
         reason_code=decision.reason_code if decision else None,
         created_at=submission.created_at,
         decided_at=decision.created_at if decision else None,
@@ -143,25 +141,13 @@ async def admin_review_driver_person_payee(
     payload: PersonPayeeReviewDecisionCreate,
     current_user: AdminUserDependency,
     session: SessionDependency,
-    settings: SettingsDependency,
 ) -> AdminPersonPayeeStageRead:
-    try:
-        view = await review_application_person_payee(
-            session,
-            application_id=application_id,
-            actor_user_id=current_user.id,
-            payload=payload,
-            crypto=EnvelopeCryptoProvider(
-                keys=settings.payout_crypto_keys,
-                active_key_version=settings.payout_crypto_key_version,
-            ),
-        )
-    except AppError as exc:
-        # If the NIN authenticated before bank decryption failed, retain that
-        # authorized redacted read audit without writing a decision.
-        if exc.code == "BANK_ACCOUNT_DECRYPTION_FAILED":
-            await session.commit()
-        raise
+    view = await review_application_person_payee(
+        session,
+        application_id=application_id,
+        actor_user_id=current_user.id,
+        payload=payload,
+    )
     await session.commit()
     return _admin_person_payee_response(view)
 

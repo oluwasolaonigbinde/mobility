@@ -9,7 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.adapters.messaging import EmailAdapter, EmailMessage, EmailSendError, build_email_adapter
 from app.core.config import Settings, get_settings
 from app.models.contact import PasswordResetToken
-from app.models.notification import Notification, NotificationChannel, NotificationStatus
+from app.models.driver_application import DriverApplication, DriverApplicationAccessToken
+from app.models.notification import (
+    Notification,
+    NotificationChannel,
+    NotificationStatus,
+    NotificationType,
+)
 from app.models.organization import (
     AdvertiserOrganization,
     AdvertiserOrganizationNotificationPreference,
@@ -28,14 +34,26 @@ def _utc(value: datetime) -> datetime:
 async def _preference_allows_delivery(
     session: AsyncSession, notice: Notification
 ) -> tuple[bool, str | None]:
-    if notice.type_key == "password_reset_requested":
+    if notice.type_key in {
+        NotificationType.PASSWORD_RESET_REQUESTED.value,
+        NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED.value,
+    }:
         user = await session.get(User, notice.recipient_user_id)
-        if (
-            user is None
-            or user.role not in {UserRole.ADMIN.value, UserRole.ADVERTISER.value}
-            or user.status not in {UserStatus.ACTIVE.value, UserStatus.INVITED.value}
-        ):
+        password_reset_recipient = (
+            notice.type_key == NotificationType.PASSWORD_RESET_REQUESTED.value
+            and user is not None
+            and user.role in {UserRole.ADMIN.value, UserRole.ADVERTISER.value}
+            and user.status in {UserStatus.ACTIVE.value, UserStatus.INVITED.value}
+        )
+        onboarding_recipient = (
+            notice.type_key == NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED.value
+            and user is not None
+            and user.role == UserRole.DRIVER.value
+            and user.status == UserStatus.INVITED.value
+        )
+        if not (password_reset_recipient or onboarding_recipient):
             return False, "email_recipient_inactive"
+        assert user is not None
         return True, user.email
     try:
         organization_id = UUID(str(notice.payload["advertiser_organization_id"]))
@@ -164,6 +182,37 @@ async def process_email_notification(
                 runtime_payload["reset_action"] = reset_token
             else:
                 raise ValueError("password_reset_public_url_missing")
+        elif notice.type_key == NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED.value:
+            try:
+                access_id = UUID(str(notice.payload["driver_application_access_id"]))
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError("driver_onboarding_access_request_missing") from exc
+            async with sessionmaker() as session:
+                access = await session.get(DriverApplicationAccessToken, access_id)
+                application = (
+                    await session.get(DriverApplication, access.application_id)
+                    if access is not None
+                    else None
+                )
+                user = await session.get(User, notice.recipient_user_id)
+            if (
+                access is None
+                or application is None
+                or user is None
+                or application.user_id != user.id
+                or _utc(access.expires_at) <= _utc(current)
+            ):
+                raise ValueError("driver_onboarding_access_request_inactive")
+            from app.services.driver_applications import (
+                driver_application_access_token_for_delivery,
+            )
+
+            try:
+                runtime_payload["access_code"] = driver_application_access_token_for_delivery(
+                    access, settings
+                )
+            except RuntimeError:
+                raise ValueError("driver_onboarding_access_evidence_mismatch") from None
         rendered = render_email_template(notice.type_key, notice.template_version, runtime_payload)
         adapter: EmailAdapter = ctx.get("email_adapter") or build_email_adapter(settings)
         submission = await adapter.send(

@@ -19,14 +19,14 @@ class PersonPayeeStageStatus(StrEnum):
 class ApplicantFileUploadCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    application_reference: SecretStr = Field(repr=False)
+    application_access_token: SecretStr = Field(repr=False)
     upload: FileUploadCreate
 
 
 class ApplicantFileUploadConfirm(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    application_reference: SecretStr = Field(repr=False)
+    application_access_token: SecretStr = Field(repr=False)
 
 
 class ApplicantFileUploadRead(BaseModel):
@@ -43,13 +43,12 @@ class ApplicantStoredFileRead(BaseModel):
 class PersonPayeeSubmissionCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    application_reference: SecretStr = Field(repr=False)
+    application_access_token: SecretStr = Field(repr=False)
     client_request_id: UUID
     nin: SecretStr = Field(repr=False)
     account_name: SecretStr = Field(repr=False)
     account_number: SecretStr = Field(repr=False)
     bank_code: SecretStr = Field(repr=False)
-    verification_reference: SecretStr = Field(repr=False)
     driver_license_file_id: UUID
     driver_photo_file_id: UUID
     signed_agreement_file_id: UUID

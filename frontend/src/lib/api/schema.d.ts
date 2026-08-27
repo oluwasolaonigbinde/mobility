@@ -1187,6 +1187,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payees/bank-account-versions/{version_id}/payout-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Verify Bank Account For Payout */
+        post: operations["admin_verify_bank_account_for_payout_api_v1_admin_payees_bank_account_versions__version_id__payout_verification_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payees/bank-account-versions/{version_id}/reveal": {
         parameters: {
             query?: never;
@@ -4520,18 +4537,18 @@ export interface components {
         /** ApplicantFileUploadConfirm */
         ApplicantFileUploadConfirm: {
             /**
-             * Application Reference
+             * Application Access Token
              * Format: password
              */
-            application_reference: string;
+            application_access_token: string;
         };
         /** ApplicantFileUploadCreate */
         ApplicantFileUploadCreate: {
             /**
-             * Application Reference
+             * Application Access Token
              * Format: password
              */
-            application_reference: string;
+            application_access_token: string;
             upload: components["schemas"]["FileUploadCreate"];
         };
         /** ApplicantFileUploadRead */
@@ -4814,6 +4831,14 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** BankAccountPayoutVerificationCreate */
+        BankAccountPayoutVerificationCreate: {
+            /**
+             * Verification Reference
+             * Format: password
+             */
+            verification_reference: string;
+        };
         /** BankAccountRevealRead */
         BankAccountRevealRead: {
             /** Account Name */
@@ -4854,6 +4879,13 @@ export interface components {
              * Format: uuid
              */
             payee_version_id: string;
+            /**
+             * Payout Verified
+             * @default false
+             */
+            payout_verified: boolean;
+            /** Payout Verified At */
+            payout_verified_at?: string | null;
             /**
              * Verified At
              * Format: date-time
@@ -9368,7 +9400,7 @@ export interface components {
          * NotificationType
          * @enum {string}
          */
-        NotificationType: "assignment_offered" | "assignment_accepted" | "campaign_approved" | "funding_confirmed" | "budget_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "evidence_challenge_created" | "evidence_verified" | "payout_released" | "password_reset_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered";
+        NotificationType: "assignment_offered" | "assignment_accepted" | "campaign_approved" | "funding_confirmed" | "budget_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "evidence_challenge_created" | "evidence_verified" | "payout_released" | "password_reset_requested" | "driver_onboarding_access_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered";
         /** NotificationUnreadCountRead */
         NotificationUnreadCountRead: {
             /** Unread Count */
@@ -9884,10 +9916,10 @@ export interface components {
              */
             account_number: string;
             /**
-             * Application Reference
+             * Application Access Token
              * Format: password
              */
-            application_reference: string;
+            application_access_token: string;
             /**
              * Bank Code
              * Format: password
@@ -9918,11 +9950,6 @@ export interface components {
              * Format: uuid
              */
             signed_agreement_file_id: string;
-            /**
-             * Verification Reference
-             * Format: password
-             */
-            verification_reference: string;
         };
         /** PhoneChallengeRead */
         PhoneChallengeRead: {
@@ -14418,6 +14445,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FileKycRetentionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_verify_bank_account_for_payout_api_v1_admin_payees_bank_account_versions__version_id__payout_verification_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BankAccountPayoutVerificationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankAccountVersionRead"];
                 };
             };
             /** @description Validation Error */

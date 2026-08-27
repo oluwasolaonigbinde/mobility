@@ -35,7 +35,12 @@ describe("AdminDriverApplicationsPage", () => {
               version: 1,
               masked_nin: "*******8901",
               bank_account_verified: true,
-              document_file_ids: {},
+              bank_account_version_id: "00000000-0000-4000-8000-00000000000e",
+              document_file_ids: {
+                driver_license: "00000000-0000-4000-8000-00000000000f",
+                driver_photo: "00000000-0000-4000-8000-000000000010",
+                signed_agreement: "00000000-0000-4000-8000-000000000011",
+              },
             },
           },
         ],
@@ -55,6 +60,10 @@ describe("AdminDriverApplicationsPage", () => {
     expect(within(row).getByText("pending review")).toBeInTheDocument();
     expect(within(row).getByText("v1 · *******8901")).toBeInTheDocument();
     expect(within(row).getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Reveal NIN" })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Reveal account" })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Review driver license" })).toBeInTheDocument();
+    expect(within(row).getByText("Exact account version is payout-verified.")).toBeInTheDocument();
     expect(screen.queryByText(/password|reference_sha|ratelimit/i)).not.toBeInTheDocument();
     expect(get).toHaveBeenCalledWith("/api/v1/admin/driver-applications", {
       params: { query: { limit: 25, offset: 0 } },

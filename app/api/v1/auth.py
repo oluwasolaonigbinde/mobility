@@ -58,11 +58,12 @@ from app.services.driver_applications import (
     PUBLIC_APPLICATION_MESSAGE,
     PUBLIC_NOT_FOUND_MESSAGE,
     PUBLIC_STATUS_MESSAGE,
+    application_from_access_token,
     application_status_exists,
+    issue_driver_application_access,
     submit_driver_application,
 )
 from app.services.driver_onboarding import (
-    application_from_reference,
     person_payee_status_by_reference,
     submit_application_person_payee,
 )
@@ -93,7 +94,7 @@ def _person_payee_response(view) -> PersonPayeeStageRead:
         submission_id=submission.id,
         version=submission.version,
         masked_nin=f"*******{submission.nin_last_four}",
-        bank_account_verified=True,
+        bank_account_verified=view.bank_account_verified,
         reason_code=decision.reason_code if decision else None,
         created_at=submission.created_at,
         decided_at=decision.created_at if decision else None,
@@ -318,6 +319,13 @@ async def register_driver(
             entity_id=str(result.application.id),
             metadata={"status": result.application.status, "source": "public"},
         )
+    if result.access_application is not None:
+        await issue_driver_application_access(
+            session,
+            application=result.access_application,
+            settings=settings,
+        )
+    if result.application is not None or result.access_application is not None:
         await session.commit()
     return DriverApplicationSubmitResponse(
         message=PUBLIC_APPLICATION_MESSAGE,
@@ -358,9 +366,10 @@ async def create_driver_onboarding_upload(
     storage: StorageDependency,
 ) -> ApplicantFileUploadRead:
     require_driver_registration_enabled(settings)
-    application = await application_from_reference(
+    application = await application_from_access_token(
         session,
-        reference=payload.application_reference.get_secret_value(),
+        token=payload.application_access_token.get_secret_value(),
+        settings=settings,
         lock=True,
     )
     intent, post = await create_application_driver_upload_intent(
@@ -391,9 +400,10 @@ async def confirm_driver_onboarding_upload(
     storage: StorageDependency,
 ) -> ApplicantStoredFileRead:
     require_driver_registration_enabled(settings)
-    application = await application_from_reference(
+    application = await application_from_access_token(
         session,
-        reference=payload.application_reference.get_secret_value(),
+        token=payload.application_access_token.get_secret_value(),
+        settings=settings,
         lock=True,
     )
     stored_file = await confirm_application_driver_upload(
@@ -417,9 +427,10 @@ async def get_driver_onboarding_file_status(
     settings: SettingsDependency,
 ) -> ApplicantStoredFileRead:
     require_driver_registration_enabled(settings)
-    application = await application_from_reference(
+    application = await application_from_access_token(
         session,
-        reference=payload.application_reference.get_secret_value(),
+        token=payload.application_access_token.get_secret_value(),
+        settings=settings,
         lock=False,
     )
     stored_file = await get_application_driver_file(
@@ -446,6 +457,7 @@ async def submit_driver_onboarding_person_payee(
             session,
             payload=payload,
             crypto=_onboarding_crypto(settings),
+            settings=settings,
         )
     except AppError as exc:
         # Exact-retry comparison decrypts only after capability authorization.

@@ -103,10 +103,15 @@ export default async function AdminDriverApplicationsPage({
                         {formatDate(application.created_at)}
                       </td>
                       <td className="px-5 py-3.5">
-                        {personPayeeStatus === "pending_review" && personPayee?.submission_id ? (
+                        {personPayeeStatus === "pending_review" &&
+                        personPayee?.submission_id &&
+                        personPayee.bank_account_version_id ? (
                           <PersonPayeeDecisionActions
                             applicationId={application.id}
                             submissionId={personPayee.submission_id}
+                            bankAccountVersionId={personPayee.bank_account_version_id}
+                            bankAccountVerified={personPayee.bank_account_verified}
+                            documentFileIds={personPayee.document_file_ids ?? {}}
                           />
                         ) : (
                           <span className="text-faint text-xs">No pending review</span>

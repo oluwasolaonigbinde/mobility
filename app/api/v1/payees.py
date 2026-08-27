@@ -5,6 +5,7 @@ from fastapi import APIRouter, Response, status
 from app.adapters.crypto import EnvelopeCryptoProvider
 from app.api.v1.dependencies import AdminUserDependency, SessionDependency, SettingsDependency
 from app.schemas.payees import (
+    BankAccountPayoutVerificationCreate,
     BankAccountRevealRead,
     BankAccountRevealRequest,
     BankAccountVersionRead,
@@ -14,9 +15,11 @@ from app.schemas.payees import (
 from app.services.payees import (
     VerifiedBankAccountDetails,
     add_verified_bank_account_version,
+    bank_account_payout_verification,
     create_pilot_payee,
     read_verified_bank_account,
     rewrap_bank_account,
+    verify_bank_account_version_for_payout,
 )
 
 router = APIRouter(prefix="/admin/payees", tags=["Admin payees"])
@@ -41,7 +44,8 @@ def _payee_response(payee, version) -> PayeeRead:
     )
 
 
-def _account_response(version) -> BankAccountVersionRead:
+async def _account_response(session, version) -> BankAccountVersionRead:
+    payout_verification = await bank_account_payout_verification(session, version.id)
     return BankAccountVersionRead(
         id=version.id,
         bank_account_id=version.bank_account_id,
@@ -51,6 +55,10 @@ def _account_response(version) -> BankAccountVersionRead:
         encryption_key_version=version.encryption_key_version,
         verified_at=version.verified_at,
         created_at=version.created_at,
+        payout_verified=payout_verification is not None,
+        payout_verified_at=(
+            payout_verification.created_at if payout_verification is not None else None
+        ),
     )
 
 
@@ -98,7 +106,27 @@ async def admin_add_verified_bank_account(
         crypto=_crypto(settings),
     )
     await session.commit()
-    return _account_response(version)
+    return await _account_response(session, version)
+
+
+@router.post(
+    "/bank-account-versions/{version_id}/payout-verification",
+    response_model=BankAccountVersionRead,
+)
+async def admin_verify_bank_account_for_payout(
+    version_id: UUID,
+    payload: BankAccountPayoutVerificationCreate,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+) -> BankAccountVersionRead:
+    version, _ = await verify_bank_account_version_for_payout(
+        session,
+        bank_account_version_id=version_id,
+        verification_reference=payload.verification_reference.get_secret_value(),
+        actor_user_id=current_user.id,
+    )
+    await session.commit()
+    return await _account_response(session, version)
 
 
 @router.post(
@@ -146,4 +174,4 @@ async def admin_rewrap_bank_account(
         crypto=_crypto(settings),
     )
     await session.commit()
-    return _account_response(version)
+    return await _account_response(session, version)

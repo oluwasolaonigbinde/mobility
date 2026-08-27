@@ -20,6 +20,7 @@ from app.models.driver import DriverProfile
 from app.models.payee import (
     Payee,
     PayeeBankAccount,
+    PayeeBankAccountPayoutVerification,
     PayeeBankAccountVersion,
     PayeeType,
     PayeeVersion,
@@ -186,10 +187,11 @@ async def add_verified_bank_account_version(
         actor_user_id=actor_user_id,
         crypto=crypto,
         audit_action="admin.bank_account.verified",
+        payout_authoritative=True,
     )
 
 
-async def add_applicant_verified_bank_account_version(
+async def add_applicant_bank_account_version(
     session: AsyncSession,
     *,
     payee_id: UUID,
@@ -198,7 +200,7 @@ async def add_applicant_verified_bank_account_version(
     actor_user_id: UUID,
     crypto: CryptoProvider,
 ) -> PayeeBankAccountVersion:
-    """Append a verified account only for its capability-authorized driver."""
+    """Capture an encrypted account without granting payout authority."""
 
     actor = await session.scalar(select(User).where(User.id == actor_user_id).with_for_update())
     payee = await session.scalar(select(Payee).where(Payee.id == payee_id).with_for_update())
@@ -222,8 +224,9 @@ async def add_applicant_verified_bank_account_version(
         verification_reference=verification_reference,
         actor_user_id=actor_user_id,
         crypto=crypto,
-        audit_action="driver_application.bank_account.verified",
+        audit_action="driver_application.bank_account.captured",
         locked_payee=payee,
+        payout_authoritative=False,
     )
 
 
@@ -237,6 +240,7 @@ async def _add_verified_bank_account_version_authorized(
     crypto: CryptoProvider,
     audit_action: str,
     locked_payee: Payee | None = None,
+    payout_authoritative: bool,
 ) -> PayeeBankAccountVersion:
     normalized_details = _validate_details(details)
     verification_hash = verification_reference_hash(verification_reference)
@@ -301,6 +305,13 @@ async def _add_verified_bank_account_version_authorized(
     )
     session.add(account_version)
     await session.flush()
+    if payout_authoritative:
+        await _record_payout_verification(
+            session,
+            account_version=account_version,
+            verification_hash=verification_hash,
+            actor_user_id=actor_user_id,
+        )
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,
@@ -315,6 +326,102 @@ async def _add_verified_bank_account_version_authorized(
         },
     )
     return account_version
+
+
+async def _record_payout_verification(
+    session: AsyncSession,
+    *,
+    account_version: PayeeBankAccountVersion,
+    verification_hash: str,
+    actor_user_id: UUID,
+) -> tuple[PayeeBankAccountPayoutVerification, bool]:
+    existing = await session.scalar(
+        select(PayeeBankAccountPayoutVerification).where(
+            PayeeBankAccountPayoutVerification.bank_account_version_id == account_version.id
+        )
+    )
+    if existing is not None:
+        if existing.verification_reference_sha256 != verification_hash:
+            raise AppError(
+                "BANK_ACCOUNT_PAYOUT_VERIFICATION_CONFLICT",
+                "Payout verification conflicts with the accepted exact-version evidence",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+        return existing, False
+    verification = PayeeBankAccountPayoutVerification(
+        bank_account_version_id=account_version.id,
+        verification_reference_sha256=verification_hash,
+        verified_by_user_id=actor_user_id,
+    )
+    session.add(verification)
+    await session.flush()
+    return verification, True
+
+
+async def verify_bank_account_version_for_payout(
+    session: AsyncSession,
+    *,
+    bank_account_version_id: UUID,
+    verification_reference: str,
+    actor_user_id: UUID,
+) -> tuple[PayeeBankAccountVersion, PayeeBankAccountPayoutVerification]:
+    """Append immutable admin/provider authority for one exact account version."""
+
+    await _require_active_admin(session, actor_user_id)
+    probe = await session.execute(
+        select(PayeeBankAccountVersion, PayeeBankAccount, Payee)
+        .join(PayeeBankAccount, PayeeBankAccount.id == PayeeBankAccountVersion.bank_account_id)
+        .join(Payee, Payee.id == PayeeBankAccount.payee_id)
+        .where(PayeeBankAccountVersion.id == bank_account_version_id)
+    )
+    row = probe.one_or_none()
+    if row is None:
+        raise AppError(
+            "BANK_ACCOUNT_VERSION_NOT_FOUND",
+            "Bank-account version was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    version_probe, account_probe, payee_probe = row
+    await session.scalar(select(Payee).where(Payee.id == payee_probe.id).with_for_update())
+    await session.scalar(
+        select(PayeeBankAccount).where(PayeeBankAccount.id == account_probe.id).with_for_update()
+    )
+    account_version = await session.scalar(
+        select(PayeeBankAccountVersion)
+        .where(PayeeBankAccountVersion.id == version_probe.id)
+        .with_for_update()
+    )
+    if account_version is None:  # pragma: no cover - protected by locks/FKs
+        raise RuntimeError("Bank-account version disappeared while locked")
+    verification, created = await _record_payout_verification(
+        session,
+        account_version=account_version,
+        verification_hash=verification_reference_hash(verification_reference),
+        actor_user_id=actor_user_id,
+    )
+    if created:
+        await create_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action="admin.bank_account.payout_verified",
+            entity_type="payee_bank_account",
+            entity_id=str(account_version.bank_account_id),
+            metadata={
+                "bank_account_version": account_version.version,
+                "bank_account_version_id": str(account_version.id),
+            },
+        )
+    return account_version, verification
+
+
+async def bank_account_payout_verification(
+    session: AsyncSession, bank_account_version_id: UUID
+) -> PayeeBankAccountPayoutVerification | None:
+    return await session.scalar(
+        select(PayeeBankAccountPayoutVerification).where(
+            PayeeBankAccountPayoutVerification.bank_account_version_id == bank_account_version_id
+        )
+    )
 
 
 async def read_verified_bank_account(

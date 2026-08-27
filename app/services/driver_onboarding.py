@@ -8,7 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from app.adapters.crypto import CryptoProvider
+from app.core.config import Settings
 from app.core.errors import AppError
+from app.models.audit import AuditEvent
 from app.models.driver import DriverProfile
 from app.models.driver_application import DriverApplication, DriverApplicationStatus
 from app.models.kyc import (
@@ -17,7 +19,11 @@ from app.models.kyc import (
     KycReviewReason,
     KycSubmissionStatus,
 )
-from app.models.payee import PayeeBankAccountVersion
+from app.models.payee import (
+    PayeeBankAccount,
+    PayeeBankAccountPayoutVerification,
+    PayeeBankAccountVersion,
+)
 from app.schemas.driver_onboarding import (
     PersonPayeeReviewDecisionCreate,
     PersonPayeeStageStatus,
@@ -25,18 +31,13 @@ from app.schemas.driver_onboarding import (
 )
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
-from app.services.driver_applications import status_reference_hash
-from app.services.kyc import (
-    reveal_driver_nin,
-    submit_driver_kyc,
-    validate_driver_kyc_for_approval,
-)
+from app.services.driver_applications import application_from_access_token, status_reference_hash
+from app.services.kyc import submit_driver_kyc, validate_driver_kyc_for_approval
 from app.services.payees import (
     VerifiedBankAccountDetails,
-    add_applicant_verified_bank_account_version,
+    add_applicant_bank_account_version,
     create_applicant_payee,
     read_applicant_verified_bank_account,
-    read_verified_bank_account,
     verification_reference_hash,
 )
 
@@ -46,6 +47,7 @@ class PersonPayeeView:
     submission: DriverKycSubmission | None
     decision: DriverKycReviewDecision | None
     document_file_ids: dict[str, UUID]
+    bank_account_verified: bool = False
 
     @property
     def status(self) -> PersonPayeeStageStatus:
@@ -111,10 +113,17 @@ async def _view_for_profile(session: AsyncSession, *, profile_id: UUID) -> Perso
             DriverKycReviewDecision.submission_id == submission.id
         )
     )
+    payout_verification = await session.scalar(
+        select(PayeeBankAccountPayoutVerification.id).where(
+            PayeeBankAccountPayoutVerification.bank_account_version_id
+            == submission.bank_account_version_id
+        )
+    )
     return PersonPayeeView(
         submission,
         decision,
         await _documents(session, submission.id),
+        payout_verification is not None,
     )
 
 
@@ -133,10 +142,12 @@ async def submit_application_person_payee(
     *,
     payload: PersonPayeeSubmissionCreate,
     crypto: CryptoProvider,
+    settings: Settings,
 ) -> PersonPayeeView:
-    application = await application_from_reference(
+    application = await application_from_access_token(
         session,
-        reference=payload.application_reference.get_secret_value(),
+        token=payload.application_access_token.get_secret_value(),
+        settings=settings,
         lock=True,
     )
     profile = await session.scalar(
@@ -166,6 +177,7 @@ async def submit_application_person_payee(
         account_number=payload.account_number.get_secret_value(),
         bank_code=payload.bank_code.get_secret_value(),
     )
+    applicant_capture_reference = f"driver-application-capture-v1:{payload.client_request_id}"
     if existing is not None:
         stored_details = await read_applicant_verified_bank_account(
             session,
@@ -181,7 +193,7 @@ async def submit_application_person_payee(
             stored_details != details
             or account_version is None
             or account_version.verification_reference_sha256
-            != verification_reference_hash(payload.verification_reference.get_secret_value())
+            != verification_reference_hash(applicant_capture_reference)
         ):
             raise _error(
                 "PERSON_PAYEE_RETRY_CONFLICT",
@@ -220,11 +232,11 @@ async def submit_application_person_payee(
         driver_profile_id=profile.id,
         actor_user_id=application.user_id,
     )
-    account = await add_applicant_verified_bank_account_version(
+    account = await add_applicant_bank_account_version(
         session,
         payee_id=payee.id,
         details=details,
-        verification_reference=payload.verification_reference.get_secret_value(),
+        verification_reference=applicant_capture_reference,
         actor_user_id=application.user_id,
         crypto=crypto,
     )
@@ -272,13 +284,85 @@ def _validate_decision_facts(payload: PersonPayeeReviewDecisionCreate) -> None:
         )
 
 
+async def _require_exact_review_evidence(
+    session: AsyncSession,
+    *,
+    submission: DriverKycSubmission,
+    document_file_ids: dict[str, UUID],
+    actor_user_id: UUID,
+) -> None:
+    account_version = await session.get(PayeeBankAccountVersion, submission.bank_account_version_id)
+    payout_verification = await session.scalar(
+        select(PayeeBankAccountPayoutVerification.id).where(
+            PayeeBankAccountPayoutVerification.bank_account_version_id
+            == submission.bank_account_version_id
+        )
+    )
+    if account_version is None or payout_verification is None:
+        raise _error(
+            "PERSON_PAYEE_BANK_ACCOUNT_UNVERIFIED",
+            "The exact current bank-account version requires authorized payout verification",
+            status.HTTP_409_CONFLICT,
+        )
+    account = await session.get(PayeeBankAccount, account_version.bank_account_id)
+    if account is None:  # pragma: no cover - protected by FK
+        raise RuntimeError("Person/payee bank-account authority disappeared")
+    events = list(
+        (
+            await session.scalars(
+                select(AuditEvent).where(
+                    AuditEvent.actor_user_id == actor_user_id,
+                    AuditEvent.action.in_(
+                        (
+                            "admin.kyc.nin_read",
+                            "admin.bank_account.read",
+                            "stored_file.read",
+                        )
+                    ),
+                )
+            )
+        ).all()
+    )
+    nin_read = any(
+        event.action == "admin.kyc.nin_read"
+        and event.entity_id == str(submission.id)
+        and event.event_metadata.get("purpose") == "person_payee_approval"
+        for event in events
+    )
+    account_read = any(
+        event.action == "admin.bank_account.read"
+        and event.entity_id == str(account.id)
+        and event.event_metadata.get("bank_account_version") == account_version.version
+        and event.event_metadata.get("purpose") == "person_payee_approval"
+        for event in events
+    )
+    reviewed_files = {
+        UUID(event.entity_id)
+        for event in events
+        if event.action == "stored_file.read"
+        and event.entity_id is not None
+        and event.event_metadata.get("file_purpose") == "driver_kyc"
+        and event.event_metadata.get("access_purpose") == "kyc_review"
+        and event.event_metadata.get("reason") == f"person_payee_approval:{submission.id}"
+    }
+    if (
+        not nin_read
+        or not account_read
+        or not set(document_file_ids.values()).issubset(reviewed_files)
+    ):
+        raise _error(
+            "PERSON_PAYEE_REVIEW_EVIDENCE_INCOMPLETE",
+            "Approval requires exact current identity, account and document review evidence",
+            status.HTTP_409_CONFLICT,
+        )
+
+
 async def review_application_person_payee(
     session: AsyncSession,
     *,
     application_id: UUID,
     actor_user_id: UUID,
     payload: PersonPayeeReviewDecisionCreate,
-    crypto: CryptoProvider,
 ) -> PersonPayeeView:
     await require_active_admin(session, actor_user_id)
     _validate_decision_facts(payload)
@@ -297,14 +381,7 @@ async def review_application_person_payee(
         .where(DriverProfile.id == application.driver_profile_id)
         .with_for_update()
     )
-    submission = await session.scalar(
-        select(DriverKycSubmission)
-        .where(DriverKycSubmission.driver_profile_id == application.driver_profile_id)
-        .order_by(DriverKycSubmission.version.desc())
-        .limit(1)
-        .with_for_update()
-    )
-    if profile is None or submission is None:
+    if profile is None:
         raise _error(
             "PERSON_PAYEE_INCOMPLETE",
             "A complete current person/payee submission is required",
@@ -316,16 +393,46 @@ async def review_application_person_payee(
         )
     )
     if retry is not None:
-        if retry.submission_id != submission.id or retry.request_fingerprint != fingerprint:
+        original_submission = await session.scalar(
+            select(DriverKycSubmission)
+            .where(
+                DriverKycSubmission.id == retry.submission_id,
+                DriverKycSubmission.driver_profile_id == application.driver_profile_id,
+            )
+            .with_for_update()
+        )
+        if original_submission is None or retry.request_fingerprint != fingerprint:
             raise _error(
                 "PERSON_PAYEE_DECISION_RETRY_CONFLICT",
                 "The decision retry does not match the original request",
                 status.HTTP_409_CONFLICT,
             )
         return PersonPayeeView(
-            submission,
+            original_submission,
             retry,
-            await _documents(session, submission.id),
+            await _documents(session, original_submission.id),
+            (
+                await session.scalar(
+                    select(PayeeBankAccountPayoutVerification.id).where(
+                        PayeeBankAccountPayoutVerification.bank_account_version_id
+                        == original_submission.bank_account_version_id
+                    )
+                )
+                is not None
+            ),
+        )
+    submission = await session.scalar(
+        select(DriverKycSubmission)
+        .where(DriverKycSubmission.driver_profile_id == application.driver_profile_id)
+        .order_by(DriverKycSubmission.version.desc())
+        .limit(1)
+        .with_for_update()
+    )
+    if submission is None:
+        raise _error(
+            "PERSON_PAYEE_INCOMPLETE",
+            "A complete current person/payee submission is required",
+            status.HTTP_409_CONFLICT,
         )
     if submission.status != KycSubmissionStatus.PENDING_REVIEW:
         raise _error(
@@ -340,19 +447,11 @@ async def review_application_person_payee(
             submission=submission,
             profile=profile,
         )
-        await reveal_driver_nin(
+        await _require_exact_review_evidence(
             session,
-            submission_id=submission.id,
+            submission=submission,
+            document_file_ids=documents,
             actor_user_id=actor_user_id,
-            purpose="person_payee_approval",
-            crypto=crypto,
-        )
-        await read_verified_bank_account(
-            session,
-            bank_account_version_id=submission.bank_account_version_id,
-            actor_user_id=actor_user_id,
-            crypto=crypto,
-            purpose="person_payee_approval",
         )
     decision = DriverKycReviewDecision(
         submission_id=submission.id,
@@ -383,7 +482,20 @@ async def review_application_person_payee(
             "documents_readable_confirmed": payload.documents_readable_confirmed,
         },
     )
-    return PersonPayeeView(submission, decision, documents)
+    return PersonPayeeView(
+        submission,
+        decision,
+        documents,
+        (
+            await session.scalar(
+                select(PayeeBankAccountPayoutVerification.id).where(
+                    PayeeBankAccountPayoutVerification.bank_account_version_id
+                    == submission.bank_account_version_id
+                )
+            )
+            is not None
+        ),
+    )
 
 
 async def application_person_payee_view(

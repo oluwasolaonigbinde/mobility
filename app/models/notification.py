@@ -35,6 +35,7 @@ class NotificationType(StrEnum):
     EVIDENCE_VERIFIED = "evidence_verified"
     PAYOUT_RELEASED = "payout_released"
     PASSWORD_RESET_REQUESTED = "password_reset_requested"
+    DRIVER_ONBOARDING_ACCESS_REQUESTED = "driver_onboarding_access_requested"
     FRAUD_HOLD_RAISED = "fraud_hold_raised"
     FRAUD_REVIEW_RESOLVED = "fraud_review_resolved"
     FRAUD_DISPUTE_REPLIED = "fraud_dispute_replied"

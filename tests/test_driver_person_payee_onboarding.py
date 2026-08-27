@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from conftest import auth_headers, create_test_user
+from httpx import Response
 from sqlalchemy import func, select
 from test_stored_files import FakeStorageProvider
 
@@ -15,7 +16,7 @@ from app.core.errors import AppError
 from app.core.rate_limit import InMemoryRegistrationRateLimiter
 from app.models.audit import AuditEvent
 from app.models.driver import DriverProfile
-from app.models.driver_application import DriverApplication
+from app.models.driver_application import DriverApplication, DriverApplicationAccessToken
 from app.models.kyc import DriverKycReviewDecision, DriverKycSubmission
 from app.models.payee import PayeeBankAccountVersion
 from app.models.stored_file import FileScanStatus, FileUploadIntent, StoredFile
@@ -26,18 +27,22 @@ from app.schemas.driver_onboarding import (
     PersonPayeeSubmissionCreate,
 )
 from app.services.campaign_assignments import ensure_active_driver_profile
-from app.services.driver_applications import submit_driver_application
+from app.services.driver_applications import (
+    issue_driver_application_access,
+    submit_driver_application,
+    synthetic_driver_application_access_token,
+)
 from app.services.driver_onboarding import (
     review_application_person_payee,
     submit_application_person_payee,
 )
-from app.services.kyc import rewrap_driver_nin
+from app.services.kyc import reveal_driver_nin, rewrap_driver_nin
 
 PASSWORD = "long-secure-password"
 NIN = "12345678901"
 
 
-def _register(db_client, settings, *, suffix: str) -> tuple[str, DriverApplication]:
+def _register(db_client, db_sessionmaker, settings, *, suffix: str) -> tuple[str, Response]:
     enabled = settings.model_copy(update={"driver_registration_enabled": True})
     db_client.app.dependency_overrides[get_settings] = lambda: enabled
     db_client.app.dependency_overrides[get_registration_rate_limiter] = lambda: (
@@ -53,7 +58,28 @@ def _register(db_client, settings, *, suffix: str) -> tuple[str, DriverApplicati
         },
     )
     assert response.status_code == 202
-    return response.json()["application_reference"], response
+
+    async def access_token() -> str:
+        async with db_sessionmaker() as session:
+            application = await session.scalar(
+                select(DriverApplication).where(
+                    DriverApplication.email == f"person-payee-{suffix}@example.com"
+                )
+            )
+            assert application is not None
+            access = await session.scalar(
+                select(DriverApplicationAccessToken)
+                .where(DriverApplicationAccessToken.application_id == application.id)
+                .order_by(DriverApplicationAccessToken.created_at.desc())
+            )
+            assert access is not None
+            return synthetic_driver_application_access_token(
+                access,
+                enabled,
+                synthetic_test_authority=True,
+            )
+
+    return asyncio.run(access_token()), response
 
 
 def _application(db_sessionmaker, *, email: str) -> DriverApplication:
@@ -118,25 +144,80 @@ def _seed_clean_kyc_files(db_sessionmaker, *, email: str) -> dict[str, UUID]:
     return asyncio.run(seed())
 
 
-def _person_payee_payload(reference: str, files: dict[str, UUID], *, request_id=None):
+def _person_payee_payload(access_token: str, files: dict[str, UUID], *, request_id=None):
     return {
-        "application_reference": reference,
+        "application_access_token": access_token,
         "client_request_id": str(request_id or uuid4()),
         "nin": NIN,
         "account_name": "Person Payee Driver",
         "account_number": "0123456789",
         "bank_code": "058",
-        "verification_reference": "provider-neutral-synthetic-verification-000001",
         "driver_license_file_id": str(files["driver_license"]),
         "driver_photo_file_id": str(files["driver_photo"]),
         "signed_agreement_file_id": str(files["signed_agreement"]),
     }
 
 
+def _complete_admin_review(
+    db_client,
+    db_sessionmaker,
+    *,
+    admin,
+    application: DriverApplication,
+    files: dict[str, UUID],
+) -> None:
+    storage = FakeStorageProvider()
+    db_client.app.dependency_overrides[get_storage_provider] = lambda: storage
+
+    async def submission() -> DriverKycSubmission:
+        async with db_sessionmaker() as session:
+            row = await session.scalar(
+                select(DriverKycSubmission)
+                .where(DriverKycSubmission.driver_profile_id == application.driver_profile_id)
+                .order_by(DriverKycSubmission.version.desc())
+            )
+            assert row is not None
+            return row
+
+    current = asyncio.run(submission())
+    headers = auth_headers(db_client, admin.email, PASSWORD)
+    verified = db_client.post(
+        f"/api/v1/admin/payees/bank-account-versions/"
+        f"{current.bank_account_version_id}/payout-verification",
+        headers=headers,
+        json={"verification_reference": f"admin-provider-review-{current.id.hex}"},
+    )
+    assert verified.status_code == 200
+    assert verified.json()["payout_verified"] is True
+    nin = db_client.post(
+        f"/api/v1/admin/kyc/submissions/{current.id}/nin/reveal",
+        headers=headers,
+        json={"purpose": "person_payee_approval"},
+    )
+    account = db_client.post(
+        f"/api/v1/admin/payees/bank-account-versions/{current.bank_account_version_id}/reveal",
+        headers=headers,
+        json={"purpose": "person_payee_approval"},
+    )
+    assert nin.status_code == account.status_code == 200
+    assert nin.json()["nin"] == NIN
+    assert account.json()["account_number"] == "0123456789"
+    for file_id in files.values():
+        download = db_client.post(
+            f"/api/v1/admin/files/{file_id}/download",
+            headers=headers,
+            json={
+                "purpose": "kyc_review",
+                "reason": f"person_payee_approval:{current.id}",
+            },
+        )
+        assert download.status_code == 200
+
+
 def test_public_applicant_can_submit_person_payee_without_plaintext_projection(
     db_client, db_sessionmaker, settings
 ) -> None:
-    reference, _ = _register(db_client, settings, suffix="submit")
+    reference, _ = _register(db_client, db_sessionmaker, settings, suffix="submit")
     files = _seed_clean_kyc_files(db_sessionmaker, email="person-payee-submit@example.com")
 
     response = db_client.post(
@@ -164,14 +245,14 @@ def test_public_applicant_can_submit_person_payee_without_plaintext_projection(
     asyncio.run(inspect())
 
 
-def test_public_application_reference_scopes_shared_private_upload_flow(
+def test_public_application_access_scopes_shared_private_upload_flow(
     db_client, db_sessionmaker, settings
 ) -> None:
-    reference, _ = _register(db_client, settings, suffix="upload")
+    access_token, _ = _register(db_client, db_sessionmaker, settings, suffix="upload")
     storage = FakeStorageProvider()
     db_client.app.dependency_overrides[get_storage_provider] = lambda: storage
     payload = {
-        "application_reference": reference,
+        "application_access_token": access_token,
         "upload": {
             "client_request_id": str(uuid4()),
             "purpose": "driver_kyc",
@@ -194,23 +275,23 @@ def test_public_application_reference_scopes_shared_private_upload_flow(
     )
     confirmed = db_client.post(
         f"/api/v1/auth/driver-onboarding/files/uploads/{created.json()['upload_id']}/confirm",
-        json={"application_reference": reference},
+        json={"application_access_token": access_token},
     )
     foreign = db_client.post(
         f"/api/v1/auth/driver-onboarding/files/uploads/{created.json()['upload_id']}/confirm",
-        json={"application_reference": "x" * 48},
+        json={"application_access_token": "x" * 48},
     )
     assert confirmed.status_code == 201
     assert set(confirmed.json()) == {"id", "scan_status"}
     assert confirmed.json()["scan_status"] == "pending"
     assert foreign.status_code == 404
-    assert reference not in json.dumps(storage.presigned)
+    assert access_token not in json.dumps(storage.presigned)
 
 
 def test_exact_submission_retry_converges_and_changed_retry_fails(
     db_client, db_sessionmaker, settings, caplog
 ) -> None:
-    reference, _ = _register(db_client, settings, suffix="retry")
+    reference, _ = _register(db_client, db_sessionmaker, settings, suffix="retry")
     files = _seed_clean_kyc_files(db_sessionmaker, email="person-payee-retry@example.com")
     request_id = uuid4()
     payload = _person_payee_payload(reference, files, request_id=request_id)
@@ -262,7 +343,7 @@ def test_exact_submission_retry_converges_and_changed_retry_fails(
 
 
 def test_incomplete_person_payee_cannot_be_approved(db_client, db_sessionmaker, settings) -> None:
-    _, _ = _register(db_client, settings, suffix="incomplete")
+    _, _ = _register(db_client, db_sessionmaker, settings, suffix="incomplete")
     application = _application(db_sessionmaker, email="person-payee-incomplete@example.com")
     admin = create_test_user(
         db_sessionmaker,
@@ -290,7 +371,7 @@ def test_incomplete_person_payee_cannot_be_approved(db_client, db_sessionmaker, 
 def test_admin_approval_is_idempotent_audited_safe_and_non_work_eligible(
     db_client, db_sessionmaker, settings
 ) -> None:
-    reference, _ = _register(db_client, settings, suffix="approval")
+    reference, registration = _register(db_client, db_sessionmaker, settings, suffix="approval")
     application = _application(db_sessionmaker, email="person-payee-approval@example.com")
     files = _seed_clean_kyc_files(db_sessionmaker, email="person-payee-approval@example.com")
     submitted = db_client.post(
@@ -302,6 +383,13 @@ def test_admin_approval_is_idempotent_audited_safe_and_non_work_eligible(
         db_sessionmaker,
         email="person-payee-approval-admin@example.com",
         password=PASSWORD,
+    )
+    _complete_admin_review(
+        db_client,
+        db_sessionmaker,
+        admin=admin,
+        application=application,
+        files=files,
     )
     decision_id = uuid4()
     decision = {
@@ -336,7 +424,9 @@ def test_admin_approval_is_idempotent_audited_safe_and_non_work_eligible(
     assert conflict.status_code == 409
     assert conflict.json()["error"]["code"] == "PERSON_PAYEE_DECISION_RETRY_CONFLICT"
 
-    status_response = db_client.get(f"/api/v1/auth/driver-application-status/{reference}")
+    status_response = db_client.get(
+        f"/api/v1/auth/driver-application-status/{registration.json()['application_reference']}"
+    )
     queue = db_client.get(
         "/api/v1/admin/driver-applications",
         headers=auth_headers(db_client, admin.email, PASSWORD),
@@ -400,12 +490,19 @@ def test_admin_approval_is_idempotent_audited_safe_and_non_work_eligible(
             return view.submission.status, view.submission.version, decisions
 
     assert asyncio.run(rotate_approved_identity()) == ("pending_review", 2, 1)
+    stale_review = db_client.post(
+        path,
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+        json={**decision, "client_request_id": str(uuid4())},
+    )
+    assert stale_review.status_code == 409
+    assert stale_review.json()["error"]["code"] == "PERSON_PAYEE_REVIEW_EVIDENCE_INCOMPLETE"
 
 
 def test_approval_fails_closed_for_unsafe_evidence_and_unavailable_key(
     db_client, db_sessionmaker, settings
 ) -> None:
-    reference, _ = _register(db_client, settings, suffix="fail-closed")
+    reference, _ = _register(db_client, db_sessionmaker, settings, suffix="fail-closed")
     application = _application(db_sessionmaker, email="person-payee-fail-closed@example.com")
     files = _seed_clean_kyc_files(db_sessionmaker, email="person-payee-fail-closed@example.com")
     submitted = db_client.post(
@@ -451,13 +548,11 @@ def test_approval_fails_closed_for_unsafe_evidence_and_unavailable_key(
             await session.commit()
         async with db_sessionmaker() as session:
             with pytest.raises(AppError) as exc_info:
-                await review_application_person_payee(
+                await reveal_driver_nin(
                     session,
-                    application_id=application.id,
+                    submission_id=UUID(submitted.json()["submission_id"]),
                     actor_user_id=admin.id,
-                    payload=PersonPayeeReviewDecisionCreate.model_validate(
-                        {**decision_payload, "client_request_id": str(uuid4())}
-                    ),
+                    purpose="person_payee_approval",
                     crypto=EnvelopeCryptoProvider(keys={2: b"z" * 32}, active_key_version=2),
                 )
             await session.rollback()
@@ -491,7 +586,7 @@ def test_approval_fails_closed_for_unsafe_evidence_and_unavailable_key(
 def test_person_payee_decision_requires_an_active_admin(
     db_client, db_sessionmaker, settings
 ) -> None:
-    reference, _ = _register(db_client, settings, suffix="authorization")
+    reference, _ = _register(db_client, db_sessionmaker, settings, suffix="authorization")
     application = _application(db_sessionmaker, email="person-payee-authorization@example.com")
     files = _seed_clean_kyc_files(db_sessionmaker, email="person-payee-authorization@example.com")
     assert (
@@ -531,7 +626,7 @@ def test_rejected_or_expired_submission_resubmits_as_new_truthful_version(
     db_client, db_sessionmaker, settings, decision: str, reason: str
 ) -> None:
     suffix = f"resubmit-{decision}"
-    reference, _ = _register(db_client, settings, suffix=suffix)
+    reference, _ = _register(db_client, db_sessionmaker, settings, suffix=suffix)
     application = _application(db_sessionmaker, email=f"person-payee-{suffix}@example.com")
     files = _seed_clean_kyc_files(db_sessionmaker, email=f"person-payee-{suffix}@example.com")
     first_request = uuid4()
@@ -585,7 +680,7 @@ def test_rejected_or_expired_submission_resubmits_as_new_truthful_version(
 def test_public_applicant_cannot_be_manually_activated_before_vehicle_approval(
     db_client, db_sessionmaker, settings
 ) -> None:
-    _, _ = _register(db_client, settings, suffix="eligibility")
+    _, _ = _register(db_client, db_sessionmaker, settings, suffix="eligibility")
     admin = create_test_user(
         db_sessionmaker,
         email="person-payee-eligibility-admin@example.com",
@@ -614,6 +709,7 @@ def test_public_applicant_cannot_be_manually_activated_before_vehicle_approval(
 
 def test_postgres_concurrent_conflicting_decisions_serialize_once(
     postgis_db_sessionmaker,
+    settings,
 ) -> None:
     async def seed_application() -> tuple[str, DriverApplication]:
         async with postgis_db_sessionmaker() as session:
@@ -627,8 +723,20 @@ def test_postgres_concurrent_conflicting_decisions_serialize_once(
                 ),
             )
             assert result.application is not None and result.reference is not None
+            access = await issue_driver_application_access(
+                session,
+                application=result.application,
+                settings=settings,
+            )
             await session.commit()
-            return result.reference, result.application
+            return (
+                synthetic_driver_application_access_token(
+                    access,
+                    settings,
+                    synthetic_test_authority=True,
+                ),
+                result.application,
+            )
 
     reference, application = asyncio.run(seed_application())
     files = _seed_clean_kyc_files(
@@ -644,6 +752,7 @@ def test_postgres_concurrent_conflicting_decisions_serialize_once(
                     _person_payee_payload(reference, files)
                 ),
                 crypto=crypto,
+                settings=settings,
             )
             await session.commit()
 
@@ -676,7 +785,6 @@ def test_postgres_concurrent_conflicting_decisions_serialize_once(
                         bank_account_match_confirmed=decision == "approved",
                         documents_readable_confirmed=decision == "approved",
                     ),
-                    crypto=crypto,
                 )
                 await session.commit()
                 assert view.submission is not None
@@ -687,8 +795,8 @@ def test_postgres_concurrent_conflicting_decisions_serialize_once(
 
     async def exercise() -> tuple[list[str], str, int]:
         results = await asyncio.gather(
-            decide(first_admin.id, "approved", "complete_current_evidence"),
-            decide(second_admin.id, "rejected", "identity_mismatch"),
+            decide(first_admin.id, "rejected", "identity_mismatch"),
+            decide(second_admin.id, "expired", "expired_evidence"),
         )
         async with postgis_db_sessionmaker() as session:
             submission = await session.scalar(select(DriverKycSubmission))
@@ -698,5 +806,5 @@ def test_postgres_concurrent_conflicting_decisions_serialize_once(
 
     results, terminal_status, decision_count = asyncio.run(exercise())
     assert results == sorted([terminal_status, "PERSON_PAYEE_ALREADY_DECIDED"])
-    assert terminal_status in {"approved", "rejected"}
+    assert terminal_status in {"rejected", "expired"}
     assert decision_count == 1

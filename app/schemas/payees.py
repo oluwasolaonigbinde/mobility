@@ -21,6 +21,12 @@ class BankAccountRevealRequest(BaseModel):
     purpose: str = Field(min_length=3, max_length=64, pattern=r"^[a-z][a-z0-9_]+$")
 
 
+class BankAccountPayoutVerificationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    verification_reference: SecretStr = Field(repr=False, min_length=16, max_length=512)
+
+
 class PayeeRead(BaseModel):
     id: UUID
     tenant_id: UUID
@@ -40,6 +46,8 @@ class BankAccountVersionRead(BaseModel):
     encryption_key_version: int
     verified_at: datetime
     created_at: datetime
+    payout_verified: bool = False
+    payout_verified_at: datetime | None = None
 
 
 class BankAccountRevealRead(BaseModel):

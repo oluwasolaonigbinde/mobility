@@ -1514,15 +1514,15 @@
       "ApplicantFileUploadConfirm": {
         "additionalProperties": false,
         "properties": {
-          "application_reference": {
+          "application_access_token": {
             "format": "password",
-            "title": "Application Reference",
+            "title": "Application Access Token",
             "type": "string",
             "writeOnly": true
           }
         },
         "required": [
-          "application_reference"
+          "application_access_token"
         ],
         "title": "ApplicantFileUploadConfirm",
         "type": "object"
@@ -1530,9 +1530,9 @@
       "ApplicantFileUploadCreate": {
         "additionalProperties": false,
         "properties": {
-          "application_reference": {
+          "application_access_token": {
             "format": "password",
-            "title": "Application Reference",
+            "title": "Application Access Token",
             "type": "string",
             "writeOnly": true
           },
@@ -1541,7 +1541,7 @@
           }
         },
         "required": [
-          "application_reference",
+          "application_access_token",
           "upload"
         ],
         "title": "ApplicantFileUploadCreate",
@@ -2085,6 +2085,24 @@
         "title": "AuditEventRead",
         "type": "object"
       },
+      "BankAccountPayoutVerificationCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "verification_reference": {
+            "format": "password",
+            "maxLength": 512,
+            "minLength": 16,
+            "title": "Verification Reference",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "verification_reference"
+        ],
+        "title": "BankAccountPayoutVerificationCreate",
+        "type": "object"
+      },
       "BankAccountRevealRead": {
         "properties": {
           "account_name": {
@@ -2154,6 +2172,23 @@
             "format": "uuid",
             "title": "Payee Version Id",
             "type": "string"
+          },
+          "payout_verified": {
+            "default": false,
+            "title": "Payout Verified",
+            "type": "boolean"
+          },
+          "payout_verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payout Verified At"
           },
           "verified_at": {
             "format": "date-time",
@@ -14157,6 +14192,7 @@
           "evidence_verified",
           "payout_released",
           "password_reset_requested",
+          "driver_onboarding_access_requested",
           "fraud_hold_raised",
           "fraud_review_resolved",
           "fraud_dispute_replied",
@@ -15488,9 +15524,9 @@
             "type": "string",
             "writeOnly": true
           },
-          "application_reference": {
+          "application_access_token": {
             "format": "password",
-            "title": "Application Reference",
+            "title": "Application Access Token",
             "type": "string",
             "writeOnly": true
           },
@@ -15525,22 +15561,15 @@
             "format": "uuid",
             "title": "Signed Agreement File Id",
             "type": "string"
-          },
-          "verification_reference": {
-            "format": "password",
-            "title": "Verification Reference",
-            "type": "string",
-            "writeOnly": true
           }
         },
         "required": [
-          "application_reference",
+          "application_access_token",
           "client_request_id",
           "nin",
           "account_name",
           "account_number",
           "bank_code",
-          "verification_reference",
           "driver_license_file_id",
           "driver_photo_file_id",
           "signed_agreement_file_id"
@@ -25314,6 +25343,64 @@
         "summary": "Plan or execute terminal file/KYC retention",
         "tags": [
           "Protected KYC"
+        ]
+      }
+    },
+    "/api/v1/admin/payees/bank-account-versions/{version_id}/payout-verification": {
+      "post": {
+        "operationId": "admin_verify_bank_account_for_payout_api_v1_admin_payees_bank_account_versions__version_id__payout_verification_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BankAccountPayoutVerificationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankAccountVersionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Verify Bank Account For Payout",
+        "tags": [
+          "Admin payees"
         ]
       }
     },

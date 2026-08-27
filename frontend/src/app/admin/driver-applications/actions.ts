@@ -11,6 +11,103 @@ export interface PersonPayeeDecisionState {
   done?: string;
 }
 
+export interface PersonPayeeEvidenceState {
+  error?: string;
+  done?: string;
+  sensitiveValue?: string;
+  downloadUrl?: string;
+}
+
+const evidenceSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("nin"), submission_id: z.string().uuid() }),
+  z.object({ kind: z.literal("account"), bank_account_version_id: z.string().uuid() }),
+  z.object({
+    kind: z.literal("document"),
+    file_id: z.string().uuid(),
+    submission_id: z.string().uuid(),
+  }),
+]);
+
+export async function reviewPersonPayeeEvidenceAction(
+  _previous: PersonPayeeEvidenceState,
+  formData: FormData,
+): Promise<PersonPayeeEvidenceState> {
+  const parsed = evidenceSchema.safeParse({
+    kind: String(formData.get("kind") ?? ""),
+    submission_id: String(formData.get("submission_id") ?? ""),
+    bank_account_version_id: String(formData.get("bank_account_version_id") ?? ""),
+    file_id: String(formData.get("file_id") ?? ""),
+  });
+  if (!parsed.success) return { error: "The exact review evidence is unavailable." };
+  const api = createApiClient(await getSessionToken());
+  try {
+    if (parsed.data.kind === "nin") {
+      const { data } = await api.POST("/api/v1/admin/kyc/submissions/{submission_id}/nin/reveal", {
+        params: { path: { submission_id: parsed.data.submission_id } },
+        body: { purpose: "person_payee_approval" },
+      });
+      return { done: "NIN read audited.", sensitiveValue: data?.nin };
+    }
+    if (parsed.data.kind === "account") {
+      const { data } = await api.POST(
+        "/api/v1/admin/payees/bank-account-versions/{version_id}/reveal",
+        {
+          params: { path: { version_id: parsed.data.bank_account_version_id } },
+          body: { purpose: "person_payee_approval" },
+        },
+      );
+      return {
+        done: "Account read audited.",
+        sensitiveValue: data
+          ? `${data.account_name} · ${data.bank_code} · ${data.account_number}`
+          : undefined,
+      };
+    }
+    const { data } = await api.POST("/api/v1/admin/files/{file_id}/download", {
+      params: { path: { file_id: parsed.data.file_id } },
+      body: {
+        purpose: "kyc_review",
+        reason: `person_payee_approval:${parsed.data.submission_id}`,
+      },
+    });
+    return { done: "Document read audited.", downloadUrl: data?.url };
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    return { error: "Could not reach the protected evidence service." };
+  }
+}
+
+const payoutVerificationSchema = z.object({
+  bank_account_version_id: z.string().uuid(),
+  verification_reference: z.string().min(16).max(512),
+});
+
+export async function verifyPersonPayeeAccountAction(
+  _previous: PersonPayeeEvidenceState,
+  formData: FormData,
+): Promise<PersonPayeeEvidenceState> {
+  const parsed = payoutVerificationSchema.safeParse({
+    bank_account_version_id: String(formData.get("bank_account_version_id") ?? ""),
+    verification_reference: String(formData.get("verification_reference") ?? ""),
+  });
+  if (!parsed.success)
+    return { error: "Enter the authorized exact-account verification reference." };
+  try {
+    await createApiClient(await getSessionToken()).POST(
+      "/api/v1/admin/payees/bank-account-versions/{version_id}/payout-verification",
+      {
+        params: { path: { version_id: parsed.data.bank_account_version_id } },
+        body: { verification_reference: parsed.data.verification_reference },
+      },
+    );
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    return { error: "Could not reach the payout-authority service." };
+  }
+  revalidatePath("/admin/driver-applications");
+  return { done: "Exact account version verified for payout review." };
+}
+
 const schema = z.object({
   application_id: z.string().uuid(),
   client_request_id: z.string().uuid(),

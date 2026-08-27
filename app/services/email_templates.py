@@ -36,8 +36,24 @@ def _password_reset(payload: dict[str, Any]) -> RenderedEmail:
     )
 
 
+def _driver_onboarding_access(payload: dict[str, Any]) -> RenderedEmail:
+    access_code = payload.get("access_code")
+    if not isinstance(access_code, str) or not access_code:
+        raise ValueError("driver_onboarding_access_code_missing")
+    body = (
+        "Use this expiring Cardvert driver-onboarding access code to submit protected "
+        f"person and payee evidence: {access_code}"
+    )
+    return RenderedEmail(
+        subject="Continue your Cardvert driver application",
+        text_body=body,
+        html_body=f"<p>{escape(body)}</p>",
+    )
+
+
 _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = {
     NotificationType.PASSWORD_RESET_REQUESTED: _password_reset,
+    NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED: _driver_onboarding_access,
     NotificationType.CAMPAIGN_APPROVED: _static(
         "Campaign approved", "Your campaign has been approved."
     ),

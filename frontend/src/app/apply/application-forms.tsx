@@ -24,8 +24,6 @@ export function DriverApplicationForms() {
     checkDriverApplicationStatusAction,
     initialStatusState,
   );
-  const onboardingReference = applicationState.reference ?? statusState.reference;
-
   return (
     <div>
       <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
@@ -88,6 +86,9 @@ export function DriverApplicationForms() {
                 className="border-green/40 bg-green/10 text-green rounded-lg border px-3.5 py-2.5 text-sm"
               >
                 <p>Application received for review.</p>
+                <p className="text-ink mt-2">
+                  Check the application email for an expiring onboarding access code.
+                </p>
                 {applicationState.reference ? (
                   <p className="text-ink mt-2">
                     Save this status reference:{" "}
@@ -133,7 +134,7 @@ export function DriverApplicationForms() {
           </form>
         </Panel>
       </div>
-      {onboardingReference ? <PersonPayeeForm reference={onboardingReference} /> : null}
+      <PersonPayeeForm />
     </div>
   );
 }

@@ -34,12 +34,12 @@ async function sha256(file: File): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-async function waitForClean(reference: string, fileId: string): Promise<void> {
+async function waitForClean(accessToken: string, fileId: string): Promise<void> {
   for (let attempt = 0; attempt < 40; attempt += 1) {
     const response = await fetch(`/api/apply/onboarding/files/${fileId}/status`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ application_reference: reference }),
+      body: JSON.stringify({ application_access_token: accessToken }),
     });
     const file = await responseJson<StoredFileResponse>(response);
     if (file.scan_status === "clean") return;
@@ -51,12 +51,16 @@ async function waitForClean(reference: string, fileId: string): Promise<void> {
   throw new Error("Document security checks are still pending. Try again shortly.");
 }
 
-async function uploadFile(reference: string, file: File, clientRequestId: string): Promise<string> {
+async function uploadFile(
+  accessToken: string,
+  file: File,
+  clientRequestId: string,
+): Promise<string> {
   const response = await fetch("/api/apply/onboarding/uploads", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      application_reference: reference,
+      application_access_token: accessToken,
       upload: {
         client_request_id: clientRequestId,
         purpose: "driver_kyc",
@@ -77,14 +81,14 @@ async function uploadFile(reference: string, file: File, clientRequestId: string
     await fetch(`/api/apply/onboarding/uploads/${intent.upload_id}/confirm`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ application_reference: reference }),
+      body: JSON.stringify({ application_access_token: accessToken }),
     }),
   );
-  await waitForClean(reference, confirmed.id);
+  await waitForClean(accessToken, confirmed.id);
   return confirmed.id;
 }
 
-export function PersonPayeeForm({ reference }: { reference: string }) {
+export function PersonPayeeForm() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [result, setResult] = useState<StageResponse>();
@@ -103,6 +107,7 @@ export function PersonPayeeForm({ reference }: { reference: string }) {
     setResult(undefined);
     const form = new FormData(event.currentTarget);
     try {
+      const accessToken = String(form.get("application_access_token") ?? "").trim();
       const license = form.get("driver_license");
       const photo = form.get("driver_photo");
       const agreement = form.get("signed_agreement");
@@ -112,22 +117,21 @@ export function PersonPayeeForm({ reference }: { reference: string }) {
       const [licenseId, photoId, agreementId] =
         uploadedFileIds.current ??
         (await Promise.all([
-          uploadFile(reference, license, uploadRequestIds.current.license),
-          uploadFile(reference, photo, uploadRequestIds.current.photo),
-          uploadFile(reference, agreement, uploadRequestIds.current.agreement),
+          uploadFile(accessToken, license, uploadRequestIds.current.license),
+          uploadFile(accessToken, photo, uploadRequestIds.current.photo),
+          uploadFile(accessToken, agreement, uploadRequestIds.current.agreement),
         ]));
       uploadedFileIds.current = [licenseId, photoId, agreementId];
       const response = await fetch("/api/apply/onboarding/person-payee", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          application_reference: reference,
+          application_access_token: accessToken,
           client_request_id: submissionRequestId.current,
           nin: String(form.get("nin") ?? ""),
           account_name: String(form.get("account_name") ?? ""),
           account_number: String(form.get("account_number") ?? ""),
           bank_code: String(form.get("bank_code") ?? ""),
-          verification_reference: String(form.get("verification_reference") ?? ""),
           driver_license_file_id: licenseId,
           driver_photo_file_id: photoId,
           signed_agreement_file_id: agreementId,
@@ -159,6 +163,17 @@ export function PersonPayeeForm({ reference }: { reference: string }) {
         requires a sensitive read.
       </p>
       <form onSubmit={submit} className="grid gap-4" noValidate>
+        <Field
+          label="Onboarding access code"
+          name="application_access_token"
+          type="password"
+          autoComplete="one-time-code"
+          required
+        />
+        <p className="text-faint -mt-2 text-xs">
+          Use the expiring access code sent to the application email. The status reference cannot
+          change an application.
+        </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label="NIN"
@@ -188,13 +203,6 @@ export function PersonPayeeForm({ reference }: { reference: string }) {
             required
           />
         </div>
-        <Field
-          label="Provider verification reference"
-          name="verification_reference"
-          minLength={32}
-          maxLength={512}
-          required
-        />
         <div className="grid gap-4 sm:grid-cols-3">
           <Field
             label="Driver licence"

@@ -20,6 +20,7 @@ from app.models.billing import BudgetCampaignTransition, BudgetPolicyEvaluation
 from app.models.campaign import Campaign
 from app.models.contact import PasswordResetToken
 from app.models.driver import DriverProfile
+from app.models.driver_application import DriverApplicationAccessToken
 from app.models.notification import (
     Notification,
     NotificationChannel,
@@ -475,6 +476,19 @@ async def create_password_reset_notification(
         type_key=NotificationType.PASSWORD_RESET_REQUESTED,
         payload=payload,
         dedupe_key=dedupe_key,
+        channel=NotificationChannel.TRANSACTIONAL_EMAIL,
+    )
+
+
+async def create_driver_onboarding_access_notification(
+    session: AsyncSession, *, user: User, access: DriverApplicationAccessToken
+) -> Notification:
+    return await create_notification(
+        session,
+        recipient_user_id=user.id,
+        type_key=NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED,
+        payload={"driver_application_access_id": str(access.id)},
+        dedupe_key=f"driver_onboarding_access:v1:{access.id}:transactional_email",
         channel=NotificationChannel.TRANSACTIONAL_EMAIL,
     )
 
