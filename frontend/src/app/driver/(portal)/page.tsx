@@ -7,6 +7,8 @@ import { ApiError } from "@/lib/api/errors";
 import { formatDate, formatMoney } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
+import { CampaignJourneyPanel } from "@/components/driver/campaign-journey-panel";
+import { loadDriverCampaignJourney } from "@/lib/driver/load-campaign-journey";
 
 export const metadata: Metadata = { title: "Home" };
 
@@ -16,16 +18,9 @@ export default async function DriverHomePage() {
 
   // A fresh driver user may not have a profile/assignment yet — 404s here
   // are legitimate states, not failures.
-  const [earnings, active, current, assignments, ledger] = await Promise.all([
+  const [campaignJourney, earnings, assignments, ledger] = await Promise.all([
+    loadDriverCampaignJourney(),
     api.GET("/api/v1/driver/earnings/summary").catch((e) => {
-      if (e instanceof ApiError && e.status === 404) return { data: undefined };
-      throw e;
-    }),
-    api.GET("/api/v1/driver/campaign-assignments/active").catch((e) => {
-      if (e instanceof ApiError && e.status === 404) return { data: undefined };
-      throw e;
-    }),
-    api.GET("/api/v1/driver/trips/current").catch((e) => {
       if (e instanceof ApiError && e.status === 404) return { data: undefined };
       throw e;
     }),
@@ -42,8 +37,8 @@ export default async function DriverHomePage() {
   ]);
 
   const totals = earnings.data?.totals_by_currency ?? [];
-  const assignment = active.data?.assignment ?? null;
-  const trip = current.data?.trip ?? null;
+  const assignment = campaignJourney.activationAssignment;
+  const trip = campaignJourney.currentTrip;
   const allAssignments = assignments.data?.items ?? [];
   const recentEntries = ledger.data?.items ?? [];
   const campaignNames = new Map(
@@ -76,10 +71,18 @@ export default async function DriverHomePage() {
         </Panel>
         <Panel className="p-3.5">
           <p className="micro text-faint">Standing</p>
-          <p className="font-display text-green mt-1 text-sm font-semibold">READY</p>
-          <p className="text-muted mt-1 text-[11px]">vehicle active</p>
+          <p
+            className={`font-display mt-1 text-sm font-semibold ${campaignJourney.journey.standing === "READY" ? "text-green" : campaignJourney.journey.standing === "BLOCKED" ? "text-coral" : "text-amber"}`}
+          >
+            {campaignJourney.journey.standing}
+          </p>
+          <p className="text-muted mt-1 text-[11px]">
+            {campaignJourney.journey.canStart ? "server verified" : "not work-ready"}
+          </p>
         </Panel>
       </div>
+
+      <CampaignJourneyPanel journey={campaignJourney.journey} />
 
       {/* Live trip banner */}
       {trip ? (
@@ -90,9 +93,7 @@ export default async function DriverHomePage() {
                 <span className="animate-pulse-dot bg-green inline-block size-1.5 rounded-full" />
                 Trip in progress
               </p>
-              <p className="mt-1 text-sm">
-                {trip.ping_count} pings recorded — tap to manage tracking
-              </p>
+              <p className="mt-1 text-sm">Server trip confirmed — tap to manage tracking</p>
             </div>
             <span aria-hidden className="text-green text-xl">
               →
@@ -136,15 +137,16 @@ export default async function DriverHomePage() {
           <p className="micro text-muted">Active campaign</p>
           {assignment ? <StatusChip tone="green">ACTIVE</StatusChip> : null}
         </div>
-        {assignment?.campaign ? (
+        {assignment ? (
           <>
-            <p className="mt-2 text-base font-medium">{assignment.campaign.name}</p>
-            <p className="micro text-faint mt-1">
-              {assignment.vehicle?.plate_number ?? "—"} ·{" "}
-              {assignment.vehicle?.vehicle_type ?? "vehicle"}
-            </p>
+            <p className="mt-2 text-base font-medium">{assignment.campaignName}</p>
+            <p className="micro text-faint mt-1">{assignment.plateNumber} · assigned vehicle</p>
             <Link href="/driver/track" className="micro text-amber mt-3 inline-block">
-              {trip ? "Manage live trip →" : "Start a trip →"}
+              {trip
+                ? "Manage live trip →"
+                : campaignJourney.journey.canStart
+                  ? "Open Start checks →"
+                  : "Review readiness →"}
             </Link>
           </>
         ) : (

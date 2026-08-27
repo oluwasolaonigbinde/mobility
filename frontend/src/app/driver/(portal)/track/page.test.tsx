@@ -2,12 +2,16 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const get = vi.hoisted(() => vi.fn());
+const loadJourney = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 vi.mock("./trip-tracker", () => ({ TripTracker: () => <div>Trip tracker</div> }));
 vi.mock("@/lib/auth/current-user", () => ({
   requireRole: vi.fn(async () => ({ user: { id: "driver-id", role: "driver" } })),
+}));
+vi.mock("@/lib/driver/load-campaign-journey", () => ({
+  loadDriverCampaignJourney: loadJourney,
 }));
 
 import DriverTrackPage from "./page";
@@ -29,7 +33,21 @@ const ledgerEntry = (status: "paid" | "pending", id: string) => ({
 });
 
 describe("DriverTrackPage ledger statuses", () => {
-  beforeEach(() => get.mockReset());
+  beforeEach(() => {
+    get.mockReset();
+    loadJourney.mockResolvedValue({
+      journey: {
+        standing: "PENDING",
+        summary: "Campaign work remains pending.",
+        canStart: false,
+        hasCurrentTrip: false,
+        steps: [],
+      },
+      activationAssignment: null,
+      currentTrip: null,
+      trackerAssignment: null,
+    });
+  });
 
   it("renders paid entries green and pending entries amber", async () => {
     get.mockImplementation(async (path?: string) => {

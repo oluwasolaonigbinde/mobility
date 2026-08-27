@@ -5,13 +5,16 @@ import { ApiError } from "@/lib/api/errors";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { ProfileForm } from "./profile-form";
+import { CampaignJourneyPanel } from "@/components/driver/campaign-journey-panel";
+import { loadDriverCampaignJourney } from "@/lib/driver/load-campaign-journey";
 
 export const metadata: Metadata = { title: "Profile" };
 
 export default async function DriverProfilePage() {
   const api = createApiClient(await getSessionToken());
 
-  const [profile, vehicles, assignments, ledger] = await Promise.all([
+  const [campaignJourney, profile, vehicles, assignments, ledger] = await Promise.all([
+    loadDriverCampaignJourney(),
     api.GET("/api/v1/driver/profile").catch((e) => {
       if (e instanceof ApiError && e.status === 404) return { data: undefined };
       throw e;
@@ -40,12 +43,14 @@ export default async function DriverProfilePage() {
   return (
     <div className="animate-rise flex flex-col gap-4">
       <h1 className="font-display text-2xl font-semibold tracking-tight">Profile</h1>
+      <CampaignJourneyPanel journey={campaignJourney.journey} />
 
       {!p ? (
         <Panel className="p-6 text-center">
           <p className="text-sm font-medium">No driver profile yet</p>
           <p className="text-muted mt-1 text-xs">
-            Ops creates your driver profile during onboarding. Contact your fleet manager.
+            Your application or invitation is still pending. A status reference does not create
+            driver access.
           </p>
         </Panel>
       ) : (
@@ -86,35 +91,6 @@ export default async function DriverProfilePage() {
               <p className="font-display mt-1 text-2xl font-semibold">{vs.length}</p>
             </Panel>
           </div>
-
-          <Panel className="p-5">
-            <h2 className="micro text-muted">Driver readiness</h2>
-            <ul className="mt-4 space-y-3">
-              {[
-                ["Profile", p.onboarding_status === "active", "Onboarding approved by ops"],
-                ["Vehicle", vs.some((vehicle) => vehicle.status === "active"), "Active vehicle"],
-                [
-                  "Campaign",
-                  assignmentItems.some((item) => item.status === "active"),
-                  "Ready to track and earn",
-                ],
-              ].map(([label, ready, detail]) => (
-                <li key={String(label)} className="flex items-center gap-3">
-                  <span
-                    className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs ${
-                      ready ? "bg-green/10 text-green" : "bg-amber/10 text-amber"
-                    }`}
-                  >
-                    {ready ? "✓" : "!"}
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium">{label}</p>
-                    <p className="text-faint text-xs">{detail}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </Panel>
 
           <Panel className="p-5">
             <h2 className="micro text-muted mb-4">Driver details</h2>

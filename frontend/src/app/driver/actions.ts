@@ -6,7 +6,6 @@ import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
 import type { TripOwnershipVerification } from "@/lib/trips/ping-queue";
-import type { components } from "@/lib/api/schema";
 
 export interface DriverActionState {
   error?: string;
@@ -54,7 +53,7 @@ export async function assignmentAction(
 // --- trips -------------------------------------------------------------------
 
 export interface StartTripResult extends DriverActionState {
-  trip?: components["schemas"]["TripRead"];
+  trip?: { id: string };
   outcome?: "started" | "failed" | "unknown";
 }
 
@@ -68,7 +67,7 @@ export async function startTripAction(assignmentId: string): Promise<StartTripRe
       body: { assignment_id: assignmentId },
     });
     revalidateDriver();
-    return { trip: data, outcome: data ? "started" : "unknown" };
+    return { trip: data ? { id: data.id } : undefined, outcome: data ? "started" : "unknown" };
   } catch (error) {
     if (error instanceof ApiError && [400, 403, 404, 422].includes(error.status)) {
       return { error: error.message, outcome: "failed" };
@@ -81,7 +80,10 @@ export async function getCurrentTripAction(): Promise<StartTripResult> {
   try {
     const api = createApiClient(await getSessionToken());
     const { data } = await api.GET("/api/v1/driver/trips/current");
-    return { trip: data?.trip ?? undefined, outcome: data?.trip ? "started" : "failed" };
+    return {
+      trip: data?.trip ? { id: data.trip.id } : undefined,
+      outcome: data?.trip ? "started" : "failed",
+    };
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return { outcome: "failed" };
     return { ...toState(error), outcome: "unknown" };
@@ -114,7 +116,6 @@ const watermarkSchema = z.object({
 export type TripEndWatermark = z.infer<typeof watermarkSchema>;
 
 export interface EndTripResult extends DriverActionState {
-  trip?: components["schemas"]["TripRead"];
   outcome: "ended" | "failed" | "unknown";
 }
 
@@ -147,7 +148,7 @@ export async function endTripAction(
       };
     }
     revalidateDriver();
-    return { trip: data, outcome: "ended" };
+    return { outcome: "ended" };
   } catch (error) {
     const outcome =
       error instanceof ApiError && [400, 403, 404, 422].includes(error.status)

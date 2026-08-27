@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { components } from "@/lib/api/schema";
+import type { DriverTrackerAssignment, DriverTrackerTrip } from "@/lib/driver/campaign-journey";
 import {
   endTripAction,
   getCurrentTripAction,
@@ -20,8 +20,6 @@ import { DRIVER_SESSION_CHANNEL } from "@/components/driver/logout-button";
 import { Panel } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 
-type Assignment = components["schemas"]["CampaignAssignmentRead"];
-type Trip = components["schemas"]["TripRead"];
 type GpsState = "idle" | "granted" | "denied" | "unavailable";
 type WakeSentinel = EventTarget & { release(): Promise<void>; released?: boolean };
 type NavigatorWithRuntime = Navigator & {
@@ -63,14 +61,16 @@ export function TripTracker({
   assignment,
   initialTrip,
   driverId,
+  startUnavailableMessage,
 }: {
-  assignment: Assignment | null;
-  initialTrip: Trip | null;
+  assignment: DriverTrackerAssignment | null;
+  initialTrip: DriverTrackerTrip | null;
   /** Server-verified user id from the guarded driver page. */
   driverId: string;
+  startUnavailableMessage?: string;
 }) {
   const router = useRouter();
-  const [trip, setTrip] = useState<Trip | null>(initialTrip);
+  const [trip, setTrip] = useState<DriverTrackerTrip | null>(initialTrip);
   const [gps, setGps] = useState<GpsState>("idle");
   const [syncedCount, setSyncedCount] = useState(0);
   const [bufferedCount, setBufferedCount] = useState(0);
@@ -99,7 +99,7 @@ export function TripTracker({
   const startUncertainRef = useRef(false);
   const authorityUncertainRef = useRef(false);
   const pendingEndCompleteRef = useRef<boolean | null>(null);
-  const tripRef = useRef<Trip | null>(initialTrip);
+  const tripRef = useRef<DriverTrackerTrip | null>(initialTrip);
   const reconciledTripRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
 
@@ -809,7 +809,8 @@ export function TripTracker({
       <Panel className="p-6 text-center">
         <p className="text-sm font-medium">No active campaign</p>
         <p className="text-muted mt-1 text-xs">
-          Accept an offer and wait for admin activation — then your trips earn.
+          {startUnavailableMessage ??
+            "Accept an offer and wait for admin activation — then your trips earn."}
         </p>
       </Panel>
     );
@@ -877,9 +878,9 @@ export function TripTracker({
         <>
           <Panel className="p-5">
             <p className="micro text-muted">Ready to drive</p>
-            <p className="mt-2 text-base font-medium">{assignment?.campaign?.name}</p>
+            <p className="mt-2 text-base font-medium">{assignment?.campaignName}</p>
             <p className="micro text-faint mt-1">
-              {assignment?.vehicle?.plate_number} · earnings accrue from verified driving time
+              {assignment?.plateNumber} · earnings accrue from verified driving time
             </p>
           </Panel>
           <Button

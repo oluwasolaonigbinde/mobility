@@ -8,6 +8,8 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { AssignmentActions } from "./assignment-actions";
 import { InstallationEvidenceActions } from "./installation-evidence-actions";
 import type { components } from "@/lib/api/schema";
+import { CampaignJourneyPanel } from "@/components/driver/campaign-journey-panel";
+import { loadDriverCampaignJourney } from "@/lib/driver/load-campaign-journey";
 
 export const metadata: Metadata = { title: "Jobs" };
 
@@ -27,14 +29,28 @@ const statusMeta: Record<
   completed: { label: "Completed", tone: "default" },
 };
 
+const statusExplanation: Record<AssignmentStatus, string> = {
+  offered: "Decision required. This offer does not grant campaign work.",
+  accepted: "Accepted — waiting for the independent admin activation gate.",
+  declined: "Declined. This offer cannot be activated or tracked.",
+  expired: "Expired. This offer cannot be accepted or tracked.",
+  active: "Admin activated. Start still rechecks current server and PWA authority.",
+  deactivated: "Deactivated. New tracking is unavailable.",
+  cancelled: "Cancelled. New campaign work is unavailable.",
+  completed: "Completed. This is historical campaign evidence only.",
+};
+
 export default async function DriverAssignmentsPage() {
   const api = createApiClient(await getSessionToken());
-  const { data } = await api
-    .GET("/api/v1/driver/campaign-assignments", { params: { query: { limit: 50 } } })
-    .catch((e) => {
-      if (e instanceof ApiError && e.status === 404) return { data: undefined };
-      throw e;
-    });
+  const [campaignJourney, { data }] = await Promise.all([
+    loadDriverCampaignJourney(),
+    api
+      .GET("/api/v1/driver/campaign-assignments", { params: { query: { limit: 50 } } })
+      .catch((e) => {
+        if (e instanceof ApiError && e.status === 404) return { data: undefined };
+        throw e;
+      }),
+  ]);
 
   const items = data?.items ?? [];
   const [{ data: evidencePolicy }, { data: pendingVerifications }] = await Promise.all([
@@ -66,6 +82,7 @@ export default async function DriverAssignmentsPage() {
       <p className="text-muted -mt-2 text-sm">
         Offers, active work, and your completed campaign history in one place.
       </p>
+      <CampaignJourneyPanel journey={campaignJourney.journey} compact />
 
       <div className="grid grid-cols-3 gap-3">
         {[
@@ -201,6 +218,7 @@ export default async function DriverAssignmentsPage() {
               </div>
             ) : null}
             {a.notes ? <p className="text-muted mt-3 text-xs leading-5">{a.notes}</p> : null}
+            <p className="text-muted mt-3 text-xs leading-5">{statusExplanation[a.status]}</p>
             {!a.offer_terms ? (
               <p className="text-faint mt-3 text-[11px]">
                 This legacy assignment has no complete frozen offer terms.

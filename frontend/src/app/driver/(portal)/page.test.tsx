@@ -2,11 +2,15 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const get = vi.hoisted(() => vi.fn());
+const loadJourney = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 vi.mock("@/lib/auth/current-user", () => ({
   requireRole: vi.fn(async () => ({ user: { full_name: "Ada Driver" } })),
+}));
+vi.mock("@/lib/driver/load-campaign-journey", () => ({
+  loadDriverCampaignJourney: loadJourney,
 }));
 
 import DriverHomePage from "./page";
@@ -28,7 +32,21 @@ const ledgerEntry = (status: "paid" | "pending", id: string) => ({
 });
 
 describe("DriverHomePage ledger statuses", () => {
-  beforeEach(() => get.mockReset());
+  beforeEach(() => {
+    get.mockReset();
+    loadJourney.mockResolvedValue({
+      journey: {
+        standing: "PENDING",
+        summary: "Campaign work remains pending.",
+        canStart: false,
+        hasCurrentTrip: false,
+        steps: [],
+      },
+      activationAssignment: null,
+      currentTrip: null,
+      trackerAssignment: null,
+    });
+  });
 
   it("renders paid entries green and pending entries amber", async () => {
     get.mockImplementation(async (path?: string) => {
@@ -80,5 +98,19 @@ describe("DriverHomePage ledger statuses", () => {
     expect(screen.getByText("Batch-payable earnings")).toBeInTheDocument();
     expect(screen.getByText(/₦90\.00/)).toBeInTheDocument();
     expect(screen.getByText(/₦60\.00 carried debt/)).toBeInTheDocument();
+  });
+
+  it("does not claim the driver is ready when no server authority exists", async () => {
+    get.mockImplementation(async (path?: string) => {
+      if (path?.endsWith("/summary")) return { data: { totals_by_currency: [] } };
+      if (path?.endsWith("/active")) return { data: { assignment: null } };
+      if (path?.endsWith("/current")) return { data: { trip: null } };
+      return { data: { items: [], total: 0, limit: 50, offset: 0 } };
+    });
+
+    render(await DriverHomePage());
+
+    expect(screen.queryByText("READY")).not.toBeInTheDocument();
+    expect(screen.queryByText("vehicle active")).not.toBeInTheDocument();
   });
 });

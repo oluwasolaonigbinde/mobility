@@ -6,6 +6,8 @@ import { ApiError } from "@/lib/api/errors";
 import { formatDate, formatMoney } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
 import { TripTracker } from "./trip-tracker";
+import { CampaignJourneyPanel } from "@/components/driver/campaign-journey-panel";
+import { loadDriverCampaignJourney } from "@/lib/driver/load-campaign-journey";
 
 export const metadata: Metadata = { title: "Track" };
 
@@ -13,15 +15,8 @@ export default async function DriverTrackPage() {
   const me = await requireRole("driver");
   const api = createApiClient(await getSessionToken());
 
-  const [active, current, assignments, ledger] = await Promise.all([
-    api.GET("/api/v1/driver/campaign-assignments/active").catch((e) => {
-      if (e instanceof ApiError && e.status === 404) return { data: undefined };
-      throw e;
-    }),
-    api.GET("/api/v1/driver/trips/current").catch((e) => {
-      if (e instanceof ApiError && e.status === 404) return { data: undefined };
-      throw e;
-    }),
+  const [campaignJourney, assignments, ledger] = await Promise.all([
+    loadDriverCampaignJourney(),
     api
       .GET("/api/v1/driver/campaign-assignments", { params: { query: { limit: 50 } } })
       .catch((e) => {
@@ -42,10 +37,12 @@ export default async function DriverTrackPage() {
   return (
     <div className="animate-rise flex flex-col gap-4">
       <h1 className="font-display text-2xl font-semibold tracking-tight">Trip tracking</h1>
+      <CampaignJourneyPanel journey={campaignJourney.journey} compact />
       <TripTracker
-        assignment={active.data?.assignment ?? null}
-        initialTrip={current.data?.trip ?? null}
+        assignment={campaignJourney.trackerAssignment}
+        initialTrip={campaignJourney.currentTrip}
         driverId={me.user.id}
+        startUnavailableMessage={campaignJourney.journey.summary}
       />
 
       <Panel className="p-5">

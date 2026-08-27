@@ -13,5 +13,8 @@ describe("public driver application page", () => {
     expect(
       screen.getByText(/Vehicle approval never assigns campaign work automatically/),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/admin review and invitation.*sign in to the driver app/i),
+    ).toBeInTheDocument();
   });
 });

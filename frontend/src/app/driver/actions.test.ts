@@ -106,6 +106,35 @@ describe("driver trip BFF actions", () => {
     await expect(getCurrentTripAction()).resolves.toEqual({ outcome: "failed" });
   });
 
+  it("returns only opaque trip identity from Start, current-trip and End actions", async () => {
+    const rawTrip = {
+      id: TRIP_ID,
+      status: "active",
+      metadata: { internal: "must-not-cross" },
+      driver_profile_id: "33333333-3333-4333-8333-333333333333",
+    };
+    mocks.post.mockResolvedValueOnce({ data: rawTrip });
+    await expect(startTripAction(ASSIGNMENT_ID)).resolves.toEqual({
+      trip: { id: TRIP_ID },
+      outcome: "started",
+    });
+
+    mocks.get.mockResolvedValueOnce({ data: { trip: rawTrip } });
+    await expect(getCurrentTripAction()).resolves.toEqual({
+      trip: { id: TRIP_ID },
+      outcome: "started",
+    });
+
+    mocks.post.mockResolvedValueOnce({ data: { ...rawTrip, status: "ended" } });
+    await expect(
+      endTripAction(TRIP_ID, {
+        clientBatchCount: 0,
+        clientPingCount: 0,
+        clientComplete: true,
+      }),
+    ).resolves.toEqual({ outcome: "ended" });
+  });
+
   it("returns terminal status/code so the exact encrypted batch can be dead-lettered", async () => {
     mocks.post.mockRejectedValueOnce(
       new ApiError(409, { code: "IDEMPOTENCY_CONFLICT", message: "conflict" }),
