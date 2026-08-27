@@ -11,6 +11,7 @@ from conftest import (
     create_test_user,
 )
 from sqlalchemy import func, select
+from sqlalchemy.exc import DBAPIError
 from test_driver_person_payee_onboarding import (
     PASSWORD,
     _application,
@@ -20,10 +21,18 @@ from test_driver_person_payee_onboarding import (
     _seed_clean_kyc_files,
 )
 
+from app.adapters.crypto import EnvelopeCryptoProvider
+from app.adapters.storage import ObjectMetadata
+from app.api.v1.dependencies import get_storage_provider
 from app.core.errors import AppError
 from app.jobs.vehicle_approvals import sweep_vehicle_approval_expiries
+from app.models.audit import AuditEvent
 from app.models.driver import DriverProfile
-from app.models.kyc import VehicleEvidenceReviewDecision, VehicleEvidenceSubmission
+from app.models.kyc import (
+    DriverKycSubmission,
+    VehicleEvidenceReviewDecision,
+    VehicleEvidenceSubmission,
+)
 from app.models.stored_file import FileScanStatus, FileUploadIntent, StoredFile
 from app.models.user import UserRole
 from app.models.vehicle import Vehicle
@@ -32,6 +41,9 @@ from app.schemas.driver_onboarding import (
     VehicleReviewDecisionCreate,
 )
 from app.schemas.trips import TripStartRequest
+from app.services import kyc as kyc_service
+from app.services import trips as trips_service
+from app.services import vehicle_onboarding as vehicle_onboarding_service
 from app.services.trips import start_driver_trip
 from app.services.vehicle_onboarding import (
     review_application_vehicle,
@@ -140,7 +152,29 @@ def _vehicle_payload(token: str, files: dict[str, UUID], **changes):
     return payload
 
 
-def _review_files(db_client, *, admin, submission_id: str, files: dict[str, UUID]) -> None:
+def _review_files(
+    db_client,
+    db_sessionmaker,
+    *,
+    admin,
+    submission_id: str,
+    files: dict[str, UUID],
+) -> None:
+    storage = db_client.app.dependency_overrides[get_storage_provider]()
+
+    async def seed_review_objects() -> None:
+        async with db_sessionmaker() as session:
+            for file_id in files.values():
+                stored_file = await session.get(StoredFile, file_id)
+                assert stored_file is not None
+                storage.objects[stored_file.storage_key] = ObjectMetadata(
+                    object_key=stored_file.storage_key,
+                    size_bytes=stored_file.size_bytes,
+                    content_type=stored_file.actual_content_type or stored_file.content_type,
+                    checksum_sha256=stored_file.checksum_sha256,
+                )
+
+    asyncio.run(seed_review_objects())
     for file_id in files.values():
         response = db_client.post(
             f"/api/v1/admin/files/{file_id}/download",
@@ -160,9 +194,10 @@ def _decision_path(application_id, vehicle_id, submission_id) -> str:
     )
 
 
-def _approve_vehicle(db_client, *, application, admin, submitted, files):
+def _approve_vehicle(db_client, db_sessionmaker, *, application, admin, submitted, files):
     _review_files(
         db_client,
+        db_sessionmaker,
         admin=admin,
         submission_id=submitted["submission_id"],
         files=files,
@@ -294,6 +329,80 @@ def test_vehicle_approval_fails_closed_for_unsafe_and_unread_evidence(
     assert unread.json()["error"]["code"] == "VEHICLE_REVIEW_EVIDENCE_INCOMPLETE"
 
 
+def test_missing_vehicle_object_cannot_create_qualifying_read_or_approval(
+    db_client, db_sessionmaker, settings
+) -> None:
+    token, application, admin = _approved_applicant(
+        db_client, db_sessionmaker, settings, suffix="missing-object"
+    )
+    files = _seed_vehicle_files(db_sessionmaker, application=application, suffix="missing-object")
+    submitted = db_client.post(
+        "/api/v1/auth/driver-onboarding/vehicle", json=_vehicle_payload(token, files)
+    ).json()
+    storage = db_client.app.dependency_overrides[get_storage_provider]()
+    missing_file_id = files["insurance"]
+
+    async def seed_available_objects() -> None:
+        async with db_sessionmaker() as session:
+            for file_id in files.values():
+                stored_file = await session.get(StoredFile, file_id)
+                assert stored_file is not None
+                if file_id != missing_file_id:
+                    storage.objects[stored_file.storage_key] = ObjectMetadata(
+                        object_key=stored_file.storage_key,
+                        size_bytes=stored_file.size_bytes,
+                        content_type=stored_file.actual_content_type or stored_file.content_type,
+                        checksum_sha256=stored_file.checksum_sha256,
+                    )
+
+    asyncio.run(seed_available_objects())
+    headers = auth_headers(db_client, admin.email, PASSWORD)
+    for file_id in files.values():
+        response = db_client.post(
+            f"/api/v1/admin/files/{file_id}/download",
+            headers=headers,
+            json={
+                "purpose": "kyc_review",
+                "reason": f"vehicle_approval:{submitted['submission_id']}",
+            },
+        )
+        if file_id == missing_file_id:
+            assert response.status_code == 409
+            assert response.json()["error"]["code"] == "STORED_FILE_OBJECT_MISSING"
+        else:
+            assert response.status_code == 200
+
+    approval = db_client.post(
+        _decision_path(application.id, submitted["vehicle_id"], submitted["submission_id"]),
+        headers=headers,
+        json={
+            "client_request_id": str(uuid4()),
+            "decision": "approved",
+            "reason_code": "complete_current_evidence",
+            "owner_match_confirmed": True,
+            "vehicle_identity_confirmed": True,
+            "roadworthy_confirmed": True,
+            "pilot_car_confirmed": True,
+            "documents_readable_confirmed": True,
+            "valid_until": "2099-01-01T00:00:00Z",
+        },
+    )
+    assert approval.status_code == 409
+    assert approval.json()["error"]["code"] == "VEHICLE_REVIEW_EVIDENCE_INCOMPLETE"
+
+    async def assert_missing_read_not_audited() -> None:
+        async with db_sessionmaker() as session:
+            missing_reads = await session.scalar(
+                select(func.count(AuditEvent.id)).where(
+                    AuditEvent.action == "stored_file.read",
+                    AuditEvent.entity_id == str(missing_file_id),
+                )
+            )
+            assert missing_reads == 0
+
+    asyncio.run(assert_missing_read_not_audited())
+
+
 def test_material_vehicle_revision_invalidates_approval_without_rewriting_history(
     db_client, db_sessionmaker, settings
 ) -> None:
@@ -306,6 +415,7 @@ def test_material_vehicle_revision_invalidates_approval_without_rewriting_histor
     ).json()
     _approve_vehicle(
         db_client,
+        db_sessionmaker,
         application=application,
         admin=admin,
         submitted=submitted,
@@ -409,6 +519,7 @@ def test_vehicle_eligibility_opens_and_expiry_closes_assignment_and_trip(
     ).json()
     approved = _approve_vehicle(
         db_client,
+        db_sessionmaker,
         application=application,
         admin=admin,
         submitted=submitted,
@@ -492,6 +603,7 @@ def test_vehicle_submission_and_decision_exact_retries_converge_changed_retries_
     submitted = first.json()
     _review_files(
         db_client,
+        db_sessionmaker,
         admin=admin,
         submission_id=submitted["submission_id"],
         files=files,
@@ -534,6 +646,7 @@ def test_vehicle_expiry_worker_appends_history_and_closes_eligibility(
     ).json()
     _review_files(
         db_client,
+        db_sessionmaker,
         admin=admin,
         submission_id=submitted["submission_id"],
         files=files,
@@ -580,6 +693,289 @@ def test_vehicle_expiry_worker_appends_history_and_closes_eligibility(
     assert (profile_status, vehicle_status) == ("pending", "pending")
 
 
+def test_postgres_concurrent_identical_vehicle_decisions_converge_after_lock(
+    postgis_db_client, postgis_db_sessionmaker, settings, monkeypatch
+) -> None:
+    token, application, admin = _approved_applicant(
+        postgis_db_client, postgis_db_sessionmaker, settings, suffix="pg-decision-retry"
+    )
+    files = _seed_vehicle_files(
+        postgis_db_sessionmaker, application=application, suffix="pg-decision-retry"
+    )
+    submitted = postgis_db_client.post(
+        "/api/v1/auth/driver-onboarding/vehicle", json=_vehicle_payload(token, files)
+    ).json()
+    _review_files(
+        postgis_db_client,
+        postgis_db_sessionmaker,
+        admin=admin,
+        submission_id=submitted["submission_id"],
+        files=files,
+    )
+    request_id = uuid4()
+    second_admin = create_test_user(
+        postgis_db_sessionmaker,
+        email="vehicle-pg-decision-retry-admin-2@example.com",
+        password=PASSWORD,
+    )
+    _review_files(
+        postgis_db_client,
+        postgis_db_sessionmaker,
+        admin=second_admin,
+        submission_id=submitted["submission_id"],
+        files=files,
+    )
+    payload = VehicleReviewDecisionCreate.model_validate(
+        {
+            "client_request_id": str(request_id),
+            "decision": "approved",
+            "reason_code": "complete_current_evidence",
+            "owner_match_confirmed": True,
+            "vehicle_identity_confirmed": True,
+            "roadworthy_confirmed": True,
+            "pilot_car_confirmed": True,
+            "documents_readable_confirmed": True,
+            "valid_until": "2099-01-01T00:00:00Z",
+        }
+    )
+
+    async def exercise() -> tuple[list[UUID], int]:
+        arrived = 0
+        both_prechecks_complete = asyncio.Event()
+        synchronized_tasks: set[asyncio.Task] = set()
+        original_retry_view = vehicle_onboarding_service._decision_retry_view
+
+        async def synchronized_retry_view(*args, **kwargs):
+            nonlocal arrived
+            result = await original_retry_view(*args, **kwargs)
+            task = asyncio.current_task()
+            assert task is not None
+            if task not in synchronized_tasks:
+                synchronized_tasks.add(task)
+                assert result is None
+                arrived += 1
+                if arrived == 2:
+                    both_prechecks_complete.set()
+                await both_prechecks_complete.wait()
+            return result
+
+        monkeypatch.setattr(
+            vehicle_onboarding_service, "_decision_retry_view", synchronized_retry_view
+        )
+
+        async def decide(actor_user_id: UUID) -> UUID:
+            async with postgis_db_sessionmaker() as session:
+                view = await review_application_vehicle(
+                    session,
+                    application_id=application.id,
+                    vehicle_id=UUID(submitted["vehicle_id"]),
+                    submission_id=UUID(submitted["submission_id"]),
+                    actor_user_id=actor_user_id,
+                    payload=payload,
+                )
+                await session.commit()
+                assert view.decision is not None
+                return view.decision.id
+
+        decision_ids = await asyncio.wait_for(
+            asyncio.gather(decide(admin.id), decide(second_admin.id)), timeout=10
+        )
+        async with postgis_db_sessionmaker() as session:
+            decision_count = int(
+                await session.scalar(
+                    select(func.count(VehicleEvidenceReviewDecision.id)).where(
+                        VehicleEvidenceReviewDecision.submission_id
+                        == UUID(submitted["submission_id"])
+                    )
+                )
+                or 0
+            )
+        return decision_ids, decision_count
+
+    decision_ids, decision_count = asyncio.run(exercise())
+    assert decision_ids[0] == decision_ids[1]
+    assert decision_count == 1
+
+    async def changed_retries_conflict() -> tuple[str, str]:
+        changed_payload = payload.model_copy(
+            update={"valid_until": datetime(2098, 1, 1, tzinfo=UTC)}
+        )
+        changed_key = payload.model_copy(update={"client_request_id": uuid4()})
+        codes: list[str] = []
+        async with postgis_db_sessionmaker() as session:
+            for changed in (changed_payload, changed_key):
+                with pytest.raises(AppError) as raised:
+                    await review_application_vehicle(
+                        session,
+                        application_id=application.id,
+                        vehicle_id=UUID(submitted["vehicle_id"]),
+                        submission_id=UUID(submitted["submission_id"]),
+                        actor_user_id=admin.id,
+                        payload=changed,
+                    )
+                codes.append(raised.value.code)
+                await session.rollback()
+        return codes[0], codes[1]
+
+    assert asyncio.run(changed_retries_conflict()) == (
+        "VEHICLE_DECISION_RETRY_CONFLICT",
+        "VEHICLE_ALREADY_DECIDED",
+    )
+
+
+def test_postgres_nin_rewrap_and_trip_share_eligibility_before_profile_order(
+    postgis_db_client, postgis_db_sessionmaker, settings, monkeypatch
+) -> None:
+    token, application, admin = _approved_applicant(
+        postgis_db_client, postgis_db_sessionmaker, settings, suffix="pg-rewrap-trip"
+    )
+    files = _seed_vehicle_files(
+        postgis_db_sessionmaker, application=application, suffix="pg-rewrap-trip"
+    )
+    submitted = postgis_db_client.post(
+        "/api/v1/auth/driver-onboarding/vehicle", json=_vehicle_payload(token, files)
+    ).json()
+    _approve_vehicle(
+        postgis_db_client,
+        postgis_db_sessionmaker,
+        application=application,
+        admin=admin,
+        submitted=submitted,
+        files=files,
+    )
+    advertiser = create_test_user(
+        postgis_db_sessionmaker,
+        email="vehicle-pg-rewrap-trip-advertiser@example.com",
+        role=UserRole.ADVERTISER,
+    )
+    organization, _ = create_test_organization(postgis_db_sessionmaker, owner_user_id=advertiser.id)
+    campaign = create_test_campaign(
+        postgis_db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=advertiser.id,
+        campaign_status="active",
+        start_at=datetime(2020, 1, 1, tzinfo=UTC),
+        end_at=datetime(2099, 1, 1, tzinfo=UTC),
+    )
+    assignment = create_test_campaign_assignment(
+        postgis_db_sessionmaker,
+        campaign_id=campaign.id,
+        driver_profile_id=application.driver_profile_id,
+        vehicle_id=UUID(submitted["vehicle_id"]),
+        assigned_by_user_id=admin.id,
+        assignment_status="active",
+        activated_at=datetime.now(UTC),
+    )
+
+    async def current_kyc_id() -> UUID:
+        async with postgis_db_sessionmaker() as session:
+            submission = await session.scalar(
+                select(DriverKycSubmission)
+                .where(DriverKycSubmission.driver_profile_id == application.driver_profile_id)
+                .order_by(DriverKycSubmission.version.desc())
+            )
+            assert submission is not None
+            return submission.id
+
+    kyc_id = asyncio.run(current_kyc_id())
+    crypto = EnvelopeCryptoProvider(
+        keys={1: bytes(range(32)), 2: bytes(range(32, 64))}, active_key_version=2
+    )
+
+    async def exercise() -> tuple[object, object, str, int]:
+        rewrap_reached_audit = asyncio.Event()
+        trip_has_eligibility = asyncio.Event()
+        rewrap_has_eligibility = False
+        original_audit = kyc_service.create_audit_event
+        original_trip_lock = trips_service.acquire_work_eligibility_lock
+        original_rewrap_lock = getattr(kyc_service, "_acquire_work_eligibility_authority", None)
+
+        async def rewrap_lock(session, *, driver_profile_id):
+            nonlocal rewrap_has_eligibility
+            assert original_rewrap_lock is not None
+            await original_rewrap_lock(session, driver_profile_id=driver_profile_id)
+            rewrap_has_eligibility = True
+
+        async def audit(*args, **kwargs):
+            if kwargs.get("action") == "admin.kyc.nin_rewrapped":
+                rewrap_reached_audit.set()
+                if not rewrap_has_eligibility:
+                    await trip_has_eligibility.wait()
+            return await original_audit(*args, **kwargs)
+
+        async def trip_lock(*args, **kwargs):
+            await original_trip_lock(*args, **kwargs)
+            trip_has_eligibility.set()
+
+        monkeypatch.setattr(
+            kyc_service,
+            "_acquire_work_eligibility_authority",
+            rewrap_lock,
+            raising=False,
+        )
+        monkeypatch.setattr(kyc_service, "create_audit_event", audit)
+        monkeypatch.setattr(trips_service, "acquire_work_eligibility_lock", trip_lock)
+
+        async def rewrap() -> str:
+            async with postgis_db_sessionmaker() as session:
+                try:
+                    await kyc_service.rewrap_driver_nin(
+                        session,
+                        submission_id=kyc_id,
+                        actor_user_id=admin.id,
+                        crypto=crypto,
+                    )
+                    await session.commit()
+                    return "rewrapped"
+                except Exception as error:
+                    await session.rollback()
+                    return error
+
+        async def start_trip() -> str:
+            await rewrap_reached_audit.wait()
+            async with postgis_db_sessionmaker() as session:
+                try:
+                    await start_driver_trip(
+                        session,
+                        user_id=application.user_id,
+                        payload=TripStartRequest(assignment_id=assignment.id, metadata={}),
+                        settings=settings,
+                    )
+                    await session.commit()
+                    return "started"
+                except AppError as error:
+                    await session.rollback()
+                    return error.code
+                except Exception as error:
+                    await session.rollback()
+                    return error
+
+        rewrap_outcome, trip_outcome = await asyncio.wait_for(
+            asyncio.gather(rewrap(), start_trip()), timeout=10
+        )
+        async with postgis_db_sessionmaker() as session:
+            current = await session.scalar(
+                select(DriverKycSubmission)
+                .where(DriverKycSubmission.driver_profile_id == application.driver_profile_id)
+                .order_by(DriverKycSubmission.version.desc())
+            )
+            profile = await session.get(DriverProfile, application.driver_profile_id)
+            assert current is not None and profile is not None
+            return (
+                rewrap_outcome,
+                trip_outcome,
+                current.status,
+                current.encryption_key_version,
+            )
+
+    rewrap_outcome, trip_outcome, kyc_status, key_version = asyncio.run(exercise())
+    assert not isinstance(rewrap_outcome, DBAPIError)
+    assert not isinstance(trip_outcome, DBAPIError)
+    assert rewrap_outcome == "rewrapped"
+    assert trip_outcome == "DRIVER_PROFILE_NOT_ACTIVE"
+    assert (kyc_status, key_version) == ("pending_review", 2)
+
+
 def test_postgres_concurrent_vehicle_revision_and_expiry_serialize(
     postgis_db_client, postgis_db_sessionmaker, settings
 ) -> None:
@@ -592,6 +988,7 @@ def test_postgres_concurrent_vehicle_revision_and_expiry_serialize(
     ).json()
     _approve_vehicle(
         postgis_db_client,
+        postgis_db_sessionmaker,
         application=application,
         admin=admin,
         submitted=submitted,

@@ -4,7 +4,7 @@ from uuid import UUID
 
 import pytest
 from conftest import auth_headers, create_test_organization, create_test_user
-from sqlalchemy import select
+from sqlalchemy import func, select
 from test_stored_files import PASSWORD, FakeStorageProvider, upload_payload
 
 from app.adapters.scanner import MalwareScanResult, ScannerUnavailable
@@ -148,6 +148,61 @@ def test_clean_exact_file_can_receive_short_lived_audited_private_read(
                 "reason": "Review before submission",
                 "request_id": "file-read-request-1",
             }
+
+    asyncio.run(inspect())
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_status", "expected_code"),
+    [
+        ("missing", 409, "STORED_FILE_OBJECT_MISSING"),
+        ("changed", 409, "STORED_FILE_OBJECT_MISMATCH"),
+        ("unavailable", 503, "FILE_STORAGE_UNAVAILABLE"),
+    ],
+)
+def test_private_read_fails_closed_before_audit_when_object_is_not_authoritative(
+    db_client,
+    db_sessionmaker,
+    file_boundaries,
+    mode,
+    expected_status,
+    expected_code,
+) -> None:
+    storage, scanner = file_boundaries
+    advertiser, _ = advertiser_with_org(db_sessionmaker, f"scan-read-authority-{mode}@example.com")
+    stored = confirm_png(db_client, storage, advertiser.email)
+    assert scan_file(db_sessionmaker, stored["id"], storage, scanner) == FileScanStatus.CLEAN
+    managed_key = next(key for key in storage.objects if key.startswith("managed/"))
+    if mode == "missing":
+        storage.objects.pop(managed_key)
+        storage.contents.pop(managed_key)
+    elif mode == "changed":
+        current = storage.objects[managed_key]
+        storage.objects[managed_key] = ObjectMetadata(
+            object_key=current.object_key,
+            size_bytes=current.size_bytes,
+            content_type=current.content_type,
+            checksum_sha256="f" * 64,
+        )
+    else:
+        storage.unavailable = True
+
+    response = db_client.post(
+        f"/api/v1/advertiser/files/{stored['id']}/download",
+        headers=auth_headers(db_client, advertiser.email, PASSWORD),
+        json={"purpose": "campaign_preview", "reason": "Review before submission"},
+    )
+
+    assert response.status_code == expected_status
+    assert response.json()["error"]["code"] == expected_code
+    assert storage.presigned_gets == []
+
+    async def inspect() -> None:
+        async with db_sessionmaker() as session:
+            read_count = await session.scalar(
+                select(func.count(AuditEvent.id)).where(AuditEvent.action == "stored_file.read")
+            )
+            assert read_count == 0
 
     asyncio.run(inspect())
 

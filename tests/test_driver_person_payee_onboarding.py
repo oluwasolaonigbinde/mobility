@@ -169,6 +169,20 @@ def _complete_admin_review(
     storage = FakeStorageProvider()
     db_client.app.dependency_overrides[get_storage_provider] = lambda: storage
 
+    async def seed_review_objects() -> None:
+        async with db_sessionmaker() as session:
+            for file_id in files.values():
+                stored_file = await session.get(StoredFile, file_id)
+                assert stored_file is not None
+                storage.objects[stored_file.storage_key] = ObjectMetadata(
+                    object_key=stored_file.storage_key,
+                    size_bytes=stored_file.size_bytes,
+                    content_type=stored_file.actual_content_type or stored_file.content_type,
+                    checksum_sha256=stored_file.checksum_sha256,
+                )
+
+    asyncio.run(seed_review_objects())
+
     async def submission() -> DriverKycSubmission:
         async with db_sessionmaker() as session:
             row = await session.scalar(

@@ -577,6 +577,31 @@ async def _require_review_reads(
         )
 
 
+async def _decision_retry_view(
+    session: AsyncSession,
+    *,
+    submission_id: UUID,
+    client_request_id: UUID,
+    fingerprint: str,
+) -> VehicleStageView | None:
+    retry = await session.scalar(
+        select(VehicleEvidenceReviewDecision).where(
+            VehicleEvidenceReviewDecision.client_request_id == client_request_id
+        )
+    )
+    if retry is None:
+        return None
+    original = await session.get(VehicleEvidenceSubmission, retry.submission_id)
+    if original is None or original.id != submission_id or retry.request_fingerprint != fingerprint:
+        raise _error(
+            "VEHICLE_DECISION_RETRY_CONFLICT",
+            "The vehicle decision retry does not match the original request",
+            status.HTTP_409_CONFLICT,
+        )
+    vehicle = await session.get(Vehicle, original.vehicle_id)
+    return VehicleStageView(vehicle, original, retry, await _documents(session, original.id))
+
+
 async def review_application_vehicle(
     session: AsyncSession,
     *,
@@ -591,25 +616,14 @@ async def review_application_vehicle(
     fingerprint = _decision_fingerprint(
         application_id=application_id, submission_id=submission_id, payload=payload
     )
-    retry = await session.scalar(
-        select(VehicleEvidenceReviewDecision).where(
-            VehicleEvidenceReviewDecision.client_request_id == payload.client_request_id
-        )
+    retry_view = await _decision_retry_view(
+        session,
+        submission_id=submission_id,
+        client_request_id=payload.client_request_id,
+        fingerprint=fingerprint,
     )
-    if retry is not None:
-        original = await session.get(VehicleEvidenceSubmission, retry.submission_id)
-        if (
-            original is None
-            or original.id != submission_id
-            or retry.request_fingerprint != fingerprint
-        ):
-            raise _error(
-                "VEHICLE_DECISION_RETRY_CONFLICT",
-                "The vehicle decision retry does not match the original request",
-                status.HTTP_409_CONFLICT,
-            )
-        vehicle = await session.get(Vehicle, original.vehicle_id)
-        return VehicleStageView(vehicle, original, retry, await _documents(session, original.id))
+    if retry_view is not None:
+        return retry_view
     _validate_decision(payload, now=now)
     application = await session.scalar(
         select(DriverApplication).where(DriverApplication.id == application_id).with_for_update()
@@ -651,6 +665,14 @@ async def review_application_vehicle(
             status.HTTP_409_CONFLICT,
         )
     previous = await _latest_decision(session, submission.id, lock=True)
+    retry_view = await _decision_retry_view(
+        session,
+        submission_id=submission_id,
+        client_request_id=payload.client_request_id,
+        fingerprint=fingerprint,
+    )
+    if retry_view is not None:
+        return retry_view
     if previous is None:
         if submission.status != KycSubmissionStatus.PENDING_REVIEW.value:
             raise _error(

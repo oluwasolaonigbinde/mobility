@@ -852,10 +852,38 @@ async def _issue_download(
 ) -> PresignedGet:
     _require_cleared(stored_file)
     try:
+        observed = await storage.stat(stored_file.storage_key)
+    except StorageObjectNotFound:
+        raise _error(
+            "STORED_FILE_OBJECT_MISSING",
+            "The private file object is unavailable",
+            status.HTTP_409_CONFLICT,
+        ) from None
+    except StorageUnavailable:
+        raise _storage_unavailable() from None
+    expected_content_type = (stored_file.actual_content_type or stored_file.content_type).lower()
+    if (
+        observed.object_key != stored_file.storage_key
+        or observed.size_bytes != stored_file.size_bytes
+        or observed.content_type.lower() != expected_content_type
+        or observed.checksum_sha256.lower() != stored_file.checksum_sha256.lower()
+    ):
+        raise _error(
+            "STORED_FILE_OBJECT_MISMATCH",
+            "The private file object no longer matches its verified record",
+            status.HTTP_409_CONFLICT,
+        )
+    try:
         download = await storage.presign_get(
             object_key=stored_file.storage_key,
             expires_in_seconds=settings.object_storage_download_ttl_seconds,
         )
+    except StorageObjectNotFound:
+        raise _error(
+            "STORED_FILE_OBJECT_MISSING",
+            "The private file object is unavailable",
+            status.HTTP_409_CONFLICT,
+        ) from None
     except StorageUnavailable:
         raise _storage_unavailable() from None
     await create_audit_event(

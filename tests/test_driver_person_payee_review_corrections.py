@@ -13,8 +13,8 @@ from test_driver_person_payee_onboarding import (
     _register,
     _seed_clean_kyc_files,
 )
-from test_stored_files import FakeStorageProvider
 from test_email_delivery import RecordingEmailAdapter
+from test_stored_files import FakeStorageProvider
 
 from app.adapters.crypto import EnvelopeCryptoProvider
 from app.api.v1.dependencies import get_storage_provider
@@ -337,7 +337,6 @@ def test_resubmission_invalidates_every_stale_exact_review_read(
         json={"verification_reference": f"admin-provider-review-{submission_id}"},
     )
     assert verified.status_code == 200
-    db_client.app.dependency_overrides[get_storage_provider] = lambda: FakeStorageProvider()
     assert (
         db_client.post(
             f"/api/v1/admin/kyc/submissions/{submission_id}/nin/reveal",

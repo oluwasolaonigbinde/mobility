@@ -60,6 +60,14 @@ def _error(code: str, message: str, status_code: int) -> AppError:
     return AppError(code, message, status_code=status_code)
 
 
+async def _acquire_work_eligibility_authority(
+    session: AsyncSession, *, driver_profile_id: UUID
+) -> None:
+    from app.services.vehicle_onboarding import acquire_work_eligibility_lock
+
+    await acquire_work_eligibility_lock(session, driver_profile_id=driver_profile_id)
+
+
 async def application_from_reference(
     session: AsyncSession, *, reference: str, lock: bool
 ) -> DriverApplication:
@@ -149,6 +157,9 @@ async def submit_application_person_payee(
         token=payload.application_access_token.get_secret_value(),
         settings=settings,
         lock=True,
+    )
+    await _acquire_work_eligibility_authority(
+        session, driver_profile_id=application.driver_profile_id
     )
     profile = await session.scalar(
         select(DriverProfile)
@@ -376,6 +387,9 @@ async def review_application_person_payee(
             "Driver application was not found",
             status.HTTP_404_NOT_FOUND,
         )
+    await _acquire_work_eligibility_authority(
+        session, driver_profile_id=application.driver_profile_id
+    )
     profile = await session.scalar(
         select(DriverProfile)
         .where(DriverProfile.id == application.driver_profile_id)

@@ -61,6 +61,16 @@ def _purpose(value: str) -> str:
     return normalized
 
 
+async def _acquire_work_eligibility_authority(
+    session: AsyncSession, *, driver_profile_id: UUID
+) -> None:
+    # Local import avoids the KYC/vehicle evidence module cycle while keeping
+    # every person/vehicle producer on the shared advisory-lock authority.
+    from app.services.vehicle_onboarding import acquire_work_eligibility_lock
+
+    await acquire_work_eligibility_lock(session, driver_profile_id=driver_profile_id)
+
+
 async def _driver_profile(
     session: AsyncSession,
     *,
@@ -208,6 +218,11 @@ async def submit_driver_kyc(
     required = {item.value for item in DriverKycDocumentType}
     if set(document_file_ids) != required:
         raise _error("KYC_DOCUMENTS_INVALID", "All required KYC documents are required", 422)
+    driver_profile_id = await session.scalar(
+        select(DriverProfile.id).where(DriverProfile.user_id == actor_user_id)
+    )
+    if driver_profile_id is not None:
+        await _acquire_work_eligibility_authority(session, driver_profile_id=driver_profile_id)
     profile = await _driver_profile(
         session,
         actor_user_id=actor_user_id,
@@ -537,6 +552,7 @@ async def rewrap_driver_nin(
     probe = await session.get(DriverKycSubmission, submission_id)
     if probe is None:
         raise _error("KYC_NOT_FOUND", "KYC submission was not found", status.HTTP_404_NOT_FOUND)
+    await _acquire_work_eligibility_authority(session, driver_profile_id=probe.driver_profile_id)
     profile = await session.scalar(
         select(DriverProfile).where(DriverProfile.id == probe.driver_profile_id).with_for_update()
     )
