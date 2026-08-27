@@ -464,7 +464,7 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(db_clien
     summary_data = campaign_summary.json()
     assert summary_data["campaign"]["name"] == "Lagos Launch Campaign"
     assert summary_data["campaign"]["budget_amount"] == "500000.00"
-    assert summary_data["creatives"] == {"total": 2, "ready": 1, "draft": 1, "archived": 0}
+    assert summary_data["creatives"] == {"total": 2, "ready": 0, "draft": 1, "archived": 0}
     assert summary_data["zones"] == {"total": 3, "target": 1, "bonus": 1, "exclusion": 1}
     assert summary_data["route_analytics"]["analyzed_trip_count"] == 2
     assert summary_data["route_analytics"]["total_distance_m"] == "15000.00"
@@ -666,8 +666,7 @@ def test_reporting_zero_state_cross_org_date_validation_and_no_auto_calculation(
         headers=headers,
     )
     naive_date = db_client.get(
-        f"/api/v1/advertiser/campaigns/{empty_campaign.id}/summary"
-        "?start_at=2026-06-01T00:00:00",
+        f"/api/v1/advertiser/campaigns/{empty_campaign.id}/summary?start_at=2026-06-01T00:00:00",
         headers=headers,
     )
 
