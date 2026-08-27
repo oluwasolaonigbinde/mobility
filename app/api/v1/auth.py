@@ -44,8 +44,10 @@ from app.schemas.driver_onboarding import (
     ApplicantFileUploadCreate,
     ApplicantFileUploadRead,
     ApplicantStoredFileRead,
+    ApplicantVehicleSubmissionCreate,
     PersonPayeeStageRead,
     PersonPayeeSubmissionCreate,
+    VehicleStageRead,
 )
 from app.services.account_recovery import (
     PASSWORD_RESET_RESPONSE,
@@ -73,6 +75,11 @@ from app.services.stored_files import (
     get_application_driver_file,
 )
 from app.services.users import validate_password_length
+from app.services.vehicle_onboarding import (
+    VehicleStageView,
+    submit_application_vehicle,
+    vehicle_status_by_reference,
+)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -99,6 +106,37 @@ def _person_payee_response(view) -> PersonPayeeStageRead:
         created_at=submission.created_at,
         decided_at=decision.created_at if decision else None,
     )
+
+
+def _vehicle_stage_response(view: VehicleStageView) -> VehicleStageRead:
+    vehicle = view.vehicle
+    submission = view.submission
+    decision = view.decision
+    if vehicle is None or submission is None:
+        return VehicleStageRead()
+    return VehicleStageRead(
+        status=submission.status,
+        vehicle_id=vehicle.id,
+        submission_id=submission.id,
+        version=submission.version,
+        plate_number=submission.plate_number_snapshot,
+        plate_country_code=submission.plate_country_code_snapshot,
+        vehicle_type=submission.vehicle_type_snapshot,
+        make=submission.make_snapshot,
+        model=submission.model_snapshot,
+        year=submission.year_snapshot,
+        color=submission.color_snapshot,
+        valid_until=decision.valid_until if decision else None,
+        reason_code=decision.reason_code if decision else None,
+        created_at=submission.created_at,
+        decided_at=decision.created_at if decision else None,
+    )
+
+
+def _vehicle_status_response(view: VehicleStageView) -> VehicleStageRead:
+    if view.submission is None:
+        return VehicleStageRead()
+    return VehicleStageRead(status=view.submission.status)
 
 
 def require_driver_registration_enabled(settings: Settings) -> None:
@@ -346,11 +384,13 @@ async def driver_application_status(
     require_driver_registration_enabled(settings)
     await application_status_exists(session, reference)
     person_payee = await person_payee_status_by_reference(session, reference=reference)
+    vehicle = await vehicle_status_by_reference(session, reference=reference)
     # Deliberately do not branch on existence: W3-04A has one public pending
     # state and unknown references must have the same visible envelope.
     return DriverApplicationStatusResponse(
         message=PUBLIC_STATUS_MESSAGE,
         person_payee=_person_payee_response(person_payee),
+        vehicle=_vehicle_status_response(vehicle),
     )
 
 
@@ -467,6 +507,22 @@ async def submit_driver_onboarding_person_payee(
         raise
     await session.commit()
     return _person_payee_response(view)
+
+
+@router.post(
+    "/driver-onboarding/vehicle",
+    response_model=VehicleStageRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def submit_driver_onboarding_vehicle(
+    payload: ApplicantVehicleSubmissionCreate,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> VehicleStageRead:
+    require_driver_registration_enabled(settings)
+    view = await submit_application_vehicle(session, payload=payload, settings=settings)
+    await session.commit()
+    return _vehicle_stage_response(view)
 
 
 @router.post(

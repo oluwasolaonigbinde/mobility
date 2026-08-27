@@ -482,6 +482,9 @@ async def review_application_person_payee(
             "documents_readable_confirmed": payload.documents_readable_confirmed,
         },
     )
+    from app.services.vehicle_onboarding import reconcile_driver_work_eligibility
+
+    await reconcile_driver_work_eligibility(session, driver_profile_id=profile.id)
     return PersonPayeeView(
         submission,
         decision,

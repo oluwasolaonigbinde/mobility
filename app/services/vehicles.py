@@ -7,6 +7,7 @@ from starlette import status
 
 from app.core.errors import AppError
 from app.models.driver import DriverProfile
+from app.models.driver_application import DriverApplication
 from app.models.user import User, UserRole
 from app.models.vehicle import Vehicle
 from app.schemas.vehicles import VehicleCreate, VehicleUpdate, normalize_plate_country_code
@@ -87,6 +88,14 @@ async def create_vehicle_for_driver_user(
             "DRIVER_PROFILE_NOT_FOUND",
             "Driver profile was not found for this user",
             status_code=status.HTTP_404_NOT_FOUND,
+        )
+    if payload.status == "active" and await session.scalar(
+        select(DriverApplication.id).where(DriverApplication.driver_profile_id == driver_profile.id)
+    ):
+        raise AppError(
+            "VEHICLE_APPROVAL_REQUIRED",
+            "Public applicant vehicles become active only through current evidence approval",
+            status_code=status.HTTP_409_CONFLICT,
         )
 
     plate_number_normalized = normalize_plate_number(payload.plate_number)
@@ -239,6 +248,14 @@ async def update_vehicle(
     vehicle, driver_profile, user = row
     update_values = payload.model_dump(exclude_unset=True)
     changed_fields = list(update_values)
+    if update_values.get("status") == "active" and await session.scalar(
+        select(DriverApplication.id).where(DriverApplication.driver_profile_id == driver_profile.id)
+    ):
+        raise AppError(
+            "VEHICLE_APPROVAL_REQUIRED",
+            "Public applicant vehicles become active only through current evidence approval",
+            status_code=status.HTTP_409_CONFLICT,
+        )
 
     for required_field in ["plate_number", "plate_country_code", "vehicle_type", "status"]:
         if required_field in update_values and update_values[required_field] is None:

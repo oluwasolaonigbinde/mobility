@@ -31,6 +31,7 @@ from app.jobs.trip_processing import (
     process_unprocessed_trips,
     seal_ended_trips_job,
 )
+from app.jobs.vehicle_approvals import sweep_vehicle_approval_expiries
 
 
 def sweep_cron_minutes(interval_minutes: int) -> set[int]:
@@ -115,6 +116,11 @@ class WorkerSettings:
         ),
         cron(
             sweep_campaign_assignment_expiries,
+            minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
+            unique=True,
+        ),
+        cron(
+            sweep_vehicle_approval_expiries,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
             unique=True,
         ),

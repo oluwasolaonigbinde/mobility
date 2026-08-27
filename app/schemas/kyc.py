@@ -52,6 +52,14 @@ class VehicleEvidenceSubmissionRead(BaseModel):
     vehicle_id: UUID
     version: int
     status: KycSubmissionStatus
+    snapshot_trusted: bool
+    plate_number: str
+    plate_country_code: str
+    vehicle_type: str
+    make: str | None
+    model: str | None
+    year: int | None
+    color: str | None
     document_file_ids: dict[str, UUID]
     created_at: datetime
 

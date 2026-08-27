@@ -47,6 +47,10 @@ from app.services.campaign_assignments import (
 from app.services.campaign_cancellations import campaign_financial_cutoff
 from app.services.installation_evidence import ensure_current_display_proof
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
+from app.services.vehicle_onboarding import (
+    acquire_work_eligibility_lock,
+    ensure_current_driver_vehicle_eligibility,
+)
 
 # FND-07 (RM7): a lost race on either trip-exclusivity index returns the same
 # stable 409 code as the pre-check that guards it, never a 500.
@@ -217,6 +221,28 @@ async def start_driver_trip(
         )
 
     await acquire_campaign_terms_lock(session, campaign_id)
+    eligibility_row = (
+        await session.execute(
+            select(
+                CampaignAssignment.driver_profile_id,
+                CampaignAssignment.vehicle_id,
+            ).where(
+                CampaignAssignment.id == payload.assignment_id,
+                CampaignAssignment.driver_profile_id == driver_profile.id,
+            )
+        )
+    ).one_or_none()
+    if eligibility_row is None:
+        raise AppError(
+            "CAMPAIGN_ASSIGNMENT_NOT_FOUND",
+            "Campaign assignment was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    await acquire_work_eligibility_lock(
+        session,
+        driver_profile_id=eligibility_row[0],
+        vehicle_id=eligibility_row[1],
+    )
     campaign = await session.scalar(
         select(Campaign).where(Campaign.id == campaign_id).with_for_update()
     )
@@ -255,6 +281,13 @@ async def start_driver_trip(
     ensure_active_driver_profile(driver_profile)
     ensure_active_vehicle(vehicle)
     ensure_vehicle_belongs_to_driver(vehicle, driver_profile)
+    await ensure_current_driver_vehicle_eligibility(
+        session,
+        driver_profile=driver_profile,
+        vehicle=vehicle,
+        now=now,
+        lock=True,
+    )
     await assert_new_work_authorized(
         session, campaign_id=campaign.id, assignment_id=assignment.id
     )

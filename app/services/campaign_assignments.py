@@ -64,6 +64,10 @@ from app.services.payout_rule_serialization import (
     acquire_campaign_terms_lock,
     database_clock,
 )
+from app.services.vehicle_onboarding import (
+    acquire_work_eligibility_lock,
+    ensure_current_driver_vehicle_eligibility,
+)
 
 # FND-07 (RM7): a lost race on either assignment-exclusivity index returns the
 # same stable 409 code as the pre-check that guards it, never a 500.
@@ -439,6 +443,11 @@ async def create_campaign_assignment(
     # the router before any campaign lock or privileged mutation is reached.
     await _active_admin(session, admin_user_id)
     await acquire_campaign_terms_lock(session, payload.campaign_id)
+    await acquire_work_eligibility_lock(
+        session,
+        driver_profile_id=payload.driver_profile_id,
+        vehicle_id=payload.vehicle_id,
+    )
     campaign = await session.scalar(
         select(Campaign)
         .where(Campaign.id == payload.campaign_id)
@@ -490,6 +499,13 @@ async def create_campaign_assignment(
     ensure_active_driver_profile(driver_profile)
     ensure_active_vehicle(vehicle)
     ensure_vehicle_belongs_to_driver(vehicle, driver_profile)
+    await ensure_current_driver_vehicle_eligibility(
+        session,
+        driver_profile=driver_profile,
+        vehicle=vehicle,
+        now=now,
+        lock=True,
+    )
     await ensure_no_duplicate_non_terminal_assignment(
         session,
         campaign_id=campaign.id,
@@ -1529,6 +1545,19 @@ async def accept_driver_assignment(
     # One campaign-scoped authority boundary: publication and acceptance
     # cannot observe different clocks or interleave their revision reads.
     await acquire_campaign_terms_lock(session, campaign_id)
+    vehicle_id = await session.scalar(
+        select(CampaignAssignment.vehicle_id).where(
+            CampaignAssignment.id == assignment_id,
+            CampaignAssignment.driver_profile_id == driver_profile.id,
+        )
+    )
+    if vehicle_id is None:
+        raise assignment_not_found()
+    await acquire_work_eligibility_lock(
+        session,
+        driver_profile_id=driver_profile.id,
+        vehicle_id=vehicle_id,
+    )
     campaign = await session.scalar(
         select(Campaign).where(Campaign.id == campaign_id).with_for_update()
     )
@@ -1547,6 +1576,16 @@ async def accept_driver_assignment(
         .with_for_update()
     )
     if assignment is None:
+        raise assignment_not_found()
+    driver_profile = await session.scalar(
+        select(DriverProfile)
+        .where(DriverProfile.id == assignment.driver_profile_id)
+        .with_for_update()
+    )
+    vehicle = await session.scalar(
+        select(Vehicle).where(Vehicle.id == assignment.vehicle_id).with_for_update()
+    )
+    if driver_profile is None or vehicle is None:
         raise assignment_not_found()
     now = await database_clock(session)
     if assignment.status == CampaignAssignmentStatus.ACCEPTED.value:
@@ -1570,6 +1609,16 @@ async def accept_driver_assignment(
             "Only offered assignments can be accepted",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+    ensure_active_driver_profile(driver_profile)
+    ensure_active_vehicle(vehicle)
+    ensure_vehicle_belongs_to_driver(vehicle, driver_profile)
+    await ensure_current_driver_vehicle_eligibility(
+        session,
+        driver_profile=driver_profile,
+        vehicle=vehicle,
+        now=now,
+        lock=True,
+    )
     previous_status = assignment.status
     assignment.status = CampaignAssignmentStatus.ACCEPTED.value
     assignment.accepted_at = now
@@ -1712,6 +1761,21 @@ async def activate_admin_assignment(
     if campaign_id is None:
         raise assignment_not_found()
     await acquire_campaign_terms_lock(session, campaign_id)
+    eligibility_row = (
+        await session.execute(
+            select(
+                CampaignAssignment.driver_profile_id,
+                CampaignAssignment.vehicle_id,
+            ).where(CampaignAssignment.id == assignment_id)
+        )
+    ).one_or_none()
+    if eligibility_row is None:
+        raise assignment_not_found()
+    await acquire_work_eligibility_lock(
+        session,
+        driver_profile_id=eligibility_row[0],
+        vehicle_id=eligibility_row[1],
+    )
     campaign = await session.scalar(
         select(Campaign).where(Campaign.id == campaign_id).with_for_update()
     )
@@ -1756,6 +1820,13 @@ async def activate_admin_assignment(
     ensure_active_driver_profile(driver_profile)
     ensure_active_vehicle(vehicle)
     ensure_vehicle_belongs_to_driver(vehicle, driver_profile)
+    await ensure_current_driver_vehicle_eligibility(
+        session,
+        driver_profile=driver_profile,
+        vehicle=vehicle,
+        now=now,
+        lock=True,
+    )
     campaign_review = await ensure_campaign_review_approved(session, campaign.id)
     if not _offer_terms_complete(assignment.offer_terms, assignment.offer_terms_sha256):
         raise AppError(

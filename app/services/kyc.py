@@ -421,6 +421,15 @@ async def submit_vehicle_evidence(
         version=(current_version or 0) + 1,
         client_request_id=client_request_id,
         status=KycSubmissionStatus.PENDING_REVIEW,
+        snapshot_trusted=True,
+        plate_number_snapshot=vehicle.plate_number,
+        plate_number_normalized_snapshot=vehicle.plate_number_normalized,
+        plate_country_code_snapshot=vehicle.plate_country_code,
+        vehicle_type_snapshot=vehicle.vehicle_type,
+        make_snapshot=vehicle.make,
+        model_snapshot=vehicle.model,
+        year_snapshot=vehicle.year,
+        color_snapshot=vehicle.color,
         created_by_user_id=actor_user_id,
     )
     session.add(submission)
@@ -617,4 +626,7 @@ async def rewrap_driver_nin(
             "review_reset": current.status == KycSubmissionStatus.APPROVED,
         },
     )
+    from app.services.vehicle_onboarding import reconcile_driver_work_eligibility
+
+    await reconcile_driver_work_eligibility(session, driver_profile_id=profile.id)
     return DriverKycView(new_submission, current_docs)

@@ -11,7 +11,9 @@ from app.schemas.driver_applications import (
 )
 from app.schemas.driver_onboarding import (
     AdminPersonPayeeStageRead,
+    AdminVehicleStageRead,
     PersonPayeeReviewDecisionCreate,
+    VehicleReviewDecisionCreate,
 )
 from app.schemas.organizations import AdminOrganizationCreateResponse, AdvertiserOrganizationCreate
 from app.schemas.users import UserCreate, UserListResponse, UserRead, UserUpdate
@@ -23,6 +25,11 @@ from app.services.driver_onboarding import (
 )
 from app.services.organizations import create_advertiser_organization
 from app.services.users import create_user, list_users, update_user
+from app.services.vehicle_onboarding import (
+    VehicleStageView,
+    application_vehicle_view,
+    review_application_vehicle,
+)
 
 router = APIRouter(prefix="/admin", tags=["Admin Users"])
 
@@ -45,6 +52,33 @@ def _admin_person_payee_response(view) -> AdminPersonPayeeStageRead:
         bank_account_version_id=submission.bank_account_version_id,
         encryption_algorithm=submission.encryption_algorithm,
         encryption_key_version=submission.encryption_key_version,
+        decided_by_user_id=decision.decided_by_user_id if decision else None,
+    )
+
+
+def _admin_vehicle_response(view: VehicleStageView) -> AdminVehicleStageRead:
+    vehicle = view.vehicle
+    submission = view.submission
+    decision = view.decision
+    if vehicle is None or submission is None:
+        return AdminVehicleStageRead()
+    return AdminVehicleStageRead(
+        status=submission.status,
+        vehicle_id=vehicle.id,
+        submission_id=submission.id,
+        version=submission.version,
+        plate_number=submission.plate_number_snapshot,
+        plate_country_code=submission.plate_country_code_snapshot,
+        vehicle_type=submission.vehicle_type_snapshot,
+        make=submission.make_snapshot,
+        model=submission.model_snapshot,
+        year=submission.year_snapshot,
+        color=submission.color_snapshot,
+        valid_until=decision.valid_until if decision else None,
+        reason_code=decision.reason_code if decision else None,
+        created_at=submission.created_at,
+        decided_at=decision.created_at if decision else None,
+        document_file_ids=view.document_file_ids,
         decided_by_user_id=decision.decided_by_user_id if decision else None,
     )
 
@@ -119,9 +153,13 @@ async def admin_list_driver_applications(
     items = []
     for application in applications:
         person_payee = await application_person_payee_view(session, application=application)
+        vehicle = await application_vehicle_view(session, application=application)
         items.append(
             DriverApplicationAdminRead.model_validate(application).model_copy(
-                update={"person_payee": _admin_person_payee_response(person_payee)}
+                update={
+                    "person_payee": _admin_person_payee_response(person_payee),
+                    "vehicle": _admin_vehicle_response(vehicle),
+                }
             )
         )
     return DriverApplicationAdminListResponse(
@@ -150,6 +188,31 @@ async def admin_review_driver_person_payee(
     )
     await session.commit()
     return _admin_person_payee_response(view)
+
+
+@router.post(
+    "/driver-applications/{application_id}/vehicles/{vehicle_id}/submissions/"
+    "{submission_id}/decision",
+    response_model=AdminVehicleStageRead,
+)
+async def admin_review_driver_vehicle(
+    application_id: UUID,
+    vehicle_id: UUID,
+    submission_id: UUID,
+    payload: VehicleReviewDecisionCreate,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+) -> AdminVehicleStageRead:
+    view = await review_application_vehicle(
+        session,
+        application_id=application_id,
+        vehicle_id=vehicle_id,
+        submission_id=submission_id,
+        actor_user_id=current_user.id,
+        payload=payload,
+    )
+    await session.commit()
+    return _admin_vehicle_response(view)
 
 
 @router.patch("/users/{user_id}", response_model=UserRead, summary="Update a user")

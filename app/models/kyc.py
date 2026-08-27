@@ -49,6 +49,18 @@ class VehicleEvidenceDocumentType(StrEnum):
     VEHICLE_PHOTO = "vehicle_photo"
 
 
+class VehicleReviewReason(StrEnum):
+    COMPLETE_CURRENT_EVIDENCE = "complete_current_evidence"
+    MISSING_EVIDENCE = "missing_evidence"
+    UNSAFE_EVIDENCE = "unsafe_evidence"
+    EXPIRED_EVIDENCE = "expired_evidence"
+    OWNER_MISMATCH = "owner_mismatch"
+    VEHICLE_IDENTITY_MISMATCH = "vehicle_identity_mismatch"
+    NOT_ROADWORTHY = "not_roadworthy"
+    NOT_PILOT_ELIGIBLE = "not_pilot_eligible"
+    UNREADABLE_EVIDENCE = "unreadable_evidence"
+
+
 class DriverKycSubmission(Base):
     __tablename__ = "driver_kyc_submissions"
     __table_args__ = (
@@ -198,6 +210,11 @@ class VehicleEvidenceSubmission(Base):
             "client_request_id",
             name="uq_vehicle_evidence_submissions_vehicle_request",
         ),
+        UniqueConstraint(
+            "created_by_user_id",
+            "client_request_id",
+            name="uq_vehicle_evidence_submissions_owner_request",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -209,6 +226,15 @@ class VehicleEvidenceSubmission(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     client_request_id: Mapped[UUID] = mapped_column(nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
+    snapshot_trusted: Mapped[bool] = mapped_column(nullable=False, default=True)
+    plate_number_snapshot: Mapped[str] = mapped_column(String(32), nullable=False)
+    plate_number_normalized_snapshot: Mapped[str] = mapped_column(String(32), nullable=False)
+    plate_country_code_snapshot: Mapped[str] = mapped_column(String(2), nullable=False)
+    vehicle_type_snapshot: Mapped[str] = mapped_column(String(32), nullable=False)
+    make_snapshot: Mapped[str | None] = mapped_column(String(128))
+    model_snapshot: Mapped[str | None] = mapped_column(String(128))
+    year_snapshot: Mapped[int | None] = mapped_column(Integer)
+    color_snapshot: Mapped[str | None] = mapped_column(String(64))
     created_by_user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
@@ -243,3 +269,69 @@ class VehicleEvidenceDocument(Base):
         ForeignKey("stored_files.id", ondelete="RESTRICT"), nullable=False
     )
     document_type: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+class VehicleEvidenceReviewDecision(Base):
+    """Append-only authorized decision sequence over one exact vehicle revision."""
+
+    __tablename__ = "vehicle_evidence_review_decisions"
+    __table_args__ = (
+        CheckConstraint("sequence > 0", name="ck_vehicle_review_decisions_sequence"),
+        CheckConstraint(
+            "decision IN ('approved', 'rejected', 'expired')",
+            name="ck_vehicle_review_decisions_decision",
+        ),
+        CheckConstraint(
+            "reason_code IN ('complete_current_evidence', 'missing_evidence', "
+            "'unsafe_evidence', 'expired_evidence', 'owner_mismatch', 'vehicle_identity_mismatch', "
+            "'not_roadworthy', 'not_pilot_eligible', 'unreadable_evidence')",
+            name="ck_vehicle_review_decisions_reason",
+        ),
+        CheckConstraint(
+            "length(request_fingerprint) = 64",
+            name="ck_vehicle_review_decisions_fingerprint",
+        ),
+        CheckConstraint(
+            "(decision = 'approved' AND reason_code = 'complete_current_evidence' "
+            "AND owner_match_confirmed AND vehicle_identity_confirmed "
+            "AND roadworthy_confirmed AND pilot_car_confirmed "
+            "AND documents_readable_confirmed AND valid_until IS NOT NULL) OR "
+            "(decision IN ('rejected', 'expired') "
+            "AND reason_code <> 'complete_current_evidence')",
+            name="ck_vehicle_review_decisions_facts",
+        ),
+        CheckConstraint(
+            "decision = 'expired' OR decided_by_user_id IS NOT NULL",
+            name="ck_vehicle_review_decisions_admin_actor",
+        ),
+        UniqueConstraint(
+            "submission_id", "sequence", name="uq_vehicle_review_decisions_submission_sequence"
+        ),
+        UniqueConstraint("client_request_id", name="uq_vehicle_review_decisions_client_request"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    submission_id: Mapped[UUID] = mapped_column(
+        ForeignKey("vehicle_evidence_submissions.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    client_request_id: Mapped[UUID] = mapped_column(nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    decision: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    owner_match_confirmed: Mapped[bool] = mapped_column(nullable=False)
+    vehicle_identity_confirmed: Mapped[bool] = mapped_column(nullable=False)
+    roadworthy_confirmed: Mapped[bool] = mapped_column(nullable=False)
+    pilot_car_confirmed: Mapped[bool] = mapped_column(nullable=False)
+    documents_readable_confirmed: Mapped[bool] = mapped_column(nullable=False)
+    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

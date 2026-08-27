@@ -4,7 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
-from app.models.kyc import KycReviewReason, KycSubmissionStatus
+from app.models.kyc import KycReviewReason, KycSubmissionStatus, VehicleReviewReason
+from app.models.vehicle import VehicleType
 from app.schemas.stored_files import FileUploadCreate, PresignedPostRead
 
 
@@ -97,3 +98,65 @@ class AdminPersonPayeeStageRead(PersonPayeeStageRead):
     encryption_algorithm: str | None = None
     encryption_key_version: int | None = None
     decided_by_user_id: UUID | None = None
+
+
+class ApplicantVehicleSubmissionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    application_access_token: SecretStr = Field(repr=False)
+    client_request_id: UUID
+    vehicle_id: UUID | None = None
+    plate_number: str = Field(min_length=1, max_length=32)
+    plate_country_code: str = Field(min_length=2, max_length=2)
+    vehicle_type: VehicleType
+    make: str | None = Field(default=None, max_length=128)
+    model: str | None = Field(default=None, max_length=128)
+    year: int | None = Field(default=None, ge=1980, le=2100)
+    color: str | None = Field(default=None, max_length=64)
+    registration_file_id: UUID
+    insurance_file_id: UUID
+    vehicle_photo_file_id: UUID
+
+
+class VehicleStageRead(BaseModel):
+    status: str = "not_submitted"
+    vehicle_id: UUID | None = None
+    submission_id: UUID | None = None
+    version: int | None = None
+    plate_number: str | None = None
+    plate_country_code: str | None = None
+    vehicle_type: VehicleType | None = None
+    make: str | None = None
+    model: str | None = None
+    year: int | None = None
+    color: str | None = None
+    valid_until: datetime | None = None
+    reason_code: VehicleReviewReason | None = None
+    created_at: datetime | None = None
+    decided_at: datetime | None = None
+
+
+class AdminVehicleStageRead(VehicleStageRead):
+    document_file_ids: dict[str, UUID] = Field(default_factory=dict)
+    decided_by_user_id: UUID | None = None
+
+
+class VehicleReviewDecisionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    client_request_id: UUID
+    decision: KycSubmissionStatus
+    reason_code: VehicleReviewReason
+    owner_match_confirmed: bool = False
+    vehicle_identity_confirmed: bool = False
+    roadworthy_confirmed: bool = False
+    pilot_car_confirmed: bool = False
+    documents_readable_confirmed: bool = False
+    valid_until: datetime | None = None
+
+    @field_validator("decision")
+    @classmethod
+    def validate_terminal_decision(cls, value: KycSubmissionStatus) -> KycSubmissionStatus:
+        if value == KycSubmissionStatus.PENDING_REVIEW:
+            raise ValueError("Review decisions must be approved, rejected or expired")
+        return value

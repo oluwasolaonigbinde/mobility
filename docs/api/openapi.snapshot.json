@@ -1061,6 +1061,194 @@
         "title": "AdminVehicleRead",
         "type": "object"
       },
+      "AdminVehicleStageRead": {
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By User Id"
+          },
+          "document_file_ids": {
+            "additionalProperties": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Document File Ids",
+            "type": "object"
+          },
+          "make": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Make"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "plate_country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plate Country Code"
+          },
+          "plate_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plate Number"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VehicleReviewReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "default": "not_submitted",
+            "title": "Status",
+            "type": "string"
+          },
+          "submission_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submission Id"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          },
+          "vehicle_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Id"
+          },
+          "vehicle_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VehicleType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "title": "AdminVehicleStageRead",
+        "type": "object"
+      },
       "AdvertiserDashboardSummary": {
         "properties": {
           "assignments": {
@@ -1588,6 +1776,125 @@
           "scan_status"
         ],
         "title": "ApplicantStoredFileRead",
+        "type": "object"
+      },
+      "ApplicantVehicleSubmissionCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "application_access_token": {
+            "format": "password",
+            "title": "Application Access Token",
+            "type": "string",
+            "writeOnly": true
+          },
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "insurance_file_id": {
+            "format": "uuid",
+            "title": "Insurance File Id",
+            "type": "string"
+          },
+          "make": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Make"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "plate_country_code": {
+            "maxLength": 2,
+            "minLength": 2,
+            "title": "Plate Country Code",
+            "type": "string"
+          },
+          "plate_number": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Plate Number",
+            "type": "string"
+          },
+          "registration_file_id": {
+            "format": "uuid",
+            "title": "Registration File Id",
+            "type": "string"
+          },
+          "vehicle_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Id"
+          },
+          "vehicle_photo_file_id": {
+            "format": "uuid",
+            "title": "Vehicle Photo File Id",
+            "type": "string"
+          },
+          "vehicle_type": {
+            "$ref": "#/components/schemas/VehicleType"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "maximum": 2100.0,
+                "minimum": 1980.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "required": [
+          "application_access_token",
+          "client_request_id",
+          "plate_number",
+          "plate_country_code",
+          "vehicle_type",
+          "registration_file_id",
+          "insurance_file_id",
+          "vehicle_photo_file_id"
+        ],
+        "title": "ApplicantVehicleSubmissionCreate",
         "type": "object"
       },
       "AssignmentActivityFlagRead": {
@@ -8287,6 +8594,9 @@
             "format": "uuid",
             "title": "User Id",
             "type": "string"
+          },
+          "vehicle": {
+            "$ref": "#/components/schemas/AdminVehicleStageRead"
           }
         },
         "required": [
@@ -8386,6 +8696,9 @@
             "default": "pending",
             "title": "Status",
             "type": "string"
+          },
+          "vehicle": {
+            "$ref": "#/components/schemas/VehicleStageRead"
           }
         },
         "required": [
@@ -19614,6 +19927,17 @@
       },
       "VehicleEvidenceSubmissionRead": {
         "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -19632,6 +19956,40 @@
             "title": "Id",
             "type": "string"
           },
+          "make": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Make"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "plate_country_code": {
+            "title": "Plate Country Code",
+            "type": "string"
+          },
+          "plate_number": {
+            "title": "Plate Number",
+            "type": "string"
+          },
+          "snapshot_trusted": {
+            "title": "Snapshot Trusted",
+            "type": "boolean"
+          },
           "status": {
             "$ref": "#/components/schemas/KycSubmissionStatus"
           },
@@ -19640,9 +19998,24 @@
             "title": "Vehicle Id",
             "type": "string"
           },
+          "vehicle_type": {
+            "title": "Vehicle Type",
+            "type": "string"
+          },
           "version": {
             "title": "Version",
             "type": "integer"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
           }
         },
         "required": [
@@ -19650,6 +20023,14 @@
           "vehicle_id",
           "version",
           "status",
+          "snapshot_trusted",
+          "plate_number",
+          "plate_country_code",
+          "vehicle_type",
+          "make",
+          "model",
+          "year",
+          "color",
           "document_file_ids",
           "created_at"
         ],
@@ -19788,6 +20169,249 @@
           "updated_at"
         ],
         "title": "VehicleRead",
+        "type": "object"
+      },
+      "VehicleReviewDecisionCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/KycSubmissionStatus"
+          },
+          "documents_readable_confirmed": {
+            "default": false,
+            "title": "Documents Readable Confirmed",
+            "type": "boolean"
+          },
+          "owner_match_confirmed": {
+            "default": false,
+            "title": "Owner Match Confirmed",
+            "type": "boolean"
+          },
+          "pilot_car_confirmed": {
+            "default": false,
+            "title": "Pilot Car Confirmed",
+            "type": "boolean"
+          },
+          "reason_code": {
+            "$ref": "#/components/schemas/VehicleReviewReason"
+          },
+          "roadworthy_confirmed": {
+            "default": false,
+            "title": "Roadworthy Confirmed",
+            "type": "boolean"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          },
+          "vehicle_identity_confirmed": {
+            "default": false,
+            "title": "Vehicle Identity Confirmed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "decision",
+          "reason_code"
+        ],
+        "title": "VehicleReviewDecisionCreate",
+        "type": "object"
+      },
+      "VehicleReviewReason": {
+        "enum": [
+          "complete_current_evidence",
+          "missing_evidence",
+          "unsafe_evidence",
+          "expired_evidence",
+          "owner_mismatch",
+          "vehicle_identity_mismatch",
+          "not_roadworthy",
+          "not_pilot_eligible",
+          "unreadable_evidence"
+        ],
+        "title": "VehicleReviewReason",
+        "type": "string"
+      },
+      "VehicleStageRead": {
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "make": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Make"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "plate_country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plate Country Code"
+          },
+          "plate_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plate Number"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VehicleReviewReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "default": "not_submitted",
+            "title": "Status",
+            "type": "string"
+          },
+          "submission_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submission Id"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          },
+          "vehicle_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Id"
+          },
+          "vehicle_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VehicleType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "title": "VehicleStageRead",
         "type": "object"
       },
       "VehicleStatus": {
@@ -23255,6 +23879,84 @@
           }
         ],
         "summary": "Admin Review Driver Person Payee",
+        "tags": [
+          "Admin Users"
+        ]
+      }
+    },
+    "/api/v1/admin/driver-applications/{application_id}/vehicles/{vehicle_id}/submissions/{submission_id}/decision": {
+      "post": {
+        "operationId": "admin_review_driver_vehicle_api_v1_admin_driver_applications__application_id__vehicles__vehicle_id__submissions__submission_id__decision_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "vehicle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Vehicle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VehicleReviewDecisionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminVehicleStageRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Review Driver Vehicle",
         "tags": [
           "Admin Users"
         ]
@@ -32601,6 +33303,47 @@
           }
         },
         "summary": "Submit Driver Onboarding Person Payee",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/driver-onboarding/vehicle": {
+      "post": {
+        "operationId": "submit_driver_onboarding_vehicle_api_v1_auth_driver_onboarding_vehicle_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicantVehicleSubmissionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleStageRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Driver Onboarding Vehicle",
         "tags": [
           "Auth"
         ]

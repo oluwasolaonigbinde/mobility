@@ -221,10 +221,10 @@ async def create_application_driver_upload_intent(
 ) -> tuple[FileUploadIntent, PresignedPost]:
     """Use the shared private upload authority for a referenced invited driver."""
 
-    if payload.purpose != FilePurpose.DRIVER_KYC:
+    if payload.purpose not in {FilePurpose.DRIVER_KYC, FilePurpose.VEHICLE_EVIDENCE}:
         raise _error(
             "FILE_PURPOSE_FORBIDDEN",
-            "Public onboarding accepts driver KYC files only",
+            "Public onboarding accepts protected driver and vehicle evidence only",
             status.HTTP_403_FORBIDDEN,
         )
     user = await session.scalar(select(User).where(User.id == actor_user_id).with_for_update())
@@ -538,7 +538,7 @@ async def get_application_driver_file(
             StoredFile.id == file_id,
             StoredFile.subject_user_id == actor_user_id,
             StoredFile.organization_id.is_(None),
-            StoredFile.purpose == FilePurpose.DRIVER_KYC,
+            StoredFile.purpose.in_({FilePurpose.DRIVER_KYC, FilePurpose.VEHICLE_EVIDENCE}),
         )
     )
     if stored_file is None:
