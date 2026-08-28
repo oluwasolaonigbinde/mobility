@@ -68,8 +68,8 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
         "POSTGIS_IMAGE": "postgis/postgis@sha256:" + "3" * 64,
         "REDIS_IMAGE": "redis@sha256:" + "4" * 64,
         "CADDY_IMAGE": "caddy@sha256:" + "5" * 64,
-        "EDGE_HOSTNAME": "cardvert.example.com",
-        "PUBLIC_ORIGIN": "https://cardvert.example.com",
+        "EDGE_HOSTNAME": "cardvert.client-owned-domain.com",
+        "PUBLIC_ORIGIN": "https://cardvert.client-owned-domain.com",
         "BACKEND_CORS_ORIGINS": "[]",
         "POSTGRES_PASSWORD": "Correct-Horse-Battery-Staple-Database-2026",
         "DATABASE_URL": (
@@ -81,8 +81,8 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
         "JWT_SECRET_KEY": "Jwt-release-secret-with-more-than-thirty-two-random-characters-2026",
         "PAYOUT_CRYPTO_KEYRING_B64": ('{"1":"yPdM2Hgg3Q1M+MS4iF26TyMQmmuUOMf7p9hNSMlcycI="}'),
         "PAYOUT_CRYPTO_KEY_VERSION": "1",
-        "OBJECT_STORAGE_ENDPOINT_URL": "https://objects.example.com",
-        "OBJECT_STORAGE_PUBLIC_ENDPOINT_URL": "https://objects.example.com",
+        "OBJECT_STORAGE_ENDPOINT_URL": "https://objects.client-storage.net",
+        "OBJECT_STORAGE_PUBLIC_ENDPOINT_URL": "https://objects.client-storage.net",
         "OBJECT_STORAGE_REGION": "client-approved-region",
         "OBJECT_STORAGE_BUCKET": "cardvert-private-production",
         "OBJECT_STORAGE_ACCESS_KEY_ID": "client-storage-access-key",
@@ -204,16 +204,19 @@ def test_production_builds_pin_base_images_and_dependency_graphs() -> None:
         ("JWT_SECRET_KEY", "EXAMPLE-ONLY-REPLACE-WITH-A-SECRET-THAT-IS-LONG-ENOUGH"),
         ("POSTGRES_PASSWORD", "weak-password"),
         ("EDGE_HOSTNAME", "staging.invalid"),
-        ("PUBLIC_ORIGIN", "http://cardvert.example.com"),
+        ("PUBLIC_ORIGIN", "http://cardvert.client-owned-domain.com"),
         ("BACKEND_CORS_ORIGINS", '["*"]'),
         ("BACKEND_IMAGE", "registry.invalid/cardvert/backend:latest"),
         ("ALLOW_DEMO_SEED", "true"),
         ("DEMO_LOGIN_ENABLED", "true"),
         ("PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE", "true"),
-        ("OBJECT_STORAGE_ENDPOINT_URL", "http://objects.example.com"),
-        ("OBJECT_STORAGE_ENDPOINT_URL", "https://operator:secret@objects.example.com"),
-        ("OBJECT_STORAGE_ENDPOINT_URL", "https://objects.example.com?token=secret"),
-        ("OBJECT_STORAGE_ENDPOINT_URL", "https://objects.example.com/#private"),
+        ("OBJECT_STORAGE_ENDPOINT_URL", "http://objects.client-storage.net"),
+        (
+            "OBJECT_STORAGE_ENDPOINT_URL",
+            "https://operator:secret@objects.client-storage.net",
+        ),
+        ("OBJECT_STORAGE_ENDPOINT_URL", "https://objects.client-storage.net?token=secret"),
+        ("OBJECT_STORAGE_ENDPOINT_URL", "https://objects.client-storage.net/#private"),
         ("OBJECT_STORAGE_ENDPOINT_URL", "https://localhost"),
         ("OBJECT_STORAGE_ENDPOINT_URL", "https://minio:9000/prefix"),
         ("OBJECT_STORAGE_ENDPOINT_URL", "https://objects.invalid"),
@@ -225,7 +228,7 @@ def test_production_builds_pin_base_images_and_dependency_graphs() -> None:
         ("OBJECT_STORAGE_PUBLIC_ENDPOINT_URL", "https://198.18.0.1"),
         ("OBJECT_STORAGE_PUBLIC_ENDPOINT_URL", "https://100.64.0.1"),
         ("OBJECT_STORAGE_PUBLIC_ENDPOINT_URL", "https://[ff02::1]"),
-        ("OBJECT_STORAGE_PUBLIC_ENDPOINT_URL", "https://objects.example.com:0"),
+        ("OBJECT_STORAGE_PUBLIC_ENDPOINT_URL", "https://objects.client-storage.net:0"),
         ("SESSION_COOKIE_NAME", "cardvert_session"),
         (
             "DATABASE_URL",
@@ -234,10 +237,10 @@ def test_production_builds_pin_base_images_and_dependency_graphs() -> None:
         ("REDIS_URL", "redis://:Wrong-Password-That-Is-Long@redis:6379/0"),
         ("PAYOUT_CRYPTO_KEYRING_B64", "EXAMPLE-ONLY-REPLACE-WITH-A-KEYRING"),
         ("SENTRY_DSN", "http://public@example.invalid/1"),
-        ("PUBLIC_ORIGIN", "https://operator:secret@cardvert.example.com"),
-        ("PUBLIC_ORIGIN", "https://cardvert.example.com?token=secret"),
-        ("PUBLIC_ORIGIN", "https://cardvert.example.com/#private"),
-        ("PUBLIC_ORIGIN", "https://cardvert.example.com:8443"),
+        ("PUBLIC_ORIGIN", "https://operator:secret@cardvert.client-owned-domain.com"),
+        ("PUBLIC_ORIGIN", "https://cardvert.client-owned-domain.com?token=secret"),
+        ("PUBLIC_ORIGIN", "https://cardvert.client-owned-domain.com/#private"),
+        ("PUBLIC_ORIGIN", "https://cardvert.client-owned-domain.com:8443"),
         ("LOG_LEVEL", "DEBUG"),
         ("DEBUG", "true"),
         ("DRIVER_REGISTRATION_RATE_LIMIT_TRUST_CLIENT_IP_HEADER", "true"),
@@ -258,7 +261,118 @@ def test_release_environment_accepts_complete_provider_neutral_contract(tmp_path
     )
 
     assert validated["release_revision"] == "1715fe53b19972cd6db829a08a9d6cf572fbd656"
-    assert validated["public_origin"] == "https://cardvert.example.com"
+    assert validated["public_origin"] == "https://cardvert.client-owned-domain.com"
+
+
+@pytest.mark.parametrize(
+    "hostname",
+    [
+        "127.0.0.1",
+        "10.42.0.7",
+        "169.254.169.254",
+        "100.64.0.1",
+        "192.0.2.1",
+        "198.18.0.1",
+        "224.0.0.1",
+        "8.8.8.8",
+        "::1",
+        "fd00::1",
+        "fe80::1",
+        "ff02::1",
+        "2001:db8::1",
+        "2606:4700:4700::1111",
+    ],
+)
+def test_release_environment_rejects_every_edge_ip_literal(
+    tmp_path: Path, hostname: str
+) -> None:
+    environment = valid_release_environment(tmp_path)
+    environment["EDGE_HOSTNAME"] = hostname
+    environment["PUBLIC_ORIGIN"] = (
+        f"https://[{hostname}]" if ":" in hostname else f"https://{hostname}"
+    )
+
+    with pytest.raises(ContractError, match="EDGE_HOSTNAME"):
+        validate_release_environment(environment, allow_local_rehearsal=False)
+
+
+@pytest.mark.parametrize(
+    "hostname",
+    [
+        "localhost",
+        "cardvert.localhost",
+        "cardvert.local",
+        "cardvert.invalid",
+        "cardvert.test",
+        "cardvert.example",
+        "example.com",
+        "cardvert.example.com",
+        "example.net",
+        "cardvert.example.net",
+        "example.org",
+        "cardvert.example.org",
+    ],
+)
+def test_release_environment_rejects_reserved_edge_dns_names(
+    tmp_path: Path, hostname: str
+) -> None:
+    environment = valid_release_environment(tmp_path)
+    environment["EDGE_HOSTNAME"] = hostname
+    environment["PUBLIC_ORIGIN"] = f"https://{hostname}"
+
+    with pytest.raises(ContractError, match="EDGE_HOSTNAME"):
+        validate_release_environment(environment, allow_local_rehearsal=False)
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["OBJECT_STORAGE_ENDPOINT_URL", "OBJECT_STORAGE_PUBLIC_ENDPOINT_URL"],
+)
+@pytest.mark.parametrize(
+    "hostname",
+    [
+        "example.com",
+        "objects.example.com",
+        "example.net",
+        "objects.example.net",
+        "example.org",
+        "objects.example.org",
+    ],
+)
+def test_release_environment_rejects_reserved_storage_dns_names(
+    tmp_path: Path, name: str, hostname: str
+) -> None:
+    environment = valid_release_environment(tmp_path)
+    environment[name] = f"https://{hostname}"
+
+    with pytest.raises(ContractError, match="Object storage endpoints"):
+        validate_release_environment(environment, allow_local_rehearsal=False)
+
+
+def test_release_environment_preserves_explicit_local_rehearsal(tmp_path: Path) -> None:
+    environment = valid_release_environment(tmp_path)
+    environment.update(
+        {
+            "ENVIRONMENT": "rehearsal",
+            "EDGE_HOSTNAME": "cardvert-rehearsal.local",
+            "PUBLIC_ORIGIN": "https://cardvert-rehearsal.local",
+            "OBJECT_STORAGE_ENDPOINT_URL": "http://minio:9000/private",
+            "OBJECT_STORAGE_PUBLIC_ENDPOINT_URL": "http://localhost:9000/private",
+        }
+    )
+
+    validate_release_environment(environment, allow_local_rehearsal=True)
+
+
+def test_release_environment_does_not_allow_local_production_with_rehearsal_flag(
+    tmp_path: Path,
+) -> None:
+    environment = valid_release_environment(tmp_path)
+    environment["EDGE_HOSTNAME"] = "cardvert-production.local"
+    environment["PUBLIC_ORIGIN"] = "https://cardvert-production.local"
+
+    with pytest.raises(ContractError, match="EDGE_HOSTNAME"):
+        validate_release_environment(environment, allow_local_rehearsal=True)
 
 
 def test_release_environment_accepts_private_rfc1918_storage_with_port_and_prefix(

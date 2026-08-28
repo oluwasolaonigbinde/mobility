@@ -34,6 +34,16 @@ PLACEHOLDER_RE = re.compile(
 RFC1918_NETWORKS = tuple(
     ipaddress.ip_network(value) for value in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
 )
+SPECIAL_USE_DNS_SUFFIXES = (
+    "localhost",
+    "local",
+    "invalid",
+    "test",
+    "example",
+    "example.com",
+    "example.net",
+    "example.org",
+)
 SECRET_NAMES = (
     "POSTGRES_PASSWORD",
     "REDIS_PASSWORD",
@@ -96,6 +106,14 @@ def _require(environment: Mapping[str, str], name: str) -> str:
 
 def _is_true(value: str | None) -> bool:
     return (value or "").strip().lower() == "true"
+
+
+def _is_special_use_dns_name(hostname: str) -> bool:
+    normalized = hostname.lower().rstrip(".")
+    return any(
+        normalized == suffix or normalized.endswith(f".{suffix}")
+        for suffix in SPECIAL_USE_DNS_SUFFIXES
+    )
 
 
 def database_url_for_name(database_url: str, database_name: str) -> str:
@@ -185,10 +203,19 @@ def validate_release_environment(
         )
 
     hostname = _require(environment, "EDGE_HOSTNAME").lower()
+    normalized_hostname = hostname.rstrip(".")
+    try:
+        edge_address = ipaddress.ip_address(normalized_hostname)
+    except ValueError:
+        edge_address = None
     local_hostname = allow_local_rehearsal and mode == "rehearsal"
     if (
-        ("." not in hostname and not local_hostname)
-        or (hostname.endswith((".invalid", ".local", ".localhost")) and not local_hostname)
+        not local_hostname
+        and (
+            edge_address is not None
+            or "." not in normalized_hostname
+            or _is_special_use_dns_name(normalized_hostname)
+        )
         or hostname in {"localhost", "0.0.0.0"}
         or PLACEHOLDER_RE.search(hostname)
     ):
@@ -275,9 +302,7 @@ def validate_release_environment(
                 or endpoint_address is None
                 and (
                     "." not in normalized_hostname
-                    or normalized_hostname.endswith(
-                        (".invalid", ".local", ".localhost", ".test", ".example")
-                    )
+                    or _is_special_use_dns_name(normalized_hostname)
                     or PLACEHOLDER_RE.search(normalized_hostname)
                 )
                 or endpoint_address is not None

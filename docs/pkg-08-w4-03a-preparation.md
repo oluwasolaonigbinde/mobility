@@ -2,9 +2,11 @@
 
 Date: 2026-08-28
 
-Base: `1715fe53b19972cd6db829a08a9d6cf572fbd656`
+Preparation base: `1715fe53b19972cd6db829a08a9d6cf572fbd656`
 
-Branch: `feat/pkg-08-w4-03a-preparation`
+Integrated correction base: `295cb7d3a33bb426bf2a1434f620870e1982706c`
+
+Integrated branch: `feat/pkg-04-build-first`
 Verdict boundary: repository preparation only; `EXT-RELEASE-ENV` is missing,
 `DV-STAGING-LIVE` is not run, and W4-03A is not complete.
 
@@ -103,8 +105,7 @@ returned `REVISE`. The candidate plan was narrowed and strengthened once to:
   omitted inherited settings, structured logging arguments, optional storage
   canary, impossible first-release backup/smoke semantics, and reserved URL
   credentials. The candidate now closes each gap with focused regressions and
-  the expanded full rehearsal; a fresh exact-tip review remains the completion
-  gate.
+  the expanded full rehearsal.
 - Required clean-context review recheck confirmed those eight findings fixed,
   then returned `FIX` for five additional P1s: a target backup could recreate
   writers before migration; a lock contender could remove the active owner's
@@ -116,8 +117,7 @@ returned `REVISE`. The candidate plan was narrowed and strengthened once to:
   version/delete marker on success or failure, closes those configuration and
   credential-file cases, and carries redacted release/request correlation
   through Caddy, Next and Sentry. `45` focused W4-03A tests and the two new
-  frontend correlation/privacy tests pass. A fresh exact-tip
-  minimal-change-review remains the completion gate.
+  frontend correlation/privacy tests pass.
 - The next fresh exact-tip minimal-change review returned `FIX` for three
   additional P1 input boundaries: backup output could be placed under the
   checkout, driver-registration proxy trust was not included in preflight, and
@@ -126,11 +126,28 @@ returned `REVISE`. The candidate plan was narrowed and strengthened once to:
   repository-contained output before creating plaintext; both login and driver
   proxy trust stay disabled pending environment-specific review; and production
   storage endpoints require deployable HTTPS hosts without userinfo, query or
-  fragment data. Focused regressions cover every rejected form. A fresh
-  corrected-tip minimal-change review remains the completion gate.
+  fragment data. Focused regressions cover every rejected form.
+- The consolidated Package 8 review then found two final production preflight
+  gaps at integrated base `295cb7d`: the public edge accepted IP literals and
+  reserved DNS families, while object-storage DNS validation still accepted
+  exact and subordinate `example.com`, `example.net`, and `example.org` names.
+  The corrected descendant rejects every parsed IPv4 and IPv6 literal at the
+  edge and rejects the `localhost`, `local`, `invalid`, `test`, `example`, and
+  reserved registrable example families at both DNS boundaries. Normal public
+  DNS remains accepted. The rehearsal-only local allowance still requires both
+  explicit rehearsal permission and `ENVIRONMENT=rehearsal`; production
+  storage still intentionally accepts RFC1918 endpoints for a private topology.
+- Correction red/green: the new focused cases first produced `28 failed, 14
+  passed` against the pre-fix validator, then `42 passed` after correction. The
+  complete release-environment selection passed `80` tests with `25`
+  unrelated cases deselected. Scoped Ruff and diff checks passed. The host test
+  environment lacked its optional boto3 package, so the focused test process
+  supplied an import-only boto3 shim; none of these environment-validation
+  cases calls storage or the shim.
 
-Final lint/tests, §9 byte-stability, secret/exposure scan, exact-tip rehearsal,
-and clean-context post-build minimal-change review are recorded in the
-controller handoff. Live DNS/TLS, public edge, provider backups/alerts,
-external restore, live previous-release compatibility, and credential rotation are
-not run because they require `EXT-RELEASE-ENV` and `EXT-STAGING-APPROVAL`.
+The earlier full preparation lint/tests, §9 byte-stability, secret/exposure
+scan, rehearsal, and package reviews remain recorded above. This bounded
+correction did not rerun the full suite or rehearsal. Live DNS/TLS, public edge,
+provider backups/alerts, external restore, live previous-release compatibility,
+and credential rotation are not run because they require `EXT-RELEASE-ENV` and
+`EXT-STAGING-APPROVAL`.
