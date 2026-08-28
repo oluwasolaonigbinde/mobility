@@ -62,9 +62,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 **Control package:** `PKG-09` — PKG-03 and PKG-08 have no remaining runnable
 work while their registered external/live inputs are missing; PKG-04/05/06/07
 are complete, and Package 9 preparation is dependency-safe.
-**Current checkpoint:** `PKG-09 / W4-04B` — assemble the provider-neutral
-handover index, role ownership skeleton, support/SLA/escalation templates,
-risk register and evidence-linked roadmap; acceptance remains externally gated.
+**Current checkpoint:** `PKG-09 / W4-04B` — run the single consolidated
+read-only review of the integrated Package 9 preparation; training rehearsal,
+pilot evidence, named-owner acceptance and handover remain externally gated.
 
 ## Executable package queue
 
@@ -78,7 +78,7 @@ risk register and evidence-linked roadmap; acceptance remains externally gated.
 | 6 | **PKG-06 — matching and driver onboarding** | **DONE** | Recommendations, offers, activity, public application, person/payee onboarding and governed vehicle approval form one verified work-eligibility journey. | none — checklist DAG gates entry |
 | 7 | **PKG-07 — production driver PWA** | **DONE** | The installable pilot PWA safely tracks, syncs and completes the governed onboarding, campaign, earnings and dispute journey; physical-device/live release evidence remains explicitly deferred. | none — checklist DAG gates entry |
 | 8 | **PKG-08 — governed reporting and pilot readiness** | **BLOCKED** | Provider-neutral reporting, release preparation and synthetic pilot acceptance are reviewed and complete; only registered external deployment, provider, approval, device and pilot evidence remains. | none — checklist DAG gates entry |
-| 9 | **PKG-09 — controlled pilot, training and handover** | **IN PROGRESS** | Prepare truthful role training, pilot operations and handover artifacts now; rehearsal, controlled pilot and owner acceptance remain externally gated. | none — checklist DAG gates entry |
+| 9 | **PKG-09 — controlled pilot, training and handover** | **REVIEW** | Provider-neutral training, pilot-operations and handover preparation is integrated; run one consolidated review before classifying the remaining queue as external/live-only. | none — checklist DAG gates entry |
 
 ## Executable package contracts
 
@@ -1434,6 +1434,16 @@ risk register and evidence-linked roadmap; acceptance remains externally gated.
   No deployment, payment, provider, physical-device, user or pilot action was
   performed. `EXT-RM2-POLICY` and `EXT-PILOT-FACTS` remain PRESENT; every other
   W4-03C external/live prerequisite remains MISSING.
+- **W4-04B-P1 handover preparation (28 Aug 2026):** commit `ddbd576` adds
+  an evidence-linked documentation index, placeholder-only role/RACI and
+  support/SLA/escalation templates, exact external/deferred risk register,
+  credential-custody checklist and evidence-linked post-MVP roadmap. The
+  focused audit reports six files, 29 external gates and three deferred
+  validations; thirteen focused tests, Python compilation, scoped Ruff and
+  diff checks pass. Its single clean-context `$minimal-change-review` returned
+  FIX for three bounded audit/coverage findings; those were remediated and the
+  affected evidence rerun under the no-loop rule. No credential, account,
+  owner, acceptance, handover, deployment or live-pilot claim was created.
 - **Closure:** accepted operating materials, monitored pilot evidence, known
   risks/deferments and named owners agree with repository truth.
 
