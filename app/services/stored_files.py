@@ -684,6 +684,7 @@ async def get_advertiser_stored_file(
         select(StoredFile).where(
             StoredFile.id == file_id,
             StoredFile.organization_id == organization_id,
+            StoredFile.purpose != FilePurpose.REPORT_EXPORT,
         )
     )
     if stored_file is None:
@@ -924,6 +925,7 @@ async def issue_advertiser_file_download(
         select(StoredFile).where(
             StoredFile.id == file_id,
             StoredFile.organization_id == organization_id,
+            StoredFile.purpose != FilePurpose.REPORT_EXPORT,
         )
     )
     if stored_file is None:
@@ -964,7 +966,12 @@ async def issue_admin_file_download(
             "The requested file-access purpose is not allowed for this role",
             status.HTTP_403_FORBIDDEN,
         )
-    stored_file = await session.scalar(select(StoredFile).where(StoredFile.id == file_id))
+    stored_file = await session.scalar(
+        select(StoredFile).where(
+            StoredFile.id == file_id,
+            StoredFile.purpose != FilePurpose.REPORT_EXPORT,
+        )
+    )
     if stored_file is None:
         raise _error(
             "STORED_FILE_NOT_FOUND", "Stored file was not found", status.HTTP_404_NOT_FOUND

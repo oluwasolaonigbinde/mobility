@@ -32,13 +32,16 @@ from app.jobs import disclosure_retention as disclosure_retention_jobs
 from app.jobs import earnings_release as earnings_release_jobs
 from app.jobs import email_delivery as email_delivery_jobs
 from app.jobs import evidence_verification as evidence_verification_jobs
+from app.jobs import exposure_segments as exposure_segment_jobs
 from app.jobs import file_lifecycle as file_lifecycle_jobs
 from app.jobs import file_scanning as file_scanning_jobs
 from app.jobs import payment_gateway as payment_gateway_jobs
 from app.jobs import trip_processing as jobs
+from app.jobs import vehicle_approvals as vehicle_approval_jobs
 from app.jobs.worker import WorkerSettings, sweep_cron_minutes
 from app.models.assignment_activity import AssignmentActivityFlag, AssignmentActivityFlagEvent
 from app.models.notification import Notification
+from app.services import report_issuances as report_issuance_jobs
 from app.services.trip_processing import DueTrip, process_ended_trip
 
 
@@ -56,18 +59,22 @@ def make_ctx(sessionmaker, settings) -> dict:
 
 
 def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
-    assert len(WorkerSettings.functions) == 2
+    assert len(WorkerSettings.functions) == 3
     registered = WorkerSettings.functions[0]
     assert isinstance(registered, Function)
     assert registered.name == "process_trip"
     assert registered.keep_result_s == 0
     assert registered.coroutine is jobs.process_trip
-    gateway = WorkerSettings.functions[1]
+    segment = WorkerSettings.functions[1]
+    assert isinstance(segment, Function)
+    assert segment.name == "materialize_exposure_segment"
+    assert segment.coroutine is exposure_segment_jobs.materialize_exposure_segment_job
+    gateway = WorkerSettings.functions[2]
     assert isinstance(gateway, Function)
     assert gateway.name == "process_payment_gateway_event"
     assert gateway.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 16
+    assert len(WorkerSettings.cron_jobs) == 18
     cron_job = WorkerSettings.cron_jobs[0]
     assert isinstance(cron_job, CronJob)
     assert cron_job.coroutine is jobs.process_unprocessed_trips
@@ -102,28 +109,37 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert assignment_expiry.minute == sweep_cron_minutes(
         get_settings().worker_sweep_interval_minutes
     )
-    activity_sweep = WorkerSettings.cron_jobs[5]
+    vehicle_sweep = WorkerSettings.cron_jobs[5]
+    assert isinstance(vehicle_sweep, CronJob)
+    assert vehicle_sweep.coroutine is vehicle_approval_jobs.sweep_vehicle_approval_expiries
+
+    activity_sweep = WorkerSettings.cron_jobs[6]
     assert isinstance(activity_sweep, CronJob)
     assert activity_sweep.coroutine is assignment_activity_jobs.sweep_assignment_activity_flags
     assert activity_sweep.unique is True
     assert activity_sweep.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
-    evidence_sweep = WorkerSettings.cron_jobs[6]
+    evidence_sweep = WorkerSettings.cron_jobs[7]
     assert evidence_sweep.coroutine is evidence_verification_jobs.sweep_evidence_verifications
-    email_sweep = WorkerSettings.cron_jobs[7]
+    email_sweep = WorkerSettings.cron_jobs[8]
     assert email_sweep.coroutine is email_delivery_jobs.sweep_email_notifications
 
-    budget_sweep = WorkerSettings.cron_jobs[8]
+    budget_sweep = WorkerSettings.cron_jobs[9]
     assert budget_sweep.coroutine is budget_enforcement_jobs.sweep_campaign_budget_enforcement
     assert budget_sweep.unique is True
 
-    scan_sweep = WorkerSettings.cron_jobs[9]
+    scan_sweep = WorkerSettings.cron_jobs[10]
     assert isinstance(scan_sweep, CronJob)
     assert scan_sweep.coroutine is file_scanning_jobs.scan_pending_files
     assert scan_sweep.unique is True
     assert scan_sweep.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
-    lifecycle_crons = {cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[10:]}
+    report_sweep = WorkerSettings.cron_jobs[11]
+    assert isinstance(report_sweep, CronJob)
+    assert report_sweep.coroutine is report_issuance_jobs.sweep_report_issuances
+    assert report_sweep.unique is True
+
+    lifecycle_crons = {cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[12:]}
     assert set(lifecycle_crons) == {
         data_lifecycle_jobs.premake_ping_partitions,
         data_lifecycle_jobs.check_ping_partition_coverage,

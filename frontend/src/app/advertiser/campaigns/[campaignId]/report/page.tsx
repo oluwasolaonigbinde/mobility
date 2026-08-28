@@ -17,6 +17,7 @@ import {
   MeasurementAuthorityPanel,
   validateMeasurementAuthority,
 } from "./measurement-authority";
+import { ReportIssuancePanel } from "./report-issuance-panel";
 
 export const metadata: Metadata = { title: "Campaign Performance Analysis" };
 
@@ -88,6 +89,8 @@ export default async function CampaignReportPage({
       </div>
 
       <MeasurementAuthorityPanel authority={authority} />
+
+      <ReportIssuancePanel measurementRunId={authority.run.id} />
 
       {/* Headline numbers */}
       <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">

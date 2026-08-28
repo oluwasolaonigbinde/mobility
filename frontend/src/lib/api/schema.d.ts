@@ -1187,6 +1187,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/measurement-runs/{run_id}/report-issuances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Request Report Issuance */
+        post: operations["admin_request_report_issuance_api_v1_admin_measurement_runs__run_id__report_issuances_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/operations/file-kyc-retention": {
         parameters: {
             query?: never;
@@ -1822,6 +1839,40 @@ export interface paths {
         put?: never;
         /** Admin Record Refund */
         post: operations["admin_record_refund_api_v1_admin_refunds_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/report-issuances/{issuance_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Get Report Issuance */
+        get: operations["admin_get_report_issuance_api_v1_admin_report_issuances__issuance_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/report-issuances/{issuance_id}/artifacts/{artifact_format}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Download Report Artifact */
+        post: operations["admin_download_report_artifact_api_v1_admin_report_issuances__issuance_id__artifacts__artifact_format__download_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2726,6 +2777,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/advertiser/measurement-runs/{run_id}/report-issuances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Advertiser Request Report Issuance */
+        post: operations["advertiser_request_report_issuance_api_v1_advertiser_measurement_runs__run_id__report_issuances_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/advertiser/notification-preferences": {
         parameters: {
             query?: never;
@@ -2772,6 +2840,40 @@ export interface paths {
         put?: never;
         /** Advertiser Accept Quote */
         post: operations["advertiser_accept_quote_api_v1_advertiser_quotations__revision_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/report-issuances/{issuance_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Advertiser Get Report Issuance */
+        get: operations["advertiser_get_report_issuance_api_v1_advertiser_report_issuances__issuance_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/{artifact_format}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Advertiser Download Report Artifact */
+        post: operations["advertiser_download_report_artifact_api_v1_advertiser_report_issuances__issuance_id__artifacts__artifact_format__download_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8009,7 +8111,7 @@ export interface components {
          * FilePurpose
          * @enum {string}
          */
-        FilePurpose: "creative" | "driver_kyc" | "vehicle_evidence" | "installation_evidence";
+        FilePurpose: "creative" | "driver_kyc" | "vehicle_evidence" | "installation_evidence" | "report_export";
         /**
          * FileScanStatus
          * @enum {string}
@@ -10640,6 +10742,100 @@ export interface components {
             /** Settlement Provider */
             settlement_provider: string;
         };
+        /** ReportArtifactDownloadRead */
+        ReportArtifactDownloadRead: {
+            /** Checksum Sha256 */
+            checksum_sha256: string;
+            /** Content Type */
+            content_type: string;
+            /** Expires In Seconds */
+            expires_in_seconds: number;
+            /** Filename */
+            filename: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Url */
+            url: string;
+        };
+        /** ReportArtifactDownloadRequest */
+        ReportArtifactDownloadRequest: {
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * ReportArtifactFormat
+         * @enum {string}
+         */
+        ReportArtifactFormat: "csv" | "pdf";
+        /** ReportArtifactRead */
+        ReportArtifactRead: {
+            /** Checksum Sha256 */
+            checksum_sha256: string;
+            /** Content Type */
+            content_type: string;
+            /** Filename */
+            filename: string;
+            format: components["schemas"]["ReportArtifactFormat"];
+            /** Size Bytes */
+            size_bytes: number;
+        };
+        /** ReportIssuanceCreate */
+        ReportIssuanceCreate: {
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /** Reissue Of Id */
+            reissue_of_id?: string | null;
+        };
+        /** ReportIssuanceRead */
+        ReportIssuanceRead: {
+            /** Artifacts */
+            artifacts: components["schemas"]["ReportArtifactRead"][];
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error Code */
+            error_code: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Measurement Run Id
+             * Format: uuid
+             */
+            measurement_run_id: string;
+            /** Ready At */
+            ready_at: string | null;
+            /** Reissue Of Id */
+            reissue_of_id: string | null;
+            /** Renderer Version */
+            renderer_version: string;
+            /** Schema Version */
+            schema_version: string;
+            status: components["schemas"]["ReportIssuanceStatus"];
+            /** Synthetic */
+            synthetic: boolean;
+            /** Version */
+            version: number;
+            /** Worker Attempts */
+            worker_attempts: number;
+        };
+        /**
+         * ReportIssuanceStatus
+         * @enum {string}
+         */
+        ReportIssuanceStatus: "queued" | "processing" | "ready" | "failed";
         /** RetargetingSourceEventRead */
         RetargetingSourceEventRead: {
             /**
@@ -14673,6 +14869,41 @@ export interface operations {
             };
         };
     };
+    admin_request_report_issuance_api_v1_admin_measurement_runs__run_id__report_issuances_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportIssuanceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportIssuanceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     admin_file_kyc_retention_api_v1_admin_operations_file_kyc_retention_post: {
         parameters: {
             query?: never;
@@ -15941,6 +16172,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SettlementRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_get_report_issuance_api_v1_admin_report_issuances__issuance_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                issuance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportIssuanceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_download_report_artifact_api_v1_admin_report_issuances__issuance_id__artifacts__artifact_format__download_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                issuance_id: string;
+                artifact_format: components["schemas"]["ReportArtifactFormat"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportArtifactDownloadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportArtifactDownloadRead"];
                 };
             };
             /** @description Validation Error */
@@ -18061,6 +18359,41 @@ export interface operations {
             };
         };
     };
+    advertiser_request_report_issuance_api_v1_advertiser_measurement_runs__run_id__report_issuances_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportIssuanceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportIssuanceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     advertiser_notification_preferences_api_v1_advertiser_notification_preferences_get: {
         parameters: {
             query?: never;
@@ -18156,6 +18489,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommercialTermsRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advertiser_get_report_issuance_api_v1_advertiser_report_issuances__issuance_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                issuance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportIssuanceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advertiser_download_report_artifact_api_v1_advertiser_report_issuances__issuance_id__artifacts__artifact_format__download_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                issuance_id: string;
+                artifact_format: components["schemas"]["ReportArtifactFormat"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportArtifactDownloadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportArtifactDownloadRead"];
                 };
             };
             /** @description Validation Error */

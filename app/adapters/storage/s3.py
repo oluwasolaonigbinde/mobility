@@ -8,6 +8,7 @@ from app.adapters.storage.base import (
     ObjectMetadata,
     PresignedGet,
     PresignedPost,
+    StorageObjectConflict,
     StorageObjectNotFound,
     StorageUnavailable,
 )
@@ -113,6 +114,97 @@ class S3StorageProvider:
 
     async def stat(self, object_key: str) -> ObjectMetadata:
         return await asyncio.to_thread(self._stat_sync, object_key)
+
+    @staticmethod
+    def _matches(
+        metadata: ObjectMetadata,
+        *,
+        object_key: str,
+        content_type: str,
+        size_bytes: int,
+        checksum_sha256: str,
+    ) -> bool:
+        return (
+            metadata.object_key == object_key
+            and metadata.content_type.lower() == content_type.lower()
+            and metadata.size_bytes == size_bytes
+            and metadata.checksum_sha256.lower() == checksum_sha256.lower()
+        )
+
+    def _put_sync(
+        self,
+        *,
+        object_key: str,
+        content_type: str,
+        data: bytes,
+        checksum_sha256: str,
+    ) -> ObjectMetadata:
+        if hashlib.sha256(data).hexdigest() != checksum_sha256.lower():
+            raise StorageObjectConflict("Generated object checksum does not match its bytes")
+        try:
+            existing = self._stat_sync(object_key)
+        except StorageObjectNotFound:
+            existing = None
+        if existing is not None:
+            if self._matches(
+                existing,
+                object_key=object_key,
+                content_type=content_type,
+                size_bytes=len(data),
+                checksum_sha256=checksum_sha256,
+            ):
+                return existing
+            raise StorageObjectConflict("Immutable private object destination already exists")
+        checksum_b64 = base64.b64encode(bytes.fromhex(checksum_sha256)).decode("ascii")
+        try:
+            self._client.put_object(
+                Bucket=self._bucket,
+                Key=object_key,
+                Body=data,
+                ContentType=content_type,
+                Metadata={"sha256": checksum_sha256},
+                ChecksumAlgorithm="SHA256",
+                ChecksumSHA256=checksum_b64,
+                IfNoneMatch="*",
+            )
+        except Exception as exc:
+            response = getattr(exc, "response", None)
+            code = None
+            if isinstance(response, dict):
+                error = response.get("Error")
+                if isinstance(error, dict):
+                    code = error.get("Code")
+            if code not in {"409", "412", "ConditionalRequestConflict", "PreconditionFailed"}:
+                raise StorageUnavailable("Private object storage is unavailable") from exc
+        try:
+            observed = self._stat_sync(object_key)
+        except StorageObjectNotFound:
+            raise StorageUnavailable("Private object storage is unavailable") from None
+        if not self._matches(
+            observed,
+            object_key=object_key,
+            content_type=content_type,
+            size_bytes=len(data),
+            checksum_sha256=checksum_sha256,
+        ):
+            raise StorageObjectConflict("Immutable private object destination already exists")
+        return observed
+
+    async def put(
+        self,
+        *,
+        object_key: str,
+        content_type: str,
+        data: bytes,
+        checksum_sha256: str,
+    ) -> ObjectMetadata:
+        return await asyncio.to_thread(
+            self._put_sync,
+            object_key=object_key,
+            content_type=content_type,
+            data=data,
+            checksum_sha256=checksum_sha256,
+        )
 
     async def stream(self, object_key: str) -> AsyncIterator[bytes]:
         try:

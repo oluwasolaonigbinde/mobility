@@ -10,7 +10,9 @@ from sqlalchemy import (
     Index,
     String,
     UniqueConstraint,
+    event,
     func,
+    select,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -23,6 +25,7 @@ class FilePurpose(StrEnum):
     DRIVER_KYC = "driver_kyc"
     VEHICLE_EVIDENCE = "vehicle_evidence"
     INSTALLATION_EVIDENCE = "installation_evidence"
+    REPORT_EXPORT = "report_export"
 
 
 class UploadIntentStatus(StrEnum):
@@ -115,11 +118,12 @@ class StoredFile(Base):
     __tablename__ = "stored_files"
     __table_args__ = (
         CheckConstraint(
-            "purpose IN ('creative', 'driver_kyc', 'vehicle_evidence', 'installation_evidence')",
+            "purpose IN ('creative', 'driver_kyc', 'vehicle_evidence', "
+            "'installation_evidence', 'report_export')",
             name="ck_stored_files_purpose",
         ),
         CheckConstraint(
-            "(purpose = 'creative' AND organization_id IS NOT NULL "
+            "(purpose IN ('creative', 'report_export') AND organization_id IS NOT NULL "
             "AND subject_user_id IS NULL) OR "
             "(purpose IN ('driver_kyc', 'vehicle_evidence', 'installation_evidence') "
             "AND organization_id IS NULL AND subject_user_id IS NOT NULL)",
@@ -131,6 +135,11 @@ class StoredFile(Base):
         ),
         CheckConstraint("size_bytes > 0", name="ck_stored_files_size_positive"),
         CheckConstraint("length(checksum_sha256) = 64", name="ck_stored_files_sha256_length"),
+        CheckConstraint(
+            "(purpose = 'report_export' AND upload_intent_id IS NULL) OR "
+            "(purpose <> 'report_export' AND upload_intent_id IS NOT NULL)",
+            name="ck_stored_files_generated_source",
+        ),
         UniqueConstraint("upload_intent_id", name="uq_stored_files_upload_intent"),
         UniqueConstraint("storage_key", name="uq_stored_files_storage_key"),
         Index("ix_stored_files_organization_created", "organization_id", "created_at"),
@@ -142,8 +151,8 @@ class StoredFile(Base):
         default=uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    upload_intent_id: Mapped[UUID] = mapped_column(
-        ForeignKey("file_upload_intents.id", ondelete="RESTRICT"), nullable=False
+    upload_intent_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("file_upload_intents.id", ondelete="RESTRICT")
     )
     organization_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("advertiser_organizations.id", ondelete="RESTRICT")
@@ -172,3 +181,24 @@ class StoredFile(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+def _is_linked_report_artifact(connection, stored_file_id: UUID) -> bool:
+    report_artifacts = Base.metadata.tables.get("report_artifacts")
+    if report_artifacts is None:
+        return False
+    return (
+        connection.execute(
+            select(report_artifacts.c.id)
+            .where(report_artifacts.c.stored_file_id == stored_file_id)
+            .limit(1)
+        ).first()
+        is not None
+    )
+
+
+@event.listens_for(StoredFile, "before_update")
+@event.listens_for(StoredFile, "before_delete")
+def reject_report_artifact_file_mutation(_mapper, connection, target: StoredFile) -> None:
+    if target.id is not None and _is_linked_report_artifact(connection, target.id):
+        raise ValueError("report artifact stored file is immutable")

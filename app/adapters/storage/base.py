@@ -15,6 +15,10 @@ class StorageObjectNotFound(StorageError):
     """The requested private object does not exist."""
 
 
+class StorageObjectConflict(StorageError):
+    """An immutable destination exists with different bytes or metadata."""
+
+
 @dataclass(frozen=True, slots=True)
 class PresignedPost:
     url: str
@@ -48,6 +52,15 @@ class StorageProvider(Protocol):
     ) -> PresignedPost: ...
 
     async def stat(self, object_key: str) -> ObjectMetadata: ...
+
+    async def put(
+        self,
+        *,
+        object_key: str,
+        content_type: str,
+        data: bytes,
+        checksum_sha256: str,
+    ) -> ObjectMetadata: ...
 
     def stream(self, object_key: str) -> AsyncIterator[bytes]: ...
 

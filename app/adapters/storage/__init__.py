@@ -5,6 +5,7 @@ from app.adapters.storage.base import (
     PresignedGet,
     PresignedPost,
     StorageError,
+    StorageObjectConflict,
     StorageObjectNotFound,
     StorageProvider,
     StorageUnavailable,
@@ -18,6 +19,9 @@ class UnconfiguredStorageProvider:
         raise StorageUnavailable("Private object storage is not configured")
 
     async def stat(self, object_key: str) -> ObjectMetadata:
+        raise StorageUnavailable("Private object storage is not configured")
+
+    async def put(self, **kwargs: object) -> ObjectMetadata:
         raise StorageUnavailable("Private object storage is not configured")
 
     async def stream(self, object_key: str) -> AsyncIterator[bytes]:
@@ -70,6 +74,7 @@ __all__ = [
     "PresignedGet",
     "S3StorageProvider",
     "StorageError",
+    "StorageObjectConflict",
     "StorageObjectNotFound",
     "StorageProvider",
     "StorageUnavailable",

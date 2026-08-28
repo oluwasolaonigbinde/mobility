@@ -5,6 +5,7 @@ from arq.cron import cron
 from arq.worker import func
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.adapters.storage import build_storage_provider
 from app.core.config import Settings, get_settings
 from app.core.observability import init_error_tracking
 from app.jobs.assignment_activity import sweep_assignment_activity_flags
@@ -32,6 +33,7 @@ from app.jobs.trip_processing import (
     seal_ended_trips_job,
 )
 from app.jobs.vehicle_approvals import sweep_vehicle_approval_expiries
+from app.services.report_issuances import sweep_report_issuances
 
 
 def sweep_cron_minutes(interval_minutes: int) -> set[int]:
@@ -62,6 +64,7 @@ async def on_startup(ctx: dict[str, Any]) -> None:
     ctx["settings"] = settings
     ctx["engine"] = engine
     ctx["sessionmaker"] = async_sessionmaker(engine, expire_on_commit=False)
+    ctx["storage"] = build_storage_provider(settings)
     init_error_tracking(settings)
 
 
@@ -146,6 +149,11 @@ class WorkerSettings:
         ),
         cron(
             scan_pending_files,
+            minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
+            unique=True,
+        ),
+        cron(
+            sweep_report_issuances,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
             unique=True,
         ),

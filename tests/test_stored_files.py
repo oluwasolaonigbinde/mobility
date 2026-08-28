@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -16,6 +17,7 @@ from app.adapters.storage import (
     ObjectMetadata,
     PresignedGet,
     PresignedPost,
+    StorageObjectConflict,
     StorageObjectNotFound,
     StorageProvider,
     StorageUnavailable,
@@ -74,6 +76,39 @@ class FakeStorageProvider(StorageProvider):
             return self.objects[object_key]
         except KeyError:
             raise StorageObjectNotFound(object_key) from None
+
+    async def put(
+        self,
+        *,
+        object_key: str,
+        content_type: str,
+        data: bytes,
+        checksum_sha256: str,
+    ) -> ObjectMetadata:
+        if self.unavailable:
+            raise StorageUnavailable("storage is unavailable")
+        observed_hash = hashlib.sha256(data).hexdigest()
+        if observed_hash != checksum_sha256:
+            raise StorageObjectConflict("checksum mismatch")
+        existing = self.objects.get(object_key)
+        if existing is not None:
+            if (
+                existing.content_type != content_type
+                or existing.size_bytes != len(data)
+                or existing.checksum_sha256 != checksum_sha256
+                or self.contents.get(object_key) != data
+            ):
+                raise StorageObjectConflict("immutable object mismatch")
+            return existing
+        metadata = ObjectMetadata(
+            object_key=object_key,
+            size_bytes=len(data),
+            content_type=content_type,
+            checksum_sha256=checksum_sha256,
+        )
+        self.objects[object_key] = metadata
+        self.contents[object_key] = data
+        return metadata
 
     async def stream(self, object_key: str):
         if self.unavailable:

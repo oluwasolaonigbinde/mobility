@@ -10962,7 +10962,8 @@
           "creative",
           "driver_kyc",
           "vehicle_evidence",
-          "installation_evidence"
+          "installation_evidence",
+          "report_export"
         ],
         "title": "FilePurpose",
         "type": "string"
@@ -17165,6 +17166,244 @@
         ],
         "title": "RefundCreate",
         "type": "object"
+      },
+      "ReportArtifactDownloadRead": {
+        "properties": {
+          "checksum_sha256": {
+            "title": "Checksum Sha256",
+            "type": "string"
+          },
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "expires_in_seconds": {
+            "title": "Expires In Seconds",
+            "type": "integer"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expires_in_seconds",
+          "filename",
+          "content_type",
+          "size_bytes",
+          "checksum_sha256"
+        ],
+        "title": "ReportArtifactDownloadRead",
+        "type": "object"
+      },
+      "ReportArtifactDownloadRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "ReportArtifactDownloadRequest",
+        "type": "object"
+      },
+      "ReportArtifactFormat": {
+        "enum": [
+          "csv",
+          "pdf"
+        ],
+        "title": "ReportArtifactFormat",
+        "type": "string"
+      },
+      "ReportArtifactRead": {
+        "properties": {
+          "checksum_sha256": {
+            "title": "Checksum Sha256",
+            "type": "string"
+          },
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "format": {
+            "$ref": "#/components/schemas/ReportArtifactFormat"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "format",
+          "filename",
+          "content_type",
+          "size_bytes",
+          "checksum_sha256"
+        ],
+        "title": "ReportArtifactRead",
+        "type": "object"
+      },
+      "ReportIssuanceCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "reissue_of_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reissue Of Id"
+          }
+        },
+        "required": [
+          "client_request_id"
+        ],
+        "title": "ReportIssuanceCreate",
+        "type": "object"
+      },
+      "ReportIssuanceRead": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/ReportArtifactRead"
+            },
+            "title": "Artifacts",
+            "type": "array"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "measurement_run_id": {
+            "format": "uuid",
+            "title": "Measurement Run Id",
+            "type": "string"
+          },
+          "ready_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ready At"
+          },
+          "reissue_of_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reissue Of Id"
+          },
+          "renderer_version": {
+            "title": "Renderer Version",
+            "type": "string"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReportIssuanceStatus"
+          },
+          "synthetic": {
+            "title": "Synthetic",
+            "type": "boolean"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "worker_attempts": {
+            "title": "Worker Attempts",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "measurement_run_id",
+          "campaign_id",
+          "version",
+          "reissue_of_id",
+          "status",
+          "synthetic",
+          "schema_version",
+          "renderer_version",
+          "worker_attempts",
+          "error_code",
+          "artifacts",
+          "created_at",
+          "ready_at"
+        ],
+        "title": "ReportIssuanceRead",
+        "type": "object"
+      },
+      "ReportIssuanceStatus": {
+        "enum": [
+          "queued",
+          "processing",
+          "ready",
+          "failed"
+        ],
+        "title": "ReportIssuanceStatus",
+        "type": "string"
       },
       "RetargetingSourceEventRead": {
         "additionalProperties": false,
@@ -26002,6 +26241,64 @@
         ]
       }
     },
+    "/api/v1/admin/measurement-runs/{run_id}/report-issuances": {
+      "post": {
+        "operationId": "admin_request_report_issuance_api_v1_admin_measurement_runs__run_id__report_issuances_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportIssuanceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportIssuanceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Request Report Issuance",
+        "tags": [
+          "Report Issuances"
+        ]
+      }
+    },
     "/api/v1/admin/operations/file-kyc-retention": {
       "post": {
         "operationId": "admin_file_kyc_retention_api_v1_admin_operations_file_kyc_retention_post",
@@ -28182,6 +28479,120 @@
         "summary": "Admin Record Refund",
         "tags": [
           "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/report-issuances/{issuance_id}": {
+      "get": {
+        "operationId": "admin_get_report_issuance_api_v1_admin_report_issuances__issuance_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "issuance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Issuance Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportIssuanceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Get Report Issuance",
+        "tags": [
+          "Report Issuances"
+        ]
+      }
+    },
+    "/api/v1/admin/report-issuances/{issuance_id}/artifacts/{artifact_format}/download": {
+      "post": {
+        "operationId": "admin_download_report_artifact_api_v1_admin_report_issuances__issuance_id__artifacts__artifact_format__download_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "issuance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Issuance Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifact_format",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ReportArtifactFormat"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportArtifactDownloadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportArtifactDownloadRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Download Report Artifact",
+        "tags": [
+          "Report Issuances"
         ]
       }
     },
@@ -32327,6 +32738,64 @@
         ]
       }
     },
+    "/api/v1/advertiser/measurement-runs/{run_id}/report-issuances": {
+      "post": {
+        "operationId": "advertiser_request_report_issuance_api_v1_advertiser_measurement_runs__run_id__report_issuances_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportIssuanceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportIssuanceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Request Report Issuance",
+        "tags": [
+          "Report Issuances"
+        ]
+      }
+    },
     "/api/v1/advertiser/notification-preferences": {
       "get": {
         "operationId": "advertiser_notification_preferences_api_v1_advertiser_notification_preferences_get",
@@ -32478,6 +32947,120 @@
         "summary": "Advertiser Accept Quote",
         "tags": [
           "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/advertiser/report-issuances/{issuance_id}": {
+      "get": {
+        "operationId": "advertiser_get_report_issuance_api_v1_advertiser_report_issuances__issuance_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "issuance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Issuance Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportIssuanceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Get Report Issuance",
+        "tags": [
+          "Report Issuances"
+        ]
+      }
+    },
+    "/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/{artifact_format}/download": {
+      "post": {
+        "operationId": "advertiser_download_report_artifact_api_v1_advertiser_report_issuances__issuance_id__artifacts__artifact_format__download_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "issuance_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Issuance Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifact_format",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ReportArtifactFormat"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportArtifactDownloadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportArtifactDownloadRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Download Report Artifact",
+        "tags": [
+          "Report Issuances"
         ]
       }
     },
