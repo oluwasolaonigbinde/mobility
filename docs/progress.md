@@ -59,12 +59,12 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 ### Current control pointer
 
 **Controller state:** `ACTIVE`
-**Control package:** `PKG-08` — PKG-03 has no remaining runnable work while
-`EXT-PAYMENT-PROVIDER` is missing, PKG-04/05/06/07 are complete, and W4-03B is
-dependency-safe for provider-neutral synthetic implementation.
-**Current checkpoint:** `PKG-08 / W4-03B` — synthetic pilot-gate acceptance
-machinery is promoted after the reviewed W4-03A release preparation closed;
-live deployment and pilot evidence remain gated by their registered EXT/DV IDs.
+**Control package:** `PKG-09` — PKG-03 and PKG-08 have no remaining runnable
+work while their registered external/live inputs are missing; PKG-04/05/06/07
+are complete, and Package 9 preparation is dependency-safe.
+**Current checkpoint:** `PKG-09 / W4-04A` — author the role-based task and
+operator materials from integrated repository truth; rehearsal and acceptance
+remain gated by the client-owned release and named operations owner.
 
 ## Executable package queue
 
@@ -77,8 +77,8 @@ live deployment and pilot evidence remain gated by their registered EXT/DV IDs.
 | 5 | **PKG-05 — privacy, measurement and retargeting** | **DONE** | Privacy controls and reproducible measurement govern aggregate retargeting, exposure scores and advertiser insights; live privacy/methodology/platform inputs remain gated. | none — checklist DAG gates entry |
 | 6 | **PKG-06 — matching and driver onboarding** | **DONE** | Recommendations, offers, activity, public application, person/payee onboarding and governed vehicle approval form one verified work-eligibility journey. | none — checklist DAG gates entry |
 | 7 | **PKG-07 — production driver PWA** | **DONE** | The installable pilot PWA safely tracks, syncs and completes the governed onboarding, campaign, earnings and dispute journey; physical-device/live release evidence remains explicitly deferred. | none — checklist DAG gates entry |
-| 8 | **PKG-08 — governed reporting and pilot readiness** | **IN PROGRESS** | Safe reports, release infrastructure and one complete pilot acceptance gate are ready; W4-03A provider-neutral preparation is current while live deployment remains gated. | none — checklist DAG gates entry |
-| 9 | **PKG-09 — controlled pilot, training and handover** | QUEUED | Run the pilot, stabilize it, train roles and close operational handover. | none — checklist DAG gates entry |
+| 8 | **PKG-08 — governed reporting and pilot readiness** | **BLOCKED** | Provider-neutral reporting, release preparation and synthetic pilot acceptance are reviewed and complete; only registered external deployment, provider, approval, device and pilot evidence remains. | none — checklist DAG gates entry |
+| 9 | **PKG-09 — controlled pilot, training and handover** | **IN PROGRESS** | Prepare truthful role training, pilot operations and handover artifacts now; rehearsal, controlled pilot and owner acceptance remain externally gated. | none — checklist DAG gates entry |
 
 ## Executable package contracts
 
@@ -1385,6 +1385,17 @@ live deployment and pilot evidence remain gated by their registered EXT/DV IDs.
   clean-context `$minimal-change-review` requested a bounded command-level
   sanitized-error correction. The harness preserves the six exact live-gate
   blockers and claims no production SLO, burn-in, provider or external action.
+- **Package 8 consolidated review/correction (28 Aug 2026):** the independent
+  review of `1e194cf..295cb7d` passed the aggregate synthetic journey, local
+  load/reproducibility commands, delivery control and synchronized §9
+  baselines, and found no unrelated scope. Its sole P1 was production edge and
+  storage acceptance of special-use host authorities. Commit `cc4cd13` rejects
+  every edge IP literal and reserved DNS family, applies the DNS rule to
+  storage while preserving intentional RFC1918 private storage, reconciles the
+  W4-03A evidence record, and passed 42 focused boundary tests, an 80-test
+  release-environment selection, scoped Ruff/diff checks and one clean-context
+  `$minimal-change-review` PASS. W4-03A/B are now provider-neutral/synthetic
+  complete and external/live-only; neither checklist is marked DONE.
 - **Closure:** every §35 gate is evidenced; restore, security, load, report
   reproducibility and end-to-end pilot simulation pass.
 
@@ -1392,6 +1403,17 @@ live deployment and pilot evidence remain gated by their registered EXT/DV IDs.
 
 - **Owns:** checklist 69–71. Training is rehearsed before a controlled pilot;
   stabilization evidence then closes support, ownership and roadmap handover.
+- **Package plan (activated 28 Aug 2026):** W4-04A-P1 first authors role-task
+  inventories and operator procedures from built admin/advertiser/driver
+  surfaces. W4-03C-P1 then prepares pilot telemetry, rollback, payout/report
+  replay, incident and evidence-capture templates and exercises them only with
+  synthetic data. W4-04B-P1 finally assembles the documentation index, RACI
+  role skeleton, support/SLA/escalation templates, external/deferred risk
+  register and evidence-linked roadmap. These internal preparation checkpoints
+  do not satisfy their parent checklist rows: facilitated rehearsal, approved
+  users, live pilot telemetry, named owners, credential handover and sign-off
+  remain external/live gates. Each checkpoint receives focused verification;
+  Package 9 receives one consolidated review after preparation stabilizes.
 - **Closure:** accepted operating materials, monitored pilot evidence, known
   risks/deferments and named owners agree with repository truth.
 
@@ -1505,11 +1527,11 @@ verification, gates or required specialist review.
 | 64 | **W4-01D — PWA earnings, disputes and release rehearsal** | PKG-07 | DONE | History, earnings, disputes, notifications, installability and production-PWA release evidence are complete. | leaf: W4-01C, MNY-08C, MNY-11A, W2-04A, W2-04C |
 | 65 | **W4-02A — governed maps and report experience** | PKG-08 | DONE | Existing maps/reports consume safe runs; performance analysis is standard and ROI is absent unless its data/method gate passes. A production basemap remains a live-release gate, not a provider-neutral build prerequisite. | leaf: W3-00C, W3-00D, W3-00E, W3-01D, W3-02A, W3-02B |
 | 66 | **W4-02B — bounded CSV/PDF issuance** | PKG-08 | DONE | Async hashed exports reproduce the frozen performance/conditional-ROI decision and honor privacy/legal gates. | leaf: W4-02A |
-| 67 | **W4-03A — client-owned release environment** | PKG-08 | TODO | Provider-neutral deployment/recovery preparation remains runnable; DONE still requires an approved account/domain hosting a hardened release candidate with recovery. | leaf: R17-A, W4-01D, W4-02B; external-live: EXT-RELEASE-ENV |
-| 68 | **W4-03B — Cardvert pilot gate and acceptance suite** | PKG-08 | TODO | Synthetic acceptance machinery consumes the integrated W4-03A provider-neutral preparation and remains runnable; DONE still requires every §35 gate and the Abuja journey, including contextual activation, performance/conditional-ROI reporting, automated transfer and permit evidence. | leaf: W4-02B; external-live: EXT-RELEASE-ENV, EXT-STAGING-APPROVAL, EXT-PILOT-FACTS, EXT-REPORT-METHOD, EXT-Q28-COMPANY, EXT-COMMERCIAL-VALUES, EXT-EVIDENCE-POLICY, EXT-LEGAL-PRIVACY, EXT-DISBURSEMENT-PROVIDER, EXT-PILOT-PERMITS |
-| 69 | **W4-04A — role-based onboarding and training** | PKG-09 | TODO | Admin, advertiser and driver materials are rehearsed against the release candidate. | leaf: W4-03A, W4-03B |
-| 70 | **W4-03C — controlled pilot and stabilization** | PKG-09 | TODO | Approved users run a monitored pilot with payout/report replay and rollback criteria. | leaf: W4-03B, W4-04A |
-| 71 | **W4-04B — handover, support and roadmap closure** | PKG-09 | TODO | Owners accept deployment/system/support docs, known risks and post-MVP roadmap. | leaf: W4-04A, W4-03C |
+| 67 | **W4-03A — client-owned release environment** | PKG-08 | BLOCKED — EXT-RELEASE-ENV, EXT-STAGING-APPROVAL | Provider-neutral deployment/recovery preparation is exhausted; DONE still requires an approved account/domain hosting a hardened release candidate plus live staging recovery validation. | leaf: R17-A, W4-01D, W4-02B; external-live: EXT-RELEASE-ENV, EXT-STAGING-APPROVAL |
+| 68 | **W4-03B — Cardvert pilot gate and acceptance suite** | PKG-08 | BLOCKED — EXT-DISBURSEMENT-PROVIDER, EXT-SETTLEMENT-BANK, EXT-STORAGE-PROVIDER, EXT-MALWARE-SCANNER, EXT-KMS-CUSTODY, EXT-PHONE-OPERATOR, EXT-EVIDENCE-POLICY, EXT-LEGAL-PRIVACY, EXT-UPLOAD-POLICY, EXT-PAYMENT-PROVIDER, EXT-BUDGET-POLICY, EXT-Q28-COMPANY, EXT-COMMERCIAL-VALUES, EXT-CAMPAIGN-BUDGET-SCOPE, EXT-BASEMAP, EXT-REPORT-METHOD, EXT-AD-PLATFORM, EXT-RELEASE-ENV, EXT-STAGING-APPROVAL, EXT-PILOT-PERMITS | Synthetic acceptance machinery is complete; DONE still requires every §35 gate and the controlled Abuja journey, including approved providers, contextual activation, performance/conditional-ROI reporting, automated transfer, deployment and permit evidence. | leaf: W4-02B; external-live: EXT-DISBURSEMENT-PROVIDER, EXT-SETTLEMENT-BANK, EXT-RM2-POLICY, EXT-STORAGE-PROVIDER, EXT-MALWARE-SCANNER, EXT-KMS-CUSTODY, EXT-PHONE-OPERATOR, EXT-EVIDENCE-POLICY, EXT-LEGAL-PRIVACY, EXT-UPLOAD-POLICY, EXT-PAYMENT-PROVIDER, EXT-BUDGET-POLICY, EXT-Q28-COMPANY, EXT-COMMERCIAL-VALUES, EXT-CAMPAIGN-BUDGET-SCOPE, EXT-BASEMAP, EXT-REPORT-METHOD, EXT-AD-PLATFORM, EXT-RELEASE-ENV, EXT-STAGING-APPROVAL, EXT-PILOT-FACTS, EXT-PILOT-PERMITS |
+| 69 | **W4-04A — role-based onboarding and training** | PKG-09 | TODO | Role-task inventories and operator procedures remain runnable; DONE still requires rehearsal with approved users and the named operations owner against the release candidate. | leaf: W4-01D, W4-02B; external-live: EXT-RELEASE-ENV, EXT-STAGING-APPROVAL, EXT-OPERATIONS-OWNER |
+| 70 | **W4-03C — controlled pilot and stabilization** | PKG-09 | TODO | Provider-neutral telemetry, rollback, replay, incident and evidence preparation remains runnable; DONE still requires approved users to run a monitored controlled pilot. | leaf: W4-01D, W4-02B; external-live: EXT-DISBURSEMENT-PROVIDER, EXT-SETTLEMENT-BANK, EXT-RM2-POLICY, EXT-STORAGE-PROVIDER, EXT-MALWARE-SCANNER, EXT-KMS-CUSTODY, EXT-PHONE-OPERATOR, EXT-EVIDENCE-POLICY, EXT-LEGAL-PRIVACY, EXT-UPLOAD-POLICY, EXT-PAYMENT-PROVIDER, EXT-BUDGET-POLICY, EXT-Q28-COMPANY, EXT-COMMERCIAL-VALUES, EXT-CAMPAIGN-BUDGET-SCOPE, EXT-BASEMAP, EXT-REPORT-METHOD, EXT-AD-PLATFORM, EXT-RELEASE-ENV, EXT-STAGING-APPROVAL, EXT-PILOT-FACTS, EXT-PILOT-PERMITS, EXT-OPERATIONS-OWNER |
+| 71 | **W4-04B — handover, support and roadmap closure** | PKG-09 | TODO | Documentation indexing, role ownership, support/SLA, risk and roadmap preparation remains runnable; DONE still requires named-owner acceptance, release/brand approval and credential handover after the controlled pilot. | leaf: W4-01D, W4-02B; external-live: EXT-DISBURSEMENT-PROVIDER, EXT-SETTLEMENT-BANK, EXT-RM2-POLICY, EXT-STORAGE-PROVIDER, EXT-MALWARE-SCANNER, EXT-KMS-CUSTODY, EXT-PHONE-OPERATOR, EXT-EVIDENCE-POLICY, EXT-LEGAL-PRIVACY, EXT-UPLOAD-POLICY, EXT-PAYMENT-PROVIDER, EXT-BUDGET-POLICY, EXT-Q28-COMPANY, EXT-COMMERCIAL-VALUES, EXT-CAMPAIGN-BUDGET-SCOPE, EXT-BASEMAP, EXT-REPORT-METHOD, EXT-AD-PLATFORM, EXT-RELEASE-ENV, EXT-STAGING-APPROVAL, EXT-PILOT-FACTS, EXT-PILOT-PERMITS, EXT-OPERATIONS-OWNER, EXT-BRAND-APPROVAL |
 
 ## Checklist item specifications
 

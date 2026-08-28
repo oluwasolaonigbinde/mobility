@@ -97,7 +97,7 @@ def _paused_at_final_gate() -> str:
         match = re.match(r"\| (\d+) \| \*\*PKG-", line)
         if match:
             number = int(match.group(1))
-            replacement = "DONE" if number < 8 else "BLOCKED" if number == 8 else "QUEUED"
+            replacement = "DONE" if number < 8 else "BLOCKED"
             line = re.sub(
                 r"\| (?:\*\*NEXT\*\*|\*\*IN PROGRESS\*\*|\*\*REVIEW\*\*|"
                 r"\*\*BLOCKED\*\*|QUEUED|DONE|BLOCKED|NEXT|IN PROGRESS|REVIEW) \|",
@@ -109,9 +109,27 @@ def _paused_at_final_gate() -> str:
         if item_match:
             number = int(item_match.group(1))
             if number < 68:
-                line = re.sub(r"\| (?:TODO|BLOCKED — EXT-[A-Z0-9-]+) \|", "| DONE |", line, count=1)
+                line = re.sub(
+                    r"\| (?:TODO|BLOCKED — [^|]+) \|", "| DONE |", line, count=1
+                )
             elif number == 68:
-                line = line.replace("| TODO |", "| BLOCKED — EXT-LEGAL-PRIVACY |", 1)
+                line = re.sub(
+                    r"\| (?:TODO|BLOCKED — [^|]+) \|",
+                    "| BLOCKED — EXT-LEGAL-PRIVACY |",
+                    line,
+                    count=1,
+                )
+            elif number == 69:
+                line = re.sub(
+                    r"\| (?:TODO|BLOCKED — [^|]+) \|", "| DONE |", line, count=1
+                )
+            else:
+                line = re.sub(
+                    r"\| (?:TODO|BLOCKED — [^|]+) \|",
+                    "| BLOCKED — EXT-LEGAL-PRIVACY |",
+                    line,
+                    count=1,
+                )
         if line.startswith("| **EXT-") and "**EXT-LEGAL-PRIVACY**" not in line:
             line = line.replace("| MISSING |", "| PRESENT |", 1).replace(
                 "| — |", "| fixture evidence |", 1
@@ -293,9 +311,13 @@ def test_deferred_validation_rows_and_gates_are_pinned() -> None:
 
 
 def test_pilot_acceptance_rejects_incomplete_deferred_validation() -> None:
-    text = _progress().replace(
-        "| 68 | **W4-03B — Cardvert pilot gate and acceptance suite** | PKG-08 | TODO |",
-        "| 68 | **W4-03B — Cardvert pilot gate and acceptance suite** | PKG-08 | DONE |",
+    text = re.sub(
+        r"^(\| 68 \| \*\*W4-03B — Cardvert pilot gate and acceptance suite\*\* "
+        r"\| PKG-08 \| )[^|]+( \|)",
+        r"\1DONE\2",
+        _progress(),
+        count=1,
+        flags=re.MULTILINE,
     )
     errors = _errors(text)
     assert any(
@@ -305,9 +327,13 @@ def test_pilot_acceptance_rejects_incomplete_deferred_validation() -> None:
 
 
 def test_release_environment_rejects_incomplete_live_staging_validation() -> None:
-    text = _progress().replace(
-        "| 67 | **W4-03A — client-owned release environment** | PKG-08 | TODO |",
-        "| 67 | **W4-03A — client-owned release environment** | PKG-08 | DONE |",
+    text = re.sub(
+        r"^(\| 67 \| \*\*W4-03A — client-owned release environment\*\* "
+        r"\| PKG-08 \| )[^|]+( \|)",
+        r"\1DONE\2",
+        _progress(),
+        count=1,
+        flags=re.MULTILINE,
     )
     errors = _errors(text)
     assert any(
@@ -328,7 +354,7 @@ def test_all_done_terminal_complete_state_is_valid() -> None:
     )
     text = re.sub(
         r"^(\| \d+ \| \*\*(?!PKG-)[A-Z0-9-]+ —.*?\| PKG-\d{2} \| )"
-        r"(?:TODO|BLOCKED — EXT-[A-Z0-9-]+)( \|)",
+        r"(?:TODO|BLOCKED — [^|]+)( \|)",
         r"\1DONE\2",
         text,
         flags=re.MULTILINE,
@@ -535,11 +561,9 @@ def test_review_valid_only_when_all_items_done_or_runnable() -> None:
     for line in reviewing.splitlines():
         if re.match(r"\| [1-9] \| \*\*(?!PKG-).*\| PKG-01 \|", line):
             line = re.sub(
-                r"\| (?:TODO|BLOCKED — EXT-[A-Z0-9-]+) \|", "| DONE |", line, count=1
+                r"\| (?:TODO|BLOCKED — [^|]+) \|", "| DONE |", line, count=1
             )
-        if line.startswith("| **EXT-STAGING-APPROVAL** |") or line.startswith(
-            "| **EXT-RM2-POLICY** |"
-        ):
+        if line.startswith("| **EXT-RM2-POLICY** |"):
             line = line.replace("| MISSING |", "| PRESENT |", 1).replace(
                 "| — |", "| owner-recorded evidence |", 1
             )
@@ -567,25 +591,12 @@ def test_rejects_nonqueued_package_after_active_frontier() -> None:
     )
 
 
-def test_later_package_cannot_be_blocked_while_synthetic_w403b_is_runnable() -> None:
-    text = _pkg01_active().replace(
-        "| 8 | **PKG-08 — governed reporting and pilot readiness** | QUEUED |",
-        "| 8 | **PKG-08 — governed reporting and pilot readiness** | BLOCKED |",
-    ).replace(
-        "| 65 | **W4-02A — governed maps and report experience** | PKG-08 | TODO |",
-        "| 65 | **W4-02A — governed maps and report experience** | PKG-08 | DONE |",
-    ).replace(
-        "| 66 | **W4-02B — bounded CSV/PDF issuance** | PKG-08 | TODO |",
-        "| 66 | **W4-02B — bounded CSV/PDF issuance** | PKG-08 | DONE |",
-    ).replace(
-        "| 67 | **W4-03A — client-owned release environment** | PKG-08 | TODO |",
-        "| 67 | **W4-03A — client-owned release environment** | PKG-08 "
-        "| BLOCKED — EXT-RELEASE-ENV |",
-    )
-    assert any(
-        "BLOCKED package still has runnable TODO work" in error
-        for error in _errors(text)
-    )
+def test_later_package_can_prepare_while_package_8_is_external_only() -> None:
+    text = _progress()
+    assert _errors(text) == []
+    row_69 = next(line for line in text.splitlines() if line.startswith("| 69 |"))
+    assert "leaf: W4-01D, W4-02B" in row_69
+    assert "external-live: EXT-RELEASE-ENV" in row_69
 
 
 def test_basemap_gates_live_release_not_w4_02a_build() -> None:
@@ -636,14 +647,29 @@ def test_live_external_gate_allows_preparation_but_prevents_done() -> None:
     text = _progress()
     assert _errors(text) == []
     completed = text.replace(
-        "| 67 | **W4-03A — client-owned release environment** | PKG-08 | TODO |",
-        "| 67 | **W4-03A — client-owned release environment** | PKG-08 | DONE |",
+        "| 69 | **W4-04A — role-based onboarding and training** | PKG-09 | TODO |",
+        "| 69 | **W4-04A — role-based onboarding and training** | PKG-09 | DONE |",
         1,
     )
     assert any(
-        "DONE item W4-03A has missing external prerequisites: EXT-RELEASE-ENV" in error
+        "DONE item W4-04A has missing external prerequisites: EXT-RELEASE-ENV, "
+        "EXT-STAGING-APPROVAL, EXT-OPERATIONS-OWNER" in error
         for error in _errors(completed)
     )
+
+
+def test_package_9_preparation_gate_cannot_be_silently_made_build_blocking() -> None:
+    text = _progress().replace(
+        "external-live: EXT-RELEASE-ENV, EXT-STAGING-APPROVAL, "
+        "EXT-OPERATIONS-OWNER",
+        "external: EXT-RELEASE-ENV, EXT-STAGING-APPROVAL, EXT-OPERATIONS-OWNER",
+        1,
+    )
+    errors = _errors(text)
+    assert any(
+        "checklist 69 identity/package/prerequisites changed" in error for error in errors
+    )
+    assert any("current checkpoint is not a dependency-satisfied runnable TODO" in error for error in errors)
 
 
 @pytest.mark.parametrize("external_id", ["EXT-STORE-ASSETS", "EXT-AD-PLATFORM"])
@@ -655,10 +681,13 @@ def test_rejects_stable_external_id_erasure(external_id: str) -> None:
 
 
 def test_blocked_item_names_all_direct_missing_inputs() -> None:
-    text = _progress().replace(
-        "| 68 | **W4-03B — Cardvert pilot gate and acceptance suite** | PKG-08 | TODO |",
-        "| 68 | **W4-03B — Cardvert pilot gate and acceptance suite** | PKG-08 "
-        "| BLOCKED — EXT-Q28-COMPANY |",
+    text = re.sub(
+        r"^(\| 68 \| \*\*W4-03B — Cardvert pilot gate and acceptance suite\*\* "
+        r"\| PKG-08 \| )[^|]+( \|)",
+        r"\1BLOCKED — EXT-Q28-COMPANY\2",
+        _progress(),
+        count=1,
+        flags=re.MULTILINE,
     )
     errors = _errors(text)
     assert any(
