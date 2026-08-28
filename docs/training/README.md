@@ -7,7 +7,21 @@ approval, user feedback, or operational evidence.
 
 W4-04A remains incomplete: facilitated rehearsal, user acceptance, and live operation have not occurred.
 
-`EXT-RELEASE-ENV`, `EXT-STAGING-APPROVAL`, and `EXT-OPERATIONS-OWNER` remain unresolved live-only gates.
+## W4-04A external/live gate snapshot
+
+This table transcribes the W4-04A checklist dependencies in
+`docs/progress.md`. It does not change them. Only the programme controller may
+update their states.
+
+| Gate | Current state |
+| --- | --- |
+| EXT-RELEASE-ENV | MISSING |
+| EXT-STAGING-APPROVAL | MISSING |
+| EXT-OPERATIONS-OWNER | MISSING |
+
+Every `MISSING` row remains a live-only gate. A later state change in this table
+is valid only when it agrees with the authoritative checklist and external
+register.
 
 No named person, provider, account, domain, credential, production value,
 approval, or real evidence is supplied here. A future facilitator must replace
@@ -18,11 +32,15 @@ authority exists; repository examples must remain synthetic.
 
 | Placeholder | Responsibility | This preparation does not establish |
 | --- | --- | --- |
-| `<FACILITATOR_ROLE>` | Guides the role tasks and records later observations. | A trained facilitator, rehearsal result, or acceptance. |
+| `<TRAINING_FACILITATOR_ROLE>` | Guides the role tasks and records later observations. | A trained facilitator, rehearsal result, or acceptance. |
 | `<OPERATIONS_OWNER_ROLE>` | Receives operational escalation after `EXT-OPERATIONS-OWNER` is resolved. | A named owner or on-call rota. |
 | `<PRIVACY_DECISION_ROLE>` | Makes approved privacy/legal decisions outside the platform-operator role. | Legal advice, notice wording, retention authority, or breach-notification decisions. |
-| `<MONEY_REVIEW_ROLE>` | Reviews payout/fraud/correction exceptions under separation of duties. | Permission to change formulas, approve one's own work, or submit funds. |
-| `<SECURITY_INCIDENT_ROLE>` | Coordinates technical containment and recovery. | Provider access, credential custody, or authority to declare closure. |
+| `<MONEY_MAKER_ROLE>` | Prepares a frozen synthetic correction, batch, or instruction. | Permission to approve, reconcile, submit, or mark paid. |
+| `<MONEY_CHECKER_ROLE>` | Independently checks money identity, value, authority, and conservation. | Permission to create and self-approve work or manufacture finality. |
+| `<MONEY_RECONCILER_ROLE>` | Reconciles immutable provider-neutral evidence independently of maker and checker. | Permission to manufacture provider or bank evidence or rewrite history. |
+| `<INCIDENT_COMMANDER_ROLE>` | Coordinates incident containment, evidence preservation, and recovery ordering. | Security ownership or authority to close privacy or money impact alone. |
+| `<SECURITY_OWNER_ROLE>` | Governs technical access, containment, rotation, and recovery decisions. | Incident command, credential custody, or authority to declare closure alone. |
+| `<REPORT_METHOD_AUTHORITY_ROLE>` | Reviews reporting methodology, provenance, disclosures, and corrections. | Permission to issue a live report without approved method and privacy authority. |
 
 ## Prepared materials
 
@@ -58,5 +76,6 @@ Repository command: `python3 scripts/validate_w404a_training.py`
 
 The command checks required role/domain coverage, actual role-scoped page
 routes, the common procedure schema, local links, repository command targets,
-the three live-only gates, and prohibited completion/live claims. It reads
-files only and does not exercise product, provider, or deployment state.
+canonical role placeholders, authoritative W4-04A gate parity, and prohibited
+completion/live claims. It reads files only and does not exercise product,
+provider, or deployment state.

@@ -9,6 +9,7 @@ from scripts.validate_w403c_pilot_preparation import validate_pack
 
 ROOT = Path(__file__).resolve().parents[1]
 PACK = ROOT / "docs" / "pilot-operations"
+PROGRESS = ROOT / "docs" / "progress.md"
 
 
 def _copy_pack(tmp_path: Path) -> Path:
@@ -66,6 +67,12 @@ def test_committed_pilot_preparation_pack_passes() -> None:
             "W4-03C is DONE.",
             "prohibited completion/live claim",
         ),
+        (
+            "README.md",
+            "| EXT-PILOT-FACTS | PRESENT |",
+            "| EXT-PILOT-FACTS | MISSING |",
+            "pilot gate parity mismatch",
+        ),
     ),
 )
 def test_audit_rejects_missing_broken_or_false_pack_evidence(
@@ -81,3 +88,18 @@ def test_audit_rejects_missing_broken_or_false_pack_evidence(
     errors = validate_pack(ROOT, copied_pack)
 
     assert any(expected_error in error for error in errors), errors
+
+
+def test_audit_rejects_authoritative_progress_source_drift() -> None:
+    progress_text = PROGRESS.read_text(encoding="utf-8")
+    source_row = "| **EXT-RM2-POLICY** | PRESENT |"
+    assert source_row in progress_text
+    drifted_progress = progress_text.replace(
+        source_row,
+        "| **EXT-RM2-POLICY** | MISSING |",
+        1,
+    )
+
+    errors = validate_pack(ROOT, PACK, progress_text_override=drifted_progress)
+
+    assert any("pilot gate parity mismatch" in error for error in errors), errors

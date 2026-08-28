@@ -10,6 +10,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PACK = ROOT / "docs" / "pilot-operations"
+PROGRESS = Path("docs/progress.md")
+ROLE_REGISTRY = Path("docs/handover/roles-and-responsibilities.md")
+CHECKLIST_ID = "W4-03C"
 
 DOCUMENTS = ("README.md", "operations-pack.md", "synthetic-exercises.md")
 DOMAINS = (
@@ -127,30 +130,13 @@ EXERCISE_NODES = {
         "tests/test_data_subject_requests.py::test_completion_requires_every_store",
     ),
 }
-GATE_STATES = {
-    "EXT-DISBURSEMENT-PROVIDER": "MISSING",
-    "EXT-SETTLEMENT-BANK": "MISSING",
-    "EXT-RM2-POLICY": "PRESENT",
-    "EXT-STORAGE-PROVIDER": "MISSING",
-    "EXT-MALWARE-SCANNER": "MISSING",
-    "EXT-KMS-CUSTODY": "MISSING",
-    "EXT-PHONE-OPERATOR": "MISSING",
-    "EXT-EVIDENCE-POLICY": "MISSING",
-    "EXT-LEGAL-PRIVACY": "MISSING",
-    "EXT-UPLOAD-POLICY": "MISSING",
-    "EXT-PAYMENT-PROVIDER": "MISSING",
-    "EXT-BUDGET-POLICY": "MISSING",
-    "EXT-Q28-COMPANY": "MISSING",
-    "EXT-COMMERCIAL-VALUES": "MISSING",
-    "EXT-CAMPAIGN-BUDGET-SCOPE": "MISSING",
-    "EXT-BASEMAP": "MISSING",
-    "EXT-REPORT-METHOD": "MISSING",
-    "EXT-AD-PLATFORM": "MISSING",
-    "EXT-RELEASE-ENV": "MISSING",
-    "EXT-STAGING-APPROVAL": "MISSING",
-    "EXT-PILOT-FACTS": "PRESENT",
-    "EXT-PILOT-PERMITS": "MISSING",
-    "EXT-OPERATIONS-OWNER": "MISSING",
+ROLE_PLACEHOLDER_RE = re.compile(r"<[A-Z0-9_-]+_ROLE>")
+REQUIRED_SEPARATION_ROLES = {
+    "<INCIDENT_COMMANDER_ROLE>",
+    "<SECURITY_OWNER_ROLE>",
+    "<MONEY_MAKER_ROLE>",
+    "<MONEY_CHECKER_ROLE>",
+    "<MONEY_RECONCILER_ROLE>",
 }
 PROHIBITED_CLAIMS = (
     re.compile(r"\bW4-03C (?:is )?DONE\b", re.IGNORECASE),
@@ -171,6 +157,112 @@ def _sections(content: str) -> dict[str, str]:
         else content[match.start() :]
         for index, match in enumerate(matches)
     }
+
+
+def _markdown_section(text: str, heading: str) -> str:
+    marker = f"## {heading}"
+    if marker not in text:
+        return ""
+    tail = text.split(marker, 1)[1]
+    return tail.split("\n## ", 1)[0]
+
+
+def _authoritative_checklist_gate_states(
+    progress_text: str,
+    checklist_id: str,
+) -> tuple[dict[str, str], list[str]]:
+    errors: list[str] = []
+    marker = "## External prerequisite register"
+    if progress_text.count(marker) != 1:
+        return {}, ["authoritative progress source lacks one external register"]
+    register = progress_text.split(marker, 1)[1]
+    register = register.split("### Deferred post-build validation register", 1)[0]
+    pairs = re.findall(
+        r"^\| \*\*(EXT-[A-Z0-9-]+)\*\* \| (PRESENT|MISSING) \|",
+        register,
+        flags=re.MULTILINE,
+    )
+    if not pairs or len(pairs) != len({gate for gate, _ in pairs}):
+        errors.append("authoritative external register is empty or contains duplicate IDs")
+    external_states = dict(pairs)
+
+    rows = [
+        line
+        for line in progress_text.splitlines()
+        if line.startswith("|") and f"**{checklist_id} —" in line
+    ]
+    if len(rows) != 1:
+        errors.append(f"authoritative progress source lacks one {checklist_id} checklist row")
+        return {}, errors
+    cells = [cell.strip() for cell in rows[0].strip().strip("|").split("|")]
+    dependency_cell = cells[-1] if cells else ""
+    match = re.search(r"external-live:\s*(.+)$", dependency_cell)
+    if match is None:
+        errors.append(f"authoritative {checklist_id} row lacks external-live dependencies")
+        return {}, errors
+    gates = [gate.strip().strip("`") for gate in match.group(1).split(",")]
+    if not gates or any(not re.fullmatch(r"EXT-[A-Z0-9-]+", gate) for gate in gates):
+        errors.append(f"authoritative {checklist_id} gate list is malformed")
+        return {}, errors
+    if len(gates) != len(set(gates)):
+        errors.append(f"authoritative {checklist_id} gate list contains duplicate IDs")
+    missing_states = sorted(set(gates) - external_states.keys())
+    if missing_states:
+        errors.append(
+            f"authoritative {checklist_id} gates lack external-register state: {missing_states}"
+        )
+    return (
+        {gate: external_states[gate] for gate in gates if gate in external_states},
+        errors,
+    )
+
+
+def _gate_parity_errors(
+    root: Path,
+    readme_text: str,
+    progress_text_override: str | None,
+) -> list[str]:
+    progress_path = root / PROGRESS
+    if progress_text_override is None and not progress_path.is_file():
+        return ["authoritative docs/progress.md is missing"]
+    progress_text = (
+        progress_text_override
+        if progress_text_override is not None
+        else progress_path.read_text(encoding="utf-8")
+    )
+    expected, errors = _authoritative_checklist_gate_states(progress_text, CHECKLIST_ID)
+    actual_pairs = re.findall(
+        r"^\| (EXT-[A-Z0-9-]+) \| (PRESENT|MISSING) \|$",
+        _markdown_section(readme_text, "W4-03C external/live gate snapshot"),
+        flags=re.MULTILINE,
+    )
+    if len(actual_pairs) != len({gate for gate, _ in actual_pairs}):
+        errors.append("pilot gate snapshot contains duplicate IDs")
+    actual = dict(actual_pairs)
+    if actual != expected:
+        errors.append(f"pilot gate parity mismatch (expected={expected}, actual={actual})")
+    return errors
+
+
+def _canonical_role_errors(root: Path, operations_text: str) -> list[str]:
+    registry_path = root / ROLE_REGISTRY
+    if not registry_path.is_file():
+        return ["canonical handover role registry is missing"]
+    registry_text = registry_path.read_text(encoding="utf-8")
+    canonical = set(
+        ROLE_PLACEHOLDER_RE.findall(_markdown_section(registry_text, "Role registry"))
+    )
+    if not canonical:
+        return ["canonical handover role registry is empty"]
+    documented = set(ROLE_PLACEHOLDER_RE.findall(operations_text))
+    errors: list[str] = []
+    unknown = sorted(documented - canonical)
+    missing = sorted(REQUIRED_SEPARATION_ROLES - documented)
+    if unknown:
+        errors.append(f"pilot role placeholders are not canonical: {unknown}")
+    if missing:
+        errors.append(f"pilot role separation placeholders are missing: {missing}")
+    return errors
 
 
 def _check_links(root: Path, logical_path: Path, content: str) -> list[str]:
@@ -227,7 +319,11 @@ def _check_commands(root: Path, content: str) -> list[str]:
     return errors
 
 
-def validate_pack(root: Path = ROOT, pack_dir: Path = PACK) -> list[str]:
+def validate_pack(
+    root: Path = ROOT,
+    pack_dir: Path = PACK,
+    progress_text_override: str | None = None,
+) -> list[str]:
     errors: list[str] = []
     contents: dict[str, str] = {}
     for name in DOCUMENTS:
@@ -247,14 +343,7 @@ def validate_pack(root: Path = ROOT, pack_dir: Path = PACK) -> list[str]:
     readme = contents.get("README.md", "")
     if "W4-03C remains `TODO`. No monitored controlled pilot has been performed." not in readme:
         errors.append("README.md: missing truthful W4-03C TODO/no-pilot statement")
-    found_gates = {
-        gate: state
-        for gate, state in re.findall(
-            r"^\| (EXT-[A-Z0-9-]+) \| (MISSING|PRESENT) \|$", readme, re.MULTILINE
-        )
-    }
-    if found_gates != GATE_STATES:
-        errors.append("README.md: W4-03C external gate states are missing or drifted")
+    errors.extend(_gate_parity_errors(root, readme, progress_text_override))
 
     operations = contents.get("operations-pack.md", "")
     operation_sections = _sections(operations)
@@ -269,8 +358,10 @@ def validate_pack(root: Path = ROOT, pack_dir: Path = PACK) -> list[str]:
         for field in DOMAIN_FIELDS[domain]:
             if field not in section:
                 errors.append(f"{domain}: missing evidence/authority field: {field}")
-        if "<PLACEHOLDER —" not in section:
-            errors.append(f"{domain}: missing approval-safe placeholder")
+        if ROLE_PLACEHOLDER_RE.search(section) is None:
+            errors.append(f"{domain}: missing canonical role placeholder")
+
+    errors.extend(_canonical_role_errors(root, operations))
 
     exercises = contents.get("synthetic-exercises.md", "")
     exercise_sections = _sections(exercises)

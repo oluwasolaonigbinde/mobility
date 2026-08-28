@@ -5,9 +5,12 @@ runbooks and integrated entry points for a future facilitated session. Every
 exercise uses synthetic identities and non-sensitive references; the source
 runbook wins if a summary and its authority ever diverge.
 
-Use `<OPERATIONS_OWNER_ROLE>`, `<PRIVACY_DECISION_ROLE>`,
-`<MONEY_REVIEW_ROLE>`, and `<SECURITY_INCIDENT_ROLE>` until the protected
-operating record contains approved named assignments. Never replace a
+Use the canonical placeholders in the handover
+[role registry](../handover/roles-and-responsibilities.md#role-registry) until
+the protected operating record contains approved named assignments. In
+particular, `<INCIDENT_COMMANDER_ROLE>` remains distinct from
+`<SECURITY_OWNER_ROLE>`, and `<MONEY_MAKER_ROLE>`, `<MONEY_CHECKER_ROLE>`, and
+`<MONEY_RECONCILER_ROLE>` remain three distinct roles. Never replace a
 placeholder with a person, provider, account, domain, credential, or approval
 inside the repository.
 
@@ -131,7 +134,7 @@ Stop on scanner timeout, storage outage/mismatch, key/authentication failure,
 missing retention authority, concurrent run, incomplete documents, or any urge
 to paste sensitive values into training evidence. Keep the object private and
 escalate only environment, stored-file/submission identifiers, time window, and
-error code to `<SECURITY_INCIDENT_ROLE>`, `<PRIVACY_DECISION_ROLE>`, and
+error code to `<SECURITY_OWNER_ROLE>`, `<PRIVACY_DECISION_ROLE>`, and
 `<OPERATIONS_OWNER_ROLE>`.
 
 ### Synthetic rehearsal note
@@ -190,7 +193,7 @@ their dispute/reply.
 Stop on stale assessment, unexpected status, tenant/driver mismatch, missing
 evidence, duplicated reversal, changed money effect, or any proposed automatic
 release. Preserve flag/dispute/trip identifiers and escalate to
-`<MONEY_REVIEW_ROLE>` and `<OPERATIONS_OWNER_ROLE>` without sharing raw route or
+`<MONEY_CHECKER_ROLE>` and `<OPERATIONS_OWNER_ROLE>` without sharing raw route or
 fraud evidence.
 
 ### Synthetic rehearsal note
@@ -208,6 +211,9 @@ An active admin uses `/admin/payouts`, `/admin/payouts/rules`,
 their own ledger and breakdown at `/driver/earnings`. The shipped
 [payout router](../../app/api/v1/payouts.py) and
 [disbursement router](../../app/api/v1/disbursements.py) remain authoritative.
+The prepared exercise assigns separate `<MONEY_MAKER_ROLE>`,
+`<MONEY_CHECKER_ROLE>`, and `<MONEY_RECONCILER_ROLE>` participants; none may
+substitute for another.
 
 ### Prerequisites
 
@@ -253,7 +259,8 @@ Stop on stale calculation, missing ledger lineage, creator-equals-approver,
 currency/value mismatch, unexplained debt, duplicate correction/reversal,
 unresolved fraud hold, disabled provider, or missing settlement authority.
 Preserve only synthetic IDs and expected/observed totals, then escalate to
-`<MONEY_REVIEW_ROLE>` and `<OPERATIONS_OWNER_ROLE>`.
+`<MONEY_CHECKER_ROLE>`, `<MONEY_RECONCILER_ROLE>`, and
+`<OPERATIONS_OWNER_ROLE>`.
 
 ### Synthetic rehearsal note
 
@@ -324,8 +331,9 @@ Stop on tenant/membership loss, missing/revoked privacy or method authority,
 source/proof mismatch, stale disclosure, unexpected ROI, partial/tampered
 objects, worker/storage failure, or map-provider confusion. Preserve sanitized
 run/issuance/request IDs and hashes, then escalate to
-`<PRIVACY_DECISION_ROLE>`, `<MONEY_REVIEW_ROLE>` when financial output is
-implicated, and `<OPERATIONS_OWNER_ROLE>`.
+`<PRIVACY_DECISION_ROLE>`, `<REPORT_METHOD_AUTHORITY_ROLE>`,
+`<MONEY_CHECKER_ROLE>` when financial output is implicated, and
+`<OPERATIONS_OWNER_ROLE>`.
 
 ### Synthetic rehearsal note
 
@@ -338,9 +346,10 @@ customer ROI.
 
 ### Authorized role and entry point
 
-`<SECURITY_INCIDENT_ROLE>` coordinates technical containment under the
-accountable business and privacy decision roles; `<OPERATIONS_OWNER_ROLE>`
-receives operational escalation after that gate is resolved. Follow
+`<INCIDENT_COMMANDER_ROLE>` coordinates containment and recovery ordering;
+`<SECURITY_OWNER_ROLE>` governs technical access and containment decisions,
+and `<OPERATIONS_OWNER_ROLE>` receives operational escalation after that gate
+is resolved. Follow
 [release incident playbooks](../w4-03a-release-operations.md),
 [privacy breach responsibilities](../privacy-operating-model.md), and the
 [operations runbook](../runbook.md). No product UI declares an incident closed.
@@ -393,9 +402,9 @@ closed.
 Stop on unknown release identity, missing owner/approver, possible data loss,
 unverified backup/object agreement, schema mismatch, unredacted evidence,
 unavailable custody, or any need to touch a live provider/account. Preserve the
-minimum sanitized record and escalate to `<SECURITY_INCIDENT_ROLE>`,
-`<PRIVACY_DECISION_ROLE>`, `<MONEY_REVIEW_ROLE>` when money is implicated, and
-`<OPERATIONS_OWNER_ROLE>`.
+minimum sanitized record and escalate to `<INCIDENT_COMMANDER_ROLE>`,
+`<SECURITY_OWNER_ROLE>`, `<PRIVACY_DECISION_ROLE>`, `<MONEY_CHECKER_ROLE>` when
+money is implicated, and `<OPERATIONS_OWNER_ROLE>`.
 
 ### Synthetic rehearsal note
 

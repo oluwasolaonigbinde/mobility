@@ -26,6 +26,12 @@ def _replace(path: Path, old: str, new: str) -> None:
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
+def _replace_all(path: Path, old: str, new: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    assert old in text
+    path.write_text(text.replace(old, new), encoding="utf-8")
+
+
 def test_repository_handover_preparation_is_valid() -> None:
     assert validate_repository(REPO_ROOT) == []
 
@@ -65,6 +71,42 @@ def test_missing_required_domain_and_role_fail(tmp_path: Path) -> None:
     errors = validate_repository(root)
     assert any("documentation index domain mismatch" in error for error in errors)
     assert any("role registry mismatch" in error for error in errors)
+
+
+def test_backup_schedule_missing_field_or_numeric_value_fails(tmp_path: Path) -> None:
+    root = _fixture_repo(tmp_path)
+    backup = root / "docs/handover/backup-schedule.md"
+    _replace(
+        backup,
+        "| Cadence | `<BACKUP_CADENCE — OWNER APPROVAL REQUIRED>` |",
+        "| Cadence | Every 7 days |",
+    )
+    errors = validate_repository(root)
+    assert any("backup schedule field mismatch" in error for error in errors)
+    assert any("unapproved numeric backup cadence/retention" in error for error in errors)
+
+
+def test_cross_pack_role_alias_or_separation_drift_fails(tmp_path: Path) -> None:
+    root = _fixture_repo(tmp_path)
+    _replace_all(
+        root / "docs/training/README.md",
+        "<SECURITY_OWNER_ROLE>",
+        "<SECURITY_INCIDENT_ROLE>",
+    )
+    _replace_all(
+        root / "docs/training/operator-procedures.md",
+        "<SECURITY_OWNER_ROLE>",
+        "<SECURITY_INCIDENT_ROLE>",
+    )
+    _replace(
+        root / "docs/pilot-operations/operations-pack.md",
+        "<MONEY_MAKER_ROLE>",
+        "<MONEY_CHECKER_ROLE>",
+    )
+    errors = validate_repository(root)
+    assert any("training uses non-canonical role placeholders" in error for error in errors)
+    assert any("training lacks required separation roles" in error for error in errors)
+    assert any("pilot operations lacks required separation roles" in error for error in errors)
 
 
 def test_external_gate_omission_state_drift_and_deferred_drift_fail(tmp_path: Path) -> None:

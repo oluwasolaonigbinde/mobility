@@ -11,6 +11,7 @@ from urllib.parse import unquote
 
 HANDOVER_FILES = {
     "README.md",
+    "backup-schedule.md",
     "credential-handover-checklist.md",
     "external-and-deferred-risks.md",
     "post-mvp-roadmap.md",
@@ -21,6 +22,7 @@ HANDOVER_FILES = {
 INDEX_DOMAINS = {
     "System",
     "Release",
+    "Backup and recovery",
     "Training",
     "Pilot operations",
     "Privacy and security",
@@ -47,6 +49,39 @@ ROLE_PLACEHOLDERS = {
     "<CREDENTIAL_CUSTODIAN_ROLE>",
     "<CREDENTIAL_CHECKER_ROLE>",
     "<BRAND_RELEASE_APPROVER_ROLE>",
+}
+
+CROSS_PACK_ROLE_FILES = {
+    "training": (
+        Path("docs/training/README.md"),
+        Path("docs/training/operator-procedures.md"),
+    ),
+    "pilot operations": (Path("docs/pilot-operations/operations-pack.md"),),
+}
+
+REQUIRED_CROSS_PACK_SEPARATION_ROLES = {
+    "<INCIDENT_COMMANDER_ROLE>",
+    "<SECURITY_OWNER_ROLE>",
+    "<MONEY_MAKER_ROLE>",
+    "<MONEY_CHECKER_ROLE>",
+    "<MONEY_RECONCILER_ROLE>",
+}
+
+BACKUP_FIELDS = {
+    "Scope": "`<BACKUP_SCOPE — OWNER APPROVAL REQUIRED>`",
+    "Cadence": "`<BACKUP_CADENCE — OWNER APPROVAL REQUIRED>`",
+    "Schedule authority": (
+        "`<OPERATIONS_OWNER_ROLE>` — assignment and approval required"
+    ),
+    "Retention source": (
+        "`<RETENTION_SOURCE — EXT-LEGAL-PRIVACY AND "
+        "EXT-EVIDENCE-POLICY APPROVAL REQUIRED>`"
+    ),
+    "Protected evidence pointer": "`<PROTECTED_EVIDENCE_POINTER>`",
+    "Recovery verification evidence": (
+        "`<RECOVERY_VERIFICATION_EVIDENCE — APPROVED ISOLATED RESTORE REQUIRED>`"
+    ),
+    "Approval state": "`<NOT APPROVED — EXTERNAL OWNER APPROVAL REQUIRED>`",
 }
 
 RACI_WORKSTREAMS = {
@@ -352,6 +387,57 @@ def _validate_roles(roles_text: str, support_text: str, credential_text: str) ->
     return errors
 
 
+def _validate_cross_pack_roles(repo_root: Path, roles_text: str) -> list[str]:
+    errors: list[str] = []
+    registry_rows = _table_rows(_section(roles_text, "Role registry"))[1:]
+    canonical = {row[0].strip("`") for row in registry_rows if row}
+    role_pattern = re.compile(r"<[A-Z0-9_-]+_ROLE>")
+    for pack, relative_paths in CROSS_PACK_ROLE_FILES.items():
+        texts: list[str] = []
+        for relative_path in relative_paths:
+            path = repo_root / relative_path
+            if not path.is_file():
+                errors.append(f"{pack} role source is missing: {relative_path}")
+                continue
+            texts.append(path.read_text(encoding="utf-8"))
+        documented = set(role_pattern.findall("\n".join(texts)))
+        unknown = sorted(documented - canonical)
+        missing = sorted(REQUIRED_CROSS_PACK_SEPARATION_ROLES - documented)
+        if unknown:
+            errors.append(f"{pack} uses non-canonical role placeholders: {unknown}")
+        if missing:
+            errors.append(f"{pack} lacks required separation roles: {missing}")
+    return errors
+
+
+def _validate_backup(backup_text: str) -> list[str]:
+    errors: list[str] = []
+    rows = _table_rows(_section(backup_text, "Backup schedule preparation fields"))[1:]
+    actual = {row[0]: row[1] for row in rows if len(row) == 2}
+    if actual != BACKUP_FIELDS:
+        changed = sorted(
+            field
+            for field in BACKUP_FIELDS.keys() & actual.keys()
+            if BACKUP_FIELDS[field] != actual[field]
+        )
+        errors.append(
+            "backup schedule field mismatch "
+            f"(missing={sorted(BACKUP_FIELDS.keys() - actual.keys())}, "
+            f"extra={sorted(actual.keys() - BACKUP_FIELDS.keys())}, "
+            f"changed={changed})"
+        )
+    if "Status: **PREPARATION ONLY**" not in backup_text:
+        errors.append("backup schedule lacks PREPARATION ONLY status")
+    numeric_schedule = re.search(
+        r"\b\d+(?:\.\d+)?\s*(?:seconds?|minutes?|hours?|days?|weeks?|months?|years?)\b",
+        backup_text,
+        flags=re.IGNORECASE,
+    )
+    if numeric_schedule:
+        errors.append(f"unapproved numeric backup cadence/retention: {numeric_schedule.group(0)}")
+    return errors
+
+
 def _validate_index_and_claims(readme_text: str, all_text: str) -> list[str]:
     errors: list[str] = []
     index_rows = _table_rows(_section(readme_text, "Documentation index"))[1:]
@@ -521,6 +607,8 @@ def validate_repository(repo_root: Path) -> list[str]:
             texts["credential-handover-checklist.md"],
         )
     )
+    errors.extend(_validate_cross_pack_roles(repo_root, texts["roles-and-responsibilities.md"]))
+    errors.extend(_validate_backup(texts["backup-schedule.md"]))
     errors.extend(_validate_sla(texts["support-sla-escalation.md"]))
     errors.extend(
         _validate_external_and_deferred(repo_root, texts["external-and-deferred-risks.md"])
@@ -547,7 +635,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(
         "W4-04B handover preparation audit: PASS "
-        "(6 files, 29 external gates, 3 deferred validations)"
+        "(7 files, 29 external gates, 3 deferred validations)"
     )
     return 0
 

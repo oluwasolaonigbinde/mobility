@@ -4,11 +4,11 @@ from unittest.mock import patch
 
 from scripts.validate_w404a_training import audit_repository
 
-
 ROOT = Path(__file__).resolve().parents[1]
 ROLE_INVENTORY = ROOT / "docs" / "training" / "role-task-inventories.md"
 TRAINING_INDEX = ROOT / "docs" / "training" / "README.md"
 PROCEDURES = ROOT / "docs" / "training" / "operator-procedures.md"
+PROGRESS = ROOT / "docs" / "progress.md"
 
 
 def _replace_once(path: Path, old: str, new: str) -> dict[Path, str]:
@@ -115,6 +115,36 @@ class ValidateW404ATrainingTests(unittest.TestCase):
             any("missing required negative gate statement" in error for error in errors)
         )
         self.assertTrue(any("prohibited completion or live claim" in error for error in errors))
+
+    def test_audit_rejects_documented_and_authoritative_gate_drift(self) -> None:
+        documented_drift = _replace_once(
+            TRAINING_INDEX,
+            "| EXT-RELEASE-ENV | MISSING |",
+            "| EXT-RELEASE-ENV | PRESENT |",
+        )
+        self.assertTrue(
+            any(
+                "training gate parity mismatch" in error
+                for error in audit_repository(ROOT, documented_drift)
+            )
+        )
+
+        progress_text = PROGRESS.read_text(encoding="utf-8")
+        source_row = "| **EXT-STAGING-APPROVAL** | MISSING |"
+        self.assertIn(source_row, progress_text)
+        authoritative_drift = {
+            PROGRESS: progress_text.replace(
+                source_row,
+                "| **EXT-STAGING-APPROVAL** | PRESENT |",
+                1,
+            )
+        }
+        self.assertTrue(
+            any(
+                "training gate parity mismatch" in error
+                for error in audit_repository(ROOT, authoritative_drift)
+            )
+        )
 
     def test_each_operator_domain_requires_the_common_procedure_schema(self) -> None:
         missing_stop_condition = _replace_once(

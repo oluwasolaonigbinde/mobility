@@ -11,7 +11,6 @@ from collections.abc import Mapping
 from pathlib import Path
 from urllib.parse import unquote
 
-
 TRAINING_PATHS = (
     Path("docs/training/README.md"),
     Path("docs/training/role-task-inventories.md"),
@@ -19,6 +18,9 @@ TRAINING_PATHS = (
 )
 ROLE_INVENTORY_PATH = Path("docs/training/role-task-inventories.md")
 PROCEDURES_PATH = Path("docs/training/operator-procedures.md")
+PROGRESS_PATH = Path("docs/progress.md")
+ROLE_REGISTRY_PATH = Path("docs/handover/roles-and-responsibilities.md")
+CHECKLIST_ID = "W4-04A"
 ROLES = ("admin", "advertiser", "driver")
 DOMAINS = {
     "privacy": "Privacy / DSR",
@@ -41,16 +43,16 @@ REQUIRED_NEGATIVE_STATEMENT = (
     "W4-04A remains incomplete: facilitated rehearsal, user acceptance, "
     "and live operation have not occurred."
 )
-REQUIRED_GATE_STATEMENT = (
-    "`EXT-RELEASE-ENV`, `EXT-STAGING-APPROVAL`, and `EXT-OPERATIONS-OWNER` "
-    "remain unresolved live-only gates."
-)
 REQUIRED_PLACEHOLDERS = (
-    "<FACILITATOR_ROLE>",
+    "<TRAINING_FACILITATOR_ROLE>",
     "<OPERATIONS_OWNER_ROLE>",
     "<PRIVACY_DECISION_ROLE>",
-    "<MONEY_REVIEW_ROLE>",
-    "<SECURITY_INCIDENT_ROLE>",
+    "<MONEY_MAKER_ROLE>",
+    "<MONEY_CHECKER_ROLE>",
+    "<MONEY_RECONCILER_ROLE>",
+    "<INCIDENT_COMMANDER_ROLE>",
+    "<SECURITY_OWNER_ROLE>",
+    "<REPORT_METHOD_AUTHORITY_ROLE>",
 )
 REQUIRED_COMMANDS = (
     "python3 scripts/validate_w404a_training.py",
@@ -80,6 +82,7 @@ PROHIBITED_CLAIMS = (
 )
 LOCAL_LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 REPOSITORY_COMMAND_RE = re.compile(r"Repository command:\s*`([^`]+)`")
+ROLE_PLACEHOLDER_RE = re.compile(r"<[A-Z0-9_-]+_ROLE>")
 
 
 def _read(path: Path, overrides: Mapping[Path, str]) -> str:
@@ -180,6 +183,116 @@ def _procedure_errors(text: str) -> list[str]:
     return errors
 
 
+def _markdown_section(text: str, heading: str) -> str:
+    marker = f"## {heading}"
+    if marker not in text:
+        return ""
+    tail = text.split(marker, 1)[1]
+    return tail.split("\n## ", 1)[0]
+
+
+def _authoritative_checklist_gate_states(
+    progress_text: str,
+    checklist_id: str,
+) -> tuple[dict[str, str], list[str]]:
+    errors: list[str] = []
+    marker = "## External prerequisite register"
+    if progress_text.count(marker) != 1:
+        return {}, ["authoritative progress source lacks one external register"]
+    register = progress_text.split(marker, 1)[1]
+    register = register.split("### Deferred post-build validation register", 1)[0]
+    pairs = re.findall(
+        r"^\| \*\*(EXT-[A-Z0-9-]+)\*\* \| (PRESENT|MISSING) \|",
+        register,
+        flags=re.MULTILINE,
+    )
+    if not pairs or len(pairs) != len({gate for gate, _ in pairs}):
+        errors.append("authoritative external register is empty or contains duplicate IDs")
+    external_states = dict(pairs)
+
+    rows = [
+        line
+        for line in progress_text.splitlines()
+        if line.startswith("|") and f"**{checklist_id} —" in line
+    ]
+    if len(rows) != 1:
+        errors.append(f"authoritative progress source lacks one {checklist_id} checklist row")
+        return {}, errors
+    cells = [cell.strip() for cell in rows[0].strip().strip("|").split("|")]
+    dependency_cell = cells[-1] if cells else ""
+    match = re.search(r"external-live:\s*(.+)$", dependency_cell)
+    if match is None:
+        errors.append(f"authoritative {checklist_id} row lacks external-live dependencies")
+        return {}, errors
+    gates = [gate.strip().strip("`") for gate in match.group(1).split(",")]
+    if not gates or any(not re.fullmatch(r"EXT-[A-Z0-9-]+", gate) for gate in gates):
+        errors.append(f"authoritative {checklist_id} gate list is malformed")
+        return {}, errors
+    if len(gates) != len(set(gates)):
+        errors.append(f"authoritative {checklist_id} gate list contains duplicate IDs")
+    missing_states = sorted(set(gates) - external_states.keys())
+    if missing_states:
+        errors.append(
+            f"authoritative {checklist_id} gates lack external-register state: {missing_states}"
+        )
+    return (
+        {gate: external_states[gate] for gate in gates if gate in external_states},
+        errors,
+    )
+
+
+def _gate_parity_errors(
+    root: Path,
+    readme_text: str,
+    overrides: Mapping[Path, str],
+) -> list[str]:
+    progress_path = (root / PROGRESS_PATH).resolve()
+    if not progress_path.is_file():
+        return ["authoritative docs/progress.md is missing"]
+    expected, errors = _authoritative_checklist_gate_states(
+        _read(progress_path, overrides), CHECKLIST_ID
+    )
+    actual_pairs = re.findall(
+        r"^\| (EXT-[A-Z0-9-]+) \| (PRESENT|MISSING) \|$",
+        _markdown_section(readme_text, "W4-04A external/live gate snapshot"),
+        flags=re.MULTILINE,
+    )
+    if len(actual_pairs) != len({gate for gate, _ in actual_pairs}):
+        errors.append("training gate snapshot contains duplicate IDs")
+    actual = dict(actual_pairs)
+    if actual != expected:
+        errors.append(
+            "training gate parity mismatch "
+            f"(expected={expected}, actual={actual})"
+        )
+    return errors
+
+
+def _canonical_role_errors(
+    root: Path,
+    combined_text: str,
+    overrides: Mapping[Path, str],
+) -> list[str]:
+    registry_path = (root / ROLE_REGISTRY_PATH).resolve()
+    if not registry_path.is_file():
+        return ["canonical handover role registry is missing"]
+    registry_text = _read(registry_path, overrides)
+    canonical = set(
+        ROLE_PLACEHOLDER_RE.findall(_markdown_section(registry_text, "Role registry"))
+    )
+    if not canonical:
+        return ["canonical handover role registry is empty"]
+    documented = set(ROLE_PLACEHOLDER_RE.findall(combined_text))
+    unknown = sorted(documented - canonical)
+    missing = sorted(set(REQUIRED_PLACEHOLDERS) - documented)
+    errors: list[str] = []
+    if unknown:
+        errors.append(f"training role placeholders are not canonical: {unknown}")
+    if missing:
+        errors.append(f"training role separation placeholders are missing: {missing}")
+    return errors
+
+
 def _local_link_errors(
     root: Path,
     documents: Mapping[Path, str],
@@ -254,14 +367,6 @@ def _claim_errors(combined_text: str) -> list[str]:
     errors: list[str] = []
     if REQUIRED_NEGATIVE_STATEMENT not in combined_text:
         errors.append("missing required negative gate statement")
-    if REQUIRED_GATE_STATEMENT not in combined_text:
-        errors.append("missing required unresolved live-only gate statement")
-    for gate in ("EXT-RELEASE-ENV", "EXT-STAGING-APPROVAL", "EXT-OPERATIONS-OWNER"):
-        if gate not in combined_text:
-            errors.append(f"missing live-only gate: {gate}")
-    for placeholder in REQUIRED_PLACEHOLDERS:
-        if placeholder not in combined_text:
-            errors.append(f"missing role placeholder: {placeholder}")
     for pattern in PROHIBITED_CLAIMS:
         for match in pattern.finditer(combined_text):
             errors.append(f"prohibited completion or live claim: {match.group(0)}")
@@ -295,7 +400,16 @@ def audit_repository(
     errors.extend(_procedure_errors(procedures))
     errors.extend(_local_link_errors(root, documents, overrides))
     errors.extend(_command_errors(root, documents))
-    errors.extend(_claim_errors("\n".join(documents.values())))
+    combined_text = "\n".join(documents.values())
+    errors.extend(_claim_errors(combined_text))
+    errors.extend(_canonical_role_errors(root, combined_text, overrides))
+    errors.extend(
+        _gate_parity_errors(
+            root,
+            documents[(root / TRAINING_PATHS[0]).resolve()],
+            overrides,
+        )
+    )
     return sorted(set(errors))
 
 

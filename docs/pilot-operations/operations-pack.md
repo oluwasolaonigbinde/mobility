@@ -26,9 +26,9 @@ remain the truth. This template records an observation; it cannot override any
 of them.
 
 Roles:
-- observer: `<PLACEHOLDER — NAMED OPERATIONS OWNER REQUIRED>`
-- stop-decision owner: `<PLACEHOLDER — INCIDENT COMMANDER REQUIRED>`
-- domain responder: `<PLACEHOLDER — SERVICE OWNER REQUIRED>`
+- observer: `<OPERATIONS_OWNER_ROLE>`
+- stop-decision owner: `<INCIDENT_COMMANDER_ROLE>`
+- domain responder: `<SERVICE_SUPPORT_COORDINATOR_ROLE>`
 
 Stop criteria:
 Stop or keep the affected path closed on any non-ready response, image/database
@@ -77,10 +77,10 @@ govern recovery. Application recovery never means schema downgrade. Data
 restore is a separately approved disaster-recovery action.
 
 Roles:
-- incident commander: `<PLACEHOLDER — EXT-OPERATIONS-OWNER REQUIRED>`
-- recovery operator: `<PLACEHOLDER — NAMED RELEASE OPERATOR REQUIRED>`
-- compatibility checker: `<PLACEHOLDER — INDEPENDENT CHECKER REQUIRED>`
-- data-restore approver: `<PLACEHOLDER — SEPARATE APPROVAL REQUIRED>`
+- incident commander: `<INCIDENT_COMMANDER_ROLE>`
+- recovery operator: `<RELEASE_OPERATOR_ROLE>`
+- compatibility checker: `<EVIDENCE_CHECKER_ROLE>`
+- data-restore security authority: `<SECURITY_OWNER_ROLE>`
 
 Stop criteria:
 Keep traffic stopped if release identity/config/revision differs, previous-image
@@ -131,10 +131,10 @@ money. The exercise uses only the in-process fake adapter and performs zero
 external provider actions.
 
 Roles:
-- maker: `<PLACEHOLDER — DISTINCT ADMIN REQUIRED>`
-- checker: `<PLACEHOLDER — DISTINCT APPROVER REQUIRED>`
-- reconciler: `<PLACEHOLDER — DISTINCT RECONCILER REQUIRED>`
-- money incident owner: `<PLACEHOLDER — NAMED MONEY OWNER REQUIRED>`
+- maker: `<MONEY_MAKER_ROLE>`
+- checker: `<MONEY_CHECKER_ROLE>`
+- reconciler: `<MONEY_RECONCILER_ROLE>`
+- incident commander: `<INCIDENT_COMMANDER_ROLE>`
 
 Stop criteria:
 Stop before submission/replay on an unavailable approved provider, missing
@@ -181,10 +181,11 @@ retry conflicts. CSV and PDF remain an atomic pair; terminal recovery creates
 an append-only reissue version rather than rewriting history.
 
 Roles:
-- request owner: `<PLACEHOLDER — AUTHORIZED REQUESTER REQUIRED>`
-- report operator: `<PLACEHOLDER — OPERATIONS OWNER REQUIRED>`
-- evidence checker: `<PLACEHOLDER — INDEPENDENT CHECKER REQUIRED>`
-- privacy/method authority: `<PLACEHOLDER — EXT-LEGAL-PRIVACY AND EXT-REPORT-METHOD REQUIRED>`
+- request owner: `<BUSINESS_ACCOUNTABLE_ROLE>`
+- report operator: `<OPERATIONS_OWNER_ROLE>`
+- evidence checker: `<EVIDENCE_CHECKER_ROLE>`
+- privacy authority: `<PRIVACY_DECISION_ROLE>`
+- method authority: `<REPORT_METHOD_AUTHORITY_ROLE>`
 
 Stop criteria:
 Withhold status/download on request identity or fingerprint conflict, source/run
@@ -231,10 +232,12 @@ The missing privacy/legal decision-maker decides notification with qualified
 advice; this pack invents neither that actor nor a deadline.
 
 Roles:
-- incident commander: `<PLACEHOLDER — EXT-OPERATIONS-OWNER REQUIRED>`
-- privacy/legal decision-maker: `<PLACEHOLDER — EXT-LEGAL-PRIVACY REQUIRED>`
-- security responder: `<PLACEHOLDER — NAMED SECURITY OWNER REQUIRED>`
-- money/report/service owner: `<PLACEHOLDER — AFFECTED DOMAIN OWNER REQUIRED>`
+- incident commander: `<INCIDENT_COMMANDER_ROLE>`
+- privacy/legal decision-maker: `<PRIVACY_DECISION_ROLE>`
+- security responder: `<SECURITY_OWNER_ROLE>`
+- money checker: `<MONEY_CHECKER_ROLE>`
+- report-method authority: `<REPORT_METHOD_AUTHORITY_ROLE>`
+- service coordinator: `<SERVICE_SUPPORT_COORDINATOR_ROLE>`
 
 Stop criteria:
 Contain the affected path and escalate when scope/authority is uncertain,
@@ -281,9 +284,9 @@ ledger, report, release, audit, DSR, or provider receipt. Exact retries converge
 changed evidence conflicts. Missing required locations or fields block closure.
 
 Roles:
-- evidence recorder: `<PLACEHOLDER — NAMED OPERATOR REQUIRED>`
-- independent checker: `<PLACEHOLDER — DISTINCT CHECKER REQUIRED>`
-- retention/privacy authority: `<PLACEHOLDER — EXT-EVIDENCE-POLICY AND EXT-LEGAL-PRIVACY REQUIRED>`
+- evidence recorder: `<EVIDENCE_RECORDER_ROLE>`
+- independent checker: `<EVIDENCE_CHECKER_ROLE>`
+- retention/privacy authority: `<PRIVACY_DECISION_ROLE>`
 
 Stop criteria:
 Stop evidence capture/closure when classification is not synthetic, a source
