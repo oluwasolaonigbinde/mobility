@@ -18,7 +18,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote, urlparse
+from urllib.parse import quote, unquote, urlparse, urlsplit, urlunsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -92,6 +92,16 @@ def _require(environment: Mapping[str, str], name: str) -> str:
 
 def _is_true(value: str | None) -> bool:
     return (value or "").strip().lower() == "true"
+
+
+def database_url_for_name(database_url: str, database_name: str) -> str:
+    """Replace only the database path while preserving encoded credentials."""
+    if not re.fullmatch(r"[a-zA-Z0-9_]+", database_name):
+        raise ContractError("Restore database name contains unsafe characters")
+    parts = urlsplit(database_url)
+    if not parts.scheme or not parts.netloc:
+        raise ContractError("Database URL is invalid")
+    return urlunsplit((parts.scheme, parts.netloc, f"/{quote(database_name, safe='')}", "", ""))
 
 
 def _validate_secret(name: str, value: str) -> None:
@@ -314,9 +324,7 @@ def validate_compatibility_evidence(
     for name, expected_value in expected.items():
         if value.get(name) != expected_value:
             raise ContractError(f"Compatibility evidence conflicts on {name}")
-    if not RELEASE_ID_RE.fullmatch(target_release_id) or not REVISION_RE.fullmatch(
-        target_revision
-    ):
+    if not RELEASE_ID_RE.fullmatch(target_release_id) or not REVISION_RE.fullmatch(target_revision):
         raise ContractError("Compatibility evidence target identity is invalid")
     _validate_image("target_backend_image", target_backend_image, allow_local_rehearsal=True)
     if not forward_alembic_revision.strip():
@@ -421,6 +429,62 @@ def validate_backup_manifest(manifest: Mapping[str, Any]) -> dict[str, Any]:
         raise ContractError("Backup object totals disagree with inventory")
     value["manifest_sha256"] = supplied_digest
     return value
+
+
+def validate_backup_authority(
+    *,
+    complete_marker: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    release_state: Mapping[str, Any],
+    bundle_sha256: str,
+    expected_release_id: str,
+    expected_release_revision: str,
+    expected_config_sha256: str,
+) -> dict[str, Any]:
+    complete = dict(complete_marker)
+    validated_manifest = validate_backup_manifest(manifest)
+    validated_state = validate_release_state(release_state)
+    if complete.get("schema_version") != 1 or complete.get("state") != "complete":
+        raise ContractError("Backup complete marker is invalid")
+    if not SHA256_RE.fullmatch(bundle_sha256) or complete.get("bundle_sha256") != bundle_sha256:
+        raise ContractError("Backup complete marker does not bind the ciphertext")
+    if complete.get("manifest_sha256") != validated_manifest["manifest_sha256"]:
+        raise ContractError("Backup complete marker does not bind the manifest")
+    expected_identity = {
+        "release_id": expected_release_id,
+        "release_revision": expected_release_revision,
+        "config_sha256": expected_config_sha256,
+    }
+    for field, expected in expected_identity.items():
+        if complete.get(field) != expected or validated_manifest.get(field) != expected:
+            raise ContractError(f"Backup authority conflicts on {field}")
+    state_identity = {
+        "release_id": expected_release_id,
+        "revision": expected_release_revision,
+        "config_sha256": expected_config_sha256,
+    }
+    for field, expected in state_identity.items():
+        if validated_state.get(field) != expected:
+            raise ContractError(f"Bundled release state conflicts on {field}")
+    if (
+        complete.get("created_at") != validated_manifest["created_at"]
+        or complete.get("expires_at") != validated_manifest["expires_at"]
+    ):
+        raise ContractError("Backup completion and retention times disagree")
+    try:
+        expires = datetime.fromisoformat(str(complete["expires_at"]).replace("Z", "+00:00"))
+    except (TypeError, ValueError) as exc:
+        raise ContractError("Backup complete marker expiry is invalid") from exc
+    if expires.tzinfo is None:
+        raise ContractError("Backup complete marker expiry must include a timezone")
+    if expires <= datetime.now(UTC):
+        raise ContractError("Backup complete marker is expired")
+    return {
+        **expected_identity,
+        "bundle_sha256": bundle_sha256,
+        "manifest_sha256": validated_manifest["manifest_sha256"],
+        "expires_at": complete["expires_at"],
+    }
 
 
 def read_env_file(path: Path) -> dict[str, str]:
@@ -718,6 +782,20 @@ def _cli_compatibility_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cli_backup_authority_validate(args: argparse.Namespace) -> int:
+    authority = validate_backup_authority(
+        complete_marker=json.loads(Path(args.complete_marker).read_text()),
+        manifest=json.loads(Path(args.manifest).read_text()),
+        release_state=json.loads(Path(args.release_state).read_text()),
+        bundle_sha256=args.bundle_sha256,
+        expected_release_id=args.expected_release_id,
+        expected_release_revision=args.expected_release_revision,
+        expected_config_sha256=args.expected_config_sha256,
+    )
+    print(json.dumps(authority, sort_keys=True, separators=(",", ":")))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -767,6 +845,15 @@ def main(argv: list[str] | None = None) -> int:
     compatibility_validate.add_argument("--previous-release-id", default="")
     compatibility_validate.add_argument("--forward-alembic-revision", required=True)
     compatibility_validate.set_defaults(handler=_cli_compatibility_validate)
+    backup_authority_validate = subparsers.add_parser("backup-authority-validate")
+    backup_authority_validate.add_argument("--complete-marker", required=True)
+    backup_authority_validate.add_argument("--manifest", required=True)
+    backup_authority_validate.add_argument("--release-state", required=True)
+    backup_authority_validate.add_argument("--bundle-sha256", required=True)
+    backup_authority_validate.add_argument("--expected-release-id", required=True)
+    backup_authority_validate.add_argument("--expected-release-revision", required=True)
+    backup_authority_validate.add_argument("--expected-config-sha256", required=True)
+    backup_authority_validate.set_defaults(handler=_cli_backup_authority_validate)
     args = parser.parse_args(argv)
     try:
         return args.handler(args)

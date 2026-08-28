@@ -11,11 +11,12 @@ SMOKE_PASSWORD_FILE=""
 COMPATIBILITY_EVIDENCE=""
 RECOVER_STALE_LOCK=false
 LOCK_DIR=""
+EDGE_OPEN=false
 
 usage() {
   cat >&2 <<'EOF'
 Usage: scripts/release.sh --env-file PATH --state-dir PATH --backup-dir PATH
-       --smoke-email ADDRESS --smoke-password-file PATH
+       [--smoke-email ADDRESS --smoke-password-file PATH]
        --compatibility-evidence PATH [--recover-stale-lock]
 EOF
 }
@@ -23,10 +24,11 @@ EOF
 cleanup() {
   local exit_code=$?
   set +e
-  [[ -z "${LOCK_DIR}" ]] || rm -rf -- "${LOCK_DIR}"
   if (( exit_code != 0 )); then
+    release_stop_edge_if_open "${EDGE_OPEN}" "${ENV_FILE}" || true
     release_log release failed >&2
   fi
+  [[ -z "${LOCK_DIR}" ]] || rm -rf -- "${LOCK_DIR}"
   exit "${exit_code}"
 }
 trap cleanup EXIT HUP INT TERM
@@ -47,7 +49,6 @@ while (( $# > 0 )); do
 done
 
 [[ -r "${ENV_FILE}" && -n "${STATE_DIR}" && -n "${BACKUP_DIR}" \
-  && -n "${SMOKE_EMAIL}" && -r "${SMOKE_PASSWORD_FILE}" \
   && -r "${COMPATIBILITY_EVIDENCE}" ]] || { usage; exit 2; }
 release_require_commands docker jq python3 sha256sum
 cd "${RELEASE_REPO_ROOT}"
@@ -107,9 +108,18 @@ config_sha256="$(jq -r '.config_sha256' <<<"${preflight}")"
 backend_image="$(release_env_value "${ENV_FILE}" BACKEND_IMAGE)"
 frontend_image="$(release_env_value "${ENV_FILE}" FRONTEND_IMAGE)"
 previous_release_id="$(release_env_value "${ENV_FILE}" PREVIOUS_RELEASE_ID 2>/dev/null || true)"
+if [[ -n "${previous_release_id}" ]]; then
+  [[ -n "${SMOKE_EMAIL}" && -r "${SMOKE_PASSWORD_FILE}" ]] \
+    || { echo "ERROR: predecessor releases require smoke account credentials" >&2; exit 2; }
+elif [[ -n "${SMOKE_EMAIL}" || -n "${SMOKE_PASSWORD_FILE}" ]]; then
+  echo "ERROR: first-release smoke must not invent account credentials" >&2
+  exit 2
+fi
 state_file="${STATE_DIR}/${release_id}.json"
 compose=(docker compose -f "${RELEASE_COMPOSE_FILE}" --env-file "${ENV_FILE}")
-"${compose[@]}" pull --policy always >/dev/null
+if [[ "${RELEASE_LOCAL_REHEARSAL:-false}" != true ]]; then
+  "${compose[@]}" pull --policy always >/dev/null
+fi
 python3 scripts/release_contract.py "${preflight_args[@]}" --check-images >/dev/null
 python3 scripts/release_contract.py state-init \
   --state-file "${state_file}" --release-id "${release_id}" --revision "${revision}" \
@@ -118,11 +128,40 @@ python3 scripts/release_contract.py state-init \
 python3 scripts/release_contract.py state-advance \
   --state-file "${state_file}" --release-id "${release_id}" --stage preflight >/dev/null
 
-if ! release_stage_done "${state_file}" backup; then
+bundle="${BACKUP_DIR}/${release_id}.tar.gpg"
+passphrase_file="$(release_env_value "${ENV_FILE}" BACKUP_PASSPHRASE_FILE)"
+if release_stage_done "${state_file}" backup; then
+  backup_outcome="$(release_stage_outcome "${state_file}" backup)"
+  if [[ "${backup_outcome}" == "bootstrap:no-predecessor-empty-database" ]]; then
+    [[ -z "${previous_release_id}" ]] \
+      || { echo "ERROR: bootstrap backup state conflicts with a predecessor" >&2; exit 1; }
+  else
+    scripts/verify_restore.sh --env-file "${ENV_FILE}" --bundle "${bundle}" \
+      --passphrase-file "${passphrase_file}"
+    complete_bundle_sha="$(jq -r '.bundle_sha256' "${bundle}.complete.json")"
+    complete_manifest_sha="$(jq -r '.manifest_sha256' "${bundle}.complete.json")"
+    [[ "${backup_outcome}" == "passed:${complete_bundle_sha}:${complete_manifest_sha}" ]] \
+      || { echo "ERROR: retry backup authority conflicts with release state" >&2; exit 1; }
+  fi
+elif [[ -z "${previous_release_id}" ]]; then
+  "${compose[@]}" up -d --wait --wait-timeout 120 db redis >/dev/null
+  non_bootstrap_tables="$("${compose[@]}" exec -T db psql -U mobility -d mobility -Atc \
+    "SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename <> 'spatial_ref_sys'")"
+  [[ "${non_bootstrap_tables}" == "0" ]] \
+    || { echo "ERROR: first release requires an empty database with no predecessor" >&2; exit 1; }
+  python3 scripts/release_contract.py state-advance \
+    --state-file "${state_file}" --release-id "${release_id}" --stage backup \
+    --outcome "bootstrap:no-predecessor-empty-database" >/dev/null
+else
   scripts/backup_release.sh --env-file "${ENV_FILE}" --state-file "${state_file}" \
     --output-dir "${BACKUP_DIR}"
+  scripts/verify_restore.sh --env-file "${ENV_FILE}" --bundle "${bundle}" \
+    --passphrase-file "${passphrase_file}"
+  complete_bundle_sha="$(jq -r '.bundle_sha256' "${bundle}.complete.json")"
+  complete_manifest_sha="$(jq -r '.manifest_sha256' "${bundle}.complete.json")"
   python3 scripts/release_contract.py state-advance \
-    --state-file "${state_file}" --release-id "${release_id}" --stage backup >/dev/null
+    --state-file "${state_file}" --release-id "${release_id}" --stage backup \
+    --outcome "passed:${complete_bundle_sha}:${complete_manifest_sha}" >/dev/null
 fi
 
 "${compose[@]}" stop edge >/dev/null 2>&1 || true
@@ -160,12 +199,20 @@ if ! release_stage_done "${state_file}" compatibility; then
     --outcome "passed:${evidence_sha256}" >/dev/null
 fi
 
+EDGE_OPEN=true
 "${compose[@]}" up -d --no-build edge >/dev/null
+smoke_args=()
+if [[ -z "${previous_release_id}" ]]; then
+  smoke_args+=(--expect-empty-user-table)
+else
+  smoke_args+=(--email "${SMOKE_EMAIL}" --password-file "${SMOKE_PASSWORD_FILE}")
+fi
 COMPOSE_PRODUCTION_FILE="${RELEASE_COMPOSE_FILE}" COMPOSE_ENV_FILE="${ENV_FILE}" \
   SMOKE_BASE_URL="$(release_env_value "${ENV_FILE}" PUBLIC_ORIGIN)" \
-  scripts/release_smoke.sh --email "${SMOKE_EMAIL}" --password-file "${SMOKE_PASSWORD_FILE}"
+  scripts/release_smoke.sh "${smoke_args[@]}"
 python3 scripts/release_contract.py state-advance \
   --state-file "${state_file}" --release-id "${release_id}" --stage traffic >/dev/null
+EDGE_OPEN=false
 release_log release passed
 trap - EXIT HUP INT TERM
 rm -rf -- "${LOCK_DIR}"

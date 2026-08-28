@@ -135,18 +135,31 @@ printf '%s  %s\n' "${bundle_sha256}" "$(basename "${final_bundle}")" \
   >"${final_bundle}.sha256.partial"
 chmod 600 "${final_bundle}.sha256.partial"
 mv -- "${final_bundle}.sha256.partial" "${final_bundle}.sha256"
-python3 - "${final_bundle}.complete.json.partial" "${release_id}" "${bundle_sha256}" "${manifest_sha256}" "${created_at}" "${retention_days}" <<'PY'
+python3 - "${final_bundle}.complete.json.partial" "${release_id}" "${release_revision}" \
+  "${config_sha256}" "${bundle_sha256}" "${manifest_sha256}" "${created_at}" \
+  "${retention_days}" <<'PY'
 import json
 import os
 import sys
 from datetime import UTC, datetime, timedelta
 
-path, release_id, bundle_digest, manifest_digest, created_at, retention_days = sys.argv[1:]
+(
+    path,
+    release_id,
+    release_revision,
+    config_digest,
+    bundle_digest,
+    manifest_digest,
+    created_at,
+    retention_days,
+) = sys.argv[1:]
 created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
 payload = {
     "schema_version": 1,
     "state": "complete",
     "release_id": release_id,
+    "release_revision": release_revision,
+    "config_sha256": config_digest,
     "bundle_sha256": bundle_digest,
     "manifest_sha256": manifest_digest,
     "created_at": created.astimezone(UTC).isoformat().replace("+00:00", "Z"),

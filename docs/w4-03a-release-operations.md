@@ -74,6 +74,13 @@ The future approved account/domain run is deliberately short:
    `no_database_downgrade`. The validator rejects a prose note or a digest that
    does not match the selected releases.
 
+   On the first release there is no predecessor or pre-existing smoke account:
+   omit the smoke-account arguments. The script proves the database was empty
+   before migration and that the migrated `users` table is still empty, while
+   still exercising edge, health, migration, broker, worker and storage
+   readiness. Every later release requires the protected pre-existing smoke
+   credentials.
+
 7. Copy the encrypted bundle, digest, and complete marker off host. Run
    `scripts/verify_restore.sh` against the bundle. It restores an isolated
    database and temporary object prefix; it never switches traffic.
@@ -98,24 +105,47 @@ exists. `--recover-stale-lock` is permitted only after incident review and a
 `stale-lock-recovery.reference` has been placed in the protected state
 directory.
 
+A first release records an explicit
+`bootstrap:no-predecessor-empty-database` backup outcome instead of pretending
+that a predecessor backup exists. Later release retries revalidate the
+encrypted bundle, completion marker, embedded release state and manifest
+before trusting a completed backup stage.
+
 The release host pulls images and always uses `--no-build`. The edge stops
 before migration. A lost migration response is reconciled only when the
 database exactly matches the image's single Alembic head. Readiness then proves
 database revision/PostGIS, Redis, worker heartbeat and object
 write/read/delete; a report-schema canary and the externally supplied
-compatibility evidence precede the traffic switch. Any failure leaves traffic
-stopped and reports only the failed stage.
+compatibility evidence precede the traffic switch. Any failure after the edge
+opens closes it again while the release lock is still held; traffic remains
+stopped and logs report only the failed stage.
 
 ## Recovery, never downgrade
 
 Application recovery uses `scripts/recover_release.sh` with the current state,
-the exact previous environment, smoke credentials, and previous-image
+the exact current and previous environments, smoke credentials, and previous-image
 compatibility evidence. The previous release ID must match the current state's
 recorded authority. The clean recovery-orchestrator checkout must still match
 the failed current state's revision while previous image labels match the
 previous environment. Recovery stops all writers, starts the previous
 immutable images against the forward-migrated database, proves readiness, then
 reopens the edge and records a private evidence file.
+
+```bash
+scripts/recover_release.sh \
+  --current-state /secure/cardvert-release-state/current.json \
+  --current-env-file /secure/cardvert-production.env \
+  --previous-env-file /secure/cardvert-previous.env \
+  --state-dir /secure/cardvert-release-state \
+  --smoke-email approved-smoke-account \
+  --smoke-password-file /secure/cardvert-smoke-password \
+  --compatibility-evidence /secure/previous-image-compatibility.json
+```
+
+The current image performs the layered readiness probe against the
+forward-migrated database and the previous worker heartbeat. Public smoke then
+executes through the previous API/frontend while comparing the database to the
+explicit forward revision, not to the older image's Alembic head.
 
 It never runs `alembic downgrade`, destructive SQL, or an automatic database
 restore. If the previous image is not proven compatible, keep traffic stopped
@@ -134,11 +164,16 @@ restores only services that were previously running. A failure restarts the
 previous running set and leaves no complete marker.
 
 `scripts/verify_restore.sh` rejects a wrong key, changed/truncated ciphertext,
-missing/extra members, a changed manifest, database/object inventory mismatch,
-wrong migration revision, or missing PostGIS. It restores the database under a
+missing/expired completion authority, missing/extra members, a changed manifest
+or embedded state, database/object inventory mismatch, unknown migration
+revision, or missing PostGIS. It restores the database under a
 disposable isolated name and objects under a disposable verification prefix,
 compares stored-file rows with exact restored object bytes, then deletes the
-isolated targets. No traffic points at them. Retention is at most 35 days; the
+isolated targets. The snapshot revision must equal the manifest and exist in
+the exact target image's single-head migration graph; it need not already be
+the target head when verifying the mandatory pre-migration backup. Percent-
+encoded database credentials are preserved when constructing the isolated
+database URL. No traffic points at the targets. Retention is at most 35 days; the
 approved operator implements off-host lifecycle and deletion in the chosen
 account.
 
@@ -211,7 +246,10 @@ recovery evidence, and rotation/follow-up owner. Never copy live payloads.
 versioned MinIO, synthetic report object/row, exact labelled images, fresh
 PostGIS/Redis, and disposable secrets. It runs all migrations, layered
 readiness, a 100-request bounded load, encrypted backup, isolated database and
-object restore, and same-revision recovery. Its trap removes the dedicated
+object restore, an exact first-release retry, repeated backup verification, and
+recovery to the distinct pre-0071 image while the database remains at 0071.
+It then induces a post-edge smoke failure and proves the edge is stopped.
+Its trap removes the dedicated
 containers, network, volumes, files, passphrases, and backup bundle on success
 or failure. It is strong repository preparation evidence, not
 `DV-STAGING-LIVE`.

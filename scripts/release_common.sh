@@ -49,3 +49,17 @@ release_stage_done() {
   local stage="$2"
   jq -e --arg stage "${stage}" '.stages | index($stage) != null' "${state_file}" >/dev/null
 }
+
+release_stage_outcome() {
+  local state_file="$1"
+  local stage="$2"
+  jq -er --arg stage "${stage}" '.events[] | select(.stage == $stage) | .outcome' \
+    "${state_file}"
+}
+
+release_stop_edge_if_open() {
+  local edge_open="$1"
+  local env_file="$2"
+  [[ "${edge_open}" == true ]] || return 0
+  docker compose -f "${RELEASE_COMPOSE_FILE}" --env-file "${env_file}" stop edge >/dev/null
+}

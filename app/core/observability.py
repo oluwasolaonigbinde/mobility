@@ -21,10 +21,23 @@ _SENSITIVE_KEY = re.compile(
     r"lon(?:gitude)?|gps|coord(?:inate)?s?|(?:private|signed|presigned|download|"
     r"storage|object)[_-]?url|url)$"
 )
+_QUOTED_SENSITIVE_ASSIGNMENT = re.compile(
+    r"(?i)(?P<quote>['\"])(?P<key>authorization|cookie|token|password|secret|"
+    r"api[_-]?key|nin|bvn|kyc|fraud(?:[_-]?evidence)?|evidence|"
+    r"bank(?:[_-]?account)?|lat(?:itude)?|lon(?:gitude)?|gps|coord(?:inate)?s?|"
+    r"(?:private|signed|presigned|download|storage|object)[_-]?url|url)"
+    r"(?P=quote)\s*[:=]\s*(?:\"[^\"]*\"|'[^']*'|[^\s,;}]+)"
+)
 
 
 def redact_log_message(message: str) -> str:
-    return _SENSITIVE_ASSIGNMENT.sub(lambda match: f"{match.group(1)}=[REDACTED]", message)
+    redacted = _QUOTED_SENSITIVE_ASSIGNMENT.sub(
+        lambda match: (
+            f'{match.group("quote")}{match.group("key")}{match.group("quote")}="[REDACTED]"'
+        ),
+        message,
+    )
+    return _SENSITIVE_ASSIGNMENT.sub(lambda match: f"{match.group(1)}=[REDACTED]", redacted)
 
 
 class JsonLogFormatter(logging.Formatter):
@@ -34,6 +47,12 @@ class JsonLogFormatter(logging.Formatter):
         self.release_revision = release_revision
 
     def format(self, record: logging.LogRecord) -> str:
+        safe_message = scrub_observability_value(record.msg)
+        safe_arguments = scrub_observability_value(record.args)
+        try:
+            message = str(safe_message) % safe_arguments if safe_arguments else str(safe_message)
+        except (TypeError, ValueError):
+            message = f"{redact_log_message(str(safe_message))} [REDACTED_ARGUMENTS]"
         payload = {
             "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "level": record.levelname.lower(),
@@ -41,7 +60,7 @@ class JsonLogFormatter(logging.Formatter):
             "release_revision": self.release_revision,
             "logger": record.name,
             "request_id": get_request_id(),
-            "message": redact_log_message(record.getMessage()),
+            "message": redact_log_message(message),
         }
         if record.exc_info:
             payload["exception"] = "[REDACTED_EXCEPTION]"

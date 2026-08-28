@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import os
 import shutil
 import subprocess
 import tempfile
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -16,9 +19,12 @@ from app.core.observability import (
     configure_logging,
     scrub_observability_value,
 )
+from app.operations.readiness import _storage_check
 from scripts.release_contract import (
     ContractError,
     build_backup_manifest,
+    database_url_for_name,
+    validate_backup_authority,
     validate_backup_manifest,
     validate_compatibility_evidence,
     validate_compose_model,
@@ -31,12 +37,18 @@ PRODUCTION_COMPOSE = ROOT / "docker-compose.production.yml"
 PRODUCTION_ENV = ROOT / "production.env.example"
 
 
-def production_model(*, profiles: tuple[str, ...] = ()) -> dict:
+def production_model(
+    *, profiles: tuple[str, ...] = (), overrides: dict[str, str] | None = None
+) -> dict:
     command = ["docker", "compose", "-f", str(PRODUCTION_COMPOSE)]
     for profile in profiles:
         command.extend(("--profile", profile))
     command.extend(("--env-file", str(PRODUCTION_ENV), "config", "--format", "json"))
-    result = subprocess.run(command, cwd=ROOT, check=True, capture_output=True, text=True)
+    environment = os.environ.copy()
+    environment.update(overrides or {})
+    result = subprocess.run(
+        command, cwd=ROOT, check=True, capture_output=True, text=True, env=environment
+    )
     return json.loads(result.stdout)
 
 
@@ -117,15 +129,31 @@ def test_compose_contract_rejects_public_data_or_privileged_application() -> Non
     with pytest.raises(ContractError):
         validate_compose_model(model)
 
+
+def test_production_compose_preserves_package_configuration_overrides() -> None:
+    overrides = {
+        "LOGIN_RATE_LIMIT_ACCOUNT_MAX_FAILURES": "17",
+        "DRIVER_REGISTRATION_RATE_LIMIT_EMAIL_MAX_ATTEMPTS": "19",
+        "FRAUD_ASSESSMENT_FORMULA_VERSION": "reviewed_formula_v9",
+        "ROUTE_REPLAY_MIN_DISTANCE_M": "777",
+        "PRIVACY_MIN_VEHICLES_PER_CELL": "9",
+        "INSTALLATION_EVIDENCE_VALIDITY_HOURS": "47",
+        "DISPLAY_PROOF_VALIDITY_SECONDS": "313",
+        "EVIDENCE_RENEWAL_LOOKBACK_DAYS": "91",
+    }
+    model = production_model(profiles=("release",), overrides=overrides)
+
+    for service_name in ("api", "worker", "migrate"):
+        environment = model["services"][service_name]["environment"]
+        assert {name: str(environment[name]) for name in overrides} == overrides
+
     model = production_model(profiles=("release",))
     model["services"]["api"]["privileged"] = True
     with pytest.raises(ContractError):
         validate_compose_model(model)
 
     model = production_model(profiles=("release",))
-    model["services"]["api"]["volumes"] = [
-        {"type": "bind", "source": "/tmp", "target": "/app"}
-    ]
+    model["services"]["api"]["volumes"] = [{"type": "bind", "source": "/tmp", "target": "/app"}]
     with pytest.raises(ContractError):
         validate_compose_model(model)
 
@@ -170,7 +198,10 @@ def test_production_builds_pin_base_images_and_dependency_graphs() -> None:
         ("PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE", "true"),
         ("OBJECT_STORAGE_ENDPOINT_URL", "http://objects.example.com"),
         ("SESSION_COOKIE_NAME", "cardvert_session"),
-        ("DATABASE_URL", "postgresql+asyncpg://mobility:Wrong-Password-That-Is-Long@db:5432/mobility"),
+        (
+            "DATABASE_URL",
+            "postgresql+asyncpg://mobility:Wrong-Password-That-Is-Long@db:5432/mobility",
+        ),
         ("REDIS_URL", "redis://:Wrong-Password-That-Is-Long@redis:6379/0"),
         ("PAYOUT_CRYPTO_KEYRING_B64", "EXAMPLE-ONLY-REPLACE-WITH-A-KEYRING"),
         ("SENTRY_DSN", "http://public@example.invalid/1"),
@@ -246,6 +277,30 @@ def test_json_logs_correlate_and_redact_sensitive_values() -> None:
         "fraud_evidence": "[REDACTED]",
     }
 
+    structured = logging.LogRecord(
+        "app.test",
+        logging.INFO,
+        __file__,
+        1,
+        "payload=%r context=%s",
+        (
+            {"password": "Hidden-Structured", "nested": {"token": "Token-Structured"}},
+            '{"bank_account":"9988776655","latitude":9.1234}',
+        ),
+        None,
+    )
+    structured_message = json.loads(formatter.format(structured))["message"]
+    assert "Hidden-Structured" not in structured_message
+    assert "Token-Structured" not in structured_message
+    assert "9988776655" not in structured_message
+    assert "9.1234" not in structured_message
+    assert structured_message.count("[REDACTED]") >= 4
+
+
+def test_storage_readiness_requires_write_read_delete_canary() -> None:
+    with pytest.raises(RuntimeError, match="write/read/delete canary"):
+        asyncio.run(_storage_check(write_canary=False))
+
 
 def test_configure_logging_replaces_root_handlers_with_json_handler() -> None:
     root = logging.getLogger()
@@ -300,14 +355,17 @@ def test_compatibility_evidence_binds_previous_image_and_forward_schema() -> Non
             "previous_image_report_schema_canary": True,
         },
     }
-    assert validate_compatibility_evidence(
-        evidence,
-        target_release_id=evidence["target_release_id"],
-        target_revision=evidence["target_revision"],
-        target_backend_image=evidence["target_backend_image"],
-        previous_release_id=evidence["previous_release_id"],
-        forward_alembic_revision=evidence["forward_alembic_revision"],
-    )["result"] == "passed"
+    assert (
+        validate_compatibility_evidence(
+            evidence,
+            target_release_id=evidence["target_release_id"],
+            target_revision=evidence["target_revision"],
+            target_backend_image=evidence["target_backend_image"],
+            previous_release_id=evidence["previous_release_id"],
+            forward_alembic_revision=evidence["forward_alembic_revision"],
+        )["result"]
+        == "passed"
+    )
 
     changed = {**evidence, "forward_alembic_revision": "0070_other"}
     with pytest.raises(ContractError):
@@ -347,6 +405,106 @@ def test_backup_manifest_authenticates_database_objects_and_release() -> None:
         validate_backup_manifest({**manifest, "database_sha256": "5" * 64})
 
 
+def test_backup_completion_binds_ciphertext_manifest_state_and_retention() -> None:
+    created = datetime.now(UTC).replace(microsecond=0)
+    manifest = build_backup_manifest(
+        release_id="20260828T120000Z-authority",
+        release_revision="1" * 40,
+        config_sha256="2" * 64,
+        alembic_revision="0070_report_storage",
+        database_sha256="3" * 64,
+        database_bytes=1234,
+        database_marker="2026-08-28T12:00:00Z/0-A1B2",
+        objects=[],
+        retention_days=35,
+        created_at=created.isoformat().replace("+00:00", "Z"),
+    )
+    state = {
+        "schema_version": 1,
+        "release_id": manifest["release_id"],
+        "revision": manifest["release_revision"],
+        "backend_image": "registry.invalid/backend@sha256:" + "4" * 64,
+        "frontend_image": "registry.invalid/frontend@sha256:" + "5" * 64,
+        "config_sha256": manifest["config_sha256"],
+        "previous_release_id": None,
+        "stages": ["preflight"],
+        "events": [],
+    }
+    bundle_sha = "6" * 64
+    complete = {
+        "schema_version": 1,
+        "state": "complete",
+        "release_id": manifest["release_id"],
+        "release_revision": manifest["release_revision"],
+        "config_sha256": manifest["config_sha256"],
+        "bundle_sha256": bundle_sha,
+        "manifest_sha256": manifest["manifest_sha256"],
+        "created_at": manifest["created_at"],
+        "expires_at": manifest["expires_at"],
+    }
+    arguments = {
+        "complete_marker": complete,
+        "manifest": manifest,
+        "release_state": state,
+        "bundle_sha256": bundle_sha,
+        "expected_release_id": manifest["release_id"],
+        "expected_release_revision": manifest["release_revision"],
+        "expected_config_sha256": manifest["config_sha256"],
+    }
+
+    assert validate_backup_authority(**arguments)["bundle_sha256"] == bundle_sha
+    for changed_arguments in (
+        {**arguments, "complete_marker": {**complete, "bundle_sha256": "7" * 64}},
+        {**arguments, "release_state": {**state, "revision": "8" * 40}},
+        {
+            **arguments,
+            "complete_marker": {
+                **complete,
+                "expires_at": (created - timedelta(seconds=1)).isoformat().replace("+00:00", "Z"),
+            },
+        },
+    ):
+        with pytest.raises(ContractError):
+            validate_backup_authority(**changed_arguments)
+
+    expired_manifest = build_backup_manifest(
+        release_id=manifest["release_id"],
+        release_revision=manifest["release_revision"],
+        config_sha256=manifest["config_sha256"],
+        alembic_revision=manifest["alembic_revision"],
+        database_sha256=manifest["database_sha256"],
+        database_bytes=manifest["database_bytes"],
+        database_marker=manifest["database_marker"],
+        objects=[],
+        retention_days=35,
+        created_at=(created - timedelta(days=36)).isoformat().replace("+00:00", "Z"),
+    )
+    expired_complete = {
+        **complete,
+        "manifest_sha256": expired_manifest["manifest_sha256"],
+        "created_at": expired_manifest["created_at"],
+        "expires_at": expired_manifest["expires_at"],
+    }
+    with pytest.raises(ContractError, match="expired"):
+        validate_backup_authority(
+            **{
+                **arguments,
+                "complete_marker": expired_complete,
+                "manifest": expired_manifest,
+            }
+        )
+
+
+def test_restore_database_url_preserves_percent_encoded_password() -> None:
+    original = "postgresql+asyncpg://mobility:p%40ss%2Fword%3A2026@db:5432/mobility"
+
+    assert database_url_for_name(original, "cardvert_restore_verify_1234") == (
+        "postgresql+asyncpg://mobility:p%40ss%2Fword%3A2026@db:5432/cardvert_restore_verify_1234"
+    )
+    with pytest.raises(ContractError):
+        database_url_for_name(original, "unsafe/name")
+
+
 def test_operational_entry_points_are_shell_valid() -> None:
     scripts = [
         ROOT / "scripts/release.sh",
@@ -374,6 +532,45 @@ def test_release_scripts_never_run_alembic_downgrade() -> None:
     assert "alembic downgrade" not in scripts
     assert "--no-build" in scripts
     assert "migration_response_lost" in scripts
+    assert "bootstrap:no-predecessor-empty-database" in scripts
+    assert "--expected-database-revision" in scripts
+    assert "--current-env-file" in scripts
+
+
+def test_failure_cleanup_stops_an_open_edge(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    calls = tmp_path / "docker.calls"
+    docker = fake_bin / "docker"
+    docker.write_text('#!/usr/bin/env bash\nprintf "%s\\n" "$*" >>"$DOCKER_CALLS"\n')
+    docker.chmod(0o755)
+    env_file = tmp_path / "release.env"
+    env_file.write_text("ENVIRONMENT=production\n")
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            (
+                "source scripts/release_common.sh; "
+                'release_stop_edge_if_open false "$ENV_FILE"; '
+                'release_stop_edge_if_open true "$ENV_FILE"'
+            ),
+        ],
+        cwd=ROOT,
+        env={
+            **os.environ,
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "DOCKER_CALLS": str(calls),
+            "ENV_FILE": str(env_file),
+        },
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert calls.read_text().splitlines() == [
+        f"compose -f {PRODUCTION_COMPOSE} --env-file {env_file} stop edge"
+    ]
 
 
 def test_encrypted_bundle_rejects_wrong_key_and_changed_ciphertext(

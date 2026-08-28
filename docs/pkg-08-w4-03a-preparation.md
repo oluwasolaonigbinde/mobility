@@ -72,12 +72,16 @@ returned `REVISE`. The candidate plan was narrowed and strengthened once to:
   production Compose rendered with only Caddy 80/443 public, private app/data
   networks, mandatory worker, release-only migrate, immutable images and no
   build directives; pinned Caddy validated the configuration.
-- Production-like rehearsal: exact labelled backend/frontend images built;
+- Production-like rehearsal: exact labelled current and pre-0071
+  backend/frontend images built;
   fresh PostGIS/Redis/private versioned MinIO started; Alembic upgraded from
   0001 through 0071; API/worker/frontend became healthy; layered readiness and
   storage write/read/delete passed; 100 concurrent health requests passed at
   p95 11.81 ms; writer-quiesced encrypted backup completed; isolated database
-  and object restore passed; same-revision recovery passed; the disposable
+  and object restore passed twice; first-release retry converged; the distinct
+  previous image served authenticated smoke against the forward 0071 schema
+  without downgrade; a deliberate post-edge smoke failure closed the edge;
+  the disposable
   project and volumes were removed.
 - First rehearsal correction: object snapshot import ordering failed before a
   complete bundle was written; cleanup restarted the prior services and
@@ -93,9 +97,17 @@ returned `REVISE`. The candidate plan was narrowed and strengthened once to:
   produced; prior services and the disposable project were restored/removed.
   Backup and restore now use separately created short, mode-0700 `/tmp` GPG
   homes and remove them on every exit; the entire rehearsal then passed.
+- Required clean-context minimal-change review red: verdict `FIX` identified
+  eight P1 release/data-loss gaps—edge fail-stop ordering, distinct-image
+  forward-schema recovery, completion-marker/embedded-state authority,
+  omitted inherited settings, structured logging arguments, optional storage
+  canary, impossible first-release backup/smoke semantics, and reserved URL
+  credentials. The candidate now closes each gap with focused regressions and
+  the expanded full rehearsal; a fresh exact-tip review remains the completion
+  gate.
 
 Final lint/tests, §9 byte-stability, secret/exposure scan, and clean-context
 post-build minimal-change review are recorded in the final candidate commit
 and controller handoff. Live DNS/TLS, public edge, provider backups/alerts,
-external restore, previous-release compatibility, and credential rotation are
+external restore, live previous-release compatibility, and credential rotation are
 not run because they require `EXT-RELEASE-ENV` and `EXT-STAGING-APPROVAL`.

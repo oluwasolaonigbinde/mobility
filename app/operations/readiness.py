@@ -56,48 +56,43 @@ async def _broker_check(redis_url: str) -> dict[str, int | str]:
 
 
 async def _storage_check(*, write_canary: bool) -> dict[str, str]:
+    if not write_canary:
+        raise RuntimeError("storage readiness requires the private write/read/delete canary")
     settings = get_settings()
     storage = build_storage_provider(settings)
     canary_key = f"release-canary/{settings.release_revision}/{uuid4().hex}"
     payload = b"cardvert-private-storage-readiness-v1"
     digest = hashlib.sha256(payload).hexdigest()
-    if write_canary:
-        observed = await storage.put(
-            object_key=canary_key,
-            content_type="application/octet-stream",
-            data=payload,
-            checksum_sha256=digest,
-        )
-        if observed.checksum_sha256 != digest:
-            raise RuntimeError("storage canary checksum mismatch")
-        streamed = bytearray()
-        async for chunk in storage.stream(canary_key):
-            streamed.extend(chunk)
-        if hashlib.sha256(streamed).hexdigest() != digest:
-            raise RuntimeError("storage canary read mismatch")
-        anonymous_url = (
-            f"{settings.object_storage_public_endpoint_url.rstrip('/')}"
-            f"/{quote(settings.object_storage_bucket, safe='')}"
-            f"/{quote(canary_key, safe='/')}"
-        )
+    observed = await storage.put(
+        object_key=canary_key,
+        content_type="application/octet-stream",
+        data=payload,
+        checksum_sha256=digest,
+    )
+    if observed.checksum_sha256 != digest:
+        raise RuntimeError("storage canary checksum mismatch")
+    streamed = bytearray()
+    async for chunk in storage.stream(canary_key):
+        streamed.extend(chunk)
+    if hashlib.sha256(streamed).hexdigest() != digest:
+        raise RuntimeError("storage canary read mismatch")
+    anonymous_url = (
+        f"{settings.object_storage_public_endpoint_url.rstrip('/')}"
+        f"/{quote(settings.object_storage_bucket, safe='')}"
+        f"/{quote(canary_key, safe='/')}"
+    )
+    try:
         try:
-            try:
-                response = await asyncio.to_thread(urlopen, anonymous_url, None, 5)
-            except HTTPError as exc:
-                if exc.code not in {401, 403, 404}:
-                    raise RuntimeError(
-                        "storage privacy canary returned an unsafe response"
-                    ) from exc
-            else:
-                response.close()
-                raise RuntimeError("storage canary is anonymously readable")
-        finally:
-            await storage.delete(canary_key)
-        return {"status": "private_read_write_delete_ok"}
-    # stat on a deliberately absent synthetic key proves the adapter is configured,
-    # but a read-only probe cannot distinguish a private 404 from total provider loss.
-    # The release gate therefore always uses --write-canary.
-    return {"status": "configured_only"}
+            response = await asyncio.to_thread(urlopen, anonymous_url, None, 5)
+        except HTTPError as exc:
+            if exc.code not in {401, 403, 404}:
+                raise RuntimeError("storage privacy canary returned an unsafe response") from exc
+        else:
+            response.close()
+            raise RuntimeError("storage canary is anonymously readable")
+    finally:
+        await storage.delete(canary_key)
+    return {"status": "private_read_write_delete_ok"}
 
 
 def _worker_check() -> dict[str, str]:

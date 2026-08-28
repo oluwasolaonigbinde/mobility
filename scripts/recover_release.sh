@@ -4,27 +4,31 @@ set -Eeuo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/release_common.sh"
 
 CURRENT_STATE=""
+CURRENT_ENV_FILE=""
 PREVIOUS_ENV_FILE=""
 STATE_DIR=""
 SMOKE_EMAIL=""
 SMOKE_PASSWORD_FILE=""
 COMPATIBILITY_EVIDENCE=""
 LOCK_DIR=""
+EDGE_OPEN=false
 
 cleanup() {
   local exit_code=$?
   set +e
-  [[ -z "${LOCK_DIR}" ]] || rm -rf -- "${LOCK_DIR}"
   if (( exit_code != 0 )); then
+    release_stop_edge_if_open "${EDGE_OPEN}" "${PREVIOUS_ENV_FILE}" || true
     release_log release_recovery failed >&2
   fi
+  [[ -z "${LOCK_DIR}" ]] || rm -rf -- "${LOCK_DIR}"
   exit "${exit_code}"
 }
 trap cleanup EXIT HUP INT TERM
 
 usage() {
   cat >&2 <<'EOF'
-Usage: scripts/recover_release.sh --current-state PATH --previous-env-file PATH
+Usage: scripts/recover_release.sh --current-state PATH --current-env-file PATH
+       --previous-env-file PATH
        --state-dir PATH --smoke-email ADDRESS --smoke-password-file PATH
        --compatibility-evidence PATH
 EOF
@@ -33,6 +37,7 @@ EOF
 while (( $# > 0 )); do
   case "$1" in
     --current-state) CURRENT_STATE="$2"; shift ;;
+    --current-env-file) CURRENT_ENV_FILE="$2"; shift ;;
     --previous-env-file) PREVIOUS_ENV_FILE="$2"; shift ;;
     --state-dir) STATE_DIR="$2"; shift ;;
     --smoke-email) SMOKE_EMAIL="$2"; shift ;;
@@ -44,7 +49,7 @@ while (( $# > 0 )); do
   shift
 done
 
-[[ -r "${CURRENT_STATE}" && -r "${PREVIOUS_ENV_FILE}" && -n "${STATE_DIR}" \
+[[ -r "${CURRENT_STATE}" && -r "${CURRENT_ENV_FILE}" && -r "${PREVIOUS_ENV_FILE}" && -n "${STATE_DIR}" \
   && -n "${SMOKE_EMAIL}" && -r "${SMOKE_PASSWORD_FILE}" \
   && -r "${COMPATIBILITY_EVIDENCE}" ]] || { usage; exit 2; }
 release_require_commands docker jq python3 sha256sum
@@ -63,9 +68,22 @@ printf '{"host":"%s","pid":%s,"operation":"recovery"}\n' "$(hostname)" "$$" \
   >"${LOCK_DIR}/owner.json"
 chmod 600 "${LOCK_DIR}/owner.json"
 
+current_preflight_args=(preflight --env-file "${CURRENT_ENV_FILE}" \
+  --compose-file "${RELEASE_COMPOSE_FILE}")
 preflight_args=(preflight --env-file "${PREVIOUS_ENV_FILE}" \
   --compose-file "${RELEASE_COMPOSE_FILE}" \
   --expected-checkout-revision "$(jq -r '.revision' "${CURRENT_STATE}")")
+if [[ "${RELEASE_LOCAL_REHEARSAL:-false}" == true ]]; then
+  current_preflight_args+=(--local-rehearsal)
+  preflight_args+=(--local-rehearsal)
+fi
+current_preflight="$(python3 scripts/release_contract.py "${current_preflight_args[@]}" --check-images)"
+[[ "$(jq -r '.release_id' <<<"${current_preflight}")" == "$(jq -r '.release_id' "${CURRENT_STATE}")" \
+  && "$(jq -r '.release_revision' <<<"${current_preflight}")" == "$(jq -r '.revision' "${CURRENT_STATE}")" \
+  && "$(jq -r '.config_sha256' <<<"${current_preflight}")" == "$(jq -r '.config_sha256' "${CURRENT_STATE}")" ]] \
+  || { echo "ERROR: current environment does not match current release authority" >&2; exit 1; }
+jq -e '.stages | index("migration") != null' "${CURRENT_STATE}" >/dev/null \
+  || { echo "ERROR: recovery requires recorded forward-migration authority" >&2; exit 1; }
 python3 scripts/release_contract.py "${preflight_args[@]}" >/dev/null
 previous_release_id="$(release_env_value "${PREVIOUS_ENV_FILE}" RELEASE_ID)"
 [[ "$(jq -r '.previous_release_id' "${CURRENT_STATE}")" == "${previous_release_id}" ]] \
@@ -74,7 +92,9 @@ previous_revision="$(release_env_value "${PREVIOUS_ENV_FILE}" RELEASE_REVISION)"
 previous_backend_image="$(release_env_value "${PREVIOUS_ENV_FILE}" BACKEND_IMAGE)"
 
 compose=(docker compose -f "${RELEASE_COMPOSE_FILE}" --env-file "${PREVIOUS_ENV_FILE}")
-"${compose[@]}" pull --policy always >/dev/null
+if [[ "${RELEASE_LOCAL_REHEARSAL:-false}" != true ]]; then
+  "${compose[@]}" pull --policy always >/dev/null
+fi
 python3 scripts/release_contract.py "${preflight_args[@]}" --check-images >/dev/null
 forward_alembic_revision="$("${compose[@]}" exec -T db psql -U mobility -d mobility -Atc \
   'SELECT version_num FROM alembic_version')"
@@ -92,12 +112,15 @@ compatibility_sha256="$(python3 scripts/release_contract.py compatibility-valida
 "${compose[@]}" up -d --no-build --wait --wait-timeout 120 db redis api worker frontend >/dev/null
 # Recovery never runs an Alembic downgrade. The supplied compatibility evidence
 # must prove the previous image against the forward-migrated schema.
-"${compose[@]}" exec -T api python -m app.operations.readiness \
-  --write-canary --allow-database-ahead
+current_compose=(docker compose -f "${RELEASE_COMPOSE_FILE}" --env-file "${CURRENT_ENV_FILE}")
+"${current_compose[@]}" run --rm -T --no-deps api \
+  python -m app.operations.readiness --write-canary
+EDGE_OPEN=true
 "${compose[@]}" up -d --no-build edge >/dev/null
 COMPOSE_PRODUCTION_FILE="${RELEASE_COMPOSE_FILE}" COMPOSE_ENV_FILE="${PREVIOUS_ENV_FILE}" \
   SMOKE_BASE_URL="$(release_env_value "${PREVIOUS_ENV_FILE}" PUBLIC_ORIGIN)" \
-  scripts/release_smoke.sh --email "${SMOKE_EMAIL}" --password-file "${SMOKE_PASSWORD_FILE}"
+  scripts/release_smoke.sh --email "${SMOKE_EMAIL}" --password-file "${SMOKE_PASSWORD_FILE}" \
+    --expected-database-revision "${forward_alembic_revision}"
 
 python3 - "${STATE_DIR}/recovery-$(date -u +%Y%m%dT%H%M%SZ).json" \
   "$(jq -r '.release_id' "${CURRENT_STATE}")" "${previous_release_id}" "${compatibility_sha256}" <<'PY'
@@ -121,6 +144,7 @@ with os.fdopen(descriptor, "w", encoding="utf-8") as output:
     json.dump(payload, output, sort_keys=True, separators=(",", ":"))
     output.write("\n")
 PY
+EDGE_OPEN=false
 release_log release_recovery passed
 trap - EXIT HUP INT TERM
 rm -rf -- "${LOCK_DIR}"
