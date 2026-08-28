@@ -62,9 +62,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 **Control package:** `PKG-09` — PKG-03 and PKG-08 have no remaining runnable
 work while their registered external/live inputs are missing; PKG-04/05/06/07
 are complete, and Package 9 preparation is dependency-safe.
-**Current checkpoint:** `PKG-09 / W4-04A` — author the role-based task and
-operator materials from integrated repository truth; rehearsal and acceptance
-remain gated by the client-owned release and named operations owner.
+**Current checkpoint:** `PKG-09 / W4-03C` — prepare provider-neutral pilot
+telemetry, rollback, payout/report replay, incident and evidence-capture
+materials; the controlled pilot remains gated by its registered live inputs.
 
 ## Executable package queue
 
@@ -1414,6 +1414,16 @@ remain gated by the client-owned release and named operations owner.
   users, live pilot telemetry, named owners, credential handover and sign-off
   remain external/live gates. Each checkpoint receives focused verification;
   Package 9 receives one consolidated review after preparation stabilizes.
+- **W4-04A-P1 role-training preparation (28 Aug 2026):** commit `c182181`
+  adds actual-route admin/advertiser/driver task inventories, six-domain
+  operator procedures and a deterministic local-link, command, role, coverage
+  and false-live-claim audit. Six focused tests, the documented audit command,
+  Python compilation and diff checks pass. The single clean-context
+  `$minimal-change-review` found unresolved `python` command references; the
+  bounded correction standardizes `python3`, validates interpreter availability
+  and reruns the affected evidence. Facilitated rehearsal, user acceptance and
+  live operation remain unclaimed; `EXT-RELEASE-ENV`,
+  `EXT-STAGING-APPROVAL` and `EXT-OPERATIONS-OWNER` remain missing.
 - **Closure:** accepted operating materials, monitored pilot evidence, known
   risks/deferments and named owners agree with repository truth.
 
