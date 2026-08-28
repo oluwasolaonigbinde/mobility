@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import inspect
 import subprocess
 import sys
 
 import pytest
+from test_measurement_runs import create_measurement_graph
 
 from scripts import run_w403b_synthetic_journey as journey
 
@@ -22,6 +24,15 @@ def test_stage_contract_and_current_committed_blockers_are_exact() -> None:
         "incident/recovery",
     )
     assert journey.evaluate_live_boundaries({}) == journey.EXPECTED_BLOCKERS
+
+
+def test_shared_measurement_fixture_preserves_legacy_defaults() -> None:
+    parameters = inspect.signature(create_measurement_graph).parameters
+
+    assert parameters["organization_name"].default == "Acme Ads"
+    assert parameters["billing_email"].default == "billing@acme.test"
+    assert parameters["campaign_name"].default == "Launch Campaign"
+    assert parameters["advertiser_first"].default is False
 
 
 def test_fabricated_runtime_approval_fails_the_real_command_boundary() -> None:

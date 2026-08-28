@@ -70,14 +70,24 @@ facts, permits and external deployment/staging explicitly closed.
 - Single journey command: passed one backend acceptance test and one
   mobile-Chrome Playwright proof, then printed the six exact blockers and the
   synthetic PASS receipt.
-- Focused runner tests: seven passed, covering exact order/current blockers,
+- Backend conservation red: a safe temporary inversion of the frozen-receipt
+  equality failed on the identical before/after receipt; the invariant was
+  restored before the green run.
+- Runner red: temporarily removing `EXT-SETTLEMENT-BANK` from the expected
+  G-money line produced two focused failures; the exact blocker was restored.
+- Focused runner tests: eight passed, covering exact order/current blockers,
   real command-boundary forgery, unexpected PASS, missing/reordered blocker,
-  malformed evaluator output and child-test failure.
+  malformed evaluator output, child-test failure and preserved shared-helper
+  defaults.
 - Preserved behavior: the original W4-01C mobile-Chrome proof passed (one
   expected iPhone-profile skip); the default measurement ROI and advertiser
   report helper regressions both passed.
 - Focused static checks: Ruff format/check, Python compilation, Prettier and
   ESLint passed for the changed acceptance files.
+- Clean-context minimal-change review: `FIX`. One bounded correction restored
+  the helper's exact legacy organization/billing/campaign defaults, made
+  advertiser-first construction W4-03B-specific and supplied the backend and
+  runner red evidence above. No second review was run.
 
 ## Remaining gates
 

@@ -32,25 +32,31 @@ def create_measurement_graph(
     *,
     identity_tag: str = "measurement",
     identity_domain: str = "example.com",
-    campaign_name: str | None = None,
+    organization_name: str = "Acme Ads",
+    billing_email: str = "billing@acme.test",
+    campaign_name: str = "Launch Campaign",
     service_city: str = "Lagos",
+    advertiser_first: bool = False,
 ):
-    admin = create_test_user(
-        db_sessionmaker,
-        email=f"{identity_tag}-admin@{identity_domain}",
-        password=PASSWORD,
-        role=UserRole.ADMIN,
+    actors = {}
+    actor_roles = (
+        (UserRole.ADVERTISER, UserRole.ADMIN)
+        if advertiser_first
+        else (UserRole.ADMIN, UserRole.ADVERTISER)
     )
-    advertiser = create_test_user(
-        db_sessionmaker,
-        email=f"{identity_tag}-advertiser@{identity_domain}",
-        password=PASSWORD,
-        role=UserRole.ADVERTISER,
-    )
+    for role in actor_roles:
+        actors[role] = create_test_user(
+            db_sessionmaker,
+            email=f"{identity_tag}-{role.value}@{identity_domain}",
+            password=PASSWORD,
+            role=role,
+        )
+    admin = actors[UserRole.ADMIN]
+    advertiser = actors[UserRole.ADVERTISER]
     organization, _ = create_test_organization(
         db_sessionmaker,
-        name=f"{identity_tag} synthetic advertiser",
-        billing_email=f"{identity_tag}-billing@{identity_domain}",
+        name=organization_name,
+        billing_email=billing_email,
         owner_user_id=advertiser.id,
     )
     campaign = create_test_campaign(
@@ -60,7 +66,7 @@ def create_measurement_graph(
         campaign_status=CampaignStatus.ACTIVE,
         start_at=DAY_1 - timedelta(days=1),
         end_at=DAY_1 + timedelta(days=10),
-        name=campaign_name or "Test Campaign",
+        name=campaign_name,
     )
     creative = create_test_campaign_creative(
         db_sessionmaker,

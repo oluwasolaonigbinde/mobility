@@ -238,8 +238,11 @@ def test_correlated_synthetic_pilot_journey(db_client, db_sessionmaker, settings
         db_sessionmaker,
         identity_tag=CORRELATION_ID,
         identity_domain=IDENTITY_DOMAIN,
+        organization_name=f"Synthetic advertiser · {CORRELATION_ID}",
+        billing_email=f"{CORRELATION_ID}-billing@{IDENTITY_DOMAIN}",
         campaign_name=f"Synthetic Abuja Campaign · {CORRELATION_ID}",
         service_city="Abuja",
+        advertiser_first=True,
     )
     assert advertiser.email == f"{CORRELATION_ID}-advertiser@{IDENTITY_DOMAIN}"
     completed.append("advertiser")
