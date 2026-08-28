@@ -1,0 +1,71 @@
+{
+  "schema_version": "w403b-local-load-reproducibility-v1",
+  "frozen_authority_sha256": "d52ca583faf4e41d3ea5ca9ee3b5e2514154b0fb69741389b921b7df815539af",
+  "profile": {
+    "city": "Abuja",
+    "vehicles": 10,
+    "advertisers": 5,
+    "nominal_duration_days": 92,
+    "time_compression": "Ten deterministic in-process samples represent the confirmed three-month cohort; this is not a burn-in."
+  },
+  "measurement_input": {
+    "schema_version": "measurement-input-manifest-v1",
+    "mode": "performance_only",
+    "test_only": true,
+    "formula_version": "measurement-result-v1",
+    "method_revision": "measurement-contract-v1",
+    "period": {
+      "start_at": "2026-06-01T00:00:00+00:00",
+      "end_at": "2026-09-01T00:00:00+00:00"
+    },
+    "proof_manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "sources": {
+      "trip_analytics": [
+        {"trip_session_id": "trip-01", "status": "computed", "distance_m": "1000.00", "active_tracking_seconds": 3600},
+        {"trip_session_id": "trip-02", "status": "computed", "distance_m": "1001.00", "active_tracking_seconds": 3600},
+        {"trip_session_id": "trip-03", "status": "computed", "distance_m": "1002.00", "active_tracking_seconds": 3600},
+        {"trip_session_id": "trip-04", "status": "computed", "distance_m": "1003.00", "active_tracking_seconds": 3600},
+        {"trip_session_id": "trip-05", "status": "computed", "distance_m": "1004.00", "active_tracking_seconds": 3600},
+        {"trip_session_id": "trip-06", "status": "computed", "distance_m": "1005.00", "active_tracking_seconds": 3600},
+        {"trip_session_id": "trip-07", "status": "computed", "distance_m": "1006.00", "active_tracking_seconds": 3600},
+        {"trip_session_id": "trip-08", "status": "computed", "distance_m": "1007.00", "active_tracking_seconds": 3600},
+        {"trip_session_id": "trip-09", "status": "computed", "distance_m": "1008.00", "active_tracking_seconds": 3600},
+        {"trip_session_id": "trip-10", "status": "computed", "distance_m": "1009.00", "active_tracking_seconds": 3600}
+      ],
+      "impression_estimates": [
+        {"status": "estimated", "formula_version": "impression_v1", "estimated_impressions": "100"},
+        {"status": "estimated", "formula_version": "impression_v1", "estimated_impressions": "101"},
+        {"status": "estimated", "formula_version": "impression_v1", "estimated_impressions": "102"},
+        {"status": "estimated", "formula_version": "impression_v1", "estimated_impressions": "103"},
+        {"status": "estimated", "formula_version": "impression_v1", "estimated_impressions": "104"},
+        {"status": "estimated", "formula_version": "impression_v1", "estimated_impressions": "105"},
+        {"status": "estimated", "formula_version": "impression_v1", "estimated_impressions": "106"},
+        {"status": "estimated", "formula_version": "impression_v1", "estimated_impressions": "107"},
+        {"status": "estimated", "formula_version": "impression_v1", "estimated_impressions": "108"},
+        {"status": "estimated", "formula_version": "impression_v1", "estimated_impressions": "109"}
+      ],
+      "payout_calculations": [
+        {"status": "calculated", "currency": "NGN", "final_payout": "100.00"},
+        {"status": "calculated", "currency": "NGN", "final_payout": "101.00"},
+        {"status": "calculated", "currency": "NGN", "final_payout": "102.00"},
+        {"status": "calculated", "currency": "NGN", "final_payout": "103.00"},
+        {"status": "calculated", "currency": "NGN", "final_payout": "104.00"},
+        {"status": "calculated", "currency": "NGN", "final_payout": "105.00"},
+        {"status": "calculated", "currency": "NGN", "final_payout": "106.00"},
+        {"status": "calculated", "currency": "NGN", "final_payout": "107.00"},
+        {"status": "calculated", "currency": "NGN", "final_payout": "108.00"},
+        {"status": "calculated", "currency": "NGN", "final_payout": "109.00"}
+      ]
+    }
+  },
+  "report_snapshot": {
+    "schema_version": "campaign-performance-export-v1",
+    "title": "Campaign Performance Analysis",
+    "synthetic": true,
+    "creation_authority": "administrator",
+    "issuance": {"id": "00000000-0000-4000-8000-000000000090", "version": 1, "schema_version": "campaign-performance-export-v1", "renderer_version": "campaign-report-renderer-v1", "created_at": "2026-08-28T00:00:00+00:00", "creation_authority": "administrator"},
+    "measurement": {"run_id": "11111111-1111-1111-1111-111111111111", "result_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "proof_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "report_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "method_revision": "measurement-contract-v1", "formula_version": "measurement-result-v1", "period_start_at": "2026-06-01T00:00:00+00:00", "period_end_at": "2026-09-01T00:00:00+00:00"},
+    "metrics": [{"id": "verified_vehicle_movement", "label": "Verified vehicle movement", "class": "measured_operational_fact", "values": [{"label": "Trip count", "value": "10", "unit": "trips"}, {"label": "Distance", "value": "10045.00", "unit": "metres"}]}, {"id": "modelled_potential_contacts", "label": "Modelled potential contacts", "class": "modelled_measure", "values": [{"label": "Value", "value": "1045", "unit": "contacts"}], "uncertainty": "Synthetic only; not observed people"}],
+    "exposure": {"state": "suppressed", "score": null, "zones": [], "formula_version": "exposure_v1", "formula_fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "input_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "segment_snapshot_hashes": [], "disclaimer": "No cell satisfied the disclosure floor.", "authority_fingerprint": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}
+  }
+}
