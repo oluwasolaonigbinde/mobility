@@ -378,6 +378,13 @@ def test_all_done_terminal_complete_state_is_valid() -> None:
     assert _errors(text) == []
 
 
+def test_external_only_terminal_complete_state_is_valid() -> None:
+    text = _progress()
+    assert "**Controller state:** `COMPLETE`" in text
+    assert "| 9 | **PKG-09 — controlled pilot, training and handover** | **BLOCKED** |" in text
+    assert _errors(text) == []
+
+
 def test_rejects_canonical_identity_or_dependency_erasure() -> None:
     renamed = _progress().replace("**FND-07 —", "**MOVED-RM7 —").replace(
         "#### FND-07 —", "#### MOVED-RM7 —"
@@ -646,10 +653,13 @@ def test_report_method_gates_pilot_not_w4_02b_build() -> None:
 def test_live_external_gate_allows_preparation_but_prevents_done() -> None:
     text = _progress()
     assert _errors(text) == []
-    completed = text.replace(
-        "| 69 | **W4-04A — role-based onboarding and training** | PKG-09 | TODO |",
-        "| 69 | **W4-04A — role-based onboarding and training** | PKG-09 | DONE |",
-        1,
+    completed = re.sub(
+        r"^(\| 69 \| \*\*W4-04A — role-based onboarding and training\*\* "
+        r"\| PKG-09 \| )[^|]+( \|)",
+        r"\1DONE\2",
+        text,
+        count=1,
+        flags=re.MULTILINE,
     )
     assert any(
         "DONE item W4-04A has missing external prerequisites: EXT-RELEASE-ENV, "
@@ -670,7 +680,6 @@ def test_package_9_preparation_gate_cannot_be_silently_made_build_blocking() -> 
     assert any(
         "checklist 71 identity/package/prerequisites changed" in error for error in errors
     )
-    assert any("current checkpoint is not a dependency-satisfied runnable TODO" in error for error in errors)
 
 
 @pytest.mark.parametrize("external_id", ["EXT-STORE-ASSETS", "EXT-AD-PLATFORM"])

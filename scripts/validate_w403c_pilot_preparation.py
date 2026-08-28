@@ -341,8 +341,14 @@ def validate_pack(
                 errors.append(f"{name}: prohibited completion/live claim: {claim.pattern}")
 
     readme = contents.get("README.md", "")
-    if "W4-03C remains `TODO`. No monitored controlled pilot has been performed." not in readme:
-        errors.append("README.md: missing truthful W4-03C TODO/no-pilot statement")
+    if (
+        "W4-03C remains incomplete and externally blocked. No monitored controlled "
+        "pilot\nhas been performed."
+        not in readme
+    ):
+        errors.append(
+            "README.md: missing truthful W4-03C incomplete/external-block statement"
+        )
     errors.extend(_gate_parity_errors(root, readme, progress_text_override))
 
     operations = contents.get("operations-pack.md", "")
@@ -386,7 +392,8 @@ def main() -> int:
             print(f"FAIL: {error}", file=sys.stderr)
         return 1
     print(
-        "W4-03C-P1 preparation audit PASS — synthetic/local preparation only; W4-03C remains TODO"
+        "W4-03C-P1 preparation audit PASS — synthetic/local preparation only; "
+        "W4-03C remains incomplete and externally blocked"
     )
     return 0
 

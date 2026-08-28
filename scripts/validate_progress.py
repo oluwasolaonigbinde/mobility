@@ -793,14 +793,23 @@ def validate_text(text: str) -> list[str]:
         all_complete = bool(packages and items) and all(
             package.status == "DONE" for package in packages
         ) and all(item.status == "DONE" for item in items)
+        build_exhausted = bool(packages and items) and all(
+            package.status in {"DONE", "BLOCKED"} for package in packages
+        ) and all(
+            item.status == "DONE" or item.status.startswith("BLOCKED — ")
+            for item in items
+        ) and not any(runnable(item) for item in items)
         if controller_state == "COMPLETE":
-            if not all_complete:
-                errors.append("COMPLETE controller requires all packages and checklist items DONE")
+            if not (all_complete or build_exhausted):
+                errors.append(
+                    "COMPLETE controller requires all work DONE or every unfinished "
+                    "package/checklist item externally BLOCKED with no runnable TODO"
+                )
             if package_pointer != "PKG-09":
                 errors.append("COMPLETE controller must retain PKG-09 as control package")
             if not checkpoint_match or checkpoint_match.groups() != ("PKG-09", "W4-04B"):
                 errors.append("COMPLETE controller must retain PKG-09 / W4-04B checkpoint")
-            if incomplete_deferred:
+            if all_complete and incomplete_deferred:
                 errors.append(
                     "COMPLETE controller requires deferred validation COMPLETE: "
                     + ", ".join(incomplete_deferred)

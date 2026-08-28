@@ -2,7 +2,8 @@
 
 This directory is a provider-neutral preparation pack. It is not an operating
 authority, approval record, production configuration, or pilot receipt.
-W4-03C remains `TODO`. No monitored controlled pilot has been performed.
+W4-03C remains incomplete and externally blocked. No monitored controlled pilot
+has been performed.
 
 Use the [operations pack](operations-pack.md) to prepare observation, stop,
 rollback, replay, incident, and evidence records. Use the

@@ -63,7 +63,7 @@ def test_committed_pilot_preparation_pack_passes() -> None:
         ),
         (
             "README.md",
-            "W4-03C remains `TODO`.",
+            "W4-03C remains incomplete and externally blocked.",
             "W4-03C is DONE.",
             "prohibited completion/live claim",
         ),
