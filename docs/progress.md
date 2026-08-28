@@ -1345,6 +1345,20 @@ live deployment and pilot evidence remain gated by their registered EXT/DV IDs.
   `$minimal-change-review` found no scope defect and requested four additional
   regression cases, which pass at the integrated tip. No authority document,
   runtime business logic, provider state or external/live evidence changed.
+- **W4-03B-P2 synthetic-journey evidence (28 Aug 2026):** commits `c68d9a1`
+  and `cb77eef` add one correlated Abuja acceptance command spanning synthetic
+  advertiser/admin setup, screen-on PWA and GPS simulation, measurement,
+  Campaign Performance Analysis, qualified synthetic conditional ROI,
+  aggregate contextual activation, a frozen payout instruction and
+  incident/recovery conservation. The command passed its backend and
+  mobile-Chrome path and accepted only the evaluator's six exact ordered
+  `BLOCKED` lines; forged approval, cross-tenant access, provider calls, live
+  GPS, report issuance and changed recovery receipts fail closed. Ten focused
+  pytest checks, the preserved W4-01C proof and scoped Python/frontend static
+  checks passed. One clean-context `$minimal-change-review` requested a single
+  bounded correction restoring shared fixture defaults, making advertiser-first
+  setup W4-03B-specific and adding missing red evidence. W4-03B remains TODO;
+  no external/live gate or provider state changed.
 - **Closure:** every §35 gate is evidenced; restore, security, load, report
   reproducibility and end-to-end pilot simulation pass.
 
