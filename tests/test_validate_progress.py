@@ -567,7 +567,7 @@ def test_rejects_nonqueued_package_after_active_frontier() -> None:
     )
 
 
-def test_later_blocked_package_still_validates() -> None:
+def test_later_package_cannot_be_blocked_while_synthetic_w403b_is_runnable() -> None:
     text = _pkg01_active().replace(
         "| 8 | **PKG-08 — governed reporting and pilot readiness** | QUEUED |",
         "| 8 | **PKG-08 — governed reporting and pilot readiness** | BLOCKED |",
@@ -582,7 +582,10 @@ def test_later_blocked_package_still_validates() -> None:
         "| 67 | **W4-03A — client-owned release environment** | PKG-08 "
         "| BLOCKED — EXT-RELEASE-ENV |",
     )
-    assert _errors(text) == []
+    assert any(
+        "BLOCKED package still has runnable TODO work" in error
+        for error in _errors(text)
+    )
 
 
 def test_basemap_gates_live_release_not_w4_02a_build() -> None:
@@ -615,6 +618,10 @@ def test_report_method_gates_pilot_not_w4_02b_build() -> None:
     assert "EXT-REPORT-METHOD" not in row_66
     assert row_66.rstrip().endswith("| leaf: W4-02A |")
     assert "EXT-REPORT-METHOD" in row_68
+    assert "leaf: W4-02B" in row_68
+    assert "all-prior" not in row_68
+    assert "EXT-RELEASE-ENV" in row_68
+    assert "EXT-STAGING-APPROVAL" in row_68
     assert _errors(text) == []
     regressed = text.replace(
         "| leaf: W4-02A |", "| leaf: W4-02A; external: EXT-REPORT-METHOD |", 1

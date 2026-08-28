@@ -60,11 +60,11 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 
 **Controller state:** `ACTIVE`
 **Control package:** `PKG-08` — PKG-03 has no remaining runnable work while
-`EXT-PAYMENT-PROVIDER` is missing, PKG-04/05/06/07 are complete, and W4-02A is
-dependency-safe for provider-neutral implementation.
-**Current checkpoint:** `PKG-08 / W4-03A` — provider-neutral release-environment
-preparation is promoted after the reviewed W4-02B issuance authority closed;
-live deployment remains gated by `EXT-RELEASE-ENV`.
+`EXT-PAYMENT-PROVIDER` is missing, PKG-04/05/06/07 are complete, and W4-03B is
+dependency-safe for provider-neutral synthetic implementation.
+**Current checkpoint:** `PKG-08 / W4-03B` — synthetic pilot-gate acceptance
+machinery is promoted after the reviewed W4-03A release preparation closed;
+live deployment and pilot evidence remain gated by their registered EXT/DV IDs.
 
 ## Executable package queue
 
@@ -1319,6 +1319,21 @@ live deployment remains gated by `EXT-RELEASE-ENV`.
   stored-file immutability and provider-boundary corrections. Evidence is in
   `docs/pkg-08-w4-02b-bounded-issuance.md`. `EXT-REPORT-METHOD` and
   `EXT-LEGAL-PRIVACY` continue to gate live issuance.
+- **W4-03A provider-neutral preparation evidence (28 Aug 2026):** commits
+  `4db90d4` through `2d83d3d` add fail-closed production configuration and edge
+  contracts, pinned release dependencies and images, structured redacted
+  observability, health/readiness, deterministic release/failure-stop,
+  encrypted database/private-object backup, isolated restore and previous-image
+  recovery procedures. The exact-tip focused suite passed 65 tests; the
+  pre-production gate passed 91 tests; the unsafe-input slice passed 38 tests;
+  the production-like rehearsal passed migration, repeated restore,
+  object-version cleanup, recovery, bounded load and deliberate traffic
+  fail-stop. A narrow final `$minimal-change-review` returned PASS after
+  storage-host, proxy-trust, backup-output and multicast corrections. Evidence
+  is in `docs/pkg-08-w4-03a-preparation.md` and
+  `docs/w4-03a-release-operations.md`. Checklist W4-03A remains TODO for the
+  approved client-owned environment, `EXT-STAGING-APPROVAL` and
+  `DV-STAGING-LIVE`; no live deployment is claimed.
 - **Closure:** every §35 gate is evidenced; restore, security, load, report
   reproducibility and end-to-end pilot simulation pass.
 
@@ -1440,7 +1455,7 @@ verification, gates or required specialist review.
 | 65 | **W4-02A — governed maps and report experience** | PKG-08 | DONE | Existing maps/reports consume safe runs; performance analysis is standard and ROI is absent unless its data/method gate passes. A production basemap remains a live-release gate, not a provider-neutral build prerequisite. | leaf: W3-00C, W3-00D, W3-00E, W3-01D, W3-02A, W3-02B |
 | 66 | **W4-02B — bounded CSV/PDF issuance** | PKG-08 | DONE | Async hashed exports reproduce the frozen performance/conditional-ROI decision and honor privacy/legal gates. | leaf: W4-02A |
 | 67 | **W4-03A — client-owned release environment** | PKG-08 | TODO | Provider-neutral deployment/recovery preparation remains runnable; DONE still requires an approved account/domain hosting a hardened release candidate with recovery. | leaf: R17-A, W4-01D, W4-02B; external-live: EXT-RELEASE-ENV |
-| 68 | **W4-03B — Cardvert pilot gate and acceptance suite** | PKG-08 | TODO | Synthetic acceptance machinery remains runnable; DONE still requires every §35 gate and the Abuja journey, including contextual activation, performance/conditional-ROI reporting, automated transfer and permit evidence. | all-prior; external-live: EXT-PILOT-FACTS, EXT-REPORT-METHOD, EXT-Q28-COMPANY, EXT-COMMERCIAL-VALUES, EXT-EVIDENCE-POLICY, EXT-LEGAL-PRIVACY, EXT-DISBURSEMENT-PROVIDER, EXT-PILOT-PERMITS |
+| 68 | **W4-03B — Cardvert pilot gate and acceptance suite** | PKG-08 | TODO | Synthetic acceptance machinery consumes the integrated W4-03A provider-neutral preparation and remains runnable; DONE still requires every §35 gate and the Abuja journey, including contextual activation, performance/conditional-ROI reporting, automated transfer and permit evidence. | leaf: W4-02B; external-live: EXT-RELEASE-ENV, EXT-STAGING-APPROVAL, EXT-PILOT-FACTS, EXT-REPORT-METHOD, EXT-Q28-COMPANY, EXT-COMMERCIAL-VALUES, EXT-EVIDENCE-POLICY, EXT-LEGAL-PRIVACY, EXT-DISBURSEMENT-PROVIDER, EXT-PILOT-PERMITS |
 | 69 | **W4-04A — role-based onboarding and training** | PKG-09 | TODO | Admin, advertiser and driver materials are rehearsed against the release candidate. | leaf: W4-03A, W4-03B |
 | 70 | **W4-03C — controlled pilot and stabilization** | PKG-09 | TODO | Approved users run a monitored pilot with payout/report replay and rollback criteria. | leaf: W4-03B, W4-04A |
 | 71 | **W4-04B — handover, support and roadmap closure** | PKG-09 | TODO | Owners accept deployment/system/support docs, known risks and post-MVP roadmap. | leaf: W4-04A, W4-03C |
