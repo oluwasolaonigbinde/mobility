@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
@@ -21,6 +22,8 @@ SYNTHETIC_QUALIFYING_EVIDENCE_REFERENCE = "SYNTHETIC_TEST_ONLY"
 TARGET_PERCENT = Decimal("60")
 AREA_QUANTUM = Decimal("0.000001")
 PERCENT_QUANTUM = Decimal("0.000001")
+CELL_ID_PATTERN = re.compile(r"(-?\d+):(-?\d+)")
+CELL_GEOMETRY_TOLERANCE_M = Decimal("0.001")
 
 
 def _omitted(reason: str, provenance_sha256: str | None = None) -> dict[str, Any]:
@@ -200,6 +203,8 @@ def _normalize_provenance(value: Any) -> tuple[dict[str, Any] | None, str | None
         geometry = _normalized_geometry(cell.get("geometry"))
         if not isinstance(cell_id, str) or not cell_id or geometry is None:
             return None, "fixed_cell_provenance_invalid"
+        if CELL_ID_PATTERN.fullmatch(cell_id) is None:
+            return None, "fixed_cell_identity_invalid"
         if cell_id in seen_cell_ids:
             return None, "duplicate_fixed_cell_id"
         seen_cell_ids.add(cell_id)
@@ -226,6 +231,10 @@ def _normalize_provenance(value: Any) -> tuple[dict[str, Any] | None, str | None
         return None, "disclosure_clearance_absent"
     if not isinstance(qualifying, list) or not all(isinstance(item, str) for item in qualifying):
         return None, "qualifying_evidence_absent"
+    if len(cleared) != len(set(cleared)):
+        return None, "duplicate_disclosure_cell_id"
+    if len(qualifying) != len(set(qualifying)):
+        return None, "duplicate_qualifying_cell_id"
     cleared_ids = sorted(set(cleared))
     qualifying_ids = sorted(set(qualifying))
     if not set(cleared_ids).issubset(seen_cell_ids):
@@ -278,6 +287,52 @@ def seal_synthetic_target_area_provenance(value: dict[str, Any]) -> dict[str, An
     return {**normalized, "provenance_sha256": canonical_sha256(normalized)}
 
 
+async def _coverage_areas(
+    session: AsyncSession, *, zone_json: str, cells_json: str
+) -> dict[str, Any]:
+    return (
+        (
+            await session.execute(
+                text(
+                    """
+                    WITH zone AS (
+                        SELECT ST_SetSRID(ST_GeomFromGeoJSON(:zone_json), 4326) AS geom
+                    ),
+                    cells AS (
+                        SELECT ST_SetSRID(
+                            ST_GeomFromGeoJSON(item.value::text), 4326
+                        ) AS geom
+                        FROM jsonb_array_elements(CAST(:cells_json AS jsonb)) AS item(value)
+                    ),
+                    clipped AS (
+                        SELECT ST_CollectionExtract(
+                            ST_Intersection(cells.geom, zone.geom), 3
+                        ) AS geom
+                        FROM cells
+                        CROSS JOIN zone
+                    ),
+                    covered AS (
+                        SELECT ST_Union(geom) AS geom
+                        FROM clipped
+                        WHERE NOT ST_IsEmpty(geom)
+                    )
+                    SELECT
+                        CAST(ST_Area(zone.geom::geography) AS numeric(30, 12))
+                            AS denominator_area_sq_m,
+                        CAST(COALESCE(ST_Area(covered.geom::geography), 0)
+                            AS numeric(30, 12)) AS numerator_area_sq_m
+                    FROM zone
+                    CROSS JOIN covered
+                    """
+                ),
+                {"zone_json": zone_json, "cells_json": cells_json},
+            )
+        )
+        .mappings()
+        .one()
+    )
+
+
 async def calculate_synthetic_target_area_coverage(
     session: AsyncSession, provenance: dict[str, Any]
 ) -> dict[str, Any]:
@@ -310,6 +365,18 @@ async def calculate_synthetic_target_area_coverage(
         separators=(",", ":"),
         sort_keys=True,
     )
+    all_cells_json = json.dumps(
+        [
+            {
+                "geometry": cell["geometry"],
+                "grid_x": int(cell["cell_id"].split(":", 1)[0]),
+                "grid_y": int(cell["cell_id"].split(":", 1)[1]),
+            }
+            for cell in normalized["fixed_cells"]
+        ],
+        separators=(",", ":"),
+        sort_keys=True,
+    )
     try:
         async with session.begin_nested():
             validation = (
@@ -320,11 +387,26 @@ async def calculate_synthetic_target_area_coverage(
                         WITH zone AS (
                             SELECT ST_SetSRID(ST_GeomFromGeoJSON(:zone_json), 4326) AS geom
                         ),
-                        cells AS (
-                            SELECT ST_SetSRID(
-                                ST_GeomFromGeoJSON(item.value::text), 4326
-                            ) AS geom
+                        cell_inputs AS (
+                            SELECT
+                                ST_SetSRID(
+                                    ST_GeomFromGeoJSON((item.value -> 'geometry')::text), 4326
+                                ) AS geom,
+                                (item.value ->> 'grid_x')::double precision AS grid_x,
+                                (item.value ->> 'grid_y')::double precision AS grid_y
                             FROM jsonb_array_elements(CAST(:cells_json AS jsonb)) AS item(value)
+                        ),
+                        cells AS (
+                            SELECT
+                                geom,
+                                ST_MakeEnvelope(
+                                    grid_x,
+                                    grid_y,
+                                    grid_x + :resolution_m,
+                                    grid_y + :resolution_m,
+                                    3857
+                                ) AS expected_geom_3857
+                            FROM cell_inputs
                         )
                         SELECT
                             ST_IsValid(zone.geom) AS zone_valid,
@@ -336,13 +418,24 @@ async def calculate_synthetic_target_area_coverage(
                             COALESCE(bool_and(NOT ST_IsEmpty(cells.geom)), false) AS cells_nonempty,
                             COALESCE(bool_and(ST_GeometryType(cells.geom) IN (
                                 'ST_Polygon', 'ST_MultiPolygon'
-                            )), false) AS cells_polygonal
+                            )), false) AS cells_polygonal,
+                            COALESCE(bool_and(
+                                ST_HausdorffDistance(
+                                    ST_Transform(cells.geom, 3857),
+                                    cells.expected_geom_3857
+                                ) <= :cell_geometry_tolerance_m
+                            ), false) AS cells_match_identity
                         FROM zone
                         CROSS JOIN cells
                         GROUP BY zone.geom
                         """
                         ),
-                        {"zone_json": zone_json, "cells_json": cells_json},
+                        {
+                            "zone_json": zone_json,
+                            "cells_json": all_cells_json,
+                            "resolution_m": normalized["fixed_cell_authority"]["resolution_m"],
+                            "cell_geometry_tolerance_m": CELL_GEOMETRY_TOLERANCE_M,
+                        },
                     )
                 )
                 .mappings()
@@ -360,48 +453,10 @@ async def calculate_synthetic_target_area_coverage(
                 and validation["cells_polygonal"]
             ):
                 return _omitted("fixed_cell_geometry_invalid", provenance_sha256)
+            if not validation["cells_match_identity"]:
+                return _omitted("fixed_cell_identity_mismatch", provenance_sha256)
 
-            areas = (
-                (
-                    await session.execute(
-                        text(
-                            """
-                        WITH zone AS (
-                            SELECT ST_SetSRID(ST_GeomFromGeoJSON(:zone_json), 4326) AS geom
-                        ),
-                        cells AS (
-                            SELECT ST_SetSRID(
-                                ST_GeomFromGeoJSON(item.value::text), 4326
-                            ) AS geom
-                            FROM jsonb_array_elements(CAST(:cells_json AS jsonb)) AS item(value)
-                        ),
-                        clipped AS (
-                            SELECT ST_CollectionExtract(
-                                ST_Intersection(cells.geom, zone.geom), 3
-                            ) AS geom
-                            FROM cells
-                            CROSS JOIN zone
-                        ),
-                        covered AS (
-                            SELECT ST_Union(geom) AS geom
-                            FROM clipped
-                            WHERE NOT ST_IsEmpty(geom)
-                        )
-                        SELECT
-                            CAST(ST_Area(zone.geom::geography) AS numeric(30, 12))
-                                AS denominator_area_sq_m,
-                            CAST(COALESCE(ST_Area(covered.geom::geography), 0)
-                                AS numeric(30, 12)) AS numerator_area_sq_m
-                        FROM zone
-                        CROSS JOIN covered
-                        """
-                        ),
-                        {"zone_json": zone_json, "cells_json": cells_json},
-                    )
-                )
-                .mappings()
-                .one()
-            )
+            areas = await _coverage_areas(session, zone_json=zone_json, cells_json=cells_json)
     except (SQLAlchemyError, ValueError):
         return _omitted("spatial_calculation_failed", provenance_sha256)
 

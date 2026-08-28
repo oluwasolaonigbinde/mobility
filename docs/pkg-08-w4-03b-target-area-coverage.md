@@ -13,9 +13,12 @@ period, calculation time, frozen target-zone id/revision/geometry, the existing
 `heatmap_v1` / `postgis_grid_ping_weighted` fixed-cell scheme and resolution,
 the synthetic disclosure reference, every fixed-cell geometry, the exact
 disclosure-cleared cell ids, and exact qualifying synthetic cell ids. Canonical
-ordering and deduplication make the SHA-256 independent of input order. Unknown,
-duplicate, malformed, mismatched, or tampered evidence is rejected before the
-coverage query.
+ordering makes the SHA-256 independent of input order while duplicate evidence
+references are rejected. Every cell id is parsed as a `heatmap_v1` grid origin,
+and every cell geometry—including non-qualifying cells—must match the envelope
+derived from that origin and the frozen resolution within a one-millimetre
+serialization tolerance. Unknown, malformed, mismatched, or tampered evidence
+is rejected before the coverage query.
 
 The calculation is:
 
@@ -55,19 +58,29 @@ canonicalization are frozen; malformed producer evidence fails closed;
 polygonal clipping/union ordering is exact; zero coverage is distinguished from
 missing evidence; and P3 has no API or synchronized-contract impact.
 
+The sole clean-context post-build `$minimal-change-review` returned `FIX` with
+two P1 findings: fixed-cell identity was not yet spatially verified, and
+duplicate evidence references were normalized instead of rejected. One bounded
+correction now validates every fixed cell against its parsed grid origin and
+resolution, rejects duplicates in both disclosure and qualification lists, and
+adds moved/oversized/id/resolution, malformed non-qualifying, and duplicate-list
+regressions. The affected P3 suite and static checks were rerun green. Per the
+checkpoint instruction, no reviewer chain or repeated review was started.
+
 Red/green overlap evidence used one temporary mutation replacing union area
 with additive area. The overlap regression failed at `75.000152%` versus the
 expected `62.500000%`; restoring `ST_Union` made the same test pass.
 
 Focused checks at the restored implementation:
 
-- `tests/test_target_area_coverage.py`: **15 passed** on PostgreSQL/PostGIS.
+- `tests/test_target_area_coverage.py`: **22 passed** on PostgreSQL/PostGIS.
   The matrix covers exact Abuja output/hash and replay, input-order invariance,
   overlap, partial clipping, exact `60.000000%`, below target, organization/
   campaign/half-open-period mismatch, suppression, missing qualification,
   incomplete period, missing and zero-area zones, outside-zone zero, duplicate/
-  unknown ids, non-polygon/out-of-range geometry, hash tampering, non-test
-  no-SQL behavior, and unavailable PostGIS.
+  unknown ids, duplicate evidence lists, fixed-cell identity/geometry/resolution
+  mismatch, malformed non-qualifying cells, non-polygon/out-of-range geometry,
+  hash tampering, non-test no-SQL behavior, and unavailable PostGIS.
 - Existing methodology plus fixed-cell/disclosure preservation selection:
   **7 passed**. One combined run initially recorded six passes and a connection
   timeout before the disclosure-floor assertion; the single timed-out case was
