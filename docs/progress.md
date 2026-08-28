@@ -1373,6 +1373,18 @@ live deployment and pilot evidence remain gated by their registered EXT/DV IDs.
   clean-context `$minimal-change-review` requested one bounded grid-authority
   and duplicate-evidence correction. No public contract or §9 baseline moved;
   `EXT-REPORT-METHOD` and all privacy/live gates remain MISSING.
+- **W4-03B-P4 local load/reproducibility evidence (28 Aug 2026):** commit
+  `63beccf` adds one provider-neutral command for the confirmed synthetic Abuja
+  cohort (10 vehicles, five advertisers, nominal 92 days compressed to ten
+  samples per operation). It records nearest-rank p50/p95 for Campaign
+  Performance Analysis, governed heatmap provenance and report-worker artifact
+  pairs against explicitly synthetic-only 2,000 ms regression ceilings, plus
+  deterministic input/result/CSV/PDF hashes. The stable run passed with all 35
+  focused tests and scoped Ruff checks; timeout, threshold, operation, network,
+  drift, coverage and renderer failures are fail-closed and sanitized. One
+  clean-context `$minimal-change-review` requested a bounded command-level
+  sanitized-error correction. The harness preserves the six exact live-gate
+  blockers and claims no production SLO, burn-in, provider or external action.
 - **Closure:** every §35 gate is evidenced; restore, security, load, report
   reproducibility and end-to-end pilot simulation pass.
 
