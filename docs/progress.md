@@ -1359,6 +1359,20 @@ live deployment and pilot evidence remain gated by their registered EXT/DV IDs.
   bounded correction restoring shared fixture defaults, making advertiser-first
   setup W4-03B-specific and adding missing red evidence. W4-03B remains TODO;
   no external/live gate or provider state changed.
+- **W4-03B-P3 target-area coverage evidence (28 Aug 2026):** commits `b65a815`
+  and `f99fd73` implement the adopted synthetic/test-only formula as the
+  geography area of the union of clipped, disclosure-cleared qualifying fixed
+  cells divided by the frozen target-zone area. Immutable provenance binds
+  tenant, campaign, complete half-open period, zone/grid revisions, cell
+  identity/geometry, disclosure and qualifying references, and a canonical
+  hash. The Abuja golden fixture deterministically produces `62.500000%`; 22
+  focused PostGIS tests cover union/overlap, clipping, scope, disclosure,
+  omission, geometry, replay and the below-target case, while seven existing
+  methodology/disclosure tests and scoped static checks pass. One transient
+  database-connection timeout passed on its single focused retry. The sole
+  clean-context `$minimal-change-review` requested one bounded grid-authority
+  and duplicate-evidence correction. No public contract or §9 baseline moved;
+  `EXT-REPORT-METHOD` and all privacy/live gates remain MISSING.
 - **Closure:** every §35 gate is evidenced; restore, security, load, report
   reproducibility and end-to-end pilot simulation pass.
 
