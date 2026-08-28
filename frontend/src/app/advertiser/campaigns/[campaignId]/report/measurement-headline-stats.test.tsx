@@ -28,6 +28,6 @@ describe("MeasurementHeadlineStats", () => {
     expect(screen.getByText("Modelled potential contacts")).toBeInTheDocument();
     expect(screen.getByText("500")).toBeInTheDocument();
     expect(screen.getByText(/not an impression estimate/i)).toBeInTheDocument();
-    expect(screen.getByText(/or ROI/i)).toBeInTheDocument();
+    expect(screen.queryByText(/ROI/i)).not.toBeInTheDocument();
   });
 });

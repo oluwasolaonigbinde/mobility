@@ -119,7 +119,7 @@ export default async function CampaignDetailPage({
               href={`/advertiser/campaigns/${campaign.id}/report`}
               className="micro border-edge bg-raised hover:border-edge-strong rounded-lg border px-3.5 py-2.5 transition-colors"
             >
-              📊 Report
+              📊 Campaign Performance Analysis
             </Link>
             <Link
               href={`/advertiser/campaigns/${campaign.id}/map`}

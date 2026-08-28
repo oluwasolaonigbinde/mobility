@@ -1,34 +1,42 @@
 /**
  * Map configuration.
  *
- * Style is env-configurable so the tile provider can be swapped without a
- * code change (MapTiler/Mapbox key, self-hosted OpenFreeMap, …).
- * Default: Carto dark-matter — fits the Vantage dark theme; attribution
- * is rendered by MapLibre from the style's metadata.
+ * Style is env-configurable so an approved provider can be supplied without a
+ * code change. The default is a local, provider-neutral schematic background
+ * with no network source.
  *
  * ⚠ Go-live: confirm basemap licensing (see docs/archive/fablev1-work.md).
  */
-export const MAP_STYLE_URL =
-  process.env.NEXT_PUBLIC_MAP_STYLE_URL ??
-  "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+import type { StyleSpecification } from "maplibre-gl";
 
-const MAP_STYLE_URL_LIGHT =
-  process.env.NEXT_PUBLIC_MAP_STYLE_URL_LIGHT ??
-  "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
+const LOCAL_SCHEMATIC_STYLE: StyleSpecification = {
+  version: 8,
+  name: "Cardvert local schematic",
+  sources: {},
+  layers: [
+    {
+      id: "local-background",
+      type: "background",
+      paint: { "background-color": "#151827" },
+    },
+  ],
+};
 
 /**
- * Basemap for the active theme: light themes (detected via the theme's
- * `color-scheme`) get Carto positron, dark themes keep dark-matter.
- * Resolved at map construction — an already-mounted map keeps its basemap
- * until remount, which is fine for the demo flow (flip theme, navigate).
+ * Resolved at map construction. An already-mounted map keeps its style until
+ * remount; production provider configuration remains an external release gate.
  */
-export function activeMapStyleUrl(): string {
-  if (process.env.NEXT_PUBLIC_MAP_STYLE_URL) return MAP_STYLE_URL;
-  if (typeof document !== "undefined") {
-    const scheme = getComputedStyle(document.documentElement).colorScheme;
-    if (scheme.includes("light")) return MAP_STYLE_URL_LIGHT;
-  }
-  return MAP_STYLE_URL;
+export function activeMapStyle(): string | StyleSpecification {
+  return process.env.NEXT_PUBLIC_MAP_STYLE_URL || LOCAL_SCHEMATIC_STYLE;
+}
+
+/** Compatibility for existing campaign-zone editing; the return may be an inline style. */
+export function activeMapStyleUrl(): string | StyleSpecification {
+  return activeMapStyle();
+}
+
+export function basemapMode(): "configured-provider" | "local" {
+  return process.env.NEXT_PUBLIC_MAP_STYLE_URL ? "configured-provider" : "local";
 }
 
 /**

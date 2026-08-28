@@ -8,7 +8,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { HighExposureZoneInsights } from "@/components/analytics/high-exposure-zone-insights";
 
-export const metadata: Metadata = { title: "Planning source monitoring" };
+export const metadata: Metadata = { title: "Campaign analysis governance" };
 
 export default async function AdminPlanningSourcesPage() {
   const api = createApiClient(await getSessionToken());
@@ -44,7 +44,7 @@ export default async function AdminPlanningSourcesPage() {
   return (
     <div className="animate-rise mx-auto max-w-6xl">
       <PageHeader
-        title="Planning source monitoring"
+        title="Campaign analysis governance"
         eyebrow={`${data?.total ?? 0} aggregate source${data?.total === 1 ? "" : "s"}`}
       />
       {items.length === 0 ? (
@@ -166,7 +166,7 @@ export default async function AdminPlanningSourcesPage() {
       {campaignIds.length > 0 ? (
         <section className="mt-6" aria-labelledby="admin-zone-insights-heading">
           <h2 id="admin-zone-insights-heading" className="mb-3 font-medium">
-            Governed high-exposure zone reports
+            Campaign Performance Analysis map authority
           </h2>
           <div className="grid gap-4 lg:grid-cols-2">
             {campaignIds.map((campaignId) => {
@@ -182,8 +182,10 @@ export default async function AdminPlanningSourcesPage() {
         </section>
       ) : null}
       <p className="micro text-faint mt-5">
-        Monitoring is read-only. Live use remains unavailable until legal/privacy approval evidence
-        is recorded. Ad-platform activation remains disabled while EXT-AD-PLATFORM is missing.
+        Monitoring is read-only and consumes the same immutable measurement run, formula and source
+        segment provenance as advertiser analysis. Live use remains unavailable until legal/privacy
+        and report-method approval evidence is recorded. Ad-platform activation remains disabled
+        while EXT-AD-PLATFORM is missing.
       </p>
     </div>
   );

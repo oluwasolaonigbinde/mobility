@@ -12,6 +12,11 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { AreaTimeseries, BarTimeseries, type SeriesPoint } from "@/components/charts/timeseries";
 import { MeasurementHeadlineStats } from "./measurement-headline-stats";
 import { HighExposureZoneInsights } from "@/components/analytics/high-exposure-zone-insights";
+import {
+  GovernedAnalysisState,
+  MeasurementAuthorityPanel,
+  validateMeasurementAuthority,
+} from "./measurement-authority";
 
 export const metadata: Metadata = { title: "Campaign Performance Analysis" };
 
@@ -32,9 +37,17 @@ export default async function CampaignReportPage({
     }));
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) notFound();
-    throw error;
+    return (
+      <GovernedAnalysisState
+        code={error instanceof ApiError ? error.code : "REPORT_SOURCE_UNAVAILABLE"}
+      />
+    );
   }
-  if (!report) notFound();
+  if (!report) return <GovernedAnalysisState code="SAFE_MEASUREMENT_RUN_REQUIRED" />;
+  const authority = validateMeasurementAuthority(report);
+  if (!authority.ok) {
+    return <GovernedAnalysisState code="MEASUREMENT_RUN_INTEGRITY_FAILURE" />;
+  }
 
   const c = report.summary;
   // Daily metrics arrive newest-first; charts read left→right in time.
@@ -74,8 +87,10 @@ export default async function CampaignReportPage({
         </span>
       </div>
 
+      <MeasurementAuthorityPanel authority={authority} />
+
       {/* Headline numbers */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
         <MeasurementHeadlineStats
           exposureScore={
             report.exposure_score

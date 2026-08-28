@@ -44,7 +44,7 @@ def test_zone_insight_v1_ranking_ties_and_terminology() -> None:
     assert "modelled potential contacts" in HIGH_EXPOSURE_ZONE_DISCLAIMER.lower()
     assert "exposure score" in HIGH_EXPOSURE_ZONE_DISCLAIMER.lower()
     assert "impressions" in HIGH_EXPOSURE_ZONE_DISCLAIMER.lower()
-    assert "roi" in HIGH_EXPOSURE_ZONE_DISCLAIMER.lower()
+    assert "roi" not in HIGH_EXPOSURE_ZONE_DISCLAIMER.lower()
     assert "separate" in HIGH_EXPOSURE_ZONE_DISCLAIMER.lower()
 
 

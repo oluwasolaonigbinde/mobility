@@ -94,7 +94,7 @@ HIGH_EXPOSURE_ZONE_FORMULA_FINGERPRINT = _canonical_hash(HIGH_EXPOSURE_ZONE_FORM
 HIGH_EXPOSURE_ZONE_DISCLAIMER = (
     "Ranks disclosure-cleared zones by frozen modelled potential contacts. The campaign "
     "exposure score is a separate uncalibrated operational index; exposure score, "
-    "impressions, potential contacts, attribution and ROI remain separate measures. "
+    "impressions, potential contacts and attribution remain separate measures. "
     "The ranking does not represent observed people or guaranteed outcomes."
 )
 

@@ -42,7 +42,8 @@ export function MeasurementHeadlineStats({
               · {formatCount(exposureScore.missingRouteCount)} missing · formula{" "}
               {exposureScore.formulaFingerprint.slice(0, 12)}… · input{" "}
               {exposureScore.inputFingerprint.slice(0, 12)}…<br />
-              {exposureScore.uncertainty}
+              Synthetic uncalibrated operational index; not an impression estimate, audience count,
+              statistical confidence interval or attribution result.
             </>
           ) : (
             "No immutable exposure score has been issued for this measurement run."

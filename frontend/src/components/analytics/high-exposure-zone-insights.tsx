@@ -53,7 +53,9 @@ export function HighExposureZoneInsights({
                   <p className="text-sm font-medium">
                     #{item.rank} {item.zone_name}
                   </p>
-                  <p className="micro text-faint mt-1 font-mono">{item.zone_id}</p>
+                  {surface === "admin" ? (
+                    <p className="micro text-faint mt-1 font-mono">{item.zone_id}</p>
+                  ) : null}
                 </div>
                 <div className="text-right">
                   <p className="text-sm">
@@ -71,11 +73,30 @@ export function HighExposureZoneInsights({
             uncalibrated operational index
           </p>
           {insight.provenance ? (
-            <p className="micro text-faint mt-2 font-mono">
-              {insight.provenance.formula_version} · formula{" "}
-              {insight.provenance.formula_fingerprint.slice(0, 12)}… · run{" "}
-              {insight.provenance.measurement_run_id}
-            </p>
+            <div className="micro text-faint mt-2 font-mono">
+              <p>
+                {insight.provenance.formula_version} · formula{" "}
+                {insight.provenance.formula_fingerprint.slice(0, 12)}… · run{" "}
+                {insight.provenance.measurement_run_id}
+              </p>
+              {surface === "admin" ? (
+                <>
+                  <p className="mt-1">
+                    score {insight.provenance.exposure_score_id} · exposure{" "}
+                    {insight.provenance.exposure_formula_version} · formula{" "}
+                    {insight.provenance.exposure_formula_fingerprint.slice(0, 12)}… · input{" "}
+                    {insight.provenance.exposure_input_fingerprint.slice(0, 12)}…
+                  </p>
+                  {insight.provenance.source_segments.map((segment) => (
+                    <p key={segment.segment_id} className="mt-1">
+                      segment {segment.segment_id} · version {segment.segment_version} · snapshot{" "}
+                      {segment.segment_snapshot_sha256.slice(0, 12)}… · reissue of{" "}
+                      {segment.reissue_of_segment_id ?? "original"}
+                    </p>
+                  ))}
+                </>
+              ) : null}
+            </div>
           ) : null}
           {insight.uncertainty ? (
             <p className="micro text-faint mt-3">{insight.uncertainty}</p>
@@ -84,7 +105,11 @@ export function HighExposureZoneInsights({
       ) : (
         <p className="text-muted mt-4 text-sm">{stateCopy[insight.state]}</p>
       )}
-      <p className="micro text-faint mt-3">{insight.disclaimer}</p>
+      <p className="micro text-faint mt-3">
+        Ranks disclosure-cleared zones by frozen modelled potential contacts. Exposure score,
+        impressions, potential contacts and attribution remain separate measures. The ranking does
+        not represent observed people or guaranteed outcomes.
+      </p>
     </Panel>
   );
 }

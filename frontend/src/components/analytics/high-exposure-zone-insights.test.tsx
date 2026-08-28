@@ -28,7 +28,7 @@ const readyInsight = {
         segment_id: "00000000-0000-0000-0000-000000000005",
         segment_version: 1,
         segment_snapshot_sha256: "d".repeat(64),
-        reissue_of_segment_id: null,
+        reissue_of_segment_id: "00000000-0000-0000-0000-000000000006",
       },
     ],
   },
@@ -46,7 +46,7 @@ describe("HighExposureZoneInsights", () => {
     expect(screen.getByText("#1 Central Abuja")).toBeInTheDocument();
     expect(screen.getByText(/120 modelled potential contacts/i)).toBeInTheDocument();
     expect(screen.getByText(/campaign exposure score: 84\.00 \/ 100/i)).toBeInTheDocument();
-    expect(screen.getByText(/impressions, contacts and ROI are separate/i)).toBeInTheDocument();
+    expect(screen.queryByText(/ROI/i)).not.toBeInTheDocument();
   });
 
   it("renders a map ranking and fails closed for suppressed output", () => {
@@ -72,5 +72,23 @@ describe("HighExposureZoneInsights", () => {
     expect(screen.getByText(/withheld by the disclosure floor/i)).toBeInTheDocument();
     expect(screen.queryByText("Central Abuja")).not.toBeInTheDocument();
     expect(screen.queryByText(/120 modelled/i)).not.toBeInTheDocument();
+  });
+
+  it("shows complete run and segment provenance only on the admin surface", () => {
+    const { rerender } = render(
+      <HighExposureZoneInsights insight={readyInsight} surface="admin" />,
+    );
+    expect(screen.getByText(/segment 00000000-0000-0000-0000-000000000005/i)).toBeInTheDocument();
+    expect(screen.getByText(/score 00000000-0000-0000-0000-000000000004/i)).toBeInTheDocument();
+    expect(screen.getByText(/version 1/i)).toBeInTheDocument();
+    expect(screen.getByText(/snapshot d{12}/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/reissue of 00000000-0000-0000-0000-000000000006/i),
+    ).toBeInTheDocument();
+
+    rerender(<HighExposureZoneInsights insight={readyInsight} surface="report" />);
+    expect(
+      screen.queryByText(/segment 00000000-0000-0000-0000-000000000005/i),
+    ).not.toBeInTheDocument();
   });
 });
