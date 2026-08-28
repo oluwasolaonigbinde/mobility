@@ -1334,6 +1334,17 @@ live deployment and pilot evidence remain gated by their registered EXT/DV IDs.
   `docs/w4-03a-release-operations.md`. Checklist W4-03A remains TODO for the
   approved client-owned environment, `EXT-STAGING-APPROVAL` and
   `DV-STAGING-LIVE`; no live deployment is claimed.
+- **W4-03B-P1 gate-evaluator evidence (28 Aug 2026):** commit `79f7837`
+  adds one read-only command that evaluates the six §35.3 gates from committed
+  progress/architecture/decision authority plus a bounded runtime-claim
+  allowlist. Current authority produces six ordered `BLOCKED` lines and exit
+  `1`; a fully complete synthetic fixture produces six `PASS` lines and exit
+  `0`; malformed or contradictory claims fail closed with exit `2` and a
+  sanitized diagnostic. The focused suite passed 17 tests plus lint,
+  compilation and delivery-control validation. A clean-context
+  `$minimal-change-review` found no scope defect and requested four additional
+  regression cases, which pass at the integrated tip. No authority document,
+  runtime business logic, provider state or external/live evidence changed.
 - **Closure:** every §35 gate is evidenced; restore, security, load, report
   reproducibility and end-to-end pilot simulation pass.
 
