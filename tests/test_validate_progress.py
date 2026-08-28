@@ -568,18 +568,31 @@ def test_rejects_nonqueued_package_after_active_frontier() -> None:
 
 
 def test_later_blocked_package_still_validates() -> None:
-    text = _progress().replace(
+    text = _pkg01_active().replace(
         "| 8 | **PKG-08 — governed reporting and pilot readiness** | QUEUED |",
         "| 8 | **PKG-08 — governed reporting and pilot readiness** | BLOCKED |",
     ).replace(
         "| 65 | **W4-02A — governed maps and report experience** | PKG-08 | TODO |",
-        "| 65 | **W4-02A — governed maps and report experience** | PKG-08 "
-        "| BLOCKED — EXT-BASEMAP |",
+        "| 65 | **W4-02A — governed maps and report experience** | PKG-08 | DONE |",
+    ).replace(
+        "| 66 | **W4-02B — bounded CSV/PDF issuance** | PKG-08 | TODO |",
+        "| 66 | **W4-02B — bounded CSV/PDF issuance** | PKG-08 | DONE |",
     ).replace(
         "| 67 | **W4-03A — client-owned release environment** | PKG-08 | TODO |",
         "| 67 | **W4-03A — client-owned release environment** | PKG-08 "
         "| BLOCKED — EXT-RELEASE-ENV |",
     )
+    assert _errors(text) == []
+
+
+def test_basemap_gates_live_release_not_w4_02a_build() -> None:
+    text = _progress()
+    row_65 = next(line for line in text.splitlines() if line.startswith("| 65 | **W4-02A"))
+    basemap = next(
+        line for line in text.splitlines() if line.startswith("| **EXT-BASEMAP**")
+    )
+    assert "EXT-BASEMAP" not in row_65
+    assert "provider-neutral/local W4-02A build and tests remain runnable" in basemap
     assert _errors(text) == []
 
 

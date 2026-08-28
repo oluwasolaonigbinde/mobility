@@ -59,11 +59,11 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 ### Current control pointer
 
 **Controller state:** `ACTIVE`
-**Control package:** `PKG-07` — PKG-03 has no remaining runnable work while
-`EXT-PAYMENT-PROVIDER` is missing, PKG-04/05/06 are complete, and W4-01A/B are
-already verified.
-**Current checkpoint:** `PKG-07 / W4-01D` — earnings, disputes and release
-rehearsal is promoted after the reviewed W4-01C campaign journey closed.
+**Control package:** `PKG-08` — PKG-03 has no remaining runnable work while
+`EXT-PAYMENT-PROVIDER` is missing, PKG-04/05/06/07 are complete, and W4-02A is
+dependency-safe for provider-neutral implementation.
+**Current checkpoint:** `PKG-08 / W4-02A` — governed maps and report experience
+is promoted after the reviewed W4-01D PWA release rehearsal closed.
 
 ## Executable package queue
 
@@ -75,8 +75,8 @@ rehearsal is promoted after the reviewed W4-01C campaign journey closed.
 | 4 | **PKG-04 — secure evidence, activation and communications** | **DONE** | Provider-neutral storage/KYC/activation, shared notifications, business triggers, audited driver contact and account recovery are verified; live providers remain gated. | none — checklist DAG gates entry |
 | 5 | **PKG-05 — privacy, measurement and retargeting** | **DONE** | Privacy controls and reproducible measurement govern aggregate retargeting, exposure scores and advertiser insights; live privacy/methodology/platform inputs remain gated. | none — checklist DAG gates entry |
 | 6 | **PKG-06 — matching and driver onboarding** | **DONE** | Recommendations, offers, activity, public application, person/payee onboarding and governed vehicle approval form one verified work-eligibility journey. | none — checklist DAG gates entry |
-| 7 | **PKG-07 — production driver PWA** | **IN PROGRESS** | The pilot PWA safely tracks, syncs and completes the governed onboarding/campaign journey; W4-01D is the next executable checkpoint for earnings, disputes and release rehearsal. | none — checklist DAG gates entry |
-| 8 | **PKG-08 — governed reporting and pilot readiness** | QUEUED | Safe reports, release infrastructure and one complete pilot acceptance gate are ready. | none — checklist DAG gates entry |
+| 7 | **PKG-07 — production driver PWA** | **DONE** | The installable pilot PWA safely tracks, syncs and completes the governed onboarding, campaign, earnings and dispute journey; physical-device/live release evidence remains explicitly deferred. | none — checklist DAG gates entry |
+| 8 | **PKG-08 — governed reporting and pilot readiness** | **IN PROGRESS** | Safe reports, release infrastructure and one complete pilot acceptance gate are ready; W4-02A is the current provider-neutral checkpoint. | none — checklist DAG gates entry |
 | 9 | **PKG-09 — controlled pilot, training and handover** | QUEUED | Run the pilot, stabilize it, train roles and close operational handover. | none — checklist DAG gates entry |
 
 ## Executable package contracts
@@ -1243,19 +1243,44 @@ rehearsal is promoted after the reviewed W4-01C campaign journey closed.
   No backend, API, schema, migration or §9 baseline changed. Physical devices
   and live storage/scanner/KMS/provider/legal authorization remain external
   gates and are not claimed.
-- **Promoted frontier (27 Aug 2026):** W4-01A/B/C, W3-04C and W2-03D are
-  complete, so W4-01D is runnable. `EXT-STORAGE-PROVIDER`, `EXT-MALWARE-SCANNER` and
-  `EXT-KMS-CUSTODY` continue to gate live use, not provider-neutral/synthetic
-  PWA integration; no live KYC, vehicle, creative, installation or activation
-  evidence may be invented.
-- **Closure:** Android/iOS browser/device matrix, permission/visibility,
-  battery/data-loss/security and full journey tests pass against the frozen
-  backend contracts.
+- **W4-01D evidence (DONE 28 Aug 2026):** commit `4fc102d` completes canonical
+  campaign/trip history, `payout_v3` earnings, public hold/dispute/outcome and
+  sanitized notification journeys without adding a client money, fraud or
+  readiness authority. Successful-empty and unavailable reads are distinct;
+  stale money/hold state is hidden across offline, revocation and cache
+  transitions, privileged offline mutation is blocked, and the service worker
+  caches static assets only. Four observed-red regressions preceded the change.
+  The corrected checkpoint passed 30 focused frontend tests, 48 backend
+  authority tests with 30 environment-gated skips, the single Package 7
+  aggregate of 352 frontend tests across 69 files, typecheck, full lint,
+  scoped formatting and production build. The preserved W4-01C journey and the
+  W4-01D Chromium/mobile-WebKit production rehearsal passed. One consolidated
+  clean-context Package 7 review returned PASS after offline freshness,
+  reconnect and notification-cache corrections. Backend, migrations and all
+  architecture §9 contract baselines stayed unchanged. Evidence is recorded in
+  `docs/pkg-07-w4-01d-release-rehearsal.md`.
+- **Closure:** PKG-07 is DONE. W4-01A/B/C/D are integrated and reviewed against
+  the frozen backend contracts. Physical Android/iPhone install/update,
+  representative route/battery/SLO evidence, actual WebKit offline toggling,
+  native signing/store/push, live providers, staging and pilot execution remain
+  honest external/live gates and are not claimed.
 
 ### PKG-08 — governed reporting and pilot readiness
 
 - **Owns:** checklist 65–68. Governed map/report output, bounded exports,
   client-owned environment and the full acceptance suite form the launch gate.
+- **Package plan (activated 28 Aug 2026, canonical programme line
+  `feat/pkg-04-build-first`):** W4-02A first composes existing governed
+  measurement runs, disclosure controls, safe map labels and conditional ROI
+  into the admin/advertiser report experience. W4-02B then issues bounded,
+  reproducible CSV/PDF artifacts from that frozen authority. W4-03A remains a
+  client-owned live environment gate after its provider-neutral preparation is
+  exhausted; W4-03B assembles the synthetic acceptance machinery while leaving
+  real permits, providers, approved methodology and pilot facts fail-closed.
+  The production basemap account/licence is a live-release gate and does not
+  block provider-neutral/local W4-02A implementation. Each checkpoint receives
+  focused verification; Package 8 receives one aggregate gate and one
+  consolidated review at honest closure.
 - **Closure:** every §35 gate is evidenced; restore, security, load, report
   reproducibility and end-to-end pilot simulation pass.
 
@@ -1373,8 +1398,8 @@ verification, gates or required specialist review.
 | 61 | **W4-01A — PWA foundation and session security** | PKG-07 | DONE | The installable production client uses the BFF session safely and fails closed on unsupported permission/storage/lock states. | leaf: R14-A, R14-B; external: EXT-PKG07-OWNER-RELEASE |
 | 62 | **W4-01B — screen-on tracking and durable sync** | PKG-07 | DONE | Explicit Start/End tracking survives reload/network interruption, reports visibility degradation and never claims unsupported background capture. | leaf: W4-01A, R14-B |
 | 63 | **W4-01C — PWA onboarding and campaign journey** | PKG-07 | DONE | Onboarding, vehicle, offers, activation and tracking integrate through governed BFF/API contracts. | leaf: W4-01B, W3-04C, W3-03B, W2-03D |
-| 64 | **W4-01D — PWA earnings, disputes and release rehearsal** | PKG-07 | TODO | History, earnings, disputes, notifications, installability and production-PWA release evidence are complete. | leaf: W4-01C, MNY-08C, MNY-11A, W2-04A, W2-04C |
-| 65 | **W4-02A — governed maps and report experience** | PKG-08 | TODO | Existing maps/reports consume safe runs; performance analysis is standard and ROI is absent unless its data/method gate passes. | leaf: W3-00C, W3-00D, W3-00E, W3-01D, W3-02A, W3-02B; external: EXT-BASEMAP |
+| 64 | **W4-01D — PWA earnings, disputes and release rehearsal** | PKG-07 | DONE | History, earnings, disputes, notifications, installability and production-PWA release evidence are complete. | leaf: W4-01C, MNY-08C, MNY-11A, W2-04A, W2-04C |
+| 65 | **W4-02A — governed maps and report experience** | PKG-08 | TODO | Existing maps/reports consume safe runs; performance analysis is standard and ROI is absent unless its data/method gate passes. A production basemap remains a live-release gate, not a provider-neutral build prerequisite. | leaf: W3-00C, W3-00D, W3-00E, W3-01D, W3-02A, W3-02B |
 | 66 | **W4-02B — bounded CSV/PDF issuance** | PKG-08 | TODO | Async hashed exports reproduce the frozen performance/conditional-ROI decision and honor privacy/legal gates. | leaf: W4-02A |
 | 67 | **W4-03A — client-owned release environment** | PKG-08 | TODO | Approved account/domain hosts a hardened release candidate with recovery. | leaf: R17-A, W4-01D, W4-02B; external: EXT-RELEASE-ENV |
 | 68 | **W4-03B — Cardvert pilot gate and acceptance suite** | PKG-08 | TODO | One suite proves every §35 gate and the Abuja journey, including contextual activation, performance/conditional-ROI reporting, automated transfer and permit evidence. | all-prior; external: EXT-PILOT-FACTS, EXT-REPORT-METHOD, EXT-Q28-COMPANY, EXT-COMMERCIAL-VALUES, EXT-EVIDENCE-POLICY, EXT-LEGAL-PRIVACY, EXT-DISBURSEMENT-PROVIDER, EXT-PILOT-PERMITS |
@@ -2310,7 +2335,7 @@ otherwise synthetic/provider-neutral checklist item or its package.
 | **EXT-EMAIL-PROVIDER** | MISSING | Email provider and verified sending identity | — | Live W2-04B delivery |
 | **EXT-BUDGET-POLICY** | MISSING | Production budget alert/pause/resume values and approval | — | Live W2-01E policy adoption; configurable/provider-neutral implementation remains runnable |
 | **EXT-PHONE-OPERATOR** | MISSING | Named phone-verification operator and approved manual WhatsApp/voice account | — | W2-04D pilot sends; generic challenge/consent tests remain synthetic |
-| **EXT-BASEMAP** | MISSING | Production basemap provider/licence/account/API key | — | W4-02A map release and W4-03B; public CARTO defaults remain development-only |
+| **EXT-BASEMAP** | MISSING | Production basemap provider/licence/account/API key | — | W4-02A live map release and W4-03B; public CARTO defaults remain development-only, while provider-neutral/local W4-02A build and tests remain runnable |
 | **EXT-STORE-ASSETS** | MISSING | App Store and Play accounts/assets | — | Phase 2 native signing/listing only; not a PWA-pilot prerequisite |
 | **EXT-RELEASE-ENV** | MISSING | Q32 client-owned account/domain, provider, budget and access action for Cardvert | — | W4-03A release environment; ownership direction and brand are confirmed, actual environment is absent |
 | **EXT-PILOT-FACTS** | PRESENT | Abuja; 10 vehicles; 5 paying advertisers; 3 months; Campaign Performance Analysis, offline-to-online targeting and at least 60% target-area coverage; developer supports the initial pilot while training Somto operations | `docs/decisions-log.md` D18/D20, Q30/Q33 | W4-03B uses the confirmed cohort and performance-report goal; true ROI remains conditional on `EXT-REPORT-METHOD` inputs/method |
@@ -2324,6 +2349,13 @@ otherwise synthetic/provider-neutral checklist item or its package.
 | **EXT-PILOT-PERMITS** | MISSING | Abuja permit/authority evidence for the selected vehicles/campaigns | — | D19 assigns Terrax ownership and vendor coordination; W4-03B/launch remains blocked until evidence is approved |
 | **EXT-PKG07-OWNER-RELEASE** | PRESENT | Explicit project-owner release to start Package 7 after this bounded Package 6 controller assignment | Project owner’s 25 Aug 2026 standing instruction to advance the next dependency-safe package automatically | W4-01A build admission is authorized; this is not a product or live-use prerequisite |
 | **EXT-RM2-CALIBRATION-DATA** | MISSING | P1 parked-jitter and P2 Abuja-congestion field corpora (devices, participants, locations) per the owner-authorized 19 Aug 2026 Option-A collection program | — | Optional post-build calibration for a later effective revision; D22's reviewed synthetic selection is build-authoritative and this input blocks no checklist item |
+| **EXT-BRAND-APPROVAL** | MISSING | Final Cardvert logo/brand asset pack and named client approver | — | Client-facing release assets and final handover acceptance; neutral development assets remain usable for build/test |
+| **EXT-CAMPAIGN-BUDGET-SCOPE** | MISSING | Client decision on whether printing and other fixed costs consume the governed campaign budget | — | Production commercial configuration and acceptance; configurable synthetic budget enforcement remains runnable |
+| **EXT-SETTLEMENT-BANK** | MISSING | Approved settlement bank-account details and custody/verification evidence | — | Live financial settlement only; no value is stored or invented before approved secure intake |
+| **EXT-UPLOAD-POLICY** | MISSING | Client-approved file types and maximum sizes for each evidence/upload surface | — | Live upload policy adoption; existing fail-closed configurable limits remain build/test authority |
+| **EXT-MESSAGE-COPY** | MISSING | Approved sender name and production email/WhatsApp/voice message copy | — | Live outbound communications; provider-neutral templates and delivery controls remain runnable |
+| **EXT-RM2-APPROVER** | MISSING | Named client approver for any future RM2 calibration revision | — | Optional post-build RM2 revision only; D22 remains authoritative for current build and pilot preparation |
+| **EXT-OPERATIONS-OWNER** | MISSING | Named receiving operations owner for Q33 training, pilot operations and handover | — | W4-04A/B rehearsal acceptance and operational handover; documentation/preparation remains runnable |
 
 ### Deferred post-build validation register
 
