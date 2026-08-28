@@ -118,6 +118,16 @@ returned `REVISE`. The candidate plan was narrowed and strengthened once to:
   through Caddy, Next and Sentry. `45` focused W4-03A tests and the two new
   frontend correlation/privacy tests pass. A fresh exact-tip
   minimal-change-review remains the completion gate.
+- The next fresh exact-tip minimal-change review returned `FIX` for three
+  additional P1 input boundaries: backup output could be placed under the
+  checkout, driver-registration proxy trust was not included in preflight, and
+  storage endpoints accepted local/reserved or credential-bearing production
+  URLs. Both direct and release-orchestrated backup entry points now reject any
+  repository-contained output before creating plaintext; both login and driver
+  proxy trust stay disabled pending environment-specific review; and production
+  storage endpoints require deployable HTTPS hosts without userinfo, query or
+  fragment data. Focused regressions cover every rejected form. A fresh
+  corrected-tip minimal-change review remains the completion gate.
 
 Final lint/tests, §9 byte-stability, secret/exposure scan, exact-tip rehearsal,
 and clean-context post-build minimal-change review are recorded in the

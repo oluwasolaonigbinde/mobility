@@ -55,6 +55,7 @@ done
   && -r "${COMPATIBILITY_EVIDENCE}" ]] || { usage; exit 2; }
 release_require_commands docker jq python3 sha256sum
 cd "${RELEASE_REPO_ROOT}"
+release_require_path_outside_repository "${BACKUP_DIR}" "backup output"
 
 mkdir -p -- "${STATE_DIR}"
 chmod 700 "${STATE_DIR}"

@@ -46,6 +46,7 @@ done
 [[ -r "${ENV_FILE}" && -r "${STATE_FILE}" && -n "${OUTPUT_DIR}" ]] || { usage; exit 2; }
 release_require_commands docker gpg jq python3 sha256sum tar
 cd "${RELEASE_REPO_ROOT}"
+release_require_path_outside_repository "${OUTPUT_DIR}" "backup output"
 
 preflight_args=(preflight --env-file "${ENV_FILE}" --compose-file "${RELEASE_COMPOSE_FILE}")
 if [[ "${RELEASE_LOCAL_REHEARSAL:-false}" == true ]]; then

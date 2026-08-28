@@ -98,6 +98,8 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
         "LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER": "false",
         "LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER": "false",
         "LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS": "",
+        "DRIVER_REGISTRATION_RATE_LIMIT_TRUST_CLIENT_IP_HEADER": "false",
+        "DRIVER_REGISTRATION_RATE_LIMIT_TRUSTED_PROXY_CIDRS": "",
         "BACKUP_PASSPHRASE_FILE": str(passphrase),
         "BACKUP_RETENTION_DAYS": "35",
         "LOG_LEVEL": "INFO",
@@ -209,6 +211,13 @@ def test_production_builds_pin_base_images_and_dependency_graphs() -> None:
         ("DEMO_LOGIN_ENABLED", "true"),
         ("PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE", "true"),
         ("OBJECT_STORAGE_ENDPOINT_URL", "http://objects.example.com"),
+        ("OBJECT_STORAGE_ENDPOINT_URL", "https://operator:secret@objects.example.com"),
+        ("OBJECT_STORAGE_ENDPOINT_URL", "https://objects.example.com?token=secret"),
+        ("OBJECT_STORAGE_ENDPOINT_URL", "https://objects.example.com/#private"),
+        ("OBJECT_STORAGE_ENDPOINT_URL", "https://localhost"),
+        ("OBJECT_STORAGE_ENDPOINT_URL", "https://objects.invalid"),
+        ("OBJECT_STORAGE_PUBLIC_ENDPOINT_URL", "https://127.1.2.3"),
+        ("OBJECT_STORAGE_PUBLIC_ENDPOINT_URL", "https://objects.example.com:0"),
         ("SESSION_COOKIE_NAME", "cardvert_session"),
         (
             "DATABASE_URL",
@@ -223,6 +232,8 @@ def test_production_builds_pin_base_images_and_dependency_graphs() -> None:
         ("PUBLIC_ORIGIN", "https://cardvert.example.com:8443"),
         ("LOG_LEVEL", "DEBUG"),
         ("DEBUG", "true"),
+        ("DRIVER_REGISTRATION_RATE_LIMIT_TRUST_CLIENT_IP_HEADER", "true"),
+        ("DRIVER_REGISTRATION_RATE_LIMIT_TRUSTED_PROXY_CIDRS", "10.0.0.0/8"),
     ],
 )
 def test_release_environment_rejects_unsafe_values(tmp_path: Path, name: str, value: str) -> None:
@@ -764,6 +775,38 @@ def test_smoke_password_file_must_be_external_and_private(tmp_path: Path) -> Non
         )
         assert result.returncode != 0
         assert message in result.stderr
+
+
+@pytest.mark.parametrize("script_name", ["backup_release.sh", "release.sh"])
+def test_backup_output_must_stay_outside_repository(tmp_path: Path, script_name: str) -> None:
+    state = tmp_path / "state.json"
+    state.write_text("{}\n")
+    compatibility = tmp_path / "compatibility.json"
+    compatibility.write_text("{}\n")
+    arguments = ["--env-file", str(PRODUCTION_ENV)]
+    if script_name == "backup_release.sh":
+        arguments.extend(["--state-file", str(state), "--output-dir", str(ROOT / ".unsafe-backup")])
+    else:
+        arguments.extend(
+            [
+                "--state-dir",
+                str(tmp_path / "release-state"),
+                "--backup-dir",
+                str(ROOT / ".unsafe-backup"),
+                "--compatibility-evidence",
+                str(compatibility),
+            ]
+        )
+    result = subprocess.run(
+        [str(ROOT / "scripts" / script_name), *arguments],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 1
+    assert "backup output must stay outside the repository" in result.stderr
+    assert not (ROOT / ".unsafe-backup").exists()
 
 
 def test_failure_cleanup_stops_an_open_edge(tmp_path: Path) -> None:

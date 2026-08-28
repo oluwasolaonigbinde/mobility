@@ -7,6 +7,7 @@ import argparse
 import base64
 import binascii
 import hashlib
+import ipaddress
 import json
 import os
 import re
@@ -246,6 +247,36 @@ def validate_release_environment(
             raise ContractError("Object storage endpoints must use HTTPS")
     if not storage_endpoint.hostname or not public_storage_endpoint.hostname:
         raise ContractError("Object storage endpoints must include a hostname")
+    for endpoint in (storage_endpoint, public_storage_endpoint):
+        endpoint_hostname = (endpoint.hostname or "").lower()
+        try:
+            endpoint_port = endpoint.port
+        except ValueError as exc:
+            raise ContractError("Object storage endpoints contain an invalid port") from exc
+        if endpoint.username is not None or endpoint.password is not None:
+            raise ContractError("Object storage endpoints must not contain userinfo")
+        if endpoint.params or endpoint.query or endpoint.fragment:
+            raise ContractError("Object storage endpoints must not contain query or fragment data")
+        if not (allow_local_rehearsal and mode == "rehearsal"):
+            try:
+                endpoint_address = ipaddress.ip_address(endpoint_hostname)
+            except ValueError:
+                endpoint_address = None
+            if (
+                endpoint_port == 0
+                or endpoint_hostname == "localhost"
+                or endpoint_hostname.endswith((".invalid", ".local", ".localhost"))
+                or PLACEHOLDER_RE.search(endpoint_hostname)
+                or endpoint_address is not None
+                and (
+                    endpoint_address.is_loopback
+                    or endpoint_address.is_unspecified
+                    or endpoint_address.is_link_local
+                    or endpoint_address.is_multicast
+                    or endpoint_address.is_reserved
+                )
+            ):
+                raise ContractError("Object storage endpoints must use deployable hostnames")
     for name in ("OBJECT_STORAGE_REGION", "OBJECT_STORAGE_BUCKET", "OBJECT_STORAGE_ACCESS_KEY_ID"):
         value = _require(environment, name)
         if PLACEHOLDER_RE.search(value):
@@ -273,6 +304,8 @@ def validate_release_environment(
         _is_true(environment.get("LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER"))
         or _is_true(environment.get("LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER"))
         or environment.get("LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS", "").strip()
+        or _is_true(environment.get("DRIVER_REGISTRATION_RATE_LIMIT_TRUST_CLIENT_IP_HEADER"))
+        or environment.get("DRIVER_REGISTRATION_RATE_LIMIT_TRUSTED_PROXY_CIDRS", "").strip()
     ):
         raise ContractError(
             "Trusted client-IP forwarding requires a later environment-specific review"

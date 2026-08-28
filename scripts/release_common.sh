@@ -46,6 +46,21 @@ release_require_commands() {
   done
 }
 
+release_require_path_outside_repository() {
+  local candidate="$1"
+  local label="$2"
+  python3 - "${candidate}" "${RELEASE_REPO_ROOT}" "${label}" <<'PY'
+import sys
+from pathlib import Path
+
+candidate = Path(sys.argv[1]).expanduser().resolve()
+repository = Path(sys.argv[2]).resolve()
+label = sys.argv[3]
+if candidate == repository or repository in candidate.parents:
+    raise SystemExit(f"ERROR: {label} must stay outside the repository")
+PY
+}
+
 release_stage_done() {
   local state_file="$1"
   local stage="$2"

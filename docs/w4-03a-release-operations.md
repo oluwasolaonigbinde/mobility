@@ -25,7 +25,9 @@ Do not put any of those files in the checkout, image, release log, command
 line, ticket, or evidence document. The environment example is deliberately
 invalid: placeholders, mutable images, weak secrets, unsafe origins, public
 service ports, development switches, or unreviewed client-IP trust all fail
-preflight.
+preflight. Backup output must resolve outside the repository. Production object
+storage endpoints must use deployable HTTPS hosts and must not carry userinfo,
+query credentials, or fragments.
 
 ## External run sheet
 
