@@ -108,8 +108,25 @@ elif [[ "${READ_PASSWORD_STDIN}" == true ]]; then
 else
   [[ -f "${PASSWORD_FILE}" && -r "${PASSWORD_FILE}" ]] \
     || { echo "ERROR: password file is not a readable regular file" >&2; exit 2; }
+  password_file_authority="$(python3 - "${PASSWORD_FILE}" "${REPO_ROOT}" <<'PY'
+import os
+import stat
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1]).expanduser().resolve()
+repository = Path(sys.argv[2]).resolve()
+if not path.is_file() or not os.access(path, os.R_OK):
+    raise SystemExit("ERROR: password file is not a readable regular file")
+if path == repository or repository in path.parents:
+    raise SystemExit("ERROR: password file must stay outside the repository")
+if path.stat().st_mode & (stat.S_IRWXG | stat.S_IRWXO):
+    raise SystemExit("ERROR: password file must have mode 0600 or stricter")
+print(path)
+PY
+)"
   protected_password_file="${TEMP_DIR}/password"
-  install -m 600 "${PASSWORD_FILE}" "${protected_password_file}"
+  install -m 600 "${password_file_authority}" "${protected_password_file}"
   PASSWORD_FILE="${protected_password_file}"
 fi
 
@@ -137,7 +154,7 @@ else
 fi
 
 echo "Checking public edge/frontend..."
-curl_args=(--fail --silent --show-error)
+curl_args=(--fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 1)
 if [[ "${RELEASE_LOCAL_REHEARSAL:-false}" == true ]]; then
   curl_args+=(--insecure)
 fi

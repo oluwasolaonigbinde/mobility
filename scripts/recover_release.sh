@@ -11,6 +11,7 @@ SMOKE_EMAIL=""
 SMOKE_PASSWORD_FILE=""
 COMPATIBILITY_EVIDENCE=""
 LOCK_DIR=""
+LOCK_OWNED=false
 EDGE_OPEN=false
 
 cleanup() {
@@ -20,7 +21,9 @@ cleanup() {
     release_stop_edge_if_open "${EDGE_OPEN}" "${PREVIOUS_ENV_FILE}" || true
     release_log release_recovery failed >&2
   fi
-  [[ -z "${LOCK_DIR}" ]] || rm -rf -- "${LOCK_DIR}"
+  if [[ "${LOCK_OWNED}" == true && -n "${LOCK_DIR}" ]]; then
+    rm -rf -- "${LOCK_DIR}"
+  fi
   exit "${exit_code}"
 }
 trap cleanup EXIT HUP INT TERM
@@ -64,6 +67,7 @@ esac
 LOCK_DIR="${STATE_DIR}/.release.lock"
 mkdir "${LOCK_DIR}" 2>/dev/null \
   || { echo "ERROR: another release or recovery owns the lock" >&2; exit 1; }
+LOCK_OWNED=true
 printf '{"host":"%s","pid":%s,"operation":"recovery"}\n' "$(hostname)" "$$" \
   >"${LOCK_DIR}/owner.json"
 chmod 600 "${LOCK_DIR}/owner.json"
@@ -78,6 +82,8 @@ if [[ "${RELEASE_LOCAL_REHEARSAL:-false}" == true ]]; then
   preflight_args+=(--local-rehearsal)
 fi
 current_preflight="$(python3 scripts/release_contract.py "${current_preflight_args[@]}" --check-images)"
+export RELEASE_LOG_RELEASE_ID="$(jq -r '.release_id' <<<"${current_preflight}")"
+export RELEASE_LOG_REVISION="$(jq -r '.release_revision' <<<"${current_preflight}")"
 [[ "$(jq -r '.release_id' <<<"${current_preflight}")" == "$(jq -r '.release_id' "${CURRENT_STATE}")" \
   && "$(jq -r '.release_revision' <<<"${current_preflight}")" == "$(jq -r '.revision' "${CURRENT_STATE}")" \
   && "$(jq -r '.config_sha256' <<<"${current_preflight}")" == "$(jq -r '.config_sha256' "${CURRENT_STATE}")" ]] \
@@ -116,7 +122,7 @@ current_compose=(docker compose -f "${RELEASE_COMPOSE_FILE}" --env-file "${CURRE
 "${current_compose[@]}" run --rm -T --no-deps api \
   python -m app.operations.readiness --write-canary
 EDGE_OPEN=true
-"${compose[@]}" up -d --no-build edge >/dev/null
+"${compose[@]}" up -d --no-build --wait --wait-timeout 120 edge >/dev/null
 COMPOSE_PRODUCTION_FILE="${RELEASE_COMPOSE_FILE}" COMPOSE_ENV_FILE="${PREVIOUS_ENV_FILE}" \
   SMOKE_BASE_URL="$(release_env_value "${PREVIOUS_ENV_FILE}" PUBLIC_ORIGIN)" \
   scripts/release_smoke.sh --email "${SMOKE_EMAIL}" --password-file "${SMOKE_PASSWORD_FILE}" \
@@ -149,3 +155,4 @@ release_log release_recovery passed
 trap - EXIT HUP INT TERM
 rm -rf -- "${LOCK_DIR}"
 LOCK_DIR=""
+LOCK_OWNED=false

@@ -112,7 +112,10 @@ encrypted bundle, completion marker, embedded release state and manifest
 before trusting a completed backup stage.
 
 The release host pulls images and always uses `--no-build`. The edge stops
-before migration. A lost migration response is reconciled only when the
+before the predecessor backup and target writers remain stopped through
+migration. The backup operation never recreates containers from the target
+environment before migration; outside a release it restarts only the exact
+containers it stopped. A lost migration response is reconciled only when the
 database exactly matches the image's single Alembic head. Readiness then proves
 database revision/PostGIS, Redis, worker heartbeat and object
 write/read/delete; a report-schema canary and the externally supplied
@@ -160,7 +163,9 @@ marker evidence, and snapshots every database-authorized private object with
 version ID, byte count and SHA-256. It creates a canonical authenticated
 manifest tied to release/config/revision, encrypts the exact four-member bundle
 with AES-256, writes ciphertext digest and complete marker atomically, then
-restores only services that were previously running. A failure restarts the
+restores only services that were previously running for a standalone backup.
+The release orchestrator instead requests that writers remain stopped until
+migration and compatibility checks finish. A failure restarts only the exact
 previous running set and leaves no complete marker.
 
 `scripts/verify_restore.sh` rejects a wrong key, changed/truncated ciphertext,
@@ -169,7 +174,9 @@ or embedded state, database/object inventory mismatch, unknown migration
 revision, or missing PostGIS. It restores the database under a
 disposable isolated name and objects under a disposable verification prefix,
 compares stored-file rows with exact restored object bytes, then deletes the
-isolated targets. The snapshot revision must equal the manifest and exist in
+isolated database and every exact object version/delete marker under the unique
+verification prefix, proving none remain even when verification fails. The
+snapshot revision must equal the manifest and exist in
 the exact target image's single-head migration graph; it need not already be
 the target head when verifying the mandatory pre-migration backup. Percent-
 encoded database credentials are preserved when constructing the isolated
@@ -180,9 +187,11 @@ account.
 ## Observability and alerts
 
 Caddy, API, and worker emit structured JSON with edge request IDs and release
-revision. Application/Sentry scrubbers redact authorization/cookies/tokens,
+revision. The Next server forwards only the edge-supplied request ID to API
+calls. Caddy removes the raw request URI and authentication headers from access
+logs. Application/Sentry scrubbers redact authorization/cookies/tokens,
 passwords/secrets/API keys, NIN/BVN, bank values, precise GPS/coordinates, raw
-fraud evidence when keyed, and private URLs; exception bodies and local
+fraud evidence when keyed, and every private URL; exception bodies and local
 variables are not exported. Never log environment files, smoke responses,
 backup plaintext, object manifests containing live keys, or presigned URLs.
 
@@ -244,10 +253,12 @@ recovery evidence, and rotation/follow-up owner. Never copy live payloads.
 
 `scripts/rehearse_w403a.sh` creates a dedicated Compose project, private
 versioned MinIO, synthetic report object/row, exact labelled images, fresh
-PostGIS/Redis, and disposable secrets. It runs all migrations, layered
-readiness, a 100-request bounded load, encrypted backup, isolated database and
-object restore, an exact first-release retry, repeated backup verification, and
-recovery to the distinct pre-0071 image while the database remains at 0071.
+PostGIS/Redis, and disposable secrets. It creates a populated exact predecessor
+at migration 0070, then runs the real release state machine through backup,
+0071 migration, compatibility, readiness and traffic. It exercises a
+same-authority release retry, a 100-request bounded load, repeated encrypted
+backup/isolated database-and-versioned-object restore, and real recovery to the
+distinct pre-0071 image while the database remains at 0071.
 It then induces a post-edge smoke failure and proves the edge is stopped.
 Its trap removes the dedicated
 containers, network, volumes, files, passphrases, and backup bundle on success

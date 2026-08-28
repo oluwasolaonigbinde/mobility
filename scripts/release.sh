@@ -11,6 +11,7 @@ SMOKE_PASSWORD_FILE=""
 COMPATIBILITY_EVIDENCE=""
 RECOVER_STALE_LOCK=false
 LOCK_DIR=""
+LOCK_OWNED=false
 EDGE_OPEN=false
 
 usage() {
@@ -28,7 +29,9 @@ cleanup() {
     release_stop_edge_if_open "${EDGE_OPEN}" "${ENV_FILE}" || true
     release_log release failed >&2
   fi
-  [[ -z "${LOCK_DIR}" ]] || rm -rf -- "${LOCK_DIR}"
+  if [[ "${LOCK_OWNED}" == true && -n "${LOCK_DIR}" ]]; then
+    rm -rf -- "${LOCK_DIR}"
+  fi
   exit "${exit_code}"
 }
 trap cleanup EXIT HUP INT TERM
@@ -79,6 +82,7 @@ if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
   mv -- "${LOCK_DIR}" "${STATE_DIR}/stale-lock-$(date -u +%Y%m%dT%H%M%SZ)-${stale_digest}"
   mkdir "${LOCK_DIR}"
 fi
+LOCK_OWNED=true
 python3 - "${LOCK_DIR}/owner.json" "$(hostname)" "$$" <<'PY'
 import json
 import os
@@ -104,6 +108,8 @@ fi
 preflight="$(python3 scripts/release_contract.py "${preflight_args[@]}")"
 release_id="$(jq -r '.release_id' <<<"${preflight}")"
 revision="$(jq -r '.release_revision' <<<"${preflight}")"
+export RELEASE_LOG_RELEASE_ID="${release_id}"
+export RELEASE_LOG_REVISION="${revision}"
 config_sha256="$(jq -r '.config_sha256' <<<"${preflight}")"
 backend_image="$(release_env_value "${ENV_FILE}" BACKEND_IMAGE)"
 frontend_image="$(release_env_value "${ENV_FILE}" FRONTEND_IMAGE)"
@@ -111,6 +117,21 @@ previous_release_id="$(release_env_value "${ENV_FILE}" PREVIOUS_RELEASE_ID 2>/de
 if [[ -n "${previous_release_id}" ]]; then
   [[ -n "${SMOKE_EMAIL}" && -r "${SMOKE_PASSWORD_FILE}" ]] \
     || { echo "ERROR: predecessor releases require smoke account credentials" >&2; exit 2; }
+  python3 - "${SMOKE_PASSWORD_FILE}" "${RELEASE_REPO_ROOT}" <<'PY'
+import os
+import stat
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1]).expanduser().resolve()
+repository = Path(sys.argv[2]).resolve()
+if not path.is_file() or not os.access(path, os.R_OK):
+    raise SystemExit("ERROR: smoke password file is not a readable regular file")
+if path == repository or repository in path.parents:
+    raise SystemExit("ERROR: smoke password file must stay outside the repository")
+if path.stat().st_mode & (stat.S_IRWXG | stat.S_IRWXO):
+    raise SystemExit("ERROR: smoke password file must have mode 0600 or stricter")
+PY
 elif [[ -n "${SMOKE_EMAIL}" || -n "${SMOKE_PASSWORD_FILE}" ]]; then
   echo "ERROR: first-release smoke must not invent account credentials" >&2
   exit 2
@@ -154,7 +175,7 @@ elif [[ -z "${previous_release_id}" ]]; then
     --outcome "bootstrap:no-predecessor-empty-database" >/dev/null
 else
   scripts/backup_release.sh --env-file "${ENV_FILE}" --state-file "${state_file}" \
-    --output-dir "${BACKUP_DIR}"
+    --output-dir "${BACKUP_DIR}" --leave-writers-stopped
   scripts/verify_restore.sh --env-file "${ENV_FILE}" --bundle "${bundle}" \
     --passphrase-file "${passphrase_file}"
   complete_bundle_sha="$(jq -r '.bundle_sha256' "${bundle}.complete.json")"
@@ -200,7 +221,7 @@ if ! release_stage_done "${state_file}" compatibility; then
 fi
 
 EDGE_OPEN=true
-"${compose[@]}" up -d --no-build edge >/dev/null
+"${compose[@]}" up -d --no-build --wait --wait-timeout 120 edge >/dev/null
 smoke_args=()
 if [[ -z "${previous_release_id}" ]]; then
   smoke_args+=(--expect-empty-user-table)
@@ -217,3 +238,4 @@ release_log release passed
 trap - EXIT HUP INT TERM
 rm -rf -- "${LOCK_DIR}"
 LOCK_DIR=""
+LOCK_OWNED=false

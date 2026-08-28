@@ -48,6 +48,8 @@ fi
 preflight="$(python3 scripts/release_contract.py "${preflight_args[@]}")"
 expected_release_id="$(jq -r '.release_id' <<<"${preflight}")"
 expected_release_revision="$(jq -r '.release_revision' <<<"${preflight}")"
+export RELEASE_LOG_RELEASE_ID="${expected_release_id}"
+export RELEASE_LOG_REVISION="${expected_release_revision}"
 expected_config_sha256="$(jq -r '.config_sha256' <<<"${preflight}")"
 
 BUNDLE="$(cd "$(dirname "${BUNDLE}")" && pwd)/$(basename "${BUNDLE}")"
@@ -126,11 +128,12 @@ PY
 database_url="$(release_env_value "${ENV_FILE}" DATABASE_URL)"
 restore_url="$(DATABASE_URL_TO_REWRITE="${database_url}" RESTORE_DATABASE_NAME="${RESTORE_DB}" \
   python3 -c 'import os; from scripts.release_contract import database_url_for_name; print(database_url_for_name(os.environ["DATABASE_URL_TO_REWRITE"], os.environ["RESTORE_DATABASE_NAME"]))')"
+restore_nonce="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
 "${compose[@]}" run --rm -T --no-deps \
   -e DATABASE_URL="${restore_url}" \
   -v "${TEMP_DIR}/objects.tar:/tmp/objects.tar:ro" \
   api python -m app.operations.storage_snapshot verify \
-    --archive /tmp/objects.tar --restore-prefix "restore-verification/${release_id}"
+    --archive /tmp/objects.tar --restore-prefix "restore-verification/${release_id}/${restore_nonce}"
 
 release_log restore_isolated passed
 trap - EXIT HUP INT TERM

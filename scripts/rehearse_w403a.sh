@@ -8,6 +8,7 @@ cd "${RELEASE_REPO_ROOT}"
 
 readonly REVISION="$(git rev-parse HEAD)"
 readonly PREVIOUS_REVISION="b64d07a0d7dcf97eb2654345ce55642165a570cf"
+readonly PREVIOUS_ALEMBIC_REVISION="0070_driver_vehicle_approval"
 readonly FORWARD_ALEMBIC_REVISION="0071_report_issuances"
 readonly PROJECT_NAME="cardvert-w403a-rehearsal"
 readonly MINIO_CONTAINER="${PROJECT_NAME}-minio"
@@ -15,7 +16,6 @@ readonly MINIO_IMAGE="minio/minio@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a
 readonly MC_IMAGE="minio/mc@sha256:fb8f773eac8ef9d6da0486d5dec2f42f219358bcb8de579d1623d518c9ebd4cc"
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/cardvert-w403a-rehearsal.XXXXXX")"
 CURRENT_ENV_FILE="${TEMP_DIR}/current.env"
-CURRENT_RECOVERY_ENV_FILE="${TEMP_DIR}/current-recovery.env"
 PREVIOUS_ENV_FILE="${TEMP_DIR}/previous.env"
 STATE_DIR="${TEMP_DIR}/state"
 RECOVERY_STATE_DIR="${TEMP_DIR}/recovery-state"
@@ -58,8 +58,8 @@ jwt_secret="Jwt-$(openssl rand -hex 32)"
 storage_secret="Storage-$(openssl rand -hex 24)"
 storage_access="rehearsal-$(openssl rand -hex 12)"
 keyring="$(openssl rand -base64 32 | tr -d '\n')"
-current_release_id="$(date -u +%Y%m%dT%H%M%SZ)-rehearsal-current"
 previous_release_id="20260827T120000Z-rehearsal-previous"
+current_release_id="$(date -u +%Y%m%dT%H%M%SZ)-rehearsal-current"
 passphrase_file="${TEMP_DIR}/backup-passphrase"
 smoke_password_file="${TEMP_DIR}/smoke-password"
 printf 'Backup-%s\n' "$(openssl rand -hex 32)" >"${passphrase_file}"
@@ -111,13 +111,12 @@ LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS=
 BACKUP_PASSPHRASE_FILE=${passphrase_file}
 BACKUP_RETENTION_DAYS=35
 SENTRY_DSN=
+LOG_LEVEL=INFO
 EOF
   chmod 600 "${path}"
 }
 
-write_environment "${CURRENT_ENV_FILE}" "${current_release_id}" "${REVISION}" "" \
-  "${backend_image}" "${frontend_image}"
-write_environment "${CURRENT_RECOVERY_ENV_FILE}" "${current_release_id}" "${REVISION}" \
+write_environment "${CURRENT_ENV_FILE}" "${current_release_id}" "${REVISION}" \
   "${previous_release_id}" "${backend_image}" "${frontend_image}"
 write_environment "${PREVIOUS_ENV_FILE}" "${previous_release_id}" "${PREVIOUS_REVISION}" "" \
   "${previous_backend_image}" "${previous_frontend_image}"
@@ -134,25 +133,20 @@ docker run --rm --network "${PROJECT_NAME}_data" --entrypoint /bin/sh \
   >/dev/null
 
 mkdir -p "${STATE_DIR}" "${RECOVERY_STATE_DIR}" "${BACKUP_DIR}"
-first_compatibility="${TEMP_DIR}/first-compatibility.json"
-jq -n \
-  --arg release "${current_release_id}" --arg revision "${REVISION}" \
-  --arg image "${backend_image}" --arg migration "${FORWARD_ALEMBIC_REVISION}" \
-  '{schema_version:1,result:"passed",target_release_id:$release,target_revision:$revision,
-    target_backend_image:$image,previous_release_id:null,previous_revision:null,
-    previous_backend_image:null,forward_alembic_revision:$migration,
-    checks:{first_release_no_predecessor:true,no_database_downgrade:true}}' \
-  >"${first_compatibility}"
-chmod 600 "${first_compatibility}"
-
-release_log rehearsal_first_release starting
-scripts/release.sh --env-file "${CURRENT_ENV_FILE}" --state-dir "${STATE_DIR}" \
-  --backup-dir "${BACKUP_DIR}" --compatibility-evidence "${first_compatibility}"
-# Retry the exact release to prove the bootstrap marker and ordered state converge.
-scripts/release.sh --env-file "${CURRENT_ENV_FILE}" --state-dir "${STATE_DIR}" \
-  --backup-dir "${BACKUP_DIR}" --compatibility-evidence "${first_compatibility}"
-
-compose=(docker compose -f "${RELEASE_COMPOSE_FILE}" --env-file "${CURRENT_ENV_FILE}")
+release_log rehearsal_predecessor_fixture starting
+compose=(docker compose -f "${RELEASE_COMPOSE_FILE}" --env-file "${PREVIOUS_ENV_FILE}")
+"${compose[@]}" up -d --wait --wait-timeout 120 db redis >/dev/null
+"${compose[@]}" --profile release run --rm -T --no-deps migrate
+"${compose[@]}" up -d --no-build --wait --wait-timeout 120 \
+  db redis api worker frontend >/dev/null
+"${compose[@]}" up -d --no-build edge >/dev/null
+COMPOSE_PRODUCTION_FILE="${RELEASE_COMPOSE_FILE}" COMPOSE_ENV_FILE="${PREVIOUS_ENV_FILE}" \
+  SMOKE_BASE_URL="$(release_env_value "${PREVIOUS_ENV_FILE}" PUBLIC_ORIGIN)" \
+  scripts/release_smoke.sh --expect-empty-user-table
+[[ "$("${compose[@]}" exec -T db psql -U mobility -d mobility -Atc \
+  'SELECT version_num FROM alembic_version')" == "${PREVIOUS_ALEMBIC_REVISION}" ]] \
+  || { echo "ERROR: predecessor fixture did not reach its exact migration head" >&2; exit 1; }
+release_log rehearsal_predecessor_fixture passed
 smoke_password="$(<"${smoke_password_file}")"
 password_hash="$("${compose[@]}" exec -T -e "SMOKE_PASSWORD=${smoke_password}" api python -c \
   'import os; from app.core.security import hash_password; print(hash_password(os.environ["SMOKE_PASSWORD"]))')"
@@ -172,13 +166,50 @@ INSERT INTO users (id,email,password_hash,full_name,role,status)
 VALUES ('80000000-0000-4000-8000-000000000001','rehearsal@example.invalid',:'password_hash','Rehearsal User','advertiser','active');
 INSERT INTO advertiser_organizations (id,name,status)
 VALUES ('80000000-0000-4000-8000-000000000002','Synthetic Rehearsal','active');
-INSERT INTO stored_files
-  (id,organization_id,uploader_user_id,purpose,original_filename,storage_key,content_type,size_bytes,checksum_sha256,scan_status)
+INSERT INTO file_upload_intents
+  (id,organization_id,uploader_user_id,client_request_id,request_fingerprint,purpose,
+   original_filename,declared_content_type,declared_size_bytes,declared_sha256,object_key,
+   expires_at,status)
 VALUES
-  ('80000000-0000-4000-8000-000000000003','80000000-0000-4000-8000-000000000002',
-   '80000000-0000-4000-8000-000000000001','report_export','synthetic-report.txt',
+  ('80000000-0000-4000-8000-000000000004','80000000-0000-4000-8000-000000000002',
+   '80000000-0000-4000-8000-000000000001','80000000-0000-4000-8000-000000000005',
+   repeat('a',64),'creative','synthetic-report.txt','text/plain',:'payload_bytes',:'payload_sha',
+   'rehearsal/report.txt',clock_timestamp() + interval '1 hour','confirmed');
+INSERT INTO stored_files
+  (id,upload_intent_id,organization_id,uploader_user_id,purpose,original_filename,storage_key,
+   content_type,size_bytes,checksum_sha256,scan_status)
+VALUES
+  ('80000000-0000-4000-8000-000000000003','80000000-0000-4000-8000-000000000004',
+   '80000000-0000-4000-8000-000000000002','80000000-0000-4000-8000-000000000001',
+   'creative','synthetic-report.txt',
    'rehearsal/report.txt','text/plain',:'payload_bytes',:'payload_sha','clean');
 SQL
+
+release_compatibility="${TEMP_DIR}/release-compatibility.json"
+jq -n \
+  --arg release "${current_release_id}" --arg revision "${REVISION}" \
+  --arg image "${backend_image}" --arg previous_release "${previous_release_id}" \
+  --arg previous_revision "${PREVIOUS_REVISION}" --arg previous_image "${previous_backend_image}" \
+  --arg migration "${FORWARD_ALEMBIC_REVISION}" \
+  '{schema_version:1,result:"passed",target_release_id:$release,target_revision:$revision,
+    target_backend_image:$image,previous_release_id:$previous_release,
+    previous_revision:$previous_revision,previous_backend_image:$previous_image,
+    forward_alembic_revision:$migration,
+    checks:{no_database_downgrade:true,previous_image_readiness:true,
+      previous_image_report_schema_canary:true}}' >"${release_compatibility}"
+chmod 600 "${release_compatibility}"
+
+release_log rehearsal_populated_forward_release starting
+scripts/release.sh --env-file "${CURRENT_ENV_FILE}" --state-dir "${STATE_DIR}" \
+  --backup-dir "${BACKUP_DIR}" --smoke-email "rehearsal@example.invalid" \
+  --smoke-password-file "${smoke_password_file}" \
+  --compatibility-evidence "${release_compatibility}"
+# Retry proves the authenticated backup and ordered release state converge.
+scripts/release.sh --env-file "${CURRENT_ENV_FILE}" --state-dir "${STATE_DIR}" \
+  --backup-dir "${BACKUP_DIR}" --smoke-email "rehearsal@example.invalid" \
+  --smoke-password-file "${smoke_password_file}" \
+  --compatibility-evidence "${release_compatibility}"
+compose=(docker compose -f "${RELEASE_COMPOSE_FILE}" --env-file "${CURRENT_ENV_FILE}")
 
 "${compose[@]}" exec -T api python - <<'PY'
 import concurrent.futures
@@ -201,29 +232,26 @@ if p95 >= 500:
 print(f'{{"event":"bounded_load","status":"passed","requests":100,"p95_ms":{p95:.2f}}}')
 PY
 
-config_sha="$(python3 scripts/release_contract.py preflight --local-rehearsal \
-  --env-file "${CURRENT_RECOVERY_ENV_FILE}" --compose-file "${RELEASE_COMPOSE_FILE}" \
-  | jq -r '.config_sha256')"
-recovery_state_file="${RECOVERY_STATE_DIR}/${current_release_id}.json"
-python3 scripts/release_contract.py state-init --state-file "${recovery_state_file}" \
-  --release-id "${current_release_id}" --revision "${REVISION}" --backend-image "${backend_image}" \
-  --frontend-image "${frontend_image}" --config-sha256 "${config_sha}" \
-  --previous-release-id "${previous_release_id}" >/dev/null
-python3 scripts/release_contract.py state-advance --state-file "${recovery_state_file}" \
-  --release-id "${current_release_id}" --stage preflight >/dev/null
-
-scripts/backup_release.sh --env-file "${CURRENT_RECOVERY_ENV_FILE}" \
-  --state-file "${recovery_state_file}" --output-dir "${BACKUP_DIR}"
+recovery_state_file="${STATE_DIR}/${current_release_id}.json"
 bundle="${BACKUP_DIR}/${current_release_id}.tar.gpg"
-scripts/verify_restore.sh --env-file "${CURRENT_RECOVERY_ENV_FILE}" \
+scripts/verify_restore.sh --env-file "${CURRENT_ENV_FILE}" \
   --bundle "${bundle}" --passphrase-file "${passphrase_file}"
 # Re-verify the same immutable artifact to exercise retry authority.
-scripts/verify_restore.sh --env-file "${CURRENT_RECOVERY_ENV_FILE}" \
+scripts/verify_restore.sh --env-file "${CURRENT_ENV_FILE}" \
   --bundle "${bundle}" --passphrase-file "${passphrase_file}"
-for stage in backup migration compatibility traffic; do
-  python3 scripts/release_contract.py state-advance --state-file "${recovery_state_file}" \
-    --release-id "${current_release_id}" --stage "${stage}" >/dev/null
-done
+"${compose[@]}" run --rm -T --no-deps api python - <<'PY'
+from app.operations.storage_snapshot import _client
+from app.core.config import get_settings
+
+client = _client()
+settings = get_settings()
+pages = client.get_paginator("list_object_versions").paginate(
+    Bucket=settings.object_storage_bucket, Prefix="restore-verification/"
+)
+if any(page.get("Versions") or page.get("DeleteMarkers") for page in pages):
+    raise SystemExit("restore verification left private object versions behind")
+print('{"event":"restore_object_cleanup","status":"passed"}')
+PY
 
 recovery_compatibility="${TEMP_DIR}/recovery-compatibility.json"
 jq -n \
@@ -241,7 +269,7 @@ chmod 600 "${recovery_compatibility}"
 
 release_log rehearsal_distinct_previous_recovery starting
 scripts/recover_release.sh --current-state "${recovery_state_file}" \
-  --current-env-file "${CURRENT_RECOVERY_ENV_FILE}" \
+  --current-env-file "${CURRENT_ENV_FILE}" \
   --previous-env-file "${PREVIOUS_ENV_FILE}" --state-dir "${RECOVERY_STATE_DIR}" \
   --smoke-email "rehearsal@example.invalid" --smoke-password-file "${smoke_password_file}" \
   --compatibility-evidence "${recovery_compatibility}"
@@ -251,11 +279,12 @@ db_revision_after_recovery="$("${compose[@]}" exec -T db psql -U mobility -d mob
   || { echo "ERROR: recovery implied a migration downgrade" >&2; exit 1; }
 release_log recovery_distinct_previous_revision passed
 
-# The original first-release state now conflicts with the synthetic smoke user.
-# Replaying it therefore fails after edge open and must close the edge in its
-# release trap while retaining the forward database.
+# An invalid smoke identity fails after edge open and must close the edge in
+# the release trap while retaining the forward database.
 if scripts/release.sh --env-file "${CURRENT_ENV_FILE}" --state-dir "${STATE_DIR}" \
-  --backup-dir "${BACKUP_DIR}" --compatibility-evidence "${first_compatibility}"; then
+  --backup-dir "${BACKUP_DIR}" --smoke-email "missing@example.invalid" \
+  --smoke-password-file "${smoke_password_file}" \
+  --compatibility-evidence "${release_compatibility}"; then
   echo "ERROR: deliberate post-edge smoke failure unexpectedly passed" >&2
   exit 1
 fi

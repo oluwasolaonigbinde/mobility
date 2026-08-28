@@ -9,10 +9,11 @@ OUTPUT_DIR=""
 TEMP_DIR=""
 GPG_HOME=""
 WRITERS_STOPPED=false
+LEAVE_WRITERS_STOPPED=false
 RUNNING_SERVICES=""
 
 usage() {
-  echo "Usage: scripts/backup_release.sh --env-file PATH --state-file PATH --output-dir PATH" >&2
+  echo "Usage: scripts/backup_release.sh --env-file PATH --state-file PATH --output-dir PATH [--leave-writers-stopped]" >&2
 }
 
 cleanup() {
@@ -21,7 +22,7 @@ cleanup() {
   if [[ "${WRITERS_STOPPED}" == true ]]; then
     while IFS= read -r service; do
       [[ -n "${service}" ]] || continue
-      docker compose -f "${RELEASE_COMPOSE_FILE}" --env-file "${ENV_FILE}" up -d --no-build "${service}" >/dev/null
+      docker compose -f "${RELEASE_COMPOSE_FILE}" --env-file "${ENV_FILE}" start "${service}" >/dev/null
     done <<<"${RUNNING_SERVICES}"
   fi
   [[ -z "${TEMP_DIR}" ]] || rm -rf -- "${TEMP_DIR}"
@@ -35,6 +36,7 @@ while (( $# > 0 )); do
     --env-file) ENV_FILE="$2"; shift ;;
     --state-file) STATE_FILE="$2"; shift ;;
     --output-dir) OUTPUT_DIR="$2"; shift ;;
+    --leave-writers-stopped) LEAVE_WRITERS_STOPPED=true ;;
     -h|--help) usage; exit 0 ;;
     *) usage; exit 2 ;;
   esac
@@ -52,6 +54,8 @@ fi
 preflight="$(python3 scripts/release_contract.py "${preflight_args[@]}")"
 release_id="$(release_env_value "${ENV_FILE}" RELEASE_ID)"
 release_revision="$(release_env_value "${ENV_FILE}" RELEASE_REVISION)"
+export RELEASE_LOG_RELEASE_ID="${release_id}"
+export RELEASE_LOG_REVISION="${release_revision}"
 passphrase_file="$(release_env_value "${ENV_FILE}" BACKUP_PASSPHRASE_FILE)"
 retention_days="$(release_env_value "${ENV_FILE}" BACKUP_RETENTION_DAYS)"
 config_sha256="$(jq -r '.config_sha256' <<<"${preflight}")"
@@ -70,8 +74,8 @@ export GNUPGHOME="${GPG_HOME}"
 compose=(docker compose -f "${RELEASE_COMPOSE_FILE}" --env-file "${ENV_FILE}")
 RUNNING_SERVICES="$("${compose[@]}" ps --status running --services)"
 release_log backup_quiesce starting
-"${compose[@]}" stop edge frontend api worker >/dev/null
 WRITERS_STOPPED=true
+"${compose[@]}" stop edge frontend api worker >/dev/null
 
 release_log backup_database starting
 "${compose[@]}" exec -T db pg_dump -U mobility -d mobility --format=custom >"${TEMP_DIR}/database.dump"
@@ -172,11 +176,13 @@ with os.fdopen(descriptor, "w", encoding="utf-8") as output:
 PY
 mv -- "${final_bundle}.complete.json.partial" "${final_bundle}.complete.json"
 
+if [[ "${LEAVE_WRITERS_STOPPED}" != true ]]; then
+  while IFS= read -r service; do
+    [[ -n "${service}" ]] || continue
+    "${compose[@]}" start "${service}" >/dev/null
+  done <<<"${RUNNING_SERVICES}"
+fi
 WRITERS_STOPPED=false
-while IFS= read -r service; do
-  [[ -n "${service}" ]] || continue
-  "${compose[@]}" up -d --no-build "${service}" >/dev/null
-done <<<"${RUNNING_SERVICES}"
 release_log backup_complete passed
 trap - EXIT HUP INT TERM
 rm -rf -- "${TEMP_DIR}"

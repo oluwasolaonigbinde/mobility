@@ -1,5 +1,6 @@
 import "server-only";
 import createClient, { type Middleware } from "openapi-fetch";
+import { headers as requestHeaders } from "next/headers";
 import type { paths } from "./schema";
 import { env } from "@/lib/env";
 import { toApiError } from "./errors";
@@ -29,6 +30,16 @@ const throwOnError: Middleware = {
   },
 };
 
+const correlateRequest: Middleware = {
+  async onRequest({ request }) {
+    const requestId = (await requestHeaders()).get("x-request-id")?.trim();
+    if (requestId) {
+      request.headers.set("X-Request-ID", requestId);
+    }
+    return request;
+  },
+};
+
 export type ApiClient = ReturnType<typeof createClient<paths>>;
 
 function createConfiguredClient(headers?: Record<string, string>): ApiClient {
@@ -38,7 +49,7 @@ function createConfiguredClient(headers?: Record<string, string>): ApiClient {
     // Backend data changes independently of the Next build — never cache by default.
     cache: "no-store",
   });
-  client.use(throwOnError);
+  client.use(correlateRequest, throwOnError);
   return client;
 }
 

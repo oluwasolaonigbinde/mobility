@@ -8,10 +8,12 @@ readonly RELEASE_COMPOSE_FILE="${RELEASE_COMPOSE_FILE:-${RELEASE_REPO_ROOT}/dock
 release_log() {
   local event="$1"
   local status="$2"
+  local release_id="${RELEASE_LOG_RELEASE_ID:-unbound}"
+  local release_revision="${RELEASE_LOG_REVISION:-unbound}"
   local timestamp
   timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  printf '{"timestamp":"%s","event":"%s","status":"%s"}\n' \
-    "${timestamp}" "${event}" "${status}"
+  printf '{"timestamp":"%s","event":"%s","status":"%s","release_id":"%s","release_revision":"%s"}\n' \
+    "${timestamp}" "${event}" "${status}" "${release_id}" "${release_revision}"
 }
 
 release_env_value() {

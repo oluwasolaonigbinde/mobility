@@ -112,7 +112,9 @@ async def verify_snapshot(archive_path: Path, restore_prefix: str) -> None:
     expected_by_key = {item["key"]: item for item in expected}
     client = _client()
     bucket = settings.object_storage_bucket
-    restored_keys: list[str] = []
+    prefix = restore_prefix.strip("/")
+    if not prefix.startswith("restore-verification/") or ".." in prefix.split("/"):
+        raise RuntimeError("restore verification prefix is outside the isolated namespace")
     try:
         with tarfile.open(archive_path, mode="r:") as archive:
             inventory_member = archive.getmember("inventory.json")
@@ -136,15 +138,19 @@ async def verify_snapshot(archive_path: Path, restore_prefix: str) -> None:
                     or len(data) != item["bytes"]
                 ):
                     raise RuntimeError("restored object does not agree with database authority")
-                restore_key = f"{restore_prefix.rstrip('/')}/{index:08d}"
-                client.put_object(
+                restore_key = f"{prefix}/{index:08d}"
+                created = client.put_object(
                     Bucket=bucket,
                     Key=restore_key,
                     Body=data,
                     Metadata={"sha256": item["sha256"], "source-version": item["version_id"]},
                 )
-                restored_keys.append(restore_key)
-                observed = client.get_object(Bucket=bucket, Key=restore_key)
+                created_version = str(created.get("VersionId") or "")
+                if not created_version:
+                    raise RuntimeError("restore verification requires versioned object storage")
+                observed = client.get_object(
+                    Bucket=bucket, Key=restore_key, VersionId=created_version
+                )
                 try:
                     restored = observed["Body"].read()
                 finally:
@@ -152,8 +158,21 @@ async def verify_snapshot(archive_path: Path, restore_prefix: str) -> None:
                 if hashlib.sha256(restored).hexdigest() != item["sha256"]:
                     raise RuntimeError("isolated object restore verification failed")
     finally:
-        for key in restored_keys:
-            client.delete_object(Bucket=bucket, Key=key)
+        cleanup_objects: list[dict[str, str]] = []
+        paginator = client.get_paginator("list_object_versions")
+        for page in paginator.paginate(Bucket=bucket, Prefix=f"{prefix}/"):
+            for item in (*page.get("Versions", []), *page.get("DeleteMarkers", [])):
+                cleanup_objects.append({"Key": item["Key"], "VersionId": item["VersionId"]})
+        for offset in range(0, len(cleanup_objects), 1000):
+            response = client.delete_objects(
+                Bucket=bucket,
+                Delete={"Objects": cleanup_objects[offset : offset + 1000], "Quiet": True},
+            )
+            if response.get("Errors"):
+                raise RuntimeError("restore verification object cleanup failed")
+        for page in paginator.paginate(Bucket=bucket, Prefix=f"{prefix}/"):
+            if page.get("Versions") or page.get("DeleteMarkers"):
+                raise RuntimeError("restore verification left private object versions behind")
 
 
 def main(argv: list[str] | None = None) -> int:

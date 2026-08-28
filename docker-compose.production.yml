@@ -245,6 +245,7 @@ services:
     image: ${CADDY_IMAGE:?CADDY_IMAGE is required}
     environment:
       EDGE_HOSTNAME: ${EDGE_HOSTNAME:?EDGE_HOSTNAME is required}
+      RELEASE_REVISION: ${RELEASE_REVISION:?RELEASE_REVISION is required}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

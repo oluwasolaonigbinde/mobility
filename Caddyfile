@@ -1,9 +1,18 @@
 {$EDGE_HOSTNAME} {
 	log {
 		output stdout
-		format json
+		format filter {
+			wrap json
+			fields {
+				request>uri delete
+				request>headers>Authorization delete
+				request>headers>Cookie delete
+			}
+		}
 	}
 	log_append request_id {http.request.uuid}
+	log_append request_path {http.request.uri.path}
+	log_append release_revision {$RELEASE_REVISION:unbound}
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"

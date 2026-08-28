@@ -17,6 +17,7 @@ docker compose -f "${PROD_FILE}" --profile release --env-file "${ENV_FILE}" conf
   | python3 -m json.tool >/dev/null
 docker run --rm \
   -e EDGE_HOSTNAME=http://localhost \
+  -e RELEASE_REVISION=1715fe53b19972cd6db829a08a9d6cf572fbd656 \
   -v "${REPO_ROOT}/Caddyfile:/etc/caddy/Caddyfile:ro" \
   caddy@sha256:af32e97399febea808609119bb21544d0265c58a02836576e32a2d082c262c17 \
   caddy validate --config /etc/caddy/Caddyfile

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import logging
 import os
 import shutil
 import subprocess
+import tarfile
 import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -19,6 +21,7 @@ from app.core.observability import (
     configure_logging,
     scrub_observability_value,
 )
+from app.operations import storage_snapshot
 from app.operations.readiness import _storage_check
 from scripts.release_contract import (
     ContractError,
@@ -97,6 +100,7 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
         "LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS": "",
         "BACKUP_PASSPHRASE_FILE": str(passphrase),
         "BACKUP_RETENTION_DAYS": "35",
+        "LOG_LEVEL": "INFO",
     }
 
 
@@ -166,6 +170,11 @@ def test_caddy_exposes_only_health_webhooks_and_frontend() -> None:
     assert "reverse_proxy frontend:3000" in caddyfile
     assert "header_up -X-Forwarded-For" in caddyfile
     assert "log_append request_id {http.request.uuid}" in caddyfile
+    assert "log_append request_path {http.request.uri.path}" in caddyfile
+    assert "log_append release_revision {$RELEASE_REVISION:unbound}" in caddyfile
+    assert "request>uri delete" in caddyfile
+    assert "request>headers>Authorization delete" in caddyfile
+    assert "request>headers>Cookie delete" in caddyfile
     assert "header_up X-Request-ID {http.request.uuid}" in caddyfile
     assert "Strict-Transport-Security" in caddyfile
 
@@ -177,6 +186,9 @@ def test_production_builds_pin_base_images_and_dependency_graphs() -> None:
 
     assert backend.startswith("FROM python@sha256:")
     assert "--require-hashes -r requirements-production.txt" in backend
+    assert "--timeout 600 --retries 10" in backend
+    assert backend.index("RUN pip install") < backend.index("COPY app ./app")
+    assert backend.index("RUN pip install") < backend.index("ARG VCS_REF")
     assert '".[dev]"' not in backend
     assert all("==" in line for line in python_lock.splitlines() if line and line[0].isalnum())
     assert "--hash=sha256:" in python_lock
@@ -205,6 +217,12 @@ def test_production_builds_pin_base_images_and_dependency_graphs() -> None:
         ("REDIS_URL", "redis://:Wrong-Password-That-Is-Long@redis:6379/0"),
         ("PAYOUT_CRYPTO_KEYRING_B64", "EXAMPLE-ONLY-REPLACE-WITH-A-KEYRING"),
         ("SENTRY_DSN", "http://public@example.invalid/1"),
+        ("PUBLIC_ORIGIN", "https://operator:secret@cardvert.example.com"),
+        ("PUBLIC_ORIGIN", "https://cardvert.example.com?token=secret"),
+        ("PUBLIC_ORIGIN", "https://cardvert.example.com/#private"),
+        ("PUBLIC_ORIGIN", "https://cardvert.example.com:8443"),
+        ("LOG_LEVEL", "DEBUG"),
+        ("DEBUG", "true"),
     ],
 )
 def test_release_environment_rejects_unsafe_values(tmp_path: Path, name: str, value: str) -> None:
@@ -300,6 +318,116 @@ def test_json_logs_correlate_and_redact_sensitive_values() -> None:
 def test_storage_readiness_requires_write_read_delete_canary() -> None:
     with pytest.raises(RuntimeError, match="write/read/delete canary"):
         asyncio.run(_storage_check(write_canary=False))
+
+
+class _VersionPaginator:
+    def __init__(self, client: _VersionedStorage) -> None:
+        self.client = client
+
+    def paginate(self, *, Bucket: str, Prefix: str):  # noqa: N803
+        del Bucket
+        versions = [
+            {"Key": key, "VersionId": version}
+            for key, entries in self.client.versions.items()
+            if key.startswith(Prefix)
+            for version in entries
+        ]
+        yield {"Versions": versions, "DeleteMarkers": []}
+
+
+class _VersionedStorage:
+    def __init__(self, *, corrupt_read: bool = False) -> None:
+        self.versions: dict[str, list[str]] = {}
+        self.payloads: dict[tuple[str, str], bytes] = {}
+        self.corrupt_read = corrupt_read
+
+    def put_object(self, *, Bucket: str, Key: str, Body: bytes, Metadata: dict):  # noqa: N803
+        del Bucket, Metadata
+        version = f"version-{len(self.payloads) + 1}"
+        self.versions.setdefault(Key, []).append(version)
+        self.payloads[(Key, version)] = Body
+        return {"VersionId": version}
+
+    def get_object(self, *, Bucket: str, Key: str, VersionId: str):  # noqa: N803
+        del Bucket
+        payload = self.payloads[(Key, VersionId)]
+        if self.corrupt_read:
+            payload += b"corrupt"
+        return {"Body": io.BytesIO(payload)}
+
+    def get_paginator(self, name: str):
+        assert name == "list_object_versions"
+        return _VersionPaginator(self)
+
+    def delete_objects(self, *, Bucket: str, Delete: dict):  # noqa: N803
+        del Bucket
+        for item in Delete["Objects"]:
+            self.payloads.pop((item["Key"], item["VersionId"]), None)
+            entries = self.versions.get(item["Key"], [])
+            if item["VersionId"] in entries:
+                entries.remove(item["VersionId"])
+            if not entries:
+                self.versions.pop(item["Key"], None)
+        return {}
+
+
+@pytest.mark.parametrize("corrupt_read", [False, True])
+def test_restore_verification_removes_exact_object_versions_on_success_and_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, corrupt_read: bool
+) -> None:
+    payload = b"private report bytes"
+    digest = __import__("hashlib").sha256(payload).hexdigest()
+    inventory = [
+        {
+            "stored_file_id": "80000000-0000-4000-8000-000000000003",
+            "key": "private/report.pdf",
+            "sha256": digest,
+            "bytes": len(payload),
+            "purpose": "report_export",
+            "version_id": "source-version-1",
+        }
+    ]
+    archive_path = tmp_path / "objects.tar"
+    with tarfile.open(archive_path, "w") as archive:
+        encoded = json.dumps(inventory).encode()
+        info = tarfile.TarInfo("inventory.json")
+        info.size = len(encoded)
+        archive.addfile(info, io.BytesIO(encoded))
+        info = tarfile.TarInfo("objects/00000000")
+        info.size = len(payload)
+        archive.addfile(info, io.BytesIO(payload))
+
+    client = _VersionedStorage(corrupt_read=corrupt_read)
+    monkeypatch.setattr(storage_snapshot, "_client", lambda: client)
+    monkeypatch.setattr(
+        storage_snapshot,
+        "get_settings",
+        lambda: type(
+            "Settings",
+            (),
+            {
+                "database_url": "postgresql://unused",
+                "object_storage_bucket": "private",
+            },
+        )(),
+    )
+
+    async def database_inventory(_: str):
+        return [{key: value for key, value in inventory[0].items() if key != "version_id"}]
+
+    monkeypatch.setattr(storage_snapshot, "_database_inventory", database_inventory)
+    if corrupt_read:
+        with pytest.raises(RuntimeError, match="isolated object restore"):
+            asyncio.run(
+                storage_snapshot.verify_snapshot(
+                    archive_path, "restore-verification/release/unique"
+                )
+            )
+    else:
+        asyncio.run(
+            storage_snapshot.verify_snapshot(archive_path, "restore-verification/release/unique")
+        )
+    assert client.versions == {}
 
 
 def test_configure_logging_replaces_root_handlers_with_json_handler() -> None:
@@ -535,6 +663,107 @@ def test_release_scripts_never_run_alembic_downgrade() -> None:
     assert "bootstrap:no-predecessor-empty-database" in scripts
     assert "--expected-database-revision" in scripts
     assert "--current-env-file" in scripts
+    assert scripts.count("--wait-timeout 120 edge") == 2
+    backup = (ROOT / "scripts/backup_release.sh").read_text()
+    release = (ROOT / "scripts/release.sh").read_text()
+    assert "--leave-writers-stopped" in release
+    assert '"${compose[@]}" start "${service}"' in backup
+    assert 'up -d --no-build "${service}"' not in backup
+
+
+@pytest.mark.parametrize("script_name", ["release.sh", "recover_release.sh"])
+def test_lock_contender_never_removes_active_owner(tmp_path: Path, script_name: str) -> None:
+    state_dir = tmp_path / "state"
+    lock_dir = state_dir / ".release.lock"
+    lock_dir.mkdir(parents=True)
+    owner = json.dumps({"host": os.uname().nodename, "pid": os.getpid()}).encode()
+    (lock_dir / "owner.json").write_bytes(owner)
+    env_file = tmp_path / "release.env"
+    env_file.write_text("ENVIRONMENT=production\n")
+    state_file = tmp_path / "current-state.json"
+    state_file.write_text("{}\n")
+    evidence = tmp_path / "compatibility.json"
+    evidence.write_text("{}\n")
+    password = tmp_path / "smoke-password"
+    password.write_text("secret\n")
+    password.chmod(0o600)
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    for command in ("docker", "jq"):
+        executable = fake_bin / command
+        executable.write_text("#!/usr/bin/env bash\nexit 0\n")
+        executable.chmod(0o755)
+    if script_name == "release.sh":
+        arguments = [
+            "--env-file",
+            str(env_file),
+            "--state-dir",
+            str(state_dir),
+            "--backup-dir",
+            str(tmp_path / "backups"),
+            "--compatibility-evidence",
+            str(evidence),
+        ]
+    else:
+        arguments = [
+            "--current-state",
+            str(state_file),
+            "--current-env-file",
+            str(env_file),
+            "--previous-env-file",
+            str(env_file),
+            "--state-dir",
+            str(state_dir),
+            "--smoke-email",
+            "smoke@example.invalid",
+            "--smoke-password-file",
+            str(password),
+            "--compatibility-evidence",
+            str(evidence),
+        ]
+    result = subprocess.run(
+        [str(ROOT / "scripts" / script_name), *arguments],
+        cwd=ROOT,
+        env={**os.environ, "PATH": f"{fake_bin}:{os.environ['PATH']}"},
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 1
+    assert lock_dir.is_dir()
+    assert (lock_dir / "owner.json").read_bytes() == owner
+
+
+def test_smoke_password_file_must_be_external_and_private(tmp_path: Path) -> None:
+    env_file = tmp_path / "release.env"
+    env_file.write_text("ENVIRONMENT=production\n")
+    broad = tmp_path / "broad-password"
+    broad.write_text("secret\n")
+    broad.chmod(0o644)
+    base_environment = {
+        **os.environ,
+        "SMOKE_BASE_URL": "https://cardvert.example.com",
+        "COMPOSE_ENV_FILE": str(env_file),
+    }
+    for source, message in (
+        (PRODUCTION_ENV, "outside the repository"),
+        (broad, "0600 or stricter"),
+    ):
+        result = subprocess.run(
+            [
+                str(ROOT / "scripts/release_smoke.sh"),
+                "--email",
+                "smoke@example.invalid",
+                "--password-file",
+                str(source),
+            ],
+            cwd=ROOT,
+            env=base_environment,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode != 0
+        assert message in result.stderr
 
 
 def test_failure_cleanup_stops_an_open_edge(tmp_path: Path) -> None:

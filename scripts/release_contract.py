@@ -190,7 +190,21 @@ def validate_release_environment(
     ):
         raise ContractError("EDGE_HOSTNAME must be an approved deployable hostname")
     origin = urlparse(_require(environment, "PUBLIC_ORIGIN"))
-    if origin.scheme != "https" or origin.hostname != hostname or origin.path not in {"", "/"}:
+    try:
+        origin_port = origin.port
+    except ValueError as exc:
+        raise ContractError("PUBLIC_ORIGIN contains an invalid port") from exc
+    if (
+        origin.scheme != "https"
+        or origin.hostname != hostname
+        or origin_port not in {None, 443}
+        or origin.path not in {"", "/"}
+        or origin.username is not None
+        or origin.password is not None
+        or origin.params
+        or origin.query
+        or origin.fragment
+    ):
         raise ContractError("PUBLIC_ORIGIN must be the HTTPS EDGE_HOSTNAME origin")
 
     try:
@@ -250,6 +264,11 @@ def validate_release_environment(
     ):
         if _is_true(environment.get(name)):
             raise ContractError(f"{name} must be false")
+    if _is_true(environment.get("DEBUG")):
+        raise ContractError("DEBUG must be false")
+    log_level = environment.get("LOG_LEVEL", "INFO").strip().upper()
+    if log_level not in {"INFO", "WARNING", "ERROR", "CRITICAL"}:
+        raise ContractError("LOG_LEVEL must be a non-debug production level")
     if (
         _is_true(environment.get("LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER"))
         or _is_true(environment.get("LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER"))

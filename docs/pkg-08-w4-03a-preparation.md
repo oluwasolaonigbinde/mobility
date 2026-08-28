@@ -105,9 +105,22 @@ returned `REVISE`. The candidate plan was narrowed and strengthened once to:
   credentials. The candidate now closes each gap with focused regressions and
   the expanded full rehearsal; a fresh exact-tip review remains the completion
   gate.
+- Required clean-context review recheck confirmed those eight findings fixed,
+  then returned `FIX` for five additional P1s: a target backup could recreate
+  writers before migration; a lock contender could remove the active owner's
+  lock; isolated restore verification could leave versioned objects; unsafe
+  origin/debug/smoke-password inputs were not fully rejected; and edge/frontend
+  correlation and privacy evidence was incomplete. The candidate now keeps
+  target writers stopped from backup through migration, makes lock cleanup
+  ownership explicit, deletes and proves deletion of every restore object
+  version/delete marker on success or failure, closes those configuration and
+  credential-file cases, and carries redacted release/request correlation
+  through Caddy, Next and Sentry. `45` focused W4-03A tests and the two new
+  frontend correlation/privacy tests pass. A fresh exact-tip
+  minimal-change-review remains the completion gate.
 
-Final lint/tests, §9 byte-stability, secret/exposure scan, and clean-context
-post-build minimal-change review are recorded in the final candidate commit
-and controller handoff. Live DNS/TLS, public edge, provider backups/alerts,
+Final lint/tests, §9 byte-stability, secret/exposure scan, exact-tip rehearsal,
+and clean-context post-build minimal-change review are recorded in the
+controller handoff. Live DNS/TLS, public edge, provider backups/alerts,
 external restore, live previous-release compatibility, and credential rotation are
 not run because they require `EXT-RELEASE-ENV` and `EXT-STAGING-APPROVAL`.
