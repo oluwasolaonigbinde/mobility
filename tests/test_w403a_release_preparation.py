@@ -220,9 +220,11 @@ def test_production_builds_pin_base_images_and_dependency_graphs() -> None:
         ("OBJECT_STORAGE_ENDPOINT_URL", "https://objects.test"),
         ("OBJECT_STORAGE_ENDPOINT_URL", "https://objects.example"),
         ("OBJECT_STORAGE_ENDPOINT_URL", "https://192.0.2.1"),
+        ("OBJECT_STORAGE_ENDPOINT_URL", "https://224.0.0.1"),
         ("OBJECT_STORAGE_PUBLIC_ENDPOINT_URL", "https://127.1.2.3"),
         ("OBJECT_STORAGE_PUBLIC_ENDPOINT_URL", "https://198.18.0.1"),
         ("OBJECT_STORAGE_PUBLIC_ENDPOINT_URL", "https://100.64.0.1"),
+        ("OBJECT_STORAGE_PUBLIC_ENDPOINT_URL", "https://[ff02::1]"),
         ("OBJECT_STORAGE_PUBLIC_ENDPOINT_URL", "https://objects.example.com:0"),
         ("SESSION_COOKIE_NAME", "cardvert_session"),
         (

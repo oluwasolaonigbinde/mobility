@@ -281,7 +281,9 @@ def validate_release_environment(
                     or PLACEHOLDER_RE.search(normalized_hostname)
                 )
                 or endpoint_address is not None
-                and not (endpoint_address.is_global or is_rfc1918)
+                and not (
+                    endpoint_address.is_global and not endpoint_address.is_multicast or is_rfc1918
+                )
             ):
                 raise ContractError("Object storage endpoints must use deployable hostnames")
     for name in ("OBJECT_STORAGE_REGION", "OBJECT_STORAGE_BUCKET", "OBJECT_STORAGE_ACCESS_KEY_ID"):
