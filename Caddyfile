@@ -1,6 +1,37 @@
 {$EDGE_HOSTNAME} {
-	reverse_proxy frontend:3000 {
-		header_up -X-Forwarded-For
-		header_up X-Client-IP {http.request.remote.host}
+	log {
+		output stdout
+		format json
+	}
+	log_append request_id {http.request.uuid}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	@public_api path /health /api/v1/health* /api/v1/webhooks/*
+	handle @public_api {
+		reverse_proxy api:8000 {
+			header_up -Forwarded
+			header_up -X-Forwarded-For
+			header_up -X-Real-IP
+			header_up -X-Request-ID
+			header_up X-Client-IP {http.request.remote.host}
+			header_up X-Request-ID {http.request.uuid}
+		}
+	}
+
+	handle {
+		reverse_proxy frontend:3000 {
+			header_up -Forwarded
+			header_up -X-Forwarded-For
+			header_up -X-Real-IP
+			header_up -X-Request-ID
+			header_up X-Client-IP {http.request.remote.host}
+			header_up X-Request-ID {http.request.uuid}
+		}
 	}
 }

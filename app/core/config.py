@@ -1,6 +1,7 @@
 import base64
 import binascii
 import json
+import re
 from functools import lru_cache
 from typing import Annotated
 
@@ -46,6 +47,7 @@ class Settings(BaseSettings):
     database_url: str | None = None
     redis_url: str | None = None
     sentry_dsn: str = ""
+    release_revision: str = ""
     login_rate_limit_ip_max_failures: int = 150
     login_rate_limit_ip_window_seconds: int = 300
     login_rate_limit_account_max_failures: int = 5
@@ -69,6 +71,7 @@ class Settings(BaseSettings):
     driver_registration_rate_limit_trusted_proxy_cidrs: str = ""
     backend_cors_origins: CorsOrigins = Field(default_factory=list)
     log_level: str = "INFO"
+    log_format: str = "text"
     request_id_header: str = "X-Request-ID"
     jwt_secret_key: str = DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
@@ -255,6 +258,22 @@ class Settings(BaseSettings):
         if value <= 0:
             raise ValueError("ACCESS_TOKEN_EXPIRE_MINUTES must be positive")
         return value
+
+    @field_validator("release_revision")
+    @classmethod
+    def validate_release_revision(cls, value: str, info) -> str:
+        normalized = value.strip().lower()
+        if normalized and not re.fullmatch(r"[0-9a-f]{40}", normalized):
+            raise ValueError("RELEASE_REVISION must be a full lowercase Git revision")
+        return normalized
+
+    @field_validator("log_format")
+    @classmethod
+    def validate_log_format(cls, value: str, info) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"text", "json"}:
+            raise ValueError("LOG_FORMAT must be text or json")
+        return normalized
 
     @field_validator(
         "login_rate_limit_ip_max_failures",

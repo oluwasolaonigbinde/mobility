@@ -11,7 +11,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 DEVELOPMENT_COMPOSE = ROOT / "docker-compose.yml"
 PRODUCTION_COMPOSE = ROOT / "docker-compose.production.yml"
-STAGING_ENV = ROOT / "staging.env.example"
+STAGING_ENV = ROOT / "production.env.example"
 
 
 def compose_config(
@@ -20,8 +20,6 @@ def compose_config(
     command = [
         "docker",
         "compose",
-        "-f",
-        str(DEVELOPMENT_COMPOSE),
         "-f",
         str(PRODUCTION_COMPOSE),
     ]
@@ -46,7 +44,7 @@ def test_production_render_has_one_public_edge_and_no_development_mounts() -> No
     model = compose_config()
     services = model["services"]
 
-    assert set(services) == {"api", "db", "edge", "frontend", "redis"}
+    assert set(services) == {"api", "db", "edge", "frontend", "redis", "worker"}
     assert [port["published"] for port in services["edge"]["ports"]] == ["80", "443", "443"]
     assert all(not service.get("ports") for name, service in services.items() if name != "edge")
     assert services["api"]["command"] == [
@@ -56,9 +54,15 @@ def test_production_render_has_one_public_edge_and_no_development_mounts() -> No
         "0.0.0.0",
         "--port",
         "8000",
+        "--no-access-log",
     ]
     assert services["api"].get("volumes") is None
     assert all(service["restart"] == "unless-stopped" for service in services.values())
+    assert all("build" not in service for service in services.values())
+    assert all("@sha256:" in service["image"] for service in services.values())
+    assert services["api"]["read_only"] is True
+    assert services["worker"]["read_only"] is True
+    assert services["frontend"]["read_only"] is True
     assert services["frontend"]["environment"]["LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER"] == "false"
     assert services["api"]["environment"]["LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER"] == "false"
     assert services["api"]["environment"]["LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS"] == ""
@@ -88,16 +92,13 @@ def test_trusted_client_ip_requires_explicit_three_setting_opt_in() -> None:
 
     assert services["frontend"]["environment"]["LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER"] == "true"
     assert services["api"]["environment"]["LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER"] == "true"
-    assert (
-        services["api"]["environment"]["LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS"]
-        == "172.30.0.0/24"
-    )
+    assert services["api"]["environment"]["LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS"] == "172.30.0.0/24"
 
 
-def test_profiles_keep_worker_default_off_and_migration_explicit() -> None:
+def test_worker_is_mandatory_and_migration_remains_explicit() -> None:
     model = compose_config(profiles=("worker", "release"))
 
-    assert model["services"]["worker"]["profiles"] == ["worker"]
+    assert model["services"]["worker"].get("profiles") is None
     assert model["services"]["worker"]["image"] == model["services"]["api"]["image"]
     assert model["services"]["migrate"]["image"] == model["services"]["api"]["image"]
     assert model["services"]["worker"].get("ports") is None
@@ -118,6 +119,7 @@ def test_healthchecks_and_dependencies_are_rendered() -> None:
     assert "/login" in services["frontend"]["healthcheck"]["test"][-1]
     assert services["frontend"]["depends_on"]["api"]["condition"] == "service_healthy"
     assert services["edge"]["depends_on"]["frontend"]["condition"] == "service_healthy"
+    assert "arq" in services["worker"]["healthcheck"]["test"]
 
 
 def test_development_compose_preserves_reload_mounts_profiles_and_ports() -> None:
@@ -175,8 +177,6 @@ def test_production_render_fails_clearly_when_required_value_is_missing(
             "docker",
             "compose",
             "-f",
-            str(DEVELOPMENT_COMPOSE),
-            "-f",
             str(PRODUCTION_COMPOSE),
             "--env-file",
             str(env_file),
@@ -204,6 +204,10 @@ def _smoke_environment(tmp_path: Path, *, failure: str = "") -> tuple[dict[str, 
         binaries / "curl",
         """#!/usr/bin/env bash
 [[ "${SMOKE_FAILURE:-}" != frontend ]] || exit 22
+[[ "$*" != *"--head"* ]] || {
+  printf 'HTTP/2 200\r\n'
+  printf 'strict-transport-security: max-age=31536000; includeSubDomains\r\n\r\n'
+}
 exit 0
 """,
     )
@@ -280,7 +284,8 @@ def test_smoke_success_redacts_secrets_and_cleans_temporary_files(tmp_path: Path
 def test_smoke_uses_the_base_and_production_compose_files() -> None:
     smoke = (ROOT / "scripts/release_smoke.sh").read_text()
 
-    assert '-f "${COMPOSE_BASE_FILE}" -f "${COMPOSE_PRODUCTION_FILE}"' in smoke
+    assert 'compose=(docker compose -f "${COMPOSE_PRODUCTION_FILE}"' in smoke
+    assert 'if [[ -n "${COMPOSE_BASE_FILE}" ]]' in smoke
 
 
 def test_backup_directory_can_be_isolated_for_restore_rehearsals() -> None:
@@ -289,9 +294,9 @@ def test_backup_directory_can_be_isolated_for_restore_rehearsals() -> None:
 
     assert 'BACKUP_DIR="${BACKUP_DIR:-${REPO_ROOT}/backups}"' in backup
     assert 'BACKUP_DIR="$(mktemp -d /tmp/mobility-restore-drill-backups.' in runbook
-    assert 'export BACKUP_DIR' in runbook
-    assert 'down -v --remove-orphans' in runbook
-    assert 'awk \'NF {count++} END {print count+0}\'' in runbook
+    assert "export BACKUP_DIR" in runbook
+    assert "down -v --remove-orphans" in runbook
+    assert "awk 'NF {count++} END {print count+0}'" in runbook
     assert '"$CODE_HEADS"' in runbook
     assert '"$DB_CURRENTS"' in runbook
 

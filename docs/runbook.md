@@ -26,83 +26,14 @@ Never stop or kill a process on host port 3000 while operating this repository; 
 
 ## Provider-neutral pre-production topology
 
-`docker-compose.production.yml` is an overlay for `docker-compose.yml`; always
-pass both files, in that order. Its explicit reset tags remove development host
-ports, source mounts, reload commands, and the frontend's opt-in profile. Docker
-Compose v2.33.1 or newer is required for reset tags, explicit egress gateway
-priority, and the long-form health
-dependencies used here. Copy `staging.env.example` to a
-root-readable path outside the repository, replace every `EXAMPLE-ONLY` value,
-and keep it out of source control.
-
-The release sequence is explicit:
-
-```bash
-export COMPOSE_FILE="$PWD/docker-compose.yml:$PWD/docker-compose.production.yml"
-export COMPOSE_ENV_FILE=/secure/path/mobility-staging.env
-export COMPOSE_ENV_FILES="$COMPOSE_ENV_FILE"
-
-# Render, validate, and build. A missing mandatory value fails the render.
-docker compose --env-file "$COMPOSE_ENV_FILE" config >/dev/null
-docker run --rm -e EDGE_HOSTNAME=http://localhost \
-  -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" \
-  caddy:2.8-alpine caddy validate --config /etc/caddy/Caddyfile
-docker compose --env-file "$COMPOSE_ENV_FILE" build api frontend
-
-# Start dependencies, apply migrations as a one-shot, then start the app
-# and the worker (mandatory since S4 — payouts + data lifecycle).
-docker compose --env-file "$COMPOSE_ENV_FILE" up -d db redis
-docker compose --env-file "$COMPOSE_ENV_FILE" --profile release run --rm migrate
-docker compose --env-file "$COMPOSE_ENV_FILE" up -d api frontend edge
-docker compose --env-file "$COMPOSE_ENV_FILE" --profile worker up -d worker
-docker compose --env-file "$COMPOSE_ENV_FILE" ps
-```
-
-The production model contains `db`, `redis`, `api`, `frontend`, `edge`, and
-`worker`. Only Caddy publishes host ports (80/443); API, frontend, PostGIS,
-and Redis remain private. PostGIS and Redis attach only to the internal data
-network. API, frontend, and worker/migration containers also attach to a
-non-published egress bridge so runtime HTTPS integrations such as Sentry can
-reach the internet without exposing an inbound host port. The worker keeps
-its compose profile purely as an operational quiescing mechanism (the
-restore script stops and conditionally restarts it) — **it is a required
-service, not an optional one**: it computes payouts (`payout_v2`, S1) and
-enforces the location-ping data lifecycle (S4). A deployment without the
-worker accrues unprocessed trips, stops premaking partitions, and stops
-enforcing retention.
-
-Run the non-destructive release smoke with a pre-existing account. The password
-is read from stdin or a protected file, never a command-line argument:
-
-```bash
-export SMOKE_BASE_URL=https://staging.example.invalid
-read -rsp "Smoke password: " SMOKE_PASSWORD; echo
-printf '%s\n' "$SMOKE_PASSWORD" |
-  scripts/release_smoke.sh --email smoke-operator@example.invalid --password-stdin
-unset SMOKE_PASSWORD
-```
-
-The smoke checks the public login page, private API readiness, database
-revision, authenticated Redis, and login. It creates no users, campaigns,
-payments, or seed data, and discards the login response without printing it.
-Normal authentication audit and limiter telemetry are expected.
-
-For backup/restore under this topology, keep `COMPOSE_FILE` and
-`COMPOSE_ENV_FILES`/Compose environment configuration pointing at the same
-deployment, then run `scripts/db_backup.sh` or `scripts/db_restore.sh`. The
-restore script stops the API, frontend, and worker; it restarts the worker only
-when that worker was running before restore.
-
-Rollback application code by restoring the previous image tag and recreating
-`api`, `frontend`, and `edge`. Roll back data only with the reviewed restore
-procedure below. Teardown leaves named data volumes intact:
-
-```bash
-docker compose --env-file "$COMPOSE_ENV_FILE" --profile worker --profile release down
-```
-
-After an approved final backup and verification, deleting the named volumes is
-a separate destructive operation. Never combine it with routine teardown.
+The current provider-neutral production contract, exact release/recovery
+commands, encrypted database-plus-object backup, isolated restore, incident
+playbooks and the future external run sheet are maintained in
+`docs/w4-03a-release-operations.md`. `docker-compose.production.yml` is now a
+standalone, image-only release model; it must **not** be merged with the local
+development Compose file. The database-only sections below remain local
+development recovery tools; they are not the W4-03A production backup or
+release path.
 
 ## Database backups
 

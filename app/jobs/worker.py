@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.adapters.storage import build_storage_provider
 from app.core.config import Settings, get_settings
-from app.core.observability import init_error_tracking
+from app.core.observability import configure_logging, init_error_tracking
 from app.jobs.assignment_activity import sweep_assignment_activity_flags
 from app.jobs.budget_enforcement import sweep_campaign_budget_enforcement
 from app.jobs.campaign_assignments import sweep_campaign_assignment_expiries
@@ -53,6 +53,7 @@ def _optional_redis_settings() -> RedisSettings | None:
 
 async def on_startup(ctx: dict[str, Any]) -> None:
     settings = get_settings()
+    configure_logging(settings, service="worker")
     # Guard the redis_settings=None import fallback: never run against arq's
     # implicit localhost default.
     if not settings.redis_url:

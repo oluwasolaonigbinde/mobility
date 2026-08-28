@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-readonly COMPOSE_BASE_FILE="${COMPOSE_BASE_FILE:-${REPO_ROOT}/docker-compose.yml}"
+readonly COMPOSE_BASE_FILE="${COMPOSE_BASE_FILE:-}"
 readonly COMPOSE_PRODUCTION_FILE="${COMPOSE_PRODUCTION_FILE:-${REPO_ROOT}/docker-compose.production.yml}"
 readonly COMPOSE_ENV_FILE="${COMPOSE_ENV_FILE:-}"
 readonly SMOKE_BASE_URL="${SMOKE_BASE_URL:-}"
@@ -105,11 +105,17 @@ with os.fdopen(descriptor, "w", encoding="utf-8") as output:
     json.dump({"email": email, "password": password}, output)
 PY
 
-compose=(docker compose -f "${COMPOSE_BASE_FILE}" -f "${COMPOSE_PRODUCTION_FILE}" --env-file "${COMPOSE_ENV_FILE}")
+if [[ -n "${COMPOSE_BASE_FILE}" ]]; then
+  compose=(docker compose -f "${COMPOSE_BASE_FILE}" -f "${COMPOSE_PRODUCTION_FILE}" --env-file "${COMPOSE_ENV_FILE}")
+else
+  compose=(docker compose -f "${COMPOSE_PRODUCTION_FILE}" --env-file "${COMPOSE_ENV_FILE}")
+fi
 
 echo "Checking public edge/frontend..."
-curl --fail --silent --show-error --output /dev/null \
-  "${SMOKE_BASE_URL%/}/login"
+headers="$(curl --fail --silent --show-error --head "${SMOKE_BASE_URL%/}/login")"
+grep -Eiq '^strict-transport-security:.*max-age=31536000' <<<"${headers}" \
+  || { echo "ERROR: public edge lacks the required HSTS policy" >&2; exit 1; }
+curl --fail --silent --show-error --output /dev/null "${SMOKE_BASE_URL%/}/health"
 
 echo "Checking private API readiness..."
 "${compose[@]}" exec -T api python -c \
@@ -133,6 +139,9 @@ redis_reply="$("${compose[@]}" exec -T redis sh -c \
   'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli --no-auth-warning ping')"
 [[ "${redis_reply}" == "PONG" ]] \
   || { echo "ERROR: authenticated Redis PING failed" >&2; exit 1; }
+
+echo "Checking mandatory worker heartbeat..."
+"${compose[@]}" exec -T api arq --check app.jobs.worker_entry.WorkerSettings >/dev/null
 
 echo "Checking login with the supplied pre-existing account..."
 "${compose[@]}" exec -T api python -c '

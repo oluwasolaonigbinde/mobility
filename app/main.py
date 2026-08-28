@@ -5,11 +5,12 @@ from app.api.v1.router import api_router
 from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 from app.core.middleware import RequestIdMiddleware
-from app.core.observability import init_error_tracking
+from app.core.observability import configure_logging, init_error_tracking
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    configure_logging(settings, service="api")
     init_error_tracking(settings)
     app = FastAPI(title=settings.app_name)
     app.state.request_id_header = settings.request_id_header

@@ -725,7 +725,7 @@ in `.github/workflows/ci.yml`). Backend contract tests
 
 | Service | Image/build | Host port | Notes |
 |---------|-------------|-----------|-------|
-| `api` | repo `Dockerfile` (python:3.12-slim), uvicorn `--reload`, source bind-mounted | **8000** | shared `x-backend-env` anchor; depends on db, redis |
+| `api` | repo `Dockerfile` (digest-pinned Python 3.12), uvicorn `--reload`, source bind-mounted | **8000** | shared `x-backend-env` anchor; depends on db, redis |
 | `worker` | repo `Dockerfile`, `arq app.jobs.worker_entry.WorkerSettings`, source bind-mounted | — (none) | shared `x-backend-env` anchor; depends on db, redis; strict pre-socket Redis config boundary; post-trip pipeline + sweep (§6.5, §14) |
 | `db` | `postgis/postgis:16-3.4` | **5433** (compose) → **5434 on this machine** via gitignored `docker-compose.override.yml` (5433 taken by another project) | volume `postgres_data` |
 | `redis` | `redis:7-alpine` | 6379 | login-rate-limit counters + arq queue, both disposable (§6.5) |
@@ -768,22 +768,24 @@ delivery-control files; matching pull requests use the same path filters).
 
 ### 10.4 Deploy **[BUILT / deferred staging]**
 
-- **[BUILT]** Production images exist for both tiers (root `Dockerfile`;
-  `frontend/Dockerfile` standalone output, non-root). No deployment target is
-  wired up.
-- **[BUILT]** `docker-compose.production.yml` overlays `docker-compose.yml` to
-  provide a provider-neutral production-style topology: only Caddy publishes
-  80/443, data services stay on an internal network, application containers
-  have a separate non-published egress bridge and health-gated startup,
-  migrations are an explicit one-shot profile, and
-  the mandatory worker uses a profile only for deliberate operational
-  quiescing. `staging.env.example`,
-  `Caddyfile`, and `scripts/release_smoke.sh` define the operator boundary.
-- **[BUILT] (F7)** Database backups (`scripts/db_backup.sh`, custom-format
-  dumps, 14-dump retention) and temp-DB restore verification with an Alembic
-  revision gate (`scripts/db_restore.sh`); Sentry browser DSN passed as a
-  Docker build arg (`NEXT_PUBLIC_SENTRY_DSN`); backend/frontend `SENTRY_DSN`
-  runtime knobs, inert when empty.
+- **[BUILT]** Digest-pinned, non-root production images exist for both tiers
+  with exact Git-revision labels (root `Dockerfile`; `frontend/Dockerfile`
+  standalone output). Python production dependencies are exact-version and
+  hash locked (`requirements-production.in`/`.txt`); the frontend uses its
+  committed npm lock with `npm ci`. No provider/account is wired up.
+- **[BUILT]** `docker-compose.production.yml` is a standalone provider-neutral
+  release topology, never an overlay: only Caddy publishes 80/443; application
+  and data networks are internal; a separate egress network has no inbound
+  port; runtime application containers are read-only, capability-dropped and
+  health-gated; migration is one-shot; worker is mandatory.
+  `production.env.example`, `Caddyfile`, `scripts/release_contract.py`,
+  `scripts/release.sh`, `scripts/recover_release.sh`, and
+  `scripts/release_smoke.sh` define the fail-closed operator boundary.
+- **[BUILT] (W4-03A preparation)** Encrypted revision/config/marker-bound
+  PostGIS-plus-private-object backups and isolated agreement restore checks are
+  the release recovery path (`scripts/backup_release.sh`,
+  `scripts/verify_restore.sh`). The earlier database-only F7 tools remain local
+  development recovery. Sentry runtime knobs remain inert when empty.
 - **[PLANNED-F7 → deferred]** Staging deploy did **not** ship: staging is
   research only (`docs/staging-options.md`), gated on an explicit project-owner go-ahead (deploys are never autonomous).
 - Target production topology: §25.
@@ -2178,10 +2180,13 @@ below assumes a specific vendor.
 
 ### 25.2 Production topology (pilot-sized)
 
-- **Managed Postgres with PostGIS** (the one component worth paying a provider
-  for: backups, PITR, failover). Everything else runs as containers on **one or
-  two VMs** (or the cloud's container service if Q32 lands on GCP/AWS —
-  equivalent shape): `frontend`, `api`, `worker`, `redis`, edge proxy.
+- **Private Postgres with PostGIS.** The provider-neutral release model includes
+  a private pinned PostGIS container so it can be rehearsed deterministically;
+  `EXT-RELEASE-ENV` decides whether the approved account keeps that shape or
+  maps the private `db` endpoint to managed PostGIS for backups, PITR and
+  failover. Everything else runs as containers on **one or two VMs** (or the
+  cloud's equivalent container service): `frontend`, `api`, `worker`, `redis`,
+  edge proxy. No application or data service publishes a host port.
 - **Edge exposure:** the reverse proxy routes the public domain to `frontend`
   (all browser traffic) and exposes exactly `/api/v1/webhooks/*` and the
   health endpoints (`/health`, `/api/v1/health*` — so external uptime monitors
@@ -2192,13 +2197,19 @@ below assumes a specific vendor.
 - **Object storage:** provider bucket (§19), private, presigned access only.
 - **Secrets:** injected env from the platform's secret store; never in images
   or the repo ([BUILT] posture: `.env` gitignored, `.env.example` documents).
-- **Backups [BUILT scripts, F7]:** dumps + the revision-gated restore check
-  (`scripts/db_backup.sh` / `db_restore.sh`); daily scheduling is an ops task at
-  deploy time.
-- Deploys are image-tag rollouts (build in CI, pull + restart on host);
-  rollback = previous tag. Alembic migrations run as a pre-deploy step, and
-  must stay backward-compatible one release back (additive first, destructive
-  later) once real users exist.
+- **Backups [BUILT, W4-03A preparation]:** writer-quiesced PostGIS dump plus
+  versioned private-object snapshot, exact revision/config/database marker and
+  authenticated manifest are encrypted into an atomically completed bundle.
+  Restore verification occurs against an isolated database and object prefix;
+  it never switches traffic (`scripts/backup_release.sh`,
+  `scripts/verify_restore.sh`). Off-host scheduling remains an
+  `EXT-RELEASE-ENV` action.
+- Deploys are immutable image-digest rollouts built away from the release host.
+  A private state machine records preflight, backup, forward migration,
+  compatibility and traffic stages. Recovery uses the exact previous images
+  only when compatibility with the forward-migrated database is proven; no
+  automated Alembic downgrade or populated-data replacement is implied
+  (`scripts/release.sh`, `scripts/recover_release.sh`).
 - **Explicitly not now:** Kubernetes, autoscaling, multi-region, IaC frameworks.
   One pilot city does not need them (P1/P10); revisit at multi-city scale.
 
@@ -2212,12 +2223,14 @@ already service-isolated behind `formula_version`ed interfaces.
 
 ## 26. Observability target
 
-- **Structured JSON logs** on both tiers with `request_id` correlation (backend
-  middleware exists [BUILT]; formalise the JSON format when staging lands),
-  job-run lines from the worker (§14.3.4).
-- **Sentry** on backend and browser [BUILT hooks, F7 — inert without a DSN;
-  worker joins when §14 lands] —
-  errors with request ids, release tags from image tags.
+- **Structured JSON logs [BUILT, W4-03A preparation]** at edge, API and worker
+  with edge-issued `request_id`, service and exact release revision. Log and
+  error-tracking scrubbers redact credentials, KYC/bank values, precise
+  location, private URLs and keyed fraud evidence; exception bodies/local
+  variables are not exported. Job-run lines remain the worker authority
+  (§14.3.4).
+- **Sentry** on backend, worker and browser [BUILT hooks — inert without a DSN]
+  with release tags and the same privacy scrub boundary.
 - **Uptime checks** on `/health` (root), `/api/v1/health/ready`, and the
   frontend, from any external monitor.
 - **Postgres**: slow-query logging on; the heatmap latency trigger (§24.2.2) is
@@ -2604,6 +2617,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.74 | 2026-08-28 | **W4-03A provider-neutral release preparation delivered; live gate remains.** Digest-pinned base images plus exact-version/hash-locked Python and npm dependency graphs remove release-host dependency drift. Standalone immutable-image production Compose exposes only the TLS edge and keeps API/frontend/PostGIS/Redis/worker private; preflight rejects missing/placeholder/weak secrets, unsafe origin/CORS/test/proxy settings, mutable images and revision-label mismatch. Durable ordered release state binds revision/images/config/previous release; forward migration, layered database/PostGIS/broker/worker/storage readiness, compatibility canary, smoke, failure stop and previous-image recovery are explicit without downgrade. Writer-quiesced PostGIS plus versioned private objects are authenticated, encrypted and atomically completed; isolated restore verifies exact database/object/revision agreement. Edge/API/worker JSON correlation and privacy redaction plus provider-neutral incident/run sheets are built. A disposable exact-image PostGIS/Redis/MinIO rehearsal passed migration 0001→0071, readiness, 100-request load, encrypted backup, isolated restore and same-revision recovery. No API/schema/model or §9 baseline moved. `EXT-RELEASE-ENV`, `EXT-STAGING-APPROVAL`, `DV-STAGING-LIVE`, provider alerts/off-host scheduling and previous-release live compatibility remain unrun external gates; W4-03A is not claimed complete. |
 | v1.73 | 2026-08-28 | **W4-02B bounded CSV/PDF issuance delivered without opening live or segment export.** Migration `0071` adds durable report jobs, append-only version lineage and immutable artifact links through generated private stored files. Frozen W4-02A performance/conditional-financial/disclosure provenance drives deterministic bounded renderers; replay/concurrency, lease recovery, pair publication, no-overwrite object storage, tamper checks and request/publication/status/download authorization fail closed. Report exports are unreachable through generic file routes, and linked stored-file evidence cannot mutate or delete. Advertiser request/status/download/reissue UI uses same-origin typed contracts and retries a lost response with the exact persisted request identity. Focused PostgreSQL, migration/autogenerate, worker/storage/OpenAPI, real MinIO conditional-write race, 14 report UI/BFF, 99 preserved R14-B, type/lint/format/build, byte-stable §9 regeneration and Poppler-rendered PDF evidence pass. Performance-only artifacts contain no ROI wording; qualified ROI stays synthetic test-only. W4-02A and W4-01 remain unchanged; `EXT-REPORT-METHOD` and `EXT-LEGAL-PRIVACY` still gate live issuance and Q31 segment export remains disabled. |
 | v1.72 | 2026-08-28 | **W4-02A governed maps and Campaign Performance Analysis delivered without widening Package 5 authority or live-use claims.** Advertiser report/map surfaces now require one reproducible frozen run/result authority and validate period, formula, method, proof, metric-set, exposure-score and conditional-ROI consistency before rendering. Performance-only output contains no ROI text; qualified ROI appears only with a matching frozen method revision and test-only results remain labelled. Server-filtered ready rankings serialize only safe target names and geometry; suppression, staleness, unavailability, tenant/role denial and map runtime/latency failures show distinct fail-closed states with no geometry. Admin monitoring exposes complete run/formula/source-segment provenance while advertiser metadata remains bounded. The legacy advertiser heatmap action is removed and the default MapLibre style is a provider-neutral local schematic with no network source. Focused red/green frontend, 54-test PostGIS authority, type/lint/format/build and isolated browser performance-only/ROI/unavailable/tenant/role evidence pass. No API/schema/migration baseline moves; raw-route authority and W4-01 PWA behavior are unchanged. `EXT-BASEMAP`, `EXT-REPORT-METHOD` and `EXT-LEGAL-PRIVACY` remain live gates; W4-02B/W4-03A/W4-03B are untouched. |
 | v1.71 | 2026-08-28 | **W4-01D completes the provider-neutral Package 7 PWA build boundary.** Campaign history, canonical settlement summaries/ledger and `payout_v3` trip detail now distinguish pending, active-held, released, paid, voided/reversed, adjustment, carried-debt and unavailable states without client money calculation. Public hold reasons, owner-scoped disputes/outcomes and sanitized user-scoped notifications stay behind the existing same-origin session/BFF authority; offline, provider failure, revocation and wrong-role transitions hide current money/review state and block privileged mutation. The service worker returns a non-cacheable `503` explanation and CacheStorage remains static-only. Focused red/green regressions and a production-build Chromium plus iPhone-sized WebKit rehearsal cover history→hold→dispute→outcome, reload, install metadata, cache inspection and session/role boundaries; actual offline navigation is exercised in Chromium because Playwright WebKit's offline toggle errors internally. No API baseline or migration moves. Physical-device install/update, native signing/store/push, live providers, route/battery/SLO, approved staging and pilot execution remain external D18/D23 gates; Package 8/9 are untouched. |
