@@ -62,8 +62,8 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 **Control package:** `PKG-08` — PKG-03 has no remaining runnable work while
 `EXT-PAYMENT-PROVIDER` is missing, PKG-04/05/06/07 are complete, and W4-02A is
 dependency-safe for provider-neutral implementation.
-**Current checkpoint:** `PKG-08 / W4-02A` — governed maps and report experience
-is promoted after the reviewed W4-01D PWA release rehearsal closed.
+**Current checkpoint:** `PKG-08 / W4-02B` — bounded CSV/PDF issuance is
+promoted after the reviewed W4-02A governed map/report experience closed.
 
 ## Executable package queue
 
@@ -76,7 +76,7 @@ is promoted after the reviewed W4-01D PWA release rehearsal closed.
 | 5 | **PKG-05 — privacy, measurement and retargeting** | **DONE** | Privacy controls and reproducible measurement govern aggregate retargeting, exposure scores and advertiser insights; live privacy/methodology/platform inputs remain gated. | none — checklist DAG gates entry |
 | 6 | **PKG-06 — matching and driver onboarding** | **DONE** | Recommendations, offers, activity, public application, person/payee onboarding and governed vehicle approval form one verified work-eligibility journey. | none — checklist DAG gates entry |
 | 7 | **PKG-07 — production driver PWA** | **DONE** | The installable pilot PWA safely tracks, syncs and completes the governed onboarding, campaign, earnings and dispute journey; physical-device/live release evidence remains explicitly deferred. | none — checklist DAG gates entry |
-| 8 | **PKG-08 — governed reporting and pilot readiness** | **IN PROGRESS** | Safe reports, release infrastructure and one complete pilot acceptance gate are ready; W4-02A is the current provider-neutral checkpoint. | none — checklist DAG gates entry |
+| 8 | **PKG-08 — governed reporting and pilot readiness** | **IN PROGRESS** | Safe reports, release infrastructure and one complete pilot acceptance gate are ready; W4-02B is the current provider-neutral checkpoint. | none — checklist DAG gates entry |
 | 9 | **PKG-09 — controlled pilot, training and handover** | QUEUED | Run the pilot, stabilize it, train roles and close operational handover. | none — checklist DAG gates entry |
 
 ## Executable package contracts
@@ -1281,6 +1281,25 @@ is promoted after the reviewed W4-01D PWA release rehearsal closed.
   block provider-neutral/local W4-02A implementation. Each checkpoint receives
   focused verification; Package 8 receives one aggregate gate and one
   consolidated review at honest closure.
+- **W4-02A evidence (DONE 28 Aug 2026):** commit `c7d5945` composes advertiser
+  Campaign Performance Analysis and governed map output from one immutable
+  measurement run/result/score/zone provenance chain. Performance-only runs
+  contain no ROI text; a financial result appears only when the frozen run and
+  result carry the complete approved method/input decision. Advertiser geometry
+  is limited to disclosure-cleared ranked targets, while suppressed, stale,
+  empty, unavailable, inconsistent, role and tenant failures expose no map or
+  report value. The local MapLibre default is provider-neutral and bounded by a
+  fail-closed readiness timeout; no production basemap claim is made. Admin
+  monitoring retains purpose-scoped raw-route authority and gains complete
+  run/formula/source provenance. The checkpoint passed 21 focused frontend
+  tests, typecheck, scoped lint/format and production build; 54 focused PostGIS
+  tests and Ruff; a synthetic browser journey spanning performance-only,
+  qualified synthetic ROI, unavailable map, cross-tenant 404 and role denial;
+  and one clean-context privacy/measurement/maps review PASS after lineage,
+  ranking and provenance corrections. No API schema, generated contract,
+  database model or migration changed. Evidence is recorded in
+  `docs/pkg-08-w4-02a-governed-maps-report.md`; `EXT-BASEMAP`,
+  `EXT-REPORT-METHOD` and `EXT-LEGAL-PRIVACY` remain live gates.
 - **Closure:** every §35 gate is evidenced; restore, security, load, report
   reproducibility and end-to-end pilot simulation pass.
 
@@ -1399,7 +1418,7 @@ verification, gates or required specialist review.
 | 62 | **W4-01B — screen-on tracking and durable sync** | PKG-07 | DONE | Explicit Start/End tracking survives reload/network interruption, reports visibility degradation and never claims unsupported background capture. | leaf: W4-01A, R14-B |
 | 63 | **W4-01C — PWA onboarding and campaign journey** | PKG-07 | DONE | Onboarding, vehicle, offers, activation and tracking integrate through governed BFF/API contracts. | leaf: W4-01B, W3-04C, W3-03B, W2-03D |
 | 64 | **W4-01D — PWA earnings, disputes and release rehearsal** | PKG-07 | DONE | History, earnings, disputes, notifications, installability and production-PWA release evidence are complete. | leaf: W4-01C, MNY-08C, MNY-11A, W2-04A, W2-04C |
-| 65 | **W4-02A — governed maps and report experience** | PKG-08 | TODO | Existing maps/reports consume safe runs; performance analysis is standard and ROI is absent unless its data/method gate passes. A production basemap remains a live-release gate, not a provider-neutral build prerequisite. | leaf: W3-00C, W3-00D, W3-00E, W3-01D, W3-02A, W3-02B |
+| 65 | **W4-02A — governed maps and report experience** | PKG-08 | DONE | Existing maps/reports consume safe runs; performance analysis is standard and ROI is absent unless its data/method gate passes. A production basemap remains a live-release gate, not a provider-neutral build prerequisite. | leaf: W3-00C, W3-00D, W3-00E, W3-01D, W3-02A, W3-02B |
 | 66 | **W4-02B — bounded CSV/PDF issuance** | PKG-08 | TODO | Async hashed exports reproduce the frozen performance/conditional-ROI decision and honor privacy/legal gates. | leaf: W4-02A |
 | 67 | **W4-03A — client-owned release environment** | PKG-08 | TODO | Approved account/domain hosts a hardened release candidate with recovery. | leaf: R17-A, W4-01D, W4-02B; external: EXT-RELEASE-ENV |
 | 68 | **W4-03B — Cardvert pilot gate and acceptance suite** | PKG-08 | TODO | One suite proves every §35 gate and the Abuja journey, including contextual activation, performance/conditional-ROI reporting, automated transfer and permit evidence. | all-prior; external: EXT-PILOT-FACTS, EXT-REPORT-METHOD, EXT-Q28-COMPANY, EXT-COMMERCIAL-VALUES, EXT-EVIDENCE-POLICY, EXT-LEGAL-PRIVACY, EXT-DISBURSEMENT-PROVIDER, EXT-PILOT-PERMITS |
