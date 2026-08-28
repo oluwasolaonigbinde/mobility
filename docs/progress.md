@@ -62,9 +62,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 **Control package:** `PKG-09` — PKG-03 and PKG-08 have no remaining runnable
 work while their registered external/live inputs are missing; PKG-04/05/06/07
 are complete, and Package 9 preparation is dependency-safe.
-**Current checkpoint:** `PKG-09 / W4-03C` — prepare provider-neutral pilot
-telemetry, rollback, payout/report replay, incident and evidence-capture
-materials; the controlled pilot remains gated by its registered live inputs.
+**Current checkpoint:** `PKG-09 / W4-04B` — assemble the provider-neutral
+handover index, role ownership skeleton, support/SLA/escalation templates,
+risk register and evidence-linked roadmap; acceptance remains externally gated.
 
 ## Executable package queue
 
@@ -1424,6 +1424,16 @@ materials; the controlled pilot remains gated by its registered live inputs.
   and reruns the affected evidence. Facilitated rehearsal, user acceptance and
   live operation remain unclaimed; `EXT-RELEASE-ENV`,
   `EXT-STAGING-APPROVAL` and `EXT-OPERATIONS-OWNER` remain missing.
+- **W4-03C-P1 pilot-operations preparation (28 Aug 2026):** commit `1ae55da`
+  adds a six-domain operations pack for telemetry/readiness, rollback,
+  payout/report replay, incident response and evidence capture, plus a
+  deterministic synthetic exercise matrix and focused guard. The validator
+  CLI, seven validator tests, thirteen synthetic exercises, Python compilation,
+  scoped Ruff and diff checks pass; the clean-context
+  `$minimal-change-review` returned PASS with no findings or evidence gaps.
+  No deployment, payment, provider, physical-device, user or pilot action was
+  performed. `EXT-RM2-POLICY` and `EXT-PILOT-FACTS` remain PRESENT; every other
+  W4-03C external/live prerequisite remains MISSING.
 - **Closure:** accepted operating materials, monitored pilot evidence, known
   risks/deferments and named owners agree with repository truth.
 

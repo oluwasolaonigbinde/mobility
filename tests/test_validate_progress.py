@@ -660,7 +660,7 @@ def test_live_external_gate_allows_preparation_but_prevents_done() -> None:
 
 def test_package_9_preparation_gate_cannot_be_silently_made_build_blocking() -> None:
     text = re.sub(
-        r"^(\| 70 \| .*?; )external-live:",
+        r"^(\| 71 \| .*?; )external-live:",
         r"\1external:",
         _progress(),
         count=1,
@@ -668,7 +668,7 @@ def test_package_9_preparation_gate_cannot_be_silently_made_build_blocking() -> 
     )
     errors = _errors(text)
     assert any(
-        "checklist 70 identity/package/prerequisites changed" in error for error in errors
+        "checklist 71 identity/package/prerequisites changed" in error for error in errors
     )
     assert any("current checkpoint is not a dependency-satisfied runnable TODO" in error for error in errors)
 
