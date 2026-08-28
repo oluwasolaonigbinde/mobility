@@ -182,4 +182,22 @@ describe("DriverTripEarningsPage", () => {
     expect(get).toHaveBeenCalledTimes(1);
     expect(notFound).toHaveBeenCalledOnce();
   });
+
+  it("withholds a verified amount when current hold authority is unavailable", async () => {
+    get
+      .mockResolvedValueOnce({ data: breakdown() })
+      .mockRejectedValueOnce(
+        new ApiError(503, { code: "PROVIDER_UNAVAILABLE", message: "provider unavailable" }),
+      );
+
+    render(
+      await DriverTripEarningsPage({
+        params: Promise.resolve({ tripId: "00000000-0000-4000-8000-000000000001" }),
+      }),
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/trip review status is unavailable/i);
+    expect(screen.queryByText("₦750.00")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Dispute message")).not.toBeInTheDocument();
+  });
 });

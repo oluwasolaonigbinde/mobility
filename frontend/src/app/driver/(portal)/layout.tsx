@@ -20,7 +20,7 @@ export default async function DriverPortalLayout({ children }: { children: React
           <span className="micro text-faint align-middle">DRIVER</span>
         </p>
         <div className="flex items-center gap-3">
-          <NotificationCenter />
+          <NotificationCenter sessionScope={me.user.id} />
           <span className="micro text-muted flex items-center gap-1.5">
             <span
               className="animate-pulse-dot bg-green inline-block size-1.5 rounded-full"

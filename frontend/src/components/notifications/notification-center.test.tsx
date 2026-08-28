@@ -1,7 +1,12 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Providers } from "@/app/providers";
 import { NotificationCenter } from "./notification-center";
+
+const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
+
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
 function response(body: unknown) {
   return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
@@ -24,6 +29,10 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   setVisibility("visible");
+  Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+  window.dispatchEvent(new Event("online"));
+  router.replace.mockReset();
+  router.refresh.mockReset();
 });
 
 describe("NotificationCenter", () => {
@@ -179,7 +188,7 @@ describe("NotificationCenter", () => {
     fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
     await screen.findByText("In-app notifications are always on.");
     const email = screen.getByLabelText("Transactional email");
-    expect(email).toBeChecked();
+    await waitFor(() => expect(email).toBeChecked());
     fireEvent.click(email);
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
@@ -250,5 +259,113 @@ describe("NotificationCenter", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Preference request failed");
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(preferenceAttempts).toBe(2));
+  });
+
+  it("hides cached notification authority and blocks mutations while offline", async () => {
+    const fetchMock = vi.fn((input: string) => {
+      if (input === "/api/notifications/unread-count") return response({ unread_count: 1 });
+      return response({
+        items: [
+          {
+            id: "notice-online-only",
+            title: "Trip payment on hold",
+            body: "A trip payment is on hold.",
+            channel: "in_app",
+            type_key: "fraud_hold_raised",
+            created_at: "2026-08-27T12:00:00Z",
+            read_at: null,
+          },
+        ],
+        total: 1,
+        limit: 50,
+        offset: 0,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+    renderCentre();
+
+    fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
+    expect(await screen.findByText("Trip payment on hold")).toBeInTheDocument();
+
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    act(() => window.dispatchEvent(new Event("offline")));
+
+    expect(screen.queryByText("Trip payment on hold")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(/reconnect to load current notifications/i);
+    expect(screen.getByRole("button", { name: "Mark all read" })).toBeDisabled();
+  });
+
+  it("clears role-scoped notification state and redirects on session revocation", async () => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+    window.dispatchEvent(new Event("online"));
+    setVisibility("visible");
+    const fetchMock = vi.fn((input: string) => {
+      if (input.startsWith("/api/notifications")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ error: { code: "SESSION_REVOKED", message: "Session revoked" } }),
+            { status: 401 },
+          ),
+        );
+      }
+      return response({ items: [], total: 0, limit: 50, offset: 0 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    renderCentre();
+    fireEvent.click(screen.getByRole("button", { name: "Notifications" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/login"));
+    expect(screen.getByRole("button", { name: "Notifications" })).not.toHaveTextContent(/\d/);
+  });
+
+  it("removes the previous user's cached notices when the session scope changes", async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
+    });
+    let activeTitle = "Driver A private notice";
+    const fetchMock = vi.fn((input: string) => {
+      if (input === "/api/notifications/unread-count") return response({ unread_count: 1 });
+      return response({
+        items: [
+          {
+            id: activeTitle.startsWith("Driver A") ? "notice-a" : "notice-b",
+            title: activeTitle,
+            body: "A sanitized account update.",
+            channel: "in_app",
+            type_key: "fraud_review_resolved",
+            created_at: "2026-08-28T03:00:00Z",
+            read_at: null,
+          },
+        ],
+        total: 1,
+        limit: 50,
+        offset: 0,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const view = render(
+      <QueryClientProvider client={client}>
+        <NotificationCenter sessionScope="driver-a" />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
+    expect(await screen.findByText("Driver A private notice")).toBeInTheDocument();
+    expect(client.getQueryData(["notifications", "driver-a", "list"])).toBeDefined();
+
+    activeTitle = "Driver B private notice";
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <NotificationCenter sessionScope="driver-b" />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Driver B private notice")).toBeInTheDocument();
+    expect(screen.queryByText("Driver A private notice")).not.toBeInTheDocument();
+    expect(client.getQueryData(["notifications", "driver-a", "list"])).toBeUndefined();
+    view.unmount();
+    expect(client.getQueryData(["notifications", "driver-b", "list"])).toBeUndefined();
   });
 });

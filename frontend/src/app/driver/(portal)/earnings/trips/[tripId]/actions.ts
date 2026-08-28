@@ -39,6 +39,9 @@ export async function submitFraudDisputeAction(
     });
   } catch (error) {
     if (error instanceof ApiError) {
+      if (error.status === 401 || error.status === 403) {
+        return { error: "Your session is no longer valid. Sign in again before retrying." };
+      }
       if (error.status === 409) {
         return { error: "A dispute already exists for this assessment. Refresh to see it." };
       }

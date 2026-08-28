@@ -675,6 +675,23 @@ regenerates. See §9 for the drift gate.
   End waits for the current drain, derives its watermark from durable counters
   and dead letters, and reconciles ambiguous server authority before resuming
   or releasing the writer.
+- Campaign history and earnings are read-only projections of the existing
+  assignment, `payout_v3` breakdown, ledger-summary and fraud-hold contracts.
+  The PWA renders every canonical settlement category independently and joins
+  a pending trip to an active public hold only for `assessment_pending`,
+  `under_review` or `issue_confirmed`; it never calculates a balance or creates
+  a second money/hold authority. Provider failure is distinct from a successful
+  empty result and withholds money and mutation UI.
+- Disputes and sanitized in-app notices remain same-origin session/BFF flows.
+  Notification queries are scoped to the current user, hidden and removed on
+  offline, auth failure or shell disposal, and privileged mutations are disabled
+  offline. Already-rendered campaign, money, hold and dispute authority is
+  replaced immediately on the browser's offline event. The offline navigation
+  response is an explicit `503`, `no-store`
+  explanation and contains no cached earnings, review, location or identity
+  state. W4-01D's production-build rehearsal exercises this boundary in
+  Chromium and an iPhone-sized WebKit profile; it is provider-neutral evidence,
+  not physical-device, live-provider or store-distribution validation.
 
 ## 9. API contract discipline
 
@@ -2015,6 +2032,19 @@ aggregates only, k-floor rules of §22.2 apply to any zone-level display.
   the complete driver journey. Tracking pauses/fails closed whenever storage,
   single-writer ownership, permission or screen-visible guarantees cannot be
   upheld; health is visible as `active | degraded | stopped`.
+  **[BUILT — W4-01C/D governed journey and release rehearsal]:** the driver
+  shell composes onboarding, vehicle, assignment and foreground tracking with
+  canonical campaign history, `payout_v3` earnings, public hold reasons,
+  owner-scoped dispute/reply state and sanitized in-app notices. Failed or
+  revoked authority never becomes a successful empty/history/balance view;
+  offline navigation exposes only a non-cacheable unavailable shell and cannot
+  submit privileged mutations. A reproducible local production-build rehearsal
+  covers Chromium and an iPhone-sized WebKit profile, including reload,
+  session revocation, wrong-role routing, manifest/icon truth and static-only
+  CacheStorage. Playwright WebKit's network-offline toggle is not treated as
+  WebKit offline proof; physical Android/iPhone install/update, native
+  signing/store listing/push, live providers, route/battery/SLO, approved
+  staging and pilot evidence remain external Phase 2/live gates under D18/D23.
 - **Native driver app follows the pilot (D18 superseding D11 timing):** it must
   consume the identical ping/auth/seal contract. Native background execution,
   secure credential/storage, foreground/background location modes, OS
@@ -2555,6 +2585,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.71 | 2026-08-28 | **W4-01D completes the provider-neutral Package 7 PWA build boundary.** Campaign history, canonical settlement summaries/ledger and `payout_v3` trip detail now distinguish pending, active-held, released, paid, voided/reversed, adjustment, carried-debt and unavailable states without client money calculation. Public hold reasons, owner-scoped disputes/outcomes and sanitized user-scoped notifications stay behind the existing same-origin session/BFF authority; offline, provider failure, revocation and wrong-role transitions hide current money/review state and block privileged mutation. The service worker returns a non-cacheable `503` explanation and CacheStorage remains static-only. Focused red/green regressions and a production-build Chromium plus iPhone-sized WebKit rehearsal cover history→hold→dispute→outcome, reload, install metadata, cache inspection and session/role boundaries; actual offline navigation is exercised in Chromium because Playwright WebKit's offline toggle errors internally. No API baseline or migration moves. Physical-device install/update, native signing/store/push, live providers, route/battery/SLO, approved staging and pilot execution remain external D18/D23 gates; Package 8/9 are untouched. |
 | v1.70 | 2026-08-26 | **W2-01E and W2-04C/D complete the provider-neutral budget, business-notification and verified-contact chain.** Migration `0064` persists approved/test policy identity, advertiser billing-fact evaluations, append-only budget pause/resume authority, non-enumerating one-use recovery evidence, keyed phone/challenge evidence, provider-evidenced challenge work, versioned consent and audited manual contact. Campaign money locks serialize funding/reversal against evaluation and transitions; stable business-event keys reuse the W2-04 outbox and driver contact never claims automated delivery. Real PostgreSQL migration/autogenerate and funding/reset races, focused red/green, the relevant backend aggregate, typed frontend contract, 99 preserved R14-B fixtures and byte-stable §9 regeneration pass. `EXT-BUDGET-POLICY`, `EXT-EMAIL-PROVIDER` and `EXT-PHONE-OPERATOR` remain MISSING; production policy, email, phone sends and provider delivery are not claimed. PKG-04 closes and PKG-05/W3-01C is next. |
 | v1.69 | 2026-08-26 | **W3-00E immutable measurement runs and proof manifests delivered without live-report authority.** Migration `0063` adds append-only, fingerprinted campaign/period runs and restrictive proof bindings to exact assignments, activation events, approved installation evidence and creatives. Frozen analytics/impression/payout sources deterministically reproduce measured movement, modelled potential contacts, driver campaign cost and the performance-only/conditional-ROI decision; changed inputs create an immutable reissue lineage while actor/request replay converges and changed reuse conflicts. Campaign Performance Analysis reads the current reproducible frozen report snapshot. Local/test ROI requires complete explicitly synthetic inputs/method; production issuance defaults disabled and an approved configured method reference is additionally required. Focused measurement/methodology/disclosure, real PostgreSQL populated migration/immutability, OpenAPI drift and Ruff checks pass. `EXT-REPORT-METHOD` and privacy live-use approvals remain MISSING; no live report, client data or ROI claim is asserted. |
 | v1.68 | 2026-08-26 | **W3-00B synthetic end-to-end retention and manual DSR delivered.** Migration `0062` adds immutable, lifecycle-guarded request cases and append-only per-location evidence for database, private objects, device queue, logs, backups and processors. Active-admin access, identity verification, exact-retry convergence, changed-retry conflict, subject-scoped class inventory, real private-object stat verification, all-location completion and blank-by-default approved-exception configuration fail closed. Database/object erasure cannot be claimed while inventory remains; money/audit facts are preserved. Backup tooling now enforces both newest-14 and hard 1–35-day age bounds. The manual runbook covers access/rectification/erasure without a self-service portal. `EXT-LEGAL-PRIVACY` and every production provider/region/response/exception decision remain MISSING; no live DSR or deletion is claimed. |

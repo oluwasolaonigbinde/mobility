@@ -59,4 +59,16 @@ describe("submitFraudDisputeAction", () => {
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
+
+  it.each([401, 403])("does not retry a revoked or unauthorized session (%s)", async (status) => {
+    mocks.post.mockRejectedValue(
+      new ApiError(status, { code: "SESSION_REJECTED", message: "private auth detail" }),
+    );
+
+    await expect(submitFraudDisputeAction({}, disputeForm("Please review."))).resolves.toEqual({
+      error: "Your session is no longer valid. Sign in again before retrying.",
+    });
+    expect(mocks.post).toHaveBeenCalledOnce();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
 });

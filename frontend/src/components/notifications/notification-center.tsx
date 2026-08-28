@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { components } from "@/lib/api/schema";
 import { formatDateTime } from "@/lib/format";
 
@@ -10,15 +11,22 @@ type NotificationItem = components["schemas"]["NotificationFeedItemRead"];
 type UnreadCount = components["schemas"]["NotificationUnreadCountRead"];
 type Preferences = components["schemas"]["AdvertiserNotificationPreferenceRead"];
 
-const countKey = ["notifications", "unread-count"] as const;
-const listKey = ["notifications", "list"] as const;
-const preferenceKey = ["notifications", "preferences"] as const;
+class NotificationRequestError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "NotificationRequestError";
+  }
+}
 
 async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { ...init, headers: { "content-type": "application/json" } });
   const body = (await response.json()) as T | { error?: { message?: string } };
   if (!response.ok) {
-    throw new Error(
+    throw new NotificationRequestError(
+      response.status,
       typeof body === "object" && body !== null && "error" in body
         ? (body.error?.message ?? "Notification request failed")
         : "Notification request failed",
@@ -38,6 +46,21 @@ function useDocumentVisible() {
       return () => document.removeEventListener("visibilitychange", onChange);
     },
     () => document.visibilityState === "visible",
+    () => true,
+  );
+}
+
+function useNetworkOnline() {
+  return useSyncExternalStore(
+    (onChange) => {
+      window.addEventListener("online", onChange);
+      window.addEventListener("offline", onChange);
+      return () => {
+        window.removeEventListener("online", onChange);
+        window.removeEventListener("offline", onChange);
+      };
+    },
+    () => navigator.onLine,
     () => true,
   );
 }
@@ -73,28 +96,57 @@ function NotificationItemRow({
 
 export function NotificationCenter({
   canManageAdvertiserPreferences = false,
+  sessionScope = "anonymous",
 }: {
   canManageAdvertiserPreferences?: boolean;
+  sessionScope?: string;
 }) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const isVisible = useDocumentVisible();
+  const isOnline = useNetworkOnline();
+  const countKey = ["notifications", sessionScope, "unread-count"] as const;
+  const listKey = ["notifications", sessionScope, "list"] as const;
+  const preferenceKey = ["notifications", sessionScope, "preferences"] as const;
+  const scopeKey = useMemo(() => ["notifications", sessionScope] as const, [sessionScope]);
+  async function scopedApiJson<T>(path: string, init?: RequestInit): Promise<T> {
+    try {
+      return await apiJson<T>(path, init);
+    } catch (error) {
+      if (error instanceof NotificationRequestError && [401, 403].includes(error.status)) {
+        router.replace("/login");
+        router.refresh();
+        queryClient.removeQueries({ queryKey: scopeKey });
+      }
+      throw error;
+    }
+  }
   const count = useQuery({
     queryKey: countKey,
-    queryFn: () => apiJson<UnreadCount>("/api/notifications/unread-count"),
-    enabled: isVisible,
-    refetchInterval: isVisible ? 45_000 : false,
+    queryFn: () => scopedApiJson<UnreadCount>("/api/notifications/unread-count"),
+    enabled: isVisible && isOnline,
+    refetchInterval: isVisible && isOnline ? 45_000 : false,
     refetchIntervalInBackground: false,
+    retry: (failureCount, error) =>
+      !(error instanceof NotificationRequestError && [401, 403].includes(error.status)) &&
+      failureCount < 1,
   });
   const notifications = useQuery({
     queryKey: listKey,
-    queryFn: () => apiJson<NotificationList>("/api/notifications"),
-    enabled: open,
+    queryFn: () => scopedApiJson<NotificationList>("/api/notifications"),
+    enabled: open && isOnline,
+    retry: (failureCount, error) =>
+      !(error instanceof NotificationRequestError && [401, 403].includes(error.status)) &&
+      failureCount < 1,
   });
   const preferences = useQuery({
     queryKey: preferenceKey,
-    queryFn: () => apiJson<Preferences>("/api/advertiser/notification-preferences"),
-    enabled: open && canManageAdvertiserPreferences,
+    queryFn: () => scopedApiJson<Preferences>("/api/advertiser/notification-preferences"),
+    enabled: open && canManageAdvertiserPreferences && isOnline,
+    retry: (failureCount, error) =>
+      !(error instanceof NotificationRequestError && [401, 403].includes(error.status)) &&
+      failureCount < 1,
   });
   const invalidateNotifications = () =>
     Promise.all([
@@ -103,22 +155,40 @@ export function NotificationCenter({
     ]);
   const markRead = useMutation({
     mutationFn: (id: string) =>
-      apiJson<NotificationItem>(`/api/notifications/${id}/read`, { method: "POST" }),
+      scopedApiJson<NotificationItem>(`/api/notifications/${id}/read`, { method: "POST" }),
     onSuccess: invalidateNotifications,
   });
   const markAllRead = useMutation({
-    mutationFn: () => apiJson<UnreadCount>("/api/notifications/read-all", { method: "POST" }),
+    mutationFn: () => scopedApiJson<UnreadCount>("/api/notifications/read-all", { method: "POST" }),
     onSuccess: invalidateNotifications,
   });
   const updatePreferences = useMutation({
     mutationFn: (transactional_email_enabled: boolean) =>
-      apiJson<Preferences>("/api/advertiser/notification-preferences", {
+      scopedApiJson<Preferences>("/api/advertiser/notification-preferences", {
         method: "PATCH",
         body: JSON.stringify({ transactional_email_enabled }),
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: preferenceKey }),
   });
-  const unread = count.data?.unread_count ?? 0;
+  useEffect(() => {
+    if (isOnline) return;
+    void queryClient.cancelQueries({ queryKey: scopeKey });
+    queryClient.removeQueries({ queryKey: scopeKey });
+  }, [isOnline, queryClient, scopeKey]);
+  useEffect(
+    () => () => {
+      queryClient.removeQueries({ queryKey: scopeKey });
+    },
+    [queryClient, scopeKey],
+  );
+  const unread =
+    isOnline && !count.isError && !count.isFetching ? (count.data?.unread_count ?? 0) : 0;
+  const showNotifications: NotificationList | undefined =
+    isOnline && !notifications.isError && !notifications.isFetching
+      ? notifications.data
+      : undefined;
+  const showPreferences: Preferences | undefined =
+    isOnline && !preferences.isError && !preferences.isFetching ? preferences.data : undefined;
 
   return (
     <div className="relative">
@@ -147,7 +217,7 @@ export function NotificationCenter({
             <button
               type="button"
               onClick={() => markAllRead.mutate()}
-              disabled={unread === 0 || markAllRead.isPending}
+              disabled={!isOnline || unread === 0 || markAllRead.isPending}
               className="micro text-amber disabled:text-faint hover:text-amber/80"
             >
               Mark all read
@@ -164,6 +234,7 @@ export function NotificationCenter({
               </span>
               <button
                 type="button"
+                disabled={!isOnline}
                 className="shrink-0 underline underline-offset-2"
                 onClick={() => {
                   if (markRead.variables) markRead.mutate(markRead.variables);
@@ -184,6 +255,7 @@ export function NotificationCenter({
               </span>
               <button
                 type="button"
+                disabled={!isOnline}
                 className="shrink-0 underline underline-offset-2"
                 onClick={() => markAllRead.mutate()}
               >
@@ -197,12 +269,18 @@ export function NotificationCenter({
           {notifications.isError ? (
             <p className="text-coral py-6 text-sm">Could not load notifications.</p>
           ) : null}
-          {notifications.data?.items.length === 0 ? (
+          {!isOnline ? (
+            <p role="alert" className="text-amber py-6 text-sm">
+              Reconnect to load current notifications. Saved notification data is not shown as
+              current while offline.
+            </p>
+          ) : null}
+          {showNotifications?.items?.length === 0 ? (
             <p className="text-muted py-6 text-sm">You are all caught up.</p>
           ) : null}
-          {notifications.data?.items.length ? (
+          {showNotifications?.items?.length ? (
             <ul className="mt-2 max-h-96 overflow-y-auto">
-              {notifications.data.items.map((notification) => (
+              {showNotifications.items.map((notification) => (
                 <NotificationItemRow
                   key={notification.id}
                   notification={notification}
@@ -219,8 +297,13 @@ export function NotificationCenter({
                 Transactional email
                 <input
                   type="checkbox"
-                  checked={preferences.data?.transactional_email_enabled ?? true}
-                  disabled={preferences.isLoading || updatePreferences.isPending}
+                  checked={showPreferences?.transactional_email_enabled ?? false}
+                  disabled={
+                    !isOnline ||
+                    preferences.isFetching ||
+                    preferences.isError ||
+                    updatePreferences.isPending
+                  }
                   aria-describedby={
                     updatePreferences.isError ? "notification-preference-error" : undefined
                   }
@@ -242,6 +325,7 @@ export function NotificationCenter({
                   </span>
                   <button
                     type="button"
+                    disabled={!isOnline}
                     className="shrink-0 underline underline-offset-2"
                     onClick={() => {
                       if (typeof updatePreferences.variables === "boolean") {

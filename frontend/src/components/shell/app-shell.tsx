@@ -80,7 +80,10 @@ export function AppShell({
             )}
           </div>
           <div className="micro text-muted flex items-center gap-2">
-            <NotificationCenter canManageAdvertiserPreferences={canManageAdvertiserPreferences} />
+            <NotificationCenter
+              canManageAdvertiserPreferences={canManageAdvertiserPreferences}
+              sessionScope={me.user.id}
+            />
             <span aria-label="Workspace context">Workspace</span>
           </div>
         </header>

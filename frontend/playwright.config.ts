@@ -5,8 +5,11 @@ import { defineConfig, devices } from "@playwright/test";
  * backend. Start the backend first: `docker compose up -d` from the repo root
  * (plus migrations + demo seed) — see frontend/README.md.
  */
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 const w401cSynthetic = process.env.W401C_SYNTHETIC === "1";
+const w401dSynthetic = process.env.W401D_SYNTHETIC === "1";
+const baseURL =
+  process.env.PLAYWRIGHT_BASE_URL ??
+  (w401dSynthetic ? "http://127.0.0.1:34101" : "http://localhost:3000");
 
 export default defineConfig({
   testDir: "./e2e",
@@ -18,33 +21,54 @@ export default defineConfig({
     baseURL,
     trace: "on-first-retry",
   },
-  projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile-chrome", use: { ...devices["Pixel 7"] } },
-  ],
+  projects: w401dSynthetic
+    ? [
+        { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+        { name: "mobile-webkit", use: { ...devices["iPhone 13"] } },
+      ]
+    : [
+        { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+        { name: "mobile-chrome", use: { ...devices["Pixel 7"] } },
+      ],
   // When PLAYWRIGHT_BASE_URL points at an already-running dev server
   // (e.g. autoPort moved it off 3000), reuse it instead of spawning one.
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
-    : w401cSynthetic
+    : w401dSynthetic
       ? [
           {
-            command: "node e2e/support/w401c-mock-api.mjs",
-            url: "http://127.0.0.1:38100/health",
+            command: "node e2e/support/w401d-mock-api.mjs",
+            url: "http://127.0.0.1:38101/health",
             reuseExistingServer: false,
             timeout: 30_000,
           },
           {
-            command: "API_BASE_URL=http://127.0.0.1:38100 npm run dev",
+            command:
+              "API_BASE_URL=http://127.0.0.1:38101 npm run build && cp -R public .next/standalone/public && mkdir -p .next/standalone/.next && cp -R .next/static .next/standalone/.next/static && API_BASE_URL=http://127.0.0.1:38101 PORT=34101 HOSTNAME=127.0.0.1 node .next/standalone/server.js",
             url: baseURL,
             reuseExistingServer: false,
-            timeout: 120_000,
+            timeout: 180_000,
           },
         ]
-      : {
-          command: "npm run dev",
-          url: baseURL,
-          reuseExistingServer: !process.env.CI,
-          timeout: 120_000,
-        },
+      : w401cSynthetic
+        ? [
+            {
+              command: "node e2e/support/w401c-mock-api.mjs",
+              url: "http://127.0.0.1:38100/health",
+              reuseExistingServer: false,
+              timeout: 30_000,
+            },
+            {
+              command: "API_BASE_URL=http://127.0.0.1:38100 npm run dev",
+              url: baseURL,
+              reuseExistingServer: false,
+              timeout: 120_000,
+            },
+          ]
+        : {
+            command: "npm run dev",
+            url: baseURL,
+            reuseExistingServer: !process.env.CI,
+            timeout: 120_000,
+          },
 });
