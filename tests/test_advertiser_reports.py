@@ -47,6 +47,8 @@ def create_report_graph(
     driver_email: str,
     plate_number: str,
     started_at: datetime,
+    service_city: str = "Lagos",
+    driver_phone: str | None = "+234555000",
     trip_status: TripSessionStatus = TripSessionStatus.ENDED,
     analytics_status: str = "computed",
     estimate_status: str = "estimated",
@@ -63,7 +65,7 @@ def create_report_graph(
         email=driver_email,
         password=PASSWORD,
         full_name="Sensitive Driver",
-        phone="+234555000",
+        phone=driver_phone,
         role=UserRole.DRIVER,
     )
     profile = create_test_driver_profile(
@@ -71,6 +73,7 @@ def create_report_graph(
         user_id=driver.id,
         onboarding_status=DriverOnboardingStatus.ACTIVE,
         license_number="SECRET-LICENSE",
+        service_city=service_city,
     )
     vehicle = create_test_vehicle(
         db_sessionmaker,

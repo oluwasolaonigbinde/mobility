@@ -5,7 +5,8 @@ import { defineConfig, devices } from "@playwright/test";
  * backend. Start the backend first: `docker compose up -d` from the repo root
  * (plus migrations + demo seed) — see frontend/README.md.
  */
-const w401cSynthetic = process.env.W401C_SYNTHETIC === "1";
+const w403bSynthetic = process.env.W403B_SYNTHETIC === "1";
+const w401cSynthetic = process.env.W401C_SYNTHETIC === "1" || w403bSynthetic;
 const w401dSynthetic = process.env.W401D_SYNTHETIC === "1";
 const baseURL =
   process.env.PLAYWRIGHT_BASE_URL ??

@@ -1,6 +1,8 @@
 import { createServer } from "node:http";
 
 const port = 38100;
+const w403bSynthetic = process.env.W403B_SYNTHETIC === "1";
+const correlationId = "w403b-abuja-pilot-001";
 const ids = {
   user: "10000000-0000-4000-8000-000000000001",
   profile: "10000000-0000-4000-8000-000000000002",
@@ -40,7 +42,12 @@ function assignment() {
     driver_profile_id: ids.profile,
     vehicle_id: ids.vehicle,
     status: "active",
-    campaign: { id: ids.campaign, name: "Synthetic Lagos Campaign" },
+    campaign: {
+      id: ids.campaign,
+      name: w403bSynthetic
+        ? `Synthetic Abuja Campaign · ${correlationId}`
+        : "Synthetic Lagos Campaign",
+    },
     vehicle: { id: ids.vehicle, plate_number: "SYN-001" },
   };
 }
@@ -51,6 +58,24 @@ const server = createServer(async (request, response) => {
   const degraded = authToken === "w401c-degraded";
 
   if (url.pathname === "/health") return send(response, 200, { status: "ok" });
+  if (url.pathname === "/__test__/state") {
+    const current = trips.get(`w403b-driver-${correlationId}`);
+    return send(response, 200, {
+      correlation_id: correlationId,
+      city: w403bSynthetic ? "Abuja" : "Lagos",
+      identities: [
+        "w403b-advertiser@cardvert.invalid",
+        "w403b-admin@cardvert.invalid",
+        "w403b-driver@cardvert.invalid",
+      ],
+      trip_status: current?.status ?? "not_started",
+      synthetic_ping_batches: current?.pingBatches ?? 0,
+      live_gps_claims: 0,
+      live_report_issuances: 0,
+      live_payout_submissions: 0,
+      live_ad_activations: 0,
+    });
+  }
   if (!authToken) return fail(response, 401, "AUTH_REQUIRED", "Authentication required");
 
   if (request.method === "GET" && url.pathname === "/api/v1/me") {
@@ -74,7 +99,7 @@ const server = createServer(async (request, response) => {
       full_name: "Synthetic Driver",
       email: "synthetic-driver@example.invalid",
       license_number: "SYNTHETIC",
-      service_city: "Lagos",
+      service_city: w403bSynthetic ? "Abuja" : "Lagos",
       country_code: "NG",
       onboarding_status: "active",
     });
@@ -137,19 +162,23 @@ const server = createServer(async (request, response) => {
   }
   if (request.method === "GET" && url.pathname === "/api/v1/driver/trips/current") {
     const activeTrip = trips.get(authToken);
-    return send(response, 200, { trip: activeTrip ? { id: ids.trip, status: "active" } : null });
+    return send(response, 200, {
+      trip: activeTrip?.status === "active" ? { id: ids.trip, status: "active" } : null,
+    });
   }
   if (request.method === "POST" && url.pathname === "/api/v1/driver/trips/start") {
-    trips.set(authToken, true);
+    trips.set(authToken, { status: "active", pingBatches: 0 });
     return send(response, 201, { id: ids.trip, status: "active", assignment_id: ids.assignment });
   }
   if (request.method === "GET" && url.pathname === `/api/v1/driver/trips/${ids.trip}`) {
-    return trips.get(authToken)
+    return trips.get(authToken)?.status === "active"
       ? send(response, 200, { id: ids.trip, status: "active" })
       : fail(response, 404, "TRIP_NOT_FOUND", "Trip was not found");
   }
   if (request.method === "POST" && url.pathname === `/api/v1/driver/trips/${ids.trip}/pings`) {
     const payload = await body(request);
+    const current = trips.get(authToken);
+    if (current) current.pingBatches += 1;
     return send(response, 200, {
       batch_id: "10000000-0000-4000-8000-000000000009",
       trip_id: ids.trip,
@@ -159,7 +188,8 @@ const server = createServer(async (request, response) => {
     });
   }
   if (request.method === "POST" && url.pathname === `/api/v1/driver/trips/${ids.trip}/end`) {
-    trips.delete(authToken);
+    const current = trips.get(authToken);
+    trips.set(authToken, { status: "sealed", pingBatches: current?.pingBatches ?? 0 });
     return send(response, 200, { id: ids.trip, status: "sealed" });
   }
   if (request.method === "GET" && url.pathname === "/api/v1/driver/earnings/ledger") {

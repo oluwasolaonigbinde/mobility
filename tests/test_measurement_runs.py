@@ -27,20 +27,32 @@ from app.services.campaign_assignments import activation_snapshot_digest
 from app.services.measurement import issue_measurement_run
 
 
-def create_measurement_graph(db_sessionmaker):
+def create_measurement_graph(
+    db_sessionmaker,
+    *,
+    identity_tag: str = "measurement",
+    identity_domain: str = "example.com",
+    campaign_name: str | None = None,
+    service_city: str = "Lagos",
+):
     admin = create_test_user(
         db_sessionmaker,
-        email="measurement-admin@example.com",
+        email=f"{identity_tag}-admin@{identity_domain}",
         password=PASSWORD,
         role=UserRole.ADMIN,
     )
     advertiser = create_test_user(
         db_sessionmaker,
-        email="measurement-advertiser@example.com",
+        email=f"{identity_tag}-advertiser@{identity_domain}",
         password=PASSWORD,
         role=UserRole.ADVERTISER,
     )
-    organization, _ = create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
+    organization, _ = create_test_organization(
+        db_sessionmaker,
+        name=f"{identity_tag} synthetic advertiser",
+        billing_email=f"{identity_tag}-billing@{identity_domain}",
+        owner_user_id=advertiser.id,
+    )
     campaign = create_test_campaign(
         db_sessionmaker,
         organization_id=organization.id,
@@ -48,6 +60,7 @@ def create_measurement_graph(db_sessionmaker):
         campaign_status=CampaignStatus.ACTIVE,
         start_at=DAY_1 - timedelta(days=1),
         end_at=DAY_1 + timedelta(days=10),
+        name=campaign_name or "Test Campaign",
     )
     creative = create_test_campaign_creative(
         db_sessionmaker,
@@ -59,9 +72,11 @@ def create_measurement_graph(db_sessionmaker):
         admin=admin,
         advertiser=advertiser,
         campaign=campaign,
-        driver_email="measurement-driver@example.com",
+        driver_email=f"{identity_tag}-driver@{identity_domain}",
         plate_number="MEASURE-1",
         started_at=DAY_1,
+        service_city=service_city,
+        driver_phone=None if identity_domain.endswith(".invalid") else "+234555000",
     )
     proof = create_test_display_proof(
         db_sessionmaker,
