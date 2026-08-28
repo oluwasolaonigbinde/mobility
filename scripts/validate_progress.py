@@ -97,11 +97,15 @@ CANONICAL_ITEMS = (
         "leaf: W3-00C, W3-00D, W3-00E, W3-01D, W3-02A, W3-02B",
     ),
     ("W4-02B", "PKG-08", "leaf: W4-02A"),
-    ("W4-03A", "PKG-08", "leaf: R17-A, W4-01D, W4-02B; external: EXT-RELEASE-ENV"),
+    (
+        "W4-03A",
+        "PKG-08",
+        "leaf: R17-A, W4-01D, W4-02B; external-live: EXT-RELEASE-ENV",
+    ),
     (
         "W4-03B",
         "PKG-08",
-        "all-prior; external: EXT-PILOT-FACTS, EXT-REPORT-METHOD, "
+        "all-prior; external-live: EXT-PILOT-FACTS, EXT-REPORT-METHOD, "
         "EXT-Q28-COMPANY, EXT-COMMERCIAL-VALUES, EXT-EVIDENCE-POLICY, "
         "EXT-LEGAL-PRIVACY, EXT-DISBURSEMENT-PROVIDER, EXT-PILOT-PERMITS",
     ),
@@ -304,6 +308,9 @@ def _parse_item_prerequisites(
             item_dependencies.extend(values)
         elif segment.startswith("external: "):
             values = segment.removeprefix("external: ").split(", ")
+            external_dependencies.extend(values)
+        elif segment.startswith("external-live: "):
+            values = segment.removeprefix("external-live: ").split(", ")
             external_dependencies.extend(values)
         else:
             errors.append(f"line {item.line}: non-canonical prerequisite {segment!r}")
@@ -595,8 +602,16 @@ def validate_text(text: str) -> list[str]:
         if item.status != "TODO":
             return False
         item_dependencies, external_dependencies = dependencies.get(item.item_id, ([], []))
+        live_only = {
+            value
+            for segment in item.prerequisites.split("; ")
+            if segment.startswith("external-live: ")
+            for value in segment.removeprefix("external-live: ").split(", ")
+        }
         return all(status_by_id.get(dep) == "DONE" for dep in item_dependencies) and all(
-            external_states.get(dep) == "PRESENT" for dep in external_dependencies
+            external_states.get(dep) == "PRESENT"
+            for dep in external_dependencies
+            if dep not in live_only
         )
 
     def blocked_chain(item_id: str, seen: set[str] | None = None) -> bool:

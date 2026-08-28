@@ -625,6 +625,20 @@ def test_report_method_gates_pilot_not_w4_02b_build() -> None:
     )
 
 
+def test_live_external_gate_allows_preparation_but_prevents_done() -> None:
+    text = _progress()
+    assert _errors(text) == []
+    completed = text.replace(
+        "| 67 | **W4-03A — client-owned release environment** | PKG-08 | TODO |",
+        "| 67 | **W4-03A — client-owned release environment** | PKG-08 | DONE |",
+        1,
+    )
+    assert any(
+        "DONE item W4-03A has missing external prerequisites: EXT-RELEASE-ENV" in error
+        for error in _errors(completed)
+    )
+
+
 @pytest.mark.parametrize("external_id", ["EXT-STORE-ASSETS", "EXT-AD-PLATFORM"])
 def test_rejects_stable_external_id_erasure(external_id: str) -> None:
     text = _progress()
