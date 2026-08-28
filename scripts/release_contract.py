@@ -31,6 +31,9 @@ PLACEHOLDER_RE = re.compile(
     r"(?i)(example-only|replace[-_ ]?me|change[-_ ]?me|placeholder|\btodo\b|\btbd\b|"
     r"dummy|sample-secret|weak-password|local-secret|test-secret)"
 )
+RFC1918_NETWORKS = tuple(
+    ipaddress.ip_network(value) for value in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
+)
 SECRET_NAMES = (
     "POSTGRES_PASSWORD",
     "REDIS_PASSWORD",
@@ -258,23 +261,27 @@ def validate_release_environment(
         if endpoint.params or endpoint.query or endpoint.fragment:
             raise ContractError("Object storage endpoints must not contain query or fragment data")
         if not (allow_local_rehearsal and mode == "rehearsal"):
+            normalized_hostname = endpoint_hostname.rstrip(".")
             try:
-                endpoint_address = ipaddress.ip_address(endpoint_hostname)
+                endpoint_address = ipaddress.ip_address(normalized_hostname)
             except ValueError:
                 endpoint_address = None
+            is_rfc1918 = endpoint_address is not None and any(
+                endpoint_address.version == network.version and endpoint_address in network
+                for network in RFC1918_NETWORKS
+            )
             if (
                 endpoint_port == 0
-                or endpoint_hostname == "localhost"
-                or endpoint_hostname.endswith((".invalid", ".local", ".localhost"))
-                or PLACEHOLDER_RE.search(endpoint_hostname)
-                or endpoint_address is not None
+                or endpoint_address is None
                 and (
-                    endpoint_address.is_loopback
-                    or endpoint_address.is_unspecified
-                    or endpoint_address.is_link_local
-                    or endpoint_address.is_multicast
-                    or endpoint_address.is_reserved
+                    "." not in normalized_hostname
+                    or normalized_hostname.endswith(
+                        (".invalid", ".local", ".localhost", ".test", ".example")
+                    )
+                    or PLACEHOLDER_RE.search(normalized_hostname)
                 )
+                or endpoint_address is not None
+                and not (endpoint_address.is_global or is_rfc1918)
             ):
                 raise ContractError("Object storage endpoints must use deployable hostnames")
     for name in ("OBJECT_STORAGE_REGION", "OBJECT_STORAGE_BUCKET", "OBJECT_STORAGE_ACCESS_KEY_ID"):

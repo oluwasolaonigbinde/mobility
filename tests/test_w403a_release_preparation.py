@@ -215,8 +215,14 @@ def test_production_builds_pin_base_images_and_dependency_graphs() -> None:
         ("OBJECT_STORAGE_ENDPOINT_URL", "https://objects.example.com?token=secret"),
         ("OBJECT_STORAGE_ENDPOINT_URL", "https://objects.example.com/#private"),
         ("OBJECT_STORAGE_ENDPOINT_URL", "https://localhost"),
+        ("OBJECT_STORAGE_ENDPOINT_URL", "https://minio:9000/prefix"),
         ("OBJECT_STORAGE_ENDPOINT_URL", "https://objects.invalid"),
+        ("OBJECT_STORAGE_ENDPOINT_URL", "https://objects.test"),
+        ("OBJECT_STORAGE_ENDPOINT_URL", "https://objects.example"),
+        ("OBJECT_STORAGE_ENDPOINT_URL", "https://192.0.2.1"),
         ("OBJECT_STORAGE_PUBLIC_ENDPOINT_URL", "https://127.1.2.3"),
+        ("OBJECT_STORAGE_PUBLIC_ENDPOINT_URL", "https://198.18.0.1"),
+        ("OBJECT_STORAGE_PUBLIC_ENDPOINT_URL", "https://100.64.0.1"),
         ("OBJECT_STORAGE_PUBLIC_ENDPOINT_URL", "https://objects.example.com:0"),
         ("SESSION_COOKIE_NAME", "cardvert_session"),
         (
@@ -251,6 +257,16 @@ def test_release_environment_accepts_complete_provider_neutral_contract(tmp_path
 
     assert validated["release_revision"] == "1715fe53b19972cd6db829a08a9d6cf572fbd656"
     assert validated["public_origin"] == "https://cardvert.example.com"
+
+
+def test_release_environment_accepts_private_rfc1918_storage_with_port_and_prefix(
+    tmp_path: Path,
+) -> None:
+    environment = valid_release_environment(tmp_path)
+    environment["OBJECT_STORAGE_ENDPOINT_URL"] = "https://10.42.0.7:9443/s3"
+    environment["OBJECT_STORAGE_PUBLIC_ENDPOINT_URL"] = "https://192.168.7.9:9443/s3"
+
+    validate_release_environment(environment, allow_local_rehearsal=False)
 
 
 def test_production_settings_fail_closed_on_missing_services_and_test_switches() -> None:
