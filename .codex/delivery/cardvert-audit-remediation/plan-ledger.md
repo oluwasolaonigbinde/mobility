@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 54
+plan_revision: 55
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 127
+last_event_sequence: 129
 ---
 
 # Cardvert audit remediation programme
@@ -195,7 +195,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R10 | AUT-005 | ACCEPTED | R08 | R10-P/M/SEC/CP-SECURITY; strict-claim and route-graph evidence | complete |
 | R11 | AUT-004 | BLOCKED-OWNER | R09; logout policy | plan review confirmed current-device documentation conflicts with schema-free global revocation | owner must choose visible sign-out-everywhere or per-session identity/migration authority |
 | R12 | AUT-003, REL-003 | QUEUED | R11 | — | wait |
-| R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P; attempts 1-3 reviews FIX | correction attempt 4 for nested serialized structured-text bypass |
+| R13 | SEC-001, PRV-008 | REVIEW | sensitive-metadata opener | R13-P; attempts 1-3 reviews FIX; attempt-4 frozen `6753a823...` | final Sol/high R13-M/SEC/PRV/CP-PRIVACY review |
 | R14 | SEC-002, TST-004 | QUEUED | R12 | — | wait |
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | ACCEPTED | provider-boundary opener | R16-P/M/CONTRACT/CP-CONTROL; structural and behavioral evidence | complete |
@@ -299,7 +299,7 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 4 | GPT-5.6 Sol/high — bounded serialized-structure privacy correction | exact four-file lease reacquired | ACTIVE |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 4 | GPT-5.6 Sol/high — bounded serialized-structure privacy correction | released exact frozen four-file diff `6753a823...` | REVIEW |
 | task `01a05e49-0107-7611-8ee8-515273881aa8` | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | released exact R15 diff | ACCEPTED |
 | task `01a05e49-48d5-7823-9388-537d0800e87b` | S07 / R28 plan and independent review | GPT-5.6 Terra/high — ordinary bounded campaign lifecycle planning | read-only; no mutation lease | BLOCKED-OWNER |
 | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32 implementation, R33 held | GPT-5.6 Sol/high — onboarding security, migration and contract authority | released accepted R32 diff; R33 remains dependency-held | ACCEPTED |
@@ -314,9 +314,10 @@ trigger and a newly reviewed authority amendment.
 | `/root/r13_attempt3_review` | S05 / R13 repeat M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded parser and identifier-preservation boundary | released reviewed R13 diff `506dc438...` | FIX |
 | `/root/r16_diff_review` | S06 / R16 M, CONTRACT/control and CP-CONTROL review | GPT-5.6 Sol/medium — bounded provider-boundary refactor | released accepted seven-file diff | PASS |
 | task `01a05e84-2c02-7bf0-8c55-382766692aed` | S02 / R05-R07 aggregate plan and independent review | GPT-5.6 Sol/medium — read-only database-chain current-source planning | no mutation lease | PLANNING |
+| `/root/r13_attempt4_review` | S05 / R13 final M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy boundary | read-only frozen R13 diff `6753a823...` | ACTIVE |
 
-Implementation writers reserved/active: **2 / 3**, currently S05/R13 and
-S09/R23. R16 is frozen for read-only admission review. R02 remains temporarily
+Implementation writers reserved/active: **1 / 3**, currently S09/R23. R13 is
+frozen for read-only admission review. R02 remains temporarily
 conflict-held because its shared-fixture mutation would invalidate R13's repeat
 verification; R09 also waits for R13's audit/admin seam to release. R23 now
 exclusively owns migrations and generated contracts; S12/R34 remains serialized
@@ -359,7 +360,7 @@ invented while this is unresolved.
 
 ## Next scheduler action
 
-Await the R13 correction-attempt-4 and S09/R23 callbacks. Continue one read-only
+Await the R13 final review verdict and S09/R23 callback. Continue one read-only
 Sol/medium S02/R05-R07 plan because no additional
 writer is conflict-free; later implementation/review is separately model-gated
 to its actual PostgreSQL/money/privacy boundary. Keep R11 and R28 blocked on their recorded owner choices without
@@ -503,3 +504,5 @@ verification is complete.
 | 125 | 53 | 1 | PLAN_DISPATCH_STARTED | One visible S02 task began aggregate read-only planning and independent review for R05-R07. | task `01a05e84-2c02-7bf0-8c55-382766692aed`; GPT-5.6 Sol/medium; shared checkout, no worktree or mutation lease; terminal callback required |
 | 126 | 54 | 1 | DIFF_REVIEW_PASSED | R16-M and R16-CONTRACT/control passed with the service depending only on the public port, composition choosing disabled, and fake/synthetic behavior unchanged. | Sol/medium reviewer `/root/r16_diff_review`; exact seven-file scope; 16 focused passes, one unrelated PostGIS skip |
 | 127 | 54 | 1 | SLICE_ACCEPTED | R16/GOV-008 accepted exactly once and integrated at `90fa772`, unlocking its downstream provider-boundary dependencies without enabling any live adapter. | R16-P/M/CONTRACT/CP-CONTROL; controller reran focused suite, Ruff and diff checks |
+| 128 | 55 | 1 | IMPLEMENTATION_RETURNED | S05/R13 correction attempt 4 released an exact four-file diff after closing nested serialized JSON/Python-dict leaks across logs, Sentry, audit persistence and legacy projection. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; frozen `6753a823...`; Sol/high; 14 final focused passes |
+| 129 | 55 | 1 | DIFF_REVIEW_STARTED | Frozen R13 attempt 4 entered final independent minimal-change, security/privacy-specialist and CP-PRIVACY review without xhigh escalation. | `/root/r13_attempt4_review`; GPT-5.6 Sol/high; read-only exact `6753a823...` diff |

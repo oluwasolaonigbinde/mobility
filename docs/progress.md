@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R13, R23`
-**Current capacity justification:** `R13` owns only its four-file nested serialized-text privacy correction; `R23` exclusively owns its billing/refund-cancellation migration, model/schema/API, generated-contract and focused-test lane. Their paths and domain authorities are disjoint. R16 is accepted. R02 and R09 remain temporarily conflict-held behind R13 verification/release; R34 has a reviewed plan but remains serialized behind R23's migration and generated-contract lane. Central configuration, shared fixtures, and this file remain controller-serialized.
+**Current capacity assignment:** `R23`
+**Current capacity justification:** `R23` exclusively owns its billing/refund-cancellation migration, model/schema/API, generated-contract and focused-test lane. R13 is frozen for read-only admission review and R16 is accepted. R02 and R09 remain temporarily conflict-held behind R13 verification/release; R34 has a reviewed plan but remains serialized behind R23's migration and generated-contract lane. Central configuration, shared fixtures, and this file remain controller-serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -78,9 +78,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 now rolling across dependency-ready disjoint slices while all 29 non-executable
 findings retain their admitted dispositions.
-**Current checkpoint:** `PKG-10 / R13` — bounded correction attempt 4 is the
-highest-priority active slice; R23 owns the disjoint migration/contract lane.
-R10, R16 and R32 are accepted.
+**Current checkpoint:** `PKG-10 / R23` — frozen-refund implementation is the
+only product writer while R13 undergoes final read-only admission review. R10,
+R16 and R32 are accepted.
 R02 and R09 wait for R13 clearance; R34-R37 plans are accepted but their
 implementation lane is serialized behind R23.
 
@@ -1534,7 +1534,7 @@ durable ledger before changing a row.
 | R10 | AUT-005 | R08 | COMPLETE | PASS — R10-P | PASS — R10-M | CP-SECURITY PASS — R10-CP-SECURITY |
 | R11 | AUT-004 | R09 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
 | R12 | AUT-003, REL-003 | R11 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
-| R13 | SEC-001, PRV-008 | none | ACTIVE | PASS — R13-P | PENDING | CP-PRIVACY PENDING |
+| R13 | SEC-001, PRV-008 | none | QUEUED | PASS — R13-P | PENDING | CP-PRIVACY PENDING |
 | R14 | SEC-002, TST-004 | R12 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
 | R15 | GOV-006 | none | COMPLETE | PASS — R15-P | PASS — R15-M | CP-WORKERS PASS — R15-CP-WORKERS |
 | R16 | GOV-008 | none | COMPLETE | PASS — R16-P | PASS — R16-M | CP-CONTROL PASS — R16-CP-CONTROL |
