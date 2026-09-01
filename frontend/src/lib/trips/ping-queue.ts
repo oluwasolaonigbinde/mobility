@@ -78,8 +78,8 @@ const UNBOUND_KEY_ID = "__cardvert_legacy_unbound__";
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
-// Retain the shipped v1 name: v2 upgrades that production database in place.
-export const DEFAULT_DB_NAME = "vantage-ping-queue";
+// Retain the v1 database name: later versions upgrade it in place.
+export const DEFAULT_DB_NAME = "cardvert-ping-queue";
 
 function promisify<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {

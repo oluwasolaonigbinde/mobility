@@ -10,7 +10,7 @@ import {
 } from "next/font/google";
 
 /**
- * The Vantage type system, self-hosted (zero external font requests):
+ * The Cardvert type system, self-hosted (zero external font requests):
  * - Clash Display — headlines, KPI numerals ("the voice")
  * - Satoshi — UI text and body copy
  * - IBM Plex Mono — data, labels, telemetry

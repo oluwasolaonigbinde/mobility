@@ -6,7 +6,7 @@ export interface FieldProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: string;
 }
 
-/** Labeled input with the Vantage mono-label treatment and a11y wiring. */
+/** Labeled input with the Cardvert mono-label treatment and a11y wiring. */
 export function Field({ label, error, className, ...props }: FieldProps) {
   const id = useId();
   const errorId = `${id}-error`;

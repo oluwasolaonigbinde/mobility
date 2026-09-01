@@ -1,7 +1,7 @@
 # Mobility Frontend — Next.js BFF
 
 Next.js 16 (App Router) frontend for the Mobility AdTech platform: advertiser
-portal (`/advertiser`), admin console (`/admin`), and the installable Vantage
+portal (`/advertiser`), admin console (`/admin`), and the installable Cardvert
 Driver PWA (`/driver`). See `../docs/architecture.md` §8 for the full frontend
 architecture and invariants.
 

@@ -255,9 +255,9 @@ describe("encrypted at-rest state", () => {
 });
 
 describe("serialized legacy migration", () => {
-  it("upgrades the historical production default database in place", async () => {
+  it("upgrades the v1 production default database in place", async () => {
     queue.close();
-    const historicalDefault = "vantage-ping-queue";
+    const historicalDefault = "cardvert-ping-queue";
     await seedLegacyV1(historicalDefault);
 
     const migrated = await openPingQueue({

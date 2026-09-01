@@ -516,7 +516,7 @@ bank transfers and reconcile per line.
    API idempotency key verbatim when Q27's automated fast-follow lands;
    (b) ops/audit PDF (period, per-payee breakdown, totals, carried-forward
    exclusions, generated-by/at). Narration convention:
-   `"Vantage payout {batch_code}"` (working name per Q29).
+   `"Cardvert payout {batch_code}"` (product name per Q29).
 9. **Bank-account capture dependency:** lines need verified driver bank
    details (Q26/Q27 adopted). If driver bank-account fields don't exist yet
    when S3 starts, S3 adds the minimal columns + admin-verified capture flow

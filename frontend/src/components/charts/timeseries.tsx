@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 
 /**
- * Dependency-free SVG time-series charts in the Vantage voice.
+ * Dependency-free SVG time-series charts in the Cardvert voice.
  *
  * Dataviz method notes (see dataviz skill):
  * - Single series per chart → no legend; the panel title names it.

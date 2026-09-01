@@ -9,7 +9,7 @@ from app.services.users import get_user_by_email
 
 @lru_cache(maxsize=1)
 def _timing_equalizer_hash() -> str:
-    return hash_password("vantage-timing-equalizer-not-a-real-password")
+    return hash_password("cardvert-timing-equalizer-not-a-real-password")
 
 
 async def authenticate_user(session: AsyncSession, email: str, password: str) -> User | None:

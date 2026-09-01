@@ -418,7 +418,7 @@ H. Brand, compliance and launch
 
 27\. Product name and brand
 
-> **Why it matters:** "Vantage" is our working name throughout the
+> **Why it matters:** the then-current working name appears throughout the
 > build. The real name affects the domain, the driver app's install name
 > and icon, and every advertiser-facing report. Cheap to change today;
 > annoying after drivers have the app installed.

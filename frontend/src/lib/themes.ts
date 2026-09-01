@@ -16,7 +16,7 @@ export interface ThemeMeta {
 }
 
 export const DEFAULT_THEME = "night";
-export const THEME_STORAGE_KEY = "vantage-theme";
+export const THEME_STORAGE_KEY = "cardvert-theme";
 
 export const THEMES: ThemeMeta[] = [
   {

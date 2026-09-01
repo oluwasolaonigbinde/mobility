@@ -1,13 +1,13 @@
-# fablev1-work.md — Vantage Frontend Build Log
+# fablev1-work.md — Cardvert Frontend Build Log
 
 Working log for the production frontend of the Mobility AdTech platform
-("Vantage"). Maintained by Claude (Fable) as the build progresses so OJ can
+(now Cardvert). Maintained by Claude (Fable) as the build progresses so OJ can
 see what exists, why it's built that way, and what's next.
 
 - **Repo:** `github.com/oluwasolaonigbinde/mobility`
 - **Backend:** slices 1–13 complete (`slice-13-mvp-hardening` = frozen 78-endpoint MVP contract)
 - **Frontend:** `frontend/` — built branch-per-phase (`frontend-00-…`, `frontend-01-…`, …)
-- **Design source:** the Vantage pitch prototype (https://oluwasolaonigbinde.github.io/vantage/) — the client bought this look; the app ports it faithfully.
+- **Design source:** the then-current working-name pitch prototype (obsolete external URL removed after the Cardvert rename) — the client bought this look; the app ports it faithfully.
 - **Scope note (4 Aug 2026, D11):** this is a chronological journal — any
   "deferred/future" lists inside reflect their entry's date, not current scope.
   Binding scope = `docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx`
@@ -83,7 +83,7 @@ These were made for go-live, not for demos:
    never trusts the client.
 
 4. **Design system = the prototype, tokenized.**
-   Vantage palette/typography as Tailwind v4 `@theme` CSS variables.
+   Cardvert palette/typography as Tailwind v4 `@theme` CSS variables.
    **Clash Display + Satoshi self-hosted** (Fontshare woff2 vendored in
    `src/fonts/`, ITF Free Font License — see `src/fonts/LICENSE-NOTE.md`),
    IBM Plex Mono via `next/font/google`. Zero external font requests.
@@ -107,7 +107,7 @@ These were made for go-live, not for demos:
 ### ✅ F0 — Foundation (`frontend-00-foundation`)
 
 - Next.js scaffold, strict TS, ESLint/Prettier, Vitest, Playwright config
-- Vantage design tokens + fonts (see decision 4)
+- Cardvert design tokens + fonts (see decision 4)
 - Generated API layer + error envelope normalization (decision 2)
 - Auth BFF: login server action → httpOnly cookie → role redirect;
   sign-out; `proxy.ts` guards; per-request-cached `getCurrentUser()`
@@ -149,7 +149,7 @@ GeoJSON zones endpoints.
 - **Map stack:** MapLibre GL (no vendor lock-in, no billing dependency) +
   Terra Draw for polygon drawing. Basemap style is configurable via
   `NEXT_PUBLIC_MAP_STYLE_URL`; defaults to Carto dark-matter (fits the
-  Vantage dark theme, attribution included).
+  Cardvert dark theme, attribution included).
   > ⚠️ **Go-live decision needed:** free keyless dark basemaps sit in a
   > licensing gray zone for commercial use. Before launch, pick one:
   > MapTiler (free tier w/ key), Mapbox, or self-hosted OpenFreeMap tiles.
@@ -205,14 +205,14 @@ The pitch's "wow" screens with real numbers.
   headless and scanned the wrong city — first scan now derives its bbox
   from the campaign's zones deterministically, viewport scans stay manual.
 
-### ✅ F4 — Vantage Driver PWA (`frontend-04-driver-app`)
+### ✅ F4 — Cardvert Driver PWA (`frontend-04-driver-app`)
 
 Per OJ's call: the driver side is **its own installable app, not a portal**.
 Same codebase (shared design system, typed API layer, one deploy), but a
 separately-scoped PWA:
 
 - **Installability:** scoped manifest at `/driver/manifest.webmanifest`
-  ("Vantage Driver", `scope: /driver`, standalone, portrait, own amber-V
+  ("Cardvert Driver", `scope: /driver`, standalone, portrait, own amber-C
   icons generated dependency-free), apple-touch/status-bar meta, theme
   color. **Lesson:** browsers fetch manifests *without cookies* — the
   manifest must be excluded from auth redirects or installability silently
@@ -278,7 +278,7 @@ The ops brain — seven sections in the desktop shell:
   during the build (no `full_name` on assignment driver summaries, no
   `created_at` on the users list, optional `fraud_flags`).
 - Local quirk: port 3000 is now held by the microfinance project's dev
-  server, so `vantage-frontend` uses `autoPort` (Playwright reuses the
+  server, so `cardvert-frontend` uses `autoPort` (Playwright reuses the
   live server via `PLAYWRIGHT_BASE_URL`).
 
 ### ✅ F6 — Hardening + brief-gap closers (`frontend-06-hardening`)
@@ -454,7 +454,7 @@ or deferred:
 - [x] F2 Zones map editor
 - [x] F3 Advertiser analytics & heatmaps (report charts, daily metrics,
       exposure heatmap)
-- [x] F4 Vantage Driver PWA (installable app: chrome, jobs, live trip
+- [x] F4 Cardvert Driver PWA (installable app: chrome, jobs, live trip
       tracking with idempotent ping batches, earnings, profile)
 - [x] F5 Admin console (users+orgs onboarding, drivers/vehicles,
       assignments, fraud console, payout pipeline)

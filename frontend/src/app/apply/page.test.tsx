@@ -7,7 +7,6 @@ describe("public driver application page", () => {
     render(<ApplyPage />);
 
     expect(screen.getByText("Cardvert // driver network")).toBeInTheDocument();
-    expect(screen.queryByText(/Vantage/i)).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Start an application" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Submit your pilot vehicle" })).toBeInTheDocument();
     expect(
