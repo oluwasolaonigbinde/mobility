@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 61
+plan_revision: 62
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 140
+last_event_sequence: 143
 ---
 
 # Cardvert audit remediation programme
@@ -185,7 +185,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | --- | --- | --- | --- | --- | --- |
 | R01 | GOV-001 | ACCEPTED | control opener | R01-P; R01-M; R01-CP-CONTROL; red/green validator evidence | complete |
 | R02 | GOV-003, TST-001, DB-005 | READY | R01, R04; control | R02-P; GRAPH-CP-CONTROL | wait for a serialized central-config writer lane |
-| R03 | GOV-004 | QUEUED | R02; control | — | wait |
+| R03 | GOV-004 | WAITING | R02; control/contracts | R03-P; reviewed runtime/snapshot/TypeScript authority contract | wait for accepted R02 and released generated-contract lane |
 | R04 | DB-004 | ACCEPTED | database opener | R04-P; R04-M; R04-CP-DB; exact PostgreSQL/PostGIS catalog and constraint-timing red/green | complete |
 | R05 | DB-001, TST-012, ONB-010 | WAITING | R02, R04 | R05-P; reviewed savepoint/conflict contract | wait for accepted R02, R23 disbursement recheck and exact lease |
 | R06 | DB-002 | BLOCKED-OWNER | R02, R04, R05; historical migration authority | plan review confirmed exact downgrade guards require superseding the D15/architecture freeze | owner must authorize narrow edits to shipped 0010/0014/0016 downgrade bodies plus authority updates |
@@ -199,7 +199,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R14 | SEC-002, TST-004 | QUEUED | R12 | — | wait |
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | ACCEPTED | provider-boundary opener | R16-P/M/CONTRACT/CP-CONTROL; structural and behavioral evidence | complete |
-| R17 | TST-007 | QUEUED | R02, R03 | — | wait |
+| R17 | TST-007 | BLOCKED-OWNER | R02, R03; coverage policy | plan review found no authoritative floor/path/base/ratchet policy | owner must adopt exact backend/frontend coverage enforcement policy before R17-P re-review |
 | R18 | MON-005, MON-006 | QUEUED | R04, R06, R07 | — | wait |
 | R19 | MON-002 | QUEUED | R18 | — | wait |
 | R20 | MON-001, DB-007, MON-008 | QUEUED | R05, R18 | — | wait |
@@ -300,7 +300,7 @@ trigger and a newly reviewed authority amendment.
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
 | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 5 | GPT-5.6 Sol/high — bounded serialized-value and recursion safety correction | exact four-file R13 lease; no path expansion | ACTIVE |
-| task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d` | S01 / R02-R03-R17 aggregate current-source plan | GPT-5.6 Sol/medium — CI, contract and coverage planning without mutation | no mutation lease; implementation remains held | PLANNING |
+| task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d` | S01 / R02-R03-R17 aggregate current-source plan | GPT-5.6 Sol/medium — CI, contract and coverage planning without mutation | no mutation lease; R02 baseline and R03 plan pass | BLOCKED-OWNER |
 | task `01a05e49-0107-7611-8ee8-515273881aa8` | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | released exact R15 diff | ACCEPTED |
 | task `01a05e49-48d5-7823-9388-537d0800e87b` | S07 / R28 plan and independent review | GPT-5.6 Terra/high — ordinary bounded campaign lifecycle planning | read-only; no mutation lease | BLOCKED-OWNER |
 | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32 implementation, R33 held | GPT-5.6 Sol/high — onboarding security, migration and contract authority | released accepted R32 diff; R33 remains dependency-held | ACCEPTED |
@@ -364,14 +364,18 @@ those revisions. The owner must authorize a narrow historical-downgrade-safety
 exception, architecture amendment and D15-superseding decision before R06-P or
 any write lease; no forward-only migration can protect downgrade code after
 that newer migration removes itself.
+R17/TST-007 is plan-blocked because current sources provide no authoritative
+backend/frontend path maps, metric types and numeric floors, PR/push changed-
+code base behavior, new/rename/delete/no-change/merge/fork/shallow handling,
+exclusion/ratchet policy, or exact coverage tooling/report paths. The owner must
+adopt that enforcement policy before R17-P can be corrected and re-reviewed.
 
 ## Next scheduler action
 
-Await the exact R13 correction attempt 5 callback alongside S09/R23. Start one
-read-only Sol/medium S01 plan for the cohesive R02-R03-R17 control/contract
-chain; it may not mutate until dependencies and central/shared lanes release.
-Keep R06,
-R11 and R28 blocked on their recorded owner choices without
+Await the exact R13 correction attempt 5 callback alongside S09/R23. Preserve
+R02-P and R03-P; implementation remains held until the shared-fixture and
+generated-contract lanes release. Keep R06, R11, R17 and R28 blocked on their
+recorded owner choices without
 freezing independent work. R09 remains write-held until R13 releases the
 admin/audit seam; R33 remains held behind R05; R34 has an accepted plan but is
 serialized behind R23's migration/contract lane. R24-R27 remain in the same S09
@@ -525,3 +529,6 @@ verification is complete.
 | 138 | 60 | 1 | IMPLEMENTATION_BLOCKED | R23 froze after all PostgreSQL, migration, contract-regeneration and R14-B evidence passed because one typed frontend test fixture omitted the two new required-nullable settlement provenance fields. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; frozen `25d57751...`; no out-of-lease edit |
 | 139 | 60 | 1 | LEASE_EXPANDED | R23 may update only the `SettlementRead` sample in `frontend/src/lib/billing/commercial-history.test.tsx` to supply truthful nullable `cancellation_id` and `eligibility_evaluated_at` fields required by the regenerated contract. | exact stale fixture only; no UI behavior, production frontend, schema or wider test expansion; resume at Sol/medium |
 | 140 | 61 | 1 | DISPATCH_RESUMED | Visible S09/R23 resumed for the exact typed settlement-fixture correction and final frozen verification. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; GPT-5.6 Sol/medium; terminal callback required |
+| 141 | 62 | 1 | PLAN_BASELINE_CONFIRMED | Accepted R02-P and GRAPH-CP-CONTROL remain sufficient with no material current-source drift; implementation stays conflict-held behind R13 shared-fixture verification. | visible S01 task; GPT-5.6 Sol/medium; zero file mutation |
+| 142 | 62 | 1 | PLAN_REVIEW_PASSED | R03-P passed separately with semantic live-runtime comparison, byte-stable generated JSON/TypeScript artifacts and explicit stale-baseline break cases. | visible S01 task; independent clean-context review; R03 remains dependency and contract-lane held |
+| 143 | 62 | 1 | PLAN_REVIEW_BLOCKED | R17-P cannot select truthful enforced coverage behavior because no authoritative floor, path, metric, base-range, event, exclusion or ratchet policy exists in current sources. | visible S01 task; independent clean-context review; owner policy required before correction/re-review |
