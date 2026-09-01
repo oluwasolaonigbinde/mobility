@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R34`
-**Current capacity justification:** `R34` owns the trip/offline evidence protocol plus the serialized migration/generated-contract/configuration lane. R13 and R24 are frozen for read-only admission reviews. R02 and R09 remain temporarily conflict-held behind R13. Shared fixtures and this file remain controller-serialized.
+**Current capacity assignment:** `R24, R34`
+**Current capacity justification:** `R24` owns the billing budget-resume epoch service/tests while `R34` owns the disjoint trip/offline evidence protocol plus the serialized migration/generated-contract/configuration lane. R13 is frozen for read-only admission review. R02 and R09 remain temporarily conflict-held behind R13. Shared fixtures and this file remain controller-serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -78,8 +78,8 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 now rolling across dependency-ready disjoint slices while all 29 non-executable
 findings retain their admitted dispositions.
-**Current checkpoint:** `PKG-10 / R34` — the offline evidence-protocol opener
-is the only product writer while R13 and R24 undergo admission review.
+**Current checkpoint:** `PKG-10 / R24` — the commercial epoch correction and
+offline evidence-protocol opener are active while R13 undergoes admission review.
 R02 and R09 wait for R13 clearance.
 
 ## Direct owner requests outside the package queue
@@ -1543,7 +1543,7 @@ durable ledger before changing a row.
 | R21 | MON-003 | R20 | QUEUED | PENDING | PENDING | CP-MONEY PENDING |
 | R22 | MON-004, MON-007, MON-009 | R20, R21 | QUEUED | PENDING | PENDING | CP-MONEY PENDING |
 | R23 | COM-001, COM-004 | R08 | COMPLETE | PASS — R23-P | PASS — R23-M | CP-COMMERCIAL PASS — R23-CP-COMMERCIAL |
-| R24 | COM-002 | R08, R23 | QUEUED | PASS — R24-P | PENDING | CP-COMMERCIAL PENDING |
+| R24 | COM-002 | R08, R23 | ACTIVE | PASS — R24-P | PENDING | CP-COMMERCIAL PENDING |
 | R25 | COM-003, COM-005 | R08, R24 | QUEUED | PASS — R25-P | PENDING | CP-COMMERCIAL PENDING |
 | R26 | COM-006 | R08, R25 | QUEUED | PASS — R26-P | PENDING | CP-COMMERCIAL PENDING |
 | R27 | COM-007 | R08, R26 | QUEUED | PASS — R27-P | PENDING | CP-COMMERCIAL PENDING |
