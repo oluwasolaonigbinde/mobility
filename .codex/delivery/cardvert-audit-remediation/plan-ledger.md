@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 99
+plan_revision: 100
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 213
+last_event_sequence: 214
 ---
 
 # Cardvert audit remediation programme
@@ -317,6 +317,7 @@ trigger and a newly reviewed authority amendment.
 | task `01a05ef6-92fc-7df1-bd39-50e8c2fee530` | S15-S19 aggregate R38-R44 privacy/audit planning | GPT-5.6 Sol/high — privacy/security/lifecycle planning | read-only; no mutation lease | ACTIVE-PLAN |
 | task `01a05ef6-c545-7401-8114-4afe32fc9bf7` | S20-S22 aggregate R45-R52 reporting planning | GPT-5.6 Sol/high — reporting/privacy/concurrency planning | read-only; no mutation lease | ACTIVE-PLAN |
 | task `01a05ef6-ee2d-79e0-9e50-153b035d771e` | S23-S27 aggregate R54-R58 release/test planning | GPT-5.6 Sol/high — release/security/worker planning | read-only; no mutation lease | ACTIVE-PLAN |
+| task `01a05ef8-af56-7192-825a-ce4f00f9c86b` | S04 aggregate R12-R14 security/readiness planning | GPT-5.6 Sol/high — authentication/trusted-edge/release planning | read-only; no mutation lease | ACTIVE-PLAN |
 | `/root/r15_re_review` | V02 / R15 repeat M and CP-WORKERS review | GPT-5.6 Sol/high — worker crash and claim/retry semantics | read-only frozen R15 diff | PASS |
 | `/root/r08_re_review` | V01 / R08 repeat M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — authorization concurrency, deadlock and evidence semantics | read-only frozen R08 diff | PASS |
 | `/root/r13_diff_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/xhigh — cross-sink PII and audit-authority semantics | released reviewed R13 diff `4636fce9...` | FIX |
@@ -623,3 +624,4 @@ verification is complete.
 | 211 | 98 | 1 | PLAN_DISPATCH_STARTED | Visible S20-S22 task began read-only aggregate planning for R45-R52. | task `01a05ef6-c545-7401-8114-4afe32fc9bf7`; GPT-5.6 Sol/high; no mutation lease or worktree |
 | 212 | 98 | 1 | PLAN_DISPATCH_STARTED | Visible S23-S27 task began read-only aggregate planning for R54-R58. | task `01a05ef6-ee2d-79e0-9e50-153b035d771e`; GPT-5.6 Sol/high; no mutation lease or worktree |
 | 213 | 99 | 1 | DIFF_REVIEW_STARTED | Frozen R13 attempt 11 entered repeat independent adversarial minimal-change, security/privacy-specialist and CP-PRIVACY review. | reused `/root/r13_attempt5_review`; GPT-5.6 Sol/high; read-only exact `a60288c2...` diff |
+| 214 | 100 | 1 | PLAN_DISPATCH_STARTED | Visible S04 task began read-only aggregate planning for R12 and R14. | task `01a05ef8-af56-7192-825a-ce4f00f9c86b`; GPT-5.6 Sol/high; no mutation lease or worktree |
