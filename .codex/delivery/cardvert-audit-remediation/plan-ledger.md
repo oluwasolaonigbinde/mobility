@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 67
+plan_revision: 69
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 153
+last_event_sequence: 158
 ---
 
 # Cardvert audit remediation programme
@@ -195,7 +195,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R10 | AUT-005 | ACCEPTED | R08 | R10-P/M/SEC/CP-SECURITY; strict-claim and route-graph evidence | complete |
 | R11 | AUT-004 | BLOCKED-OWNER | R09; logout policy | plan review confirmed current-device documentation conflicts with schema-free global revocation | owner must choose visible sign-out-everywhere or per-session identity/migration authority |
 | R12 | AUT-003, REL-003 | QUEUED | R11 | — | wait |
-| R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P; attempts 1-5 reviews FIX | correct compound keys, bounded structured traversal, nested context, listener lifecycle and business-name preservation |
+| R13 | SEC-001, PRV-008 | REVIEW | sensitive-metadata opener | R13-P; attempts 1-5 reviews FIX; attempt-6 frozen `08d04f8c...` | independent Sol/high R13-M/SEC/PRV/CP-PRIVACY review |
 | R14 | SEC-002, TST-004 | QUEUED | R12 | — | wait |
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | ACCEPTED | provider-boundary opener | R16-P/M/CONTRACT/CP-CONTROL; structural and behavioral evidence | complete |
@@ -205,8 +205,8 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R20 | MON-001, DB-007, MON-008 | QUEUED | R05, R18 | — | wait |
 | R21 | MON-003 | QUEUED | R20 | — | wait |
 | R22 | MON-004, MON-007, MON-009 | QUEUED | R20, R21 | — | wait |
-| R23 | COM-001, COM-004 | ACTIVE | R08; commercial opener | R23-P; frozen `0108d39c...`; behavior/reviews pass | add durable 0073 upgrade/backfill/catalog/downgrade regression, then refreeze |
-| R24 | COM-002 | WAITING | R08, R23 | R24-P; reviewed resume-epoch contract | wait for accepted R23 |
+| R23 | COM-001, COM-004 | ACCEPTED | R08; commercial opener | R23-P/M/MNY/CP-COMMERCIAL; PostgreSQL, migration 0073 and contract evidence | complete at `8fd5fc4` |
+| R24 | COM-002 | ACTIVE | R08, R23 | R24-P; reviewed resume-epoch contract | visible S09 implementation reserved after accepted R23 |
 | R25 | COM-003, COM-005 | WAITING | R08, R24 | R25-P; reviewed quotation/waiver contract | wait for accepted R24 |
 | R26 | COM-006 | WAITING | R08, R25 | R26-P; reviewed lock-order contract | wait for accepted R25; bounded Sol/high DB+money gate |
 | R27 | COM-007 | WAITING | R08, R26 | R27-P; reviewed Lagos-year contract | wait for accepted R26 |
@@ -216,7 +216,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R31 | CAM-004 | QUEUED | R18, R19, R30 | — | wait |
 | R32 | ONB-002 | ACCEPTED | onboarding opener | R32-P/M/SEC/DB/CP-ONBOARDING; PostgreSQL and contract evidence | complete |
 | R33 | ONB-006 | WAITING | R05, R32 | R33-P; current 50k-row exact-index experiment | wait for accepted R05; revalidate exact-index plan |
-| R34 | OFF-001 | READY | R04; offline opener | R34-P; reviewed S12 aggregate contract | wait for R32 migration/contract-lane release and explicit write lease |
+| R34 | OFF-001 | ACTIVE | R04; offline opener | R34-P; reviewed S12 aggregate contract | visible S12 implementation reserved at actual head 0073 |
 | R35 | OFF-002, OFF-003 | WAITING | R34 | R35-P; separate OFF-002/OFF-003 reviewed contracts | wait for accepted R34 |
 | R36 | OFF-005 | WAITING | R35 | R36-P; reviewed partial-acceptance contract | wait for accepted R35 and recheck migration head |
 | R37 | OFF-006 | WAITING | R36 | R37-P; reviewed deactivation-drain contract | wait for accepted R36 |
@@ -299,32 +299,32 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 6 | GPT-5.6 Sol/high — bounded cross-sink privacy/security correction | prior four-file lease plus exact `app/models/audit.py` listener-boundary expansion | ACTIVE |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 6 | GPT-5.6 Sol/high — bounded cross-sink privacy/security correction | released exact frozen five-file diff `08d04f8c...` | REVIEW |
+| pending reviewer | S05 / R13 attempt-6 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | read-only exact `08d04f8c...` diff | RESERVED |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-5 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `6e171d42...` diff | FIX |
 | task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d` | S01 / R02-R03-R17 aggregate current-source plan | GPT-5.6 Sol/medium — CI, contract and coverage planning without mutation | no mutation lease; R02 baseline and R03 plan pass | BLOCKED-OWNER |
 | task `01a05e49-0107-7611-8ee8-515273881aa8` | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | released exact R15 diff | ACCEPTED |
 | task `01a05e49-48d5-7823-9388-537d0800e87b` | S07 / R28 plan and independent review | GPT-5.6 Terra/high — ordinary bounded campaign lifecycle planning | read-only; no mutation lease | BLOCKED-OWNER |
 | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32 implementation, R33 held | GPT-5.6 Sol/high — onboarding security, migration and contract authority | released accepted R32 diff; R33 remains dependency-held | ACCEPTED |
-| task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | S12 / R34-R37 aggregate plan and independent review | GPT-5.6 Sol/xhigh — offline/privacy/money protocol and migration authority | read-only reviewed plan; no mutation lease | PLAN-PASS |
+| task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | S12 / R34 implementation; R35-R37 held | GPT-5.6 Sol/high — offline/privacy/money protocol and migration authority | trip/offline evidence protocol plus exclusive migration/generated-contract/configuration lane | RESERVED |
 | `/root/r15_re_review` | V02 / R15 repeat M and CP-WORKERS review | GPT-5.6 Sol/high — worker crash and claim/retry semantics | read-only frozen R15 diff | PASS |
 | `/root/r08_re_review` | V01 / R08 repeat M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — authorization concurrency, deadlock and evidence semantics | read-only frozen R08 diff | PASS |
 | `/root/r13_diff_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/xhigh — cross-sink PII and audit-authority semantics | released reviewed R13 diff `4636fce9...` | FIX |
 | task `01a05e60-6ce7-7cb2-ac20-300ac5275d05` | S03 / R09-R11 planning after accepted R10 | GPT-5.6 Sol/medium for planning | no mutation lease; R09 plan PASS, R11 plan BLOCKED-OWNER | PLAN-RETURNED |
 | `/root/r10_diff_review` | S03 / R10 M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — strict bearer claims, refresh and route authority | released accepted R10 diff `de0c8d60...` | PASS |
 | task `01a05e7a-2699-79b2-9b63-e911dfe302ef` | S06 / R16 implementation | GPT-5.6 Sol/medium — bounded provider-port composition refactor | released accepted seven-file boundary diff | ACCEPTED |
-| task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R23 migration-evidence correction; R24-R27 held | GPT-5.6 Sol/high — bounded migration/backfill/downgrade regression | prior R23 lease plus exact `tests/test_migration_0073_refund_cancellation_provenance.py` expansion | ACTIVE |
+| task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R24 implementation; R25-R27 held | GPT-5.6 Sol/medium — bounded budget-resume epoch behavior | `app/services/billing.py`; exact budget-enforcement tests; no migration/contract lease | RESERVED |
 | `/root/r13_attempt3_review` | S05 / R13 repeat M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded parser and identifier-preservation boundary | released reviewed R13 diff `506dc438...` | FIX |
 | `/root/r16_diff_review` | S06 / R16 M, CONTRACT/control and CP-CONTROL review | GPT-5.6 Sol/medium — bounded provider-boundary refactor | released accepted seven-file diff | PASS |
 | task `01a05e84-2c02-7bf0-8c55-382766692aed` | S02 / R05-R07 aggregate plan and independent review | GPT-5.6 Sol/medium — read-only database-chain current-source planning | no mutation lease; R05/R07 plans pass | BLOCKED-OWNER |
 | `/root/r13_attempt4_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy boundary | released reviewed R13 diff `6753a823...` | FIX |
 
-Implementation writers reserved/active: **2 / 3**, reserved for S05/R13
-attempt 6 and S09/R23 migration-evidence correction. R02 remains temporarily
+Implementation writers reserved/active: **2 / 3**, reserved S09/R24 and
+S12/R34. R13 is frozen for read-only admission review. R02 remains temporarily
 conflict-held because its shared-fixture mutation would invalidate R13's repeat
-verification; R09 also waits for R13's audit/admin seam to release. R23 now
-exclusively owns migrations and generated contracts; S12/R34 remains serialized
-behind that central lane. Read-only planning/review may continue without
-contending with the writers.
+verification; R09 also waits for R13's audit/admin seam to release. S12/R34
+exclusively owns migrations, generated contracts and its configuration surface;
+S09/R24 is disjoint billing-only work. Read-only planning/review may continue.
 
 ## Accepted evidence
 
@@ -342,6 +342,10 @@ R08 is accepted exactly once with R08-M, R08-SEC and R08-CP-SECURITY after the
 corrected PostgreSQL blocking oracle. R15 is accepted exactly once with
 R15-M and R15-CP-WORKERS after independent PostgreSQL crash/reclaim evidence;
 no provider/SMTP exactly-once guarantee is claimed.
+R23 is accepted exactly once with R23-M, the money-specialist PASS and
+R23-CP-COMMERCIAL after frozen cancellation provenance, a concurrency-safe
+global refund reference, real PostgreSQL races, migration 0073 backfill/catalog/
+downgrade tests, synchronized API baselines and R14-B contract fixtures.
 
 ## Outstanding decisions and waits
 
@@ -373,15 +377,15 @@ adopt that enforcement policy before R17-P can be corrected and re-reviewed.
 
 ## Next scheduler action
 
-Dispatch the exact R13 attempt-6 and R23 migration-regression corrections, then
-await their event-driven callbacks. Preserve
-R02-P and R03-P; implementation remains held until the shared-fixture and
-generated-contract lanes release. Keep R06, R11, R17 and R28 blocked on their
+Dispatch R24 in the reused S09 commercial session and R34 in the reused S12
+offline session, then await their event-driven callbacks alongside R13. Preserve
+R02-P and R03-P; implementation remains held until the shared-fixture lane
+releases. Keep R06, R11, R17 and R28 blocked on their
 recorded owner choices without
 freezing independent work. R09 remains write-held until R13 releases the
-admin/audit seam; R33 remains held behind R05; R34 has an accepted plan but is
-serialized behind R23's migration/contract lane. R24-R27 remain in the same S09
-task and unlock one at a time after separate admission. Escalate only the later
+admin/audit seam; R33 remains held behind R05. R24-R27 remain in the same S09
+task and R34-R37 in S12; each chain unlocks one slice at a time after separate
+admission. Escalate only the later
 bounded R26 implementation/review to Sol/high. After each callback, reconcile
 the checkout, review/admit the returned slice, rescan the full graph, and refill
 every safe slot immediately. S01 begins with R02 once R13's shared-fixture
@@ -544,3 +548,8 @@ verification is complete.
 | 151 | 66 | 1 | DISPATCH_RESERVED | The same visible S09 task reserved one exact migration-test expansion for 0073 upgrade, unambiguous legacy backfill, catalog controls, populated fail-closed downgrade and empty downgrade/re-upgrade. | GPT-5.6 Sol/high for bounded migration verification; no product redesign or other path expansion |
 | 152 | 67 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 6 reacquired its expanded five-file privacy lease for the exact independent review findings. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/high; terminal callback required |
 | 153 | 67 | 1 | DISPATCH_STARTED | Visible S09/R23 reacquired its prior frozen inputs plus the exact new 0073 migration-test lease for durable regression evidence only. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; GPT-5.6 Sol/high; terminal callback required |
+| 154 | 68 | 1 | SLICE_ACCEPTED | R23/COM-001,COM-004 accepted exactly once and integrated at `8fd5fc4`, releasing the commercial successor and central migration/generated-contract lane. | R23-P/M/MNY/CP-COMMERCIAL; exact `e96363df...`; controller reran 3 migration, 32 backend/OpenAPI and frontend gates |
+| 155 | 68 | 1 | DISPATCH_RESERVED | The same visible S09 task reserved R24's bounded billing budget-resume epoch service/test lease after accepted R23. | GPT-5.6 Sol/medium; disjoint from R13 and R34; no migration or contract authority |
+| 156 | 68 | 1 | DISPATCH_RESERVED | The same visible S12 task reserved R34's reviewed signed/content-bound evidence protocol at actual Alembic head 0073. | GPT-5.6 Sol/high; exclusive migration/generated-contract/configuration lane; R35-R37 remain held |
+| 157 | 69 | 1 | IMPLEMENTATION_RETURNED | S05/R13 correction attempt 6 released an exact five-file diff after compound-key, structured-depth/cycle, nested-context, listener-lifecycle and business-name red/green. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; frozen `08d04f8c...`; 21 real-PostgreSQL leased passes; no stage or commit |
+| 158 | 69 | 1 | DIFF_REVIEW_RESERVED | Frozen R13 attempt 6 reserved one independent minimal-change, security/privacy-specialist and CP-PRIVACY review without xhigh escalation. | GPT-5.6 Sol/high; read-only exact `08d04f8c...` diff; no mutation authority |
