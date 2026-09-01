@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 41
+plan_revision: 42
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 98
+last_event_sequence: 100
 ---
 
 # Cardvert audit remediation programme
@@ -195,7 +195,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R10 | AUT-005 | REVIEW | R08 | R10-P; frozen `de0c8d60...` implementation receipt | independent R10-M/SEC/CP-SECURITY review |
 | R11 | AUT-004 | QUEUED | R09 | — | wait |
 | R12 | AUT-003, REL-003 | QUEUED | R11 | — | wait |
-| R13 | SEC-001, PRV-008 | REVIEW | sensitive-metadata opener | R13-P; attempt-1 review FIX; reconciled attempt-2 receipt `4636fce9...` | repeat independent R13-M/SEC/PRV/CP-PRIVACY review |
+| R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P; attempt-1 and attempt-2 reviews FIX | correction attempt 3 for multiline/comma leaks and numeric-ID preservation |
 | R14 | SEC-002, TST-004 | QUEUED | R12 | — | wait |
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | QUEUED | provider-boundary opener | R16-P | wait for R08 acceptance and a writer slot |
@@ -299,22 +299,22 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 attempt-2 implementation | GPT-5.6 Sol/xhigh — privacy/security redaction at cross-cutting sinks | released exact four-file frozen diff `4636fce9...` | REVIEW |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 3 | GPT-5.6 Sol/high — bounded privacy parser/classifier correction | exact four-file lease reacquired | ACTIVE |
 | task `01a05e49-0107-7611-8ee8-515273881aa8` | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | released exact R15 diff | ACCEPTED |
 | task `01a05e49-48d5-7823-9388-537d0800e87b` | S07 / R28 plan and independent review | GPT-5.6 Terra/high — ordinary bounded campaign lifecycle planning | read-only; no mutation lease | BLOCKED-OWNER |
 | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32 implementation, R33 held | GPT-5.6 Sol/high — onboarding security, migration and contract authority | exact R32 model/migration/onboarding/email/schema/test/contract lease; R33 remains dependency-held | ACTIVE |
 | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | S12 / R34-R37 aggregate plan and independent review | GPT-5.6 Sol/xhigh — offline/privacy/money protocol and migration authority | read-only reviewed plan; no mutation lease | PLAN-PASS |
 | `/root/r15_re_review` | V02 / R15 repeat M and CP-WORKERS review | GPT-5.6 Sol/high — worker crash and claim/retry semantics | read-only frozen R15 diff | PASS |
 | `/root/r08_re_review` | V01 / R08 repeat M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — authorization concurrency, deadlock and evidence semantics | read-only frozen R08 diff | PASS |
-| `/root/r13_diff_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/xhigh — cross-sink PII and audit-authority semantics | read-only frozen R13 diff `4636fce9...` | ACTIVE |
+| `/root/r13_diff_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/xhigh — cross-sink PII and audit-authority semantics | released reviewed R13 diff `4636fce9...` | FIX |
 | task `01a05e60-6ce7-7cb2-ac20-300ac5275d05` | S03 / R10 under review; read-only R09/R11 planning | GPT-5.6 Sol/medium for planning; R10 implementation used Sol/xhigh | released R10 frozen diff `de0c8d60...`; R09/R11 have no mutation lease | PLANNING |
 | `/root/r10_diff_review` | S03 / R10 M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — strict bearer claims, refresh and route authority | read-only frozen R10 diff `de0c8d60...` | ACTIVE |
 | task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R23-R27 aggregate plan and independent review | GPT-5.6 Sol/medium — aggregate commercial current-source planning | read-only; no mutation lease | PLANNING |
 
-Implementation writers reserved/active: **1 / 3**, currently S08/R32 only.
-R10 and R13 leases are frozen for read-only admission review. R02 remains
+Implementation writers reserved/active: **2 / 3**, currently S05/R13 and
+S08/R32. R10 remains frozen for read-only admission review. R02 remains
 temporarily conflict-held because its shared-fixture mutation would invalidate
-R13's repeat verification; S12 remains serialized behind R32's migration and
+R13's correction verification; S12 remains serialized behind R32's migration and
 generated-contract lane. Read-only planning may continue without contending
 with the active writer.
 
@@ -349,8 +349,8 @@ unresolved.
 
 ## Next scheduler action
 
-Await the R10 and R13 read-only review verdicts and the S08/R32 terminal
-callback. Monitor only terminal callbacks from the reused S03 read-only
+Await the R10 review verdict, R13 correction-attempt-3 callback, and S08/R32
+terminal callback. Monitor only terminal callbacks from the reused S03 read-only
 R09/R11 plan and visible S09/R23-R27 aggregate plan at Sol/medium; defer any
 model escalation to a later bounded implementation or specialist review that
 actually owns the R26 PostgreSQL money-concurrency boundary. Keep S07/R28 blocked on the recorded
@@ -464,3 +464,5 @@ verification is complete.
 | 96 | 40 | 1 | PLAN_DISPATCH_RESERVED | S09/R23-R27 reserved one visible read-only commercial-billing planning session with separate slice contracts and terminal callback; no mutation lease. | GPT-5.6 Sol/medium for aggregate planning; any later escalation is bounded to an implementation or specialist review that actually owns the R26 PostgreSQL money-concurrency boundary |
 | 97 | 41 | 1 | PLAN_DISPATCH_STARTED | The existing visible S03 task began read-only R09/R11 current-source planning while frozen R10 remains under independent admission review. | task `01a05e60-6ce7-7cb2-ac20-300ac5275d05`; GPT-5.6 Sol/medium; no R09/R11 mutation lease; terminal callback required |
 | 98 | 41 | 1 | PLAN_DISPATCH_STARTED | One visible S09 task began aggregate read-only planning and independent review for the complete R23-R27 commercial-billing chain. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; GPT-5.6 Sol/medium; shared checkout, no worktree or mutation lease; terminal callback required |
+| 99 | 42 | 1 | DIFF_REVIEW_FIX | R13 attempt 2 still leaked multiline/comma-bearing sensitive assignments and over-redacted approved numeric identifiers through the broad local-phone matcher. | Sol/xhigh reviewer `/root/r13_diff_review`; prior findings passed; four new boundary assertions exposed two P1 classes |
+| 100 | 42 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 3 on the unchanged four-file lease, limited to newline/comma assignment boundaries and key-aware numeric-ID preservation. | GPT-5.6 Sol/high for a bounded privacy/security correction; callback and full repeat review required |
