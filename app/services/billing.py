@@ -3124,10 +3124,11 @@ async def record_credit_contract_settlement(
     return settlement
 
 
-def _blocked_budget_evaluation_key(campaign: Campaign) -> str:
+def _blocked_budget_evaluation_key(campaign: Campaign, *, evaluation_epoch_id: UUID | None) -> str:
     source = "|".join(
         (
             str(campaign.id),
+            str(evaluation_epoch_id or "initial"),
             str(campaign.budget_amount),
             str(campaign.daily_budget_amount),
             campaign.currency,
@@ -3177,12 +3178,14 @@ async def _campaign_billing_spend(
 def _budget_evaluation_key(
     campaign: Campaign,
     *,
+    evaluation_epoch_id: UUID | None,
     decision,
     billing_fact_source: str,
 ) -> str:
     source = "|".join(
         (
             str(campaign.id),
+            str(evaluation_epoch_id or "initial"),
             str(campaign.budget_amount),
             str(campaign.daily_budget_amount),
             campaign.currency,
@@ -3296,6 +3299,15 @@ async def evaluate_campaign_budget_policy(
             "Authorized threshold evaluation requires positive configured budgets",
             status_code=status.HTTP_409_CONFLICT,
         )
+    evaluation_epoch_id = await session.scalar(
+        select(BudgetCampaignTransition.id)
+        .where(
+            BudgetCampaignTransition.campaign_id == campaign.id,
+            BudgetCampaignTransition.action == BudgetCampaignTransitionAction.RESUME.value,
+        )
+        .order_by(BudgetCampaignTransition.created_at.desc())
+        .limit(1)
+    )
     now = await database_clock(session)
     total_spend, daily_spend, billing_fact_source = await _campaign_billing_spend(
         session, campaign_id=campaign.id, now=now
@@ -3338,11 +3350,16 @@ async def evaluate_campaign_budget_policy(
                 "EXT-BUDGET-POLICY is missing; threshold and pause decisions are disabled",
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-        evaluation_key = _blocked_budget_evaluation_key(campaign)
+        evaluation_key = _blocked_budget_evaluation_key(
+            campaign, evaluation_epoch_id=evaluation_epoch_id
+        )
     else:
         _validate_budget_decision(decision, synthetic_test_authority=synthetic_test_authority)
         evaluation_key = _budget_evaluation_key(
-            campaign, decision=decision, billing_fact_source=billing_fact_source
+            campaign,
+            evaluation_epoch_id=evaluation_epoch_id,
+            decision=decision,
+            billing_fact_source=billing_fact_source,
         )
     existing = await session.scalar(
         select(BudgetPolicyEvaluation).where(
@@ -3518,6 +3535,16 @@ async def resume_campaign_after_budget_pause(
         )
     target = pause.prior_status
     now = await database_clock(session)
+    latest_transition_at = await session.scalar(
+        select(func.max(BudgetCampaignTransition.created_at)).where(
+            BudgetCampaignTransition.campaign_id == campaign_id
+        )
+    )
+    if latest_transition_at is not None:
+        now = max(
+            now,
+            _stored_aware_utc(latest_transition_at) + timedelta(microseconds=1),
+        )
     transition = BudgetCampaignTransition(
         campaign_id=campaign.id,
         evaluation_id=evaluation.id,
