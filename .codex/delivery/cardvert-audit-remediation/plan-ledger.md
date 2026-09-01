@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 63
+plan_revision: 64
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 145
+last_event_sequence: 146
 ---
 
 # Cardvert audit remediation programme
@@ -300,7 +300,7 @@ trigger and a newly reviewed authority amendment.
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
 | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 5 | GPT-5.6 Sol/high — bounded serialized-value and recursion safety correction | released exact frozen four-file diff `6e171d42...` | REVIEW |
-| pending reviewer | S05 / R13 attempt-5 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | read-only exact `6e171d42...` diff | RESERVED |
+| `/root/r13_attempt5_review` | S05 / R13 attempt-5 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | read-only exact `6e171d42...` diff | ACTIVE |
 | task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d` | S01 / R02-R03-R17 aggregate current-source plan | GPT-5.6 Sol/medium — CI, contract and coverage planning without mutation | no mutation lease; R02 baseline and R03 plan pass | BLOCKED-OWNER |
 | task `01a05e49-0107-7611-8ee8-515273881aa8` | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | released exact R15 diff | ACCEPTED |
 | task `01a05e49-48d5-7823-9388-537d0800e87b` | S07 / R28 plan and independent review | GPT-5.6 Terra/high — ordinary bounded campaign lifecycle planning | read-only; no mutation lease | BLOCKED-OWNER |
@@ -535,3 +535,4 @@ verification is complete.
 | 143 | 62 | 1 | PLAN_REVIEW_BLOCKED | R17-P cannot select truthful enforced coverage behavior because no authoritative floor, path, metric, base-range, event, exclusion or ratchet policy exists in current sources. | visible S01 task; independent clean-context review; owner policy required before correction/re-review |
 | 144 | 63 | 1 | IMPLEMENTATION_RETURNED | S05/R13 correction attempt 5 released an exact four-file diff with iterative bounded assignment scanning and balanced sensitive-value boundaries after cross-sink red/green. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; frozen `6e171d42...`; 16 final focused passes; no stage or commit |
 | 145 | 63 | 1 | DIFF_REVIEW_RESERVED | Frozen R13 attempt 5 reserved one independent minimal-change, security/privacy-specialist and CP-PRIVACY review without xhigh escalation. | GPT-5.6 Sol/high; read-only exact `6e171d42...` diff; no mutation authority |
+| 146 | 64 | 1 | DIFF_REVIEW_STARTED | Frozen R13 attempt 5 entered independent adversarial minimal-change, security/privacy-specialist and CP-PRIVACY review. | `/root/r13_attempt5_review`; GPT-5.6 Sol/high; read-only exact `6e171d42...` diff |
