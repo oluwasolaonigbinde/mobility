@@ -18158,6 +18158,18 @@
             "title": "Campaign Id",
             "type": "string"
           },
+          "cancellation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancellation Id"
+          },
           "commercial_terms_id": {
             "format": "uuid",
             "title": "Commercial Terms Id",
@@ -18182,6 +18194,18 @@
               }
             ],
             "title": "Eligibility Ends At"
+          },
+          "eligibility_evaluated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eligibility Evaluated At"
           },
           "external_reference": {
             "title": "External Reference",
@@ -18235,11 +18259,13 @@
           "commercial_terms_id",
           "campaign_id",
           "receipt_id",
+          "cancellation_id",
           "disposition",
           "amount",
           "currency",
           "funding_authorized_at",
           "eligibility_ends_at",
+          "eligibility_evaluated_at",
           "settlement_provider",
           "external_reference",
           "reason",

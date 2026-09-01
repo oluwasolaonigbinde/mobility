@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime
+from uuid import uuid4
 
 import pytest
 from conftest import create_test_campaign, create_test_organization, create_test_user
@@ -20,6 +21,7 @@ from app.models.billing import (
 )
 from app.models.campaign import CampaignReviewEvent, CampaignStatus
 from app.models.user import UserRole
+from app.schemas.campaign_cancellations import CampaignCancellationCreate
 from app.schemas.campaigns import CampaignUpdate
 from app.services.billing import (
     accept_quotation_revision,
@@ -36,6 +38,7 @@ from app.services.billing import (
     request_custom_quote,
     reverse_payment_receipt,
 )
+from app.services.campaign_cancellations import request_campaign_cancellation
 from app.services.campaigns import submit_campaign_for_review, update_advertiser_campaign
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 
@@ -453,6 +456,21 @@ def test_split_receipt_refunds_conserve_each_allocation(
                     commercial_terms_id=terms[key].id,
                     actor_user_id=admin.id,
                     amount=amount,
+                )
+            for key in ("first", "second"):
+                current = await session.get(type(campaigns[key]), campaigns[key].id)
+                current.status = CampaignStatus.ACTIVE.value
+                cancellation = await request_campaign_cancellation(
+                    session,
+                    actor_user_id=owner.id,
+                    campaign_id=campaigns[key].id,
+                    payload=CampaignCancellationCreate(
+                        client_request_id=uuid4(),
+                        reason="authorize split-receipt refund",
+                    ),
+                )
+                assert str(cancellation.refundable_amount) == (
+                    "60.00" if key == "first" else "40.00"
                 )
             await reverse_payment_receipt(
                 session,

@@ -11153,6 +11153,8 @@ export interface components {
              * Format: uuid
              */
             campaign_id: string;
+            /** Cancellation Id */
+            cancellation_id: string | null;
             /**
              * Commercial Terms Id
              * Format: uuid
@@ -11164,6 +11166,8 @@ export interface components {
             disposition: string;
             /** Eligibility Ends At */
             eligibility_ends_at: string | null;
+            /** Eligibility Evaluated At */
+            eligibility_evaluated_at: string | null;
             /** External Reference */
             external_reference: string;
             /** Funding Authorized At */

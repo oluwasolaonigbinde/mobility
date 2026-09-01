@@ -367,11 +367,13 @@ class SettlementRead(ORMRead):
     commercial_terms_id: UUID
     campaign_id: UUID
     receipt_id: UUID | None
+    cancellation_id: UUID | None
     disposition: str
     amount: Decimal
     currency: str
     funding_authorized_at: datetime | None
     eligibility_ends_at: datetime | None
+    eligibility_evaluated_at: datetime | None
     settlement_provider: str
     external_reference: str
     reason: str

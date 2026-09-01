@@ -50,6 +50,7 @@ const settlement: Settlement = {
   campaign_id: "00000000-0000-0000-0000-000000000002",
   commercial_terms_id: "00000000-0000-0000-0000-000000000003",
   receipt_id: "00000000-0000-0000-0000-000000000008",
+  cancellation_id: null,
   disposition: "refunded",
   amount: "20.00",
   currency: "NGN",
@@ -58,6 +59,7 @@ const settlement: Settlement = {
   reason: "Reversal settlement",
   funding_authorized_at: "2026-08-24T10:00:00Z",
   eligibility_ends_at: "2026-08-25T10:00:00Z",
+  eligibility_evaluated_at: null,
   recorded_at: "2026-08-24T12:00:00Z",
 };
 

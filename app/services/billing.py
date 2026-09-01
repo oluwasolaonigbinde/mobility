@@ -66,6 +66,10 @@ from app.models.billing import (
 )
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_assignment import CampaignAssignment
+from app.models.campaign_cancellation import (
+    CampaignCancellation,
+    CampaignCancellationDisposition,
+)
 from app.models.organization import AdvertiserOrganization
 from app.models.payout import AssignmentRuleBinding
 from app.models.user import User, UserRole, UserStatus
@@ -2772,21 +2776,24 @@ async def _refund_window(
 ) -> tuple[datetime | None, datetime | None, ProductionStart | None]:
     if terms.payment_class == PaymentClass.APPROVED_CORPORATE_CREDIT:
         return None, None, None
-    funded_at = await _historical_fully_funded_at(session, terms)
+    production = await session.scalar(
+        select(ProductionStart).where(ProductionStart.campaign_id == terms.campaign_id)
+    )
+    funded_at = (
+        production.fully_funded_at
+        if production is not None and production.fully_funded_at is not None
+        else await _historical_fully_funded_at(session, terms)
+    )
     if funded_at is None:
         return None, None, None
     funded_at = _stored_aware_utc(funded_at)
     standard_end = funded_at + timedelta(hours=terms.standard_production_wait_hours)
-    production = await session.scalar(
-        select(ProductionStart).where(ProductionStart.campaign_id == terms.campaign_id)
+    eligibility_ends_at = (
+        min(standard_end, _stored_aware_utc(production.started_at))
+        if production is not None
+        else standard_end
     )
-    if (
-        production is not None
-        and production.authority_basis == ProductionAuthorityBasis.ADVERTISER_EXPEDITED_WAIVER
-        and _stored_aware_utc(production.started_at) < standard_end
-    ):
-        return funded_at, _stored_aware_utc(production.started_at), production
-    return funded_at, standard_end, production
+    return funded_at, eligibility_ends_at, production
 
 
 async def record_refund_settlement(
@@ -2812,7 +2819,14 @@ async def record_refund_settlement(
     terms = await session.scalar(
         select(CommercialTerms).where(CommercialTerms.id == commercial_terms_id).with_for_update()
     )
-    if receipt is None or terms is None or receipt.organization_id != terms.organization_id:
+    if terms is None:
+        raise AppError("COMMERCIAL_TERMS_NOT_FOUND", "Commercial terms were not found", 404)
+    cancellation = await session.scalar(
+        select(CampaignCancellation)
+        .where(CampaignCancellation.campaign_id == terms.campaign_id)
+        .with_for_update()
+    )
+    if receipt is None or receipt.organization_id != terms.organization_id:
         raise AppError("REFUND_AUTHORITY_NOT_FOUND", "Refund authority was not found", 404)
     if terms.payment_class == PaymentClass.APPROVED_CORPORATE_CREDIT:
         raise AppError(
@@ -2830,6 +2844,20 @@ async def record_refund_settlement(
             "Refund amount, provider, reference and reason are required",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+
+    def exact_match(candidate: RefundSettlement) -> bool:
+        return (
+            candidate.commercial_terms_id == terms.id
+            and candidate.receipt_id == receipt.id
+            and candidate.cancellation_id == (
+                cancellation.id if cancellation is not None else None
+            )
+            and Decimal(candidate.amount) == refund_amount
+            and candidate.settlement_provider == provider
+            and candidate.external_reference == reference
+            and candidate.reason == normalized_reason
+        )
+
     existing = await session.scalar(
         select(RefundSettlement).where(
             RefundSettlement.settlement_provider == provider,
@@ -2837,15 +2865,48 @@ async def record_refund_settlement(
         )
     )
     if existing is not None:
-        if (
-            existing.commercial_terms_id == terms.id
-            and existing.receipt_id == receipt.id
-            and Decimal(existing.amount) == refund_amount
-        ):
+        if exact_match(existing):
             return existing
         raise AppError(
             "REFUND_REFERENCE_CONFLICT",
             "External refund reference belongs to different settlement evidence",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if cancellation is None:
+        raise AppError(
+            "REFUND_CANCELLATION_REQUIRED",
+            "Cash refund recording requires an immutable campaign cancellation",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if (
+        cancellation.commercial_terms_id != terms.id
+        or cancellation.campaign_id != terms.campaign_id
+        or cancellation.organization_id != terms.organization_id
+        or cancellation.currency != terms.currency
+    ):
+        raise AppError(
+            "REFUND_CANCELLATION_MISMATCH",
+            "Campaign cancellation does not match the frozen cash-refund authority",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if (
+        cancellation.disposition != CampaignCancellationDisposition.CASH_REFUND_DUE.value
+        or Decimal(cancellation.refundable_amount) <= 0
+    ):
+        raise AppError(
+            "REFUND_CANCELLATION_NOT_DUE",
+            "The immutable campaign cancellation records no cash refund due",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if (
+        cancellation.funding_authorized_at is None
+        or cancellation.refund_eligibility_ends_at is None
+        or _stored_aware_utc(cancellation.cutoff_at)
+        >= _stored_aware_utc(cancellation.refund_eligibility_ends_at)
+    ):
+        raise AppError(
+            "REFUND_CANCELLATION_MISMATCH",
+            "Campaign cancellation does not match the frozen cash-refund authority",
             status_code=status.HTTP_409_CONFLICT,
         )
     if await _receipt_status(session, receipt.id) != ReceiptLifecycleStatus.REVERSED:
@@ -2897,18 +2958,35 @@ async def record_refund_settlement(
             "Refund cannot exceed the receipt total",
             status_code=status.HTTP_409_CONFLICT,
         )
-    funded_at, eligibility_ends_at, production = await _refund_window(session, terms)
-    now = await database_clock(session)
-    if funded_at is None or eligibility_ends_at is None or now >= eligibility_ends_at:
+    cancellation_refunded = Decimal(
+        await session.scalar(
+            select(func.coalesce(func.sum(RefundSettlement.amount), 0)).where(
+                RefundSettlement.cancellation_id == cancellation.id,
+                RefundSettlement.disposition == SettlementDisposition.REFUND_RECORDED,
+            )
+        )
+        or 0
+    )
+    if cancellation_refunded + refund_amount > Decimal(cancellation.refundable_amount):
         raise AppError(
-            "REFUND_WINDOW_CLOSED",
-            "Cash refund eligibility is not open at the exact evaluation time",
+            "REFUND_EXCEEDS_CANCELLATION_AUTHORITY",
+            "Refund cannot exceed the cancellation's frozen refundable amount",
             status_code=status.HTTP_409_CONFLICT,
         )
+    production = (
+        await session.get(ProductionStart, cancellation.production_start_id)
+        if cancellation.production_start_id is not None
+        else None
+    )
+    funded_at = _stored_aware_utc(cancellation.funding_authorized_at)
+    eligibility_ends_at = _stored_aware_utc(cancellation.refund_eligibility_ends_at)
+    eligibility_evaluated_at = _stored_aware_utc(cancellation.cutoff_at)
+    now = await database_clock(session)
     settlement = RefundSettlement(
         commercial_terms_id=terms.id,
         campaign_id=terms.campaign_id,
         receipt_id=receipt.id,
+        cancellation_id=cancellation.id,
         production_start_id=production.id if production is not None else None,
         waiver_id=production.waiver_id if production is not None else None,
         disposition=SettlementDisposition.REFUND_RECORDED,
@@ -2916,14 +2994,33 @@ async def record_refund_settlement(
         currency=terms.currency,
         funding_authorized_at=funded_at,
         eligibility_ends_at=eligibility_ends_at,
+        eligibility_evaluated_at=eligibility_evaluated_at,
         settlement_provider=provider,
         external_reference=reference,
         reason=normalized_reason,
         recorded_by_user_id=actor_user_id,
         recorded_at=now,
     )
-    session.add(settlement)
-    await session.flush()
+    try:
+        async with session.begin_nested():
+            session.add(settlement)
+            await session.flush()
+    except IntegrityError as exc:
+        concurrent = await session.scalar(
+            select(RefundSettlement).where(
+                RefundSettlement.settlement_provider == provider,
+                RefundSettlement.external_reference == reference,
+            )
+        )
+        if concurrent is not None and exact_match(concurrent):
+            return concurrent
+        if concurrent is not None:
+            raise AppError(
+                "REFUND_REFERENCE_CONFLICT",
+                "External refund reference belongs to different settlement evidence",
+                status_code=status.HTTP_409_CONFLICT,
+            ) from exc
+        raise
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,
@@ -2935,6 +3032,8 @@ async def record_refund_settlement(
             "receipt_id": str(receipt.id),
             "amount": f"{refund_amount:.2f}",
             "currency": terms.currency,
+            "cancellation_id": str(cancellation.id),
+            "eligibility_evaluated_at": eligibility_evaluated_at.isoformat(),
             "eligibility_ends_at": eligibility_ends_at.isoformat(),
         },
     )

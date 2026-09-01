@@ -929,11 +929,17 @@ class RefundSettlement(Base):
             "(disposition = 'refund_recorded' AND receipt_id IS NOT NULL AND amount > 0 "
             "AND funding_authorized_at IS NOT NULL AND eligibility_ends_at IS NOT NULL) OR "
             "(disposition = 'credit_settlement_recorded' AND receipt_id IS NULL "
-            "AND amount = 0 AND funding_authorized_at IS NULL AND eligibility_ends_at IS NULL)",
+            "AND amount = 0 AND funding_authorized_at IS NULL AND eligibility_ends_at IS NULL "
+            "AND cancellation_id IS NULL AND eligibility_evaluated_at IS NULL)",
             name="ck_refund_settlements_authority",
         ),
         CheckConstraint(
-            "eligibility_ends_at IS NULL OR recorded_at < eligibility_ends_at",
+            "(cancellation_id IS NULL AND eligibility_evaluated_at IS NULL) OR "
+            "(cancellation_id IS NOT NULL AND eligibility_evaluated_at IS NOT NULL)",
+            name="ck_refund_settlements_frozen_provenance",
+        ),
+        CheckConstraint(
+            "eligibility_evaluated_at IS NULL OR eligibility_evaluated_at < eligibility_ends_at",
             name="ck_refund_settlements_eligibility_window",
         ),
         UniqueConstraint(
@@ -961,11 +967,15 @@ class RefundSettlement(Base):
     waiver_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("expedited_production_waivers.id", ondelete="RESTRICT")
     )
+    cancellation_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("campaign_cancellations.id", ondelete="RESTRICT"), index=True
+    )
     disposition: Mapped[str] = mapped_column(String(40), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     funding_authorized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     eligibility_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    eligibility_evaluated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     settlement_provider: Mapped[str] = mapped_column(String(64), nullable=False)
     external_reference: Mapped[str] = mapped_column(String(255), nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)

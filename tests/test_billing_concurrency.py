@@ -1,12 +1,16 @@
 import asyncio
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from conftest import create_test_campaign, create_test_organization, create_test_user
 from test_receipt_allocations import _accepted_terms
 
+import app.services.billing as billing_service
 from app.core.errors import AppError
 from app.models.billing import IssuerVerificationStatus, ReceiptMethod
+from app.models.campaign import Campaign, CampaignStatus
 from app.models.user import UserRole
+from app.schemas.campaign_cancellations import CampaignCancellationCreate
 from app.services.billing import (
     allocate_payment_receipt,
     confirm_payment_receipt,
@@ -16,8 +20,10 @@ from app.services.billing import (
     reconcile_payment_receipt,
     record_invoice_issuer_profile,
     record_payment_receipt,
+    record_refund_settlement,
     reverse_payment_receipt,
 )
+from app.services.campaign_cancellations import request_campaign_cancellation
 
 
 async def _parallel(*awaitables):
@@ -209,3 +215,133 @@ def test_forced_overlap_receipt_allocation_reversal_and_numbering(
             assert str(funded) == "60.00"
 
     asyncio.run(assert_reversed_funding())
+
+
+def test_concurrent_refund_reference_conflict_is_stable_across_campaigns(
+    postgis_db_sessionmaker, monkeypatch
+) -> None:
+    admin = create_test_user(
+        postgis_db_sessionmaker, email="refund-reference-race-admin@example.com"
+    )
+    second_admin = create_test_user(
+        postgis_db_sessionmaker, email="refund-reference-race-admin-2@example.com"
+    )
+    refund_admins = (admin, second_admin)
+    owner = create_test_user(
+        postgis_db_sessionmaker,
+        email="refund-reference-race-owner@example.com",
+        role=UserRole.ADVERTISER,
+    )
+    organization, _ = create_test_organization(postgis_db_sessionmaker, owner_user_id=owner.id)
+    campaigns = [
+        create_test_campaign(
+            postgis_db_sessionmaker,
+            organization_id=organization.id,
+            created_by_user_id=admin.id,
+            name=f"Refund reference race {index}",
+        )
+        for index in (1, 2)
+    ]
+
+    async def setup():
+        async with postgis_db_sessionmaker() as session:
+            authorities = []
+            for index, campaign in enumerate(campaigns, start=1):
+                terms = await _accepted_terms(
+                    session,
+                    campaign=campaign,
+                    admin=admin,
+                    owner=owner,
+                    reference=f"REFUND-REFERENCE-RACE-{index}",
+                    amount="100.00",
+                )
+                receipt = await record_payment_receipt(
+                    session,
+                    organization_id=organization.id,
+                    actor_user_id=admin.id,
+                    method=ReceiptMethod.MANUAL_TRANSFER,
+                    provider="bank",
+                    external_transaction_id=f"REFUND-REFERENCE-RACE-PAYMENT-{index}",
+                    amount="100.00",
+                    currency="NGN",
+                    payer_name="Advertiser",
+                    evidence_reference=f"refund-reference-race-{index}",
+                    observed_at=datetime.now(UTC),
+                )
+                await reconcile_payment_receipt(
+                    session,
+                    receipt_id=receipt.id,
+                    actor_user_id=admin.id,
+                    expected_amount="100.00",
+                    expected_currency="NGN",
+                )
+                await confirm_payment_receipt(
+                    session, receipt_id=receipt.id, actor_user_id=admin.id
+                )
+                await allocate_payment_receipt(
+                    session,
+                    receipt_id=receipt.id,
+                    commercial_terms_id=terms.id,
+                    actor_user_id=admin.id,
+                    amount="100.00",
+                )
+                current = await session.get(Campaign, campaign.id)
+                current.status = CampaignStatus.ACTIVE.value
+                cancellation = await request_campaign_cancellation(
+                    session,
+                    actor_user_id=owner.id,
+                    campaign_id=campaign.id,
+                    payload=CampaignCancellationCreate(
+                        client_request_id=uuid4(),
+                        reason="authorize cross-campaign refund race",
+                    ),
+                )
+                assert cancellation.disposition == "cash_refund_due"
+                await reverse_payment_receipt(
+                    session,
+                    receipt_id=receipt.id,
+                    actor_user_id=admin.id,
+                    reason="exercise global refund reference identity",
+                )
+                authorities.append((terms.id, receipt.id, refund_admins[index - 1].id))
+            await session.commit()
+            return authorities
+
+    authorities = asyncio.run(setup())
+
+    async def attempt(terms_id, receipt_id, actor_user_id):
+        async with postgis_db_sessionmaker() as session:
+            try:
+                await record_refund_settlement(
+                    session,
+                    commercial_terms_id=terms_id,
+                    receipt_id=receipt_id,
+                    actor_user_id=actor_user_id,
+                    amount="100.00",
+                    settlement_provider="bank",
+                    external_reference="REFUND-GLOBAL-REFERENCE-RACE",
+                    reason="same reference with different authority",
+                )
+                await session.commit()
+                return "recorded"
+            except AppError as exc:
+                await session.rollback()
+                return exc.code
+
+    async def overlap():
+        arrivals = 0
+        release = asyncio.Event()
+
+        async def synchronize_after_reference_lookup(_session):
+            nonlocal arrivals
+            arrivals += 1
+            if arrivals == len(authorities):
+                release.set()
+            await release.wait()
+            return datetime.now(UTC)
+
+        monkeypatch.setattr(billing_service, "database_clock", synchronize_after_reference_lookup)
+        return await _parallel(*(attempt(*authority) for authority in authorities))
+
+    outcomes = asyncio.run(overlap())
+    assert sorted(outcomes) == ["REFUND_REFERENCE_CONFLICT", "recorded"]

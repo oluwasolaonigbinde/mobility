@@ -30,6 +30,7 @@ from app.models.trip import TripSession
 from app.schemas.campaign_cancellations import CampaignCancellationCreate
 from app.schemas.trips import TripStartRequest
 from app.services import campaign_cancellations
+from app.services.billing import reverse_payment_receipt
 from app.services.campaign_cancellations import request_campaign_cancellation
 from app.services.trips import start_driver_trip
 
@@ -157,6 +158,33 @@ def test_cash_cancellation_freezes_refund_due_before_exact_boundary(
     assert response.json()["cutoff_at"] == (
         allocation.allocated_at + timedelta(hours=23)
     ).isoformat().replace("+00:00", "Z")
+
+    async def reverse_authoritative_receipt() -> None:
+        async with db_sessionmaker() as session:
+            await reverse_payment_receipt(
+                session,
+                receipt_id=allocation.receipt_id,
+                actor_user_id=admin.id,
+                reason="settle the frozen cancellation",
+            )
+            await session.commit()
+
+    asyncio.run(reverse_authoritative_receipt())
+    settlement = db_client.post(
+        "/api/v1/admin/refunds",
+        headers=auth_headers(db_client, admin.email),
+        json={
+            "commercial_terms_id": str(terms.id),
+            "receipt_id": str(allocation.receipt_id),
+            "amount": "100.00",
+            "settlement_provider": "bank",
+            "external_reference": "CAMPAIGN-CANCEL-REFUND",
+            "reason": "book frozen cancellation after the request",
+        },
+    )
+    assert settlement.status_code == 200, settlement.text
+    assert settlement.json()["cancellation_id"] == response.json()["id"]
+    assert settlement.json()["eligibility_evaluated_at"] == response.json()["cutoff_at"]
 
 
 def test_cash_cancellation_at_exact_standard_boundary_records_no_refund_due(

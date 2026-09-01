@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
 from conftest import create_test_campaign, create_test_organization, create_test_user
@@ -16,8 +17,10 @@ from app.models.billing import (
     QuoteRequestSource,
     ReceiptMethod,
 )
+from app.models.campaign import Campaign, CampaignStatus
 from app.models.user import UserRole
-from app.services import billing
+from app.schemas.campaign_cancellations import CampaignCancellationCreate
+from app.services import billing, campaign_cancellations
 from app.services.billing import (
     accept_quotation_revision,
     adjusted_invoice_obligation,
@@ -39,6 +42,7 @@ from app.services.billing import (
     request_custom_quote,
     reverse_payment_receipt,
 )
+from app.services.campaign_cancellations import request_campaign_cancellation
 
 
 def _fixture(db_sessionmaker, suffix: str):
@@ -55,6 +59,30 @@ def _fixture(db_sessionmaker, suffix: str):
         created_by_user_id=admin.id,
     )
     return admin, owner, organization, campaign
+
+
+async def _cancel_for_refund(
+    session,
+    *,
+    campaign,
+    owner,
+    cutoff,
+    monkeypatch,
+    reason: str,
+):
+    current = await session.get(Campaign, campaign.id)
+    current.status = CampaignStatus.ACTIVE.value
+
+    async def fixed_cutoff(_session):
+        return cutoff
+
+    monkeypatch.setattr(campaign_cancellations, "database_clock", fixed_cutoff)
+    return await request_campaign_cancellation(
+        session,
+        actor_user_id=owner.id,
+        campaign_id=campaign.id,
+        payload=CampaignCancellationCreate(client_request_id=uuid4(), reason=reason),
+    )
 
 
 def test_invoice_corrections_are_itemised_append_only_and_bounded(
@@ -240,6 +268,292 @@ def test_effective_invoice_obligation_drives_allocation_status_and_production(
     asyncio.run(scenario())
 
 
+def test_standard_production_and_later_debit_cannot_reopen_refund_eligibility(
+    db_sessionmaker, settings, monkeypatch
+) -> None:
+    admin, owner, organization, campaign = _fixture(db_sessionmaker, "refund-frozen-start")
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            terms, first_allocation, _ = await _funded_terms(
+                session,
+                admin=admin,
+                owner=owner,
+                organization=organization,
+                campaign=campaign,
+                reference="REFUND-FROZEN-START",
+            )
+            draft = await create_invoice_draft(
+                session, commercial_terms_id=terms.id, actor_user_id=admin.id
+            )
+            issuer = await _issuer(
+                session,
+                admin,
+                IssuerVerificationStatus.SYNTHETIC,
+                "SYNTHETIC-REFUND-FROZEN-START",
+                settings,
+            )
+            invoice = await issue_invoice(
+                session,
+                invoice_id=draft.id,
+                issuer_profile_id=issuer.id,
+                actor_user_id=admin.id,
+                settings=settings,
+            )
+
+            async def at_standard_boundary(_session):
+                return first_allocation.allocated_at + timedelta(hours=24)
+
+            monkeypatch.setattr(billing, "database_clock", at_standard_boundary)
+            production = await record_production_start(
+                session, campaign_id=campaign.id, actor_user_id=admin.id
+            )
+            assert production.fully_funded_at == first_allocation.allocated_at
+
+            await record_invoice_correction(
+                session,
+                invoice_id=invoice.id,
+                actor_user_id=admin.id,
+                correction_reference="refund-frozen-start-debit",
+                correction_type=InvoiceCorrectionType.DEBIT_NOTE,
+                net_amount="50.00",
+                tax_amount="0.00",
+                reason="later approved scope increase",
+            )
+
+            async def after_debit(_session):
+                return first_allocation.allocated_at + timedelta(hours=25)
+
+            monkeypatch.setattr(billing, "database_clock", after_debit)
+            receipt = await record_payment_receipt(
+                session,
+                organization_id=organization.id,
+                actor_user_id=admin.id,
+                method=ReceiptMethod.MANUAL_TRANSFER,
+                provider="bank-transfer",
+                external_transaction_id="REFUND-FROZEN-START-DEBIT",
+                amount="50.00",
+                currency="NGN",
+                payer_name="Advertiser",
+                evidence_reference="refund frozen start debit",
+                observed_at=first_allocation.allocated_at + timedelta(hours=25),
+            )
+            await reconcile_payment_receipt(
+                session,
+                receipt_id=receipt.id,
+                actor_user_id=admin.id,
+                expected_amount="50.00",
+                expected_currency="NGN",
+            )
+            await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
+            await allocate_payment_receipt(
+                session,
+                receipt_id=receipt.id,
+                commercial_terms_id=terms.id,
+                actor_user_id=admin.id,
+                amount="50.00",
+            )
+
+            cancellation = await _cancel_for_refund(
+                session,
+                campaign=campaign,
+                owner=owner,
+                cutoff=first_allocation.allocated_at + timedelta(hours=26),
+                monkeypatch=monkeypatch,
+                reason="Cancel after standard production started",
+            )
+            assert cancellation.disposition == "cash_refund_not_due"
+            assert cancellation.refundable_amount == 0
+
+    asyncio.run(scenario())
+
+
+def test_late_refund_booking_uses_frozen_cancellation_and_exact_retry_identity(
+    db_sessionmaker, settings, monkeypatch
+) -> None:
+    admin, owner, organization, campaign = _fixture(db_sessionmaker, "refund-frozen-cancel")
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            terms, allocation, _ = await _funded_terms(
+                session,
+                admin=admin,
+                owner=owner,
+                organization=organization,
+                campaign=campaign,
+                reference="REFUND-FROZEN-CANCEL",
+            )
+            draft = await create_invoice_draft(
+                session, commercial_terms_id=terms.id, actor_user_id=admin.id
+            )
+            issuer = await _issuer(
+                session,
+                admin,
+                IssuerVerificationStatus.SYNTHETIC,
+                "SYNTHETIC-REFUND-FROZEN-CANCEL",
+                settings,
+            )
+            invoice = await issue_invoice(
+                session,
+                invoice_id=draft.id,
+                issuer_profile_id=issuer.id,
+                actor_user_id=admin.id,
+                settings=settings,
+            )
+            cancellation = await _cancel_for_refund(
+                session,
+                campaign=campaign,
+                owner=owner,
+                cutoff=allocation.allocated_at + timedelta(hours=2),
+                monkeypatch=monkeypatch,
+                reason="Cancel inside the refund window",
+            )
+            assert cancellation.disposition == "cash_refund_due"
+            await record_invoice_correction(
+                session,
+                invoice_id=invoice.id,
+                actor_user_id=admin.id,
+                correction_reference="refund-frozen-cancel-debit",
+                correction_type=InvoiceCorrectionType.DEBIT_NOTE,
+                net_amount="50.00",
+                tax_amount="0.00",
+                reason="scope increase after cancellation",
+            )
+            later_receipt = await record_payment_receipt(
+                session,
+                organization_id=organization.id,
+                actor_user_id=admin.id,
+                method=ReceiptMethod.MANUAL_TRANSFER,
+                provider="bank-transfer",
+                external_transaction_id="REFUND-FROZEN-CANCEL-LATER",
+                amount="50.00",
+                currency="NGN",
+                payer_name="Advertiser",
+                evidence_reference="post-cancellation debit funding",
+                observed_at=allocation.allocated_at + timedelta(hours=25),
+            )
+            await reconcile_payment_receipt(
+                session,
+                receipt_id=later_receipt.id,
+                actor_user_id=admin.id,
+                expected_amount="50.00",
+                expected_currency="NGN",
+            )
+            await confirm_payment_receipt(
+                session, receipt_id=later_receipt.id, actor_user_id=admin.id
+            )
+            await allocate_payment_receipt(
+                session,
+                receipt_id=later_receipt.id,
+                commercial_terms_id=terms.id,
+                actor_user_id=admin.id,
+                amount="50.00",
+            )
+            await reverse_payment_receipt(
+                session,
+                receipt_id=allocation.receipt_id,
+                actor_user_id=admin.id,
+                reason="settle frozen cancellation",
+            )
+            await reverse_payment_receipt(
+                session,
+                receipt_id=later_receipt.id,
+                actor_user_id=admin.id,
+                reason="post-cancellation cash is outside frozen authority",
+            )
+
+            async def after_wall_clock_expiry(_session):
+                return allocation.allocated_at + timedelta(hours=26)
+
+            monkeypatch.setattr(billing, "database_clock", after_wall_clock_expiry)
+            kwargs = {
+                "commercial_terms_id": terms.id,
+                "receipt_id": allocation.receipt_id,
+                "actor_user_id": admin.id,
+                "amount": "100.00",
+                "settlement_provider": "bank",
+                "external_reference": "REFUND-FROZEN-CANCEL-001",
+                "reason": "book frozen advertiser refund",
+            }
+            settlement = await record_refund_settlement(session, **kwargs)
+            replay = await record_refund_settlement(session, **kwargs)
+            assert replay.id == settlement.id
+            assert settlement.cancellation_id == cancellation.id
+            assert settlement.eligibility_evaluated_at == cancellation.cutoff_at
+            assert settlement.recorded_at > settlement.eligibility_ends_at
+
+            with pytest.raises(AppError) as changed:
+                await record_refund_settlement(
+                    session, **(kwargs | {"reason": "changed retry evidence"})
+                )
+            assert changed.value.code == "REFUND_REFERENCE_CONFLICT"
+
+            with pytest.raises(AppError) as aggregate_cap:
+                await record_refund_settlement(
+                    session,
+                    commercial_terms_id=terms.id,
+                    receipt_id=later_receipt.id,
+                    actor_user_id=admin.id,
+                    amount="1.00",
+                    settlement_provider="bank",
+                    external_reference="REFUND-FROZEN-CANCEL-OVER-CAP",
+                    reason="must not expand frozen cancellation authority",
+                )
+            assert aggregate_cap.value.code == "REFUND_EXCEEDS_CANCELLATION_AUTHORITY"
+
+    asyncio.run(scenario())
+
+
+def test_refund_rejects_missing_and_mismatched_cancellation_authority(
+    db_sessionmaker, monkeypatch
+) -> None:
+    admin, owner, organization, campaign = _fixture(db_sessionmaker, "refund-authority")
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            terms, allocation, _ = await _funded_terms(
+                session,
+                admin=admin,
+                owner=owner,
+                organization=organization,
+                campaign=campaign,
+                reference="REFUND-AUTHORITY",
+            )
+            await reverse_payment_receipt(
+                session,
+                receipt_id=allocation.receipt_id,
+                actor_user_id=admin.id,
+                reason="exercise frozen authority validation",
+            )
+            kwargs = {
+                "commercial_terms_id": terms.id,
+                "receipt_id": allocation.receipt_id,
+                "actor_user_id": admin.id,
+                "amount": "1.00",
+                "settlement_provider": "bank",
+                "external_reference": "REFUND-AUTHORITY-001",
+                "reason": "authority validation",
+            }
+            with pytest.raises(AppError) as missing:
+                await record_refund_settlement(session, **kwargs)
+            assert missing.value.code == "REFUND_CANCELLATION_REQUIRED"
+
+            cancellation = await _cancel_for_refund(
+                session,
+                campaign=campaign,
+                owner=owner,
+                cutoff=allocation.allocated_at + timedelta(hours=1),
+                monkeypatch=monkeypatch,
+                reason="create matching immutable authority",
+            )
+            cancellation.currency = "USD"
+            with pytest.raises(AppError) as mismatched:
+                await record_refund_settlement(session, **kwargs)
+            assert mismatched.value.code == "REFUND_CANCELLATION_MISMATCH"
+
+    asyncio.run(scenario())
+
+
 def test_corrected_obligation_reanchors_window_without_rewriting_cash_authority(
     db_sessionmaker, settings, monkeypatch
 ) -> None:
@@ -282,6 +596,15 @@ def test_corrected_obligation_reanchors_window_without_rewriting_cash_authority(
                 tax_amount="0.00",
                 reason="approved scope reduction",
             )
+            cancellation = await _cancel_for_refund(
+                session,
+                campaign=campaign,
+                owner=owner,
+                cutoff=allocation.allocated_at + timedelta(hours=23),
+                monkeypatch=monkeypatch,
+                reason="cancel after approved scope reduction",
+            )
+            assert cancellation.refundable_amount == allocation.amount
             await reverse_payment_receipt(
                 session,
                 receipt_id=allocation.receipt_id,
@@ -309,7 +632,7 @@ def test_corrected_obligation_reanchors_window_without_rewriting_cash_authority(
     asyncio.run(scenario())
 
 
-def test_refund_window_is_exact_and_waiver_acceptance_alone_does_not_close_it(
+def test_frozen_refund_survives_wall_clock_and_waiver_acceptance_alone_does_not_close_it(
     db_sessionmaker, monkeypatch
 ) -> None:
     admin, owner, organization, campaign = _fixture(db_sessionmaker, "refund")
@@ -331,6 +654,15 @@ def test_refund_window_is_exact_and_waiver_acceptance_alone_does_not_close_it(
                 wording_version="refund-v1",
                 accepted_wording="I accept the expedited refund effect if production starts.",
             )
+            cancellation = await _cancel_for_refund(
+                session,
+                campaign=campaign,
+                owner=owner,
+                cutoff=allocation.allocated_at + timedelta(hours=23),
+                monkeypatch=monkeypatch,
+                reason="cancel before the refund boundary",
+            )
+            assert cancellation.disposition == "cash_refund_due"
             await reverse_payment_receipt(
                 session,
                 receipt_id=allocation.receipt_id,
@@ -371,18 +703,17 @@ def test_refund_window_is_exact_and_waiver_acceptance_alone_does_not_close_it(
                 return allocation.allocated_at + timedelta(hours=24)
 
             monkeypatch.setattr(billing, "database_clock", at_boundary)
-            with pytest.raises(AppError) as closed:
-                await record_refund_settlement(
-                    session,
-                    commercial_terms_id=terms.id,
-                    receipt_id=allocation.receipt_id,
-                    actor_user_id=admin.id,
-                    amount="1.00",
-                    settlement_provider="bank",
-                    external_reference="REFUND-AT-BOUNDARY",
-                    reason="too late",
-                )
-            assert closed.value.code == "REFUND_WINDOW_CLOSED"
+            later = await record_refund_settlement(
+                session,
+                commercial_terms_id=terms.id,
+                receipt_id=allocation.receipt_id,
+                actor_user_id=admin.id,
+                amount="1.00",
+                settlement_provider="bank",
+                external_reference="REFUND-AT-BOUNDARY",
+                reason="book frozen entitlement at the old boundary",
+            )
+            assert later.cancellation_id == cancellation.id
             await session.commit()
 
     asyncio.run(scenario())
@@ -467,15 +798,25 @@ def test_actual_expedited_start_closes_refund_eligibility(db_sessionmaker, monke
                 actor_user_id=admin.id,
                 waiver_id=waiver.id,
             )
+
+            async def after_start(_session):
+                return production.started_at + timedelta(microseconds=1)
+
+            cancellation = await _cancel_for_refund(
+                session,
+                campaign=campaign,
+                owner=owner,
+                cutoff=production.started_at + timedelta(microseconds=1),
+                monkeypatch=monkeypatch,
+                reason="cancel after production started",
+            )
+            assert cancellation.disposition == "cash_refund_not_due"
             await reverse_payment_receipt(
                 session,
                 receipt_id=allocation.receipt_id,
                 actor_user_id=admin.id,
                 reason="post-start correction",
             )
-
-            async def after_start(_session):
-                return production.started_at + timedelta(microseconds=1)
 
             monkeypatch.setattr(billing, "database_clock", after_start)
             with pytest.raises(AppError) as closed:
@@ -489,7 +830,7 @@ def test_actual_expedited_start_closes_refund_eligibility(db_sessionmaker, monke
                     external_reference="REFUND-AFTER-START",
                     reason="not eligible",
                 )
-            assert closed.value.code == "REFUND_WINDOW_CLOSED"
+            assert closed.value.code == "REFUND_CANCELLATION_NOT_DUE"
 
     asyncio.run(scenario())
 
@@ -507,6 +848,18 @@ def test_concurrent_refunds_cannot_exceed_allocated_cash(postgis_db_sessionmaker
                 campaign=campaign,
                 reference="REFUND-RACE",
             )
+            current = await session.get(Campaign, campaign.id)
+            current.status = CampaignStatus.ACTIVE.value
+            cancellation = await request_campaign_cancellation(
+                session,
+                actor_user_id=owner.id,
+                campaign_id=campaign.id,
+                payload=CampaignCancellationCreate(
+                    client_request_id=uuid4(),
+                    reason="authorize concurrent refund proof",
+                ),
+            )
+            assert cancellation.disposition == "cash_refund_due"
             await reverse_payment_receipt(
                 session,
                 receipt_id=allocation.receipt_id,
