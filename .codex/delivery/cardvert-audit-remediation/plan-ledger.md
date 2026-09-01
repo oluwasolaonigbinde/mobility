@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 87
+plan_revision: 88
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 187
+last_event_sequence: 188
 ---
 
 # Cardvert audit remediation programme
@@ -299,7 +299,7 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 9 | GPT-5.6 Sol/high — malformed-input privacy and memory-bound correction | unchanged five-file R13 lease | RESERVED |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 9 | GPT-5.6 Sol/high — malformed-input privacy and memory-bound correction | unchanged five-file R13 lease | ACTIVE |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-8 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `12ec7aa9...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-7 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `16f1b2b8...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-6 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `08d04f8c...` diff | FIX |
@@ -589,3 +589,4 @@ verification is complete.
 | 185 | 86 | 1 | DIFF_REVIEW_STARTED | Frozen R24 attempt 2 entered repeat independent adversarial minimal-change, money-specialist and CP-COMMERCIAL review. | reused `/root/r24_review`; GPT-5.6 Sol/high; read-only exact `d4cbf20c...` diff |
 | 186 | 87 | 1 | DIFF_REVIEW_FIX | R13 attempt 8 resolves balanced nesting time but an ordinary unmatched apostrophe can extend safe business context over a later personal-name key, while a zero-assignment unmatched-bracket string bypasses the candidate cap and adds about 63 MB RSS. | Sol/high reviewer `/root/r13_attempt5_review`; exact `12ec7aa9...`; deterministic cross-sink leak and malformed-input memory probe |
 | 187 | 87 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 9 on the unchanged five-file lease, limited to quote-aware malformed-context safety and bounded structural work/memory. | GPT-5.6 Sol/high; no classification, schema, route, contract or path expansion; full repeat review required |
+| 188 | 88 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 9 reacquired the unchanged five-file privacy lease for unmatched-prose quote safety and bounded malformed structural work only. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/high; terminal callback required |
