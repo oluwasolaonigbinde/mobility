@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R13`
-**Current capacity justification:** `R13` owns observability/audit redaction code plus exact privacy tests. R08 and R15 released their write leases for read-only review. Open slots cannot yet take R02 because its shared-fixture lease conflicts with R13 verification; R32 still conflicts with R08's unintegrated service diff; and R34's high-risk aggregate plan is not accepted. Central configuration, migrations, generated contracts, shared fixtures, and this file remain controller-serialized.
+**Current capacity assignment:** `R10, R13, R32`
+**Current capacity justification:** `R10` owns strict token validation in security/auth plus the minimum architecture sections; `R13` owns its four-file observability/audit correction; `R32` owns the terminal-application model/migration/onboarding service/API/schema/test and generated-contract lane. Their paths and domain authorities are disjoint. R32 exclusively owns migrations and generated contracts; R02 remains conflict-held because its shared-fixture lease overlaps active verification. Central configuration, shared fixtures, and this file remain controller-serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -78,10 +78,10 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 now rolling across dependency-ready disjoint slices while all 29 non-executable
 findings retain their admitted dispositions.
-**Current checkpoint:** `PKG-10 / R13` — the only implementation-active slice;
-R08 and R15 are in read-only admission review. R04 is accepted; R02 and R34
-are dependency-ready but wait for a safely compatible writer lane and accepted
-plan respectively.
+**Current checkpoint:** `PKG-10 / R10` — highest-priority implementation-active
+slice; R13 correction and R32 terminal onboarding own the two disjoint lanes.
+R08 and R15 are accepted; R02 waits for R13/shared-fixture clearance and R34
+waits for its reviewed aggregate plan plus the migration lane.
 
 ## Direct owner requests outside the package queue
 
@@ -1528,9 +1528,9 @@ durable ledger before changing a row.
 | R05 | DB-001, TST-012, ONB-010 | R02, R04 | QUEUED | PENDING | PENDING | CP-DB PENDING |
 | R06 | DB-002 | R02, R04, R05 | QUEUED | PENDING | PENDING | CP-DB PENDING |
 | R07 | DB-003 | R02, R04, R06 | QUEUED | PENDING | PENDING | CP-DB PENDING |
-| R08 | GOV-005 | none | QUEUED | PASS — R08-P | PENDING | CP-SECURITY PENDING |
+| R08 | GOV-005 | none | COMPLETE | PASS — R08-P | PASS — R08-M | CP-SECURITY PASS — R08-CP-SECURITY |
 | R09 | GOV-007, AUT-001, AUT-002 | R10 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
-| R10 | AUT-005 | R08 | QUEUED | PASS — R10-P | PENDING | CP-SECURITY PENDING |
+| R10 | AUT-005 | R08 | ACTIVE | PASS — R10-P | PENDING | CP-SECURITY PENDING |
 | R11 | AUT-004 | R09 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
 | R12 | AUT-003, REL-003 | R11 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
 | R13 | SEC-001, PRV-008 | none | ACTIVE | PASS — R13-P | PENDING | CP-PRIVACY PENDING |
@@ -1552,8 +1552,8 @@ durable ledger before changing a row.
 | R29 | CAM-002 | R04, R08, R28 | QUEUED | PENDING | PENDING | CP-CAMPAIGN PENDING |
 | R30 | CAM-003 | R29 | QUEUED | PENDING | PENDING | CP-CAMPAIGN PENDING |
 | R31 | CAM-004 | R18, R19, R30 | QUEUED | PENDING | PENDING | CP-CAMPAIGN PENDING |
-| R32 | ONB-002 | none | QUEUED | PENDING | PENDING | CP-ONBOARDING PENDING |
-| R33 | ONB-006 | R05, R32 | QUEUED | PENDING | PENDING | CP-ONBOARDING PENDING |
+| R32 | ONB-002 | none | ACTIVE | PASS — R32-P | PENDING | CP-ONBOARDING PENDING |
+| R33 | ONB-006 | R05, R32 | QUEUED | PASS — R33-P | PENDING | CP-ONBOARDING PENDING |
 | R34 | OFF-001 | R04 | QUEUED | PENDING | PENDING | CP-OFFLINE PENDING |
 | R35 | OFF-002, OFF-003 | R34 | QUEUED | PENDING | PENDING | CP-OFFLINE PENDING |
 | R36 | OFF-005 | R35 | QUEUED | PENDING | PENDING | CP-OFFLINE PENDING |

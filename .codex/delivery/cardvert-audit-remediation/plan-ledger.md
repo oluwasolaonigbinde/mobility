@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 31
+plan_revision: 36
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 71
+last_event_sequence: 84
 ---
 
 # Cardvert audit remediation programme
@@ -180,12 +180,12 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R05 | DB-001, TST-012, ONB-010 | QUEUED | R02, R04 | — | wait |
 | R06 | DB-002 | QUEUED | R02, R04, R05 | — | wait |
 | R07 | DB-003 | QUEUED | R02, R04, R06 | — | wait |
-| R08 | GOV-005 | REVIEW | security opener | R08-P; implementation, lock-removal red and real PostgreSQL green | rerun R08-M/SEC/CP-SECURITY |
+| R08 | GOV-005 | ACCEPTED | security opener | R08-P; R08-M; R08-SEC; R08-CP-SECURITY; lock-removal red and real PostgreSQL green | complete |
 | R09 | GOV-007, AUT-001, AUT-002 | QUEUED | R10 | — | wait |
-| R10 | AUT-005 | QUEUED | R08 | R10-P | wait for R08 acceptance and a writer slot |
+| R10 | AUT-005 | ACTIVE | R08 | R10-P | visible S03 implementation reserved |
 | R11 | AUT-004 | QUEUED | R09 | — | wait |
 | R12 | AUT-003, REL-003 | QUEUED | R11 | — | wait |
-| R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P | visible implementation S05 |
+| R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P; attempt-1 focused red/green and review FIX | visible correction attempt 2 |
 | R14 | SEC-002, TST-004 | QUEUED | R12 | — | wait |
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | QUEUED | provider-boundary opener | R16-P | wait for R08 acceptance and a writer slot |
@@ -204,8 +204,8 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R29 | CAM-002 | QUEUED | R04, R08, R28 | — | wait |
 | R30 | CAM-003 | QUEUED | R29 | — | wait |
 | R31 | CAM-004 | QUEUED | R18, R19, R30 | — | wait |
-| R32 | ONB-002 | READY | onboarding opener | — | conflict-held until R08's unintegrated `driver_applications.py` surface is admitted |
-| R33 | ONB-006 | QUEUED | R05, R32 | — | wait |
+| R32 | ONB-002 | ACTIVE | onboarding opener | R32-P | visible S08 implementation reserved; refresh accepted R08/R15 and current R13 audit seam |
+| R33 | ONB-006 | WAITING | R05, R32 | R33-P; current 50k-row exact-index experiment | wait for accepted R05 and R32; revalidate exact-index plan |
 | R34 | OFF-001 | READY | R04; offline opener | — | wait for a compatible high-risk writer lane |
 | R35 | OFF-002, OFF-003 | QUEUED | R34 | — | wait |
 | R36 | OFF-005 | QUEUED | R35 | — | wait |
@@ -288,16 +288,18 @@ trigger and a newly reviewed authority amendment.
 | Owner | Packet / attempt | Model gate | Mutation lease | State |
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
-| task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released `tests/test_r08_admin_authorization_postgres.py`; frozen diff | REVIEW |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 implementation | GPT-5.6 Sol/xhigh — privacy/security redaction at cross-cutting sinks | `app/core/observability.py`; `app/services/audit.py`; `tests/test_errors.py`; `tests/test_audit_events.py`; one dedicated R13 test if required | ACTIVE |
+| task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 implementation attempt 2 | GPT-5.6 Sol/xhigh — privacy/security redaction at cross-cutting sinks | exact four-file lease retained | ACTIVE |
 | task `01a05e49-0107-7611-8ee8-515273881aa8` | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | released exact R15 diff | ACCEPTED |
 | task `01a05e49-48d5-7823-9388-537d0800e87b` | S07 / R28 plan and independent review | GPT-5.6 Terra/high — ordinary bounded campaign lifecycle planning | read-only; no mutation lease | BLOCKED-OWNER |
-| task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32-R33 plan and independent review | GPT-5.6 Sol/high — onboarding security, migration and query-plan authority | read-only; no mutation lease | PLANNING |
+| task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32 implementation, R33 held | GPT-5.6 Sol/high — onboarding security, migration and contract authority | exact R32 model/migration/onboarding/email/schema/test/contract lease; R33 remains dependency-held | ACTIVE |
 | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | S12 / R34-R37 aggregate plan and independent review | GPT-5.6 Sol/xhigh — offline/privacy/money protocol and migration authority | read-only; no mutation lease | PLANNING |
 | `/root/r15_re_review` | V02 / R15 repeat M and CP-WORKERS review | GPT-5.6 Sol/high — worker crash and claim/retry semantics | read-only frozen R15 diff | PASS |
-| `/root/r08_re_review` | V01 / R08 repeat M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — authorization concurrency, deadlock and evidence semantics | read-only frozen R08 diff | REVIEW |
+| `/root/r08_re_review` | V01 / R08 repeat M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — authorization concurrency, deadlock and evidence semantics | read-only frozen R08 diff | PASS |
+| `/root/r13_diff_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/xhigh — cross-sink PII and audit-authority semantics | read-only frozen R13 diff | FIX |
+| task `01a05e60-6ce7-7cb2-ac20-300ac5275d05` | S03 / R10 implementation | GPT-5.6 Sol/xhigh — strict bearer authentication and session authority | security/dependencies/minimum auth/tests/architecture lease | ACTIVE |
 
-Implementation writers reserved/active: **1 / 3**. The exact disjoint-work
+Implementation writers reserved/active: **3 / 3**. The exact disjoint-work
 justification is recorded above and in `docs/progress.md`. Review/inventory work
 may continue only when it is read-only and cannot contend with a writer.
 
@@ -313,8 +315,8 @@ with R04-M, the database-specialist PASS and R04-CP-DB after six exact-head
 PostgreSQL/PostGIS cases, explicit ordered key/include/deferrability/timing
 catalog authority, downgrade/re-upgrade checks, and the reviewed mutation
 evidence. R02 and R34 are now dependency-ready but do not bypass active leases.
-R08 retains its implementation while its narrow test-evidence correction
-remains provisional. R15 is accepted exactly once with
+R08 is accepted exactly once with R08-M, R08-SEC and R08-CP-SECURITY after the
+corrected PostgreSQL blocking oracle. R15 is accepted exactly once with
 R15-M and R15-CP-WORKERS after independent PostgreSQL crash/reclaim evidence;
 no provider/SMTP exactly-once guarantee is claimed.
 
@@ -332,8 +334,8 @@ unresolved.
 
 ## Next scheduler action
 
-Monitor S05/R13 event-first. V01/R08 has returned and requires read-only
-admission review; V02/R15 is accepted. Keep S07/R28 blocked on the recorded
+Monitor S03/R10, S05/R13 attempt 2 and S08/R32. V01/R08 and V02/R15 are
+accepted. Keep S07/R28 blocked on the recorded
 lifecycle-authority decision without freezing independent work. Monitor the
 read-only S08/R32-R33 and S12/R34-R37 plan/review tasks; R32 remains conflict-
 held behind R08's unintegrated `driver_applications.py` mutation surface. On every released slot,
@@ -415,3 +417,16 @@ session; R02 and R34 are ready, while R16/R10/S09 remain gated on accepted R08.
 | 69 | 31 | 1 | DIFF_REVIEW_PASSED | Corrected R15-M passed with every production/test file justified and the new crash regression behaviorally meaningful. | Sol/high reviewer `/root/r15_re_review`; 46 passes, one unrelated Redis skip |
 | 70 | 31 | 1 | CHECKPOINT_PASSED | R15-CP-WORKERS passed after independent real-PostgreSQL crash, claim-expiry and partial-completion verification. | Sol/high reviewer `/root/r15_re_review`; catch-and-continue red; production checksum restored |
 | 71 | 31 | 1 | SLICE_ACCEPTED | R15/GOV-006 accepted exactly once; service owns the email-delivery state machine and the worker crash boundary is regression-protected without an SMTP/provider exactly-once claim. | R15-P/M/CP-WORKERS; exact seven-file diff |
+| 72 | 32 | 1 | IMPLEMENTATION_RETURNED | Visible S05/R13 released its exact four-file privacy lease after reproducing observability/Sentry and PostgreSQL audit leaks, applying one context-aware scrubber at every approved sink, and passing focused/compatibility verification. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; 9 leased tests and 129 compatibility passes; no schema/router/model/fixture change |
+| 73 | 33 | 1 | DIFF_REVIEW_STARTED | Frozen R13 diff entered minimal-change, security/privacy specialist and CP-PRIVACY review. | Sol/xhigh reviewer `/root/r13_diff_review`; read-only |
+| 74 | 34 | 1 | PLAN_REVIEW_FIX | S08 review required stronger R32 lock/race/audit/email-liveness evidence and removal of R33's semantics-changing time predicate. | visible task `01a05e4d-a742-70c0-bcbf-6cb6595170d2`; independent Sol/high reviewer |
+| 75 | 34 | 1 | PLAN_REVIEW_PASSED | Corrected R32-P and R33-P passed with separate leases/admission; R32 uses a terminal-status migration and stable lock protocol, while R33 keeps current evidence semantics and adds no index/migration. | visible S08 task; 50,000-row rolled-back PostgreSQL exact-index experiment; no file change |
+| 76 | 35 | 1 | DIFF_REVIEW_PASSED | Corrected R08-M and R08-SEC passed with all 44 call sites migrated and the database-blocking oracle verified. | Sol/xhigh reviewer `/root/r08_re_review`; 9 PostgreSQL and 10 touched regressions |
+| 77 | 35 | 1 | CHECKPOINT_PASSED | R08-CP-SECURITY passed with deterministic sorted-unique multi-admin locks and unchanged HTTP disabled-token behavior. | Sol/xhigh reviewer `/root/r08_re_review`; Ruff and diff checks |
+| 78 | 35 | 1 | SLICE_ACCEPTED | R08/GOV-005 accepted exactly once and integrated at `a3f5b59`, unlocking R10, R16, R23 and the R32 conflict edge. | R08-P/M/SEC/CP-SECURITY; exact 15-file commit |
+| 79 | 35 | 1 | DIFF_REVIEW_FIX | R13 attempt 1 leaked unquoted/mixed PII variants and over-redacted a nested business name; persistence/API enforcement was otherwise justified. | Sol/xhigh reviewer `/root/r13_diff_review`; five privacy adversarial failures plus mixed-context failure |
+| 80 | 35 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 2 reacquired the same exact four-file lease. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/xhigh; no worktree |
+| 81 | 35 | 1 | DISPATCH_RESERVED | S03/R10 reserved the strict bearer-claim security/auth/architecture lease. | GPT-5.6 Sol/xhigh because authentication and session authority are the hardest boundary |
+| 82 | 35 | 1 | DISPATCH_RESERVED | S08/R32 reserved the terminal-application model/migration/onboarding/email/schema/test/contract lease; R33 remains held. | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2`; GPT-5.6 Sol/high; disjoint from R10/R13 |
+| 83 | 36 | 1 | DISPATCH_STARTED | Visible S08/R32 acquired its exact terminal-application model/migration/onboarding/email/schema/test/contract lease; R33 remains held. | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2`; GPT-5.6 Sol/high; no worktree |
+| 84 | 36 | 1 | DISPATCH_STARTED | Visible S03/R10 acquired its strict bearer-claim security/dependencies/minimum-auth/tests/architecture lease. | task `01a05e60-6ce7-7cb2-ac20-300ac5275d05`; GPT-5.6 Sol/xhigh; no worktree |
