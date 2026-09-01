@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 90
+plan_revision: 91
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 194
+last_event_sequence: 195
 ---
 
 # Cardvert audit remediation programme
@@ -300,7 +300,7 @@ trigger and a newly reviewed authority amendment.
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
 | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 9 | GPT-5.6 Sol/high — malformed-input privacy and memory-bound correction | released exact five-file diff `cd1dd894...` | REVIEW |
-| `/root/r13_attempt5_review` | S05 / R13 attempt-9 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded malformed-input privacy/security admission | reserved read-only exact `cd1dd894...` diff | RESERVED |
+| `/root/r13_attempt5_review` | S05 / R13 attempt-9 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded malformed-input privacy/security admission | read-only exact `cd1dd894...` diff | ACTIVE |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-8 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `12ec7aa9...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-7 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `16f1b2b8...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-6 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `08d04f8c...` diff | FIX |
@@ -597,3 +597,4 @@ verification is complete.
 | 192 | 90 | 1 | DIFF_REVIEW_RESERVED | Frozen R13 attempt 9 reserved repeat independent minimal-change, security/privacy-specialist and CP-PRIVACY review. | GPT-5.6 Sol/high; read-only exact `cd1dd894...` diff; no mutation authority |
 | 193 | 90 | 1 | LEASE_EXPANDED | R34 may edit `tests/test_mvp_hardening.py` and `tests/test_audit_route_coverage.py` only to register migrations 0072/0073/0074, cover the reconcile route's existing audit semantics, and send the exact v2 manifest in the trip audit fixture. | mandatory acceptance-gate failures; disjoint from R13/R24; no product, contract or R35-R37 expansion |
 | 194 | 90 | 1 | LEASE_EXPANDED | R34's existing `tests/test_trips.py` lease additionally permits only the ended-trip RM3 assertion to use an exact precommitted v2 descriptor/manifest. | preserve the separate inactive-assignment active-capture 400 assertion; no other test or behavior authority expands |
+| 195 | 91 | 1 | DIFF_REVIEW_STARTED | Frozen R13 attempt 9 entered repeat independent adversarial minimal-change, security/privacy-specialist and CP-PRIVACY review. | reused `/root/r13_attempt5_review`; GPT-5.6 Sol/high; read-only exact `cd1dd894...` diff |
