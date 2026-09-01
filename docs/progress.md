@@ -78,9 +78,10 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 now rolling across dependency-ready disjoint slices while all 29 non-executable
 findings retain their admitted dispositions.
-**Current checkpoint:** `PKG-10 / R13` — its repeated-leading-dot boundary runs
-alongside R34 integration and four future-chain plans. R02/R09 wait for R13;
-R25 waits for the generated-contract lane.
+**Current checkpoint:** `PKG-10 / R13` — attempt 13 is frozen in independent
+privacy/security admission review alongside R34 integration and one remaining
+future-chain plan. R02/R09 wait for R13; R25 waits for the generated-contract
+lane.
 
 ## Direct owner requests outside the package queue
 

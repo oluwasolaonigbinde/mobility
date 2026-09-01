@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 110
+plan_revision: 111
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 227
+last_event_sequence: 230
 ---
 
 # Cardvert audit remediation programme
@@ -299,7 +299,8 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 13 | GPT-5.6 Sol/high — repeated-leading-dot privacy correction | unchanged five-file R13 lease | ACTIVE |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 13 | GPT-5.6 Sol/high — repeated-leading-dot privacy correction | released frozen exact `bf8b2d2d...` five-file diff | FROZEN-REVIEW |
+| `/root/r13_attempt5_review` | S05 / R13 attempt-13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — cross-sink privacy-security admission | read-only exact `bf8b2d2d...` diff | ACTIVE-REVIEW |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-12 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — malformed quote/path privacy-security admission | released reviewed exact `b75a5d8f...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-11 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — quote/path privacy-security admission | released reviewed exact `a60288c2...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-10 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded Unicode/path privacy-security admission | released reviewed exact `203ef022...` diff | FIX |
@@ -639,3 +640,6 @@ verification is complete.
 | 225 | 108 | 1 | PLAN_REVIEW_PASSED | R18-P through R22-P and R29-P through R31-P passed as separate reviewed money, disbursement, assignment, challenge and frozen-window contracts; all remain dependency/lease-held. | task `01a05ef6-632c-79b1-bdf3-16c6e95aafd4`; GPT-5.6 Sol/high; exact no-write confirmation |
 | 226 | 109 | 1 | PLAN_REVIEW_PASSED | R38-P through R44-P passed as separate reviewed collection privacy, aggregate reporting, disclosure, DSR deletion and browser-key contracts; all remain dependency/lease-held. | task `01a05ef6-92fc-7df1-bd39-50e8c2fee530`; GPT-5.6 Sol/high; exact no-write confirmation |
 | 227 | 110 | 1 | PLAN_REVIEW_PASSED | R45-P through R52-P passed as separate reviewed traffic provenance, cohort, measurement projection, issuance lifecycle and copy-governance contracts; the chain remains serialized and dependency/lease-held. | task `01a05ef6-c545-7401-8114-4afe32fc9bf7`; GPT-5.6 Sol/high; exact no-write confirmation |
+| 228 | 111 | 1 | IMPLEMENTATION_RETURNED | S05/R13 correction attempt 13 released its exact five-file diff after recognizing every repeated-leading-empty dotted assignment form and retaining the prior privacy, compatibility and bounded-work corpus. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; frozen `bf8b2d2d...`; 32 final PostgreSQL/compatibility passes; no stage or commit |
+| 229 | 111 | 1 | DIFF_REVIEW_RESERVED | Frozen R13 attempt 13 reserved repeat independent minimal-change, security/privacy-specialist and CP-PRIVACY review. | GPT-5.6 Sol/high; read-only exact `bf8b2d2d...` diff; no mutation authority |
+| 230 | 111 | 1 | DIFF_REVIEW_STARTED | Frozen R13 attempt 13 entered repeat independent adversarial minimal-change, security/privacy-specialist and CP-PRIVACY review. | reused `/root/r13_attempt5_review`; GPT-5.6 Sol/high; read-only exact `bf8b2d2d...` diff |
