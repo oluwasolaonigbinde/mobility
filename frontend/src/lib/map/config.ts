@@ -40,14 +40,20 @@ export function basemapMode(): "configured-provider" | "local" {
 }
 
 /**
- * Blue Hour ships a navy-tinted basemap: stock dark tiles are graphite-black,
- * which reintroduces the exact "all black" the theme exists to escape — so on
- * style load we retint the base layers toward the theme's indigo ramp. Data
- * layers (heatmap, zones, markers) are untouched. No-op on other themes.
+ * Themes whose ground is dark but not graphite retint the basemap: stock dark
+ * tiles are graphite-black, which reintroduces the exact "all black" those
+ * themes exist to escape. Data layers (heatmap, zones, markers) are untouched.
  */
+const MAP_TINTS: Record<string, { background: string; water: string; land: string }> = {
+  "blue-hour": { background: "#1a2450", water: "#101940", land: "#202b5c" },
+  "terra-grain": { background: "#123309", water: "#06180d", land: "#173f10" },
+};
+
+/** Retints the base layers for the active theme. No-op on other themes. */
 export function applyThemeMapTint(map: import("maplibre-gl").Map) {
   if (typeof document === "undefined") return;
-  if (document.documentElement.dataset.theme !== "blue-hour") return;
+  const tint = MAP_TINTS[document.documentElement.dataset.theme ?? ""];
+  if (!tint) return;
   let done = false;
   const retint = () => {
     if (done) return;
@@ -56,11 +62,11 @@ export function applyThemeMapTint(map: import("maplibre-gl").Map) {
     done = true;
     for (const layer of layers) {
       if (layer.type === "background") {
-        map.setPaintProperty(layer.id, "background-color", "#1a2450");
+        map.setPaintProperty(layer.id, "background-color", tint.background);
       } else if (layer.type === "fill" && /water|ocean/i.test(layer.id)) {
-        map.setPaintProperty(layer.id, "fill-color", "#101940");
+        map.setPaintProperty(layer.id, "fill-color", tint.water);
       } else if (layer.type === "fill" && /land|park|green/i.test(layer.id)) {
-        map.setPaintProperty(layer.id, "fill-color", "#202b5c");
+        map.setPaintProperty(layer.id, "fill-color", tint.land);
       }
     }
   };

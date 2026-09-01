@@ -1,5 +1,13 @@
 import localFont from "next/font/local";
-import { Archivo, Bricolage_Grotesque, Fraunces, IBM_Plex_Mono, Inter } from "next/font/google";
+import {
+  Archivo,
+  Big_Shoulders,
+  Bricolage_Grotesque,
+  Fraunces,
+  IBM_Plex_Mono,
+  Inter,
+  Poppins,
+} from "next/font/google";
 
 /**
  * The Vantage type system, self-hosted (zero external font requests):
@@ -13,6 +21,11 @@ import { Archivo, Bricolage_Grotesque, Fraunces, IBM_Plex_Mono, Inter } from "ne
  * - Fraunces — Ivory Ledger (editorial serif / banknote engraving)
  * - Bricolage Grotesque — Danfo (characterful, hand-painted-adjacent)
  * - Archivo (wdth axis) — Hi-Vis (expanded industrial/DIN)
+ * - Poppins — Terra Grain (the Terrax Media brand typeface; used for display
+ *   AND body, per the brand guide's "Poppins throughout" rule)
+ * - Big Shoulders + Inter — Broadside (the pairing used by the Terrax landing
+ *   page; Google has since merged Display/Text into one family with an `opsz`
+ *   axis, so one variable face covers both roles)
  * Delete the losers here and in globals.css once the client picks.
  */
 
@@ -66,5 +79,19 @@ export const archivo = Archivo({
   subsets: ["latin"],
   axes: ["wdth"],
   variable: "--font-archivo",
+  display: "swap",
+});
+
+export const poppins = Poppins({
+  weight: ["400", "500", "600", "800"],
+  subsets: ["latin"],
+  variable: "--font-poppins",
+  display: "swap",
+});
+
+export const bigShoulders = Big_Shoulders({
+  subsets: ["latin"],
+  axes: ["opsz"],
+  variable: "--font-big-shoulders",
   display: "swap",
 });

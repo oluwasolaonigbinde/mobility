@@ -66,6 +66,14 @@ checklist item is now tied only to its exact registered external/live inputs.
 pointer; training rehearsal, pilot evidence, named-owner acceptance and
 handover remain externally gated and are not claimed complete.
 
+## Direct owner requests outside the package queue
+
+| Date | Item | Authority | Scope boundary | Queue effect |
+| --- | --- | --- | --- | --- |
+| 28 Aug 2026 | **Repository instruction normalization** — make root and nested `AGENTS.md` the only active repository instruction sources and remove the legacy lowercase `agent.md`. | Direct project-owner request, 28 Aug 2026 | Owns repository instruction wiring only: root `AGENTS.md`, `CLAUDE.md`, and removal of `agent.md`. Historical `docs/build-loop/**` evidence remains unchanged. Adds no product code, API, data-model, workflow, architecture, or decision change. | None. The completed controller state and terminal evidence pointer remain unchanged. |
+| 25 Aug 2026 | **Terrax Media public landing page** at `/landing` — brand-grounded marketing page for the OOH vehicle-advertising product, built from `docs/brand/terrax-media/` and the D18 Q1–Q34 confirmed answers. | Direct project-owner request, 25 Aug 2026 | Owns only `frontend/src/app/landing/**` and `frontend/public/brand/terrax/**`. It does not alter API, data-model, business-logic or package authority. | None. The public marketing surface is outside the 71-item MVP checklist. |
+| 25–26 Aug 2026 | **Visual directions 7–9** for the demo/pitch theme system. **7 “Terra Grain”** and **8 “Coverage”** are grounded in `docs/brand/terrax-media/`; **9 “Broadside”** is adapted from the owner-supplied Terrax landing page. | Direct project-owner request, 25–26 Aug 2026 | Owns the shared direction surface: `frontend/src/app/globals.css`, `frontend/src/lib/themes.ts`, `frontend/src/lib/fonts.ts`, `frontend/src/app/layout.tsx`, `frontend/src/lib/map/config.ts`, `frontend/public/themes/**`, theme tests and `docs/design/**`. Adds no API, data-model, business-logic or workflow change. | None. The switchable design directions are a demo/pitch affordance outside the 71-item MVP checklist. |
+
 ## Executable package queue
 
 | # | Package | Status | Outcome | Package prerequisites |

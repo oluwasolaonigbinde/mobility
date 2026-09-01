@@ -1,0 +1,1264 @@
+/*
+ * Terrax Media landing page — "Route Manifest".
+ *
+ * Light warm paper carries the page; the brand greens, crimson and gold arrive
+ * as flat blocks and rules rather than as a single dark wash. Two blocks earn
+ * darkness (Cardvert, the footer) and one earns gold (the contact call).
+ *
+ * Self-contained: its own `--tx-*` token set under `.tx-page`, only `tx-`
+ * prefixed class names. The product's switchable visual directions cannot
+ * reach it and it cannot reach them.
+ *
+ * Brand sources: docs/brand/terrax-media/Terrax Media Brand Guide.pdf
+ *  - palette:  Battle Cat #256F1A (primary), Crimson Flame #EE2F41,
+ *              Golden Accent #F2C94C, Mint Whisper #C8F6D0, ink #0A1C09
+ *  - type:     Poppins (guide §4), set lowercase and tight; Plex Mono only for
+ *              micro-labels, numerals and tags
+ *  - motif:    the logo symbol's wood-grain contours, used as road texture
+ *
+ * Contrast (WCAG 2.1, each pair against the ground it is used on):
+ *  - #0A1C09 / #F6F4EC = 16.2   - #46543F / #F6F4EC =  6.6
+ *  - #256F1A / #F6F4EC =  5.7   - #EE2F41 / #F6F4EC =  3.7 (large display only)
+ *  - #0A1C09 / #F2C94C = 11.2   - #0A1C09 / #C8F6D0 = 14.7
+ *  - #FFFFFF / #0E3A0A = 14.9   - #C8F6D0 / #0E3A0A = 12.2
+ *  - #FFFFFF / #256F1A =  6.2
+ */
+
+.tx-page {
+  /* ground + ink */
+  --tx-paper: #f6f4ec;
+  --tx-card: #ffffff;
+  --tx-rule: #ddd9c8;
+  --tx-ink: #0a1c09;
+  --tx-ink-soft: #46543f;
+
+  /* brand */
+  --tx-green: #256f1a;
+  --tx-green-deep: #0e3a0a;
+  --tx-crimson: #ee2f41;
+  --tx-gold: #f2c94c;
+  --tx-mint: #c8f6d0;
+
+  /* type */
+  --tx-sans: var(--tx-font), "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --tx-mono-face: var(--tx-mono), ui-monospace, "SFMono-Regular", monospace;
+
+  /* shape — the logo's rounded rectangle */
+  --tx-radius: 16px;
+  --tx-shell: 1240px;
+  --tx-gutter: clamp(1.25rem, 5vw, 4rem);
+
+  font-family: var(--tx-sans);
+  background-color: var(--tx-paper);
+  color: var(--tx-ink);
+  font-size: 16px;
+  line-height: 1.62;
+  isolation: isolate;
+  overflow-x: clip;
+  /* the product's root layout makes <body> a column flex container */
+  flex: 1 1 auto;
+}
+
+/*
+ * The product's theme blocks paint the shared <body> (background images, and a
+ * fixed z-index-90 overlay on some directions). Neutralise that here so the
+ * landing renders identically whichever direction is active. If these
+ * selectors ever stop matching, the rules simply do nothing.
+ */
+body:has(.tx-page) {
+  background-image: none;
+}
+body:has(.tx-page)::after,
+body:has(.tx-page)::before {
+  display: none;
+}
+/* The floating "visual direction" pill is an internal demo affordance and does
+ * not belong on a client-facing page. Matched on the switcher's own utility
+ * classes; a no-op if those change. */
+body:has(.tx-page) > .fixed.right-4.bottom-4 {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- base ---- */
+
+.tx-page *,
+.tx-page *::before,
+.tx-page *::after {
+  box-sizing: border-box;
+}
+.tx-page p {
+  text-wrap: pretty;
+}
+/* :where() keeps this at zero specificity so button colour rules below win. */
+.tx-page :where(a) {
+  color: inherit;
+}
+.tx-page :focus-visible {
+  outline: 3px solid var(--tx-crimson);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.tx-page :where(section[id], main[id]) {
+  scroll-margin-top: 96px;
+}
+/* Smooth only once the client has applied any incoming #hash — see
+ * scroll-effects.tsx. Without the gate the initial anchor jump is animated
+ * and gets cancelled during hydration. */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-tx-ready]:has(.tx-page) {
+    scroll-behavior: smooth;
+  }
+}
+
+.tx-shell {
+  width: 100%;
+  max-width: var(--tx-shell);
+  margin-inline: auto;
+  padding-inline: var(--tx-gutter);
+}
+.tx-shell--layered {
+  position: relative;
+  z-index: 1;
+}
+
+.tx-skip {
+  position: absolute;
+  left: 1rem;
+  top: -100px;
+  z-index: 100;
+  background: var(--tx-ink);
+  color: var(--tx-mint);
+  font-family: var(--tx-mono-face);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.85rem 1.25rem;
+  border-radius: 999px;
+  transition: top 0.2s ease;
+}
+.tx-skip:focus {
+  top: 1rem;
+}
+
+/* Logo safe space: the guide requires clear space of 'x' on every side.
+ * x is taken as 0.4× the rendered lockup height. */
+.tx-logo {
+  display: inline-flex;
+  padding: calc(var(--tx-logo-h, 28px) * 0.4);
+  margin: calc(var(--tx-logo-h, 28px) * -0.4);
+}
+.tx-logo img {
+  display: block;
+  height: var(--tx-logo-h, 28px);
+  width: auto;
+}
+
+/* ----------------------------------------------------------- type kit ---- */
+
+/* Display: Poppins ExtraBold, lowercase, tight. The brand face, but not a
+ * wall of caps. */
+.tx-display,
+.tx-h2,
+.tx-h3 {
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 0.92;
+  text-transform: lowercase;
+  margin: 0;
+}
+.tx-display {
+  font-size: clamp(3rem, 8.6vw, 6.75rem);
+}
+.tx-h2 {
+  font-size: clamp(2.25rem, 5.4vw, 4rem);
+}
+.tx-h3 {
+  font-size: clamp(1.5rem, 3vw, 2.125rem);
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+/* Micro type: the manifest voice. Labels, numerals, tags — never prose. */
+.tx-micro {
+  font-family: var(--tx-mono-face);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1.4;
+}
+
+.tx-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--tx-green);
+  margin: 0 0 1.5rem;
+}
+.tx-eyebrow::before {
+  content: "";
+  width: 30px;
+  height: 3px;
+  background: var(--tx-crimson);
+}
+
+.tx-lead {
+  font-size: clamp(1.0625rem, 0.95rem + 0.55vw, 1.3125rem);
+  line-height: 1.5;
+  color: var(--tx-ink-soft);
+  margin: 0;
+}
+.tx-note {
+  color: var(--tx-ink-soft);
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+/* Crimson is the shock accent; it only ever sets display-size words. */
+.tx-hot {
+  color: var(--tx-crimson);
+}
+/* Gold as a marker stroke ruled under the word. Sized and positioned in em so
+ * it tracks the display clamp, and kept clear of the line beneath (the display
+ * runs at line-height 0.92, so a full highlight box would collide). */
+.tx-mark {
+  background: linear-gradient(var(--tx-gold), var(--tx-gold)) no-repeat;
+  background-size: 100% 0.2em;
+  background-position: 0 0.96em;
+  padding-inline: 0.12em;
+  margin-inline: -0.12em;
+}
+
+/* -------------------------------------------------------------- buttons ---- */
+
+.tx-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 54px;
+  padding: 0 1.75rem;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  font-family: var(--tx-sans);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+.tx-btn:hover {
+  transform: translateY(-2px);
+}
+.tx-btn--ink {
+  background: var(--tx-ink);
+  color: var(--tx-mint);
+}
+.tx-btn--ink:hover {
+  background: var(--tx-green-deep);
+}
+.tx-btn--green {
+  background: var(--tx-green);
+  color: #ffffff;
+}
+.tx-btn--green:hover {
+  background: #2f8a21;
+}
+.tx-btn--gold {
+  background: var(--tx-gold);
+  color: var(--tx-ink);
+}
+.tx-btn--gold:hover {
+  background: #ffd964;
+}
+.tx-btn--outline {
+  border-color: var(--tx-ink);
+  color: var(--tx-ink);
+}
+.tx-btn--outline:hover {
+  background: var(--tx-ink);
+  color: var(--tx-mint);
+}
+.tx-btn__arrow {
+  transition: transform 0.18s ease;
+}
+.tx-btn:hover .tx-btn__arrow {
+  transform: translateX(4px);
+}
+
+/* --------------------------------------------------------------- header ---- */
+
+.tx-header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: color-mix(in srgb, var(--tx-paper) 88%, transparent);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.25s ease;
+}
+.tx-header[data-scrolled="true"] {
+  border-bottom-color: var(--tx-rule);
+}
+.tx-header__bar {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  min-height: 80px;
+}
+.tx-header__nav {
+  display: none;
+  margin-left: auto;
+  gap: 0.25rem;
+}
+.tx-header__link {
+  position: relative;
+  padding: 0.6rem 0.7rem;
+  font-family: var(--tx-mono-face);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tx-ink-soft);
+  text-decoration: none;
+  transition: color 0.18s ease;
+}
+.tx-header__link:hover {
+  color: var(--tx-ink);
+}
+.tx-header__link::after {
+  content: "";
+  position: absolute;
+  left: 0.7rem;
+  right: 0.7rem;
+  bottom: 0.25rem;
+  height: 2px;
+  background: var(--tx-crimson);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.22s ease;
+}
+.tx-header__link:hover::after {
+  transform: scaleX(1);
+}
+.tx-header__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.tx-header__cta {
+  display: none;
+  min-height: 46px;
+  font-size: 0.875rem;
+}
+
+.tx-burger {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 50px;
+  height: 50px;
+  padding: 0 13px;
+  border-radius: 14px;
+  border: 2px solid var(--tx-ink);
+  background: transparent;
+  cursor: pointer;
+}
+.tx-burger span {
+  display: block;
+  height: 2px;
+  background: var(--tx-ink);
+  transition:
+    transform 0.22s ease,
+    opacity 0.18s ease;
+}
+.tx-burger[aria-expanded="true"] span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+.tx-burger[aria-expanded="true"] span:nth-child(2) {
+  opacity: 0;
+}
+.tx-burger[aria-expanded="true"] span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+.tx-menu {
+  border-top: 1px solid var(--tx-rule);
+  background: var(--tx-paper);
+  padding: 1rem var(--tx-gutter) 2.5rem;
+  max-height: calc(100dvh - 80px);
+  overflow-y: auto;
+}
+.tx-menu__list {
+  list-style: none;
+  margin: 0 0 1.75rem;
+  padding: 0;
+}
+.tx-menu__list a {
+  display: block;
+  padding: 1.05rem 0;
+  font-size: clamp(1.75rem, 8vw, 2.25rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  text-transform: lowercase;
+  text-decoration: none;
+  border-bottom: 1px solid var(--tx-rule);
+}
+.tx-menu__actions {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 940px) {
+  .tx-header__nav,
+  .tx-header__cta {
+    display: flex;
+  }
+  .tx-burger {
+    display: none;
+  }
+}
+
+/* ----------------------------------------------------------------- hero ---- */
+
+.tx-hero {
+  position: relative;
+  padding-block: clamp(3rem, 7vw, 6rem) 0;
+  overflow: hidden;
+}
+/* Road texture: the logo's grain contours, laid flat under the hero. */
+.tx-hero__grain {
+  position: absolute;
+  left: -4%;
+  right: -4%;
+  bottom: 3rem;
+  height: 34%;
+  z-index: 0;
+  pointer-events: none;
+  color: var(--tx-green);
+  opacity: 0.2;
+  mask-image: linear-gradient(to right, transparent, #000 18%, #000 82%, transparent);
+}
+.tx-hero__grain svg {
+  width: 100%;
+  height: 100%;
+}
+
+.tx-hero__head {
+  position: relative;
+  z-index: 1;
+}
+/* The headline breaks the grid: line two is indented, line three carries the
+ * crimson word, and the lead hangs off to the right of it. */
+.tx-display__l2 {
+  display: block;
+  padding-left: clamp(0rem, 7vw, 6rem);
+}
+.tx-hero__split {
+  display: grid;
+  gap: 2rem;
+  margin-top: 2.5rem;
+  align-items: end;
+}
+@media (min-width: 900px) {
+  .tx-hero__split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 27rem);
+    gap: 4rem;
+  }
+  /* the lead is first in the DOM for reading order, second on the canvas */
+  .tx-hero__split > .tx-lead {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .tx-hero__split > .tx-hero__actions {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
+.tx-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+
+/* The pilot facts ride a deep-green strip that straddles the section join. */
+.tx-ticket {
+  position: relative;
+  z-index: 1;
+  margin-top: clamp(3rem, 6vw, 5rem);
+  margin-bottom: clamp(-4rem, -5vw, -3rem);
+  background: var(--tx-green-deep);
+  color: #ffffff;
+  border-radius: var(--tx-radius);
+  padding: clamp(1.5rem, 3vw, 2.25rem);
+  display: grid;
+  gap: 1.75rem;
+}
+@media (min-width: 760px) {
+  .tx-ticket {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+}
+@media (min-width: 560px) and (max-width: 759px) {
+  .tx-ticket {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.tx-ticket__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-left: 1.1rem;
+  border-left: 2px solid var(--tx-crimson);
+}
+.tx-ticket__value {
+  font-size: clamp(1.75rem, 3.2vw, 2.375rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--tx-mint);
+}
+.tx-ticket__label {
+  color: #ffffff;
+  opacity: 0.72;
+}
+.tx-ticket__note {
+  grid-column: 1 / -1;
+  color: #ffffff;
+  opacity: 0.66;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  border-top: 1px solid rgb(255 255 255 / 0.18);
+  padding-top: 1rem;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------- sections ---- */
+
+.tx-section {
+  position: relative;
+  padding-block: clamp(3.5rem, 7vw, 6rem);
+}
+.tx-section--dark {
+  background: var(--tx-green-deep);
+  color: #ffffff;
+}
+.tx-section--dark .tx-eyebrow {
+  color: var(--tx-gold);
+}
+.tx-section--dark .tx-lead,
+.tx-section--dark .tx-note {
+  color: rgb(255 255 255 / 0.76);
+}
+
+/* Section heads sit on an asymmetric 12-column grid rather than centred. */
+.tx-head {
+  display: grid;
+  gap: 1.5rem;
+}
+@media (min-width: 900px) {
+  .tx-head {
+    grid-template-columns: repeat(12, 1fr);
+    align-items: end;
+    gap: 2rem;
+  }
+  .tx-head__title {
+    grid-column: 1 / span 7;
+  }
+  .tx-head__aside {
+    grid-column: 9 / span 4;
+    padding-bottom: 0.6rem;
+  }
+}
+
+/* ------------------------------------------------------- numbered list ---- */
+/* The services read as a manifest: oversized mono numeral in the margin,
+ * hairline rules, alternating indents. No card grid. */
+
+.tx-manifest {
+  margin-top: clamp(2rem, 4vw, 3rem);
+  border-top: 2px solid var(--tx-ink);
+}
+.tx-manifest__row {
+  display: grid;
+  gap: 0.75rem 2.5rem;
+  padding-block: clamp(2rem, 4vw, 3rem);
+  border-bottom: 1px solid var(--tx-rule);
+}
+@media (min-width: 860px) {
+  .tx-manifest__row {
+    grid-template-columns: 6.5rem minmax(0, 20rem) minmax(0, 1fr);
+    align-items: start;
+  }
+  /* every second row steps in — the page stops looking stacked */
+  .tx-manifest__row:nth-child(even) {
+    padding-left: clamp(2rem, 6vw, 5rem);
+  }
+}
+.tx-manifest__n {
+  font-family: var(--tx-mono-face);
+  font-size: clamp(1.75rem, 3vw, 2.75rem);
+  font-weight: 400;
+  color: var(--tx-crimson);
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+}
+.tx-manifest__body {
+  color: var(--tx-ink-soft);
+  margin: 0;
+  max-width: 46ch;
+}
+.tx-manifest__note {
+  display: block;
+  margin-top: 1rem;
+  color: var(--tx-green);
+}
+
+/* ------------------------------------------------------------- quotes ---- */
+
+.tx-quotes {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: clamp(2rem, 4vw, 3rem);
+}
+@media (min-width: 900px) {
+  .tx-quotes {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 2rem;
+    align-items: start;
+  }
+  /* the second block drops, breaking the horizon line */
+  .tx-quotes > :nth-child(2) {
+    margin-top: 3.5rem;
+  }
+}
+.tx-quote {
+  border-radius: var(--tx-radius);
+  padding: clamp(1.75rem, 3vw, 2.5rem);
+}
+.tx-quote--mint {
+  background: var(--tx-mint);
+  color: var(--tx-ink);
+}
+.tx-quote--outline {
+  border: 2px solid var(--tx-ink);
+}
+.tx-quote__label {
+  color: var(--tx-green);
+  margin: 0 0 1rem;
+}
+.tx-quote--mint .tx-quote__label {
+  color: var(--tx-green-deep);
+}
+.tx-quote__text {
+  font-size: clamp(1.125rem, 1.9vw, 1.375rem);
+  line-height: 1.45;
+  font-weight: 500;
+  margin: 0;
+  letter-spacing: -0.015em;
+}
+
+/* ------------------------------------------------------------ pathways ---- */
+
+.tx-tabs {
+  display: inline-flex;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  border-radius: 999px;
+  border: 2px solid var(--tx-ink);
+  margin-top: clamp(1.75rem, 3vw, 2.25rem);
+}
+.tx-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.7rem 1.5rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--tx-ink);
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+.tx-tab[aria-selected="true"] {
+  background: var(--tx-green);
+  color: #ffffff;
+}
+.tx-tab--driver[aria-selected="true"] {
+  background: var(--tx-ink);
+  color: var(--tx-gold);
+}
+
+.tx-panel {
+  margin-top: 1.75rem;
+  border-radius: var(--tx-radius);
+  padding: clamp(1.75rem, 4vw, 3.25rem);
+  background: var(--tx-card);
+  border: 1px solid var(--tx-rule);
+  display: grid;
+  gap: 2.5rem;
+}
+.tx-panel--driver {
+  background: var(--tx-mint);
+  border-color: transparent;
+}
+@media (min-width: 980px) {
+  .tx-panel {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 4rem;
+  }
+}
+.tx-panel__intro p {
+  color: var(--tx-ink-soft);
+  margin: 1.25rem 0 2rem;
+}
+.tx-panel--driver .tx-panel__intro p {
+  color: #2c4429;
+}
+.tx-panel__points {
+  display: grid;
+  gap: 1.75rem 2.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+@media (min-width: 620px) {
+  .tx-panel__points {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.tx-point {
+  border-top: 2px solid var(--tx-ink);
+  padding-top: 1rem;
+}
+.tx-point__n {
+  display: block;
+  color: var(--tx-crimson);
+  margin-bottom: 0.6rem;
+}
+.tx-panel--driver .tx-point__n {
+  color: var(--tx-green-deep);
+}
+.tx-point h4 {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  margin: 0 0 0.5rem;
+}
+.tx-point p {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--tx-ink-soft);
+}
+.tx-panel--driver .tx-point p {
+  color: #2c4429;
+}
+
+/* ---------------------------------------------------------------- rail ---- */
+/* How it works is drawn as a route: a vertical line with a stop per step. */
+
+.tx-rail {
+  position: relative;
+  margin-top: clamp(2rem, 4vw, 3rem);
+  padding-left: 2.25rem;
+}
+.tx-rail::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 1.9rem;
+  bottom: 1.9rem;
+  width: 2px;
+  background: var(--tx-rule);
+}
+@media (min-width: 720px) {
+  .tx-rail {
+    padding-left: 3.5rem;
+  }
+  .tx-rail::before {
+    left: 11px;
+  }
+}
+
+.tx-stop {
+  position: relative;
+  border-bottom: 1px solid var(--tx-rule);
+}
+.tx-stop:first-child {
+  border-top: 1px solid var(--tx-rule);
+}
+.tx-stop__trigger {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  width: 100%;
+  padding: 1.5rem 0.25rem;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+/* the stop marker sits on the rail */
+.tx-stop__trigger::before {
+  content: "";
+  position: absolute;
+  left: -2.25rem;
+  top: 2.05rem;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--tx-paper);
+  border: 3px solid var(--tx-rule);
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+@media (min-width: 720px) {
+  .tx-stop__trigger::before {
+    left: -3.5rem;
+    width: 24px;
+    height: 24px;
+  }
+}
+.tx-stop__trigger[aria-expanded="true"]::before {
+  border-color: var(--tx-crimson);
+  background: var(--tx-crimson);
+}
+.tx-stop__n {
+  font-family: var(--tx-mono-face);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  color: var(--tx-green);
+  flex: none;
+  width: 2rem;
+}
+.tx-stop__title {
+  flex: 1;
+  font-size: clamp(1.25rem, 2.8vw, 1.875rem);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  text-transform: lowercase;
+  line-height: 1.1;
+}
+.tx-stop__chev {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid var(--tx-ink);
+  font-size: 0.85rem;
+  transition: transform 0.25s ease;
+}
+.tx-stop__trigger[aria-expanded="true"] .tx-stop__chev {
+  transform: rotate(180deg);
+  background: var(--tx-ink);
+  color: var(--tx-mint);
+}
+.tx-stop__body {
+  display: grid;
+  gap: 1.5rem;
+  padding: 0 0.25rem 2rem 3.25rem;
+}
+@media (min-width: 860px) {
+  .tx-stop__body {
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+  }
+}
+.tx-side h4 {
+  color: var(--tx-green);
+  margin: 0 0 0.65rem;
+}
+.tx-side--driver h4 {
+  color: var(--tx-crimson);
+}
+.tx-side p {
+  margin: 0;
+  color: var(--tx-ink-soft);
+}
+.tx-stop__source {
+  grid-column: 1 / -1;
+  color: var(--tx-ink-soft);
+  opacity: 0.7;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------- cardvert ---- */
+
+.tx-cardvert {
+  display: grid;
+  gap: 3rem;
+  align-items: center;
+}
+@media (min-width: 980px) {
+  .tx-cardvert {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.7fr);
+    gap: 5rem;
+  }
+}
+.tx-cardvert__list {
+  list-style: none;
+  margin: 2.25rem 0 2.5rem;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+.tx-cardvert__list li {
+  position: relative;
+  padding: 0.9rem 0 0.9rem 2.25rem;
+  border-bottom: 1px solid rgb(255 255 255 / 0.16);
+  color: rgb(255 255 255 / 0.82);
+}
+.tx-cardvert__list li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: var(--tx-gold);
+}
+
+.tx-device {
+  width: min(300px, 100%);
+  margin-inline: auto;
+  border-radius: 34px;
+  background: #061e04;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  padding: 0.75rem;
+  box-shadow: 0 40px 70px -35px rgb(0 0 0 / 0.8);
+}
+.tx-device__screen {
+  border-radius: 26px;
+  background: #0a2b07;
+  padding: 1.35rem 1.15rem 1.5rem;
+}
+.tx-device__brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: rgb(255 255 255 / 0.6);
+  margin-bottom: 1.4rem;
+}
+.tx-device__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--tx-mint);
+}
+.tx-device__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tx-mint);
+}
+.tx-device__label {
+  color: rgb(255 255 255 / 0.55);
+  margin: 0 0 0.45rem;
+}
+.tx-device__hours {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+  text-transform: lowercase;
+  margin: 0 0 1.35rem;
+  color: #ffffff;
+}
+.tx-device__rows {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+.tx-device__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.8125rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.05);
+  color: rgb(255 255 255 / 0.72);
+}
+.tx-device__row b {
+  font-weight: 600;
+  color: var(--tx-mint);
+}
+.tx-device__row--premium b {
+  color: var(--tx-gold);
+}
+.tx-device__row--unpaid b {
+  color: rgb(255 255 255 / 0.5);
+}
+.tx-device__cta {
+  display: block;
+  text-align: center;
+  border-radius: 999px;
+  background: var(--tx-gold);
+  color: var(--tx-ink);
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 0.85rem;
+}
+.tx-device__caption {
+  margin: 1rem 0 0;
+  text-align: center;
+  color: rgb(255 255 255 / 0.5);
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+/* ------------------------------------------------------------ reporting ---- */
+
+.tx-report {
+  margin-top: clamp(1.75rem, 3.5vw, 2.5rem);
+  background: var(--tx-card);
+  border: 2px solid var(--tx-ink);
+  border-radius: var(--tx-radius);
+  overflow: hidden;
+}
+.tx-report__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem clamp(1.25rem, 3vw, 2.25rem);
+  border-bottom: 2px solid var(--tx-ink);
+}
+.tx-report__title {
+  color: var(--tx-ink-soft);
+}
+.tx-report__row {
+  display: grid;
+  gap: 0.5rem 2rem;
+  padding: 1.6rem clamp(1.25rem, 3vw, 2.25rem);
+  border-bottom: 1px solid var(--tx-rule);
+}
+@media (min-width: 800px) {
+  .tx-report__row {
+    grid-template-columns: 13rem minmax(0, 1fr) 8rem;
+    align-items: baseline;
+  }
+}
+.tx-report__label {
+  font-weight: 700;
+  font-size: 1.0625rem;
+  letter-spacing: -0.015em;
+}
+.tx-report__body {
+  color: var(--tx-ink-soft);
+  font-size: 0.9375rem;
+  margin: 0;
+}
+.tx-tag {
+  justify-self: start;
+  font-family: var(--tx-mono-face);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+}
+.tx-tag--measured {
+  background: var(--tx-mint);
+  color: var(--tx-green-deep);
+}
+.tx-tag--modelled {
+  background: var(--tx-gold);
+  color: var(--tx-ink);
+}
+.tx-report__foot {
+  padding: 1.35rem clamp(1.25rem, 3vw, 2.25rem);
+  color: var(--tx-ink-soft);
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+/* -------------------------------------------------------------- contact ---- */
+/* The one gold moment on the page. Ink on Golden Accent is 11.2:1. */
+
+.tx-contact {
+  background: var(--tx-gold);
+  color: var(--tx-ink);
+}
+.tx-contact__inner {
+  display: grid;
+  gap: 3rem;
+}
+@media (min-width: 940px) {
+  .tx-contact__inner {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    gap: 5rem;
+    align-items: start;
+  }
+}
+.tx-contact p {
+  margin: 1.5rem 0 2.25rem;
+  max-width: 44ch;
+  font-size: 1.0625rem;
+}
+.tx-contact__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+.tx-details {
+  margin: 0;
+  border-top: 2px solid var(--tx-ink);
+}
+.tx-details div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1.05rem 0;
+  border-bottom: 1px solid rgb(10 28 9 / 0.22);
+}
+.tx-details dt {
+  color: rgb(10 28 9 / 0.7);
+}
+.tx-details dd {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.tx-details a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* --------------------------------------------------------------- footer ---- */
+
+.tx-footer {
+  background: var(--tx-green-deep);
+  color: #ffffff;
+  padding-block: clamp(3.5rem, 7vw, 5.5rem) 2.25rem;
+}
+.tx-footer__top {
+  display: grid;
+  gap: 2.75rem;
+}
+@media (min-width: 860px) {
+  .tx-footer__top {
+    grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr));
+    gap: 3rem;
+  }
+}
+.tx-footer__blurb {
+  margin: 1.85rem 0 0;
+  font-size: clamp(1.375rem, 2.6vw, 1.875rem);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  text-transform: lowercase;
+  color: var(--tx-mint);
+  max-width: 16ch;
+}
+.tx-footer__col h3 {
+  color: var(--tx-gold);
+  margin: 0 0 1.15rem;
+}
+.tx-footer__col ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.tx-footer__col a,
+.tx-footer__col span {
+  color: rgb(255 255 255 / 0.78);
+  text-decoration: none;
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+.tx-footer__col a:hover {
+  color: #ffffff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.tx-footer__rule {
+  height: 2px;
+  background: var(--tx-crimson);
+  margin: 3.25rem 0 1.5rem;
+}
+.tx-footer__bottom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 2rem;
+  justify-content: space-between;
+  color: rgb(255 255 255 / 0.6);
+}
+.tx-footer__bottom p {
+  margin: 0;
+}
+
+/* --------------------------------------------------------------- motion ---- */
+
+/* Scroll reveal. The hidden state applies only when scripting is available,
+ * so a no-JS render shows every section rather than a blank page. */
+.tx-page [data-tx-reveal] {
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: var(--tx-delay, 0ms);
+}
+@media (scripting: enabled) {
+  .tx-page [data-tx-reveal]:not([data-visible="true"]) {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+}
+
+@keyframes tx-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.tx-device__dot {
+  animation: tx-blink 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tx-page *,
+  .tx-page *::before,
+  .tx-page *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .tx-page [data-tx-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .tx-btn:hover {
+    transform: none;
+  }
+}

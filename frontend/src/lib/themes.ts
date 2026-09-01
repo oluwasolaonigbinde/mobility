@@ -61,6 +61,27 @@ export const THEMES: ThemeMeta[] = [
     colorScheme: "light",
     swatches: ["#e7e5e0", "#f6f5f2", "#e04e00", "#1747d1"],
   },
+  {
+    slug: "terra-grain",
+    name: "Direction 7",
+    tagline: "",
+    colorScheme: "dark",
+    swatches: ["#071e03", "#0e2a09", "#f2c94c", "#c8f6d0"],
+  },
+  {
+    slug: "coverage",
+    name: "Direction 8",
+    tagline: "",
+    colorScheme: "light",
+    swatches: ["#eef6ee", "#ffffff", "#256f1a", "#7a5230"],
+  },
+  {
+    slug: "broadside",
+    name: "Direction 9",
+    tagline: "",
+    colorScheme: "light",
+    swatches: ["#efeee1", "#e4e2cf", "#9c352f", "#0b1f07"],
+  },
 ];
 
 export function applyTheme(slug: string) {
