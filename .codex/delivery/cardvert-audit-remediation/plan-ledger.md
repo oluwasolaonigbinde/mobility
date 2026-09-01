@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 38
+plan_revision: 39
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 88
+last_event_sequence: 90
 ---
 
 # Cardvert audit remediation programme
@@ -93,10 +93,11 @@ non-executable until the owner supplies the complete policy named below.
   session, normally carrying two or three slices where the partition and
   dependencies permit. Dependency-held slices may be planned read-only in that
   task, but they receive no mutation lease before their predecessors are
-  accepted. The controller monitors visible tasks through the owner-authorized
-  five-minute `mobility-remediation-scheduler` thread heartbeat; the heartbeat
-  reconciles first and does not duplicate an already-active controller action
-  or create an artificial batch boundary.
+  accepted. Visible tasks send the controller task an event-driven callback
+  only when an owned slice or planning packet completes, blocks, detects a
+  conflict, or requires steering. The controller then reconciles actual state
+  before acting. Periodic polling and recurring monitoring automation are not
+  used; future dispatch packets must carry this callback rule.
 - Each meaningful fix packet uses `$verified-feature-delivery`; a genuinely
   cohesive complex packet may use `$orchestrated-feature-delivery` only within
   the admitted outcomes and an isolated reviewed contract.
@@ -343,17 +344,18 @@ unresolved.
 
 ## Next scheduler action
 
-The five-minute thread heartbeat monitors S03/R10, S05/R13 freeze
+Await event-driven terminal callbacks from S03/R10, S05/R13 freeze
 reconciliation, S08/R32 and the read-only S12/R34-R37 plan task. R13 must
 attribute its post-receipt bytes and return one new truthful frozen receipt
 before repeat admission review. Keep S07/R28 blocked on the recorded lifecycle-
 authority decision without freezing independent work. Reuse each visible task
 for the next dependency-safe slice in its cohesive session; R09 and R11 remain
 write-held behind accepted R10 and R09 respectively, and R33 remains held
-behind accepted R32 and R05. On every released slot, rescan the full graph and
-refill with the highest-priority ready conflict-free session; S01 begins with
-R02 once R13 no longer needs the shared verification fixture, while R34 remains
-serialized behind R32's migration/contract authority.
+behind accepted R32 and R05. After each callback, reconcile the checkout,
+review/admit the returned slice, rescan the full graph, and refill every safe
+slot immediately. S01 begins with R02 once R13 no longer needs the shared
+verification fixture, while R34 remains serialized behind R32's migration and
+contract authority.
 
 ## Material receipts
 
@@ -447,3 +449,5 @@ serialized behind R32's migration/contract authority.
 | 86 | 38 | 1 | AUTOMATION_AUTHORIZED | Owner explicitly replaced the earlier no-automation boundary and authorized a five-minute controller-thread heartbeat to poll, steer, review, admit and refill visible sessions. | heartbeat `mobility-remediation-scheduler`; monitoring and controller orchestration only; all product/external authority boundaries unchanged |
 | 87 | 38 | 1 | DIFF_REVIEW_BLOCKED | Repeat R13 admission review stopped before correctness inspection because three file hashes and the combined four-file diff did not match the supplied freeze receipt. | Sol/xhigh reviewer `/root/r13_diff_review`; claimed `e7d313ac...`, observed `4636fce9...`; no reviewer mutation |
 | 88 | 38 | 1 | DISPATCH_STEERED | The same visible S05/R13 task reacquired its exact four-file lease solely to attribute the drift, rerun required verification if wholly owner-authored, and issue a truthful frozen receipt. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/xhigh; stop on unattributed bytes |
+| 89 | 39 | 1 | SCHEDULER_POLICY_AMENDED | Owner replaced periodic five-minute monitoring with exact event-driven task callbacks so the controller wakes only on completion, blockage, conflict or steering need. | recurring heartbeat `mobility-remediation-scheduler` deleted; no periodic polling |
+| 90 | 39 | 1 | CALLBACKS_CONFIGURED | Every active visible session was instructed to message controller task `01a05de2-0b5d-73f0-ae3d-0e979b734658` at a terminal boundary with slice IDs, frozen evidence and requested steering; future dispatches inherit the rule. | S03, S05, S08 and S12 visible tasks; callbacks are signals and never self-admission |
