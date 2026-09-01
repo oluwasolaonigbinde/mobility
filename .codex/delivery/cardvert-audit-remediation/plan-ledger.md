@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 24
+plan_revision: 25
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 57
+last_event_sequence: 61
 ---
 
 # Cardvert audit remediation programme
@@ -288,9 +288,10 @@ trigger and a newly reviewed authority amendment.
 | Owner | Packet / attempt | Model gate | Mutation lease | State |
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
-| visible task pending | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | `tests/test_r08_admin_authorization_postgres.py` | RESERVED |
-| visible task pending | S05 / R13 implementation | GPT-5.6 Sol/xhigh — privacy/security redaction at cross-cutting sinks | `app/core/observability.py`; `app/services/audit.py`; `tests/test_errors.py`; `tests/test_audit_events.py`; one dedicated R13 test if required | RESERVED |
-| visible task pending | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | `tests/test_worker_jobs.py` | RESERVED |
+| task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | `tests/test_r08_admin_authorization_postgres.py` | ACTIVE |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 implementation | GPT-5.6 Sol/xhigh — privacy/security redaction at cross-cutting sinks | `app/core/observability.py`; `app/services/audit.py`; `tests/test_errors.py`; `tests/test_audit_events.py`; one dedicated R13 test if required | ACTIVE |
+| task `01a05e49-0107-7611-8ee8-515273881aa8` | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | `tests/test_worker_jobs.py` | ACTIVE |
+| task `01a05e49-48d5-7823-9388-537d0800e87b` | S07 / R28 plan and independent review | GPT-5.6 Terra/high — ordinary bounded campaign lifecycle planning | read-only; no mutation lease | PLANNING |
 
 Implementation writers reserved/active: **3 / 3**. The exact disjoint-work
 justification is recorded above and in `docs/progress.md`. Review/inventory work
@@ -319,12 +320,10 @@ by omission.
 
 ## Next scheduler action
 
-Obtain the independent control/concurrency review for revision 23, then create
-the three reserved visible tasks directly in the saved Mobility checkout:
-V01/R08, S05/R13 and V02/R15. Monitor them event-first and admit each only after
-its required review. In parallel, start S07/R28 as a visible read-only plan and
-independent plan-review task; it may acquire a writer lease only after R28-P and
-a fresh disjointness check. R32 is dependency-ready but conflicts with R08's
+Monitor the three visible writers V01/R08, S05/R13 and V02/R15 event-first and
+admit each only after its required review. Monitor S07/R28's visible read-only
+plan and independent plan review; it may acquire a writer lease only after
+R28-P and a fresh disjointness check. R32 is dependency-ready but conflicts with R08's
 unintegrated `driver_applications.py` mutation surface. On every released slot,
 rescan the full graph and refill with the highest-priority ready, conflict-free
 session; R02 and R34 are ready, while R16/R10/S09 remain gated on accepted R08.
@@ -390,3 +389,7 @@ session; R02 and R34 are ready, while R16/R10/S09 remain gated on accepted R08.
 | 55 | 22 | 1 | CONTROL_CHANGE_VERIFIED | Progress authority now records capacity three, exact active assignment and disjoint justification; the validator rejects missing/mismatched/over-capacity control state. | 48 focused tests; repository validator; Ruff; diff check |
 | 56 | 23 | 1 | CONTROL_REVIEW_FIX | Independent review found stale ready-front labels for R28/R32 and an omitted R28 planning action; R28 is now plan-ready, while R32 is explicitly conflict-held behind R08's unintegrated driver-application surface. | Sol/high reviewer `/root/scheduler_control_review`; candidate/slice/disposition and current writer checks otherwise clean |
 | 57 | 24 | 1 | CONTROL_REVIEW_PASSED | The visible-task/concurrency amendment and deterministic session partition passed independent minimal-change and CP-CONTROL review with no remaining findings. | Sol/high reviewer `/root/scheduler_control_review`; 60/60 slices, 86/86 FIX candidates, exact 9/12/8 dispositions; 48 tests; validator; Ruff; diff check |
+| 58 | 25 | 1 | DISPATCH_STARTED | Visible task V01/R08 acquired the one-file PostgreSQL authorization-race evidence correction lease in the shared checkout. | task `01a05e48-5e4b-7a23-8949-ade25c595d00`; GPT-5.6 Sol/xhigh; no worktree |
+| 59 | 25 | 1 | DISPATCH_STARTED | Visible task S05/R13 acquired the central observability/audit privacy-redaction lease in the shared checkout. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/xhigh; no worktree |
+| 60 | 25 | 1 | DISPATCH_STARTED | Visible task V02/R15 acquired the one-file worker crash/partial-completion evidence correction lease in the shared checkout. | task `01a05e49-0107-7611-8ee8-515273881aa8`; GPT-5.6 Sol/high; no worktree |
+| 61 | 25 | 1 | PLAN_DISPATCH_STARTED | Visible task S07/R28 began read-only current-source planning and independent plan review without a mutation lease. | task `01a05e49-48d5-7823-9388-537d0800e87b`; GPT-5.6 Terra/high; no worktree |
