@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 116
+plan_revision: 117
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 240
+last_event_sequence: 241
 ---
 
 # Cardvert audit remediation programme
@@ -654,3 +654,4 @@ verification is complete.
 | 238 | 114 | 1 | DISPATCH_STARTED | The second owner-requested visible Claude Code session began R09's reviewed auth command, status-rotation and PostgreSQL race implementation. | Claude session `Cardvert R09 authentication remediation`; Opus 5 / High; exact disjoint lease; no audit-registry mutation |
 | 239 | 115 | 1 | LEASE_CORRECTED | R09's optional architecture documentation path was removed before product writes because active R34 already owns the dirty shared file. | Claude session `Cardvert R09 authentication remediation`; auth/user code and focused tests remain disjoint; stop if documentation is indispensable |
 | 240 | 116 | 1 | INTEGRATION_GATE_FIX | R34's corrected audit module passes alone but the mandatory hardening→audit aggregate exposes its trip fixture omitting the required v2 batch sequence; first ping returns 409. | controller reproduction: 1 failed, 19 passed; import-order masking identified; R34 owner must make the fixture canonical without weakening protocol assertions |
+| 241 | 117 | 1 | LEASE_EXPANDED | R34 may update only the shared `tests/test_trips.py::ping_payload` defaults to emit v2 batch sequence zero and exact-millisecond timestamps while preserving explicit overrides. | four remaining truthful aggregate failures; no production/protocol or other test-file authority expands |
