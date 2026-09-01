@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 106
+plan_revision: 107
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 223
+last_event_sequence: 224
 ---
 
 # Cardvert audit remediation programme
@@ -299,7 +299,7 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 13 | GPT-5.6 Sol/high — repeated-leading-dot privacy correction | unchanged five-file R13 lease | RESERVED |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 13 | GPT-5.6 Sol/high — repeated-leading-dot privacy correction | unchanged five-file R13 lease | ACTIVE |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-12 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — malformed quote/path privacy-security admission | released reviewed exact `b75a5d8f...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-11 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — quote/path privacy-security admission | released reviewed exact `a60288c2...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-10 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded Unicode/path privacy-security admission | released reviewed exact `203ef022...` diff | FIX |
@@ -635,3 +635,4 @@ verification is complete.
 | 221 | 105 | 1 | DIFF_REVIEW_STARTED | Frozen R13 attempt 12 entered repeat independent adversarial minimal-change, security/privacy-specialist and CP-PRIVACY review. | reused `/root/r13_attempt5_review`; GPT-5.6 Sol/high; read-only exact `b75a5d8f...` diff |
 | 222 | 106 | 1 | DIFF_REVIEW_FIX | R13 attempt 12 closes all 36 admitted quote orientations and one leading dot, but two or more leading empty dotted components bypass every assignment detector and leak through all sinks. | Sol/high reviewer `/root/r13_attempt5_review`; exact `b75a5d8f...`; deterministic repeated-leading-dot name/credential/bank bypasses |
 | 223 | 106 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 13 on the unchanged five-file lease, limited to recognizing one-or-more leading dots in every assignment-shaped grammar and using existing empty-component rejection. | GPT-5.6 Sol/high; no classification/punctuation expansion; repeat review required |
+| 224 | 107 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 13 reacquired the unchanged five-file privacy lease for repeated-leading-empty dotted-path handling only. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/high; terminal callback required |
