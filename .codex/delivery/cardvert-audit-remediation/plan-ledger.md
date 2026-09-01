@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 39
+plan_revision: 40
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 90
+last_event_sequence: 96
 ---
 
 # Cardvert audit remediation programme
@@ -191,11 +191,11 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R06 | DB-002 | QUEUED | R02, R04, R05 | — | wait |
 | R07 | DB-003 | QUEUED | R02, R04, R06 | — | wait |
 | R08 | GOV-005 | ACCEPTED | security opener | R08-P; R08-M; R08-SEC; R08-CP-SECURITY; lock-removal red and real PostgreSQL green | complete |
-| R09 | GOV-007, AUT-001, AUT-002 | QUEUED | R10 | — | wait |
-| R10 | AUT-005 | ACTIVE | R08 | R10-P | visible S03 implementation reserved |
+| R09 | GOV-007, AUT-001, AUT-002 | QUEUED | R10 | — | same S03 task may plan read-only; no write before R10 acceptance |
+| R10 | AUT-005 | REVIEW | R08 | R10-P; frozen `de0c8d60...` implementation receipt | independent R10-M/SEC/CP-SECURITY review |
 | R11 | AUT-004 | QUEUED | R09 | — | wait |
 | R12 | AUT-003, REL-003 | QUEUED | R11 | — | wait |
-| R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P; attempt-1 review FIX; attempt-2 admission BLOCKED on freeze drift | visible task must attribute and truthfully refreeze the exact four-file diff |
+| R13 | SEC-001, PRV-008 | REVIEW | sensitive-metadata opener | R13-P; attempt-1 review FIX; reconciled attempt-2 receipt `4636fce9...` | repeat independent R13-M/SEC/PRV/CP-PRIVACY review |
 | R14 | SEC-002, TST-004 | QUEUED | R12 | — | wait |
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | QUEUED | provider-boundary opener | R16-P | wait for R08 acceptance and a writer slot |
@@ -216,10 +216,10 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R31 | CAM-004 | QUEUED | R18, R19, R30 | — | wait |
 | R32 | ONB-002 | ACTIVE | onboarding opener | R32-P | visible S08 implementation reserved; refresh accepted R08/R15 and current R13 audit seam |
 | R33 | ONB-006 | WAITING | R05, R32 | R33-P; current 50k-row exact-index experiment | wait for accepted R05 and R32; revalidate exact-index plan |
-| R34 | OFF-001 | READY | R04; offline opener | — | wait for a compatible high-risk writer lane |
-| R35 | OFF-002, OFF-003 | QUEUED | R34 | — | wait |
-| R36 | OFF-005 | QUEUED | R35 | — | wait |
-| R37 | OFF-006 | QUEUED | R36 | — | wait |
+| R34 | OFF-001 | READY | R04; offline opener | R34-P; reviewed S12 aggregate contract | wait for R32 migration/contract-lane release and explicit write lease |
+| R35 | OFF-002, OFF-003 | WAITING | R34 | R35-P; separate OFF-002/OFF-003 reviewed contracts | wait for accepted R34 |
+| R36 | OFF-005 | WAITING | R35 | R36-P; reviewed partial-acceptance contract | wait for accepted R35 and recheck migration head |
+| R37 | OFF-006 | WAITING | R36 | R37-P; reviewed deactivation-drain contract | wait for accepted R36 |
 | R38 | PRV-001, PRV-002 | QUEUED | R13; privacy opener | — | wait |
 | R39 | PRV-003 | QUEUED | R38 | — | wait |
 | R40 | PRV-004, AUD-001, AUD-002 | QUEUED | R16, R39 | — | wait |
@@ -299,19 +299,23 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 attempt-2 freeze reconciliation | GPT-5.6 Sol/xhigh — privacy/security redaction at cross-cutting sinks | exact four-file lease reacquired after receipt drift | ACTIVE |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 attempt-2 implementation | GPT-5.6 Sol/xhigh — privacy/security redaction at cross-cutting sinks | released exact four-file frozen diff `4636fce9...` | REVIEW |
 | task `01a05e49-0107-7611-8ee8-515273881aa8` | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | released exact R15 diff | ACCEPTED |
 | task `01a05e49-48d5-7823-9388-537d0800e87b` | S07 / R28 plan and independent review | GPT-5.6 Terra/high — ordinary bounded campaign lifecycle planning | read-only; no mutation lease | BLOCKED-OWNER |
 | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32 implementation, R33 held | GPT-5.6 Sol/high — onboarding security, migration and contract authority | exact R32 model/migration/onboarding/email/schema/test/contract lease; R33 remains dependency-held | ACTIVE |
-| task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | S12 / R34-R37 aggregate plan and independent review | GPT-5.6 Sol/xhigh — offline/privacy/money protocol and migration authority | read-only; no mutation lease | PLANNING |
+| task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | S12 / R34-R37 aggregate plan and independent review | GPT-5.6 Sol/xhigh — offline/privacy/money protocol and migration authority | read-only reviewed plan; no mutation lease | PLAN-PASS |
 | `/root/r15_re_review` | V02 / R15 repeat M and CP-WORKERS review | GPT-5.6 Sol/high — worker crash and claim/retry semantics | read-only frozen R15 diff | PASS |
 | `/root/r08_re_review` | V01 / R08 repeat M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — authorization concurrency, deadlock and evidence semantics | read-only frozen R08 diff | PASS |
-| `/root/r13_diff_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/xhigh — cross-sink PII and audit-authority semantics | read-only; current receipt did not match checkout | BLOCKED-DRIFT |
-| task `01a05e60-6ce7-7cb2-ac20-300ac5275d05` | S03 / R10 implementation; R09 and R11 held in the same session | GPT-5.6 Sol/xhigh — strict bearer authentication and session authority | R10 security/dependencies/minimum auth/tests/architecture lease; later slices have no mutation lease | ACTIVE |
+| `/root/r13_diff_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/xhigh — cross-sink PII and audit-authority semantics | read-only frozen R13 diff `4636fce9...` | ACTIVE |
+| task `01a05e60-6ce7-7cb2-ac20-300ac5275d05` | S03 / R10 implementation; R09 and R11 held in the same session | GPT-5.6 Sol/xhigh — strict bearer authentication and session authority | released R10 frozen diff `de0c8d60...`; later slices have no mutation lease | REVIEW |
+| `/root/r10_diff_review` | S03 / R10 M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — strict bearer claims, refresh and route authority | read-only frozen R10 diff `de0c8d60...` | ACTIVE |
 
-Implementation writers reserved/active: **3 / 3**. The exact disjoint-work
-justification is recorded above and in `docs/progress.md`. Review/inventory work
-may continue only when it is read-only and cannot contend with a writer.
+Implementation writers reserved/active: **1 / 3**, currently S08/R32 only.
+R10 and R13 leases are frozen for read-only admission review. R02 remains
+temporarily conflict-held because its shared-fixture mutation would invalidate
+R13's repeat verification; S12 remains serialized behind R32's migration and
+generated-contract lane. Read-only planning may continue without contending
+with the active writer.
 
 ## Accepted evidence
 
@@ -344,18 +348,18 @@ unresolved.
 
 ## Next scheduler action
 
-Await event-driven terminal callbacks from S03/R10, S05/R13 freeze
-reconciliation, S08/R32 and the read-only S12/R34-R37 plan task. R13 must
-attribute its post-receipt bytes and return one new truthful frozen receipt
-before repeat admission review. Keep S07/R28 blocked on the recorded lifecycle-
-authority decision without freezing independent work. Reuse each visible task
-for the next dependency-safe slice in its cohesive session; R09 and R11 remain
-write-held behind accepted R10 and R09 respectively, and R33 remains held
-behind accepted R32 and R05. After each callback, reconcile the checkout,
-review/admit the returned slice, rescan the full graph, and refill every safe
-slot immediately. S01 begins with R02 once R13 no longer needs the shared
-verification fixture, while R34 remains serialized behind R32's migration and
-contract authority.
+Await the R10 and R13 read-only review verdicts and the S08/R32 terminal
+callback. Reuse S03 for read-only R09/R11 planning while R10 is reviewed, and
+start read-only S09/R23-R27 aggregate planning at Sol/medium; defer any model
+escalation to a later bounded implementation or specialist review that actually
+owns the R26 PostgreSQL money-concurrency boundary. Keep S07/R28 blocked on the recorded
+lifecycle-authority decision without freezing independent work. R09 and R11
+remain write-held behind accepted R10 and R09 respectively; R33 remains held
+behind accepted R32 and R05; R34 has an accepted plan but remains serialized
+behind R32's migration/contract lane. After each callback, reconcile the
+checkout, review/admit the returned slice, rescan the full graph, and refill
+every safe slot immediately. S01 begins with R02 once R13's shared-fixture
+verification is complete.
 
 ## Material receipts
 
@@ -451,3 +455,9 @@ contract authority.
 | 88 | 38 | 1 | DISPATCH_STEERED | The same visible S05/R13 task reacquired its exact four-file lease solely to attribute the drift, rerun required verification if wholly owner-authored, and issue a truthful frozen receipt. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/xhigh; stop on unattributed bytes |
 | 89 | 39 | 1 | SCHEDULER_POLICY_AMENDED | Owner replaced periodic five-minute monitoring with exact event-driven task callbacks so the controller wakes only on completion, blockage, conflict or steering need. | recurring heartbeat `mobility-remediation-scheduler` deleted; no periodic polling |
 | 90 | 39 | 1 | CALLBACKS_CONFIGURED | Every active visible session was instructed to message controller task `01a05de2-0b5d-73f0-ae3d-0e979b734658` at a terminal boundary with slice IDs, frozen evidence and requested steering; future dispatches inherit the rule. | S03, S05, S08 and S12 visible tasks; callbacks are signals and never self-admission |
+| 91 | 40 | 1 | IMPLEMENTATION_RETURNED | S03/R10 returned and released its exact five-file strict bearer-claim diff for admission review. | task `01a05e60-6ce7-7cb2-ac20-300ac5275d05`; frozen `de0c8d60...`; focused 31 green and 246/246 bearer-route convergence |
+| 92 | 40 | 1 | IMPLEMENTATION_RETURNED | S05/R13 attributed every post-receipt byte to correction attempt 2 and truthfully refroze the exact four-file privacy diff. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; frozen `4636fce9...`; 10 real-PostgreSQL leased tests plus release-log and compatibility evidence |
+| 93 | 40 | 1 | PLAN_REVIEW_PASSED | The controller inspected and accepted the independently reviewed S12 aggregate contract with separate R34-P, R35-P, R36-P and R37-P receipts and unchanged OFF-004/OFF-007/OFF-008/OFF-009 dispositions. | visible S12 task; Sol/xhigh independent PASS after corrections; zero file mutation; R34 write-held behind R32 migration/contracts |
+| 94 | 40 | 1 | DIFF_REVIEW_STARTED | Frozen R10 entered independent minimal-change, security-specialist and CP-SECURITY admission review. | `/root/r10_diff_review`; GPT-5.6 Sol/xhigh; read-only exact `de0c8d60...` diff |
+| 95 | 40 | 1 | DIFF_REVIEW_STARTED | Reconciled frozen R13 entered repeat minimal-change, security/privacy-specialist and CP-PRIVACY admission review. | `/root/r13_diff_review`; GPT-5.6 Sol/xhigh; read-only exact `4636fce9...` diff |
+| 96 | 40 | 1 | PLAN_DISPATCH_RESERVED | S09/R23-R27 reserved one visible read-only commercial-billing planning session with separate slice contracts and terminal callback; no mutation lease. | GPT-5.6 Sol/medium for aggregate planning; any later escalation is bounded to an implementation or specialist review that actually owns the R26 PostgreSQL money-concurrency boundary |
