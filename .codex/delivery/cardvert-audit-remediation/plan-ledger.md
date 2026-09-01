@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 42
+plan_revision: 43
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 100
+last_event_sequence: 101
 ---
 
 # Cardvert audit remediation programme
@@ -466,3 +466,4 @@ verification is complete.
 | 98 | 41 | 1 | PLAN_DISPATCH_STARTED | One visible S09 task began aggregate read-only planning and independent review for the complete R23-R27 commercial-billing chain. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; GPT-5.6 Sol/medium; shared checkout, no worktree or mutation lease; terminal callback required |
 | 99 | 42 | 1 | DIFF_REVIEW_FIX | R13 attempt 2 still leaked multiline/comma-bearing sensitive assignments and over-redacted approved numeric identifiers through the broad local-phone matcher. | Sol/xhigh reviewer `/root/r13_diff_review`; prior findings passed; four new boundary assertions exposed two P1 classes |
 | 100 | 42 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 3 on the unchanged four-file lease, limited to newline/comma assignment boundaries and key-aware numeric-ID preservation. | GPT-5.6 Sol/high for a bounded privacy/security correction; callback and full repeat review required |
+| 101 | 43 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 3 reacquired the exact four-file privacy lease with no path expansion. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/high; shared checkout, no worktree; terminal callback required |
