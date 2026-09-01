@@ -240,11 +240,33 @@ def test_remediation_active_capacity_and_dependency_admission_are_enforced() -> 
     )
 
     unmet = _r01_active_remediation().replace(
-        "| R02 | GOV-003, TST-001, DB-005 | R01 | QUEUED | PENDING |",
-        "| R02 | GOV-003, TST-001, DB-005 | R01 | ACTIVE | PASS — R02-P |",
+        "| R02 | GOV-003, TST-001, DB-005 | R01, R04 | QUEUED | PENDING |",
+        "| R02 | GOV-003, TST-001, DB-005 | R01, R04 | ACTIVE | PASS — R02-P |",
         1,
     )
     assert any("ACTIVE R02 has unfinished dependencies: R01" in error for error in _errors(unmet))
+
+
+def test_r02_requires_accepted_r04_schema_authority() -> None:
+    assert "| R02 | GOV-003, TST-001, DB-005 | R01, R04 |" in _progress()
+
+    text = _queue_all_remediation(_progress()).replace(
+        "| R01 | GOV-001 | none | QUEUED | PENDING | PENDING | CP-CONTROL PENDING |",
+        "| R01 | GOV-001 | none | COMPLETE | PASS — R01-P | PASS — R01-M "
+        "| CP-CONTROL PASS — R01-CP-CONTROL |",
+        1,
+    ).replace(
+        "| R02 | GOV-003, TST-001, DB-005 | R01, R04 | QUEUED | PENDING |",
+        "| R02 | GOV-003, TST-001, DB-005 | R01, R04 | ACTIVE | PASS — R02-P |",
+        1,
+    )
+    text = _with_control_pointer(
+        text,
+        state="ACTIVE",
+        package="PKG-10",
+        checkpoint="R02",
+    )
+    assert any("ACTIVE R02 has unfinished dependencies: R04" in error for error in _errors(text))
 
 
 def test_remediation_complete_requires_slice_bound_review_and_checkpoint_receipts() -> None:

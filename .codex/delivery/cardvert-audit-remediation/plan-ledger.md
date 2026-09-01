@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 4
+plan_revision: 10
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 2
-last_event_sequence: 13
+last_event_sequence: 25
 ---
 
 # Cardvert audit remediation programme
@@ -48,6 +48,12 @@ Source identities at controller claim:
 | `issues/findings/product-release-verification.md` | `7a09242a6edc2ef6e56448a1bec6a2f0f1f51f88be83cfb432e237ecc916b475` |
 | Pro admission receipt | `42d7299ebece3e57fd3f508753a886a044233395282eeecf651fba48b3f37d8d` |
 | Closed reconciliation ledger | `90adf8c316cb6625a9a810062ef41dec12d1d47d91f5567b03d5c056dffc94fc` |
+
+Reviewed graph amendment after controller claim:
+
+| Revision | Edge | Reason | Review | Updated source SHA-256 |
+| ---: | --- | --- | --- | --- |
+| 8 | R04 → R02 | DB-005 consumes R04's clean exact-head schema authority and shared migrated-PostgreSQL fixture. Candidate ownership and outcomes are unchanged. | R02-P PASS; GRAPH-CP-CONTROL PASS | `3abb14ff71bfb41da8eb4a047e0973d12e75b14bbfaafbe7ae14ec719fb51605` |
 
 No deployment, live payment, provider action, external publication, legal
 approval, credential invention, or external/live evidence claim is authorized.
@@ -96,9 +102,9 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | Slice | Candidate IDs | State | Dependencies / lane | Accepted evidence | Next action |
 | --- | --- | --- | --- | --- | --- |
 | R01 | GOV-001 | ACCEPTED | control opener | R01-P; R01-M; R01-CP-CONTROL; red/green validator evidence | complete |
-| R02 | GOV-003, TST-001, DB-005 | QUEUED | R01; control | — | wait |
+| R02 | GOV-003, TST-001, DB-005 | WAITING | R01, R04; control | R02-P; GRAPH-CP-CONTROL | wait for R04 acceptance |
 | R03 | GOV-004 | QUEUED | R02; control | — | wait |
-| R04 | DB-004 | READY | database opener | R04-P | dispatch attempt 1 |
+| R04 | DB-004 | ACTIVE | database opener | R04-P | implementation attempt 1 |
 | R05 | DB-001, TST-012, ONB-010 | QUEUED | R02, R04 | — | wait |
 | R06 | DB-002 | QUEUED | R02, R04, R05 | — | wait |
 | R07 | DB-003 | QUEUED | R02, R04, R06 | — | wait |
@@ -147,7 +153,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R50 | REP-005 | QUEUED | R47, R49 | — | wait |
 | R51 | REP-006 | QUEUED | R43, R49, R50 | — | wait |
 | R52 | MET-006 | QUEUED | R51 | — | wait |
-| R53 | REL-005 | READY | release opener | R53-P | dispatch attempt 1 |
+| R53 | REL-005 | ACCEPTED | release opener | R53-P; R53-M; R53-RELEASE; R53-CP-RELEASE; real Docker red/green | complete |
 | R54 | REL-006 | QUEUED | R12, R16, R53 | — | wait |
 | R55 | REL-004 | QUEUED | R03, R18, R48, R51, R54 | — | wait |
 | R56 | TST-005 | QUEUED | R09, R11, R14, R40 | — | wait |
@@ -210,8 +216,10 @@ trigger and a newly reviewed authority amendment.
 | Owner | Packet / attempt | Model gate | Mutation lease | State |
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
+| `/root/r04_implementation` | R04 / attempt 1 | GPT-5.6 Sol/xhigh — Alembic/PostgreSQL/PostGIS schema and migration authority | `app/models/**`; `app/db/base.py`; `alembic/env.py`; `alembic/versions/**`; R04 migration/catalog tests; shared DB fixture only if pre-declared | ACTIVE |
+| `/root/r53_implementation` | R53 / attempt 1 | GPT-5.6 Sol/high — immutable frontend image and release-build provenance | released after exact three-file handoff | ACCEPTED |
 
-Implementation writers active: **0 / 2**. Review/inventory work may use spare
+Implementation writers active: **1 / 2**. Review/inventory work may use spare
 capacity only when it cannot contend with an implementation owner.
 
 ## Accepted evidence
@@ -220,7 +228,9 @@ R01 is accepted exactly once with R01-P, R01-M and R01-CP-CONTROL. Evidence
 includes the pre-fix terminal-state red, four safe-mutation red failures covering
 manifest pinning, active capacity, receipt completion and post-PKG-10 pause,
 then 47 green validator tests, Ruff, the repository validator and diff check.
-R04-P and R53-P are accepted plan receipts; neither product slice is complete.
+R53 is accepted exactly once with R53-M, the release-specialist PASS and
+R53-CP-RELEASE after real Docker 29.5.3 red/green. R04 remains active; R02-P is
+accepted but waits for the reviewed R04 dependency.
 
 ## Outstanding decisions and waits
 
@@ -230,9 +240,9 @@ by omission.
 
 ## Next scheduler action
 
-Dispatch the disjoint R04 database-authority and R53 frontend-build-provenance
-attempts with their recorded Sol/xhigh and Sol/high model gates, then update the
-actual owner/lease rows and monitor both without starting a third writer.
+Monitor R04, pre-review the next ready non-conflicting R08 security packet, and
+dispatch it into the released second writer slot only after its exact plan
+passes. R02 remains waiting for R04 acceptance.
 
 ## Material receipts
 
@@ -251,3 +261,15 @@ actual owner/lease rows and monitor both without starting a third writer.
 | 11 | 4 | 1 | CHECKPOINT_PASSED | R01-CP-CONTROL passed; executable and non-executable authority remained exact. | Sol/high reviewer `/root/r01_diff_review` |
 | 12 | 4 | 1 | SLICE_ACCEPTED | R01/GOV-001 accepted exactly once and unlocked rolling product dispatch. | R01-P, R01-M, R01-CP-CONTROL; 47 tests; validator; Ruff; diff check |
 | 13 | 4 | 1 | PLANS_ACCEPTED | Corrected R04 and R53 exact contracts passed their independent plan reviews. | R04-P Sol/xhigh; R53-P Sol/high |
+| 14 | 5 | 1 | DISPATCH_RESERVED | R04 attempt 1 reserved the exclusive ORM/Alembic/PostgreSQL schema lease. | Sol/xhigh because migration and PostGIS authority are the hardest boundary |
+| 15 | 5 | 1 | DISPATCH_RESERVED | R53 attempt 1 reserved the disjoint frontend Docker/map image lease. | Sol/high because immutable release-image provenance is the hardest boundary |
+| 16 | 6 | 1 | DISPATCH_STARTED | R04 attempt 1 acquired its exclusive schema/migration lease. | agent `/root/r04_implementation`; Sol/xhigh |
+| 17 | 6 | 1 | DISPATCH_STARTED | R53 attempt 1 acquired its disjoint frontend image-contract lease. | agent `/root/r53_implementation`; Sol/high |
+| 18 | 7 | 1 | IMPLEMENTATION_RETURNED | R53 released its exact lease after real-Docker red/green and focused frontend verification; completion remains pending M/release/CP review. | three leased files; Docker 29.5.3; 6 image tests; 434 frontend tests |
+| 19 | 8 | 1 | PLAN_REVIEW_PASSED | R02's exact CI/PostgreSQL/PostGIS/Redis/MinIO/ClamAV contract passed after event-matrix and evidence-manifest corrections. | Sol/high reviewer `/root/r02_plan_review`; R02-P held pending graph CP |
+| 20 | 8 | 1 | GRAPH_AMENDMENT_APPLIED | Added R04 → R02 because DB-005 consumes R04's exact-head schema authority and central real-DB fixture; ordering only, with candidates/outcomes unchanged. | focused dependency regression red before amendment; CP-CONTROL review pending |
+| 21 | 9 | 1 | GRAPH_REVIEW_FIX_VERIFIED | CP-CONTROL found one stale R01-only R02 test fixture; it now uses R01,R04 and the full validator suite is green. | 48 tests passed; Ruff, progress validator and diff check passed |
+| 22 | 10 | 1 | DIFF_REVIEW_PASSED | R53-M passed with every changed file and the new image test justified. | Sol/high reviewer `/root/r53_diff_review` |
+| 23 | 10 | 1 | CHECKPOINT_PASSED | R53 release-specialist and CP-RELEASE reviews passed with actual immutable-image authority. | Sol/high reviewer `/root/r53_diff_review` |
+| 24 | 10 | 1 | SLICE_ACCEPTED | R53/REL-005 accepted exactly once; no deploy, publication or live map action occurred. | 6 Docker image tests; 2 map tests; 434 frontend tests; build/type/lint; R53-P/M/CP |
+| 25 | 10 | 1 | GRAPH_CHECKPOINT_PASSED | R04 → R02 ordering-only amendment passed CP-CONTROL after the stale test correction. | Sol/high reviewer `/root/r02_plan_review`; 48 validator tests |

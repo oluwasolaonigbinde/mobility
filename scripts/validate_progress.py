@@ -157,7 +157,7 @@ CANONICAL_ITEMS = (
 # ordering (R09 intentionally follows R10).
 CANONICAL_REMEDIATION_SLICES = (
     ("R01", "GOV-001", "none", "CP-CONTROL"),
-    ("R02", "GOV-003, TST-001, DB-005", "R01", "CP-CONTROL"),
+    ("R02", "GOV-003, TST-001, DB-005", "R01, R04", "CP-CONTROL"),
     ("R03", "GOV-004", "R02", "CP-CONTROL"),
     ("R04", "DB-004", "none", "CP-DB"),
     ("R05", "DB-001, TST-012, ONB-010", "R02, R04", "CP-DB"),

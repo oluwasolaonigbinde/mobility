@@ -72,9 +72,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 now rolling across dependency-ready disjoint slices while all 29 non-executable
 findings retain their admitted dispositions.
-**Current checkpoint:** `PKG-10 / R04` — highest-priority ready slice; R04 and
-the disjoint R53 have accepted plan reviews and are ready for their two writer
-leases.
+**Current checkpoint:** `PKG-10 / R04` — highest-priority active slice with the
+exclusive ORM/Alembic/PostgreSQL schema lease; disjoint R53 is accepted, and
+R02 waits on the reviewed R04 exact-head/fixture dependency.
 
 ## Direct owner requests outside the package queue
 
@@ -1515,9 +1515,9 @@ durable ledger before changing a row.
 | Slice | Candidate IDs | Dependencies | State | Plan review | Diff review | Domain checkpoint |
 | --- | --- | --- | --- | --- | --- | --- |
 | R01 | GOV-001 | none | COMPLETE | PASS — R01-P | PASS — R01-M | CP-CONTROL PASS — R01-CP-CONTROL |
-| R02 | GOV-003, TST-001, DB-005 | R01 | QUEUED | PENDING | PENDING | CP-CONTROL PENDING |
+| R02 | GOV-003, TST-001, DB-005 | R01, R04 | QUEUED | PASS — R02-P | PENDING | CP-CONTROL PENDING |
 | R03 | GOV-004 | R02 | QUEUED | PENDING | PENDING | CP-CONTROL PENDING |
-| R04 | DB-004 | none | QUEUED | PASS — R04-P | PENDING | CP-DB PENDING |
+| R04 | DB-004 | none | ACTIVE | PASS — R04-P | PENDING | CP-DB PENDING |
 | R05 | DB-001, TST-012, ONB-010 | R02, R04 | QUEUED | PENDING | PENDING | CP-DB PENDING |
 | R06 | DB-002 | R02, R04, R05 | QUEUED | PENDING | PENDING | CP-DB PENDING |
 | R07 | DB-003 | R02, R04, R06 | QUEUED | PENDING | PENDING | CP-DB PENDING |
@@ -1566,7 +1566,7 @@ durable ledger before changing a row.
 | R50 | REP-005 | R47, R49 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
 | R51 | REP-006 | R43, R49, R50 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
 | R52 | MET-006 | R51 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
-| R53 | REL-005 | none | QUEUED | PASS — R53-P | PENDING | CP-RELEASE PENDING |
+| R53 | REL-005 | none | COMPLETE | PASS — R53-P | PASS — R53-M | CP-RELEASE PASS — R53-CP-RELEASE |
 | R54 | REL-006 | R12, R16, R53 | QUEUED | PENDING | PENDING | CP-RELEASE PENDING |
 | R55 | REL-004 | R03, R18, R48, R51, R54 | QUEUED | PENDING | PENDING | CP-RELEASE PENDING |
 | R56 | TST-005 | R09, R11, R14, R40 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
