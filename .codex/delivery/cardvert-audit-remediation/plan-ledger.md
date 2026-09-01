@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 107
+plan_revision: 108
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 224
+last_event_sequence: 225
 ---
 
 # Cardvert audit remediation programme
@@ -200,20 +200,20 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | ACCEPTED | provider-boundary opener | R16-P/M/CONTRACT/CP-CONTROL; structural and behavioral evidence | complete |
 | R17 | TST-007 | BLOCKED-OWNER | R02, R03; coverage policy | plan review found no authoritative floor/path/base/ratchet policy | owner must adopt exact backend/frontend coverage enforcement policy before R17-P re-review |
-| R18 | MON-005, MON-006 | QUEUED | R04, R06, R07 | — | wait |
-| R19 | MON-002 | QUEUED | R18 | — | wait |
-| R20 | MON-001, DB-007, MON-008 | QUEUED | R05, R18 | — | wait |
-| R21 | MON-003 | QUEUED | R20 | — | wait |
-| R22 | MON-004, MON-007, MON-009 | QUEUED | R20, R21 | — | wait |
+| R18 | MON-005, MON-006 | WAITING | R04, R06, R07 | R18-P; reviewed frozen-money-authority contract | wait for predecessors and migration/contract lane |
+| R19 | MON-002 | WAITING | R18 | R19-P; reviewed Lagos-day predecessor-order contract | wait for R18 |
+| R20 | MON-001, DB-007, MON-008 | WAITING | R05, R18 | R20-P; reviewed durable per-line provider-intent contract | wait for predecessors and migration/worker lane |
+| R21 | MON-003 | WAITING | R20 | R21-P; reviewed final pre-provider authorization contract | wait for R20 |
+| R22 | MON-004, MON-007, MON-009 | WAITING | R20, R21 | R22-P; reviewed exclusive conservation/replacement state contract | wait for R20/R21 and migration/contracts |
 | R23 | COM-001, COM-004 | ACCEPTED | R08; commercial opener | R23-P/M/MNY/CP-COMMERCIAL; PostgreSQL, migration 0073 and contract evidence | complete at `8fd5fc4` |
 | R24 | COM-002 | ACCEPTED | R08, R23 | R24-P/M/MNY/CP-COMMERCIAL; causal epoch and PostgreSQL race evidence | complete at `36df828` |
 | R25 | COM-003, COM-005 | READY | R08, R24 | R25-P; reviewed quotation/waiver contract | reserve for the owner-directed next Opus 5 / High session after the current set clears |
 | R26 | COM-006 | WAITING | R08, R25 | R26-P; reviewed lock-order contract | wait for accepted R25; bounded Sol/high DB+money gate |
 | R27 | COM-007 | WAITING | R08, R26 | R27-P; reviewed Lagos-year contract | wait for accepted R26 |
 | R28 | CAM-001 | BLOCKED-OWNER | campaign opener | current-source finding confirmed; R28-P blocked | owner must define scheduled→active actor/API/idempotency, readiness coupling, and lifecycle-evidence authority |
-| R29 | CAM-002 | QUEUED | R04, R08, R28 | — | wait |
-| R30 | CAM-003 | QUEUED | R29 | — | wait |
-| R31 | CAM-004 | QUEUED | R18, R19, R30 | — | wait |
+| R29 | CAM-002 | WAITING | R04, R08, R28 | R29-P; reviewed active-driver uniqueness contract | wait for R28 owner decision and migration lane |
+| R30 | CAM-003 | WAITING | R29 | R30-P; reviewed due-challenge finality contract | wait for R29 |
+| R31 | CAM-004 | WAITING | R18, R19, R30 | R31-P; reviewed frozen assignment-window contract | wait for predecessors and trip lease |
 | R32 | ONB-002 | ACCEPTED | onboarding opener | R32-P/M/SEC/DB/CP-ONBOARDING; PostgreSQL and contract evidence | complete |
 | R33 | ONB-006 | WAITING | R05, R32 | R33-P; current 50k-row exact-index experiment | wait for accepted R05; revalidate exact-index plan |
 | R34 | OFF-001 | ACTIVE | R04; offline opener | R34-P; frozen 38-file implementation `f25bd28f...`; own gates green | reconcile inherited 12-route audit registry, then repeat aggregate gate and admission review |
@@ -314,7 +314,7 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32 implementation, R33 held | GPT-5.6 Sol/high — onboarding security, migration and contract authority | released accepted R32 diff; R33 remains dependency-held | ACCEPTED |
 | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | S12 / R34 implementation; R35-R37 held | GPT-5.6 Sol/high — offline/privacy/money protocol and migration authority | released frozen 38-file scope `f25bd28f...`; R35-R37 held | BLOCKED-INTEGRATION |
 | Claude session `Cardvert audit-route integration correction` | R34 inherited audit-registry integration | Claude Opus 5 / High — owner-selected bounded audit/security evidence correction | `tests/test_audit_route_coverage.py` only; transferred from frozen R34 | ACTIVE |
-| task `01a05ef6-632c-79b1-bdf3-16c6e95aafd4` | S10/S11/S13/S14 aggregate R18-R22 and R29-R31 planning | GPT-5.6 Sol/high — money/migration/concurrency planning | read-only; no mutation lease | ACTIVE-PLAN |
+| task `01a05ef6-632c-79b1-bdf3-16c6e95aafd4` | S10/S11/S13/S14 aggregate R18-R22 and R29-R31 planning | GPT-5.6 Sol/high — money/migration/concurrency planning | read-only; R18-P through R22-P and R29-P through R31-P accepted | PLAN-PASS |
 | task `01a05ef6-92fc-7df1-bd39-50e8c2fee530` | S15-S19 aggregate R38-R44 privacy/audit planning | GPT-5.6 Sol/high — privacy/security/lifecycle planning | read-only; no mutation lease | ACTIVE-PLAN |
 | task `01a05ef6-c545-7401-8114-4afe32fc9bf7` | S20-S22 aggregate R45-R52 reporting planning | GPT-5.6 Sol/high — reporting/privacy/concurrency planning | read-only; no mutation lease | ACTIVE-PLAN |
 | task `01a05ef6-ee2d-79e0-9e50-153b035d771e` | S23-S27 aggregate R54-R58 release/test planning | GPT-5.6 Sol/high — release/security/worker planning | read-only; R54-P through R58-P accepted | PLAN-PASS |
@@ -636,3 +636,4 @@ verification is complete.
 | 222 | 106 | 1 | DIFF_REVIEW_FIX | R13 attempt 12 closes all 36 admitted quote orientations and one leading dot, but two or more leading empty dotted components bypass every assignment detector and leak through all sinks. | Sol/high reviewer `/root/r13_attempt5_review`; exact `b75a5d8f...`; deterministic repeated-leading-dot name/credential/bank bypasses |
 | 223 | 106 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 13 on the unchanged five-file lease, limited to recognizing one-or-more leading dots in every assignment-shaped grammar and using existing empty-component rejection. | GPT-5.6 Sol/high; no classification/punctuation expansion; repeat review required |
 | 224 | 107 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 13 reacquired the unchanged five-file privacy lease for repeated-leading-empty dotted-path handling only. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/high; terminal callback required |
+| 225 | 108 | 1 | PLAN_REVIEW_PASSED | R18-P through R22-P and R29-P through R31-P passed as separate reviewed money, disbursement, assignment, challenge and frozen-window contracts; all remain dependency/lease-held. | task `01a05ef6-632c-79b1-bdf3-16c6e95aafd4`; GPT-5.6 Sol/high; exact no-write confirmation |
