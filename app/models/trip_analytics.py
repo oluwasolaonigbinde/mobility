@@ -18,6 +18,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -174,38 +175,59 @@ class TripAnalytics(Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     first_ping_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_ping_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    duration_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    active_tracking_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    moving_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    stationary_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    distance_m: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0, nullable=False)
+    duration_seconds: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
+    active_tracking_seconds: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
+    moving_seconds: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
+    stationary_seconds: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
+    distance_m: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), default=0, server_default=text("0"), nullable=False
+    )
     avg_speed_mps: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
     max_observed_speed_mps: Mapped[Decimal | None] = mapped_column(Numeric(12, 4))
     avg_accuracy_m: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
-    poor_accuracy_ping_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    poor_accuracy_ping_count: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
     target_zone_distance_m: Mapped[Decimal] = mapped_column(
         Numeric(14, 2),
         default=0,
+        server_default=text("0"),
         nullable=False,
     )
     bonus_zone_distance_m: Mapped[Decimal] = mapped_column(
         Numeric(14, 2),
         default=0,
+        server_default=text("0"),
         nullable=False,
     )
     exclusion_zone_distance_m: Mapped[Decimal] = mapped_column(
         Numeric(14, 2),
         default=0,
+        server_default=text("0"),
         nullable=False,
     )
-    target_zone_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    bonus_zone_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    exclusion_zone_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    target_zone_seconds: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
+    bonus_zone_seconds: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
+    exclusion_zone_seconds: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
     quality_score: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False)
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     analytics_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,
@@ -321,7 +343,7 @@ class FraudFlag(Base):
     )
     description: Mapped[str] = mapped_column(Text, nullable=False)
     evidence: Mapped[dict[str, Any]] = mapped_column(
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,

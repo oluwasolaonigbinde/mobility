@@ -18,7 +18,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base
+from app.db.base import Base, JSONEmptyObjectServerDefault
 
 
 class InstallationEvidenceStatus(StrEnum):
@@ -110,7 +110,11 @@ class InstallationEvidenceSubmission(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     approved_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     evidence_metadata: Mapped[dict[str, Any]] = mapped_column(
-        "metadata", JSON, default=dict, server_default=text("'{}'"), nullable=False
+        "metadata",
+        JSON,
+        default=dict,
+        server_default=JSONEmptyObjectServerDefault(),
+        nullable=False,
     )
     submitted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -215,5 +219,9 @@ class DisplayProof(Base):
     verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     proof_metadata: Mapped[dict[str, Any]] = mapped_column(
-        "metadata", JSON, default=dict, server_default=text("'{}'"), nullable=False
+        "metadata",
+        JSON,
+        default=dict,
+        server_default=JSONEmptyObjectServerDefault(),
+        nullable=False,
     )

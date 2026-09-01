@@ -16,6 +16,7 @@ from sqlalchemy import (
     inspect,
     text,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -115,7 +116,12 @@ class Notification(Base):
         String(16), default="v1", server_default=text("'v1'"), nullable=False
     )
     payload: Mapped[dict[str, Any]] = mapped_column(
-        MutableDict.as_mutable(JSON), default=dict, server_default=text("'{}'"), nullable=False
+        MutableDict.as_mutable(
+            JSON().with_variant(postgresql.JSONB(), "postgresql")
+        ),
+        default=dict,
+        server_default=text("'{}'"),
+        nullable=False,
     )
     dedupe_key: Mapped[str | None] = mapped_column(String(255))
     channel: Mapped[str] = mapped_column(

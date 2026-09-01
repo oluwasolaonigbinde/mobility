@@ -1,4 +1,49 @@
+from typing import Any
+
+from sqlalchemy.dialects.postgresql.base import ischema_names
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.types import UserDefinedType
+
+
+class PostGISGeometry(UserDefinedType):
+    cache_ok = True
+
+    def __init__(
+        self,
+        geometry_type: str = "Geometry",
+        srid: int | str | None = None,
+    ) -> None:
+        self.geometry_type = geometry_type
+        self.srid = int(srid) if srid is not None else None
+
+    def get_col_spec(self, **_: Any) -> str:
+        if self.srid is None:
+            return f"geometry({self.geometry_type})"
+        return f"geometry({self.geometry_type},{self.srid})"
+
+
+@compiles(PostGISGeometry, "sqlite")
+def compile_sqlite_geometry(_: PostGISGeometry, __, **___: Any) -> str:
+    return "TEXT"
+
+
+ischema_names["geometry"] = PostGISGeometry
+
+
+class JSONEmptyObjectServerDefault(ColumnElement):
+    inherit_cache = True
+
+
+@compiles(JSONEmptyObjectServerDefault)
+def compile_json_empty_object_default(_, __, **___: Any) -> str:
+    return "'{}'"
+
+
+@compiles(JSONEmptyObjectServerDefault, "postgresql")
+def compile_postgresql_json_empty_object_default(_, __, **___: Any) -> str:
+    return "'{}'::json"
 
 
 class Base(DeclarativeBase):
@@ -22,6 +67,7 @@ import app.models.disclosure  # noqa: E402,F401
 import app.models.driver  # noqa: E402,F401
 import app.models.driver_application  # noqa: E402,F401
 import app.models.evidence_verification  # noqa: E402,F401
+import app.models.exposure_score  # noqa: E402,F401
 import app.models.exposure_segment  # noqa: E402,F401
 import app.models.fraud_assessment  # noqa: E402,F401
 import app.models.fraud_dispute  # noqa: E402,F401

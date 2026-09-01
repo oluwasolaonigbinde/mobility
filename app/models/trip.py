@@ -18,23 +18,10 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.types import UserDefinedType
 
-from app.db.base import Base
-
-
-class PostGISPoint(UserDefinedType):
-    cache_ok = True
-
-    def get_col_spec(self, **_: Any) -> str:
-        return "geometry(Point,4326)"
-
-
-@compiles(PostGISPoint, "sqlite")
-def compile_sqlite_point(_: PostGISPoint, __, **___: Any) -> str:
-    return "TEXT"
+from app.db.base import Base, PostGISGeometry
 
 
 class TripSessionStatus(StrEnum):
@@ -130,7 +117,7 @@ class TripSession(Base):
     seal_reason: Mapped[str | None] = mapped_column(Text)
     trip_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,
@@ -183,7 +170,7 @@ class LocationPingBatch(Base):
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     batch_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,
@@ -335,10 +322,10 @@ class LocationPing(Base):
     speed_mps: Mapped[float | None] = mapped_column(Float)
     heading_degrees: Mapped[float | None] = mapped_column(Float)
     altitude_m: Mapped[float | None] = mapped_column(Float)
-    geom: Mapped[str] = mapped_column(PostGISPoint(), nullable=False)
+    geom: Mapped[str] = mapped_column(PostGISGeometry("Point", 4326), nullable=False)
     ping_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,

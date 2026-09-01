@@ -16,6 +16,7 @@ from sqlalchemy import (
     inspect,
     text,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -163,7 +164,9 @@ class DataSubjectLocationAssessment(Base):
     location: Mapped[str] = mapped_column(String(32), nullable=False)
     disposition: Mapped[str] = mapped_column(String(32), nullable=False)
     record_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    data_class_counts: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    data_class_counts: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
+    )
     evidence_reference: Mapped[str] = mapped_column(String(255), nullable=False)
     exception_reference: Mapped[str | None] = mapped_column(String(255))
     assessed_by_user_id: Mapped[UUID] = mapped_column(

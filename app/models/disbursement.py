@@ -18,6 +18,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -145,7 +146,9 @@ class PayoutBatchLine(Base):
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    instruction: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    instruction: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
+    )
     instruction_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     status: Mapped[str] = mapped_column(
@@ -219,7 +222,7 @@ class DriverCurrencyDebtAccount(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     driver_profile_id: Mapped[UUID] = mapped_column(
         ForeignKey("driver_profiles.id", ondelete="RESTRICT"), nullable=False
@@ -252,7 +255,7 @@ class PayoutDebtObligation(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     debt_account_id: Mapped[UUID] = mapped_column(
         ForeignKey("driver_currency_debt_accounts.id", ondelete="RESTRICT"), nullable=False
@@ -284,7 +287,7 @@ class PayoutDebtPaidSource(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     debt_obligation_id: Mapped[UUID] = mapped_column(
         ForeignKey("payout_debt_obligations.id", ondelete="RESTRICT"), nullable=False
@@ -313,7 +316,7 @@ class PayoutDebtSettlement(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     source_credit_entry_id: Mapped[UUID] = mapped_column(
         ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT"),
@@ -346,7 +349,7 @@ class PayoutDebtAllocation(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     settlement_id: Mapped[UUID] = mapped_column(
         ForeignKey("payout_debt_settlements.id", ondelete="RESTRICT"), nullable=False

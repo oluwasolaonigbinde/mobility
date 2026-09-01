@@ -8,12 +8,14 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
     func,
     text,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -52,6 +54,12 @@ class Vehicle(Base):
             "plate_number_normalized",
             name="uq_vehicles_plate_country_normalized",
         ),
+        Index("ix_vehicles_status", "status"),
+        Index(
+            "ix_vehicles_plate_country_normalized",
+            "plate_country_code",
+            "plate_number_normalized",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -75,7 +83,7 @@ class Vehicle(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     vehicle_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,

@@ -9,18 +9,38 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     Text,
     UniqueConstraint,
+    column,
     func,
     text,
 )
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql.functions import FunctionElement
 
 from app.db.base import Base
 from app.models.stored_file import StoredFile
+
+
+class CharacterLength(FunctionElement):
+    type = Integer()
+    inherit_cache = True
+
+
+@compiles(CharacterLength)
+def compile_character_length(element, compiler, **kwargs) -> str:
+    return f"char_length({compiler.process(element.clauses, **kwargs)})"
+
+
+@compiles(CharacterLength, "sqlite")
+def compile_sqlite_character_length(element, compiler, **kwargs) -> str:
+    return f"length({compiler.process(element.clauses, **kwargs)})"
 
 
 class CampaignStatus(StrEnum):
@@ -73,10 +93,8 @@ class Campaign(Base):
             "budget_amount IS NULL OR budget_amount >= 0",
             name="ck_campaigns_budget_amount_non_negative",
         ),
-        # Mirrors migration 0004's char_length CHECK; length() spells the same
-        # predicate on both PostgreSQL and SQLite (SQLite has no char_length).
         CheckConstraint(
-            "length(currency) = 3",
+            CharacterLength(column("currency")) == 3,
             name="ck_campaigns_currency_length",
         ),
         CheckConstraint(
@@ -92,6 +110,8 @@ class Campaign(Base):
             "start_at IS NULL OR end_at IS NULL OR start_at < end_at",
             name="ck_campaigns_date_range",
         ),
+        Index("ix_campaigns_organization_status", "organization_id", "status"),
+        Index("ix_campaigns_start_end", "start_at", "end_at"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -116,10 +136,12 @@ class Campaign(Base):
     end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     budget_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     daily_budget_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    currency: Mapped[str] = mapped_column(
+        String(3), server_default=text("'NGN'"), nullable=False
+    )
     campaign_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,
@@ -167,7 +189,6 @@ class CampaignReviewEvent(Base):
     id: Mapped[UUID] = mapped_column(
         primary_key=True,
         default=uuid4,
-        server_default=text("gen_random_uuid()"),
     )
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
@@ -224,6 +245,8 @@ class CampaignCreative(Base):
             name="ck_campaign_creatives_managed_asset_url",
         ),
         UniqueConstraint("stored_file_id", name="uq_campaign_creatives_stored_file"),
+        Index("ix_campaign_creatives_campaign_status", "campaign_id", "status"),
+        Index("ix_campaign_creatives_creative_type", "creative_type"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -253,7 +276,7 @@ class CampaignCreative(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     creative_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,

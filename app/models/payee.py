@@ -16,6 +16,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -145,7 +146,9 @@ class PayeeBankAccountVersion(Base):
         ForeignKey("payee_versions.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     version: Mapped[int] = mapped_column(Integer, nullable=False)
-    encrypted_details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    encrypted_details: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
+    )
     encryption_algorithm: Mapped[str] = mapped_column(String(32), nullable=False)
     encryption_key_version: Mapped[int] = mapped_column(Integer, nullable=False)
     verification_reference_sha256: Mapped[str] = mapped_column(String(64), nullable=False)

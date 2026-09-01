@@ -12,6 +12,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -39,7 +40,9 @@ class RetargetingSource(Base):
         ForeignKey("advertiser_organizations.id", ondelete="RESTRICT"), nullable=False
     )
     source_type: Mapped[str] = mapped_column(String(48), nullable=False)
-    snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
+    snapshot: Mapped[dict] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
+    )
     snapshot_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, server_default="active")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -70,7 +73,9 @@ class RetargetingSourceEvent(Base):
     )
     sequence_number: Mapped[int] = mapped_column(nullable=False)
     event_type: Mapped[str] = mapped_column(String(16), nullable=False)
-    snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
+    snapshot: Mapped[dict] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
+    )
     snapshot_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

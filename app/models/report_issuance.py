@@ -17,6 +17,7 @@ from sqlalchemy import (
     inspect,
     text,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -122,7 +123,9 @@ class ReportIssuance(Base):
         ForeignKey("report_issuances.id", ondelete="RESTRICT")
     )
     version: Mapped[int] = mapped_column(Integer, nullable=False)
-    snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    snapshot: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
+    )
     snapshot_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     authority_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     input_manifest_sha256: Mapped[str] = mapped_column(String(64), nullable=False)

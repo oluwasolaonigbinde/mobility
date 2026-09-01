@@ -3,24 +3,11 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Text, func, text
-from sqlalchemy.ext.compiler import compiles
+from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Index, Text, func, text
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.types import UserDefinedType
 
-from app.db.base import Base
-
-
-class PostGISMultiPolygon(UserDefinedType):
-    cache_ok = True
-
-    def get_col_spec(self, **_: Any) -> str:
-        return "geometry(MultiPolygon,4326)"
-
-
-@compiles(PostGISMultiPolygon, "sqlite")
-def compile_sqlite_multipolygon(_: PostGISMultiPolygon, __, **___: Any) -> str:
-    return "TEXT"
+from app.db.base import Base, PostGISGeometry
 
 
 class CampaignZoneType(StrEnum):
@@ -36,6 +23,8 @@ class CampaignZone(Base):
             "zone_type IN ('target', 'exclusion', 'bonus')",
             name="ck_campaign_zones_zone_type",
         ),
+        Index("ix_campaign_zones_campaign_zone_type", "campaign_id", "zone_type"),
+        Index("ix_campaign_zones_geom", "geom", postgresql_using="gist"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -56,10 +45,12 @@ class CampaignZone(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     zone_type: Mapped[str] = mapped_column(Text, nullable=False)
-    geom: Mapped[str] = mapped_column(PostGISMultiPolygon(), nullable=False)
+    geom: Mapped[str] = mapped_column(
+        PostGISGeometry("MultiPolygon", 4326), nullable=False
+    )
     zone_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,

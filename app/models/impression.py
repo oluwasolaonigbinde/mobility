@@ -17,6 +17,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -169,7 +170,7 @@ class TrafficDensityProfile(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     profile_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,
@@ -343,7 +344,7 @@ class ImpressionEstimate(Base):
     estimated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     estimate_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,

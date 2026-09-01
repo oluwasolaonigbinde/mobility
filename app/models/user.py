@@ -2,7 +2,17 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Integer, String, func, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -32,6 +42,8 @@ class User(Base):
             "status IN ('active', 'invited', 'suspended', 'disabled')",
             name="ck_users_status",
         ),
+        UniqueConstraint("email", name="uq_users_email"),
+        Index("ix_users_email", "email", unique=True),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -39,7 +51,7 @@ class User(Base):
         default=uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(32))

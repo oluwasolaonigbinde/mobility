@@ -41,7 +41,7 @@ class PasswordResetAttempt(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     email_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     ip_digest: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -61,7 +61,7 @@ class PasswordResetToken(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     attempt_id: Mapped[UUID] = mapped_column(
         ForeignKey("password_reset_attempts.id", ondelete="RESTRICT"), nullable=False
@@ -87,7 +87,7 @@ class DriverPhoneVersion(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     driver_profile_id: Mapped[UUID] = mapped_column(
         ForeignKey("driver_profiles.id", ondelete="RESTRICT"), nullable=False
@@ -128,14 +128,16 @@ class PhoneVerificationChallenge(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     phone_version_id: Mapped[UUID] = mapped_column(
         ForeignKey("driver_phone_versions.id", ondelete="RESTRICT"), nullable=False
     )
     code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
-    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    attempt_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -166,7 +168,7 @@ class WhatsappConsent(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     driver_profile_id: Mapped[UUID] = mapped_column(
         ForeignKey("driver_profiles.id", ondelete="RESTRICT"), nullable=False
@@ -206,7 +208,7 @@ class ManualDriverContactTask(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     driver_profile_id: Mapped[UUID] = mapped_column(
         ForeignKey("driver_profiles.id", ondelete="RESTRICT"), nullable=False

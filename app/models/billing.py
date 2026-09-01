@@ -18,6 +18,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -112,7 +113,7 @@ class CommercialQuoteRequest(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
@@ -124,7 +125,10 @@ class CommercialQuoteRequest(Base):
     )
     source: Mapped[str] = mapped_column(String(32), nullable=False)
     request_details: Mapped[dict[str, Any]] = mapped_column(
-        JSON, default=dict, server_default=text("'{}'"), nullable=False
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
+        default=dict,
+        server_default=text("'{}'"),
+        nullable=False,
     )
     requested_by_user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
@@ -171,7 +175,7 @@ class CommercialQuotationRevision(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     quote_request_id: Mapped[UUID] = mapped_column(
         ForeignKey("commercial_quote_requests.id", ondelete="RESTRICT"), nullable=False
@@ -185,12 +189,19 @@ class CommercialQuotationRevision(Base):
     revision_number: Mapped[int] = mapped_column(Integer, nullable=False)
     quote_reference: Mapped[str] = mapped_column(String(128), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    line_items: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
-    production_scope: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    line_items: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
+    )
+    production_scope: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
+    )
     production_cost_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     payment_class: Mapped[str] = mapped_column(String(40), nullable=False)
     payment_terms: Mapped[dict[str, Any]] = mapped_column(
-        JSON, default=dict, server_default=text("'{}'"), nullable=False
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
+        default=dict,
+        server_default=text("'{}'"),
+        nullable=False,
     )
     standard_production_wait_hours: Mapped[int] = mapped_column(
         Integer, default=24, server_default=text("24"), nullable=False
@@ -245,7 +256,7 @@ class CommercialTerms(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
@@ -259,11 +270,17 @@ class CommercialTerms(Base):
     quote_reference: Mapped[str] = mapped_column(String(128), nullable=False)
     quotation_revision_number: Mapped[int] = mapped_column(Integer, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    line_items: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
-    production_scope: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    line_items: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
+    )
+    production_scope: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
+    )
     production_cost_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     payment_class: Mapped[str] = mapped_column(String(40), nullable=False)
-    payment_terms: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    payment_terms: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
+    )
     standard_production_wait_hours: Mapped[int] = mapped_column(Integer, nullable=False)
     net_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     tax_rate: Mapped[Decimal] = mapped_column(Numeric(7, 6), nullable=False)
@@ -297,7 +314,7 @@ class PaymentReceipt(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     organization_id: Mapped[UUID] = mapped_column(
         ForeignKey("advertiser_organizations.id", ondelete="RESTRICT"), nullable=False, index=True
@@ -337,7 +354,7 @@ class ReceiptReconciliation(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     receipt_id: Mapped[UUID] = mapped_column(
         ForeignKey("payment_receipts.id", ondelete="RESTRICT"), nullable=False, index=True
@@ -377,7 +394,7 @@ class ReceiptLifecycleEvent(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     receipt_id: Mapped[UUID] = mapped_column(
         ForeignKey("payment_receipts.id", ondelete="RESTRICT"), nullable=False, index=True
@@ -406,7 +423,7 @@ class ReceiptAllocation(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     receipt_id: Mapped[UUID] = mapped_column(
         ForeignKey("payment_receipts.id", ondelete="RESTRICT"), nullable=False, index=True
@@ -442,7 +459,7 @@ class InvoiceIssuerProfile(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     legal_name: Mapped[str] = mapped_column(String(255), nullable=False)
     tax_identification_number: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -471,7 +488,7 @@ class InvoiceNumberSequence(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     number_prefix: Mapped[str] = mapped_column(String(64), nullable=False)
     calendar_year: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -505,7 +522,7 @@ class Invoice(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     commercial_terms_id: Mapped[UUID] = mapped_column(
         ForeignKey("commercial_terms.id", ondelete="RESTRICT"), nullable=False
@@ -521,9 +538,17 @@ class Invoice(Base):
     )
     invoice_number: Mapped[str | None] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(32), nullable=False)
-    customer_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    issuer_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True))
-    line_items: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    customer_snapshot: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
+    )
+    issuer_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON(none_as_null=True).with_variant(
+            postgresql.JSONB(none_as_null=True), "postgresql"
+        )
+    )
+    line_items: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
+    )
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     net_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     tax_rate: Mapped[Decimal] = mapped_column(Numeric(7, 6), nullable=False)
@@ -578,7 +603,7 @@ class CampaignFinancialAuthorization(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
@@ -621,7 +646,7 @@ class FinancialAuthorizationAllocation(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     authorization_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaign_financial_authorizations.id", ondelete="RESTRICT"), nullable=False
@@ -662,7 +687,7 @@ class CampaignLiabilityReservation(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
@@ -705,7 +730,7 @@ class ExpeditedProductionWaiver(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False
@@ -752,7 +777,7 @@ class ProductionStart(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False
@@ -789,7 +814,7 @@ class PaymentGatewayEvent(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     provider: Mapped[str] = mapped_column(String(64), nullable=False)
     provider_event_id: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -801,7 +826,9 @@ class PaymentGatewayEvent(Base):
     payer_name: Mapped[str] = mapped_column(String(255), nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     evidence_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
+    )
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
@@ -828,7 +855,7 @@ class PaymentGatewayProcessingAttempt(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     gateway_event_id: Mapped[UUID] = mapped_column(
         ForeignKey("payment_gateway_events.id", ondelete="RESTRICT"), nullable=False, index=True
@@ -869,7 +896,7 @@ class InvoiceCorrection(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     invoice_id: Mapped[UUID] = mapped_column(
         ForeignKey("invoices.id", ondelete="RESTRICT"), nullable=False, index=True
@@ -917,7 +944,7 @@ class RefundSettlement(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     commercial_terms_id: Mapped[UUID] = mapped_column(
         ForeignKey("commercial_terms.id", ondelete="RESTRICT"), nullable=False, index=True
@@ -989,7 +1016,7 @@ class BudgetPolicyEvaluation(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
@@ -1009,9 +1036,13 @@ class BudgetPolicyEvaluation(Base):
     alert_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     pause_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     resume_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    alert_applied: Mapped[bool] = mapped_column(nullable=False, default=False)
+    alert_applied: Mapped[bool] = mapped_column(
+        nullable=False, default=False, server_default=text("false")
+    )
     pause_applied: Mapped[bool] = mapped_column(nullable=False, default=False)
-    resume_allowed: Mapped[bool] = mapped_column(nullable=False, default=False)
+    resume_allowed: Mapped[bool] = mapped_column(
+        nullable=False, default=False, server_default=text("false")
+    )
     evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
@@ -1039,7 +1070,7 @@ class BudgetCampaignTransition(Base):
     )
 
     id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+        primary_key=True, default=uuid4
     )
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False

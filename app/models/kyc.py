@@ -226,7 +226,9 @@ class VehicleEvidenceSubmission(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     client_request_id: Mapped[UUID] = mapped_column(nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
-    snapshot_trusted: Mapped[bool] = mapped_column(nullable=False, default=True)
+    snapshot_trusted: Mapped[bool] = mapped_column(
+        nullable=False, default=True, server_default=text("false")
+    )
     plate_number_snapshot: Mapped[str] = mapped_column(String(32), nullable=False)
     plate_number_normalized_snapshot: Mapped[str] = mapped_column(String(32), nullable=False)
     plate_country_code_snapshot: Mapped[str] = mapped_column(String(2), nullable=False)

@@ -3,7 +3,18 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, String, func, text
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    UniqueConstraint,
+    func,
+    text,
+)
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -23,6 +34,10 @@ class DriverProfile(Base):
             "onboarding_status IN ('pending', 'active', 'suspended', 'rejected')",
             name="ck_driver_profiles_onboarding_status",
         ),
+        UniqueConstraint("user_id", name="uq_driver_profiles_user_id"),
+        Index("ix_driver_profiles_user_id", "user_id"),
+        Index("ix_driver_profiles_onboarding_status", "onboarding_status"),
+        Index("ix_driver_profiles_country_city", "country_code", "service_city"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -32,9 +47,7 @@ class DriverProfile(Base):
     )
     user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
-        unique=True,
         nullable=False,
-        index=True,
     )
     onboarding_status: Mapped[str] = mapped_column(String(32), nullable=False)
     license_number: Mapped[str | None] = mapped_column(String(128))
@@ -42,7 +55,7 @@ class DriverProfile(Base):
     country_code: Mapped[str | None] = mapped_column(String(2))
     profile_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,

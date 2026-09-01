@@ -21,6 +21,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -191,10 +192,12 @@ class CampaignPayoutRule(Base):
     high_fraud_multiplier: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
     hourly_rate_naira: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     daily_payable_hours_cap: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
-    eligibility_params: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    eligibility_params: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql")
+    )
     rule_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,
@@ -270,7 +273,7 @@ class CampaignPayoutRuleRevision(Base):
     premium_hourly_rate_naira: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     daily_payable_hours_cap: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
     eligibility_params: Mapped[dict[str, Any]] = mapped_column(
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,
@@ -331,29 +334,31 @@ class AssignmentRuleBinding(Base):
     premium_hourly_rate_naira: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     daily_payable_hours_cap: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
     eligibility_params: Mapped[dict[str, Any]] = mapped_column(
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,
     )
-    resolved_eligibility_params: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    resolved_eligibility_params: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql")
+    )
     formula_version: Mapped[str] = mapped_column(Text, nullable=False)
     # Campaign target-zone ids (as strings) frozen at binding time (PR11).
     premium_zone_ids: Mapped[list[Any]] = mapped_column(
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=list,
         server_default=text("'[]'"),
         nullable=False,
     )
     premium_zone_geometry_hash: Mapped[str] = mapped_column(Text, nullable=False)
     premium_zone_geometry_wkts: Mapped[list[Any]] = mapped_column(
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=list,
         server_default=text("'[]'"),
         nullable=False,
     )
     exclusion_zone_ids: Mapped[list[Any]] = mapped_column(
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=list,
         server_default=text("'[]'"),
         nullable=False,
@@ -365,7 +370,7 @@ class AssignmentRuleBinding(Base):
         nullable=False,
     )
     exclusion_zone_geometry_wkts: Mapped[list[Any]] = mapped_column(
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=list,
         server_default=text("'[]'"),
         nullable=False,
@@ -441,12 +446,16 @@ class PayoutCorrectionOrder(Base):
     approved_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
     executed_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
     reason: Mapped[str] = mapped_column(Text, nullable=False)
-    projected_delta: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    projected_delta: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql")
+    )
     projection_fingerprint: Mapped[str | None] = mapped_column(Text)
     projected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    execution_result: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    execution_result: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -601,7 +610,9 @@ class PayoutCalculation(Base):
     # day's own cap (RM1, D4/D14); this is the stored allocation the cap
     # accounting and recompute-day read back.
     payable_seconds_by_day: Mapped[dict[str, Any] | None] = mapped_column(JSON)
-    excluded_seconds_by_reason: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    excluded_seconds_by_reason: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql")
+    )
     inputs_fingerprint: Mapped[str | None] = mapped_column(Text)
     final_payout: Mapped[Decimal] = mapped_column(
         Numeric(14, 2),
@@ -612,7 +623,7 @@ class PayoutCalculation(Base):
     calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     payout_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,
@@ -709,7 +720,7 @@ class EarningsLedgerEntry(Base):
     )
     ledger_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
-        JSON,
+        JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,

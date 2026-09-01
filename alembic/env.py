@@ -2,6 +2,7 @@ import re
 from logging.config import fileConfig
 
 from sqlalchemy import pool
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
@@ -19,12 +20,30 @@ target_metadata = Base.metadata
 # are not declarative metadata; without this filter autogenerate would
 # propose dropping every partition.
 RUNTIME_PARTITION_NAME = re.compile(r"^location_pings_p\d{4}_\d{2}$|^location_pings_legacy$")
+EXTENSION_OWNED_TABLES = frozenset({"spatial_ref_sys"})
 
 
 def include_object(obj, name, type_, reflected, compare_to):  # noqa: ARG001
-    if type_ == "table" and name is not None and RUNTIME_PARTITION_NAME.match(name):
-        return False
+    if type_ == "table" and reflected and name is not None:
+        if name in EXTENSION_OWNED_TABLES or RUNTIME_PARTITION_NAME.match(name):
+            return False
     return True
+
+
+def compare_server_default(
+    context,  # noqa: ARG001
+    inspected_column,
+    metadata_column,  # noqa: ARG001
+    inspected_default,
+    metadata_default,  # noqa: ARG001
+    rendered_metadata_default,
+):
+    inspected_type = inspected_column.type
+    if isinstance(inspected_type, postgresql.JSON) and not isinstance(
+        inspected_type, postgresql.JSONB
+    ):
+        return inspected_default != rendered_metadata_default
+    return None
 
 
 def get_database_url() -> str:
@@ -41,6 +60,8 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         include_object=include_object,
+        compare_type=True,
+        compare_server_default=compare_server_default,
     )
 
     with context.begin_transaction():
@@ -52,6 +73,8 @@ def do_run_migrations(connection) -> None:
         connection=connection,
         target_metadata=target_metadata,
         include_object=include_object,
+        compare_type=True,
+        compare_server_default=compare_server_default,
     )
 
     with context.begin_transaction():

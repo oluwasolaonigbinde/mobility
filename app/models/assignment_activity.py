@@ -19,7 +19,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base
+from app.db.base import Base, JSONEmptyObjectServerDefault
 
 
 class AssignmentActivityFlagType(StrEnum):
@@ -135,7 +135,7 @@ class AssignmentActivityFlag(Base):
         "evidence",
         JSON,
         default=dict,
-        server_default=text("'{}'"),
+        server_default=JSONEmptyObjectServerDefault(),
         nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -193,7 +193,7 @@ class AssignmentActivityFlagEvent(Base):
     evidence: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         default=dict,
-        server_default=text("'{}'"),
+        server_default=JSONEmptyObjectServerDefault(),
         nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(
