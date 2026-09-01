@@ -47,7 +47,7 @@ the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
 **Current capacity assignment:** `R13, R34`
-**Current capacity justification:** `R13` owns the exact repeated-leading-dot grammar correction on its unchanged five-file lease. The owner-directed Claude Opus 5 / High integration session owns only `tests/test_audit_route_coverage.py`; R34's 38-file implementation is frozen and its overlapping test lease transferred. Two remaining visible sessions plan future chains read-only, so they add no mutation conflicts. R02/R09 remain held until R13 admission, and ready R25 remains reserved for the second Opus handoff once contracts release. Shared fixtures and this file remain controller-serialized.
+**Current capacity justification:** `R13` owns the exact repeated-leading-dot grammar correction on its unchanged five-file lease. The owner-directed Claude Opus 5 / High integration session owns only `tests/test_audit_route_coverage.py`; R34's 38-file implementation is frozen and its overlapping test lease transferred. One remaining visible session plans the future security/readiness chain read-only, so it adds no mutation conflict. R02/R09 remain held until R13 admission, and ready R25 remains reserved for the second Opus handoff once contracts release. Shared fixtures and this file remain controller-serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -1565,14 +1565,14 @@ durable ledger before changing a row.
 | R42 | PRV-005, PRV-006 | R41 | QUEUED | PASS — R42-P | PENDING | CP-PRIVACY PENDING |
 | R43 | PRV-007 | R42 | QUEUED | PASS — R43-P | PENDING | CP-PRIVACY PENDING |
 | R44 | AUD-005 | R16, R40 | QUEUED | PASS — R44-P | PENDING | CP-PRIVACY PENDING |
-| R45 | MET-003 | R04, R41 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
-| R46 | REP-001 | R45 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
-| R47 | MET-001, MET-002, MET-004, REP-002 | R41, R46 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
-| R48 | REP-003 | R47 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
-| R49 | REP-004 | R47, R48 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
-| R50 | REP-005 | R47, R49 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
-| R51 | REP-006 | R43, R49, R50 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
-| R52 | MET-006 | R51 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
+| R45 | MET-003 | R04, R41 | QUEUED | PASS — R45-P | PENDING | CP-REPORTING PENDING |
+| R46 | REP-001 | R45 | QUEUED | PASS — R46-P | PENDING | CP-REPORTING PENDING |
+| R47 | MET-001, MET-002, MET-004, REP-002 | R41, R46 | QUEUED | PASS — R47-P | PENDING | CP-REPORTING PENDING |
+| R48 | REP-003 | R47 | QUEUED | PASS — R48-P | PENDING | CP-REPORTING PENDING |
+| R49 | REP-004 | R47, R48 | QUEUED | PASS — R49-P | PENDING | CP-REPORTING PENDING |
+| R50 | REP-005 | R47, R49 | QUEUED | PASS — R50-P | PENDING | CP-REPORTING PENDING |
+| R51 | REP-006 | R43, R49, R50 | QUEUED | PASS — R51-P | PENDING | CP-REPORTING PENDING |
+| R52 | MET-006 | R51 | QUEUED | PASS — R52-P | PENDING | CP-REPORTING PENDING |
 | R53 | REL-005 | none | COMPLETE | PASS — R53-P | PASS — R53-M | CP-RELEASE PASS — R53-CP-RELEASE |
 | R54 | REL-006 | R12, R16, R53 | QUEUED | PASS — R54-P | PENDING | CP-RELEASE PENDING |
 | R55 | REL-004 | R03, R18, R48, R51, R54 | QUEUED | PASS — R55-P | PENDING | CP-RELEASE PENDING |
