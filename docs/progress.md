@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R34`
-**Current capacity justification:** the owner-directed Claude Opus 5 / High integration session owns only `tests/test_audit_route_coverage.py` to reconcile 12 inherited route registrations. R34's 38-file implementation is frozen and its overlapping test lease transferred; R13 has frozen and released its five-file lease for independent review. Four additional visible sessions plan future campaign/money, privacy/audit, reporting, and release/testing chains read-only, so they add no mutation conflicts. R02/R09 remain conflict-held until R13 admission, and ready R25 remains reserved for the second Opus handoff once the generated-contract lane releases. Shared fixtures and this file remain controller-serialized.
+**Current capacity assignment:** `R13, R34`
+**Current capacity justification:** `R13` owns the exact wrong-orientation quote and leading-empty dotted-path correction on its unchanged five-file lease. The owner-directed Claude Opus 5 / High integration session owns only `tests/test_audit_route_coverage.py`; R34's 38-file implementation is frozen and its overlapping test lease transferred. Five additional visible sessions plan future chains read-only, so they add no mutation conflicts. R02/R09 remain held until R13 admission, and ready R25 remains reserved for the second Opus handoff once contracts release. Shared fixtures and this file remain controller-serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -78,9 +78,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 now rolling across dependency-ready disjoint slices while all 29 non-executable
 findings retain their admitted dispositions.
-**Current checkpoint:** `PKG-10 / R34` — its audit-route integration correction
-runs while R13's exact quote/path privacy diff is independently reviewed and
-four future chains are planned. R02/R09 wait for R13; R25 waits for contracts.
+**Current checkpoint:** `PKG-10 / R13` — its final malformed quote/path boundary
+correction runs alongside R34 integration and five future-chain plans. R02/R09
+wait for R13; R25 waits for the generated-contract lane.
 
 ## Direct owner requests outside the package queue
 
@@ -1533,7 +1533,7 @@ durable ledger before changing a row.
 | R10 | AUT-005 | R08 | COMPLETE | PASS — R10-P | PASS — R10-M | CP-SECURITY PASS — R10-CP-SECURITY |
 | R11 | AUT-004 | R09 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
 | R12 | AUT-003, REL-003 | R11 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
-| R13 | SEC-001, PRV-008 | none | QUEUED | PASS — R13-P | PENDING | CP-PRIVACY PENDING |
+| R13 | SEC-001, PRV-008 | none | ACTIVE | PASS — R13-P | PENDING | CP-PRIVACY PENDING |
 | R14 | SEC-002, TST-004 | R12 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
 | R15 | GOV-006 | none | COMPLETE | PASS — R15-P | PASS — R15-M | CP-WORKERS PASS — R15-CP-WORKERS |
 | R16 | GOV-008 | none | COMPLETE | PASS — R16-P | PASS — R16-M | CP-CONTROL PASS — R16-CP-CONTROL |
