@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 71
+plan_revision: 72
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 162
+last_event_sequence: 163
 ---
 
 # Cardvert audit remediation programme
@@ -557,3 +557,4 @@ verification is complete.
 | 160 | 70 | 1 | DISPATCH_STARTED | Visible S09 began R24's bounded budget-resume epoch implementation after accepted R23. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; GPT-5.6 Sol/medium; no migration/contracts; terminal callback required |
 | 161 | 70 | 1 | DISPATCH_STARTED | Visible S12 began R34's reviewed signed/content-bound offline evidence protocol at actual head 0073. | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879`; GPT-5.6 Sol/high; exclusive migration/generated-contract/configuration lane; terminal callback required |
 | 162 | 71 | 1 | BASE_RECONCILED | R34's pinned HEAD advanced only by the controller's own dispatch receipt; permitted R34 targets remain clean and Alembic remains single-head 0073, so exact base `2e464d3` supersedes `2758070`. | no product/contract drift; authorize migration 0074 and unchanged reviewed R34 lease |
+| 163 | 72 | 1 | LEASE_EXPANDED | R34 may edit `tests/test_trips.py` solely to make the shared start helper send evidence protocol v2 and cover missing/old-version 409 rejection. | pre-write callback; no other scope or contract change; all R34 targets still clean |
