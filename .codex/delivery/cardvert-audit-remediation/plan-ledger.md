@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 74
+plan_revision: 75
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 168
+last_event_sequence: 169
 ---
 
 # Cardvert audit remediation programme
@@ -314,7 +314,7 @@ trigger and a newly reviewed authority amendment.
 | `/root/r10_diff_review` | S03 / R10 M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — strict bearer claims, refresh and route authority | released accepted R10 diff `de0c8d60...` | PASS |
 | task `01a05e7a-2699-79b2-9b63-e911dfe302ef` | S06 / R16 implementation | GPT-5.6 Sol/medium — bounded provider-port composition refactor | released accepted seven-file boundary diff | ACCEPTED |
 | task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R24 implementation; R25-R27 held | GPT-5.6 Sol/medium — bounded budget-resume epoch behavior | released exact two-file diff `0a6333b5...`; no migration/contract change | REVIEW |
-| pending reviewer | S09 / R24 M, MNY and CP-COMMERCIAL review | GPT-5.6 Sol/high — bounded money/idempotency admission | read-only exact `0a6333b5...` diff | RESERVED |
+| `/root/r24_review` | S09 / R24 M, MNY and CP-COMMERCIAL review | GPT-5.6 Sol/high — bounded money/idempotency admission | read-only exact `0a6333b5...` diff | ACTIVE |
 | `/root/r13_attempt3_review` | S05 / R13 repeat M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded parser and identifier-preservation boundary | released reviewed R13 diff `506dc438...` | FIX |
 | `/root/r16_diff_review` | S06 / R16 M, CONTRACT/control and CP-CONTROL review | GPT-5.6 Sol/medium — bounded provider-boundary refactor | released accepted seven-file diff | PASS |
 | task `01a05e84-2c02-7bf0-8c55-382766692aed` | S02 / R05-R07 aggregate plan and independent review | GPT-5.6 Sol/medium — read-only database-chain current-source planning | no mutation lease; R05/R07 plans pass | BLOCKED-OWNER |
@@ -564,3 +564,4 @@ verification is complete.
 | 166 | 74 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 7 reacquired the unchanged five-file privacy lease for safe bank authority and linear bounded scanning only. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/high; terminal callback required |
 | 167 | 74 | 1 | IMPLEMENTATION_RETURNED | S09/R24 released a two-file budget evaluation-epoch diff after resume/breach/retry red-green and real-PostgreSQL budget compatibility. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; frozen `0a6333b5...`; no migration, schema or contract movement |
 | 168 | 74 | 1 | DIFF_REVIEW_RESERVED | Frozen R24 reserved one independent minimal-change, money-specialist and CP-COMMERCIAL review. | GPT-5.6 Sol/high; read-only exact `0a6333b5...`; no mutation authority |
+| 169 | 75 | 1 | DIFF_REVIEW_STARTED | Frozen R24 entered independent adversarial minimal-change, money-specialist and CP-COMMERCIAL review. | `/root/r24_review`; GPT-5.6 Sol/high; read-only exact `0a6333b5...` diff |
