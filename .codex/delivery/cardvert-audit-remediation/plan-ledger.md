@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 36
+plan_revision: 37
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 84
+last_event_sequence: 85
 ---
 
 # Cardvert audit remediation programme
@@ -89,6 +89,12 @@ non-executable until the owner supplies the complete policy named below.
   shared surface and compatible partial-completion boundary; each constituent
   slice retains its own acceptance receipts and may unlock successors once
   admitted.
+- A visible task is reused for every compatible slice in its deterministic
+  session, normally carrying two or three slices where the partition and
+  dependencies permit. Dependency-held slices may be planned read-only in that
+  task, but they receive no mutation lease before their predecessors are
+  accepted. The controller monitors visible tasks at five-minute event-driven
+  intervals; no recurring automation or artificial batch boundary is created.
 - Each meaningful fix packet uses `$verified-feature-delivery`; a genuinely
   cohesive complex packet may use `$orchestrated-feature-delivery` only within
   the admitted outcomes and an isolated reviewed contract.
@@ -297,7 +303,7 @@ trigger and a newly reviewed authority amendment.
 | `/root/r15_re_review` | V02 / R15 repeat M and CP-WORKERS review | GPT-5.6 Sol/high — worker crash and claim/retry semantics | read-only frozen R15 diff | PASS |
 | `/root/r08_re_review` | V01 / R08 repeat M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — authorization concurrency, deadlock and evidence semantics | read-only frozen R08 diff | PASS |
 | `/root/r13_diff_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/xhigh — cross-sink PII and audit-authority semantics | read-only frozen R13 diff | FIX |
-| task `01a05e60-6ce7-7cb2-ac20-300ac5275d05` | S03 / R10 implementation | GPT-5.6 Sol/xhigh — strict bearer authentication and session authority | security/dependencies/minimum auth/tests/architecture lease | ACTIVE |
+| task `01a05e60-6ce7-7cb2-ac20-300ac5275d05` | S03 / R10 implementation; R09 and R11 held in the same session | GPT-5.6 Sol/xhigh — strict bearer authentication and session authority | R10 security/dependencies/minimum auth/tests/architecture lease; later slices have no mutation lease | ACTIVE |
 
 Implementation writers reserved/active: **3 / 3**. The exact disjoint-work
 justification is recorded above and in `docs/progress.md`. Review/inventory work
@@ -334,13 +340,15 @@ unresolved.
 
 ## Next scheduler action
 
-Monitor S03/R10, S05/R13 attempt 2 and S08/R32. V01/R08 and V02/R15 are
-accepted. Keep S07/R28 blocked on the recorded
-lifecycle-authority decision without freezing independent work. Monitor the
-read-only S08/R32-R33 and S12/R34-R37 plan/review tasks; R32 remains conflict-
-held behind R08's unintegrated `driver_applications.py` mutation surface. On every released slot,
-rescan the full graph and refill with the highest-priority ready, conflict-free
-session; R02 and R34 are ready, while R16/R10/S09 remain gated on accepted R08.
+Poll S03/R10, S05/R13 attempt 2, S08/R32 and the read-only S12/R34-R37 plan
+task at five-minute event-driven intervals. Keep S07/R28 blocked on the recorded
+lifecycle-authority decision without freezing independent work. Reuse each
+visible task for the next dependency-safe slice in its cohesive session; R09
+and R11 remain write-held behind accepted R10 and R09 respectively, and R33
+remains held behind accepted R32 and R05. On every released slot, rescan the
+full graph and refill with the highest-priority ready, conflict-free session;
+S01 begins with R02 once the shared-fixture conflict clears, while R34 remains
+ready but serialized behind R32's migration/contract authority.
 
 ## Material receipts
 
@@ -430,3 +438,4 @@ session; R02 and R34 are ready, while R16/R10/S09 remain gated on accepted R08.
 | 82 | 35 | 1 | DISPATCH_RESERVED | S08/R32 reserved the terminal-application model/migration/onboarding/email/schema/test/contract lease; R33 remains held. | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2`; GPT-5.6 Sol/high; disjoint from R10/R13 |
 | 83 | 36 | 1 | DISPATCH_STARTED | Visible S08/R32 acquired its exact terminal-application model/migration/onboarding/email/schema/test/contract lease; R33 remains held. | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2`; GPT-5.6 Sol/high; no worktree |
 | 84 | 36 | 1 | DISPATCH_STARTED | Visible S03/R10 acquired its strict bearer-claim security/dependencies/minimum-auth/tests/architecture lease. | task `01a05e60-6ce7-7cb2-ac20-300ac5275d05`; GPT-5.6 Sol/xhigh; no worktree |
+| 85 | 37 | 1 | SCHEDULER_POLICY_AMENDED | Owner required five-minute event-driven task polling and reuse of each visible task across the compatible slices in its deterministic session, normally two or three slices rather than one task per slice. | Existing S01-S29 partition retained unchanged; every slice keeps separate dependency, lease, verification and acceptance gates; no recurring automation |
