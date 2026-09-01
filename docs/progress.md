@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R13, R16, R32`
-**Current capacity justification:** `R13` owns only its four-file privacy parser/classifier correction; `R16` owns the audience-delivery provider port, dependency composition, new adapter package, focused tests, and only the fake-adapter import line in the existing synthetic workflow test; `R32` exclusively owns the terminal-application model/migration/onboarding service/API/schema/test and generated-contract lane. Their paths and domain authorities are disjoint. R02 remains temporarily conflict-held because mutating its shared fixture would invalidate R13's correction verification; R34 has a reviewed plan but remains serialized behind R32's migration and generated-contract lane. Central configuration, shared fixtures, and this file remain controller-serialized.
+**Current capacity assignment:** `R16, R23`
+**Current capacity justification:** `R16` owns the audience-delivery provider port, dependency composition, new adapter package, focused tests, and only the fake-adapter import line in the existing synthetic workflow test; `R23` exclusively owns its billing/refund-cancellation migration, model/schema/API, generated-contract and focused-test lane. Their paths and domain authorities are disjoint. R13 is frozen for read-only review. R02 and R09 remain temporarily conflict-held behind R13 verification/release; R34 has a reviewed plan but remains serialized behind R23's migration and generated-contract lane. Central configuration, shared fixtures, and this file remain controller-serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -78,11 +78,11 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 now rolling across dependency-ready disjoint slices while all 29 non-executable
 findings retain their admitted dispositions.
-**Current checkpoint:** `PKG-10 / R13` — bounded correction attempt 3 is the
-highest-priority implementation-active slice; R16 and R32 own the two disjoint
-lanes. R10 is accepted. R02 waits for R13/shared-fixture clearance;
-R34-R37 plans are accepted but the implementation lane waits for R32 to release
-migrations and generated contracts.
+**Current checkpoint:** `PKG-10 / R16` — provider-boundary implementation is
+the highest-priority active slice; R23 owns the disjoint migration/contract
+lane while R13 undergoes read-only admission review. R10 and R32 are accepted.
+R02 and R09 wait for R13 clearance; R34-R37 plans are accepted but their
+implementation lane is serialized behind R23.
 
 ## Direct owner requests outside the package queue
 
@@ -1530,11 +1530,11 @@ durable ledger before changing a row.
 | R06 | DB-002 | R02, R04, R05 | QUEUED | PENDING | PENDING | CP-DB PENDING |
 | R07 | DB-003 | R02, R04, R06 | QUEUED | PENDING | PENDING | CP-DB PENDING |
 | R08 | GOV-005 | none | COMPLETE | PASS — R08-P | PASS — R08-M | CP-SECURITY PASS — R08-CP-SECURITY |
-| R09 | GOV-007, AUT-001, AUT-002 | R10 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
+| R09 | GOV-007, AUT-001, AUT-002 | R10 | QUEUED | PASS — R09-P | PENDING | CP-SECURITY PENDING |
 | R10 | AUT-005 | R08 | COMPLETE | PASS — R10-P | PASS — R10-M | CP-SECURITY PASS — R10-CP-SECURITY |
 | R11 | AUT-004 | R09 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
 | R12 | AUT-003, REL-003 | R11 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
-| R13 | SEC-001, PRV-008 | none | ACTIVE | PASS — R13-P | PENDING | CP-PRIVACY PENDING |
+| R13 | SEC-001, PRV-008 | none | QUEUED | PASS — R13-P | PENDING | CP-PRIVACY PENDING |
 | R14 | SEC-002, TST-004 | R12 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
 | R15 | GOV-006 | none | COMPLETE | PASS — R15-P | PASS — R15-M | CP-WORKERS PASS — R15-CP-WORKERS |
 | R16 | GOV-008 | none | ACTIVE | PASS — R16-P | PENDING | CP-CONTROL PENDING |
@@ -1544,16 +1544,16 @@ durable ledger before changing a row.
 | R20 | MON-001, DB-007, MON-008 | R05, R18 | QUEUED | PENDING | PENDING | CP-MONEY PENDING |
 | R21 | MON-003 | R20 | QUEUED | PENDING | PENDING | CP-MONEY PENDING |
 | R22 | MON-004, MON-007, MON-009 | R20, R21 | QUEUED | PENDING | PENDING | CP-MONEY PENDING |
-| R23 | COM-001, COM-004 | R08 | QUEUED | PENDING | PENDING | CP-COMMERCIAL PENDING |
-| R24 | COM-002 | R08, R23 | QUEUED | PENDING | PENDING | CP-COMMERCIAL PENDING |
-| R25 | COM-003, COM-005 | R08, R24 | QUEUED | PENDING | PENDING | CP-COMMERCIAL PENDING |
-| R26 | COM-006 | R08, R25 | QUEUED | PENDING | PENDING | CP-COMMERCIAL PENDING |
-| R27 | COM-007 | R08, R26 | QUEUED | PENDING | PENDING | CP-COMMERCIAL PENDING |
+| R23 | COM-001, COM-004 | R08 | ACTIVE | PASS — R23-P | PENDING | CP-COMMERCIAL PENDING |
+| R24 | COM-002 | R08, R23 | QUEUED | PASS — R24-P | PENDING | CP-COMMERCIAL PENDING |
+| R25 | COM-003, COM-005 | R08, R24 | QUEUED | PASS — R25-P | PENDING | CP-COMMERCIAL PENDING |
+| R26 | COM-006 | R08, R25 | QUEUED | PASS — R26-P | PENDING | CP-COMMERCIAL PENDING |
+| R27 | COM-007 | R08, R26 | QUEUED | PASS — R27-P | PENDING | CP-COMMERCIAL PENDING |
 | R28 | CAM-001 | none | QUEUED | PENDING | PENDING | CP-CAMPAIGN PENDING |
 | R29 | CAM-002 | R04, R08, R28 | QUEUED | PENDING | PENDING | CP-CAMPAIGN PENDING |
 | R30 | CAM-003 | R29 | QUEUED | PENDING | PENDING | CP-CAMPAIGN PENDING |
 | R31 | CAM-004 | R18, R19, R30 | QUEUED | PENDING | PENDING | CP-CAMPAIGN PENDING |
-| R32 | ONB-002 | none | ACTIVE | PASS — R32-P | PENDING | CP-ONBOARDING PENDING |
+| R32 | ONB-002 | none | COMPLETE | PASS — R32-P | PASS — R32-M | CP-ONBOARDING PASS — R32-CP-ONBOARDING |
 | R33 | ONB-006 | R05, R32 | QUEUED | PASS — R33-P | PENDING | CP-ONBOARDING PENDING |
 | R34 | OFF-001 | R04 | QUEUED | PASS — R34-P | PENDING | CP-OFFLINE PENDING |
 | R35 | OFF-002, OFF-003 | R34 | QUEUED | PASS — R35-P | PENDING | CP-OFFLINE PENDING |
