@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 85
+plan_revision: 86
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 184
+last_event_sequence: 185
 ---
 
 # Cardvert audit remediation programme
@@ -316,7 +316,7 @@ trigger and a newly reviewed authority amendment.
 | `/root/r10_diff_review` | S03 / R10 M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — strict bearer claims, refresh and route authority | released accepted R10 diff `de0c8d60...` | PASS |
 | task `01a05e7a-2699-79b2-9b63-e911dfe302ef` | S06 / R16 implementation | GPT-5.6 Sol/medium — bounded provider-port composition refactor | released accepted seven-file boundary diff | ACCEPTED |
 | task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R24 correction attempt 2; R25-R27 held | GPT-5.6 Sol/high — bounded money epoch/race correction | released exact two-file diff `d4cbf20c...`; no migration/contract lease | REVIEW |
-| `/root/r24_review` | S09 / R24 attempt-2 M, MNY and CP-COMMERCIAL review | GPT-5.6 Sol/high — bounded money/idempotency admission | reserved read-only exact `d4cbf20c...` diff | RESERVED |
+| `/root/r24_review` | S09 / R24 attempt-2 M, MNY and CP-COMMERCIAL review | GPT-5.6 Sol/high — bounded money/idempotency admission | read-only exact `d4cbf20c...` diff | ACTIVE |
 | `/root/r24_review` | S09 / R24 M, MNY and CP-COMMERCIAL review | GPT-5.6 Sol/high — bounded money/idempotency admission | released reviewed exact `0a6333b5...` diff | FIX |
 | `/root/r13_attempt3_review` | S05 / R13 repeat M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded parser and identifier-preservation boundary | released reviewed R13 diff `506dc438...` | FIX |
 | `/root/r16_diff_review` | S06 / R16 M, CONTRACT/control and CP-CONTROL review | GPT-5.6 Sol/medium — bounded provider-boundary refactor | released accepted seven-file diff | PASS |
@@ -586,3 +586,4 @@ verification is complete.
 | 182 | 84 | 1 | IMPLEMENTATION_RETURNED | S09/R24 correction attempt 2 released its exact two-file diff after establishing causally ordered resume timestamps under the existing campaign lock and completing equal-time, authorization, retry and PostgreSQL resume/evaluation race evidence. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; frozen `d4cbf20c...`; 9 real-PostgreSQL budget passes; no migration, schema or contract change |
 | 183 | 84 | 1 | DIFF_REVIEW_RESERVED | Frozen R24 attempt 2 reserved repeat independent minimal-change, money-specialist and CP-COMMERCIAL review. | GPT-5.6 Sol/high; read-only exact `d4cbf20c...` diff; no mutation authority |
 | 184 | 85 | 1 | SCHEDULER_POLICY_AMENDED | Owner directed the next two safely ready implementation sessions after the current R13/R24/R34 set clears to run as visible Claude desktop Code sessions. | Opus 5 / High; saved Mobility `master`; no worktrees; exact graph, lease, review and authority boundaries unchanged |
+| 185 | 86 | 1 | DIFF_REVIEW_STARTED | Frozen R24 attempt 2 entered repeat independent adversarial minimal-change, money-specialist and CP-COMMERCIAL review. | reused `/root/r24_review`; GPT-5.6 Sol/high; read-only exact `d4cbf20c...` diff |
