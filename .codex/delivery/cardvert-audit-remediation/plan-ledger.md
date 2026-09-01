@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 104
+plan_revision: 105
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 220
+last_event_sequence: 221
 ---
 
 # Cardvert audit remediation programme
@@ -300,7 +300,7 @@ trigger and a newly reviewed authority amendment.
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
 | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 12 | GPT-5.6 Sol/high — malformed quote orientation and leading-path privacy correction | released exact five-file diff `b75a5d8f...` | REVIEW |
-| `/root/r13_attempt5_review` | S05 / R13 attempt-12 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — malformed quote/path privacy-security admission | reserved read-only exact `b75a5d8f...` diff | RESERVED |
+| `/root/r13_attempt5_review` | S05 / R13 attempt-12 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — malformed quote/path privacy-security admission | read-only exact `b75a5d8f...` diff | ACTIVE |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-11 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — quote/path privacy-security admission | released reviewed exact `a60288c2...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-10 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded Unicode/path privacy-security admission | released reviewed exact `203ef022...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-9 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded malformed-input privacy/security admission | released reviewed exact `cd1dd894...` diff | FIX |
@@ -632,3 +632,4 @@ verification is complete.
 | 218 | 103 | 1 | PLAN_REVIEW_PASSED | R54-P through R58-P passed as separate reviewed contracts for environment templates, mechanical release compatibility, authorization denial, deterministic time and real worker restart evidence; all remain dependency-held. | task `01a05ef6-ee2d-79e0-9e50-153b035d771e`; GPT-5.6 Sol/high; exact no-write confirmation |
 | 219 | 104 | 1 | IMPLEMENTATION_RETURNED | S05/R13 correction attempt 12 released its exact five-file diff after exhaustive six-symbol quote-orientation validation and leading-empty dotted-path rejection across all sinks. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; frozen `b75a5d8f...`; 32 final PostgreSQL/compatibility passes; no stage or commit |
 | 220 | 104 | 1 | DIFF_REVIEW_RESERVED | Frozen R13 attempt 12 reserved repeat independent minimal-change, security/privacy-specialist and CP-PRIVACY review. | GPT-5.6 Sol/high; read-only exact `b75a5d8f...` diff; no mutation authority |
+| 221 | 105 | 1 | DIFF_REVIEW_STARTED | Frozen R13 attempt 12 entered repeat independent adversarial minimal-change, security/privacy-specialist and CP-PRIVACY review. | reused `/root/r13_attempt5_review`; GPT-5.6 Sol/high; read-only exact `b75a5d8f...` diff |
