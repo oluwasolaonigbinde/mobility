@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 52
+plan_revision: 53
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 124
+last_event_sequence: 125
 ---
 
 # Cardvert audit remediation programme
@@ -313,7 +313,7 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R23 implementation; R24-R27 held | GPT-5.6 Sol/medium — bounded frozen-refund implementation | R23 billing/model/cancellation/schema/API/migration/generated-contract/test lease plus `tests/test_pkg03_pro_corrections.py`; later slices have no mutation lease | ACTIVE |
 | `/root/r13_attempt3_review` | S05 / R13 repeat M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded parser and identifier-preservation boundary | released reviewed R13 diff `506dc438...` | FIX |
 | `/root/r16_diff_review` | S06 / R16 M, CONTRACT/control and CP-CONTROL review | GPT-5.6 Sol/medium — bounded provider-boundary refactor | read-only exact seven-file frozen diff | ACTIVE |
-| S02 planning reservation | R05-R07 aggregate plan and independent review | GPT-5.6 Sol/medium — read-only database-chain current-source planning | no mutation lease | RESERVED |
+| task `01a05e84-2c02-7bf0-8c55-382766692aed` | S02 / R05-R07 aggregate plan and independent review | GPT-5.6 Sol/medium — read-only database-chain current-source planning | no mutation lease | PLANNING |
 
 Implementation writers reserved/active: **2 / 3**, currently S05/R13 and
 S09/R23. R16 is frozen for read-only admission review. R02 remains temporarily
@@ -500,3 +500,4 @@ verification is complete.
 | 122 | 51 | 1 | IMPLEMENTATION_RETURNED | S06/R16 released its exact provider-port/composition diff with public adapter ownership, unchanged disabled/fake behavior and no live provider or contract change. | task `01a05e7a-2699-79b2-9b63-e911dfe302ef`; seven files; callback patch `335ed021...`; 16 focused/synthetic passes and adjacent 48 passes |
 | 123 | 51 | 1 | DIFF_REVIEW_STARTED | Frozen R16 entered independent minimal-change, contract/control-specialist and CP-CONTROL review at the ordinary Sol/medium gate. | `/root/r16_diff_review`; read-only exact seven-file diff |
 | 124 | 52 | 1 | PLAN_DISPATCH_RESERVED | S02/R05-R07 reserved one visible read-only aggregate planning session while the third writer slot is blocked by active R13/R23 conflicts. | GPT-5.6 Sol/medium; no mutation lease; later high-risk implementation/review gates remain slice-bounded |
+| 125 | 53 | 1 | PLAN_DISPATCH_STARTED | One visible S02 task began aggregate read-only planning and independent review for R05-R07. | task `01a05e84-2c02-7bf0-8c55-382766692aed`; GPT-5.6 Sol/medium; shared checkout, no worktree or mutation lease; terminal callback required |
