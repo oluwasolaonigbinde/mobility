@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 103
+plan_revision: 104
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 218
+last_event_sequence: 220
 ---
 
 # Cardvert audit remediation programme
@@ -195,7 +195,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R10 | AUT-005 | ACCEPTED | R08 | R10-P/M/SEC/CP-SECURITY; strict-claim and route-graph evidence | complete |
 | R11 | AUT-004 | BLOCKED-OWNER | R09; logout policy | plan review confirmed current-device documentation conflicts with schema-free global revocation | owner must choose visible sign-out-everywhere or per-session identity/migration authority |
 | R12 | AUT-003, REL-003 | QUEUED | R11 | — | wait |
-| R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P; attempts 1-11 reviews FIX; attempt 11 `a60288c2...` | validate any admitted quote symbol at either boundary and reject leading-empty dotted keys |
+| R13 | SEC-001, PRV-008 | REVIEW | sensitive-metadata opener | R13-P; attempts 1-11 reviews FIX; attempt 12 frozen `b75a5d8f...` | run exact repeat R13-M/SEC/PRV/CP-PRIVACY review |
 | R14 | SEC-002, TST-004 | QUEUED | R12 | — | wait |
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | ACCEPTED | provider-boundary opener | R16-P/M/CONTRACT/CP-CONTROL; structural and behavioral evidence | complete |
@@ -299,7 +299,8 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 12 | GPT-5.6 Sol/high — malformed quote orientation and leading-path privacy correction | unchanged five-file R13 lease | ACTIVE |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 12 | GPT-5.6 Sol/high — malformed quote orientation and leading-path privacy correction | released exact five-file diff `b75a5d8f...` | REVIEW |
+| `/root/r13_attempt5_review` | S05 / R13 attempt-12 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — malformed quote/path privacy-security admission | reserved read-only exact `b75a5d8f...` diff | RESERVED |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-11 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — quote/path privacy-security admission | released reviewed exact `a60288c2...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-10 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded Unicode/path privacy-security admission | released reviewed exact `203ef022...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-9 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded malformed-input privacy/security admission | released reviewed exact `cd1dd894...` diff | FIX |
@@ -332,8 +333,8 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e84-2c02-7bf0-8c55-382766692aed` | S02 / R05-R07 aggregate plan and independent review | GPT-5.6 Sol/medium — read-only database-chain current-source planning | no mutation lease; R05/R07 plans pass | BLOCKED-OWNER |
 | `/root/r13_attempt4_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy boundary | released reviewed R13 diff `6753a823...` | FIX |
 
-Implementation writers reserved/active: **2 / 3**, reserved S05/R13 attempt 12
-plus active Claude R34 integration; S12/R34 is frozen. R24 is accepted and ready R25 is held for the owner-directed
+Implementation writers reserved/active: **1 / 3**, active Claude R34 integration;
+S05/R13 and S12/R34 are frozen. R24 is accepted and ready R25 is held for the owner-directed
 next Opus handoff. R02 remains temporarily
 conflict-held because its shared-fixture mutation would invalidate R13's final
 admission verification; R09 also waits for R13's audit/admin seam to release. S12/R34
@@ -629,3 +630,5 @@ verification is complete.
 | 216 | 101 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 12 on the unchanged five-file lease, limited to validating every admitted quote symbol at either boundary and rejecting leading-empty assignment-shaped dotted keys. | GPT-5.6 Sol/high; approved exact quote pairs/safe-bank exceptions unchanged; repeat review required |
 | 217 | 102 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 12 reacquired the unchanged five-file privacy lease for wrong-orientation admitted quote and leading-empty dotted-path handling only. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/high; terminal callback required |
 | 218 | 103 | 1 | PLAN_REVIEW_PASSED | R54-P through R58-P passed as separate reviewed contracts for environment templates, mechanical release compatibility, authorization denial, deterministic time and real worker restart evidence; all remain dependency-held. | task `01a05ef6-ee2d-79e0-9e50-153b035d771e`; GPT-5.6 Sol/high; exact no-write confirmation |
+| 219 | 104 | 1 | IMPLEMENTATION_RETURNED | S05/R13 correction attempt 12 released its exact five-file diff after exhaustive six-symbol quote-orientation validation and leading-empty dotted-path rejection across all sinks. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; frozen `b75a5d8f...`; 32 final PostgreSQL/compatibility passes; no stage or commit |
+| 220 | 104 | 1 | DIFF_REVIEW_RESERVED | Frozen R13 attempt 12 reserved repeat independent minimal-change, security/privacy-specialist and CP-PRIVACY review. | GPT-5.6 Sol/high; read-only exact `b75a5d8f...` diff; no mutation authority |
