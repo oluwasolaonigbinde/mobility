@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 60
+plan_revision: 61
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 139
+last_event_sequence: 140
 ---
 
 # Cardvert audit remediation programme
@@ -311,7 +311,7 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e60-6ce7-7cb2-ac20-300ac5275d05` | S03 / R09-R11 planning after accepted R10 | GPT-5.6 Sol/medium for planning | no mutation lease; R09 plan PASS, R11 plan BLOCKED-OWNER | PLAN-RETURNED |
 | `/root/r10_diff_review` | S03 / R10 M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — strict bearer claims, refresh and route authority | released accepted R10 diff `de0c8d60...` | PASS |
 | task `01a05e7a-2699-79b2-9b63-e911dfe302ef` | S06 / R16 implementation | GPT-5.6 Sol/medium — bounded provider-port composition refactor | released accepted seven-file boundary diff | ACCEPTED |
-| task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R23 implementation; R24-R27 held | GPT-5.6 Sol/medium — bounded frozen-refund implementation | R23 billing/model/cancellation/schema/API/migration/generated-contract/test lease plus `tests/test_pkg03_pro_corrections.py` and the exact stale settlement fixture in `frontend/src/lib/billing/commercial-history.test.tsx`; later slices have no mutation lease | RESUME-RESERVED |
+| task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R23 implementation; R24-R27 held | GPT-5.6 Sol/medium — bounded frozen-refund implementation | R23 billing/model/cancellation/schema/API/migration/generated-contract/test lease plus `tests/test_pkg03_pro_corrections.py` and the exact stale settlement fixture in `frontend/src/lib/billing/commercial-history.test.tsx`; later slices have no mutation lease | ACTIVE |
 | `/root/r13_attempt3_review` | S05 / R13 repeat M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded parser and identifier-preservation boundary | released reviewed R13 diff `506dc438...` | FIX |
 | `/root/r16_diff_review` | S06 / R16 M, CONTRACT/control and CP-CONTROL review | GPT-5.6 Sol/medium — bounded provider-boundary refactor | released accepted seven-file diff | PASS |
 | task `01a05e84-2c02-7bf0-8c55-382766692aed` | S02 / R05-R07 aggregate plan and independent review | GPT-5.6 Sol/medium — read-only database-chain current-source planning | no mutation lease; R05/R07 plans pass | BLOCKED-OWNER |
@@ -524,3 +524,4 @@ verification is complete.
 | 137 | 59 | 1 | PLAN_DISPATCH_STARTED | Visible S01 began aggregate current-source planning and independent review for R02-R03-R17 with R02-P preserved as the accepted baseline. | task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d`; GPT-5.6 Sol/medium; read-only shared checkout; terminal callback required |
 | 138 | 60 | 1 | IMPLEMENTATION_BLOCKED | R23 froze after all PostgreSQL, migration, contract-regeneration and R14-B evidence passed because one typed frontend test fixture omitted the two new required-nullable settlement provenance fields. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; frozen `25d57751...`; no out-of-lease edit |
 | 139 | 60 | 1 | LEASE_EXPANDED | R23 may update only the `SettlementRead` sample in `frontend/src/lib/billing/commercial-history.test.tsx` to supply truthful nullable `cancellation_id` and `eligibility_evaluated_at` fields required by the regenerated contract. | exact stale fixture only; no UI behavior, production frontend, schema or wider test expansion; resume at Sol/medium |
+| 140 | 61 | 1 | DISPATCH_RESUMED | Visible S09/R23 resumed for the exact typed settlement-fixture correction and final frozen verification. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; GPT-5.6 Sol/medium; terminal callback required |
