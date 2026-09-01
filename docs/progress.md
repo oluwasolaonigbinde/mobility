@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R34`
-**Current capacity justification:** The owner-directed Claude Opus 5 / High integration session owns only `tests/test_audit_route_coverage.py`; R34's 38-file implementation is frozen and its overlapping test lease transferred. R13 is accepted and its five-file lease is released. R09 is reserved as the next disjoint Opus session; R02 remains held against R34's configuration/test surfaces, and R25 remains held against R34's generated contracts. Shared fixtures and this file remain controller-serialized.
+**Current capacity assignment:** `R09, R34`
+**Current capacity justification:** The first owner-directed Opus session completed the single-file audit-registry correction, and its lease returned to the resumed R34 owner for integrated verification. The second Opus 5 / High session owns only R09 auth/user command and focused test paths; it excludes the audit registry and is disjoint from R34's trip/offline/migration/contract surfaces. R02 remains held against R34's configuration/test surfaces, and R25 remains held against R34's generated contracts. Shared fixtures and this file remain controller-serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -78,10 +78,10 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 now rolling across dependency-ready disjoint slices while all 29 non-executable
 findings retain their admitted dispositions.
-**Current checkpoint:** `PKG-10 / R34` — its inherited audit-route integration
-runs in the first owner-requested Opus session. Accepted R13 released the auth
-and audit seam; R09 is reserved for the second disjoint Opus session. R02 and
-R25 remain held against R34's central surfaces.
+**Current checkpoint:** `PKG-10 / R34` — its corrected audit registry is green
+and the Sol/high owner is rerunning the integrated OFF-001 gates. The second
+owner-requested Opus session implements disjoint R09 auth commands. R02 and R25
+remain held against R34's central surfaces.
 
 ## Direct owner requests outside the package queue
 
@@ -1530,7 +1530,7 @@ durable ledger before changing a row.
 | R06 | DB-002 | R02, R04, R05 | QUEUED | PENDING | PENDING | CP-DB PENDING |
 | R07 | DB-003 | R02, R04, R06 | QUEUED | PASS — R07-P | PENDING | CP-DB PENDING |
 | R08 | GOV-005 | none | COMPLETE | PASS — R08-P | PASS — R08-M | CP-SECURITY PASS — R08-CP-SECURITY |
-| R09 | GOV-007, AUT-001, AUT-002 | R10 | QUEUED | PASS — R09-P | PENDING | CP-SECURITY PENDING |
+| R09 | GOV-007, AUT-001, AUT-002 | R10 | ACTIVE | PASS — R09-P | PENDING | CP-SECURITY PENDING |
 | R10 | AUT-005 | R08 | COMPLETE | PASS — R10-P | PASS — R10-M | CP-SECURITY PASS — R10-CP-SECURITY |
 | R11 | AUT-004 | R09 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
 | R12 | AUT-003, REL-003 | R11 | QUEUED | PASS — R12-P | PENDING | CP-SECURITY PENDING |
