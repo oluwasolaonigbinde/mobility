@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 98
+plan_revision: 99
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 212
+last_event_sequence: 213
 ---
 
 # Cardvert audit remediation programme
@@ -300,7 +300,7 @@ trigger and a newly reviewed authority amendment.
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
 | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 11 | GPT-5.6 Sol/high — quote-pair and dotted-sensitive-path privacy correction | released exact five-file diff `a60288c2...` | REVIEW |
-| `/root/r13_attempt5_review` | S05 / R13 attempt-11 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — quote/path privacy-security admission | reserved read-only exact `a60288c2...` diff | RESERVED |
+| `/root/r13_attempt5_review` | S05 / R13 attempt-11 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — quote/path privacy-security admission | read-only exact `a60288c2...` diff | ACTIVE |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-10 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded Unicode/path privacy-security admission | released reviewed exact `203ef022...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-9 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded malformed-input privacy/security admission | released reviewed exact `cd1dd894...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-8 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `12ec7aa9...` diff | FIX |
@@ -622,3 +622,4 @@ verification is complete.
 | 210 | 98 | 1 | PLAN_DISPATCH_STARTED | Visible S15-S19 task began read-only aggregate planning for R38-R44. | task `01a05ef6-92fc-7df1-bd39-50e8c2fee530`; GPT-5.6 Sol/high; no mutation lease or worktree |
 | 211 | 98 | 1 | PLAN_DISPATCH_STARTED | Visible S20-S22 task began read-only aggregate planning for R45-R52. | task `01a05ef6-c545-7401-8114-4afe32fc9bf7`; GPT-5.6 Sol/high; no mutation lease or worktree |
 | 212 | 98 | 1 | PLAN_DISPATCH_STARTED | Visible S23-S27 task began read-only aggregate planning for R54-R58. | task `01a05ef6-ee2d-79e0-9e50-153b035d771e`; GPT-5.6 Sol/high; no mutation lease or worktree |
+| 213 | 99 | 1 | DIFF_REVIEW_STARTED | Frozen R13 attempt 11 entered repeat independent adversarial minimal-change, security/privacy-specialist and CP-PRIVACY review. | reused `/root/r13_attempt5_review`; GPT-5.6 Sol/high; read-only exact `a60288c2...` diff |
