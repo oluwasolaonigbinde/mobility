@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 121
+plan_revision: 122
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 245
+last_event_sequence: 246
 ---
 
 # Cardvert audit remediation programme
@@ -659,3 +659,4 @@ verification is complete.
 | 243 | 119 | 1 | ADMISSION_REVIEW_FIX | R34 collapses authoritative End statuses `ended` and `sealed`, then deletes encrypted recovery receipts from locally complete trips even when the server has not sealed/verified the evidence. | independent Sol/high scope review `/root/r34_scope_review`; exact current 38-file bytes; D25/architecture §35 recovery-authority violation |
 | 244 | 120 | 1 | DISPATCH_RESUMED | Visible S12/R34 reacquired its existing frontend action/tracker and test lease solely to preserve receipts on authoritative `ended`, delete only after `sealed` or successful reconcile, and add red/green lifecycle coverage. | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879`; GPT-5.6 Sol/high; R09 and controller files remain excluded; repeat frozen review required |
 | 245 | 121 | 1 | ADMISSION_REVIEW_FIX | R34's evidence keyring accepts noncanonical version aliases such as `1` and `01`, then integer conversion silently chooses one key by JSON order and breaks durable receipt-verification provenance. | independent Sol/high scope review `/root/r34_scope_review`; existing config/test lease only; require canonical positive-decimal keys and both-order rejection regression |
+| 246 | 122 | 1 | ADMISSION_REVIEW_FIX | PostgreSQL permits direct deletion of a signed live evidence batch and cascades away its signed pings while the trip-level manifest receipt remains valid. | independent Sol/high scope review `/root/r34_scope_review`; fresh isolated 0074 database reproduced `DELETE_SUCCEEDED`; existing migration/test lease must protect signed parent deletion and add exact regression |
