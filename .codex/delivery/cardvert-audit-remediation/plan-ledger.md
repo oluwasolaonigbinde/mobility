@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 76
+plan_revision: 77
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 171
+last_event_sequence: 172
 ---
 
 # Cardvert audit remediation programme
@@ -300,7 +300,7 @@ trigger and a newly reviewed authority amendment.
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
 | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 7 | GPT-5.6 Sol/high — bounded cross-sink privacy/performance correction | released exact frozen five-file diff `16f1b2b8...` | REVIEW |
-| pending reviewer | S05 / R13 attempt-7 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | read-only exact `16f1b2b8...` diff | RESERVED |
+| `/root/r13_attempt5_review` | S05 / R13 attempt-7 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | read-only exact `16f1b2b8...` diff | ACTIVE |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-6 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `08d04f8c...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-5 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `6e171d42...` diff | FIX |
 | task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d` | S01 / R02-R03-R17 aggregate current-source plan | GPT-5.6 Sol/medium — CI, contract and coverage planning without mutation | no mutation lease; R02 baseline and R03 plan pass | BLOCKED-OWNER |
@@ -568,3 +568,4 @@ verification is complete.
 | 169 | 75 | 1 | DIFF_REVIEW_STARTED | Frozen R24 entered independent adversarial minimal-change, money-specialist and CP-COMMERCIAL review. | `/root/r24_review`; GPT-5.6 Sol/high; read-only exact `0a6333b5...` diff |
 | 170 | 76 | 1 | IMPLEMENTATION_RETURNED | S05/R13 correction attempt 7 released an exact five-file diff after preserving safe bank authority and replacing repeated suffix rescans with one-pass bounded assignment handling. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; frozen `16f1b2b8...`; 28 final compatibility passes; no stage or commit |
 | 171 | 76 | 1 | DIFF_REVIEW_RESERVED | Frozen R13 attempt 7 reserved repeat independent minimal-change, security/privacy-specialist and CP-PRIVACY review. | GPT-5.6 Sol/high; read-only exact `16f1b2b8...`; no mutation authority |
+| 172 | 77 | 1 | DIFF_REVIEW_STARTED | Frozen R13 attempt 7 entered repeat independent adversarial minimal-change, security/privacy-specialist and CP-PRIVACY review. | reused `/root/r13_attempt5_review`; GPT-5.6 Sol/high; read-only exact `16f1b2b8...` diff |
