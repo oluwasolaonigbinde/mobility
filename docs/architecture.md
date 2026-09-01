@@ -333,6 +333,13 @@ callers authenticated by signature, not JWT; nothing else may join that namespac
   every request; a password change increments it, invalidating all outstanding
   tokens except the fresh one returned by the change-password flow
   (`SESSION_REVOKED` / `SESSION_EXPIRED` error codes).
+- **Strict bearer claims (R10):** every protected bearer request requires the
+  complete signed claim set above. `sub` is the canonical lower-case hyphenated UUID
+  string; `exp`, `iat`, `auth_time`, and positive `sv` are exact integers (no
+  boolean, float, string, or null coercion); and timestamps must be representable
+  with `auth_time <= iat < exp`, a non-future `iat`, and a future `exp`.
+  Invalid claims use the stable 401 `INVALID_TOKEN` envelope, including refresh
+  if expiry is crossed before its second decode.
 - **`POST /api/v1/auth/change-password` (F7):** requires the current password,
   refuses reuse, enforces min length, bumps `sv`, returns a fresh token.
   Current-password guesses share the login rate-limit buckets (refunded once
@@ -341,11 +348,6 @@ callers authenticated by signature, not JWT; nothing else may join that namespac
 - **`must_change_password` (F7):** set on admin-created users; every endpoint
   outside `{/me, /auth/change-password, /auth/refresh}` returns 403
   `PASSWORD_CHANGE_REQUIRED` until the password is replaced.
-- **Legacy-token handling (F7, deliberate):** pre-F7 tokens without `sv`/
-  `auth_time` still authenticate until their own `exp` (≤60 min), but are
-  refused by `/auth/refresh` and are not revocable by password change —
-  accepted residual risk bounded by the old token lifetime; `JWT_SECRET_KEY`
-  rotation is the break-glass (runbook).
 - **Login rate limiting (F7):** Redis-backed, per-account 5/15 min, per-IP
   150/5 min, global 250/5 min, atomic Lua reserve/refund, **fail-open** when
   Redis is down; trusted-client-IP header honored only behind the documented
@@ -820,9 +822,10 @@ delivery-control files; matching pull requests use the same path filters).
 - Bearer JWT (HS256, `{sub, exp, iat, auth_time, sv}`), 60-min sliding lifetime
   under a **12h absolute cap**, argon2 passwords, min length 12 — full detail
   in §6.3.
-- **Revocation:** password change bumps `session_version`, rejecting every
-  outstanding token for that user on the next request. Legacy sv-less tokens
-  remain valid until their own `exp` (deliberate, bounded — §6.3).
+- **Strict verification and revocation:** every protected bearer request requires
+  the exact, complete, ordered claim contract from §6.3. Password change bumps
+  `session_version`, rejecting every outstanding token for that user on the
+  next request; incomplete legacy tokens no longer authenticate.
 - **Forced password change:** admin-created users are 403-gated to the
   change-password flow (`/change-password`, `/driver/change-password`).
 - **Login rate limiting:** Redis Lua reserve/refund — per-account 5/15 min
@@ -2620,6 +2623,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.75 | 2026-09-01 | **R10 strict bearer claim contract delivered without changing session policy.** Protected bearer routes now share one immutable validated claim shape requiring canonical UUID `sub`, exact integer `exp`/`iat`/`auth_time`/positive `sv`, representable epochs, existing current-time boundaries and `auth_time <= iat < exp`. Missing, null, coercible, malformed, noncanonical, expired, future or misordered claims fail through the existing 401 `INVALID_TOKEN` envelope, including refresh when its second decode crosses expiry. The live FastAPI dependency graph proves every bearer route reaches the central validator; current issuance, 60-minute token lifetime, 12-hour absolute cap, database status/version checks, refresh success, public routes and authorization remain unchanged. |
 | v1.74 | 2026-08-28 | **W4-03A provider-neutral release preparation delivered; live gate remains.** Digest-pinned base images plus exact-version/hash-locked Python and npm dependency graphs remove release-host dependency drift. Standalone immutable-image production Compose exposes only the TLS edge and keeps API/frontend/PostGIS/Redis/worker private while preserving Package 1–8 controls; preflight rejects missing/placeholder/weak secrets, unsafe origin/CORS/test/proxy settings, mutable images and revision-label mismatch. Durable ordered release state binds revision/images/config/previous release; first-release bootstrap, authenticated backup retry, forward migration, layered readiness, compatibility canary, smoke and failure-closed traffic are explicit. Writer-quiesced PostGIS plus versioned private objects are authenticated, encrypted and atomically completed; isolated restore verifies completion marker, embedded state, database/object agreement and a known compatible migration revision. Edge/API/worker JSON correlation scrubs structured arguments and private facts. A disposable exact-image PostGIS/Redis/MinIO rehearsal passed migration 0001→0071, first-release retry, readiness, 100-request load, encrypted backup, repeated isolated restore and authenticated recovery through a distinct pre-0071 image while retaining the forward schema. No API/schema/model or §9 baseline moved. `EXT-RELEASE-ENV`, `EXT-STAGING-APPROVAL`, `DV-STAGING-LIVE`, provider alerts/off-host scheduling and previous-release live compatibility remain unrun external gates; W4-03A is not claimed complete. |
 | v1.73 | 2026-08-28 | **W4-02B bounded CSV/PDF issuance delivered without opening live or segment export.** Migration `0071` adds durable report jobs, append-only version lineage and immutable artifact links through generated private stored files. Frozen W4-02A performance/conditional-financial/disclosure provenance drives deterministic bounded renderers; replay/concurrency, lease recovery, pair publication, no-overwrite object storage, tamper checks and request/publication/status/download authorization fail closed. Report exports are unreachable through generic file routes, and linked stored-file evidence cannot mutate or delete. Advertiser request/status/download/reissue UI uses same-origin typed contracts and retries a lost response with the exact persisted request identity. Focused PostgreSQL, migration/autogenerate, worker/storage/OpenAPI, real MinIO conditional-write race, 14 report UI/BFF, 99 preserved R14-B, type/lint/format/build, byte-stable §9 regeneration and Poppler-rendered PDF evidence pass. Performance-only artifacts contain no ROI wording; qualified ROI stays synthetic test-only. W4-02A and W4-01 remain unchanged; `EXT-REPORT-METHOD` and `EXT-LEGAL-PRIVACY` still gate live issuance and Q31 segment export remains disabled. |
 | v1.72 | 2026-08-28 | **W4-02A governed maps and Campaign Performance Analysis delivered without widening Package 5 authority or live-use claims.** Advertiser report/map surfaces now require one reproducible frozen run/result authority and validate period, formula, method, proof, metric-set, exposure-score and conditional-ROI consistency before rendering. Performance-only output contains no ROI text; qualified ROI appears only with a matching frozen method revision and test-only results remain labelled. Server-filtered ready rankings serialize only safe target names and geometry; suppression, staleness, unavailability, tenant/role denial and map runtime/latency failures show distinct fail-closed states with no geometry. Admin monitoring exposes complete run/formula/source-segment provenance while advertiser metadata remains bounded. The legacy advertiser heatmap action is removed and the default MapLibre style is a provider-neutral local schematic with no network source. Focused red/green frontend, 54-test PostGIS authority, type/lint/format/build and isolated browser performance-only/ROI/unavailable/tenant/role evidence pass. No API/schema/migration baseline moves; raw-route authority and W4-01 PWA behavior are unchanged. `EXT-BASEMAP`, `EXT-REPORT-METHOD` and `EXT-LEGAL-PRIVACY` remain live gates; W4-02B/W4-03A/W4-03B are untouched. |

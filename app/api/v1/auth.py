@@ -615,15 +615,15 @@ async def refresh_session(
     token: Annotated[str, Depends(oauth2_scheme)],
     settings: SettingsDependency,
 ) -> LoginResponse:
-    claims = decode_token_claims(token, settings)
-    auth_time_value = claims.get("auth_time")
-    if not isinstance(auth_time_value, (int, float)):
+    try:
+        claims = decode_token_claims(token, settings)
+    except ValueError as exc:
         raise AppError(
-            "REFRESH_NOT_ALLOWED",
-            "This session cannot be refreshed",
+            "INVALID_TOKEN",
+            "Invalid authentication token",
             status_code=status.HTTP_401_UNAUTHORIZED,
-        )
-    auth_time = datetime.fromtimestamp(auth_time_value, UTC)
+        ) from exc
+    auth_time = datetime.fromtimestamp(claims.authenticated_at, UTC)
     now = datetime.now(UTC)
     cap_at = auth_time + timedelta(minutes=settings.session_absolute_lifetime_minutes)
     expires_at = min(

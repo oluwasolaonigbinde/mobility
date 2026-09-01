@@ -10,13 +10,67 @@ from conftest import (
     fetch_auth_audit_events,
     fetch_user_by_email,
 )
+from fastapi.routing import APIRoute
 from starlette import status as http_status
 
+from app.api.v1.dependencies import get_current_user, oauth2_scheme
 from app.models.user import UserRole, UserStatus
 from app.services.users import get_user_by_email
 
 PASSWORD = "long-secure-password"
 NEW_PASSWORD = "different-secure-password"
+REQUIRED_ACCESS_TOKEN_CLAIMS = ("sub", "exp", "iat", "auth_time", "sv")
+
+
+def access_token_claims(user, *, now: datetime | None = None) -> dict[str, object]:
+    now = now or datetime.now(UTC)
+    issued_at = int(now.timestamp()) - 1
+    return {
+        "sub": str(user.id),
+        "exp": issued_at + 1800,
+        "iat": issued_at,
+        "auth_time": issued_at,
+        "sv": user.session_version,
+    }
+
+
+def signed_access_token(settings, claims: dict[str, object]) -> str:
+    return jwt.encode(
+        claims,
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
+
+
+def assert_invalid_token(response, *, request_id: str) -> None:
+    assert response.status_code == http_status.HTTP_401_UNAUTHORIZED
+    assert response.json()["error"] == {
+        "code": "INVALID_TOKEN",
+        "message": "Invalid authentication token",
+        "details": {},
+        "request_id": request_id,
+    }
+
+
+def dependency_calls(dependant) -> set[object]:
+    calls = {dependant.call}
+    for dependency in dependant.dependencies:
+        calls.update(dependency_calls(dependency))
+    return calls
+
+
+def included_api_routes(routes, prefix: str = ""):
+    for route in routes:
+        if isinstance(route, APIRoute):
+            yield f"{prefix}{route.path}", route
+            continue
+        original_router = getattr(route, "original_router", None)
+        include_context = getattr(route, "include_context", None)
+        if original_router is not None and include_context is not None:
+            yield from included_api_routes(
+                original_router.routes,
+                f"{prefix}{include_context.prefix}",
+            )
 
 
 def set_must_change_password(db_sessionmaker, email: str) -> None:
@@ -253,22 +307,217 @@ def test_refresh_preserves_authentication_and_returns_a_new_token(
     ) == 1
 
 
-def test_claimless_legacy_token_authenticates_but_cannot_refresh(
+@pytest.mark.parametrize("claim", REQUIRED_ACCESS_TOKEN_CLAIMS)
+@pytest.mark.parametrize("case", ["missing", "null"])
+def test_protected_route_rejects_missing_or_null_required_claim(
+    db_client,
+    db_sessionmaker,
+    settings,
+    claim: str,
+    case: str,
+) -> None:
+    user = create_test_user(
+        db_sessionmaker,
+        email=f"{case}-{claim.replace('_', '-')}@example.com",
+        password=PASSWORD,
+    )
+    claims = access_token_claims(user)
+    if case == "missing":
+        claims.pop(claim)
+    else:
+        claims[claim] = None
+    request_id = f"invalid-{case}-{claim}"
+
+    response = db_client.get(
+        "/api/v1/me",
+        headers={
+            "Authorization": f"Bearer {signed_access_token(settings, claims)}",
+            "X-Request-ID": request_id,
+        },
+    )
+
+    assert_invalid_token(response, request_id=request_id)
+
+
+@pytest.mark.parametrize("claim", ["exp", "iat", "auth_time", "sv"])
+@pytest.mark.parametrize(
+    ("case", "invalid_value"),
+    [("boolean", True), ("stringified-number", "1"), ("float", 1.0)],
+)
+def test_protected_route_rejects_coercible_numeric_claims(
+    db_client,
+    db_sessionmaker,
+    settings,
+    claim: str,
+    case: str,
+    invalid_value: object,
+) -> None:
+    user = create_test_user(
+        db_sessionmaker,
+        email=f"{case}-{claim.replace('_', '-')}@example.com",
+        password=PASSWORD,
+    )
+    claims = access_token_claims(user)
+    claims[claim] = invalid_value
+    request_id = f"invalid-{case}-{claim}"
+
+    response = db_client.get(
+        "/api/v1/me",
+        headers={
+            "Authorization": f"Bearer {signed_access_token(settings, claims)}",
+            "X-Request-ID": request_id,
+        },
+    )
+
+    assert_invalid_token(response, request_id=request_id)
+
+
+@pytest.mark.parametrize(
+    ("case", "invalid_subject"),
+    [
+        ("boolean", True),
+        ("integer", 1),
+        ("float", 1.0),
+        ("stringified-number", "1"),
+        ("malformed", "not-a-uuid"),
+    ],
+)
+def test_protected_route_rejects_malformed_subject(
+    db_client,
+    db_sessionmaker,
+    settings,
+    case: str,
+    invalid_subject: object,
+) -> None:
+    user = create_test_user(
+        db_sessionmaker,
+        email=f"subject-{case}@example.com",
+        password=PASSWORD,
+    )
+    claims = access_token_claims(user)
+    claims["sub"] = invalid_subject
+    request_id = f"invalid-subject-{case}"
+
+    response = db_client.get(
+        "/api/v1/me",
+        headers={
+            "Authorization": f"Bearer {signed_access_token(settings, claims)}",
+            "X-Request-ID": request_id,
+        },
+    )
+
+    assert_invalid_token(response, request_id=request_id)
+
+
+def test_protected_route_rejects_noncanonical_uuid_subject(
     db_client,
     db_sessionmaker,
     settings,
 ) -> None:
-    user = create_test_user(db_sessionmaker, email="legacy-token@example.com", password=PASSWORD)
-    token = jwt.encode(
-        {"sub": str(user.id), "exp": datetime.now(UTC) + timedelta(minutes=30)},
-        settings.jwt_secret_key,
-        algorithm=settings.jwt_algorithm,
+    user = create_test_user(
+        db_sessionmaker,
+        email="noncanonical-subject@example.com",
+        password=PASSWORD,
     )
-    headers = {"Authorization": f"Bearer {token}"}
-    assert db_client.get("/api/v1/me", headers=headers).status_code == 200
-    refresh = db_client.post("/api/v1/auth/refresh", headers=headers)
-    assert refresh.status_code == 401
-    assert refresh.json()["error"]["code"] == "REFRESH_NOT_ALLOWED"
+    base_claims = access_token_claims(user)
+
+    for case, subject in {
+        "hex": user.id.hex,
+        "braced": f"{{{user.id}}}",
+    }.items():
+        claims = {**base_claims, "sub": subject}
+        request_id = f"invalid-subject-{case}"
+        response = db_client.get(
+            "/api/v1/me",
+            headers={
+                "Authorization": f"Bearer {signed_access_token(settings, claims)}",
+                "X-Request-ID": request_id,
+            },
+        )
+        assert_invalid_token(response, request_id=request_id)
+
+
+def test_protected_route_rejects_invalid_claim_boundaries_and_order(
+    db_client,
+    db_sessionmaker,
+    settings,
+) -> None:
+    user = create_test_user(
+        db_sessionmaker,
+        email="claim-boundaries@example.com",
+        password=PASSWORD,
+    )
+    now = datetime.now(UTC)
+    now_epoch = int(now.timestamp())
+    base_claims = access_token_claims(user, now=now)
+    invalid_claims = {
+        "expired": {**base_claims, "exp": now_epoch - 1},
+        "expiry-boundary": {**base_claims, "exp": now_epoch},
+        "future-issued": {**base_claims, "iat": now_epoch + 300},
+        "auth-after-issue": {**base_claims, "auth_time": base_claims["iat"] + 1},
+        "expiry-at-issue": {**base_claims, "exp": base_claims["iat"]},
+        "out-of-range-auth-time": {**base_claims, "auth_time": -(10**100)},
+        "out-of-range-expiry": {**base_claims, "exp": 10**100},
+        "zero-session-version": {**base_claims, "sv": 0},
+        "negative-session-version": {**base_claims, "sv": -1},
+    }
+
+    for case, claims in invalid_claims.items():
+        request_id = f"invalid-{case}"
+        response = db_client.get(
+            "/api/v1/me",
+            headers={
+                "Authorization": f"Bearer {signed_access_token(settings, claims)}",
+                "X-Request-ID": request_id,
+            },
+        )
+        assert_invalid_token(response, request_id=request_id)
+
+
+def test_every_bearer_route_uses_the_central_current_user_dependency(client) -> None:
+    bearer_routes: list[str] = []
+
+    for path, route in included_api_routes(client.app.routes):
+        calls = dependency_calls(route.dependant)
+        if oauth2_scheme not in calls:
+            continue
+        bearer_routes.append(f"{','.join(sorted(route.methods))} {path}")
+        assert get_current_user in calls
+
+    assert bearer_routes
+
+
+def test_refresh_second_decode_expiry_returns_invalid_token_envelope(
+    db_client,
+    db_sessionmaker,
+    monkeypatch,
+) -> None:
+    user = create_test_user(
+        db_sessionmaker,
+        email="refresh-expiry-boundary@example.com",
+        password=PASSWORD,
+    )
+    login = db_client.post(
+        "/api/v1/auth/login",
+        json={"email": user.email, "password": PASSWORD},
+    )
+    from app.api.v1 import auth as auth_api
+
+    def expire_on_second_decode(*_args, **_kwargs):
+        raise ValueError("Invalid token")
+
+    monkeypatch.setattr(auth_api, "decode_token_claims", expire_on_second_decode)
+    request_id = "refresh-second-decode-expired"
+
+    response = db_client.post(
+        "/api/v1/auth/refresh",
+        headers={
+            "Authorization": f"Bearer {login.json()['access_token']}",
+            "X-Request-ID": request_id,
+        },
+    )
+
+    assert_invalid_token(response, request_id=request_id)
 
 
 def test_absolute_session_cap_is_enforced_and_refresh_expiry_is_clamped(

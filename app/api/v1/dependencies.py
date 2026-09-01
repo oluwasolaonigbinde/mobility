@@ -1,6 +1,5 @@
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
-from uuid import UUID
 
 from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer
@@ -93,10 +92,7 @@ async def get_current_user(
 
     try:
         claims = decode_token_claims(token, settings)
-        subject = claims.get("sub")
-        if not isinstance(subject, str):
-            raise ValueError
-        user_id = UUID(subject)
+        user_id = claims.subject
     except ValueError as exc:
         raise AppError(
             "INVALID_TOKEN",
@@ -117,24 +113,21 @@ async def get_current_user(
             "User account is not active",
             status_code=status.HTTP_403_FORBIDDEN,
         )
-    token_session_version = claims.get("sv")
-    if token_session_version is not None and token_session_version != user.session_version:
+    if claims.session_version != user.session_version:
         raise AppError(
             "SESSION_REVOKED",
             "Session is no longer valid",
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
-    auth_time = claims.get("auth_time")
-    if isinstance(auth_time, (int, float)):
-        cap_at = datetime.fromtimestamp(auth_time, UTC) + timedelta(
-            minutes=settings.session_absolute_lifetime_minutes
+    cap_at = datetime.fromtimestamp(claims.authenticated_at, UTC) + timedelta(
+        minutes=settings.session_absolute_lifetime_minutes
+    )
+    if datetime.now(UTC) >= cap_at:
+        raise AppError(
+            "SESSION_EXPIRED",
+            "Session has reached its maximum lifetime",
+            status_code=status.HTTP_401_UNAUTHORIZED,
         )
-        if datetime.now(UTC) >= cap_at:
-            raise AppError(
-                "SESSION_EXPIRED",
-                "Session has reached its maximum lifetime",
-                status_code=status.HTTP_401_UNAUTHORIZED,
-            )
     allowed_while_password_change_required = {
         f"{settings.api_v1_prefix}/me",
         f"{settings.api_v1_prefix}/auth/change-password",
