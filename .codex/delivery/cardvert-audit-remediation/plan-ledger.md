@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 101
+plan_revision: 102
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 216
+last_event_sequence: 217
 ---
 
 # Cardvert audit remediation programme
@@ -299,7 +299,7 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 12 | GPT-5.6 Sol/high — malformed quote orientation and leading-path privacy correction | unchanged five-file R13 lease | RESERVED |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 12 | GPT-5.6 Sol/high — malformed quote orientation and leading-path privacy correction | unchanged five-file R13 lease | ACTIVE |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-11 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — quote/path privacy-security admission | released reviewed exact `a60288c2...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-10 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded Unicode/path privacy-security admission | released reviewed exact `203ef022...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-9 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded malformed-input privacy/security admission | released reviewed exact `cd1dd894...` diff | FIX |
@@ -627,3 +627,4 @@ verification is complete.
 | 214 | 100 | 1 | PLAN_DISPATCH_STARTED | Visible S04 task began read-only aggregate planning for R12 and R14. | task `01a05ef8-af56-7192-825a-ce4f00f9c86b`; GPT-5.6 Sol/high; no mutation lease or worktree |
 | 215 | 101 | 1 | DIFF_REVIEW_FIX | R13 attempt 11 closes normal-orientation quote mismatches and complete dotted sensitive families, but wrong-orientation admitted quote symbols and leading-empty dotted paths still leak or inherit safe-bank handling. | Sol/high reviewer `/root/r13_attempt5_review`; exact `a60288c2...`; deterministic cross-sink name/credential/bank bypasses |
 | 216 | 101 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 12 on the unchanged five-file lease, limited to validating every admitted quote symbol at either boundary and rejecting leading-empty assignment-shaped dotted keys. | GPT-5.6 Sol/high; approved exact quote pairs/safe-bank exceptions unchanged; repeat review required |
+| 217 | 102 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 12 reacquired the unchanged five-file privacy lease for wrong-orientation admitted quote and leading-empty dotted-path handling only. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/high; terminal callback required |
