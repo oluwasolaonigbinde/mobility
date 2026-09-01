@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 117
+plan_revision: 121
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 241
+last_event_sequence: 245
 ---
 
 # Cardvert audit remediation programme
@@ -655,3 +655,7 @@ verification is complete.
 | 239 | 115 | 1 | LEASE_CORRECTED | R09's optional architecture documentation path was removed before product writes because active R34 already owns the dirty shared file. | Claude session `Cardvert R09 authentication remediation`; auth/user code and focused tests remain disjoint; stop if documentation is indispensable |
 | 240 | 116 | 1 | INTEGRATION_GATE_FIX | R34's corrected audit module passes alone but the mandatory hardening→audit aggregate exposes its trip fixture omitting the required v2 batch sequence; first ping returns 409. | controller reproduction: 1 failed, 19 passed; import-order masking identified; R34 owner must make the fixture canonical without weakening protocol assertions |
 | 241 | 117 | 1 | LEASE_EXPANDED | R34 may update only the shared `tests/test_trips.py::ping_payload` defaults to emit v2 batch sequence zero and exact-millisecond timestamps while preserving explicit overrides. | four remaining truthful aggregate failures; no production/protocol or other test-file authority expands |
+| 242 | 118 | 1 | IMPLEMENTATION_RETURNED | S12/R34 released its exact 38-file OFF-001 implementation after all named domain and consolidated reviews passed and the controller independently reran the complete 241-test PostgreSQL/PostGIS aggregate plus 105 focused frontend tests and typecheck. | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879`; frozen content manifest `a8e277b8...`; binary diff `10c1cf9c...`; no stage or commit |
+| 243 | 119 | 1 | ADMISSION_REVIEW_FIX | R34 collapses authoritative End statuses `ended` and `sealed`, then deletes encrypted recovery receipts from locally complete trips even when the server has not sealed/verified the evidence. | independent Sol/high scope review `/root/r34_scope_review`; exact current 38-file bytes; D25/architecture §35 recovery-authority violation |
+| 244 | 120 | 1 | DISPATCH_RESUMED | Visible S12/R34 reacquired its existing frontend action/tracker and test lease solely to preserve receipts on authoritative `ended`, delete only after `sealed` or successful reconcile, and add red/green lifecycle coverage. | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879`; GPT-5.6 Sol/high; R09 and controller files remain excluded; repeat frozen review required |
+| 245 | 121 | 1 | ADMISSION_REVIEW_FIX | R34's evidence keyring accepts noncanonical version aliases such as `1` and `01`, then integer conversion silently chooses one key by JSON order and breaks durable receipt-verification provenance. | independent Sol/high scope review `/root/r34_scope_review`; existing config/test lease only; require canonical positive-decimal keys and both-order rejection regression |
