@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R24, R34`
-**Current capacity justification:** `R24` owns the billing budget-resume epoch service/tests, and `R34` owns the disjoint trip/offline evidence protocol plus the serialized migration/generated-contract/configuration lane. R13 has frozen its exact five-file diff for independent review, so its implementation lease is released; R02 and R09 remain temporarily conflict-held until that review and admission finish. Shared fixtures and this file remain controller-serialized.
+**Current capacity assignment:** `R34`
+**Current capacity justification:** `R34` owns the trip/offline evidence protocol plus the serialized migration/generated-contract/configuration lane. R13 and R24 have frozen their exact diffs for independent review, so both implementation leases are released; R02 and R09 remain temporarily conflict-held until R13 review and admission finish, while R25 remains dependency-held until R24 admission. Shared fixtures and this file remain controller-serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -78,14 +78,15 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 now rolling across dependency-ready disjoint slices while all 29 non-executable
 findings retain their admitted dispositions.
-**Current checkpoint:** `PKG-10 / R24` — the commercial epoch correction and
-offline protocol lanes remain active while R13's frozen observability diff is
-independently reviewed. R02 and R09 wait for R13 clearance.
+**Current checkpoint:** `PKG-10 / R34` — the offline protocol lane remains
+active while R13 and R24 exact diffs are independently reviewed. R02 and R09
+wait for R13 clearance; R25 waits for R24 clearance.
 
 ## Direct owner requests outside the package queue
 
 | Date | Item | Authority | Scope boundary | Queue effect |
 | --- | --- | --- | --- | --- |
+| 1 Sep 2026 | **Use Claude Opus 5 High for the next two implementation sessions after the current set clears** — create the next two safely ready, mutually disjoint packets as visible Claude desktop Code sessions. | Direct project-owner amendment in controller task `01a05de2-0b5d-73f0-ae3d-0e979b734658`, 1 Sep 2026 | The controller must still select packets from the admitted graph, preserve exact slice/candidate IDs, dependencies, leases, stop conditions, review gates and shared-checkout safety. Sessions use saved Mobility `master`, direct checkout, no worktrees, Opus 5 / High. No external action or authority boundary expands. | Deferred trigger: after the currently active/reviewing R13, R24 and R34 set reaches safe admission/steering points, allocate the next two compatible ready implementation packets to Claude; do not displace current owners. |
 | 1 Sep 2026 | **Execute the admitted Cardvert audit-remediation programme** — deliver the 86 FIX candidates through the dependency-safe R01–R60 graph with rolling, maximally useful parallel dispatch. | Direct project-owner authorization in task `01a05de2-0b5d-73f0-ae3d-0e979b734658`, continuing source task `01a001ce-d025-7531-a84c-7498cd819eda`, 1 Sep 2026; visible-task/concurrency and event-driven-callback amendments in the same controller task | Owns PKG-10, the exact admitted slice/candidate graph and repository fixes. Two implementation writers remain the baseline; a higher current capacity is authorized only with a recorded, exact disjoint-work justification. Implementation runs in visible top-level Mobility tasks directly in the saved checkout without worktrees, reusing a task across its compatible multi-slice session; internal subagents are review-only. Every visible task messages this controller only when its owned slice or planning packet completes, blocks, conflicts or requires steering; the controller then reconciles actual state before review, admission or refill. Periodic polling and recurring monitoring automation are disabled. Central configuration, migrations, contracts, shared fixtures and this file serialize. The 9 DEFER, 12 OWNER DECISION and 8 EXTERNAL INPUT findings remain non-executable; COM-008 remains open. No deployment, live payment/provider action, credential invention, external publication, legal approval, or live-evidence claim is authorized. The UI/product-flow prompt suite remains paused. | Activates PKG-10 and R01 first. After R01 acceptance, use the deterministic session partition and refill every safely justified writer slot without artificial batch boundaries. |
 | 1 Sep 2026 | **Preventive minimal-structure and diff-review refinement** — prefer existing repository, standard-library, native-platform or installed capabilities before adding structure, and strengthen the existing post-build review for duplicated capability, unnecessary dependencies, self-justifying structure and low-value changed tests. | Direct project-owner request, 1 Sep 2026 | Owns one universal contribution-ready rule and the existing `minimal-change-review` mandate. It creates no new skill, review stage or repository gate and does not change VFD, OFD or DCD. | None. The completed controller state and terminal PKG-09/W4-04B pointer remain unchanged. |
 | 1 Sep 2026 | **Durable deferred-obligation policy** — future package/checkpoint instructions must survive chat, agent and session boundaries as concise trigger/action/evidence-pointer reminders in the existing authoritative record. | Direct project-owner request, 1 Sep 2026 | Owns global instruction policy plus Mobility's root `AGENTS.md` mapping to this document and this control row. It creates no new planning document and adds no product code, API, data-model, workflow, architecture or decision change. | None. The completed controller state and terminal PKG-09/W4-04B pointer remain unchanged. |
@@ -1543,7 +1544,7 @@ durable ledger before changing a row.
 | R21 | MON-003 | R20 | QUEUED | PENDING | PENDING | CP-MONEY PENDING |
 | R22 | MON-004, MON-007, MON-009 | R20, R21 | QUEUED | PENDING | PENDING | CP-MONEY PENDING |
 | R23 | COM-001, COM-004 | R08 | COMPLETE | PASS — R23-P | PASS — R23-M | CP-COMMERCIAL PASS — R23-CP-COMMERCIAL |
-| R24 | COM-002 | R08, R23 | ACTIVE | PASS — R24-P | PENDING | CP-COMMERCIAL PENDING |
+| R24 | COM-002 | R08, R23 | QUEUED | PASS — R24-P | PENDING | CP-COMMERCIAL PENDING |
 | R25 | COM-003, COM-005 | R08, R24 | QUEUED | PASS — R25-P | PENDING | CP-COMMERCIAL PENDING |
 | R26 | COM-006 | R08, R25 | QUEUED | PASS — R26-P | PENDING | CP-COMMERCIAL PENDING |
 | R27 | COM-007 | R08, R26 | QUEUED | PASS — R27-P | PENDING | CP-COMMERCIAL PENDING |
