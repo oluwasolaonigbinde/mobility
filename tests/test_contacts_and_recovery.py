@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import json
+from datetime import UTC, datetime
 
 import pytest
 from conftest import (
@@ -10,9 +11,9 @@ from conftest import (
 )
 from sqlalchemy import func, select
 
+from app.adapters.messaging import EmailSubmission
 from app.core.errors import AppError
 from app.core.security import create_access_token, verify_password
-from app.jobs.email_delivery import process_email_notification
 from app.models.audit import AuditEvent
 from app.models.contact import (
     ManualDriverContactTask,
@@ -38,6 +39,7 @@ from app.services.contacts import (
     synthetic_phone_challenge_code,
     verify_phone_challenge,
 )
+from app.services.email_delivery import process_email_notification
 
 
 def test_verified_phone_consent_and_manual_contact_are_versioned_and_secret_safe(
@@ -182,6 +184,88 @@ def test_verified_phone_consent_and_manual_contact_are_versioned_and_secret_safe
     asyncio.run(scenario())
 
 
+def test_password_reset_delivery_hash_mismatch_leaves_expiring_reclaimable_claim(
+    db_sessionmaker, db_client, settings
+) -> None:
+    advertiser = create_test_user(
+        db_sessionmaker,
+        email="recover-delivery-mismatch@example.com",
+        role=UserRole.ADVERTISER,
+    )
+    create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
+    assert (
+        db_client.post(
+            "/api/v1/auth/password-reset/request",
+            json={"email": advertiser.email},
+        ).status_code
+        == 202
+    )
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            notice = await session.scalar(
+                select(Notification).where(
+                    Notification.type_key == NotificationType.PASSWORD_RESET_REQUESTED.value
+                )
+            )
+            assert notice is not None
+            notice_id = notice.id
+
+        class RecordingAdapter:
+            def __init__(self) -> None:
+                self.idempotency_keys: list[str] = []
+
+            async def send(self, message) -> EmailSubmission:
+                self.idempotency_keys.append(message.idempotency_key)
+                return EmailSubmission(
+                    provider_message_id=f"provider-{message.idempotency_key}"
+                )
+
+        now = datetime.now(UTC)
+        with pytest.raises(RuntimeError, match="password reset token evidence mismatch"):
+            await process_email_notification(
+                db_sessionmaker,
+                notification_id=notice_id,
+                settings=settings.model_copy(
+                    update={"jwt_secret_key": "different-test-secret-key-at-least-32-bytes"}
+                ),
+                email_adapter=RecordingAdapter(),
+                now=now,
+            )
+
+        async with db_sessionmaker() as session:
+            claimed = await session.get(Notification, notice_id)
+            assert claimed is not None
+            assert claimed.status == "pending"
+            assert claimed.attempt_count == 1
+            assert claimed.delivery_claim_token is not None
+            assert claimed.delivery_claim_expires_at is not None
+            claim_expires_at = claimed.delivery_claim_expires_at
+            if claim_expires_at.tzinfo is None:
+                claim_expires_at = claim_expires_at.replace(tzinfo=UTC)
+
+        adapter = RecordingAdapter()
+        assert (
+            await process_email_notification(
+                db_sessionmaker,
+                notification_id=notice_id,
+                settings=settings,
+                email_adapter=adapter,
+                now=claim_expires_at,
+            )
+            == "sent"
+        )
+        assert adapter.idempotency_keys == [str(notice_id)]
+        async with db_sessionmaker() as session:
+            stored = await session.get(Notification, notice_id)
+            assert stored is not None
+            assert stored.status == "sent"
+            assert stored.attempt_count == 2
+            assert stored.delivery_claim_token is None
+
+    asyncio.run(scenario())
+
+
 def test_password_reset_is_non_enumerating_single_use_expiring_and_revokes_sessions(
     db_sessionmaker, db_client, settings
 ) -> None:
@@ -233,12 +317,11 @@ def test_password_reset_is_non_enumerating_single_use_expiring_and_revokes_sessi
             )
             assert (
                 await process_email_notification(
-                    {
-                        "sessionmaker": db_sessionmaker,
-                        "settings": production_settings,
-                        "email_adapter": UnexpectedEmailAdapter(),
-                    },
-                    str(notice.id),
+                    db_sessionmaker,
+                    notification_id=notice.id,
+                    settings=production_settings,
+                    email_adapter=UnexpectedEmailAdapter(),
+                    now=datetime.now(UTC),
                 )
                 == "failed"
             )

@@ -19,7 +19,6 @@ from test_stored_files import FakeStorageProvider
 from app.adapters.crypto import EnvelopeCryptoProvider
 from app.api.v1.dependencies import get_storage_provider
 from app.core.errors import AppError
-from app.jobs.email_delivery import process_email_notification
 from app.models.driver_application import DriverApplicationAccessToken
 from app.models.notification import Notification, NotificationType
 from app.models.payee import Payee
@@ -29,6 +28,7 @@ from app.services.driver_applications import (
     application_from_access_token,
     synthetic_driver_application_access_token,
 )
+from app.services.email_delivery import process_email_notification
 from app.services.payees import (
     VerifiedBankAccountDetails,
     add_applicant_bank_account_version,
@@ -497,12 +497,10 @@ def test_fresh_and_duplicate_driver_probes_deliver_separate_non_enumerating_auth
             digests = [access.token_sha256 for access in accesses]
         adapter = RecordingEmailAdapter()
         result = await process_email_notification(
-            {
-                "sessionmaker": db_sessionmaker,
-                "settings": settings,
-                "email_adapter": adapter,
-            },
-            str(notice_id),
+            db_sessionmaker,
+            notification_id=notice_id,
+            settings=settings,
+            email_adapter=adapter,
             now=datetime.now(UTC),
         )
         assert result == "sent"
@@ -511,14 +509,12 @@ def test_fresh_and_duplicate_driver_probes_deliver_separate_non_enumerating_auth
         assert duplicate_token in delivered_body
         mismatched_adapter = RecordingEmailAdapter()
         mismatch_result = await process_email_notification(
-            {
-                "sessionmaker": db_sessionmaker,
-                "settings": settings.model_copy(
-                    update={"jwt_secret_key": "different-test-secret-key-at-least-32-bytes"}
-                ),
-                "email_adapter": mismatched_adapter,
-            },
-            str(mismatched_notice_id),
+            db_sessionmaker,
+            notification_id=mismatched_notice_id,
+            settings=settings.model_copy(
+                update={"jwt_secret_key": "different-test-secret-key-at-least-32-bytes"}
+            ),
+            email_adapter=mismatched_adapter,
             now=datetime.now(UTC),
         )
         assert mismatch_result == "failed"

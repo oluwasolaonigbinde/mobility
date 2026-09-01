@@ -8,10 +8,14 @@ import pytest
 from sqlalchemy import func, select
 from starlette import status
 
-from app.adapters.messaging import EmailMessage, EmailSendError, EmailSubmission
+from app.adapters.messaging import (
+    DisabledEmailAdapter,
+    EmailMessage,
+    EmailSendError,
+    EmailSubmission,
+)
 from app.core.config import Settings
 from app.core.errors import AppError
-from app.jobs.email_delivery import process_email_notification
 from app.models.notification import (
     Notification,
     NotificationChannel,
@@ -28,6 +32,7 @@ from app.models.organization import (
     OrganizationStatus,
 )
 from app.models.user import User, UserRole, UserStatus
+from app.services.email_delivery import process_email_notification
 from app.services.notifications import (
     create_advertiser_email_notification,
     email_receipt_fingerprint,
@@ -47,7 +52,7 @@ class RecordingEmailAdapter:
         return EmailSubmission(provider_message_id=f"provider-{message.idempotency_key}")
 
 
-async def _seed_advertiser(sessionmaker, *, enabled: bool = True):
+async def _seed_advertiser(sessionmaker, *, enabled: bool | None = True):
     async with sessionmaker() as session:
         user = User(
             email=f"advertiser-{uuid4()}@example.test",
@@ -63,20 +68,21 @@ async def _seed_advertiser(sessionmaker, *, enabled: bool = True):
         )
         session.add_all([user, organization])
         await session.flush()
-        session.add_all(
-            [
-                OrganizationMembership(
-                    organization_id=organization.id,
-                    user_id=user.id,
-                    role=MembershipRole.OWNER,
-                    status=MembershipStatus.ACTIVE,
-                ),
+        session.add(
+            OrganizationMembership(
+                organization_id=organization.id,
+                user_id=user.id,
+                role=MembershipRole.OWNER,
+                status=MembershipStatus.ACTIVE,
+            )
+        )
+        if enabled is not None:
+            session.add(
                 AdvertiserOrganizationNotificationPreference(
                     advertiser_organization_id=organization.id,
                     transactional_email_enabled=enabled,
-                ),
-            ]
-        )
+                )
+            )
         await session.commit()
         return user.id, organization.id
 
@@ -169,22 +175,34 @@ def test_email_worker_retries_with_same_idempotency_key_then_sends(db_sessionmak
             [EmailSendError("synthetic_outage", retryable=True)]
         )
         now = datetime.now(UTC)
-        ctx = {
-            "sessionmaker": db_sessionmaker,
-            "settings": _settings(),
-            "email_adapter": adapter,
-        }
+        settings = _settings()
         assert (
-            await process_email_notification(ctx, str(notice_id), now=now)
+            await process_email_notification(
+                db_sessionmaker,
+                notification_id=notice_id,
+                settings=settings,
+                email_adapter=adapter,
+                now=now,
+            )
             == "retry_scheduled"
         )
         assert (
-            await process_email_notification(ctx, str(notice_id), now=now)
+            await process_email_notification(
+                db_sessionmaker,
+                notification_id=notice_id,
+                settings=settings,
+                email_adapter=adapter,
+                now=now,
+            )
             == "skipped"
         )
         assert (
             await process_email_notification(
-                ctx, str(notice_id), now=now + timedelta(seconds=10)
+                db_sessionmaker,
+                notification_id=notice_id,
+                settings=settings,
+                email_adapter=adapter,
+                now=now + timedelta(seconds=10),
             )
             == "sent"
         )
@@ -226,12 +244,11 @@ def test_email_worker_fails_closed_when_preference_changes_before_send(
             notice_id = notice.id
         adapter = RecordingEmailAdapter()
         result = await process_email_notification(
-            {
-                "sessionmaker": db_sessionmaker,
-                "settings": _settings(),
-                "email_adapter": adapter,
-            },
-            str(notice_id),
+            db_sessionmaker,
+            notification_id=notice_id,
+            settings=_settings(),
+            email_adapter=adapter,
+            now=datetime.now(UTC),
         )
         assert result == "skipped"
         assert adapter.messages == []
@@ -239,6 +256,146 @@ def test_email_worker_fails_closed_when_preference_changes_before_send(
             stored = await session.get(Notification, notice_id)
             assert stored.status == NotificationStatus.FAILED.value
             assert stored.last_error_code == "email_preference_disabled"
+
+    asyncio.run(run())
+
+
+def test_email_service_missing_preference_defaults_to_enabled(db_sessionmaker) -> None:
+    async def run() -> None:
+        user_id, organization_id = await _seed_advertiser(db_sessionmaker, enabled=None)
+        async with db_sessionmaker() as session:
+            notice = await create_advertiser_email_notification(
+                session,
+                advertiser_organization_id=organization_id,
+                recipient_user_id=user_id,
+                type_key=NotificationType.FRAUD_HOLD_RAISED,
+                payload={},
+                dedupe_key="email:default-preference:1",
+            )
+            await session.commit()
+            notice_id = notice.id
+        adapter = RecordingEmailAdapter()
+        now = datetime.now(UTC)
+
+        assert (
+            await process_email_notification(
+                db_sessionmaker,
+                notification_id=notice_id,
+                settings=_settings(),
+                email_adapter=adapter,
+                now=now,
+            )
+            == "sent"
+        )
+        assert [message.recipient for message in adapter.messages] == [
+            (await _recipient_email(db_sessionmaker, user_id))
+        ]
+
+    asyncio.run(run())
+
+
+async def _recipient_email(sessionmaker, user_id) -> str:
+    async with sessionmaker() as session:
+        user = await session.get(User, user_id)
+        assert user is not None
+        return user.email
+
+
+def test_email_service_eligibility_and_template_failures_are_terminal(
+    db_sessionmaker,
+) -> None:
+    async def run() -> None:
+        user_id, organization_id = await _seed_advertiser(db_sessionmaker)
+        inactive_user_id, inactive_organization_id = await _seed_advertiser(
+            db_sessionmaker
+        )
+        async with db_sessionmaker() as session:
+            missing_context = Notification(
+                recipient_user_id=user_id,
+                type_key=NotificationType.FRAUD_HOLD_RAISED.value,
+                template_version="v1",
+                payload={},
+                dedupe_key="email:missing-context:1",
+                dedupe_fingerprint=uuid4().hex,
+                channel=NotificationChannel.TRANSACTIONAL_EMAIL.value,
+            )
+            unsupported_template = Notification(
+                recipient_user_id=user_id,
+                type_key=NotificationType.FRAUD_HOLD_RAISED.value,
+                template_version="v2",
+                payload={"advertiser_organization_id": str(organization_id)},
+                dedupe_key="email:unsupported-template:1",
+                dedupe_fingerprint=uuid4().hex,
+                channel=NotificationChannel.TRANSACTIONAL_EMAIL.value,
+            )
+            inactive_org_notice = await create_advertiser_email_notification(
+                session,
+                advertiser_organization_id=inactive_organization_id,
+                recipient_user_id=inactive_user_id,
+                type_key=NotificationType.FRAUD_HOLD_RAISED,
+                payload={},
+                dedupe_key="email:inactive-org:1",
+            )
+            inactive_org = await session.get(
+                AdvertiserOrganization, inactive_organization_id
+            )
+            assert inactive_org is not None
+            inactive_org.status = OrganizationStatus.SUSPENDED.value
+            session.add_all([missing_context, unsupported_template])
+            await session.commit()
+            ids = [
+                missing_context.id,
+                unsupported_template.id,
+                inactive_org_notice.id,
+            ]
+
+        adapter = RecordingEmailAdapter()
+        settings = _settings()
+        now = datetime.now(UTC)
+        assert (
+            await process_email_notification(
+                db_sessionmaker,
+                notification_id=ids[0],
+                settings=settings,
+                email_adapter=adapter,
+                now=now,
+            )
+            == "skipped"
+        )
+        assert (
+            await process_email_notification(
+                db_sessionmaker,
+                notification_id=ids[1],
+                settings=settings,
+                email_adapter=adapter,
+                now=now,
+            )
+            == "failed"
+        )
+        assert (
+            await process_email_notification(
+                db_sessionmaker,
+                notification_id=ids[2],
+                settings=settings,
+                email_adapter=adapter,
+                now=now,
+            )
+            == "skipped"
+        )
+        assert adapter.messages == []
+        async with db_sessionmaker() as session:
+            stored = [await session.get(Notification, notification_id) for notification_id in ids]
+            assert all(item is not None for item in stored)
+            assert [item.status for item in stored if item is not None] == [
+                NotificationStatus.FAILED.value,
+                NotificationStatus.FAILED.value,
+                NotificationStatus.FAILED.value,
+            ]
+            assert [item.last_error_code for item in stored if item is not None] == [
+                "email_organization_context_missing",
+                "unsupported_email_template_version",
+                "email_recipient_inactive",
+            ]
 
     asyncio.run(run())
 
@@ -260,7 +417,11 @@ def test_email_worker_missing_provider_schedules_retry_without_claiming_send(
             await session.commit()
             notice_id = notice.id
         result = await process_email_notification(
-            {"sessionmaker": db_sessionmaker, "settings": _settings()}, str(notice_id)
+            db_sessionmaker,
+            notification_id=notice_id,
+            settings=_settings(),
+            email_adapter=DisabledEmailAdapter(),
+            now=datetime.now(UTC),
         )
         assert result == "retry_scheduled"
         async with db_sessionmaker() as session:
@@ -288,17 +449,318 @@ def test_email_worker_concurrent_claim_dispatches_once(postgis_db_sessionmaker) 
             await session.commit()
             notice_id = notice.id
         adapter = RecordingEmailAdapter()
-        ctx = {
-            "sessionmaker": postgis_db_sessionmaker,
-            "settings": _settings(),
-            "email_adapter": adapter,
-        }
+        settings = _settings()
+        now = datetime.now(UTC)
         results = await asyncio.gather(
-            process_email_notification(ctx, str(notice_id)),
-            process_email_notification(ctx, str(notice_id)),
+            process_email_notification(
+                postgis_db_sessionmaker,
+                notification_id=notice_id,
+                settings=settings,
+                email_adapter=adapter,
+                now=now,
+            ),
+            process_email_notification(
+                postgis_db_sessionmaker,
+                notification_id=notice_id,
+                settings=settings,
+                email_adapter=adapter,
+                now=now,
+            ),
         )
         assert sorted(results) == ["sent", "skipped"]
         assert len(adapter.messages) == 1
+
+    asyncio.run(run())
+
+
+def test_email_service_expired_claim_reclaims_and_stale_claimant_cannot_finish(
+    postgis_db_sessionmaker,
+) -> None:
+    async def run() -> None:
+        user_id, organization_id = await _seed_advertiser(postgis_db_sessionmaker)
+        async with postgis_db_sessionmaker() as session:
+            notice = await create_advertiser_email_notification(
+                session,
+                advertiser_organization_id=organization_id,
+                recipient_user_id=user_id,
+                type_key=NotificationType.FRAUD_HOLD_RAISED,
+                payload={},
+                dedupe_key="email:stale-claim:1",
+            )
+            await session.commit()
+            notice_id = notice.id
+
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        class BlockingEmailAdapter:
+            def __init__(self) -> None:
+                self.messages: list[EmailMessage] = []
+
+            async def send(self, message: EmailMessage) -> EmailSubmission:
+                self.messages.append(message)
+                started.set()
+                await release.wait()
+                return EmailSubmission(provider_message_id="provider-stale")
+
+        settings = _settings()
+        claimed_at = datetime.now(UTC)
+        stale_adapter = BlockingEmailAdapter()
+        stale_task = asyncio.create_task(
+            process_email_notification(
+                postgis_db_sessionmaker,
+                notification_id=notice_id,
+                settings=settings,
+                email_adapter=stale_adapter,
+                now=claimed_at,
+            )
+        )
+        await asyncio.wait_for(started.wait(), timeout=5)
+
+        winning_adapter = RecordingEmailAdapter()
+        assert (
+            await process_email_notification(
+                postgis_db_sessionmaker,
+                notification_id=notice_id,
+                settings=settings,
+                email_adapter=winning_adapter,
+                now=claimed_at + timedelta(seconds=settings.email_delivery_claim_seconds),
+            )
+            == "sent"
+        )
+        release.set()
+        assert await stale_task == "stale_claim"
+        assert [message.idempotency_key for message in stale_adapter.messages] == [
+            str(notice_id)
+        ]
+        assert [message.idempotency_key for message in winning_adapter.messages] == [
+            str(notice_id)
+        ]
+
+        async with postgis_db_sessionmaker() as session:
+            stored = await session.get(Notification, notice_id)
+            assert stored is not None
+            assert stored.status == NotificationStatus.SENT.value
+            assert stored.provider_message_id == f"provider-{notice_id}"
+            assert stored.attempt_count == 2
+            assert stored.delivery_claim_token is None
+            assert stored.delivery_claim_expires_at is None
+
+    asyncio.run(run())
+
+
+def test_email_service_stale_claim_token_fences_terminal_write(db_sessionmaker) -> None:
+    async def run() -> None:
+        user_id, organization_id = await _seed_advertiser(db_sessionmaker)
+        async with db_sessionmaker() as session:
+            notice = await create_advertiser_email_notification(
+                session,
+                advertiser_organization_id=organization_id,
+                recipient_user_id=user_id,
+                type_key=NotificationType.FRAUD_HOLD_RAISED,
+                payload={},
+                dedupe_key="email:stale-token-fence:1",
+            )
+            await session.commit()
+            notice_id = notice.id
+        replacement_token = uuid4()
+
+        class ReplacingClaimAdapter:
+            async def send(self, message: EmailMessage) -> EmailSubmission:
+                async with db_sessionmaker() as session:
+                    stored = await session.get(Notification, notice_id)
+                    assert stored is not None and stored.delivery_claim_token is not None
+                    stored.delivery_claim_token = replacement_token
+                    await session.commit()
+                return EmailSubmission(
+                    provider_message_id=f"provider-{message.idempotency_key}"
+                )
+
+        assert (
+            await process_email_notification(
+                db_sessionmaker,
+                notification_id=notice_id,
+                settings=_settings(),
+                email_adapter=ReplacingClaimAdapter(),
+                now=datetime.now(UTC),
+            )
+            == "stale_claim"
+        )
+        async with db_sessionmaker() as session:
+            stored = await session.get(Notification, notice_id)
+            assert stored is not None
+            assert stored.status == NotificationStatus.PENDING.value
+            assert stored.delivery_claim_token == replacement_token
+            assert stored.provider_message_id is None
+            assert stored.sent_at is None
+
+    asyncio.run(run())
+
+
+def test_email_service_claim_time_eligibility_is_not_revoked_in_flight(
+    postgis_db_sessionmaker,
+) -> None:
+    async def run() -> None:
+        user_id, organization_id = await _seed_advertiser(postgis_db_sessionmaker)
+        async with postgis_db_sessionmaker() as session:
+            notice = await create_advertiser_email_notification(
+                session,
+                advertiser_organization_id=organization_id,
+                recipient_user_id=user_id,
+                type_key=NotificationType.FRAUD_HOLD_RAISED,
+                payload={},
+                dedupe_key="email:claim-time-eligibility:1",
+            )
+            await session.commit()
+            notice_id = notice.id
+
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        class BlockingEmailAdapter:
+            async def send(self, message: EmailMessage) -> EmailSubmission:
+                started.set()
+                await release.wait()
+                return EmailSubmission(provider_message_id=f"provider-{message.idempotency_key}")
+
+        task = asyncio.create_task(
+            process_email_notification(
+                postgis_db_sessionmaker,
+                notification_id=notice_id,
+                settings=_settings(),
+                email_adapter=BlockingEmailAdapter(),
+                now=datetime.now(UTC),
+            )
+        )
+        await asyncio.wait_for(started.wait(), timeout=5)
+        async with postgis_db_sessionmaker() as session:
+            user = await session.get(User, user_id)
+            preference = await session.scalar(
+                select(AdvertiserOrganizationNotificationPreference).where(
+                    AdvertiserOrganizationNotificationPreference.advertiser_organization_id
+                    == organization_id
+                )
+            )
+            assert user is not None and preference is not None
+            user.status = UserStatus.SUSPENDED.value
+            preference.transactional_email_enabled = False
+            await session.commit()
+        release.set()
+
+        assert await task == "sent"
+        async with postgis_db_sessionmaker() as session:
+            stored = await session.get(Notification, notice_id)
+            assert stored is not None
+            assert stored.status == NotificationStatus.SENT.value
+
+    asyncio.run(run())
+
+
+def test_email_service_expired_claim_remains_reclaimable_above_attempt_cap(
+    postgis_db_sessionmaker,
+) -> None:
+    async def run() -> None:
+        user_id, organization_id = await _seed_advertiser(postgis_db_sessionmaker)
+        settings = _settings()
+        now = datetime.now(UTC)
+        async with postgis_db_sessionmaker() as session:
+            notice = await create_advertiser_email_notification(
+                session,
+                advertiser_organization_id=organization_id,
+                recipient_user_id=user_id,
+                type_key=NotificationType.FRAUD_HOLD_RAISED,
+                payload={},
+                dedupe_key="email:max-attempt-reclaim:1",
+            )
+            notice.attempt_count = settings.email_delivery_max_attempts
+            notice.delivery_claim_token = uuid4()
+            notice.delivery_claim_expires_at = now
+            await session.commit()
+            notice_id = notice.id
+
+        assert (
+            await process_email_notification(
+                postgis_db_sessionmaker,
+                notification_id=notice_id,
+                settings=settings,
+                email_adapter=RecordingEmailAdapter(),
+                now=now,
+            )
+            == "sent"
+        )
+        async with postgis_db_sessionmaker() as session:
+            stored = await session.get(Notification, notice_id)
+            assert stored is not None
+            assert stored.status == NotificationStatus.SENT.value
+            assert stored.attempt_count == settings.email_delivery_max_attempts + 1
+
+    asyncio.run(run())
+
+
+def test_email_service_adapter_failures_clear_claim_and_respect_attempt_cap(
+    db_sessionmaker,
+) -> None:
+    async def run() -> None:
+        user_id, organization_id = await _seed_advertiser(db_sessionmaker)
+        settings = _settings()
+        async with db_sessionmaker() as session:
+            permanent = await create_advertiser_email_notification(
+                session,
+                advertiser_organization_id=organization_id,
+                recipient_user_id=user_id,
+                type_key=NotificationType.FRAUD_HOLD_RAISED,
+                payload={},
+                dedupe_key="email:permanent-failure:1",
+            )
+            capped = await create_advertiser_email_notification(
+                session,
+                advertiser_organization_id=organization_id,
+                recipient_user_id=user_id,
+                type_key=NotificationType.FRAUD_HOLD_RAISED,
+                payload={},
+                dedupe_key="email:capped-failure:1",
+            )
+            capped.attempt_count = settings.email_delivery_max_attempts - 1
+            await session.commit()
+            permanent_id = permanent.id
+            capped_id = capped.id
+
+        assert (
+            await process_email_notification(
+                db_sessionmaker,
+                notification_id=permanent_id,
+                settings=settings,
+                email_adapter=RecordingEmailAdapter(
+                    [EmailSendError("email_recipient_rejected", retryable=False)]
+                ),
+                now=datetime.now(UTC),
+            )
+            == "failed"
+        )
+        assert (
+            await process_email_notification(
+                db_sessionmaker,
+                notification_id=capped_id,
+                settings=settings,
+                email_adapter=RecordingEmailAdapter(
+                    [EmailSendError("email_provider_unavailable", retryable=True)]
+                ),
+                now=datetime.now(UTC),
+            )
+            == "failed"
+        )
+        async with db_sessionmaker() as session:
+            permanent = await session.get(Notification, permanent_id)
+            capped = await session.get(Notification, capped_id)
+            assert permanent is not None and capped is not None
+            assert permanent.last_error_code == "email_recipient_rejected"
+            assert capped.last_error_code == "email_provider_unavailable"
+            assert capped.attempt_count == settings.email_delivery_max_attempts
+            for stored in (permanent, capped):
+                assert stored.status == NotificationStatus.FAILED.value
+                assert stored.next_attempt_at is None
+                assert stored.delivery_claim_token is None
+                assert stored.delivery_claim_expires_at is None
 
     asyncio.run(run())
 

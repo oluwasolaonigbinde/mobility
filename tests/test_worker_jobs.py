@@ -22,6 +22,7 @@ from test_trip_processing import (
     table_counts,
 )
 
+from app.adapters.messaging import EmailMessage, EmailSubmission
 from app.core.config import get_settings
 from app.core.trip_enqueue import RedisTripProcessingEnqueuer
 from app.jobs import assignment_activity as assignment_activity_jobs
@@ -40,7 +41,21 @@ from app.jobs import trip_processing as jobs
 from app.jobs import vehicle_approvals as vehicle_approval_jobs
 from app.jobs.worker import WorkerSettings, sweep_cron_minutes
 from app.models.assignment_activity import AssignmentActivityFlag, AssignmentActivityFlagEvent
-from app.models.notification import Notification
+from app.models.notification import (
+    Notification,
+    NotificationChannel,
+    NotificationStatus,
+    NotificationType,
+)
+from app.models.organization import (
+    AdvertiserOrganization,
+    AdvertiserOrganizationNotificationPreference,
+    MembershipRole,
+    MembershipStatus,
+    OrganizationMembership,
+    OrganizationStatus,
+)
+from app.models.user import User, UserRole, UserStatus
 from app.services import report_issuances as report_issuance_jobs
 from app.services.trip_processing import DueTrip, process_ended_trip
 
@@ -154,6 +169,277 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
         # Daily, staggered hours so lifecycle DDL never stacks.
         assert len(cron_job.hour) == 1
     assert len({next(iter(job.hour)) for job in lifecycle_crons.values()}) == 6
+
+
+def test_email_sweep_selects_bounded_due_ids_and_delegates_once_each(
+    db_sessionmaker, settings, monkeypatch
+) -> None:
+    async def run() -> None:
+        now = datetime(2026, 9, 1, 12, tzinfo=UTC)
+        user = User(
+            email=f"worker-email-{uuid4()}@example.test",
+            password_hash="hash",
+            full_name="Email worker",
+            role=UserRole.ADVERTISER,
+            status=UserStatus.ACTIVE,
+        )
+
+        def notice(
+            *,
+            created_at: datetime,
+            channel: str = NotificationChannel.TRANSACTIONAL_EMAIL.value,
+            status: str = NotificationStatus.PENDING.value,
+            next_attempt_at: datetime | None = None,
+            claim_expires_at: datetime | None = None,
+        ) -> Notification:
+            return Notification(
+                recipient_user_id=user.id,
+                type_key="fraud_hold_raised",
+                template_version="v1",
+                payload={},
+                dedupe_key=f"worker-email:{uuid4()}",
+                dedupe_fingerprint=uuid4().hex,
+                channel=channel,
+                status=status,
+                next_attempt_at=next_attempt_at,
+                delivery_claim_expires_at=claim_expires_at,
+                created_at=created_at,
+            )
+
+        async with db_sessionmaker() as session:
+            session.add(user)
+            await session.flush()
+            first = notice(created_at=now - timedelta(minutes=5))
+            second = notice(
+                created_at=now - timedelta(minutes=4),
+                next_attempt_at=now,
+                claim_expires_at=now,
+            )
+            beyond_limit = notice(created_at=now - timedelta(minutes=3))
+            future_retry = notice(
+                created_at=now - timedelta(minutes=10),
+                next_attempt_at=now + timedelta(seconds=1),
+            )
+            active_claim = notice(
+                created_at=now - timedelta(minutes=9),
+                claim_expires_at=now + timedelta(seconds=1),
+            )
+            wrong_channel = notice(
+                created_at=now - timedelta(minutes=8),
+                channel=NotificationChannel.IN_APP.value,
+                status=NotificationStatus.SENT.value,
+            )
+            terminal = notice(
+                created_at=now - timedelta(minutes=7),
+                status=NotificationStatus.FAILED.value,
+            )
+            session.add_all(
+                [
+                    first,
+                    second,
+                    beyond_limit,
+                    future_retry,
+                    active_claim,
+                    wrong_channel,
+                    terminal,
+                ]
+            )
+            await session.commit()
+
+        composed_adapter = object()
+        built_with = []
+        calls = []
+
+        def fake_build_email_adapter(composed_settings):
+            built_with.append(composed_settings)
+            return composed_adapter
+
+        async def fake_process_email_notification(
+            composed_sessionmaker,
+            *,
+            notification_id,
+            settings: object,
+            email_adapter,
+            now: datetime,
+        ) -> str:
+            calls.append(
+                (
+                    composed_sessionmaker,
+                    notification_id,
+                    settings,
+                    email_adapter,
+                    now,
+                )
+            )
+            return "sent" if len(calls) == 1 else "retry_scheduled"
+
+        monkeypatch.setattr(
+            email_delivery_jobs, "build_email_adapter", fake_build_email_adapter
+        )
+        monkeypatch.setattr(
+            email_delivery_jobs,
+            "process_email_notification",
+            fake_process_email_notification,
+        )
+        composed_settings = settings.model_copy(update={"worker_sweep_batch_size": 2})
+
+        result = await email_delivery_jobs.sweep_email_notifications(
+            {"sessionmaker": db_sessionmaker, "settings": composed_settings},
+            now=now,
+        )
+
+        assert result == {"sent": 1, "retry_scheduled": 1}
+        assert built_with == [composed_settings]
+        assert [call[1] for call in calls] == [first.id, second.id]
+        assert all(
+            call
+            == (
+                db_sessionmaker,
+                call[1],
+                composed_settings,
+                composed_adapter,
+                now,
+            )
+            for call in calls
+        )
+
+    asyncio.run(run())
+
+
+def test_email_sweep_reraises_unexpected_failure_and_preserves_partial_completion(
+    postgis_db_sessionmaker, settings
+) -> None:
+    async def run() -> None:
+        now = datetime(2026, 9, 1, 12, tzinfo=UTC)
+        user = User(
+            email=f"worker-email-crash-{uuid4()}@example.test",
+            password_hash="hash",
+            full_name="Email worker crash",
+            role=UserRole.ADVERTISER,
+            status=UserStatus.ACTIVE,
+        )
+        organization = AdvertiserOrganization(
+            name="Worker email crash",
+            status=OrganizationStatus.ACTIVE,
+            currency="NGN",
+        )
+
+        async with postgis_db_sessionmaker() as session:
+            session.add_all([user, organization])
+            await session.flush()
+            session.add_all(
+                [
+                    OrganizationMembership(
+                        organization_id=organization.id,
+                        user_id=user.id,
+                        role=MembershipRole.OWNER,
+                        status=MembershipStatus.ACTIVE,
+                    ),
+                    AdvertiserOrganizationNotificationPreference(
+                        advertiser_organization_id=organization.id,
+                        transactional_email_enabled=True,
+                    ),
+                ]
+            )
+
+            notices = [
+                Notification(
+                    recipient_user_id=user.id,
+                    type_key=NotificationType.FRAUD_HOLD_RAISED.value,
+                    template_version="v1",
+                    payload={"advertiser_organization_id": str(organization.id)},
+                    dedupe_key=f"worker-email-crash:{index}",
+                    dedupe_fingerprint=uuid4().hex,
+                    channel=NotificationChannel.TRANSACTIONAL_EMAIL.value,
+                    status=NotificationStatus.PENDING.value,
+                    created_at=now - timedelta(minutes=3 - index),
+                )
+                for index in range(3)
+            ]
+            session.add_all(notices)
+            await session.commit()
+            first_id, second_id, third_id = (notice.id for notice in notices)
+
+        class CrashOnceOnSecondAdapter:
+            def __init__(self) -> None:
+                self.notification_ids = []
+                self.second_crashed = False
+
+            async def send(self, message: EmailMessage) -> EmailSubmission:
+                notification_id = message.idempotency_key
+                self.notification_ids.append(notification_id)
+                if notification_id == str(second_id) and not self.second_crashed:
+                    self.second_crashed = True
+                    raise RuntimeError("unexpected email provider crash")
+                return EmailSubmission(provider_message_id=f"provider-{notification_id}")
+
+        adapter = CrashOnceOnSecondAdapter()
+        sweep_settings = settings.model_copy(
+            update={
+                "email_delivery_claim_seconds": 30,
+                "worker_sweep_batch_size": 3,
+            }
+        )
+        ctx = {
+            "sessionmaker": postgis_db_sessionmaker,
+            "settings": sweep_settings,
+            "email_adapter": adapter,
+        }
+
+        with pytest.raises(RuntimeError, match="unexpected email provider crash"):
+            await email_delivery_jobs.sweep_email_notifications(ctx, now=now)
+
+        assert adapter.notification_ids == [str(first_id), str(second_id)]
+        claim_expires_at = now + timedelta(seconds=sweep_settings.email_delivery_claim_seconds)
+        async with postgis_db_sessionmaker() as session:
+            first = await session.get(Notification, first_id)
+            second = await session.get(Notification, second_id)
+            third = await session.get(Notification, third_id)
+            assert first is not None
+            assert first.status == NotificationStatus.SENT.value
+            assert first.attempt_count == 1
+            assert first.provider_message_id == f"provider-{first_id}"
+            assert first.delivery_claim_token is None
+            assert first.delivery_claim_expires_at is None
+            assert second is not None
+            assert second.status == NotificationStatus.PENDING.value
+            assert second.attempt_count == 1
+            assert second.provider_message_id is None
+            assert second.delivery_claim_token is not None
+            assert second.delivery_claim_expires_at == claim_expires_at
+            assert third is not None
+            assert third.status == NotificationStatus.PENDING.value
+            assert third.attempt_count == 0
+            assert third.provider_message_id is None
+            assert third.delivery_claim_token is None
+            assert third.delivery_claim_expires_at is None
+
+        retry_ctx = {
+            **ctx,
+            "settings": sweep_settings.model_copy(update={"worker_sweep_batch_size": 1}),
+        }
+        assert await email_delivery_jobs.sweep_email_notifications(
+            retry_ctx, now=claim_expires_at
+        ) == {"sent": 1}
+        assert adapter.notification_ids == [str(first_id), str(second_id), str(second_id)]
+
+        async with postgis_db_sessionmaker() as session:
+            second = await session.get(Notification, second_id)
+            third = await session.get(Notification, third_id)
+            assert second is not None
+            assert second.status == NotificationStatus.SENT.value
+            assert second.attempt_count == 2
+            assert second.provider_message_id == f"provider-{second_id}"
+            assert second.delivery_claim_token is None
+            assert second.delivery_claim_expires_at is None
+            assert third is not None
+            assert third.status == NotificationStatus.PENDING.value
+            assert third.attempt_count == 0
+            assert third.provider_message_id is None
+            assert third.delivery_claim_token is None
+            assert third.delivery_claim_expires_at is None
+
+    asyncio.run(run())
 
 
 def test_file_kyc_worker_stays_disabled_without_approved_policy(settings) -> None:
