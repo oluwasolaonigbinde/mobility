@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 80
+plan_revision: 81
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 177
+last_event_sequence: 178
 ---
 
 # Cardvert audit remediation programme
@@ -299,7 +299,7 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 8 | GPT-5.6 Sol/high — bounded nested-scanner availability correction | unchanged five-file R13 lease | RESERVED |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 8 | GPT-5.6 Sol/high — bounded nested-scanner availability correction | unchanged five-file R13 lease | ACTIVE |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-7 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `16f1b2b8...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-6 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `08d04f8c...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-5 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `6e171d42...` diff | FIX |
@@ -574,3 +574,4 @@ verification is complete.
 | 175 | 79 | 1 | DISPATCH_STARTED | Visible S09/R24 correction attempt 2 reacquired the existing service/two-test lease for causal resume order and missing money-path evidence. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; GPT-5.6 Sol/high; terminal callback required |
 | 176 | 80 | 1 | DIFF_REVIEW_FIX | R13 attempt 7 passes privacy correctness but nested balanced containers still trigger repeated suffix scans, taking about 22 seconds at the allowed 1024-candidate boundary. | Sol/high reviewer `/root/r13_attempt5_review`; exact `16f1b2b8...`; deterministic 514KB nested probe |
 | 177 | 80 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 8 on the unchanged five-file lease, limited to single-pass/memoized balanced boundaries and a nested 1024-candidate regression. | GPT-5.6 Sol/high; no privacy-classification or scope change; repeat M/SEC/CP review required |
+| 178 | 81 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 8 reacquired the unchanged five-file privacy lease for nested balanced-boundary performance only. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/high; terminal callback required |
