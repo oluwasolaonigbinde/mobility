@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 88
+plan_revision: 89
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 188
+last_event_sequence: 190
 ---
 
 # Cardvert audit remediation programme
@@ -206,8 +206,8 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R21 | MON-003 | QUEUED | R20 | — | wait |
 | R22 | MON-004, MON-007, MON-009 | QUEUED | R20, R21 | — | wait |
 | R23 | COM-001, COM-004 | ACCEPTED | R08; commercial opener | R23-P/M/MNY/CP-COMMERCIAL; PostgreSQL, migration 0073 and contract evidence | complete at `8fd5fc4` |
-| R24 | COM-002 | REVIEW | R08, R23 | R24-P; attempt-1 review FIX; attempt 2 frozen `d4cbf20c...` | run exact repeat R24-M/MNY/CP-COMMERCIAL review |
-| R25 | COM-003, COM-005 | WAITING | R08, R24 | R25-P; reviewed quotation/waiver contract | wait for accepted R24 |
+| R24 | COM-002 | ACCEPTED | R08, R23 | R24-P/M/MNY/CP-COMMERCIAL; causal epoch and PostgreSQL race evidence | complete at `36df828` |
+| R25 | COM-003, COM-005 | READY | R08, R24 | R25-P; reviewed quotation/waiver contract | reserve for the owner-directed next Opus 5 / High session after the current set clears |
 | R26 | COM-006 | WAITING | R08, R25 | R26-P; reviewed lock-order contract | wait for accepted R25; bounded Sol/high DB+money gate |
 | R27 | COM-007 | WAITING | R08, R26 | R27-P; reviewed Lagos-year contract | wait for accepted R26 |
 | R28 | CAM-001 | BLOCKED-OWNER | campaign opener | current-source finding confirmed; R28-P blocked | owner must define scheduled→active actor/API/idempotency, readiness coupling, and lifecycle-evidence authority |
@@ -315,8 +315,8 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e60-6ce7-7cb2-ac20-300ac5275d05` | S03 / R09-R11 planning after accepted R10 | GPT-5.6 Sol/medium for planning | no mutation lease; R09 plan PASS, R11 plan BLOCKED-OWNER | PLAN-RETURNED |
 | `/root/r10_diff_review` | S03 / R10 M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — strict bearer claims, refresh and route authority | released accepted R10 diff `de0c8d60...` | PASS |
 | task `01a05e7a-2699-79b2-9b63-e911dfe302ef` | S06 / R16 implementation | GPT-5.6 Sol/medium — bounded provider-port composition refactor | released accepted seven-file boundary diff | ACCEPTED |
-| task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R24 correction attempt 2; R25-R27 held | GPT-5.6 Sol/high — bounded money epoch/race correction | released exact two-file diff `d4cbf20c...`; no migration/contract lease | REVIEW |
-| `/root/r24_review` | S09 / R24 attempt-2 M, MNY and CP-COMMERCIAL review | GPT-5.6 Sol/high — bounded money/idempotency admission | read-only exact `d4cbf20c...` diff | ACTIVE |
+| task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R24 correction attempt 2; R25-R27 held | GPT-5.6 Sol/high — bounded money epoch/race correction | released accepted exact two-file diff `d4cbf20c...`; no migration/contract lease | ACCEPTED |
+| `/root/r24_review` | S09 / R24 attempt-2 M, MNY and CP-COMMERCIAL review | GPT-5.6 Sol/high — bounded money/idempotency admission | released reviewed exact `d4cbf20c...` diff | PASS |
 | `/root/r24_review` | S09 / R24 M, MNY and CP-COMMERCIAL review | GPT-5.6 Sol/high — bounded money/idempotency admission | released reviewed exact `0a6333b5...` diff | FIX |
 | `/root/r13_attempt3_review` | S05 / R13 repeat M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded parser and identifier-preservation boundary | released reviewed R13 diff `506dc438...` | FIX |
 | `/root/r16_diff_review` | S06 / R16 M, CONTRACT/control and CP-CONTROL review | GPT-5.6 Sol/medium — bounded provider-boundary refactor | released accepted seven-file diff | PASS |
@@ -324,11 +324,12 @@ trigger and a newly reviewed authority amendment.
 | `/root/r13_attempt4_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy boundary | released reviewed R13 diff `6753a823...` | FIX |
 
 Implementation writers reserved/active: **2 / 3**, reserved S05/R13 attempt 9
-plus active S12/R34; S09/R24 is frozen in read-only admission review. R02 remains temporarily
+plus active S12/R34; R24 is accepted and ready R25 is held for the owner-directed
+next Opus handoff. R02 remains temporarily
 conflict-held because its shared-fixture mutation would invalidate R13's final
 admission verification; R09 also waits for R13's audit/admin seam to release. S12/R34
 exclusively owns migrations, generated contracts and its configuration surface;
-S09/R24 is disjoint billing-only work. Read-only planning/review may continue.
+The accepted R24 billing bytes are frozen in history. Read-only planning/review may continue.
 
 ## Accepted evidence
 
@@ -381,8 +382,8 @@ adopt that enforcement policy before R17-P can be corrected and re-reviewed.
 
 ## Next scheduler action
 
-Complete exact independent admission of frozen R13 and R24 while R34 continues,
-then rescan the full dependency/conflict graph. At the first safe trigger after
+Complete R13 correction/admission while R34 continues, then rescan the full
+dependency/conflict graph. R24 is accepted and R25 is ready. At the first safe trigger after
 this current set clears, dispatch the next two compatible ready implementation
 packets as visible Claude desktop Code sessions on saved Mobility `master`, no
 worktrees, with owner-selected Opus 5 / High. Preserve R02-P and R03-P;
@@ -390,10 +391,9 @@ implementation remains held until the shared-fixture lane releases. Keep R06,
 R11, R17 and R28 blocked on their
 recorded owner choices without
 freezing independent work. R09 remains write-held until R13 releases the
-admin/audit seam; R33 remains held behind R05. R24-R27 remain in the same S09
-task and R34-R37 in S12; each chain unlocks one slice at a time after separate
-admission. Escalate only the later
-bounded R26 implementation/review to Sol/high. After each callback, reconcile
+admin/audit seam; R33 remains held behind R05. R25-R27 retain their sequential
+commercial dependencies and R34-R37 retain theirs; each slice still requires
+separate admission. After each callback, reconcile
 the checkout, review/admit the returned slice, rescan the full graph, and refill
 every safe slot immediately. S01 begins with R02 once R13's shared-fixture
 verification is complete.
@@ -590,3 +590,5 @@ verification is complete.
 | 186 | 87 | 1 | DIFF_REVIEW_FIX | R13 attempt 8 resolves balanced nesting time but an ordinary unmatched apostrophe can extend safe business context over a later personal-name key, while a zero-assignment unmatched-bracket string bypasses the candidate cap and adds about 63 MB RSS. | Sol/high reviewer `/root/r13_attempt5_review`; exact `12ec7aa9...`; deterministic cross-sink leak and malformed-input memory probe |
 | 187 | 87 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 9 on the unchanged five-file lease, limited to quote-aware malformed-context safety and bounded structural work/memory. | GPT-5.6 Sol/high; no classification, schema, route, contract or path expansion; full repeat review required |
 | 188 | 88 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 9 reacquired the unchanged five-file privacy lease for unmatched-prose quote safety and bounded malformed structural work only. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/high; terminal callback required |
+| 189 | 89 | 1 | DIFF_REVIEW_PASSED | R24 attempt 2 passed minimal-change, money-specialist and CP-COMMERCIAL review with no findings after exact causal-time, retry, authorization and PostgreSQL race re-verification. | Sol/high reviewer `/root/r24_review`; exact `d4cbf20c...`; 9 PostgreSQL budget plus 10 refund compatibility passes |
+| 190 | 89 | 1 | SLICE_ACCEPTED | R24/COM-002 accepted exactly once after controller inspection and a fresh 9-test real-PostgreSQL budget run; R25 is dependency-ready. | product commit `36df828`; R24-P/M/MNY/CP-COMMERCIAL; exact two-file scope only |
