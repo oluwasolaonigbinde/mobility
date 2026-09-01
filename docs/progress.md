@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R34`
-**Current capacity justification:** `R34` owns the trip/offline evidence protocol plus the serialized migration/generated-contract/configuration lane. R13 and R24 have frozen their exact diffs for independent review, so both implementation leases are released; R02 and R09 remain temporarily conflict-held until R13 review and admission finish, while R25 remains dependency-held until R24 admission. Shared fixtures and this file remain controller-serialized.
+**Current capacity assignment:** `R13, R34`
+**Current capacity justification:** `R13` owns the exact unmatched-quote and bounded-structure correction on its unchanged observability/audit lease, while `R34` owns the disjoint trip/offline evidence protocol plus the serialized migration/generated-contract/configuration lane. R24 remains frozen in independent review; R02 and R09 remain temporarily conflict-held until R13 admission, and R25 remains dependency-held until R24 admission. Shared fixtures and this file remain controller-serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -78,9 +78,9 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 now rolling across dependency-ready disjoint slices while all 29 non-executable
 findings retain their admitted dispositions.
-**Current checkpoint:** `PKG-10 / R34` — the offline protocol lane remains
-active while R13 and R24 exact diffs are independently reviewed. R02 and R09
-wait for R13 clearance; R25 waits for R24 clearance.
+**Current checkpoint:** `PKG-10 / R13` — the bounded malformed-input privacy
+correction runs alongside the offline protocol lane while R24 remains in exact
+diff review. R02 and R09 wait for R13 clearance; R25 waits for R24 clearance.
 
 ## Direct owner requests outside the package queue
 
@@ -1533,7 +1533,7 @@ durable ledger before changing a row.
 | R10 | AUT-005 | R08 | COMPLETE | PASS — R10-P | PASS — R10-M | CP-SECURITY PASS — R10-CP-SECURITY |
 | R11 | AUT-004 | R09 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
 | R12 | AUT-003, REL-003 | R11 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
-| R13 | SEC-001, PRV-008 | none | QUEUED | PASS — R13-P | PENDING | CP-PRIVACY PENDING |
+| R13 | SEC-001, PRV-008 | none | ACTIVE | PASS — R13-P | PENDING | CP-PRIVACY PENDING |
 | R14 | SEC-002, TST-004 | R12 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
 | R15 | GOV-006 | none | COMPLETE | PASS — R15-P | PASS — R15-M | CP-WORKERS PASS — R15-CP-WORKERS |
 | R16 | GOV-008 | none | COMPLETE | PASS — R16-P | PASS — R16-M | CP-CONTROL PASS — R16-CP-CONTROL |

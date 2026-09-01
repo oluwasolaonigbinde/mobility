@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 86
+plan_revision: 87
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 185
+last_event_sequence: 187
 ---
 
 # Cardvert audit remediation programme
@@ -195,7 +195,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R10 | AUT-005 | ACCEPTED | R08 | R10-P/M/SEC/CP-SECURITY; strict-claim and route-graph evidence | complete |
 | R11 | AUT-004 | BLOCKED-OWNER | R09; logout policy | plan review confirmed current-device documentation conflicts with schema-free global revocation | owner must choose visible sign-out-everywhere or per-session identity/migration authority |
 | R12 | AUT-003, REL-003 | QUEUED | R11 | — | wait |
-| R13 | SEC-001, PRV-008 | REVIEW | sensitive-metadata opener | R13-P; attempts 1-7 reviews FIX; attempt 8 frozen `12ec7aa9...` | run exact repeat R13-M/SEC/PRV/CP-PRIVACY review |
+| R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P; attempts 1-8 reviews FIX; attempt 8 `12ec7aa9...` | correct unmatched-prose quote desynchronization and cap malformed structural work/memory |
 | R14 | SEC-002, TST-004 | QUEUED | R12 | — | wait |
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | ACCEPTED | provider-boundary opener | R16-P/M/CONTRACT/CP-CONTROL; structural and behavioral evidence | complete |
@@ -299,8 +299,8 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 8 | GPT-5.6 Sol/high — bounded nested-scanner availability correction | released exact five-file diff `12ec7aa9...` | REVIEW |
-| `/root/r13_attempt5_review` | S05 / R13 attempt-8 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | read-only exact `12ec7aa9...` diff | ACTIVE |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 9 | GPT-5.6 Sol/high — malformed-input privacy and memory-bound correction | unchanged five-file R13 lease | RESERVED |
+| `/root/r13_attempt5_review` | S05 / R13 attempt-8 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `12ec7aa9...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-7 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `16f1b2b8...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-6 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `08d04f8c...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-5 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `6e171d42...` diff | FIX |
@@ -323,8 +323,8 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e84-2c02-7bf0-8c55-382766692aed` | S02 / R05-R07 aggregate plan and independent review | GPT-5.6 Sol/medium — read-only database-chain current-source planning | no mutation lease; R05/R07 plans pass | BLOCKED-OWNER |
 | `/root/r13_attempt4_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy boundary | released reviewed R13 diff `6753a823...` | FIX |
 
-Implementation writers reserved/active: **1 / 3**, active S12/R34; S05/R13 and
-S09/R24 are frozen in read-only admission review. R02 remains temporarily
+Implementation writers reserved/active: **2 / 3**, reserved S05/R13 attempt 9
+plus active S12/R34; S09/R24 is frozen in read-only admission review. R02 remains temporarily
 conflict-held because its shared-fixture mutation would invalidate R13's final
 admission verification; R09 also waits for R13's audit/admin seam to release. S12/R34
 exclusively owns migrations, generated contracts and its configuration surface;
@@ -587,3 +587,5 @@ verification is complete.
 | 183 | 84 | 1 | DIFF_REVIEW_RESERVED | Frozen R24 attempt 2 reserved repeat independent minimal-change, money-specialist and CP-COMMERCIAL review. | GPT-5.6 Sol/high; read-only exact `d4cbf20c...` diff; no mutation authority |
 | 184 | 85 | 1 | SCHEDULER_POLICY_AMENDED | Owner directed the next two safely ready implementation sessions after the current R13/R24/R34 set clears to run as visible Claude desktop Code sessions. | Opus 5 / High; saved Mobility `master`; no worktrees; exact graph, lease, review and authority boundaries unchanged |
 | 185 | 86 | 1 | DIFF_REVIEW_STARTED | Frozen R24 attempt 2 entered repeat independent adversarial minimal-change, money-specialist and CP-COMMERCIAL review. | reused `/root/r24_review`; GPT-5.6 Sol/high; read-only exact `d4cbf20c...` diff |
+| 186 | 87 | 1 | DIFF_REVIEW_FIX | R13 attempt 8 resolves balanced nesting time but an ordinary unmatched apostrophe can extend safe business context over a later personal-name key, while a zero-assignment unmatched-bracket string bypasses the candidate cap and adds about 63 MB RSS. | Sol/high reviewer `/root/r13_attempt5_review`; exact `12ec7aa9...`; deterministic cross-sink leak and malformed-input memory probe |
+| 187 | 87 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 9 on the unchanged five-file lease, limited to quote-aware malformed-context safety and bounded structural work/memory. | GPT-5.6 Sol/high; no classification, schema, route, contract or path expansion; full repeat review required |
