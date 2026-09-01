@@ -8,6 +8,12 @@ from pydantic import TypeAdapter
 from sqlalchemy import func, select, update
 from test_exposure_segments import PASSWORD, _create_link_and_run, cells
 
+from app.adapters.ad_platforms import (
+    AdPlatformActivationRequest,
+    DisabledAdPlatformAdapter,
+    FakeAdPlatformAdapter,
+    build_ad_platform_adapter,
+)
 from app.api.v1.dependencies import get_ad_platform_adapter
 from app.core.errors import AppError
 from app.models.audience_delivery import AudienceDelivery
@@ -19,10 +25,10 @@ from app.models.measurement import MeasurementRun
 from app.models.retargeting_source import RetargetingSource
 from app.models.retargeting_source_link import RetargetingSourceLink
 from app.models.user import User
+from app.schemas.audience_delivery import AggregateActivationPayload, AggregateTarget
 from app.schemas.exposure_segments import ExposureCellInput
 from app.services.audience import materialize_exposure_segment
 from app.services.audience_delivery import (
-    FakeAdPlatformAdapter,
     activate_exposure_segment,
     export_exposure_segment,
     recommendations_for_link,
@@ -52,6 +58,42 @@ def _issued_segment(db_client, db_sessionmaker, settings):
 
     segment_id, admin = asyncio.run(issue())
     return advertiser, other, admin, link_id, run_id, segment_id
+
+
+def test_ad_platform_adapters_preserve_disabled_and_synthetic_behavior() -> None:
+    request = AdPlatformActivationRequest(
+        idempotency_key="adapter-contract",
+        payload=AggregateActivationPayload(
+            schema_version="aggregate-contextual-activation-v1",
+            campaign_id=UUID(int=1),
+            campaign_context="vehicle_transit",
+            targets=[
+                AggregateTarget(
+                    coverage_cell="grid-100m:1:1",
+                    window_start_at=datetime(2026, 9, 1, tzinfo=UTC),
+                    window_end_at=datetime(2026, 9, 1, 1, tzinfo=UTC),
+                    context="vehicle_transit",
+                )
+            ],
+        ),
+    )
+
+    disabled = build_ad_platform_adapter()
+    assert isinstance(disabled, DisabledAdPlatformAdapter)
+    assert (disabled.name, disabled.enabled, disabled.synthetic) == (
+        "disabled",
+        False,
+        False,
+    )
+    with pytest.raises(
+        RuntimeError, match="disabled ad-platform adapter cannot be invoked"
+    ):
+        asyncio.run(disabled.activate(request))
+
+    fake = FakeAdPlatformAdapter()
+    result = asyncio.run(fake.activate(request))
+    assert fake.calls == [request]
+    assert result.provider_reference == "fake-activation-adapter-contract"
 
 
 def test_recommendations_export_and_unsafe_payload_rejection_api(

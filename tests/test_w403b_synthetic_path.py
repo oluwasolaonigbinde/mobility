@@ -32,7 +32,7 @@ from app.models.report_issuance import ReportArtifact, ReportIssuance
 from app.models.user import User, UserRole
 from app.schemas.exposure_segments import ExposureCellInput
 from app.services.audience import materialize_exposure_segment
-from app.services.audience_delivery import FakeAdPlatformAdapter
+from app.adapters.ad_platforms import FakeAdPlatformAdapter
 from app.services.disbursements import (
     approve_payout_batch,
     create_payout_batch_draft,

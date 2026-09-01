@@ -6,6 +6,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
+from app.adapters.ad_platforms import AdPlatformAdapter, build_ad_platform_adapter
 from app.adapters.storage import StorageProvider, build_storage_provider
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
@@ -20,7 +21,6 @@ from app.core.security import decode_token_claims
 from app.core.trip_enqueue import TripProcessingEnqueuer, build_trip_enqueuer
 from app.db.session import get_session
 from app.models.user import User, UserRole, UserStatus
-from app.services.audience_delivery import AdPlatformAdapter, build_ad_platform_adapter
 from app.services.users import get_user_by_id
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
