@@ -7183,7 +7183,11 @@ export interface components {
             phone: string | null;
             /** Service City */
             service_city: string | null;
-            status: components["schemas"]["DriverApplicationStatus"];
+            /**
+             * Status
+             * @constant
+             */
+            status: "pending";
             /**
              * Updated At
              * Format: date-time
@@ -7209,11 +7213,6 @@ export interface components {
             /** Service City */
             service_city?: string | null;
         };
-        /**
-         * DriverApplicationStatus
-         * @enum {string}
-         */
-        DriverApplicationStatus: "pending";
         /** DriverApplicationStatusResponse */
         DriverApplicationStatusResponse: {
             /** Message */

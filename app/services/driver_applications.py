@@ -23,6 +23,7 @@ from app.models.driver_application import (
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.driver_applications import DriverApplicationCreate
 from app.services.admin_authorization import require_active_admin
+from app.services.audit import create_audit_event
 from app.services.users import get_user_by_email
 
 PUBLIC_APPLICATION_MESSAGE = "Application received for review."
@@ -87,10 +88,21 @@ async def issue_driver_application_access(
     *,
     application: DriverApplication,
     settings: Settings,
-) -> DriverApplicationAccessToken:
+) -> DriverApplicationAccessToken | None:
+    locked_application = await session.scalar(
+        select(DriverApplication)
+        .where(DriverApplication.id == application.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if (
+        locked_application is None
+        or locked_application.status != DriverApplicationStatus.PENDING.value
+    ):
+        return None
     access = DriverApplicationAccessToken(
         id=uuid4(),
-        application_id=application.id,
+        application_id=locked_application.id,
         token_sha256="0" * 64,
         expires_at=datetime.now(UTC)
         + timedelta(seconds=settings.driver_onboarding_access_ttl_seconds),
@@ -99,7 +111,7 @@ async def issue_driver_application_access(
     access.token_sha256 = hashlib.sha256(token.encode()).hexdigest()
     session.add(access)
     await session.flush()
-    user = await session.get(User, application.user_id)
+    user = await session.get(User, locked_application.user_id)
     if user is None:  # pragma: no cover - protected by FK
         raise RuntimeError("driver onboarding access recipient disappeared")
     from app.services.notifications import create_driver_onboarding_access_notification
@@ -134,9 +146,17 @@ async def application_from_access_token(
     if lock:
         query = query.with_for_update()
     access = await session.scalar(query) if token_id is not None else None
-    application = (
-        await session.get(DriverApplication, access.application_id) if access is not None else None
-    )
+    if access is None:
+        application = None
+    elif lock:
+        application = await session.scalar(
+            select(DriverApplication)
+            .where(DriverApplication.id == access.application_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    else:
+        application = await session.get(DriverApplication, access.application_id)
     supplied_hash = hashlib.sha256(token.strip().encode()).hexdigest()
     if (
         access is None
@@ -151,6 +171,43 @@ async def application_from_access_token(
             status_code=status.HTTP_404_NOT_FOUND,
         )
     return application
+
+
+async def terminalize_driver_application(
+    session: AsyncSession,
+    *,
+    application: DriverApplication,
+    terminal_status: DriverApplicationStatus,
+    actor_user_id: UUID,
+    source_entity_type: str,
+    source_entity_id: UUID,
+) -> bool:
+    """Move a locked pending application to one terminal state exactly once."""
+
+    if terminal_status not in {
+        DriverApplicationStatus.APPROVED,
+        DriverApplicationStatus.REJECTED,
+    }:
+        raise ValueError("driver application terminal status is required")
+    if application.status != DriverApplicationStatus.PENDING.value:
+        return False
+    application.status = terminal_status.value
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action=f"admin.driver_application.{terminal_status.value}",
+        entity_type="driver_application",
+        entity_id=str(application.id),
+        metadata={
+            "driver_profile_id": str(application.driver_profile_id),
+            "from_status": DriverApplicationStatus.PENDING.value,
+            "to_status": terminal_status.value,
+            "source_entity_type": source_entity_type,
+            "source_entity_id": str(source_entity_id),
+        },
+    )
+    return True
 
 
 async def _eligible_access_application(

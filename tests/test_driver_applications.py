@@ -21,13 +21,16 @@ from app.core.rate_limit import InMemoryRegistrationRateLimiter, RateLimitDecisi
 from app.models.audit import AuditEvent
 from app.models.campaign_assignment import CampaignAssignment
 from app.models.driver import DriverProfile
-from app.models.driver_application import DriverApplication
+from app.models.driver_application import DriverApplication, DriverApplicationAccessToken
 from app.models.payee import Payee
 from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle
 from app.schemas.driver_applications import DriverApplicationCreate
 from app.services import driver_applications as application_service
-from app.services.driver_applications import list_driver_applications
+from app.services.driver_applications import (
+    list_driver_applications,
+    synthetic_driver_application_access_token,
+)
 
 PASSWORD = "long-secure-password"
 
@@ -242,7 +245,8 @@ def test_postgres_same_email_race_creates_one_pending_graph_and_generic_results(
 
     async def synchronized_lookup(session, email):
         result = await original_lookup(session, email)
-        await barrier.wait()
+        if result is None:
+            await barrier.wait()
         return result
 
     monkeypatch.setattr(application_service, "get_user_by_email", synchronized_lookup)
@@ -318,7 +322,8 @@ def test_postgres_http_same_email_race_has_generic_responses_and_one_graph(
 
     async def synchronized_lookup(session, email):
         result = await original_lookup(session, email)
-        await barrier.wait()
+        if result is None:
+            await barrier.wait()
         return result
 
     monkeypatch.setattr(application_service, "get_user_by_email", synchronized_lookup)
@@ -463,3 +468,111 @@ def test_admin_queue_is_sanitized_and_requires_admin(db_client, db_sessionmaker,
     assert "password_hash" not in admin_response.text
     assert "ratelimit" not in admin_response.text
     assert advertiser_response.status_code == http_status.HTTP_403_FORBIDDEN
+
+
+def test_explicit_public_applicant_rejection_is_terminal_and_revokes_access(
+    db_client, db_sessionmaker, settings
+) -> None:
+    enable_registration(db_client, settings)
+    registration = db_client.post(
+        "/api/v1/auth/register-driver",
+        json={"email": "rejected-applicant@example.com", "full_name": "Rejected Applicant"},
+    )
+    assert registration.status_code == http_status.HTTP_202_ACCEPTED
+    admin = create_test_user(
+        db_sessionmaker,
+        email="rejected-applicant-admin@example.com",
+        password=PASSWORD,
+    )
+
+    async def application_authority() -> tuple[DriverApplication, str, int]:
+        async with db_sessionmaker() as session:
+            application = await session.scalar(
+                select(DriverApplication).where(
+                    DriverApplication.email == "rejected-applicant@example.com"
+                )
+            )
+            assert application is not None
+            access = await session.scalar(
+                select(DriverApplicationAccessToken).where(
+                    DriverApplicationAccessToken.application_id == application.id
+                )
+            )
+            assert access is not None
+            token = synthetic_driver_application_access_token(
+                access,
+                settings,
+                synthetic_test_authority=True,
+            )
+            count = int(
+                await session.scalar(
+                    select(func.count(DriverApplicationAccessToken.id)).where(
+                        DriverApplicationAccessToken.application_id == application.id
+                    )
+                )
+                or 0
+            )
+            return application, token, count
+
+    application, token, access_count = asyncio.run(application_authority())
+    rejected = db_client.patch(
+        f"/api/v1/admin/drivers/{application.driver_profile_id}",
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+        json={"onboarding_status": "rejected"},
+    )
+    assert rejected.status_code == http_status.HTTP_200_OK
+
+    duplicate = db_client.post(
+        "/api/v1/auth/register-driver",
+        json={"email": application.email, "full_name": "Generic Duplicate"},
+    )
+    invalid_mutation = db_client.post(
+        f"/api/v1/auth/driver-onboarding/files/{uuid4()}/status",
+        json={"application_access_token": token},
+    )
+    queue = db_client.get(
+        "/api/v1/admin/driver-applications",
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+    )
+    terminal_public_status = db_client.get(
+        f"/api/v1/auth/driver-application-status/{registration.json()['application_reference']}"
+    )
+    unknown_public_status = db_client.get(
+        "/api/v1/auth/driver-application-status/not-a-real-reference"
+    )
+
+    async def terminal_evidence() -> tuple[str, int, int]:
+        async with db_sessionmaker() as session:
+            refreshed = await session.get(DriverApplication, application.id)
+            assert refreshed is not None
+            accesses = int(
+                await session.scalar(
+                    select(func.count(DriverApplicationAccessToken.id)).where(
+                        DriverApplicationAccessToken.application_id == application.id
+                    )
+                )
+                or 0
+            )
+            audits = int(
+                await session.scalar(
+                    select(func.count(AuditEvent.id)).where(
+                        AuditEvent.action == "admin.driver_application.rejected",
+                        AuditEvent.entity_id == str(application.id),
+                    )
+                )
+                or 0
+            )
+            return refreshed.status, accesses, audits
+
+    application_status, final_access_count, terminal_audits = asyncio.run(terminal_evidence())
+    assert application_status == "rejected"
+    assert duplicate.status_code == http_status.HTTP_202_ACCEPTED
+    assert duplicate.json().keys() == registration.json().keys()
+    assert final_access_count == access_count
+    assert invalid_mutation.status_code == http_status.HTTP_404_NOT_FOUND
+    assert invalid_mutation.json()["error"]["code"] == "ONBOARDING_ACCESS_INVALID"
+    assert queue.json()["total"] == 0
+    assert terminal_public_status.status_code == unknown_public_status.status_code == 200
+    assert terminal_public_status.json() == unknown_public_status.json()
+    assert terminal_public_status.json()["status"] == "pending"
+    assert terminal_audits == 1

@@ -179,7 +179,12 @@ async def admin_update_driver_profile(
     current_user: AdminUserDependency,
     session: SessionDependency,
 ) -> AdminDriverProfileRead:
-    profile, user, changed_fields = await update_driver_profile(session, driver_profile_id, payload)
+    profile, user, changed_fields = await update_driver_profile(
+        session,
+        driver_profile_id,
+        payload,
+        actor_user_id=current_user.id,
+    )
     await create_audit_event(
         session,
         actor_user_id=current_user.id,

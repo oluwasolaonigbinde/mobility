@@ -28,6 +28,7 @@ from app.core.errors import AppError
 from app.jobs.vehicle_approvals import sweep_vehicle_approval_expiries
 from app.models.audit import AuditEvent
 from app.models.driver import DriverProfile
+from app.models.driver_application import DriverApplication, DriverApplicationAccessToken
 from app.models.kyc import (
     DriverKycSubmission,
     VehicleEvidenceReviewDecision,
@@ -221,6 +222,89 @@ def _approve_vehicle(db_client, db_sessionmaker, *, application, admin, submitte
     return response.json()
 
 
+def test_complete_approval_terminalizes_application_and_revokes_access(
+    db_client, db_sessionmaker, settings
+) -> None:
+    token, application, admin = _approved_applicant(
+        db_client, db_sessionmaker, settings, suffix="terminal-approval"
+    )
+    files = _seed_vehicle_files(
+        db_sessionmaker,
+        application=application,
+        suffix="terminal-approval",
+    )
+    submitted = db_client.post(
+        "/api/v1/auth/driver-onboarding/vehicle",
+        json=_vehicle_payload(token, files),
+    )
+    assert submitted.status_code == 201
+
+    async def access_count() -> int:
+        async with db_sessionmaker() as session:
+            return int(
+                await session.scalar(
+                    select(func.count(DriverApplicationAccessToken.id)).where(
+                        DriverApplicationAccessToken.application_id == application.id
+                    )
+                )
+                or 0
+            )
+
+    before_access_count = asyncio.run(access_count())
+    _approve_vehicle(
+        db_client,
+        db_sessionmaker,
+        application=application,
+        admin=admin,
+        submitted=submitted.json(),
+        files=files,
+    )
+    duplicate = db_client.post(
+        "/api/v1/auth/register-driver",
+        json={"email": application.email, "full_name": "Generic Duplicate"},
+    )
+    invalid_mutation = db_client.post(
+        f"/api/v1/auth/driver-onboarding/files/{uuid4()}/status",
+        json={"application_access_token": token},
+    )
+    queue = db_client.get(
+        "/api/v1/admin/driver-applications",
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+    )
+
+    async def terminal_evidence() -> tuple[str, int, int]:
+        async with db_sessionmaker() as session:
+            refreshed = await session.get(DriverApplication, application.id)
+            assert refreshed is not None
+            accesses = int(
+                await session.scalar(
+                    select(func.count(DriverApplicationAccessToken.id)).where(
+                        DriverApplicationAccessToken.application_id == application.id
+                    )
+                )
+                or 0
+            )
+            audits = int(
+                await session.scalar(
+                    select(func.count(AuditEvent.id)).where(
+                        AuditEvent.action == "admin.driver_application.approved",
+                        AuditEvent.entity_id == str(application.id),
+                    )
+                )
+                or 0
+            )
+            return refreshed.status, accesses, audits
+
+    application_status, final_access_count, terminal_audits = asyncio.run(terminal_evidence())
+    assert application_status == "approved"
+    assert duplicate.status_code == 202
+    assert final_access_count == before_access_count
+    assert invalid_mutation.status_code == 404
+    assert invalid_mutation.json()["error"]["code"] == "ONBOARDING_ACCESS_INVALID"
+    assert queue.json()["total"] == 0
+    assert terminal_audits == 1
+
+
 def test_vehicle_approval_denies_cross_owner_and_self_approval(
     db_client, db_sessionmaker, settings
 ) -> None:
@@ -403,7 +487,7 @@ def test_missing_vehicle_object_cannot_create_qualifying_read_or_approval(
     asyncio.run(assert_missing_read_not_audited())
 
 
-def test_material_vehicle_revision_invalidates_approval_without_rewriting_history(
+def test_terminal_application_blocks_material_vehicle_revision_without_rewriting_history(
     db_client, db_sessionmaker, settings
 ) -> None:
     token, application, admin = _approved_applicant(
@@ -430,9 +514,8 @@ def test_material_vehicle_revision_invalidates_approval_without_rewriting_histor
             plate_number="XYZ-999-ZZ",
         ),
     )
-    assert revised.status_code == 201, revised.text
-    assert revised.json()["status"] == "pending_review"
-    assert revised.json()["version"] == 2
+    assert revised.status_code == 404, revised.text
+    assert revised.json()["error"]["code"] == "ONBOARDING_ACCESS_INVALID"
 
     async def inspect() -> tuple[list[str], int, str, str]:
         async with db_sessionmaker() as session:
@@ -453,7 +536,7 @@ def test_material_vehicle_revision_invalidates_approval_without_rewriting_histor
             assert profile is not None and vehicle is not None
             return statuses, decisions, profile.onboarding_status, vehicle.status
 
-    assert asyncio.run(inspect()) == (["approved", "pending_review"], 1, "pending", "pending")
+    assert asyncio.run(inspect()) == (["approved"], 1, "active", "active")
 
 
 def test_rejected_vehicle_can_resubmit_as_a_new_immutable_revision(
@@ -976,7 +1059,7 @@ def test_postgres_nin_rewrap_and_trip_share_eligibility_before_profile_order(
     assert (kyc_status, key_version) == ("pending_review", 2)
 
 
-def test_postgres_concurrent_vehicle_revision_and_expiry_serialize(
+def test_postgres_terminal_application_fences_revision_while_expiry_serializes(
     postgis_db_client, postgis_db_sessionmaker, settings
 ) -> None:
     token, application, admin = _approved_applicant(
@@ -1012,12 +1095,12 @@ def test_postgres_concurrent_vehicle_revision_and_expiry_serialize(
 
     async def revise() -> str:
         async with postgis_db_sessionmaker() as session:
-            view = await submit_application_vehicle(
-                session, payload=revision_payload, settings=settings
-            )
-            await session.commit()
-            assert view.submission is not None
-            return "revised"
+            with pytest.raises(AppError) as exc_info:
+                await submit_application_vehicle(
+                    session, payload=revision_payload, settings=settings
+                )
+            assert exc_info.value.code == "ONBOARDING_ACCESS_INVALID"
+            return "invalid"
 
     async def expire() -> str:
         async with postgis_db_sessionmaker() as session:
@@ -1057,6 +1140,6 @@ def test_postgres_concurrent_vehicle_revision_and_expiry_serialize(
             return outcomes, revisions, profile.onboarding_status, vehicle.status
 
     outcomes, revisions, profile_status, vehicle_status = asyncio.run(exercise())
-    assert "revised" in outcomes
-    assert revisions[-1] == (2, "pending_review")
+    assert outcomes == ["invalid", "expired"]
+    assert revisions == [(1, "expired")]
     assert (profile_status, vehicle_status) == ("pending", "pending")

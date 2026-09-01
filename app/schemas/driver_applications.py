@@ -79,7 +79,7 @@ class DriverApplicationAdminRead(BaseModel):
     id: UUID
     user_id: UUID
     driver_profile_id: UUID
-    status: DriverApplicationStatus
+    status: Literal[DriverApplicationStatus.PENDING.value]
     email: str
     full_name: str
     phone: str | None

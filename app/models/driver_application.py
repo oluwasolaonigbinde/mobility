@@ -19,6 +19,8 @@ from app.db.base import Base
 
 class DriverApplicationStatus(StrEnum):
     PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
 
 
 class DriverApplication(Base):
@@ -32,7 +34,7 @@ class DriverApplication(Base):
     __tablename__ = "driver_applications"
     __table_args__ = (
         CheckConstraint(
-            "status = 'pending'",
+            "status IN ('pending', 'approved', 'rejected')",
             name="ck_driver_applications_status",
         ),
         UniqueConstraint("user_id", name="uq_driver_applications_user_id"),

@@ -8,7 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.adapters.messaging import EmailAdapter, EmailMessage, EmailSendError
 from app.core.config import Settings
 from app.models.contact import PasswordResetToken
-from app.models.driver_application import DriverApplication, DriverApplicationAccessToken
+from app.models.driver_application import (
+    DriverApplication,
+    DriverApplicationAccessToken,
+    DriverApplicationStatus,
+)
 from app.models.notification import (
     Notification,
     NotificationChannel,
@@ -198,6 +202,7 @@ async def process_email_notification(
                 or application is None
                 or user is None
                 or application.user_id != user.id
+                or application.status != DriverApplicationStatus.PENDING.value
                 or _utc(access.expires_at) <= _utc(now)
             ):
                 raise ValueError("driver_onboarding_access_request_inactive")

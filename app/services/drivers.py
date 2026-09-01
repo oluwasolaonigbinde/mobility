@@ -7,7 +7,7 @@ from starlette import status
 
 from app.core.errors import AppError
 from app.models.driver import DriverProfile
-from app.models.driver_application import DriverApplication
+from app.models.driver_application import DriverApplication, DriverApplicationStatus
 from app.models.user import User, UserRole
 from app.schemas.drivers import (
     DriverProfileAdminUpdate,
@@ -16,6 +16,7 @@ from app.schemas.drivers import (
     normalize_optional_country_code,
     normalize_optional_text,
 )
+from app.services.driver_applications import terminalize_driver_application
 from app.services.users import get_user_by_id
 
 
@@ -152,8 +153,30 @@ async def update_driver_profile(
     session: AsyncSession,
     driver_profile_id: UUID,
     payload: DriverProfileAdminUpdate,
+    *,
+    actor_user_id: UUID,
 ) -> tuple[DriverProfile, User, list[str]]:
-    row = await get_driver_profile_with_user(session, driver_profile_id)
+    update_values = payload.model_dump(exclude_unset=True)
+    terminal_rejection = update_values.get("onboarding_status") == "rejected"
+    application = None
+    if terminal_rejection:
+        application = await session.scalar(
+            select(DriverApplication)
+            .where(DriverApplication.driver_profile_id == driver_profile_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        result = await session.execute(
+            select(DriverProfile, User)
+            .join(User, DriverProfile.user_id == User.id)
+            .where(DriverProfile.id == driver_profile_id)
+            .with_for_update(of=DriverProfile)
+            .execution_options(populate_existing=True)
+        )
+        row = result.first()
+        row = (row[0], row[1]) if row is not None else None
+    else:
+        row = await get_driver_profile_with_user(session, driver_profile_id)
     if row is None:
         raise AppError(
             "DRIVER_PROFILE_NOT_FOUND",
@@ -161,7 +184,6 @@ async def update_driver_profile(
             status_code=status.HTTP_404_NOT_FOUND,
         )
     profile, user = row
-    update_values = payload.model_dump(exclude_unset=True)
     changed_fields = list(update_values)
     if update_values.get("onboarding_status") is None and "onboarding_status" in update_values:
         raise AppError(
@@ -191,6 +213,15 @@ async def update_driver_profile(
 
     for field, value in update_values.items():
         setattr(profile, field, value)
+    if application is not None:
+        await terminalize_driver_application(
+            session,
+            application=application,
+            terminal_status=DriverApplicationStatus.REJECTED,
+            actor_user_id=actor_user_id,
+            source_entity_type="driver_profile",
+            source_entity_id=profile.id,
+        )
     await session.flush()
     await session.refresh(profile)
     return profile, user, changed_fields

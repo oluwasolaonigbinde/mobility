@@ -16,6 +16,7 @@ from app.adapters.messaging import (
 )
 from app.core.config import Settings
 from app.core.errors import AppError
+from app.models.driver_application import DriverApplicationStatus
 from app.models.notification import (
     Notification,
     NotificationChannel,
@@ -32,6 +33,11 @@ from app.models.organization import (
     OrganizationStatus,
 )
 from app.models.user import User, UserRole, UserStatus
+from app.schemas.driver_applications import DriverApplicationCreate
+from app.services.driver_applications import (
+    issue_driver_application_access,
+    submit_driver_application,
+)
 from app.services.email_delivery import process_email_notification
 from app.services.notifications import (
     create_advertiser_email_notification,
@@ -256,6 +262,64 @@ def test_email_worker_fails_closed_when_preference_changes_before_send(
             stored = await session.get(Notification, notice_id)
             assert stored.status == NotificationStatus.FAILED.value
             assert stored.last_error_code == "email_preference_disabled"
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "terminal_status",
+    [DriverApplicationStatus.APPROVED, DriverApplicationStatus.REJECTED],
+)
+def test_driver_onboarding_email_is_not_delivered_after_terminal_application(
+    db_sessionmaker,
+    settings,
+    terminal_status,
+) -> None:
+    async def run() -> None:
+        async with db_sessionmaker() as session:
+            submission = await submit_driver_application(
+                session,
+                DriverApplicationCreate(
+                    email=f"terminal-email-{terminal_status.value}@example.test",
+                    full_name="Terminal Email Applicant",
+                ),
+            )
+            assert submission.application is not None
+            access = await issue_driver_application_access(
+                session,
+                application=submission.application,
+                settings=settings,
+            )
+            assert access is not None
+            notice = await session.scalar(
+                select(Notification).where(
+                    Notification.type_key
+                    == NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED.value,
+                    Notification.payload["driver_application_access_id"].as_string()
+                    == str(access.id),
+                )
+            )
+            assert notice is not None
+            submission.application.status = terminal_status.value
+            await session.commit()
+            notice_id = notice.id
+
+        adapter = RecordingEmailAdapter()
+        result = await process_email_notification(
+            db_sessionmaker,
+            notification_id=notice_id,
+            settings=settings,
+            email_adapter=adapter,
+            now=datetime.now(UTC),
+        )
+
+        assert result == "failed"
+        assert adapter.messages == []
+        async with db_sessionmaker() as session:
+            stored = await session.get(Notification, notice_id)
+            assert stored is not None
+            assert stored.status == NotificationStatus.FAILED.value
+            assert stored.last_error_code == "driver_onboarding_access_request_inactive"
 
     asyncio.run(run())
 

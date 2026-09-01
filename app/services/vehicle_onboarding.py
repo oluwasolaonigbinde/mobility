@@ -12,7 +12,7 @@ from starlette import status
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
 from app.models.driver import DriverOnboardingStatus, DriverProfile
-from app.models.driver_application import DriverApplication
+from app.models.driver_application import DriverApplication, DriverApplicationStatus
 from app.models.kyc import (
     DriverKycReviewDecision,
     DriverKycSubmission,
@@ -32,7 +32,10 @@ from app.schemas.driver_onboarding import (
 )
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
-from app.services.driver_applications import application_from_access_token
+from app.services.driver_applications import (
+    application_from_access_token,
+    terminalize_driver_application,
+)
 from app.services.driver_onboarding import application_from_reference
 from app.services.kyc import _require_files
 from app.services.payout_rule_serialization import database_clock
@@ -626,7 +629,10 @@ async def review_application_vehicle(
         return retry_view
     _validate_decision(payload, now=now)
     application = await session.scalar(
-        select(DriverApplication).where(DriverApplication.id == application_id).with_for_update()
+        select(DriverApplication)
+        .where(DriverApplication.id == application_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if application is None:
         raise _error(
@@ -732,7 +738,20 @@ async def review_application_vehicle(
     session.add(decision)
     submission.status = payload.decision.value
     await session.flush()
-    await reconcile_driver_work_eligibility(session, driver_profile_id=profile.id, now=now)
+    eligible = await reconcile_driver_work_eligibility(
+        session,
+        driver_profile_id=profile.id,
+        now=now,
+    )
+    if eligible:
+        await terminalize_driver_application(
+            session,
+            application=application,
+            terminal_status=DriverApplicationStatus.APPROVED,
+            actor_user_id=actor_user_id,
+            source_entity_type="vehicle_evidence_submission",
+            source_entity_id=submission.id,
+        )
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,

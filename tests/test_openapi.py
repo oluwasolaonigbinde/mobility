@@ -7,3 +7,11 @@ def test_openapi_schema_generates(client) -> None:
     assert "/health" in schema["paths"]
     assert "/api/v1/health" in schema["paths"]
     assert "/api/v1/health/ready" in schema["paths"]
+    components = schema["components"]["schemas"]
+    assert components["DriverApplicationSubmitResponse"]["properties"]["status"]["const"] == (
+        "pending"
+    )
+    assert components["DriverApplicationStatusResponse"]["properties"]["status"]["const"] == (
+        "pending"
+    )
+    assert components["DriverApplicationAdminRead"]["properties"]["status"]["const"] == ("pending")

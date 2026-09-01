@@ -8583,7 +8583,9 @@
             "title": "Service City"
           },
           "status": {
-            "$ref": "#/components/schemas/DriverApplicationStatus"
+            "const": "pending",
+            "title": "Status",
+            "type": "string"
           },
           "updated_at": {
             "format": "date-time",
@@ -8674,13 +8676,6 @@
         ],
         "title": "DriverApplicationCreate",
         "type": "object"
-      },
-      "DriverApplicationStatus": {
-        "enum": [
-          "pending"
-        ],
-        "title": "DriverApplicationStatus",
-        "type": "string"
       },
       "DriverApplicationStatusResponse": {
         "properties": {
