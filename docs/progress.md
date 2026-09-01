@@ -47,7 +47,7 @@ the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
 **Current capacity assignment:** `R13, R16, R32`
-**Current capacity justification:** `R13` owns only its four-file privacy parser/classifier correction; `R16` owns the audience-delivery provider port, dependency composition, new adapter package and focused tests; `R32` exclusively owns the terminal-application model/migration/onboarding service/API/schema/test and generated-contract lane. Their paths and domain authorities are disjoint. R02 remains temporarily conflict-held because mutating its shared fixture would invalidate R13's correction verification; R34 has a reviewed plan but remains serialized behind R32's migration and generated-contract lane. Central configuration, shared fixtures, and this file remain controller-serialized.
+**Current capacity justification:** `R13` owns only its four-file privacy parser/classifier correction; `R16` owns the audience-delivery provider port, dependency composition, new adapter package, focused tests, and only the fake-adapter import line in the existing synthetic workflow test; `R32` exclusively owns the terminal-application model/migration/onboarding service/API/schema/test and generated-contract lane. Their paths and domain authorities are disjoint. R02 remains temporarily conflict-held because mutating its shared fixture would invalidate R13's correction verification; R34 has a reviewed plan but remains serialized behind R32's migration and generated-contract lane. Central configuration, shared fixtures, and this file remain controller-serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
