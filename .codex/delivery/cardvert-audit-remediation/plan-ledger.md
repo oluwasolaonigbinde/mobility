@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 89
+plan_revision: 90
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 190
+last_event_sequence: 194
 ---
 
 # Cardvert audit remediation programme
@@ -195,7 +195,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R10 | AUT-005 | ACCEPTED | R08 | R10-P/M/SEC/CP-SECURITY; strict-claim and route-graph evidence | complete |
 | R11 | AUT-004 | BLOCKED-OWNER | R09; logout policy | plan review confirmed current-device documentation conflicts with schema-free global revocation | owner must choose visible sign-out-everywhere or per-session identity/migration authority |
 | R12 | AUT-003, REL-003 | QUEUED | R11 | — | wait |
-| R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P; attempts 1-8 reviews FIX; attempt 8 `12ec7aa9...` | correct unmatched-prose quote desynchronization and cap malformed structural work/memory |
+| R13 | SEC-001, PRV-008 | REVIEW | sensitive-metadata opener | R13-P; attempts 1-8 reviews FIX; attempt 9 frozen `cd1dd894...` | run exact repeat R13-M/SEC/PRV/CP-PRIVACY review |
 | R14 | SEC-002, TST-004 | QUEUED | R12 | — | wait |
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | ACCEPTED | provider-boundary opener | R16-P/M/CONTRACT/CP-CONTROL; structural and behavioral evidence | complete |
@@ -299,7 +299,8 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 9 | GPT-5.6 Sol/high — malformed-input privacy and memory-bound correction | unchanged five-file R13 lease | ACTIVE |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 9 | GPT-5.6 Sol/high — malformed-input privacy and memory-bound correction | released exact five-file diff `cd1dd894...` | REVIEW |
+| `/root/r13_attempt5_review` | S05 / R13 attempt-9 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded malformed-input privacy/security admission | reserved read-only exact `cd1dd894...` diff | RESERVED |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-8 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `12ec7aa9...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-7 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `16f1b2b8...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-6 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `08d04f8c...` diff | FIX |
@@ -323,8 +324,8 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e84-2c02-7bf0-8c55-382766692aed` | S02 / R05-R07 aggregate plan and independent review | GPT-5.6 Sol/medium — read-only database-chain current-source planning | no mutation lease; R05/R07 plans pass | BLOCKED-OWNER |
 | `/root/r13_attempt4_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy boundary | released reviewed R13 diff `6753a823...` | FIX |
 
-Implementation writers reserved/active: **2 / 3**, reserved S05/R13 attempt 9
-plus active S12/R34; R24 is accepted and ready R25 is held for the owner-directed
+Implementation writers reserved/active: **1 / 3**, active S12/R34; S05/R13 is
+frozen in read-only admission review. R24 is accepted and ready R25 is held for the owner-directed
 next Opus handoff. R02 remains temporarily
 conflict-held because its shared-fixture mutation would invalidate R13's final
 admission verification; R09 also waits for R13's audit/admin seam to release. S12/R34
@@ -592,3 +593,7 @@ verification is complete.
 | 188 | 88 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 9 reacquired the unchanged five-file privacy lease for unmatched-prose quote safety and bounded malformed structural work only. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/high; terminal callback required |
 | 189 | 89 | 1 | DIFF_REVIEW_PASSED | R24 attempt 2 passed minimal-change, money-specialist and CP-COMMERCIAL review with no findings after exact causal-time, retry, authorization and PostgreSQL race re-verification. | Sol/high reviewer `/root/r24_review`; exact `d4cbf20c...`; 9 PostgreSQL budget plus 10 refund compatibility passes |
 | 190 | 89 | 1 | SLICE_ACCEPTED | R24/COM-002 accepted exactly once after controller inspection and a fresh 9-test real-PostgreSQL budget run; R25 is dependency-ready. | product commit `36df828`; R24-P/M/MNY/CP-COMMERCIAL; exact two-file scope only |
+| 191 | 90 | 1 | IMPLEMENTATION_RETURNED | S05/R13 correction attempt 9 released its exact five-file diff after making unmatched prose quotes fail safe and bounding malformed structural depth, opener count, boundary entries, time and memory. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; frozen `cd1dd894...`; 25 leased PostgreSQL plus 6 compatibility passes; no stage or commit |
+| 192 | 90 | 1 | DIFF_REVIEW_RESERVED | Frozen R13 attempt 9 reserved repeat independent minimal-change, security/privacy-specialist and CP-PRIVACY review. | GPT-5.6 Sol/high; read-only exact `cd1dd894...` diff; no mutation authority |
+| 193 | 90 | 1 | LEASE_EXPANDED | R34 may edit `tests/test_mvp_hardening.py` and `tests/test_audit_route_coverage.py` only to register migrations 0072/0073/0074, cover the reconcile route's existing audit semantics, and send the exact v2 manifest in the trip audit fixture. | mandatory acceptance-gate failures; disjoint from R13/R24; no product, contract or R35-R37 expansion |
+| 194 | 90 | 1 | LEASE_EXPANDED | R34's existing `tests/test_trips.py` lease additionally permits only the ended-trip RM3 assertion to use an exact precommitted v2 descriptor/manifest. | preserve the separate inactive-assignment active-capture 400 assertion; no other test or behavior authority expands |
