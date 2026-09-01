@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 47
+plan_revision: 48
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 115
+last_event_sequence: 116
 ---
 
 # Cardvert audit remediation programme
@@ -310,7 +310,7 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e60-6ce7-7cb2-ac20-300ac5275d05` | S03 / R09-R11 planning after accepted R10 | GPT-5.6 Sol/medium for planning | no mutation lease; R09 plan PASS, R11 plan BLOCKED-OWNER | PLAN-RETURNED |
 | `/root/r10_diff_review` | S03 / R10 M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — strict bearer claims, refresh and route authority | released accepted R10 diff `de0c8d60...` | PASS |
 | task `01a05e7a-2699-79b2-9b63-e911dfe302ef` | S06 / R16 implementation | GPT-5.6 Sol/medium — bounded provider-port composition refactor | audience-delivery service, dependency composition, new ad-platform adapter package, focused tests, and only the fake-adapter import line in `tests/test_w403b_synthetic_path.py` | ACTIVE |
-| task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R23 implementation; R24-R27 held | GPT-5.6 Sol/medium — bounded frozen-refund implementation | R23 billing/model/cancellation/schema/API/migration/generated-contract/test lease; later slices have no mutation lease | RESERVED |
+| task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R23 implementation; R24-R27 held | GPT-5.6 Sol/medium — bounded frozen-refund implementation | R23 billing/model/cancellation/schema/API/migration/generated-contract/test lease; later slices have no mutation lease | ACTIVE |
 | `/root/r13_attempt3_review` | S05 / R13 repeat M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded parser and identifier-preservation boundary | read-only frozen R13 diff `506dc438...` | ACTIVE |
 
 Implementation writers reserved/active: **2 / 3**, currently S06/R16 and
@@ -487,3 +487,4 @@ verification is complete.
 | 113 | 47 | 1 | PLAN_REVIEW_BLOCKED | R11-P found current-device-only runbook semantics incompatible with schema-free global session-version revocation and requires an owner policy choice. | reused visible S03 task; GPT-5.6 Sol/medium independent review; no file change |
 | 114 | 47 | 1 | PLAN_REVIEW_PASSED | R23-P through R27-P passed separately after independent aggregate correction review; COM-008 remains open and outside execution. | visible S09 task; GPT-5.6 Sol/medium; zero file mutation; R26 later bounded Sol/high |
 | 115 | 47 | 1 | DISPATCH_RESERVED | The same visible S09 task reserved R23's frozen-refund migration/billing/cancellation/schema/API/generated-contract/test lease after R32 released the central lane. | GPT-5.6 Sol/medium; disjoint from R16 and frozen R13; R24-R27 remain held |
+| 116 | 48 | 1 | DISPATCH_STARTED | Visible S09/R23 acquired its exact frozen-refund migration and contract lease after revalidation of accepted head 0072. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; GPT-5.6 Sol/medium; no worktree; terminal callback required |
