@@ -16,10 +16,12 @@ newest product authority. Architecture §31 is roadmap context;
 execution order and authorization live exclusively in this document.
 
 **Package:** one owner-facing delivery/review cycle. **Checklist item:** one of
-the 71 mandatory implementation obligations inside a package; it is never an
-authorization unit. **Parent:** one of the 22 architecture traceability groups;
-it is never executable. **Active slot:** the single package marked `NEXT`,
-`IN PROGRESS`, or `REVIEW`.
+the 71 original mandatory implementation obligations inside a package; it is
+never an authorization unit. **Remediation slice:** one of the 60 owner-admitted
+fix units in PKG-10; its immutable candidate and dependency mapping is the
+authorization boundary. **Parent:** one of the 22 architecture traceability
+groups; it is never executable. **Active slot:** the single package marked
+`NEXT`, `IN PROGRESS`, or `REVIEW`.
 
 ## Execution lock
 
@@ -31,14 +33,21 @@ or transitively depends on blocked work and no runnable `TODO` remains.
 
 The active package moves through `NEXT → IN PROGRESS → REVIEW → DONE`. Its
 controller selects the current runnable checklist checkpoint, honors the
-checklist dependency graph, and may use staged commits and parallel agents with
-explicit disjoint ownership. Money, privacy, security, client-device, deployment and
-other high-risk checkpoints receive specialist review before integration; one
-consolidated independent package review closes the owner-facing cycle.
+applicable dependency graph, and may use staged commits and parallel agents with
+explicit disjoint ownership. PKG-10 slice state is `QUEUED | ACTIVE | COMPLETE`;
+up to two dependency-ready, write-disjoint slices may be `ACTIVE`. Its displayed
+current checkpoint is a controller pointer, not a claim that only one slice is
+ready. A slice becomes `COMPLETE` only after its own plan review, diff review,
+and named domain checkpoint have accepted evidence. Money, privacy, security,
+client-device, deployment and other high-risk checkpoints receive specialist
+review before integration; one consolidated independent package review closes
+the owner-facing cycle.
 
-After all nine packages and all 71 checklist items are `DONE`, set
-`Controller state` to `COMPLETE`, retain `PKG-09` as the final control package,
-and retain `PKG-09 / W4-04B` as the terminal evidence pointer. This is the only
+`Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
+original checklist items are `DONE`, and all 60 remediation slices are
+`COMPLETE`. Retain `PKG-09` as the final control package and `PKG-09 / W4-04B`
+as the terminal evidence pointer, as required by the repository execution
+authority; PKG-10/R60 remains the remediation closure receipt. This is the only
 valid zero-active state other than an explicit external pause.
 
 At promotion, scan packages in order. A blocked earlier package does not freeze
@@ -58,18 +67,23 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 
 ### Current control pointer
 
-**Controller state:** `COMPLETE`
-**Control package:** `PKG-09` — every provider-neutral, local and synthetic
-build/preparation checkpoint is integrated and reviewed; every unfinished
-checklist item is now tied only to its exact registered external/live inputs.
-**Current checkpoint:** `PKG-09 / W4-04B` — terminal build-controller evidence
-pointer; training rehearsal, pilot evidence, named-owner acceptance and
-handover remain externally gated and are not claimed complete.
+**Controller state:** `ACTIVE`
+**Control package:** `PKG-10` — R01 established truthful repository execution
+authority; the directly owner-authorized, Pro-admitted remediation programme is
+now rolling across dependency-ready disjoint slices while all 29 non-executable
+findings retain their admitted dispositions.
+**Current checkpoint:** `PKG-10 / R04` — highest-priority ready slice; R04 and
+the disjoint R53 have accepted plan reviews and are ready for their two writer
+leases.
 
 ## Direct owner requests outside the package queue
 
 | Date | Item | Authority | Scope boundary | Queue effect |
 | --- | --- | --- | --- | --- |
+| 1 Sep 2026 | **Execute the admitted Cardvert audit-remediation programme** — deliver the 86 FIX candidates through the dependency-safe R01–R60 graph with rolling, maximally useful parallel dispatch. | Direct project-owner authorization in task `01a05de2-0b5d-73f0-ae3d-0e979b734658`, continuing source task `01a001ce-d025-7531-a84c-7498cd819eda`, 1 Sep 2026 | Owns PKG-10, the exact admitted slice/candidate graph and repository fixes. At most two implementation writers may run when their paths/domains are demonstrably disjoint; central configuration, migrations, contracts, shared fixtures and this file serialize. The 9 DEFER, 12 OWNER DECISION and 8 EXTERNAL INPUT findings remain non-executable; COM-008 remains open. No deployment, live payment/provider action, credential invention, external publication, legal approval, or live-evidence claim is authorized. The UI/product-flow prompt suite remains paused. | Activates PKG-10 and R01 first. After R01 acceptance, refill up to two safe writer slots from all dependency-ready slices without artificial batches. |
+| 1 Sep 2026 | **Preventive minimal-structure and diff-review refinement** — prefer existing repository, standard-library, native-platform or installed capabilities before adding structure, and strengthen the existing post-build review for duplicated capability, unnecessary dependencies, self-justifying structure and low-value changed tests. | Direct project-owner request, 1 Sep 2026 | Owns one universal contribution-ready rule and the existing `minimal-change-review` mandate. It creates no new skill, review stage or repository gate and does not change VFD, OFD or DCD. | None. The completed controller state and terminal PKG-09/W4-04B pointer remain unchanged. |
+| 1 Sep 2026 | **Durable deferred-obligation policy** — future package/checkpoint instructions must survive chat, agent and session boundaries as concise trigger/action/evidence-pointer reminders in the existing authoritative record. | Direct project-owner request, 1 Sep 2026 | Owns global instruction policy plus Mobility's root `AGENTS.md` mapping to this document and this control row. It creates no new planning document and adds no product code, API, data-model, workflow, architecture or decision change. | None. The completed controller state and terminal PKG-09/W4-04B pointer remain unchanged. |
+| 1 Sep 2026 | **Independent-audit corpus and remediation programme** — preserve the completed GPT-5.6 Pro, Claude Opus and Codex audit responses in-repository; inventory omissions; reconcile, deduplicate and evidence-check their findings; produce a dependency-safe remediation order before any fix work; and preserve the later UI/product-design prompt suite for a separate pass. | Direct project-owner request, 1 Sep 2026 | Owns `issues/**` and `.codex/delivery/cardvert-audit-reconciliation/**` for collection and planning. Raw audit responses remain provenance artifacts rather than product authority. Any later product-code correction requires a finding-specific reviewed contract, current-source verification and the normal contribution-ready gate. External/live inputs remain external; this request does not mark them present. | None. The completed build-controller state and terminal PKG-09/W4-04B pointer remain unchanged. |
 | 1 Sep 2026 | **Final Cardvert/Terrax Media identity sweep** — remove every tracked reference to the superseded working name and use Cardvert for the product/app and Terrax Media for the business. | Direct project-owner request, 1 Sep 2026 | Owns repository branding copy, comments, tests, documentation, the auth timing-equalizer sentinel, the saved-theme key and the offline queue database name. The two local persistence names are intentional pre-distribution clean breaks: no legacy fallback is retained and IndexedDB schema/version behavior is unchanged. Git history, dependencies and external services are excluded. | None. The completed controller state and terminal evidence pointer remain unchanged. |
 | 28 Aug 2026 | **Repository instruction normalization** — make root and nested `AGENTS.md` the only active repository instruction sources and remove the legacy lowercase `agent.md`. | Direct project-owner request, 28 Aug 2026 | Owns repository instruction wiring only: root `AGENTS.md`, `CLAUDE.md`, and removal of `agent.md`. Historical `docs/build-loop/**` evidence remains unchanged. Adds no product code, API, data-model, workflow, architecture, or decision change. | None. The completed controller state and terminal evidence pointer remain unchanged. |
 | 25 Aug 2026 | **Terrax Media public landing page** at `/landing` — brand-grounded marketing page for the OOH vehicle-advertising product, built from `docs/brand/terrax-media/` and the D18 Q1–Q34 confirmed answers. | Direct project-owner request, 25 Aug 2026 | Owns only `frontend/src/app/landing/**` and `frontend/public/brand/terrax/**`. It does not alter API, data-model, business-logic or package authority. | None. The public marketing surface is outside the 71-item MVP checklist. |
@@ -88,6 +102,7 @@ handover remain externally gated and are not claimed complete.
 | 7 | **PKG-07 — production driver PWA** | **DONE** | The installable pilot PWA safely tracks, syncs and completes the governed onboarding, campaign, earnings and dispute journey; physical-device/live release evidence remains explicitly deferred. | none — checklist DAG gates entry |
 | 8 | **PKG-08 — governed reporting and pilot readiness** | **BLOCKED** | Provider-neutral reporting, release preparation and synthetic pilot acceptance are reviewed and complete; only registered external deployment, provider, approval, device and pilot evidence remains. | none — checklist DAG gates entry |
 | 9 | **PKG-09 — controlled pilot, training and handover** | **BLOCKED** | Provider-neutral training, pilot-operations and handover preparation is integrated and reviewed; only rehearsed training, controlled-pilot evidence, named-owner acceptance and protected handover remain. | none — checklist DAG gates entry |
+| 10 | **PKG-10 — admitted Cardvert audit remediation** | **IN PROGRESS** | Deliver and verify all 86 admitted FIX candidates once through the exact R01–R60 dependency graph while preserving all 29 non-executable dispositions. | none — remediation DAG gates entry |
 
 ## Executable package contracts
 
@@ -1464,6 +1479,101 @@ handover remain externally gated and are not claimed complete.
   remaining queue is external/live-only and no EXT/DV state changed.
 - **Closure:** accepted operating materials, monitored pilot evidence, known
   risks/deferments and named owners agree with repository truth.
+
+### PKG-10 — admitted Cardvert audit remediation
+
+- **Owns:** remediation slices R01–R60.
+- **Outcome:** all 86 Pro-admitted FIX candidates are implemented and verified
+  exactly once through the immutable slice/candidate/dependency register below.
+  The 9 DEFER, 12 OWNER DECISION and 8 EXTERNAL INPUT candidates remain
+  non-executable and retain their admitted evidence/activation conditions.
+- **Execution:** the scheduler continuously selects the highest-priority ready
+  non-conflicting work and refills up to two implementation leases immediately.
+  Central configuration, migrations, contracts, generated baselines, shared
+  fixtures, and this control file remain serialized. Detailed leases, waits,
+  model gates, receipts and next actions live in
+  `.codex/delivery/cardvert-audit-remediation/plan-ledger.md`; this file records
+  only accepted register state.
+- **Admission:** a slice may move from `QUEUED` to `ACTIVE` only when its named
+  plan review is `PASS` and every registered dependency is `COMPLETE`. It moves
+  to `COMPLETE` only after its own diff review and exact named domain checkpoint
+  also pass. Slice numbering is stable identity, not topological order; the
+  admitted R09 → R10 dependency is intentional.
+- **Closure:** PKG-10 is `DONE` only when all 60 rows are `COMPLETE`, integrated
+  domain gates pass, R59 supplies the mutating real-stack release journey, R60
+  reconciles final current-state architecture/routes/migrations, and a final
+  proportional minimal-change review accepts the integrated programme.
+
+## Remediation slice register
+
+The candidate IDs, direct dependency sets and checkpoint codes are immutable
+admission data. Review receipts use the slice-bound forms `RNN-P`, `RNN-M` and
+`RNN-CP-CODE`; a receipt in this register is an acceptance pointer, not proof by
+assertion. The controller must inspect and record its supporting evidence in the
+durable ledger before changing a row.
+
+| Slice | Candidate IDs | Dependencies | State | Plan review | Diff review | Domain checkpoint |
+| --- | --- | --- | --- | --- | --- | --- |
+| R01 | GOV-001 | none | COMPLETE | PASS — R01-P | PASS — R01-M | CP-CONTROL PASS — R01-CP-CONTROL |
+| R02 | GOV-003, TST-001, DB-005 | R01 | QUEUED | PENDING | PENDING | CP-CONTROL PENDING |
+| R03 | GOV-004 | R02 | QUEUED | PENDING | PENDING | CP-CONTROL PENDING |
+| R04 | DB-004 | none | QUEUED | PASS — R04-P | PENDING | CP-DB PENDING |
+| R05 | DB-001, TST-012, ONB-010 | R02, R04 | QUEUED | PENDING | PENDING | CP-DB PENDING |
+| R06 | DB-002 | R02, R04, R05 | QUEUED | PENDING | PENDING | CP-DB PENDING |
+| R07 | DB-003 | R02, R04, R06 | QUEUED | PENDING | PENDING | CP-DB PENDING |
+| R08 | GOV-005 | none | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
+| R09 | GOV-007, AUT-001, AUT-002 | R10 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
+| R10 | AUT-005 | R08 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
+| R11 | AUT-004 | R09 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
+| R12 | AUT-003, REL-003 | R11 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
+| R13 | SEC-001, PRV-008 | none | QUEUED | PENDING | PENDING | CP-PRIVACY PENDING |
+| R14 | SEC-002, TST-004 | R12 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
+| R15 | GOV-006 | none | QUEUED | PENDING | PENDING | CP-WORKERS PENDING |
+| R16 | GOV-008 | none | QUEUED | PENDING | PENDING | CP-CONTROL PENDING |
+| R17 | TST-007 | R02, R03 | QUEUED | PENDING | PENDING | CP-CONTROL PENDING |
+| R18 | MON-005, MON-006 | R04, R06, R07 | QUEUED | PENDING | PENDING | CP-MONEY PENDING |
+| R19 | MON-002 | R18 | QUEUED | PENDING | PENDING | CP-MONEY PENDING |
+| R20 | MON-001, DB-007, MON-008 | R05, R18 | QUEUED | PENDING | PENDING | CP-MONEY PENDING |
+| R21 | MON-003 | R20 | QUEUED | PENDING | PENDING | CP-MONEY PENDING |
+| R22 | MON-004, MON-007, MON-009 | R20, R21 | QUEUED | PENDING | PENDING | CP-MONEY PENDING |
+| R23 | COM-001, COM-004 | R08 | QUEUED | PENDING | PENDING | CP-COMMERCIAL PENDING |
+| R24 | COM-002 | R08, R23 | QUEUED | PENDING | PENDING | CP-COMMERCIAL PENDING |
+| R25 | COM-003, COM-005 | R08, R24 | QUEUED | PENDING | PENDING | CP-COMMERCIAL PENDING |
+| R26 | COM-006 | R08, R25 | QUEUED | PENDING | PENDING | CP-COMMERCIAL PENDING |
+| R27 | COM-007 | R08, R26 | QUEUED | PENDING | PENDING | CP-COMMERCIAL PENDING |
+| R28 | CAM-001 | none | QUEUED | PENDING | PENDING | CP-CAMPAIGN PENDING |
+| R29 | CAM-002 | R04, R08, R28 | QUEUED | PENDING | PENDING | CP-CAMPAIGN PENDING |
+| R30 | CAM-003 | R29 | QUEUED | PENDING | PENDING | CP-CAMPAIGN PENDING |
+| R31 | CAM-004 | R18, R19, R30 | QUEUED | PENDING | PENDING | CP-CAMPAIGN PENDING |
+| R32 | ONB-002 | none | QUEUED | PENDING | PENDING | CP-ONBOARDING PENDING |
+| R33 | ONB-006 | R05, R32 | QUEUED | PENDING | PENDING | CP-ONBOARDING PENDING |
+| R34 | OFF-001 | R04 | QUEUED | PENDING | PENDING | CP-OFFLINE PENDING |
+| R35 | OFF-002, OFF-003 | R34 | QUEUED | PENDING | PENDING | CP-OFFLINE PENDING |
+| R36 | OFF-005 | R35 | QUEUED | PENDING | PENDING | CP-OFFLINE PENDING |
+| R37 | OFF-006 | R36 | QUEUED | PENDING | PENDING | CP-OFFLINE PENDING |
+| R38 | PRV-001, PRV-002 | R13 | QUEUED | PENDING | PENDING | CP-PRIVACY PENDING |
+| R39 | PRV-003 | R38 | QUEUED | PENDING | PENDING | CP-PRIVACY PENDING |
+| R40 | PRV-004, AUD-001, AUD-002 | R16, R39 | QUEUED | PENDING | PENDING | CP-PRIVACY PENDING |
+| R41 | PRV-009, AUD-004, TST-010 | R40 | QUEUED | PENDING | PENDING | CP-PRIVACY PENDING |
+| R42 | PRV-005, PRV-006 | R41 | QUEUED | PENDING | PENDING | CP-PRIVACY PENDING |
+| R43 | PRV-007 | R42 | QUEUED | PENDING | PENDING | CP-PRIVACY PENDING |
+| R44 | AUD-005 | R16, R40 | QUEUED | PENDING | PENDING | CP-PRIVACY PENDING |
+| R45 | MET-003 | R04, R41 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
+| R46 | REP-001 | R45 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
+| R47 | MET-001, MET-002, MET-004, REP-002 | R41, R46 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
+| R48 | REP-003 | R47 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
+| R49 | REP-004 | R47, R48 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
+| R50 | REP-005 | R47, R49 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
+| R51 | REP-006 | R43, R49, R50 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
+| R52 | MET-006 | R51 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
+| R53 | REL-005 | none | QUEUED | PASS — R53-P | PENDING | CP-RELEASE PENDING |
+| R54 | REL-006 | R12, R16, R53 | QUEUED | PENDING | PENDING | CP-RELEASE PENDING |
+| R55 | REL-004 | R03, R18, R48, R51, R54 | QUEUED | PENDING | PENDING | CP-RELEASE PENDING |
+| R56 | TST-005 | R09, R11, R14, R40 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
+| R57 | TST-008 | R19, R27, R49, R55 | QUEUED | PENDING | PENDING | CP-RELEASE PENDING |
+| R58 | TST-011 | R15, R20, R21, R43, R49, R51 | QUEUED | PENDING | PENDING | CP-WORKERS PENDING |
+| R59 | TST-002 | R22, R31, R33, R37, R41, R44, R48, R50, R51, R56, R57, R58 | QUEUED | PENDING | PENDING | CP-RELEASE PENDING |
+| R60 | GOV-009 | R03, R17, R18, R22, R27, R31, R33, R37, R43, R44, R52, R55, R56, R59 | QUEUED | PENDING | PENDING | CP-CONTROL PENDING |
 
 ## Architecture traceability — non-executable parent groups
 

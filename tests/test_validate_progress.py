@@ -46,6 +46,62 @@ def _with_control_pointer(text: str, *, state: str, package: str, checkpoint: st
     )
 
 
+def _queue_all_remediation(text: str) -> str:
+    lines: list[str] = []
+    for line in text.splitlines():
+        if re.match(r"^\| R\d{2} \|", line):
+            cells = [cell.strip() for cell in line.strip("|").split("|")]
+            checkpoint = cells[6].split(" ", 1)[0]
+            cells[3] = "QUEUED"
+            cells[4] = "PENDING"
+            cells[5] = "PENDING"
+            cells[6] = f"{checkpoint} PENDING"
+            line = "| " + " | ".join(cells) + " |"
+        lines.append(line)
+    return "\n".join(lines) + "\n"
+
+
+def _complete_all_remediation(text: str) -> str:
+    lines: list[str] = []
+    for line in text.splitlines():
+        if re.match(r"^\| R\d{2} \|", line):
+            cells = [cell.strip() for cell in line.strip("|").split("|")]
+            slice_id = cells[0]
+            checkpoint = cells[6].split(" ", 1)[0]
+            cells[3] = "COMPLETE"
+            cells[4] = f"PASS — {slice_id}-P"
+            cells[5] = f"PASS — {slice_id}-M"
+            cells[6] = f"{checkpoint} PASS — {slice_id}-{checkpoint}"
+            line = "| " + " | ".join(cells) + " |"
+        lines.append(line)
+    return "\n".join(lines) + "\n"
+
+
+def _r01_active_remediation() -> str:
+    text = _queue_all_remediation(_progress())
+    text = re.sub(
+        r"^(\| R01 \| GOV-001 \| none \| )QUEUED( \| )PENDING( \| PENDING "
+        r"\| CP-CONTROL PENDING \|)$",
+        r"\1ACTIVE\2PASS — R01-P\3",
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    text = re.sub(
+        r"^(\| 10 \| \*\*PKG-10 —.*?\| )(?:\*\*[^|]+\*\*|[A-Z ]+)( \|)",
+        r"\1**IN PROGRESS**\2",
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    return _with_control_pointer(
+        text,
+        state="ACTIVE",
+        package="PKG-10",
+        checkpoint="R01",
+    )
+
+
 def _pkg01_active() -> str:
     """Reconstruct the immediately preceding valid frontier for transition tests."""
     text = re.sub(
@@ -56,7 +112,7 @@ def _pkg01_active() -> str:
         count=1,
         flags=re.MULTILINE,
     )
-    for package_number in range(2, 10):
+    for package_number in range(2, 11):
         text = re.sub(
             rf"^(\| {package_number} \| \*\*PKG-{package_number:02d} —.*?\| )"
             r"(?:\*\*[^|]+\*\*|DONE|QUEUED|BLOCKED|NEXT|IN PROGRESS|REVIEW)( \|)",
@@ -82,7 +138,7 @@ def _pkg01_active() -> str:
         if pkg01_fixture_item or later_live_item:
             line = line.replace("| DONE |", "| TODO |", 1)
         lines.append(line)
-    return "\n".join(lines) + "\n"
+    return _queue_all_remediation("\n".join(lines) + "\n")
 
 
 def _errors(text: str) -> list[str]:
@@ -97,7 +153,7 @@ def _paused_at_final_gate() -> str:
         match = re.match(r"\| (\d+) \| \*\*PKG-", line)
         if match:
             number = int(match.group(1))
-            replacement = "DONE" if number < 8 else "BLOCKED"
+            replacement = "DONE" if number < 8 or number == 10 else "BLOCKED"
             line = re.sub(
                 r"\| (?:\*\*NEXT\*\*|\*\*IN PROGRESS\*\*|\*\*REVIEW\*\*|"
                 r"\*\*BLOCKED\*\*|QUEUED|DONE|BLOCKED|NEXT|IN PROGRESS|REVIEW) \|",
@@ -137,7 +193,7 @@ def _paused_at_final_gate() -> str:
         if line.startswith("| **DV-"):
             line = re.sub(r"\| NOT RUN — [^|]+\|", "| COMPLETE |", line, count=1)
         package_lines.append(line)
-    text = "\n".join(package_lines) + "\n"
+    text = _complete_all_remediation("\n".join(package_lines) + "\n")
     return _with_control_pointer(
         text,
         state="PAUSED — EXT-LEGAL-PRIVACY",
@@ -148,6 +204,89 @@ def _paused_at_final_gate() -> str:
 
 def test_repository_progress_is_valid() -> None:
     assert _errors(_progress()) == []
+
+
+def test_remediation_manifest_and_non_topological_dependency_are_pinned() -> None:
+    current = _r01_active_remediation()
+    assert "| R09 | GOV-007, AUT-001, AUT-002 | R10 | QUEUED |" in current
+    drifted = current.replace(
+        "| R09 | GOV-007, AUT-001, AUT-002 | R10 | QUEUED |",
+        "| R09 | GOV-007, AUT-001, AUT-002 | none | QUEUED |",
+        1,
+    )
+    assert any(
+        "remediation slice 9 identity/candidates/dependencies/checkpoint changed" in error
+        for error in _errors(drifted)
+    )
+
+
+def test_remediation_active_capacity_and_dependency_admission_are_enforced() -> None:
+    over_capacity = (
+        _r01_active_remediation()
+        .replace(
+            "| R04 | DB-004 | none | QUEUED | PENDING |",
+            "| R04 | DB-004 | none | ACTIVE | PASS — R04-P |",
+            1,
+        )
+        .replace(
+            "| R08 | GOV-005 | none | QUEUED | PENDING |",
+            "| R08 | GOV-005 | none | ACTIVE | PASS — R08-P |",
+            1,
+        )
+    )
+    assert any(
+        "at most two remediation slices may be ACTIVE" in error
+        for error in _errors(over_capacity)
+    )
+
+    unmet = _r01_active_remediation().replace(
+        "| R02 | GOV-003, TST-001, DB-005 | R01 | QUEUED | PENDING |",
+        "| R02 | GOV-003, TST-001, DB-005 | R01 | ACTIVE | PASS — R02-P |",
+        1,
+    )
+    assert any("ACTIVE R02 has unfinished dependencies: R01" in error for error in _errors(unmet))
+
+
+def test_remediation_complete_requires_slice_bound_review_and_checkpoint_receipts() -> None:
+    text = _r01_active_remediation().replace(
+        "| R01 | GOV-001 | none | ACTIVE | PASS — R01-P | PENDING | CP-CONTROL PENDING |",
+        "| R01 | GOV-001 | none | COMPLETE | PASS — R01-P | PENDING | CP-CONTROL PENDING |",
+        1,
+    )
+    assert any(
+        "COMPLETE R01 requires P, M, and domain-checkpoint PASS" in error
+        for error in _errors(text)
+    )
+
+    wrong_plan = _r01_active_remediation().replace("PASS — R01-P", "PASS — R02-P", 1)
+    assert any("invalid R01 plan-review receipt" in error for error in _errors(wrong_plan))
+
+    wrong_diff = _r01_active_remediation().replace(
+        "| R01 | GOV-001 | none | ACTIVE | PASS — R01-P | PENDING |",
+        "| R01 | GOV-001 | none | ACTIVE | PASS — R01-P | PASS — R02-M |",
+        1,
+    )
+    assert any("invalid R01 diff-review receipt" in error for error in _errors(wrong_diff))
+
+    wrong_checkpoint = _r01_active_remediation().replace(
+        "PENDING | CP-CONTROL PENDING |",
+        "PASS — R01-M | CP-CONTROL PASS — R02-CP-CONTROL |",
+        1,
+    )
+    assert any(
+        "invalid R01 domain-checkpoint receipt" in error
+        for error in _errors(wrong_checkpoint)
+    )
+
+    wrong_checkpoint_code = _r01_active_remediation().replace(
+        "| R01 | GOV-001 | none | ACTIVE | PASS — R01-P | PENDING | CP-CONTROL PENDING |",
+        "| R01 | GOV-001 | none | ACTIVE | PASS — R01-P | PENDING | CP-DB PENDING |",
+        1,
+    )
+    assert any(
+        "identity/candidates/dependencies/checkpoint changed" in error
+        for error in _errors(wrong_checkpoint_code)
+    )
 
 
 def test_rejects_second_active_package_and_stale_pointer() -> None:
@@ -369,6 +508,7 @@ def test_all_done_terminal_complete_state_is_valid() -> None:
             line = re.sub(r"\| NOT RUN — [^|]+\|", "| COMPLETE |", line, count=1)
         external_lines.append(line)
     text = "\n".join(external_lines) + "\n"
+    text = _complete_all_remediation(text)
     text = _with_control_pointer(
         text,
         state="COMPLETE",
@@ -378,11 +518,25 @@ def test_all_done_terminal_complete_state_is_valid() -> None:
     assert _errors(text) == []
 
 
-def test_external_only_terminal_complete_state_is_valid() -> None:
-    text = _progress()
-    assert "**Controller state:** `COMPLETE`" in text
+def test_external_only_terminal_complete_state_is_rejected() -> None:
+    text = _queue_all_remediation(
+        _progress().replace(
+            "| 10 | **PKG-10 — admitted Cardvert audit remediation** | **IN PROGRESS** |",
+            "| 10 | **PKG-10 — admitted Cardvert audit remediation** | QUEUED |",
+        )
+    )
+    text = _with_control_pointer(
+        text,
+        state="COMPLETE",
+        package="PKG-09",
+        checkpoint="W4-04B",
+    )
     assert "| 9 | **PKG-09 — controlled pilot, training and handover** | **BLOCKED** |" in text
-    assert _errors(text) == []
+    assert any(
+        "COMPLETE controller requires every package and owned item to be DONE"
+        in error
+        for error in _errors(text)
+    )
 
 
 def test_rejects_canonical_identity_or_dependency_erasure() -> None:

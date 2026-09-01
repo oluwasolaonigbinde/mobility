@@ -14,6 +14,7 @@ DEFAULT_PROGRESS = ROOT / "docs" / "progress.md"
 ACTIVE_PACKAGE_STATUSES = {"NEXT", "IN PROGRESS", "REVIEW"}
 PACKAGE_STATUSES = ACTIVE_PACKAGE_STATUSES | {"QUEUED", "DONE", "BLOCKED"}
 CHECKLIST_STATUSES = {"TODO", "DONE"}
+REMEDIATION_SLICE_STATUSES = {"QUEUED", "ACTIVE", "COMPLETE"}
 
 # This manifest is the review boundary for delivery-control changes. Changing an
 # item identity, package or dependency requires an explicit validator diff; a
@@ -149,6 +150,84 @@ CANONICAL_ITEMS = (
     ),
 )
 
+# The owner-approved remediation graph is a second, independently pinned
+# register. It does not replace, renumber, or relax the original 71 checklist
+# obligations above. Dependencies combine the admitted serial-lane and
+# cross-lane edges; slice numbers are stable identities, not a topological
+# ordering (R09 intentionally follows R10).
+CANONICAL_REMEDIATION_SLICES = (
+    ("R01", "GOV-001", "none", "CP-CONTROL"),
+    ("R02", "GOV-003, TST-001, DB-005", "R01", "CP-CONTROL"),
+    ("R03", "GOV-004", "R02", "CP-CONTROL"),
+    ("R04", "DB-004", "none", "CP-DB"),
+    ("R05", "DB-001, TST-012, ONB-010", "R02, R04", "CP-DB"),
+    ("R06", "DB-002", "R02, R04, R05", "CP-DB"),
+    ("R07", "DB-003", "R02, R04, R06", "CP-DB"),
+    ("R08", "GOV-005", "none", "CP-SECURITY"),
+    ("R09", "GOV-007, AUT-001, AUT-002", "R10", "CP-SECURITY"),
+    ("R10", "AUT-005", "R08", "CP-SECURITY"),
+    ("R11", "AUT-004", "R09", "CP-SECURITY"),
+    ("R12", "AUT-003, REL-003", "R11", "CP-SECURITY"),
+    ("R13", "SEC-001, PRV-008", "none", "CP-PRIVACY"),
+    ("R14", "SEC-002, TST-004", "R12", "CP-SECURITY"),
+    ("R15", "GOV-006", "none", "CP-WORKERS"),
+    ("R16", "GOV-008", "none", "CP-CONTROL"),
+    ("R17", "TST-007", "R02, R03", "CP-CONTROL"),
+    ("R18", "MON-005, MON-006", "R04, R06, R07", "CP-MONEY"),
+    ("R19", "MON-002", "R18", "CP-MONEY"),
+    ("R20", "MON-001, DB-007, MON-008", "R05, R18", "CP-MONEY"),
+    ("R21", "MON-003", "R20", "CP-MONEY"),
+    ("R22", "MON-004, MON-007, MON-009", "R20, R21", "CP-MONEY"),
+    ("R23", "COM-001, COM-004", "R08", "CP-COMMERCIAL"),
+    ("R24", "COM-002", "R08, R23", "CP-COMMERCIAL"),
+    ("R25", "COM-003, COM-005", "R08, R24", "CP-COMMERCIAL"),
+    ("R26", "COM-006", "R08, R25", "CP-COMMERCIAL"),
+    ("R27", "COM-007", "R08, R26", "CP-COMMERCIAL"),
+    ("R28", "CAM-001", "none", "CP-CAMPAIGN"),
+    ("R29", "CAM-002", "R04, R08, R28", "CP-CAMPAIGN"),
+    ("R30", "CAM-003", "R29", "CP-CAMPAIGN"),
+    ("R31", "CAM-004", "R18, R19, R30", "CP-CAMPAIGN"),
+    ("R32", "ONB-002", "none", "CP-ONBOARDING"),
+    ("R33", "ONB-006", "R05, R32", "CP-ONBOARDING"),
+    ("R34", "OFF-001", "R04", "CP-OFFLINE"),
+    ("R35", "OFF-002, OFF-003", "R34", "CP-OFFLINE"),
+    ("R36", "OFF-005", "R35", "CP-OFFLINE"),
+    ("R37", "OFF-006", "R36", "CP-OFFLINE"),
+    ("R38", "PRV-001, PRV-002", "R13", "CP-PRIVACY"),
+    ("R39", "PRV-003", "R38", "CP-PRIVACY"),
+    ("R40", "PRV-004, AUD-001, AUD-002", "R16, R39", "CP-PRIVACY"),
+    ("R41", "PRV-009, AUD-004, TST-010", "R40", "CP-PRIVACY"),
+    ("R42", "PRV-005, PRV-006", "R41", "CP-PRIVACY"),
+    ("R43", "PRV-007", "R42", "CP-PRIVACY"),
+    ("R44", "AUD-005", "R16, R40", "CP-PRIVACY"),
+    ("R45", "MET-003", "R04, R41", "CP-REPORTING"),
+    ("R46", "REP-001", "R45", "CP-REPORTING"),
+    ("R47", "MET-001, MET-002, MET-004, REP-002", "R41, R46", "CP-REPORTING"),
+    ("R48", "REP-003", "R47", "CP-REPORTING"),
+    ("R49", "REP-004", "R47, R48", "CP-REPORTING"),
+    ("R50", "REP-005", "R47, R49", "CP-REPORTING"),
+    ("R51", "REP-006", "R43, R49, R50", "CP-REPORTING"),
+    ("R52", "MET-006", "R51", "CP-REPORTING"),
+    ("R53", "REL-005", "none", "CP-RELEASE"),
+    ("R54", "REL-006", "R12, R16, R53", "CP-RELEASE"),
+    ("R55", "REL-004", "R03, R18, R48, R51, R54", "CP-RELEASE"),
+    ("R56", "TST-005", "R09, R11, R14, R40", "CP-SECURITY"),
+    ("R57", "TST-008", "R19, R27, R49, R55", "CP-RELEASE"),
+    ("R58", "TST-011", "R15, R20, R21, R43, R49, R51", "CP-WORKERS"),
+    (
+        "R59",
+        "TST-002",
+        "R22, R31, R33, R37, R41, R44, R48, R50, R51, R56, R57, R58",
+        "CP-RELEASE",
+    ),
+    (
+        "R60",
+        "GOV-009",
+        "R03, R17, R18, R22, R27, R31, R33, R37, R43, R44, R52, R55, R56, R59",
+        "CP-CONTROL",
+    ),
+)
+
 # Stable external-input identities, in register order. States and evidence are
 # mutable; adding, removing, renaming, or reordering an id requires an
 # explicit validator diff — a docs/progress.md edit alone cannot erase a gate.
@@ -200,6 +279,7 @@ AUTHORITATIVE_HEADINGS = (
     "## Canonical repository",
     "## Executable package queue",
     "## Executable package contracts",
+    "## Remediation slice register",
     "## Architecture traceability — non-executable parent groups",
     "## Mandatory checklist item register",
     "## Checklist item specifications",
@@ -224,6 +304,18 @@ class Item:
     package_id: str
     status: str
     prerequisites: str
+    line: int
+
+
+@dataclass(frozen=True)
+class RemediationSlice:
+    slice_id: str
+    candidate_ids: str
+    dependencies: str
+    status: str
+    plan_review: str
+    diff_review: str
+    checkpoint: str
     line: int
 
 
@@ -462,25 +554,24 @@ def validate_text(text: str) -> list[str]:
             errors.append(f"line {line}: package must begin with bold PKG-NN id")
             continue
         packages.append(Package(number, match.group(1), _plain(cells[2]), cells[4], line))
-    if [package.number for package in packages] != list(range(1, 10)):
-        errors.append("package numbering must be exactly 1 through 9")
-    if [package.package_id for package in packages] != [f"PKG-{n:02d}" for n in range(1, 10)]:
-        errors.append("package ids must be exactly PKG-01 through PKG-09")
+    if [package.number for package in packages] != list(range(1, 11)):
+        errors.append("package numbering must be exactly 1 through 10")
+    if [package.package_id for package in packages] != [f"PKG-{n:02d}" for n in range(1, 11)]:
+        errors.append("package ids must be exactly PKG-01 through PKG-10")
     for package in packages:
         if package.status not in PACKAGE_STATUSES:
             errors.append(f"line {package.line}: invalid package status {package.status!r}")
-        if (
-            package.prerequisites != "none — checklist DAG gates entry"
-            and package.prerequisites != "none"
-        ):
+        allowed_prerequisites = {"none", "none — checklist DAG gates entry"}
+        if package.package_id == "PKG-10":
+            allowed_prerequisites.add("none — remediation DAG gates entry")
+        if package.prerequisites not in allowed_prerequisites:
             errors.append(
-                f"line {package.line}: package entry is controlled by the checklist DAG, "
-                "so package prerequisites must be none"
+                f"line {package.line}: package entry must use its pinned DAG authority"
             )
 
     try:
         contract_section, contract_line = _section(
-            text, "## Executable package contracts", "## Architecture traceability"
+            text, "## Executable package contracts", "## Remediation slice register"
         )
         package_card_ids = re.findall(r"^### (PKG-\d{2}) —", contract_section, re.MULTILINE)
     except ValueError as exc:
@@ -498,6 +589,20 @@ def validate_text(text: str) -> list[str]:
         canonical_numbers_by_package.setdefault(owner_package, set()).add(number)
     card_chunks = re.split(r"^### (PKG-\d{2}) —.*$", contract_section, flags=re.MULTILINE)
     for card_id, card_body in zip(card_chunks[1::2], card_chunks[2::2], strict=False):
+        if card_id == "PKG-10":
+            owns_count = len(
+                re.findall(
+                    r"^- \*\*Owns:\*\* remediation slices R01–R60\.$",
+                    card_body,
+                    re.MULTILINE,
+                )
+            )
+            if owns_count != 1:
+                errors.append(
+                    "package card PKG-10 must declare exactly `Owns: remediation "
+                    "slices R01–R60.`"
+                )
+            continue
         owns_matches = re.findall(
             r"- \*\*Owns:\*\* checklist (\d+)[–-](\d+)", card_body
         )
@@ -513,6 +618,199 @@ def validate_text(text: str) -> list[str]:
                 f"package card {card_id} Owns declaration does not match the "
                 "canonical checklist membership"
             )
+
+    try:
+        remediation_section, remediation_line = _section(
+            text,
+            "## Remediation slice register",
+            "## Architecture traceability — non-executable parent groups",
+        )
+        remediation_rows = _table(
+            remediation_section, "| Slice | Candidate IDs |", remediation_line
+        )
+    except ValueError as exc:
+        errors.append(str(exc))
+        remediation_rows = []
+    remediation_slices: list[RemediationSlice] = []
+    for line, cells in remediation_rows:
+        if len(cells) != 7:
+            errors.append(f"line {line}: remediation slice row must have 7 cells")
+            continue
+        slice_id = _plain(cells[0])
+        if not re.fullmatch(r"R\d{2}", slice_id):
+            errors.append(f"line {line}: invalid remediation slice id {slice_id!r}")
+            continue
+        remediation_slices.append(
+            RemediationSlice(
+                slice_id=slice_id,
+                candidate_ids=_plain(cells[1]),
+                dependencies=_plain(cells[2]),
+                status=_plain(cells[3]),
+                plan_review=_plain(cells[4]),
+                diff_review=_plain(cells[5]),
+                checkpoint=_plain(cells[6]),
+                line=line,
+            )
+        )
+
+    actual_remediation_manifest = tuple(
+        (
+            remediation_slice.slice_id,
+            remediation_slice.candidate_ids,
+            remediation_slice.dependencies,
+            remediation_slice.checkpoint.split(" ", 1)[0],
+        )
+        for remediation_slice in remediation_slices
+    )
+    if actual_remediation_manifest != CANONICAL_REMEDIATION_SLICES:
+        for number, (actual, expected) in enumerate(
+            zip(actual_remediation_manifest, CANONICAL_REMEDIATION_SLICES, strict=False),
+            start=1,
+        ):
+            if actual != expected:
+                errors.append(
+                    f"remediation slice {number} identity/candidates/dependencies/checkpoint "
+                    f"changed: expected {expected!r}, found {actual!r}"
+                )
+        if len(actual_remediation_manifest) != len(CANONICAL_REMEDIATION_SLICES):
+            errors.append(
+                f"canonical remediation register has {len(CANONICAL_REMEDIATION_SLICES)} "
+                f"slices; found {len(actual_remediation_manifest)}"
+            )
+
+    remediation_ids = [remediation_slice.slice_id for remediation_slice in remediation_slices]
+    if len(remediation_ids) != len(set(remediation_ids)):
+        errors.append("remediation slice ids must be unique")
+    remediation_by_id = {
+        remediation_slice.slice_id: remediation_slice
+        for remediation_slice in remediation_slices
+    }
+    remediation_dependencies: dict[str, list[str]] = {}
+    for remediation_slice in remediation_slices:
+        dependencies = (
+            []
+            if remediation_slice.dependencies == "none"
+            else remediation_slice.dependencies.split(", ")
+        )
+        remediation_dependencies[remediation_slice.slice_id] = dependencies
+        if len(dependencies) != len(set(dependencies)):
+            errors.append(
+                f"line {remediation_slice.line}: {remediation_slice.slice_id} repeats a dependency"
+            )
+        for dependency in dependencies:
+            if dependency == remediation_slice.slice_id:
+                errors.append(
+                    f"line {remediation_slice.line}: {remediation_slice.slice_id} depends on itself"
+                )
+            elif dependency not in remediation_by_id:
+                errors.append(
+                    f"line {remediation_slice.line}: {remediation_slice.slice_id} dependency "
+                    f"{dependency} is unknown"
+                )
+
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit_remediation(slice_id: str) -> None:
+        if slice_id in visiting:
+            errors.append(f"remediation dependency graph contains a cycle at {slice_id}")
+            return
+        if slice_id in visited:
+            return
+        visiting.add(slice_id)
+        for dependency in remediation_dependencies.get(slice_id, []):
+            if dependency in remediation_by_id:
+                visit_remediation(dependency)
+        visiting.remove(slice_id)
+        visited.add(slice_id)
+
+    for remediation_slice in remediation_slices:
+        visit_remediation(remediation_slice.slice_id)
+
+    for remediation_slice in remediation_slices:
+        slice_id = remediation_slice.slice_id
+        expected_checkpoint = next(
+            (
+                checkpoint
+                for expected_id, _, _, checkpoint in CANONICAL_REMEDIATION_SLICES
+                if expected_id == slice_id
+            ),
+            "",
+        )
+        plan_pass = remediation_slice.plan_review == f"PASS — {slice_id}-P"
+        diff_pass = remediation_slice.diff_review == f"PASS — {slice_id}-M"
+        checkpoint_pending = remediation_slice.checkpoint == f"{expected_checkpoint} PENDING"
+        checkpoint_pass = (
+            remediation_slice.checkpoint
+            == f"{expected_checkpoint} PASS — {slice_id}-{expected_checkpoint}"
+        )
+        if remediation_slice.status not in REMEDIATION_SLICE_STATUSES:
+            errors.append(
+                f"line {remediation_slice.line}: invalid remediation state "
+                f"{remediation_slice.status!r}"
+            )
+        if remediation_slice.plan_review not in {"PENDING", f"PASS — {slice_id}-P"}:
+            errors.append(
+                f"line {remediation_slice.line}: invalid {slice_id} plan-review receipt"
+            )
+        if remediation_slice.diff_review not in {"PENDING", f"PASS — {slice_id}-M"}:
+            errors.append(
+                f"line {remediation_slice.line}: invalid {slice_id} diff-review receipt"
+            )
+        if not (checkpoint_pending or checkpoint_pass):
+            errors.append(
+                f"line {remediation_slice.line}: invalid {slice_id} domain-checkpoint receipt"
+            )
+        if remediation_slice.status == "QUEUED" and (
+            remediation_slice.diff_review != "PENDING" or not checkpoint_pending
+        ):
+            errors.append(
+                f"line {remediation_slice.line}: QUEUED {slice_id} must keep diff and "
+                "checkpoint receipts pending"
+            )
+        if remediation_slice.status == "ACTIVE" and not plan_pass:
+            errors.append(
+                f"line {remediation_slice.line}: ACTIVE {slice_id} requires its plan-review PASS"
+            )
+        if checkpoint_pass and not diff_pass:
+            errors.append(
+                f"line {remediation_slice.line}: {slice_id} checkpoint cannot pass "
+                "before diff review"
+            )
+        if remediation_slice.status == "COMPLETE" and not (
+            plan_pass and diff_pass and checkpoint_pass
+        ):
+            errors.append(
+                f"line {remediation_slice.line}: COMPLETE {slice_id} requires P, M, and "
+                "domain-checkpoint PASS receipts"
+            )
+
+    remediation_status_by_id = {
+        remediation_slice.slice_id: remediation_slice.status
+        for remediation_slice in remediation_slices
+    }
+    for remediation_slice in remediation_slices:
+        if remediation_slice.status in {"ACTIVE", "COMPLETE"}:
+            unfinished = [
+                dependency
+                for dependency in remediation_dependencies.get(remediation_slice.slice_id, [])
+                if remediation_status_by_id.get(dependency) != "COMPLETE"
+            ]
+            if unfinished:
+                errors.append(
+                    f"line {remediation_slice.line}: {remediation_slice.status} "
+                    f"{remediation_slice.slice_id} has unfinished dependencies: "
+                    + ", ".join(unfinished)
+                )
+    active_remediation_slices = [
+        remediation_slice
+        for remediation_slice in remediation_slices
+        if remediation_slice.status == "ACTIVE"
+    ]
+    if len(active_remediation_slices) > 2:
+        errors.append(
+            f"at most two remediation slices may be ACTIVE; found {len(active_remediation_slices)}"
+        )
 
     try:
         parent_section, parent_line = _section(
@@ -731,6 +1029,25 @@ def validate_text(text: str) -> list[str]:
         for package in packages
     }
     for package in packages:
+        if package.package_id == "PKG-10":
+            all_remediation_complete = bool(remediation_slices) and all(
+                remediation_slice.status == "COMPLETE"
+                for remediation_slice in remediation_slices
+            )
+            if package.status == "DONE" and not all_remediation_complete:
+                errors.append(
+                    f"line {package.line}: DONE PKG-10 contains unfinished remediation slices"
+                )
+            if all_remediation_complete and package.status != "DONE":
+                errors.append(
+                    f"line {package.line}: PKG-10 must be DONE when all remediation slices "
+                    "are COMPLETE"
+                )
+            if active_remediation_slices and package.status not in ACTIVE_PACKAGE_STATUSES:
+                errors.append(
+                    f"line {package.line}: ACTIVE remediation slices require active PKG-10"
+                )
+            continue
         owned = package_items.get(package.package_id, [])
         if package.status == "DONE" and any(item.status != "DONE" for item in owned):
             errors.append(f"line {package.line}: DONE package contains unfinished checklist items")
@@ -744,6 +1061,12 @@ def validate_text(text: str) -> list[str]:
                     f"line {package.line}: BLOCKED package has unfinished work "
                     "not tied to a blocker"
                 )
+
+    def remediation_runnable(remediation_slice: RemediationSlice) -> bool:
+        return remediation_slice.status == "QUEUED" and all(
+            remediation_status_by_id.get(dependency) == "COMPLETE"
+            for dependency in remediation_dependencies.get(remediation_slice.slice_id, [])
+        )
 
     active_packages = [package for package in packages if package.status in ACTIVE_PACKAGE_STATUSES]
     controller_match = re.search(r"\*\*Controller state:\*\* `([^`]+)`", text)
@@ -768,42 +1091,57 @@ def validate_text(text: str) -> list[str]:
             errors.append("controller must be ACTIVE while a package is active")
         if package_pointer != active.package_id:
             errors.append("control package pointer does not match the active package")
-        owned_active = package_items.get(active.package_id, [])
-        # A REVIEW package with every owned item DONE is the consolidated
-        # closure review; any other active state still needs runnable work.
-        closure_review = active.status == "REVIEW" and bool(owned_active) and all(
-            item.status == "DONE" for item in owned_active
-        )
-        if not checkpoint_match:
-            errors.append("active package requires a Current checkpoint")
+        if active.package_id == "PKG-10":
+            if not checkpoint_match:
+                errors.append("active PKG-10 requires a Current checkpoint")
+            else:
+                checkpoint_package, checkpoint_id = checkpoint_match.groups()
+                checkpoint_slice = remediation_by_id.get(checkpoint_id)
+                if checkpoint_package != "PKG-10" or not checkpoint_slice:
+                    errors.append("current checkpoint does not belong to PKG-10")
+                elif checkpoint_slice.status != "ACTIVE" and not remediation_runnable(
+                    checkpoint_slice
+                ):
+                    errors.append(
+                        "current remediation checkpoint is neither ACTIVE nor "
+                        "dependency-satisfied QUEUED work"
+                    )
+            if not active_remediation_slices and not any(
+                remediation_runnable(remediation_slice)
+                for remediation_slice in remediation_slices
+            ):
+                errors.append("active PKG-10 has no ACTIVE or runnable remediation slice")
         else:
-            checkpoint_package, checkpoint_id = checkpoint_match.groups()
-            checkpoint = next((item for item in items if item.item_id == checkpoint_id), None)
-            if checkpoint_package != active.package_id or not checkpoint:
-                errors.append("current checkpoint does not belong to the active package")
-            elif checkpoint.package_id != active.package_id:
-                errors.append("current checkpoint item is mapped to another package")
-            elif not closure_review and not runnable(checkpoint):
-                errors.append("current checkpoint is not a dependency-satisfied runnable TODO")
-        if not closure_review and not any(
-            runnable(item) for item in owned_active
-        ):
-            errors.append("active package has no runnable TODO checklist item")
+            owned_active = package_items.get(active.package_id, [])
+            # A REVIEW package with every owned item DONE is the consolidated
+            # closure review; any other active state still needs runnable work.
+            closure_review = active.status == "REVIEW" and bool(owned_active) and all(
+                item.status == "DONE" for item in owned_active
+            )
+            if not checkpoint_match:
+                errors.append("active package requires a Current checkpoint")
+            else:
+                checkpoint_package, checkpoint_id = checkpoint_match.groups()
+                checkpoint = next((item for item in items if item.item_id == checkpoint_id), None)
+                if checkpoint_package != active.package_id or not checkpoint:
+                    errors.append("current checkpoint does not belong to the active package")
+                elif checkpoint.package_id != active.package_id:
+                    errors.append("current checkpoint item is mapped to another package")
+                elif not closure_review and not runnable(checkpoint):
+                    errors.append("current checkpoint is not a dependency-satisfied runnable TODO")
+            if not closure_review and not any(runnable(item) for item in owned_active):
+                errors.append("active package has no runnable TODO checklist item")
     elif not active_packages:
-        all_complete = bool(packages and items) and all(
+        all_complete = bool(packages and items and remediation_slices) and all(
             package.status == "DONE" for package in packages
-        ) and all(item.status == "DONE" for item in items)
-        build_exhausted = bool(packages and items) and all(
-            package.status in {"DONE", "BLOCKED"} for package in packages
-        ) and all(
-            item.status == "DONE" or item.status.startswith("BLOCKED — ")
-            for item in items
-        ) and not any(runnable(item) for item in items)
+        ) and all(item.status == "DONE" for item in items) and all(
+            remediation_slice.status == "COMPLETE"
+            for remediation_slice in remediation_slices
+        )
         if controller_state == "COMPLETE":
-            if not (all_complete or build_exhausted):
+            if not all_complete:
                 errors.append(
-                    "COMPLETE controller requires all work DONE or every unfinished "
-                    "package/checklist item externally BLOCKED with no runnable TODO"
+                    "COMPLETE controller requires every package and owned item to be DONE"
                 )
             if package_pointer != "PKG-09":
                 errors.append("COMPLETE controller must retain PKG-09 as control package")
@@ -834,10 +1172,11 @@ def validate_text(text: str) -> list[str]:
                     if other.number > pointed.number and other.status not in {
                         "QUEUED",
                         "BLOCKED",
+                        "DONE",
                     }:
                         errors.append(
                             f"line {other.line}: package after the paused control package "
-                            "must be QUEUED or BLOCKED"
+                            "must be QUEUED, BLOCKED, or DONE"
                         )
             checkpoint = None
             if not checkpoint_match:
@@ -859,7 +1198,10 @@ def validate_text(text: str) -> list[str]:
                 errors.append("paused controller external id is not registered")
             elif external_states[paused_external] != "MISSING":
                 errors.append("paused controller external id is not MISSING")
-            if any(runnable(item) for item in items):
+            if any(runnable(item) for item in items) or any(
+                remediation_runnable(remediation_slice)
+                for remediation_slice in remediation_slices
+            ):
                 errors.append("paused controller is invalid while runnable TODO work exists")
             if not checkpoint or paused_external not in blocker_ids(checkpoint.item_id):
                 errors.append(
