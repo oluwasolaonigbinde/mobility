@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 115
+plan_revision: 116
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 239
+last_event_sequence: 240
 ---
 
 # Cardvert audit remediation programme
@@ -216,7 +216,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R31 | CAM-004 | WAITING | R18, R19, R30 | R31-P; reviewed frozen assignment-window contract | wait for predecessors and trip lease |
 | R32 | ONB-002 | ACCEPTED | onboarding opener | R32-P/M/SEC/DB/CP-ONBOARDING; PostgreSQL and contract evidence | complete |
 | R33 | ONB-006 | WAITING | R05, R32 | R33-P; current 50k-row exact-index experiment | wait for accepted R05; revalidate exact-index plan |
-| R34 | OFF-001 | ACTIVE | R04; offline opener | R34-P; frozen 38-file implementation `f25bd28f...`; own gates green | reconcile inherited 12-route audit registry, then repeat aggregate gate and admission review |
+| R34 | OFF-001 | ACTIVE | R04; offline opener | R34-P; frozen 38-file implementation `f25bd28f...`; registry correction returned | fix order-dependent v2 batch fixture, then repeat mandatory aggregate/full gates and admission review |
 | R35 | OFF-002, OFF-003 | WAITING | R34 | R35-P; separate OFF-002/OFF-003 reviewed contracts | wait for accepted R34 |
 | R36 | OFF-005 | WAITING | R35 | R36-P; reviewed partial-acceptance contract | wait for accepted R35 and recheck migration head |
 | R37 | OFF-006 | WAITING | R36 | R37-P; reviewed deactivation-drain contract | wait for accepted R36 |
@@ -653,3 +653,4 @@ verification is complete.
 | 237 | 114 | 1 | DISPATCH_RESUMED | Visible S12/R34 reacquired the corrected audit-registry lease to rerun the full integrated OFF-001 gates and refreeze its 38-file packet. | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879`; GPT-5.6 Sol/high; R35-R37 remain held |
 | 238 | 114 | 1 | DISPATCH_STARTED | The second owner-requested visible Claude Code session began R09's reviewed auth command, status-rotation and PostgreSQL race implementation. | Claude session `Cardvert R09 authentication remediation`; Opus 5 / High; exact disjoint lease; no audit-registry mutation |
 | 239 | 115 | 1 | LEASE_CORRECTED | R09's optional architecture documentation path was removed before product writes because active R34 already owns the dirty shared file. | Claude session `Cardvert R09 authentication remediation`; auth/user code and focused tests remain disjoint; stop if documentation is indispensable |
+| 240 | 116 | 1 | INTEGRATION_GATE_FIX | R34's corrected audit module passes alone but the mandatory hardening→audit aggregate exposes its trip fixture omitting the required v2 batch sequence; first ping returns 409. | controller reproduction: 1 failed, 19 passed; import-order masking identified; R34 owner must make the fixture canonical without weakening protocol assertions |
