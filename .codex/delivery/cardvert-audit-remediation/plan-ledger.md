@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 50
+plan_revision: 51
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 119
+last_event_sequence: 123
 ---
 
 # Cardvert audit remediation programme
@@ -198,7 +198,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P; attempts 1-3 reviews FIX | correction attempt 4 for nested serialized structured-text bypass |
 | R14 | SEC-002, TST-004 | QUEUED | R12 | — | wait |
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
-| R16 | GOV-008 | ACTIVE | provider-boundary opener | R16-P | visible S06 implementation reserved |
+| R16 | GOV-008 | REVIEW | provider-boundary opener | R16-P; frozen seven-file boundary diff | independent R16-M/CONTRACT/CP-CONTROL review |
 | R17 | TST-007 | QUEUED | R02, R03 | — | wait |
 | R18 | MON-005, MON-006 | QUEUED | R04, R06, R07 | — | wait |
 | R19 | MON-002 | QUEUED | R18 | — | wait |
@@ -309,12 +309,13 @@ trigger and a newly reviewed authority amendment.
 | `/root/r13_diff_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/xhigh — cross-sink PII and audit-authority semantics | released reviewed R13 diff `4636fce9...` | FIX |
 | task `01a05e60-6ce7-7cb2-ac20-300ac5275d05` | S03 / R09-R11 planning after accepted R10 | GPT-5.6 Sol/medium for planning | no mutation lease; R09 plan PASS, R11 plan BLOCKED-OWNER | PLAN-RETURNED |
 | `/root/r10_diff_review` | S03 / R10 M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — strict bearer claims, refresh and route authority | released accepted R10 diff `de0c8d60...` | PASS |
-| task `01a05e7a-2699-79b2-9b63-e911dfe302ef` | S06 / R16 implementation | GPT-5.6 Sol/medium — bounded provider-port composition refactor | audience-delivery service, dependency composition, new ad-platform adapter package, focused tests, and only the fake-adapter import line in `tests/test_w403b_synthetic_path.py` | ACTIVE |
+| task `01a05e7a-2699-79b2-9b63-e911dfe302ef` | S06 / R16 implementation | GPT-5.6 Sol/medium — bounded provider-port composition refactor | released frozen seven-file boundary diff | REVIEW |
 | task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R23 implementation; R24-R27 held | GPT-5.6 Sol/medium — bounded frozen-refund implementation | R23 billing/model/cancellation/schema/API/migration/generated-contract/test lease plus `tests/test_pkg03_pro_corrections.py`; later slices have no mutation lease | ACTIVE |
 | `/root/r13_attempt3_review` | S05 / R13 repeat M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded parser and identifier-preservation boundary | released reviewed R13 diff `506dc438...` | FIX |
+| `/root/r16_diff_review` | S06 / R16 M, CONTRACT/control and CP-CONTROL review | GPT-5.6 Sol/medium — bounded provider-boundary refactor | read-only exact seven-file frozen diff | ACTIVE |
 
-Implementation writers reserved/active: **3 / 3**, currently S05/R13,
-S06/R16 and S09/R23. R02 remains temporarily
+Implementation writers reserved/active: **2 / 3**, currently S05/R13 and
+S09/R23. R16 is frozen for read-only admission review. R02 remains temporarily
 conflict-held because its shared-fixture mutation would invalidate R13's repeat
 verification; R09 also waits for R13's audit/admin seam to release. R23 now
 exclusively owns migrations and generated contracts; S12/R34 remains serialized
@@ -357,8 +358,8 @@ invented while this is unresolved.
 
 ## Next scheduler action
 
-Await the R13 correction-attempt-4 callback plus terminal callbacks from
-S06/R16 and S09/R23. Keep R11 and R28 blocked on their recorded owner choices without
+Await the R13 correction-attempt-4 and S09/R23 callbacks plus the R16 review
+verdict. Keep R11 and R28 blocked on their recorded owner choices without
 freezing independent work. R09 remains write-held until R13 releases the
 admin/audit seam; R33 remains held behind R05; R34 has an accepted plan but is
 serialized behind R23's migration/contract lane. R24-R27 remain in the same S09
@@ -491,3 +492,7 @@ verification is complete.
 | 117 | 49 | 1 | DIFF_REVIEW_FIX | R13 attempt 3 closed multiline/comma and numeric-ID findings but allowed a non-sensitive outer serialized assignment to consume nested PII assignments unchanged. | Sol/high reviewer `/root/r13_attempt3_review`; deterministic raw JSON/Python-dict leak through formatter, Sentry and audit free text |
 | 118 | 49 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 4 on the unchanged four-file lease, limited to nested serialized structured-text scanning and regression evidence across all approved sinks. | GPT-5.6 Sol/high; no path expansion; callback and full repeat review required |
 | 119 | 50 | 1 | LEASE_EXPANDED | R23 may update `tests/test_pkg03_pro_corrections.py` only to bind its existing split-receipt refund conservation/retry cases to per-campaign authoritative cash-refund-due cancellations. | pre-edit callback; empty R23 diff; no service fallback, product behavior or wider test expansion |
+| 120 | 51 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 4 reacquired the unchanged four-file lease for the serialized nested-structure bypass only. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/high; terminal callback required |
+| 121 | 51 | 1 | DISPATCH_RESUMED | Visible S09/R23 resumed under the single-file split-receipt regression expansion and otherwise unchanged lease. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; GPT-5.6 Sol/medium; terminal callback required |
+| 122 | 51 | 1 | IMPLEMENTATION_RETURNED | S06/R16 released its exact provider-port/composition diff with public adapter ownership, unchanged disabled/fake behavior and no live provider or contract change. | task `01a05e7a-2699-79b2-9b63-e911dfe302ef`; seven files; callback patch `335ed021...`; 16 focused/synthetic passes and adjacent 48 passes |
+| 123 | 51 | 1 | DIFF_REVIEW_STARTED | Frozen R16 entered independent minimal-change, contract/control-specialist and CP-CONTROL review at the ordinary Sol/medium gate. | `/root/r16_diff_review`; read-only exact seven-file diff |

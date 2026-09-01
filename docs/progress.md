@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R13, R16, R23`
-**Current capacity justification:** `R13` owns only its four-file nested serialized-text privacy correction; `R16` owns the audience-delivery provider port, dependency composition, new adapter package, focused tests, and only the fake-adapter import line in the existing synthetic workflow test; `R23` exclusively owns its billing/refund-cancellation migration, model/schema/API, generated-contract and focused-test lane. Their paths and domain authorities are disjoint. R02 and R09 remain temporarily conflict-held behind R13 verification/release; R34 has a reviewed plan but remains serialized behind R23's migration and generated-contract lane. Central configuration, shared fixtures, and this file remain controller-serialized.
+**Current capacity assignment:** `R13, R23`
+**Current capacity justification:** `R13` owns only its four-file nested serialized-text privacy correction; `R23` exclusively owns its billing/refund-cancellation migration, model/schema/API, generated-contract and focused-test lane. Their paths and domain authorities are disjoint. R16 is frozen for read-only admission review. R02 and R09 remain temporarily conflict-held behind R13 verification/release; R34 has a reviewed plan but remains serialized behind R23's migration and generated-contract lane. Central configuration, shared fixtures, and this file remain controller-serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -79,8 +79,8 @@ authority; the directly owner-authorized, Pro-admitted remediation programme is
 now rolling across dependency-ready disjoint slices while all 29 non-executable
 findings retain their admitted dispositions.
 **Current checkpoint:** `PKG-10 / R13` — bounded correction attempt 4 is the
-highest-priority active slice; R16 and R23 own the two disjoint implementation
-lanes. R10 and R32 are accepted.
+highest-priority active slice; R23 owns the disjoint migration/contract lane and
+R16 undergoes read-only admission review. R10 and R32 are accepted.
 R02 and R09 wait for R13 clearance; R34-R37 plans are accepted but their
 implementation lane is serialized behind R23.
 
@@ -1537,7 +1537,7 @@ durable ledger before changing a row.
 | R13 | SEC-001, PRV-008 | none | ACTIVE | PASS — R13-P | PENDING | CP-PRIVACY PENDING |
 | R14 | SEC-002, TST-004 | R12 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
 | R15 | GOV-006 | none | COMPLETE | PASS — R15-P | PASS — R15-M | CP-WORKERS PASS — R15-CP-WORKERS |
-| R16 | GOV-008 | none | ACTIVE | PASS — R16-P | PENDING | CP-CONTROL PENDING |
+| R16 | GOV-008 | none | QUEUED | PASS — R16-P | PENDING | CP-CONTROL PENDING |
 | R17 | TST-007 | R02, R03 | QUEUED | PENDING | PENDING | CP-CONTROL PENDING |
 | R18 | MON-005, MON-006 | R04, R06, R07 | QUEUED | PENDING | PENDING | CP-MONEY PENDING |
 | R19 | MON-002 | R18 | QUEUED | PENDING | PENDING | CP-MONEY PENDING |
