@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 44
+plan_revision: 45
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 104
+last_event_sequence: 105
 ---
 
 # Cardvert audit remediation programme
@@ -309,7 +309,7 @@ trigger and a newly reviewed authority amendment.
 | `/root/r13_diff_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/xhigh — cross-sink PII and audit-authority semantics | released reviewed R13 diff `4636fce9...` | FIX |
 | task `01a05e60-6ce7-7cb2-ac20-300ac5275d05` | S03 / R10 under review; read-only R09/R11 planning | GPT-5.6 Sol/medium for planning; R10 implementation used Sol/xhigh | released R10 frozen diff `de0c8d60...`; R09/R11 have no mutation lease | PLANNING |
 | `/root/r10_diff_review` | S03 / R10 M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — strict bearer claims, refresh and route authority | released accepted R10 diff `de0c8d60...` | PASS |
-| S06 reservation | R16 implementation | GPT-5.6 Sol/medium — bounded provider-port composition refactor | audience-delivery service, dependency composition, new ad-platform adapter package and focused test lease | RESERVED |
+| task `01a05e7a-2699-79b2-9b63-e911dfe302ef` | S06 / R16 implementation | GPT-5.6 Sol/medium — bounded provider-port composition refactor | audience-delivery service, dependency composition, new ad-platform adapter package and focused test lease | ACTIVE |
 | task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R23-R27 aggregate plan and independent review | GPT-5.6 Sol/medium — aggregate commercial current-source planning | read-only; no mutation lease | PLANNING |
 
 Implementation writers reserved/active: **3 / 3**, currently S05/R13,
@@ -471,3 +471,4 @@ verification is complete.
 | 102 | 44 | 1 | DIFF_REVIEW_PASSED | R10-M and R10-SEC passed with the five-file diff fully attributable to strict claim validation, stable refresh denial, and unchanged session policy. | Sol/xhigh reviewer `/root/r10_diff_review`; frozen `de0c8d60...`; 43 auth tests plus route/adjacent evidence |
 | 103 | 44 | 1 | SLICE_ACCEPTED | R10/AUT-005 accepted exactly once and integrated at `49212ba`, unlocking R09 and clearing the R16 dependency-composition conflict. | R10-P/M/SEC/CP-SECURITY; 246/246 bearer-route convergence; controller reran 43 auth tests, Ruff and diff checks |
 | 104 | 44 | 1 | DISPATCH_RESERVED | S06/R16 reserved one bounded provider-port and composition implementation lease after accepted R10 cleared `dependencies.py`. | GPT-5.6 Sol/medium; disjoint from R13 privacy and R32 onboarding/migration/contracts; no live provider or contract change |
+| 105 | 45 | 1 | DISPATCH_STARTED | Visible S06/R16 acquired the exact provider-port/composition lease in the shared checkout. | task `01a05e7a-2699-79b2-9b63-e911dfe302ef`; GPT-5.6 Sol/medium; no worktree; terminal callback required |
