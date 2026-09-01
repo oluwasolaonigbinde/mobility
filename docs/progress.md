@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R13, R34`
-**Current capacity justification:** `R13` owns the observability/audit privacy lease while `R34` owns the disjoint trip/offline evidence protocol plus the serialized migration/generated-contract/configuration lane. R24 is frozen for read-only money admission review. R02 and R09 remain temporarily conflict-held behind R13. Shared fixtures and this file remain controller-serialized.
+**Current capacity assignment:** `R34`
+**Current capacity justification:** `R34` owns the trip/offline evidence protocol plus the serialized migration/generated-contract/configuration lane. R13 and R24 are frozen for read-only admission reviews. R02 and R09 remain temporarily conflict-held behind R13. Shared fixtures and this file remain controller-serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -78,9 +78,8 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 now rolling across dependency-ready disjoint slices while all 29 non-executable
 findings retain their admitted dispositions.
-**Current checkpoint:** `PKG-10 / R13` — privacy correction continues while
-R24 undergoes money admission review and the released migration/contract lane
-runs the offline evidence-protocol opener.
+**Current checkpoint:** `PKG-10 / R34` — the offline evidence-protocol opener
+is the only product writer while R13 and R24 undergo admission review.
 R02 and R09 wait for R13 clearance.
 
 ## Direct owner requests outside the package queue
@@ -1533,7 +1532,7 @@ durable ledger before changing a row.
 | R10 | AUT-005 | R08 | COMPLETE | PASS — R10-P | PASS — R10-M | CP-SECURITY PASS — R10-CP-SECURITY |
 | R11 | AUT-004 | R09 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
 | R12 | AUT-003, REL-003 | R11 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
-| R13 | SEC-001, PRV-008 | none | ACTIVE | PASS — R13-P | PENDING | CP-PRIVACY PENDING |
+| R13 | SEC-001, PRV-008 | none | QUEUED | PASS — R13-P | PENDING | CP-PRIVACY PENDING |
 | R14 | SEC-002, TST-004 | R12 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
 | R15 | GOV-006 | none | COMPLETE | PASS — R15-P | PASS — R15-M | CP-WORKERS PASS — R15-CP-WORKERS |
 | R16 | GOV-008 | none | COMPLETE | PASS — R16-P | PASS — R16-M | CP-CONTROL PASS — R16-CP-CONTROL |
