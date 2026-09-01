@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 66
+plan_revision: 67
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 151
+last_event_sequence: 153
 ---
 
 # Cardvert audit remediation programme
@@ -299,7 +299,7 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 6 | GPT-5.6 Sol/high — bounded cross-sink privacy/security correction | prior four-file lease plus exact `app/models/audit.py` listener-boundary expansion | RESERVED |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 6 | GPT-5.6 Sol/high — bounded cross-sink privacy/security correction | prior four-file lease plus exact `app/models/audit.py` listener-boundary expansion | ACTIVE |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-5 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `6e171d42...` diff | FIX |
 | task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d` | S01 / R02-R03-R17 aggregate current-source plan | GPT-5.6 Sol/medium — CI, contract and coverage planning without mutation | no mutation lease; R02 baseline and R03 plan pass | BLOCKED-OWNER |
 | task `01a05e49-0107-7611-8ee8-515273881aa8` | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | released exact R15 diff | ACCEPTED |
@@ -312,7 +312,7 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e60-6ce7-7cb2-ac20-300ac5275d05` | S03 / R09-R11 planning after accepted R10 | GPT-5.6 Sol/medium for planning | no mutation lease; R09 plan PASS, R11 plan BLOCKED-OWNER | PLAN-RETURNED |
 | `/root/r10_diff_review` | S03 / R10 M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — strict bearer claims, refresh and route authority | released accepted R10 diff `de0c8d60...` | PASS |
 | task `01a05e7a-2699-79b2-9b63-e911dfe302ef` | S06 / R16 implementation | GPT-5.6 Sol/medium — bounded provider-port composition refactor | released accepted seven-file boundary diff | ACCEPTED |
-| task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R23 migration-evidence correction; R24-R27 held | GPT-5.6 Sol/high — bounded migration/backfill/downgrade regression | prior R23 lease plus exact `tests/test_migration_0073_refund_cancellation_provenance.py` expansion | RESERVED |
+| task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R23 migration-evidence correction; R24-R27 held | GPT-5.6 Sol/high — bounded migration/backfill/downgrade regression | prior R23 lease plus exact `tests/test_migration_0073_refund_cancellation_provenance.py` expansion | ACTIVE |
 | `/root/r13_attempt3_review` | S05 / R13 repeat M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded parser and identifier-preservation boundary | released reviewed R13 diff `506dc438...` | FIX |
 | `/root/r16_diff_review` | S06 / R16 M, CONTRACT/control and CP-CONTROL review | GPT-5.6 Sol/medium — bounded provider-boundary refactor | released accepted seven-file diff | PASS |
 | task `01a05e84-2c02-7bf0-8c55-382766692aed` | S02 / R05-R07 aggregate plan and independent review | GPT-5.6 Sol/medium — read-only database-chain current-source planning | no mutation lease; R05/R07 plans pass | BLOCKED-OWNER |
@@ -542,3 +542,5 @@ verification is complete.
 | 149 | 66 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 6 with one exact `app/models/audit.py` expansion to make ORM registration guaranteed and idempotent. | GPT-5.6 Sol/high; all other corrections remain within the prior four-file lease; full repeat review required |
 | 150 | 66 | 1 | ADMISSION_REVIEW_FIX | R23 behavior, PostgreSQL concurrency and contract evidence pass, but the new 0073 data backfill and populated downgrade guard lack a durable automated migration regression in the returned diff. | controller inspection of exact `0108d39c...`; one-off migration evidence is not contribution-ready regression coverage |
 | 151 | 66 | 1 | DISPATCH_RESERVED | The same visible S09 task reserved one exact migration-test expansion for 0073 upgrade, unambiguous legacy backfill, catalog controls, populated fail-closed downgrade and empty downgrade/re-upgrade. | GPT-5.6 Sol/high for bounded migration verification; no product redesign or other path expansion |
+| 152 | 67 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 6 reacquired its expanded five-file privacy lease for the exact independent review findings. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/high; terminal callback required |
+| 153 | 67 | 1 | DISPATCH_STARTED | Visible S09/R23 reacquired its prior frozen inputs plus the exact new 0073 migration-test lease for durable regression evidence only. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; GPT-5.6 Sol/high; terminal callback required |
