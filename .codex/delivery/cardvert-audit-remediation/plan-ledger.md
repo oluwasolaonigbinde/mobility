@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 79
+plan_revision: 80
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 175
+last_event_sequence: 177
 ---
 
 # Cardvert audit remediation programme
@@ -195,7 +195,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R10 | AUT-005 | ACCEPTED | R08 | R10-P/M/SEC/CP-SECURITY; strict-claim and route-graph evidence | complete |
 | R11 | AUT-004 | BLOCKED-OWNER | R09; logout policy | plan review confirmed current-device documentation conflicts with schema-free global revocation | owner must choose visible sign-out-everywhere or per-session identity/migration authority |
 | R12 | AUT-003, REL-003 | QUEUED | R11 | — | wait |
-| R13 | SEC-001, PRV-008 | REVIEW | sensitive-metadata opener | R13-P; attempts 1-6 reviews FIX; attempt-7 frozen `16f1b2b8...` | repeat independent Sol/high R13-M/SEC/PRV/CP-PRIVACY review |
+| R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P; attempts 1-7 reviews FIX; PRV passes | make nested balanced-container scanning single-pass/bounded and add boundary regression |
 | R14 | SEC-002, TST-004 | QUEUED | R12 | — | wait |
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | ACCEPTED | provider-boundary opener | R16-P/M/CONTRACT/CP-CONTROL; structural and behavioral evidence | complete |
@@ -299,8 +299,8 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 7 | GPT-5.6 Sol/high — bounded cross-sink privacy/performance correction | released exact frozen five-file diff `16f1b2b8...` | REVIEW |
-| `/root/r13_attempt5_review` | S05 / R13 attempt-7 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | read-only exact `16f1b2b8...` diff | ACTIVE |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 8 | GPT-5.6 Sol/high — bounded nested-scanner availability correction | unchanged five-file R13 lease | RESERVED |
+| `/root/r13_attempt5_review` | S05 / R13 attempt-7 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `16f1b2b8...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-6 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `08d04f8c...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-5 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `6e171d42...` diff | FIX |
 | task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d` | S01 / R02-R03-R17 aggregate current-source plan | GPT-5.6 Sol/medium — CI, contract and coverage planning without mutation | no mutation lease; R02 baseline and R03 plan pass | BLOCKED-OWNER |
@@ -321,8 +321,8 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e84-2c02-7bf0-8c55-382766692aed` | S02 / R05-R07 aggregate plan and independent review | GPT-5.6 Sol/medium — read-only database-chain current-source planning | no mutation lease; R05/R07 plans pass | BLOCKED-OWNER |
 | `/root/r13_attempt4_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy boundary | released reviewed R13 diff `6753a823...` | FIX |
 
-Implementation writers reserved/active: **2 / 3**, reserved S09/R24 correction
-and active S12/R34. R13 is frozen for read-only admission review. R02 remains temporarily
+Implementation writers reserved/active: **3 / 3**, reserved S05/R13 attempt 8
+plus active S09/R24 and S12/R34. R02 remains temporarily
 conflict-held because its shared-fixture mutation would invalidate R13's repeat
 verification; R09 also waits for R13's audit/admin seam to release. S12/R34
 exclusively owns migrations, generated contracts and its configuration surface;
@@ -572,3 +572,5 @@ verification is complete.
 | 173 | 78 | 1 | DIFF_REVIEW_FIX | R24 attempt 1 selects equal-timestamp resume epochs by random UUID and lacks blocked-policy, cross-session retry, unauthorized-resume and PostgreSQL resume/evaluate race evidence. | Sol/high reviewer `/root/r24_review`; exact `0a6333b5...`; deterministic stale-epoch probe |
 | 174 | 78 | 1 | DISPATCH_RESERVED | The same visible S09 task reserved R24 correction attempt 2 on the existing service/two-test lease, limited to causally ordered resume authority and the missing money-path regressions. | GPT-5.6 Sol/high; no model, migration, API, schema or contract authority |
 | 175 | 79 | 1 | DISPATCH_STARTED | Visible S09/R24 correction attempt 2 reacquired the existing service/two-test lease for causal resume order and missing money-path evidence. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; GPT-5.6 Sol/high; terminal callback required |
+| 176 | 80 | 1 | DIFF_REVIEW_FIX | R13 attempt 7 passes privacy correctness but nested balanced containers still trigger repeated suffix scans, taking about 22 seconds at the allowed 1024-candidate boundary. | Sol/high reviewer `/root/r13_attempt5_review`; exact `16f1b2b8...`; deterministic 514KB nested probe |
+| 177 | 80 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 8 on the unchanged five-file lease, limited to single-pass/memoized balanced boundaries and a nested 1024-candidate regression. | GPT-5.6 Sol/high; no privacy-classification or scope change; repeat M/SEC/CP review required |
