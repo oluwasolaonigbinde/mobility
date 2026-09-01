@@ -2,10 +2,11 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, Text, func, text
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, String, Text, event, func, text
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.observability import scrub_observability_value
 from app.db.base import Base
 
 
@@ -41,3 +42,15 @@ class AuditEvent(Base):
         server_default=func.now(),
         nullable=False,
     )
+
+
+def _scrub_audit_event_metadata(_mapper, _connection, target: AuditEvent) -> None:
+    target.event_metadata = scrub_observability_value(
+        target.event_metadata or {},
+        semantic_context=target.entity_type,
+    )
+
+
+for _event_name in ("before_insert", "before_update"):
+    if not event.contains(AuditEvent, _event_name, _scrub_audit_event_metadata):
+        event.listen(AuditEvent, _event_name, _scrub_audit_event_metadata)

@@ -4,7 +4,9 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import set_committed_value
 
+from app.core.observability import scrub_observability_value
 from app.models.audit import AuditEvent
 from app.models.user import User
 
@@ -23,7 +25,7 @@ async def create_audit_event(
         action=action,
         entity_type=entity_type,
         entity_id=entity_id,
-        event_metadata=metadata or {},
+        event_metadata=scrub_observability_value(metadata or {}, semantic_context=entity_type),
     )
     session.add(event)
     await session.flush()
@@ -65,4 +67,14 @@ async def list_audit_events(
         .limit(limit)
         .offset(offset)
     )
-    return [(event, email) for event, email in result.all()], int(total or 0)
+    rows = list(result.all())
+    for event, _email in rows:
+        set_committed_value(
+            event,
+            "event_metadata",
+            scrub_observability_value(
+                event.event_metadata,
+                semantic_context=event.entity_type,
+            ),
+        )
+    return rows, int(total or 0)
