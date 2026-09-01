@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 37
+plan_revision: 38
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 85
+last_event_sequence: 88
 ---
 
 # Cardvert audit remediation programme
@@ -93,8 +93,10 @@ non-executable until the owner supplies the complete policy named below.
   session, normally carrying two or three slices where the partition and
   dependencies permit. Dependency-held slices may be planned read-only in that
   task, but they receive no mutation lease before their predecessors are
-  accepted. The controller monitors visible tasks at five-minute event-driven
-  intervals; no recurring automation or artificial batch boundary is created.
+  accepted. The controller monitors visible tasks through the owner-authorized
+  five-minute `mobility-remediation-scheduler` thread heartbeat; the heartbeat
+  reconciles first and does not duplicate an already-active controller action
+  or create an artificial batch boundary.
 - Each meaningful fix packet uses `$verified-feature-delivery`; a genuinely
   cohesive complex packet may use `$orchestrated-feature-delivery` only within
   the admitted outcomes and an isolated reviewed contract.
@@ -163,14 +165,15 @@ visible top-level Mobility tasks.
 | S28 | R59 — TST-002 | integrated real-stack browser journey | cross-stack release/security; Sol/xhigh | all predecessor contracts integrated; local real-stack evidence only |
 | S29 | R60 — GOV-009 | final architecture/progress/decision synchronization | cross-package closure; Sol/high | no product implementation; reconcile all 115 candidates, integrated gates and final minimal-change review |
 
-Current justified writer capacity is **3**, assigned exactly to V01/R08,
-S05/R13 and the visible R15 correction continuation. R08 owns only
-`tests/test_r08_admin_authorization_postgres.py`; R13 owns
-`app/core/observability.py`, `app/services/audit.py`, its two named tests and a
-dedicated R13 test if required; R15 owns only `tests/test_worker_jobs.py`.
-These paths, domain authorities and verification fixtures are disjoint. R04 is
-accepted and has no live lease. Central configuration, migrations, generated
-contracts, shared fixtures and controller documents remain serialized.
+Current justified writer capacity is **3**, assigned exactly to S03/R10,
+S05/R13 and S08/R32. R10 owns strict bearer security/authentication and its
+minimum architecture surface; R13 owns only `app/core/observability.py`,
+`app/services/audit.py`, `tests/test_errors.py` and
+`tests/test_audit_events.py`; R32 owns terminal-application model, migration,
+onboarding/email/schema/test and conditional generated-contract surfaces.
+These paths and domain authorities are disjoint. R32 exclusively owns the
+migration/contract lane; central configuration, shared fixtures and controller
+documents remain serialized.
 
 ## Executable slice map
 
@@ -191,7 +194,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R10 | AUT-005 | ACTIVE | R08 | R10-P | visible S03 implementation reserved |
 | R11 | AUT-004 | QUEUED | R09 | — | wait |
 | R12 | AUT-003, REL-003 | QUEUED | R11 | — | wait |
-| R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P; attempt-1 focused red/green and review FIX | visible correction attempt 2 |
+| R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P; attempt-1 review FIX; attempt-2 admission BLOCKED on freeze drift | visible task must attribute and truthfully refreeze the exact four-file diff |
 | R14 | SEC-002, TST-004 | QUEUED | R12 | — | wait |
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | QUEUED | provider-boundary opener | R16-P | wait for R08 acceptance and a writer slot |
@@ -295,14 +298,14 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 implementation attempt 2 | GPT-5.6 Sol/xhigh — privacy/security redaction at cross-cutting sinks | exact four-file lease retained | ACTIVE |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 attempt-2 freeze reconciliation | GPT-5.6 Sol/xhigh — privacy/security redaction at cross-cutting sinks | exact four-file lease reacquired after receipt drift | ACTIVE |
 | task `01a05e49-0107-7611-8ee8-515273881aa8` | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | released exact R15 diff | ACCEPTED |
 | task `01a05e49-48d5-7823-9388-537d0800e87b` | S07 / R28 plan and independent review | GPT-5.6 Terra/high — ordinary bounded campaign lifecycle planning | read-only; no mutation lease | BLOCKED-OWNER |
 | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32 implementation, R33 held | GPT-5.6 Sol/high — onboarding security, migration and contract authority | exact R32 model/migration/onboarding/email/schema/test/contract lease; R33 remains dependency-held | ACTIVE |
 | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | S12 / R34-R37 aggregate plan and independent review | GPT-5.6 Sol/xhigh — offline/privacy/money protocol and migration authority | read-only; no mutation lease | PLANNING |
 | `/root/r15_re_review` | V02 / R15 repeat M and CP-WORKERS review | GPT-5.6 Sol/high — worker crash and claim/retry semantics | read-only frozen R15 diff | PASS |
 | `/root/r08_re_review` | V01 / R08 repeat M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — authorization concurrency, deadlock and evidence semantics | read-only frozen R08 diff | PASS |
-| `/root/r13_diff_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/xhigh — cross-sink PII and audit-authority semantics | read-only frozen R13 diff | FIX |
+| `/root/r13_diff_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/xhigh — cross-sink PII and audit-authority semantics | read-only; current receipt did not match checkout | BLOCKED-DRIFT |
 | task `01a05e60-6ce7-7cb2-ac20-300ac5275d05` | S03 / R10 implementation; R09 and R11 held in the same session | GPT-5.6 Sol/xhigh — strict bearer authentication and session authority | R10 security/dependencies/minimum auth/tests/architecture lease; later slices have no mutation lease | ACTIVE |
 
 Implementation writers reserved/active: **3 / 3**. The exact disjoint-work
@@ -340,15 +343,17 @@ unresolved.
 
 ## Next scheduler action
 
-Poll S03/R10, S05/R13 attempt 2, S08/R32 and the read-only S12/R34-R37 plan
-task at five-minute event-driven intervals. Keep S07/R28 blocked on the recorded
-lifecycle-authority decision without freezing independent work. Reuse each
-visible task for the next dependency-safe slice in its cohesive session; R09
-and R11 remain write-held behind accepted R10 and R09 respectively, and R33
-remains held behind accepted R32 and R05. On every released slot, rescan the
-full graph and refill with the highest-priority ready, conflict-free session;
-S01 begins with R02 once the shared-fixture conflict clears, while R34 remains
-ready but serialized behind R32's migration/contract authority.
+The five-minute thread heartbeat monitors S03/R10, S05/R13 freeze
+reconciliation, S08/R32 and the read-only S12/R34-R37 plan task. R13 must
+attribute its post-receipt bytes and return one new truthful frozen receipt
+before repeat admission review. Keep S07/R28 blocked on the recorded lifecycle-
+authority decision without freezing independent work. Reuse each visible task
+for the next dependency-safe slice in its cohesive session; R09 and R11 remain
+write-held behind accepted R10 and R09 respectively, and R33 remains held
+behind accepted R32 and R05. On every released slot, rescan the full graph and
+refill with the highest-priority ready conflict-free session; S01 begins with
+R02 once R13 no longer needs the shared verification fixture, while R34 remains
+serialized behind R32's migration/contract authority.
 
 ## Material receipts
 
@@ -439,3 +444,6 @@ ready but serialized behind R32's migration/contract authority.
 | 83 | 36 | 1 | DISPATCH_STARTED | Visible S08/R32 acquired its exact terminal-application model/migration/onboarding/email/schema/test/contract lease; R33 remains held. | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2`; GPT-5.6 Sol/high; no worktree |
 | 84 | 36 | 1 | DISPATCH_STARTED | Visible S03/R10 acquired its strict bearer-claim security/dependencies/minimum-auth/tests/architecture lease. | task `01a05e60-6ce7-7cb2-ac20-300ac5275d05`; GPT-5.6 Sol/xhigh; no worktree |
 | 85 | 37 | 1 | SCHEDULER_POLICY_AMENDED | Owner required five-minute event-driven task polling and reuse of each visible task across the compatible slices in its deterministic session, normally two or three slices rather than one task per slice. | Existing S01-S29 partition retained unchanged; every slice keeps separate dependency, lease, verification and acceptance gates; no recurring automation |
+| 86 | 38 | 1 | AUTOMATION_AUTHORIZED | Owner explicitly replaced the earlier no-automation boundary and authorized a five-minute controller-thread heartbeat to poll, steer, review, admit and refill visible sessions. | heartbeat `mobility-remediation-scheduler`; monitoring and controller orchestration only; all product/external authority boundaries unchanged |
+| 87 | 38 | 1 | DIFF_REVIEW_BLOCKED | Repeat R13 admission review stopped before correctness inspection because three file hashes and the combined four-file diff did not match the supplied freeze receipt. | Sol/xhigh reviewer `/root/r13_diff_review`; claimed `e7d313ac...`, observed `4636fce9...`; no reviewer mutation |
+| 88 | 38 | 1 | DISPATCH_STEERED | The same visible S05/R13 task reacquired its exact four-file lease solely to attribute the drift, rerun required verification if wholly owner-authored, and issue a truthful frozen receipt. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/xhigh; stop on unattributed bytes |
