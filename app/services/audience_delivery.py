@@ -30,8 +30,8 @@ from app.schemas.audience_delivery import (
     RecommendationProvenance,
     RecommendationsRead,
 )
+from app.services.admin_authorization import require_active_admin
 from app.services.audience import (
-    _active_admin,
     _advertiser_membership,
     _as_utc,
     _link_access,
@@ -163,7 +163,7 @@ async def _segment_access(
     await _privacy_gate(settings)
     organization_id: UUID | None = None
     if admin:
-        await _active_admin(session, actor_user_id)
+        await require_active_admin(session, actor_user_id)
     else:
         organization_id = (
             await _advertiser_membership(

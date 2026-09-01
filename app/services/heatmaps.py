@@ -13,7 +13,6 @@ from starlette import status
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.campaign import Campaign
-from app.models.user import User, UserRole, UserStatus
 from app.schemas.heatmaps import (
     HeatmapFeature,
     HeatmapFeatureCollection,
@@ -21,6 +20,7 @@ from app.schemas.heatmaps import (
     HeatmapMetadata,
     HeatmapMetric,
 )
+from app.services.admin_authorization import require_active_admin
 from app.services.campaigns import get_advertiser_campaign
 from app.services.disclosure import (
     DisclosureQuery,
@@ -231,22 +231,6 @@ async def ensure_admin_filter_consistency(
     return campaign_org_id
 
 
-async def _active_admin(session: AsyncSession, actor_user_id: UUID) -> None:
-    admin_id = await session.scalar(
-        select(User.id).where(
-            User.id == actor_user_id,
-            User.role == UserRole.ADMIN,
-            User.status == UserStatus.ACTIVE,
-        )
-    )
-    if admin_id is None:
-        raise AppError(
-            "FORBIDDEN_ROLE",
-            "Admin role is required",
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
-
-
 async def advertiser_campaign_heatmap(
     session: AsyncSession,
     *,
@@ -306,7 +290,7 @@ async def admin_heatmap(
     vehicle_type: str | None,
 ) -> HeatmapFeatureCollection:
     ensure_disclosure_live_gate(settings, requires_measurement_run=False)
-    await _active_admin(session, user_id)
+    await require_active_admin(session, user_id)
     disclosure_tenant_id = await ensure_admin_filter_consistency(
         session,
         campaign_id=campaign_id,

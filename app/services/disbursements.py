@@ -36,7 +36,7 @@ from app.models.payout import (
     EarningsLedgerEntryType,
 )
 from app.models.trip_analytics import FraudFlag
-from app.models.user import User, UserRole, UserStatus
+from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.fraud_holds import fraud_hold_active_clause, lock_fraud_hold_scope
 from app.services.payout_debt import lock_driver_currency_debt_scope
@@ -67,20 +67,10 @@ def _violated_constraint(exc: IntegrityError) -> str | None:
     )
 
 
-async def _active_admin(session: AsyncSession, actor_user_id: UUID) -> None:
-    actor = await session.get(User, actor_user_id)
-    if actor is None or actor.role != UserRole.ADMIN or actor.status != UserStatus.ACTIVE:
-        raise _error(
-            "PAYOUT_BATCH_ADMIN_REQUIRED",
-            "An active admin is required",
-            http_status=status.HTTP_403_FORBIDDEN,
-        )
-
-
 async def create_payout_batch_draft(
     session: AsyncSession, *, currency: str, actor_user_id: UUID
 ) -> PayoutBatch:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     normalized = currency.strip().upper()
     if len(normalized) != 3 or not normalized.isalpha():
         raise _error(
@@ -153,7 +143,7 @@ async def reserve_payout_batch(
     ledger_entry_ids: tuple[UUID, ...],
     actor_user_id: UUID,
 ) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...]]:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     if not ledger_entry_ids or len(set(ledger_entry_ids)) != len(ledger_entry_ids):
         raise _error(
             "PAYOUT_BATCH_ENTRIES_INVALID",
@@ -386,7 +376,7 @@ def _assert_frozen(batch: PayoutBatch, lines: tuple[PayoutBatchLine, ...]) -> No
 async def approve_payout_batch(
     session: AsyncSession, *, batch_id: UUID, actor_user_id: UUID
 ) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...]]:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     batch, lines = await _locked_batch_with_lines(session, batch_id)
     if batch.status != PayoutBatchStatus.RESERVED:
         raise _error("PAYOUT_BATCH_NOT_RESERVED", "Only a reserved batch can be approved")
@@ -425,7 +415,7 @@ async def submit_payout_batch(
     actor_user_id: UUID,
     adapter: DisbursementAdapter,
 ) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...]]:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     batch, lines = await _locked_batch_with_lines(session, batch_id)
     if batch.status not in {PayoutBatchStatus.RESERVED, PayoutBatchStatus.SUBMITTED}:
         raise _error("PAYOUT_BATCH_NOT_RESERVED", "The batch is not ready for submission")
@@ -533,7 +523,7 @@ async def _apply_verified_line_evidence(
     if source == "poll" and actor_user_id is None:
         raise ValueError("Poll evidence must use an authenticated admin actor")
     if source == "poll":
-        await _active_admin(session, actor_user_id)
+        await require_active_admin(session, actor_user_id)
     stub = (
         await session.execute(
             select(PayoutBatchLine.id, PayoutBatchLine.batch_id).where(
@@ -711,7 +701,7 @@ async def poll_payout_line(
     actor_user_id: UUID,
     adapter: DisbursementAdapter,
 ) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...], PayoutLineReconciliationEvent]:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     stub = await session.get(PayoutBatchLine, line_id)
     if stub is None or stub.provider_transfer_reference is None:
         raise _error(
@@ -755,7 +745,7 @@ async def retry_failed_payout_lines(
     actor_user_id: UUID,
     adapter: DisbursementAdapter,
 ) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...]]:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     batch, lines = await _locked_batch_with_lines(session, batch_id)
     failed_lines = tuple(line for line in lines if line.status == PayoutBatchLineStatus.FAILED)
     if not failed_lines:
@@ -808,7 +798,7 @@ async def retry_failed_payout_lines(
 async def void_payout_batch(
     session: AsyncSession, *, batch_id: UUID, actor_user_id: UUID
 ) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...]]:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     batch, lines = await _locked_batch_with_lines(session, batch_id)
     if batch.status != PayoutBatchStatus.RESERVED or any(
         line.status != PayoutBatchLineStatus.RESERVED

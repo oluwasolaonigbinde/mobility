@@ -26,6 +26,7 @@ from app.models.payee import (
     PayeeVersion,
 )
 from app.models.user import User, UserRole, UserStatus
+from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 
 BANK_ACCOUNT_DETAILS_FIELD = "bank_account.details"
@@ -51,7 +52,7 @@ async def create_pilot_payee(
 ) -> tuple[Payee, PayeeVersion]:
     """Create or return the immutable pilot driver payee and its first version."""
 
-    await _require_active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     if payee_type != PayeeType.DRIVER:
         raise AppError(
             "PAYEE_TYPE_NOT_SUPPORTED",
@@ -178,7 +179,7 @@ async def add_verified_bank_account_version(
 ) -> PayeeBankAccountVersion:
     """Append an encrypted verified account version under the stable payee lock."""
 
-    await _require_active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     return await _add_verified_bank_account_version_authorized(
         session,
         payee_id=payee_id,
@@ -367,7 +368,7 @@ async def verify_bank_account_version_for_payout(
 ) -> tuple[PayeeBankAccountVersion, PayeeBankAccountPayoutVerification]:
     """Append immutable admin/provider authority for one exact account version."""
 
-    await _require_active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     probe = await session.execute(
         select(PayeeBankAccountVersion, PayeeBankAccount, Payee)
         .join(PayeeBankAccount, PayeeBankAccount.id == PayeeBankAccountVersion.bank_account_id)
@@ -434,7 +435,7 @@ async def read_verified_bank_account(
 ) -> VerifiedBankAccountDetails:
     """Return plaintext only after service-level RBAC and stage a redacted audit."""
 
-    await _require_active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     return await _read_verified_bank_account_authorized(
         session,
         bank_account_version_id=bank_account_version_id,
@@ -558,7 +559,7 @@ async def rewrap_bank_account(
 ) -> PayeeBankAccountVersion:
     """Append one rewrapped version; exact retries converge on the active key."""
 
-    await _require_active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     account_probe = await session.scalar(
         select(PayeeBankAccount).where(PayeeBankAccount.id == bank_account_id)
     )
@@ -634,17 +635,6 @@ async def rewrap_bank_account(
         },
     )
     return new_version
-
-
-async def _require_active_admin(session: AsyncSession, actor_user_id: UUID) -> User:
-    actor = await session.scalar(select(User).where(User.id == actor_user_id))
-    if actor is None or actor.role != UserRole.ADMIN or actor.status != UserStatus.ACTIVE:
-        raise AppError(
-            "PAYEE_ACCESS_FORBIDDEN",
-            "Payee bank-account access requires an active administrator",
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
-    return actor
 
 
 async def _current_payee_version(session: AsyncSession, payee_id: UUID) -> PayeeVersion:

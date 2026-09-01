@@ -345,7 +345,11 @@ def test_direct_assignment_services_require_active_admin_before_mutation(
                     ),
                     settings=settings,
                 )
-            assert exc_info.value.code == "ADMIN_REQUIRED"
+            assert (
+                exc_info.value.code,
+                exc_info.value.message,
+                exc_info.value.status_code,
+            ) == ("FORBIDDEN_ROLE", "Admin role is required", 403)
             await session.rollback()
 
     asyncio.run(attempt_create())
@@ -388,7 +392,11 @@ def test_direct_assignment_services_require_active_admin_before_mutation(
                     assignment_id=assignment_id,
                     payload=CampaignAssignmentCancel(reason="unauthorized"),
                 )
-            assert exc_info.value.code == "ADMIN_REQUIRED"
+            assert (
+                exc_info.value.code,
+                exc_info.value.message,
+                exc_info.value.status_code,
+            ) == ("FORBIDDEN_ROLE", "Admin role is required", 403)
             await session.rollback()
 
     asyncio.run(attempt_cancel())

@@ -29,6 +29,7 @@ from app.models.trip import TripSession
 from app.models.trip_analytics import TripAnalytics
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.measurement import MeasurementRunCreate, MeasurementRunRead
+from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.campaign_assignments import activation_snapshot_digest
 from app.services.disclosure import _approved_reference
@@ -211,16 +212,6 @@ async def _lock_request(session: AsyncSession, actor_id: UUID, request_id: UUID)
     )
 
 
-async def _active_admin(session: AsyncSession, user_id: UUID) -> None:
-    user = await session.get(User, user_id)
-    if user is None or user.role != UserRole.ADMIN.value or user.status != UserStatus.ACTIVE.value:
-        raise AppError(
-            "ADMIN_ACCESS_REQUIRED",
-            "An active admin is required to issue measurement runs",
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
-
-
 async def _proof_manifest(
     session: AsyncSession, *, campaign_id: UUID, assignment_ids: set[UUID]
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -313,7 +304,7 @@ async def issue_measurement_run(
     payload: MeasurementRunCreate,
     settings: Settings,
 ) -> MeasurementRun:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     _validate_issuance(payload, settings)
     await _lock_request(session, actor_user_id, payload.client_request_id)
     request_body = payload.model_dump(mode="json", exclude={"client_request_id"})

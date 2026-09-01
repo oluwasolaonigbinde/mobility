@@ -19,9 +19,9 @@ from app.models.campaign_change import (
 )
 from app.models.payout import AssignmentRuleBinding
 from app.schemas.campaign_changes import CampaignChangeCreate
+from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.billing import (
-    _active_admin,
     _authorization_usable_liability,
     effective_financial_authorization,
     reserved_campaign_liability_total,
@@ -403,7 +403,7 @@ async def decide_campaign_change(
     approve: bool,
     reason: str,
 ) -> CampaignChangeRequest:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     campaign_id = await session.scalar(
         select(CampaignChangeRequest.campaign_id).where(CampaignChangeRequest.id == request_id)
     )

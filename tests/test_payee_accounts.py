@@ -164,7 +164,7 @@ def test_service_enforces_admin_and_rejects_fleet_behavior(db_sessionmaker) -> N
                 )
             return fleet_error.value.code, role_error.value.code
 
-    assert asyncio.run(exercise()) == ("PAYEE_TYPE_NOT_SUPPORTED", "PAYEE_ACCESS_FORBIDDEN")
+    assert asyncio.run(exercise()) == ("PAYEE_TYPE_NOT_SUPPORTED", "FORBIDDEN_ROLE")
 
 
 def test_cross_tenant_ciphertext_substitution_fails_and_read_is_not_audited(

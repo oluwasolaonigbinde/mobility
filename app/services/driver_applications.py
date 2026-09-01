@@ -22,6 +22,7 @@ from app.models.driver_application import (
 )
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.driver_applications import DriverApplicationCreate
+from app.services.admin_authorization import require_active_admin
 from app.services.users import get_user_by_email
 
 PUBLIC_APPLICATION_MESSAGE = "Application received for review."
@@ -258,29 +259,6 @@ async def submit_driver_application(
     )
 
 
-async def _require_active_admin(session: AsyncSession, admin_user_id: UUID) -> User:
-    actor = await session.scalar(select(User).where(User.id == admin_user_id).with_for_update())
-    if actor is None:
-        raise AppError(
-            "AUTHENTICATION_REQUIRED",
-            "Authentication credentials were not provided",
-            status_code=status.HTTP_401_UNAUTHORIZED,
-        )
-    if actor.status != UserStatus.ACTIVE.value:
-        raise AppError(
-            "USER_NOT_ACTIVE",
-            "User account is not active",
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
-    if actor.role != UserRole.ADMIN.value:
-        raise AppError(
-            "FORBIDDEN_ROLE",
-            "Admin role is required",
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
-    return actor
-
-
 async def list_driver_applications(
     session: AsyncSession,
     *,
@@ -290,7 +268,7 @@ async def list_driver_applications(
 ) -> tuple[list[DriverApplication], int]:
     """Read the pending queue only after locking and validating the admin."""
 
-    await _require_active_admin(session, admin_user_id)
+    await require_active_admin(session, admin_user_id)
     filters = [DriverApplication.status == DriverApplicationStatus.PENDING.value]
     total = await session.scalar(
         select(func.count()).select_from(DriverApplication).where(*filters)

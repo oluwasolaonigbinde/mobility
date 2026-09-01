@@ -35,7 +35,6 @@ from app.models.retargeting_source_link import (
     RetargetingSourceLinkEvent,
     RetargetingSourceLinkIdempotency,
 )
-from app.models.user import User, UserRole, UserStatus
 from app.schemas.exposure_segments import ExposureCellInput
 from app.schemas.retargeting_source_links import RetargetingSourceLinkCreate
 from app.schemas.retargeting_sources import RetargetingSourceCreate
@@ -45,6 +44,7 @@ from app.schemas.zone_insights import (
     HighExposureZoneProvenance,
     ZoneInsightSegmentProvenance,
 )
+from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.disclosure import (
     _approved_reference,
@@ -192,22 +192,6 @@ async def _advertiser_membership(
             "ORGANIZATION_WRITE_FORBIDDEN", "Owner or manager access is required", status_code=403
         )
     return membership
-
-
-async def _active_admin(session: AsyncSession, actor_user_id: UUID) -> None:
-    admin_id = await session.scalar(
-        select(User.id).where(
-            User.id == actor_user_id,
-            User.role == UserRole.ADMIN,
-            User.status == UserStatus.ACTIVE,
-        )
-    )
-    if admin_id is None:
-        raise AppError(
-            "FORBIDDEN_ROLE",
-            "Admin role is required",
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
 
 
 async def _idempotency_lock(
@@ -465,7 +449,7 @@ async def list_admin_retargeting_sources(
     session: AsyncSession, *, settings: Settings, actor_user_id: UUID
 ) -> list[RetargetingSource]:
     await _privacy_gate(settings)
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     return list(
         await session.scalars(
             select(RetargetingSource).order_by(RetargetingSource.created_at.desc())
@@ -477,7 +461,7 @@ async def get_admin_retargeting_source(
     session: AsyncSession, *, settings: Settings, actor_user_id: UUID, source_id: UUID
 ) -> RetargetingSource:
     await _privacy_gate(settings)
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     source = await session.get(RetargetingSource, source_id)
     if source is None:
         raise _source_not_found()
@@ -745,7 +729,7 @@ async def _link_access(
     await _privacy_gate(settings)
     organization_id: UUID | None = None
     if admin:
-        await _active_admin(session, actor_user_id)
+        await require_active_admin(session, actor_user_id)
     else:
         organization_id = (
             await _advertiser_membership(session, actor_user_id=actor_user_id, write=write)
@@ -775,7 +759,7 @@ async def list_retargeting_source_links(
     await _privacy_gate(settings)
     statement = select(RetargetingSourceLink).order_by(RetargetingSourceLink.created_at.desc())
     if admin:
-        await _active_admin(session, actor_user_id)
+        await require_active_admin(session, actor_user_id)
     else:
         membership = await _advertiser_membership(session, actor_user_id=actor_user_id, write=False)
         statement = statement.where(
@@ -1238,7 +1222,7 @@ async def high_exposure_zone_insights(
     await _privacy_gate(settings)
     organization_id: UUID | None = None
     if admin:
-        await _active_admin(session, actor_user_id)
+        await require_active_admin(session, actor_user_id)
     else:
         organization_id = (
             await _advertiser_membership(session, actor_user_id=actor_user_id, write=False)

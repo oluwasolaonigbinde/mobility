@@ -42,9 +42,9 @@ from app.schemas.campaign_assignments import (
     CampaignAssignmentTransition,
 )
 from app.schemas.drivers import normalize_optional_text
+from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.billing import (
-    _active_admin,
     assert_campaign_production_authorized,
     assert_new_work_authorized,
     reserve_assignment_liability,
@@ -441,7 +441,7 @@ async def create_campaign_assignment(
     settings = settings or get_settings()
     # Direct service callers must satisfy the same active-admin authority as
     # the router before any campaign lock or privileged mutation is reached.
-    await _active_admin(session, admin_user_id)
+    await require_active_admin(session, admin_user_id)
     await acquire_campaign_terms_lock(session, payload.campaign_id)
     await acquire_work_eligibility_lock(
         session,
@@ -1754,7 +1754,7 @@ async def activate_admin_assignment(
     settings: Settings | None = None,
 ) -> CampaignAssignment:
     settings = settings or get_settings()
-    await _active_admin(session, admin_user_id)
+    await require_active_admin(session, admin_user_id)
     campaign_id = await session.scalar(
         select(CampaignAssignment.campaign_id).where(CampaignAssignment.id == assignment_id)
     )
@@ -2091,7 +2091,7 @@ async def cancel_admin_assignment(
     assignment_id: UUID,
     payload: CampaignAssignmentCancel,
 ) -> CampaignAssignment:
-    await _active_admin(session, admin_user_id)
+    await require_active_admin(session, admin_user_id)
     campaign_id = await session.scalar(
         select(CampaignAssignment.campaign_id).where(CampaignAssignment.id == assignment_id)
     )

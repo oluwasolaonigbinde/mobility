@@ -69,6 +69,7 @@ from app.models.campaign_assignment import CampaignAssignment
 from app.models.organization import AdvertiserOrganization
 from app.models.payout import AssignmentRuleBinding
 from app.models.user import User, UserRole, UserStatus
+from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.campaigns import get_required_advertiser_context
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
@@ -190,17 +191,6 @@ def _canonical_line_items(
     return canonical, net, production
 
 
-async def _active_admin(session: AsyncSession, user_id: UUID) -> User:
-    user = await session.get(User, user_id)
-    if user is None or user.role != UserRole.ADMIN or user.status != UserStatus.ACTIVE:
-        raise AppError(
-            "ADMIN_REQUIRED",
-            "An active administrator is required",
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
-    return user
-
-
 async def _campaign(session: AsyncSession, campaign_id: UUID, *, lock: bool = False) -> Campaign:
     statement = select(Campaign).where(Campaign.id == campaign_id)
     if lock:
@@ -219,6 +209,8 @@ async def request_custom_quote(
     source: QuoteRequestSource,
     request_details: dict,
 ) -> CommercialQuoteRequest:
+    if source != QuoteRequestSource.IN_PLATFORM:
+        await require_active_admin(session, actor_user_id)
     campaign = await _campaign(session, campaign_id)
     if source == QuoteRequestSource.IN_PLATFORM:
         organization, _ = await get_required_advertiser_context(
@@ -226,8 +218,6 @@ async def request_custom_quote(
         )
         if organization.id != campaign.organization_id:
             raise AppError("CAMPAIGN_NOT_FOUND", "Campaign was not found", status_code=404)
-    else:
-        await _active_admin(session, actor_user_id)
     if not isinstance(request_details, dict):
         raise AppError(
             "INVALID_QUOTE_REQUEST",
@@ -275,7 +265,7 @@ async def record_quotation_revision(
     payment_terms: dict,
     tax_rate: Decimal | str,
 ) -> CommercialQuotationRevision:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     quote_request = await session.get(CommercialQuoteRequest, quote_request_id)
     if quote_request is None:
         raise AppError("QUOTE_REQUEST_NOT_FOUND", "Quote request was not found", status_code=404)
@@ -364,6 +354,8 @@ async def accept_quotation_revision(
     external_accepted_at: datetime | None = None,
     external_acceptance_reference: str | None = None,
 ) -> CommercialTerms:
+    if acceptance_method != AcceptanceMethod.IN_PLATFORM:
+        await require_active_admin(session, actor_user_id)
     revision = await session.get(CommercialQuotationRevision, quotation_revision_id)
     if revision is None:
         raise AppError("QUOTATION_NOT_FOUND", "Quotation revision was not found", status_code=404)
@@ -407,7 +399,6 @@ async def accept_quotation_revision(
         accepted_at = now
         external_reference = None
     else:
-        await _active_admin(session, actor_user_id)
         external_reference = (external_acceptance_reference or "").strip()
         if not external_reference or external_accepted_at is None:
             raise AppError(
@@ -583,7 +574,7 @@ async def record_payment_receipt(
                 status_code=status.HTTP_409_CONFLICT,
             )
     else:
-        await _active_admin(session, actor_user_id)
+        await require_active_admin(session, actor_user_id)
     organization_exists = await session.scalar(
         select(exists().where(CommercialTerms.organization_id == organization_id))
     )
@@ -690,7 +681,7 @@ async def reconcile_payment_receipt(
     expected_amount: Decimal | str,
     expected_currency: str,
 ) -> ReceiptReconciliation:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     receipt = await session.scalar(
         select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
     )
@@ -753,7 +744,7 @@ async def reconcile_payment_receipt(
 async def confirm_payment_receipt(
     session: AsyncSession, *, receipt_id: UUID, actor_user_id: UUID
 ) -> PaymentReceipt:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     receipt = await session.scalar(
         select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
     )
@@ -812,7 +803,7 @@ async def allocate_payment_receipt(
                 "Manual and provider allocation authority cannot be combined",
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
-        await _active_admin(session, actor_user_id)
+        await require_active_admin(session, actor_user_id)
     campaign_id = await session.scalar(
         select(CommercialTerms.campaign_id).where(CommercialTerms.id == commercial_terms_id)
     )
@@ -963,7 +954,7 @@ async def allocate_payment_receipt(
 async def reverse_payment_receipt(
     session: AsyncSession, *, receipt_id: UUID, actor_user_id: UUID, reason: str
 ) -> PaymentReceipt:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     receipt = await session.scalar(
         select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
     )
@@ -1034,7 +1025,7 @@ async def record_invoice_issuer_profile(
     external_input_reference: str,
     settings: Settings,
 ) -> InvoiceIssuerProfile:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     values = {
         "legal_name": legal_name.strip(),
         "tax_identification_number": tax_identification_number.strip(),
@@ -1144,7 +1135,7 @@ async def create_invoice_draft(
     commercial_terms_id: UUID,
     actor_user_id: UUID,
 ) -> Invoice:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     terms = await session.get(CommercialTerms, commercial_terms_id)
     if terms is None:
         raise AppError(
@@ -1212,7 +1203,7 @@ async def issue_invoice(
     actor_user_id: UUID,
     settings: Settings,
 ) -> Invoice:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     invoice = await session.scalar(
         select(Invoice).where(Invoice.id == invoice_id).with_for_update()
     )
@@ -1533,7 +1524,7 @@ async def _append_financial_authorization(
     credit_terms: dict | None = None,
     subsidy_reference: str | None = None,
 ) -> CampaignFinancialAuthorization:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     await acquire_campaign_terms_lock(session, campaign_id)
     campaign = await _campaign(session, campaign_id, lock=True)
     terms = await _commercial_terms_for_campaign(session, campaign_id)
@@ -1711,6 +1702,10 @@ async def record_approved_credit_authorization(
     credit_terms: dict,
     reason: str,
 ) -> CampaignFinancialAuthorization:
+    for admin_user_id in sorted(
+        {actor_user_id, approved_by_user_id}, key=lambda user_id: user_id.int
+    ):
+        await require_active_admin(session, admin_user_id)
     terms = await _commercial_terms_for_campaign(session, campaign_id)
     if terms is None or terms.payment_class != PaymentClass.APPROVED_CORPORATE_CREDIT:
         raise AppError(
@@ -1718,7 +1713,6 @@ async def record_approved_credit_authorization(
             "Accepted approved-corporate-credit terms are required",
             status_code=status.HTTP_409_CONFLICT,
         )
-    await _active_admin(session, approved_by_user_id)
     normalized_due_at = _aware_utc(due_at)
     now = await database_clock(session)
     if normalized_due_at <= now or not isinstance(credit_terms, dict) or not credit_terms:
@@ -1840,7 +1834,7 @@ async def reserve_assignment_liability(
     require_admin: bool = True,
 ) -> CampaignLiabilityReservation:
     if require_admin:
-        await _active_admin(session, actor_user_id)
+        await require_active_admin(session, actor_user_id)
     else:
         actor = await session.get(User, actor_user_id)
         if actor is None or actor.status != UserStatus.ACTIVE:
@@ -2047,7 +2041,7 @@ async def record_production_start(
     actor_user_id: UUID,
     waiver_id: UUID | None = None,
 ) -> ProductionStart:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     await acquire_campaign_terms_lock(session, campaign_id)
     await _campaign(session, campaign_id, lock=True)
     from app.models.campaign_cancellation import CampaignCancellation
@@ -2594,7 +2588,7 @@ async def record_invoice_correction(
     tax_amount: Decimal | str,
     reason: str,
 ) -> InvoiceCorrection:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     invoice = await session.scalar(
         select(Invoice).where(Invoice.id == invoice_id).with_for_update()
     )
@@ -2806,7 +2800,7 @@ async def record_refund_settlement(
     external_reference: str,
     reason: str,
 ) -> RefundSettlement:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     receipt = await session.scalar(
         select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
     )
@@ -2956,7 +2950,7 @@ async def record_credit_contract_settlement(
     external_reference: str,
     reason: str,
 ) -> RefundSettlement:
-    await _active_admin(session, actor_user_id)
+    await require_active_admin(session, actor_user_id)
     terms = await session.get(CommercialTerms, commercial_terms_id)
     if terms is not None:
         await acquire_campaign_terms_lock(session, terms.campaign_id)
@@ -3358,8 +3352,6 @@ async def resume_campaign_after_budget_pause(
     actor_user_id: UUID,
     reason: str,
 ) -> BudgetCampaignTransition:
-    from app.services.admin_authorization import require_active_admin
-
     await require_active_admin(session, actor_user_id)
     normalized_reason = reason.strip()
     if not normalized_reason:

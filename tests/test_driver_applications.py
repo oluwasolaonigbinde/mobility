@@ -356,7 +356,7 @@ def test_postgres_http_same_email_race_has_generic_responses_and_one_graph(
     [
         (UserRole.DRIVER, UserStatus.ACTIVE, "FORBIDDEN_ROLE"),
         (UserRole.ADVERTISER, UserStatus.ACTIVE, "FORBIDDEN_ROLE"),
-        (UserRole.ADMIN, UserStatus.DISABLED, "USER_NOT_ACTIVE"),
+        (UserRole.ADMIN, UserStatus.DISABLED, "FORBIDDEN_ROLE"),
     ],
 )
 def test_direct_admin_queue_service_rejects_non_active_admin_without_mutation(
@@ -418,7 +418,7 @@ def test_direct_admin_queue_service_rejects_unknown_user_without_mutation(db_ses
             return exc_info.value, before, after
 
     error, before, after = asyncio.run(exercise())
-    assert error.code == "AUTHENTICATION_REQUIRED"
+    assert error.code == "FORBIDDEN_ROLE"
     assert after == before
 
 
