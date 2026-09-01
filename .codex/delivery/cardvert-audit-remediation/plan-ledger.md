@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 97
+plan_revision: 98
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 205
+last_event_sequence: 212
 ---
 
 # Cardvert audit remediation programme
@@ -195,7 +195,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R10 | AUT-005 | ACCEPTED | R08 | R10-P/M/SEC/CP-SECURITY; strict-claim and route-graph evidence | complete |
 | R11 | AUT-004 | BLOCKED-OWNER | R09; logout policy | plan review confirmed current-device documentation conflicts with schema-free global revocation | owner must choose visible sign-out-everywhere or per-session identity/migration authority |
 | R12 | AUT-003, REL-003 | QUEUED | R11 | — | wait |
-| R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P; attempts 1-10 reviews FIX; attempt 10 `203ef022...` | fail closed at mismatched quote opener and classify complete dotted sensitive paths |
+| R13 | SEC-001, PRV-008 | REVIEW | sensitive-metadata opener | R13-P; attempts 1-10 reviews FIX; attempt 11 frozen `a60288c2...` | run exact repeat R13-M/SEC/PRV/CP-PRIVACY review |
 | R14 | SEC-002, TST-004 | QUEUED | R12 | — | wait |
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | ACCEPTED | provider-boundary opener | R16-P/M/CONTRACT/CP-CONTROL; structural and behavioral evidence | complete |
@@ -299,7 +299,8 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 11 | GPT-5.6 Sol/high — quote-pair and dotted-sensitive-path privacy correction | unchanged five-file R13 lease | RESERVED |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 11 | GPT-5.6 Sol/high — quote-pair and dotted-sensitive-path privacy correction | released exact five-file diff `a60288c2...` | REVIEW |
+| `/root/r13_attempt5_review` | S05 / R13 attempt-11 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — quote/path privacy-security admission | reserved read-only exact `a60288c2...` diff | RESERVED |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-10 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded Unicode/path privacy-security admission | released reviewed exact `203ef022...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-9 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded malformed-input privacy/security admission | released reviewed exact `cd1dd894...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-8 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `12ec7aa9...` diff | FIX |
@@ -312,6 +313,10 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32 implementation, R33 held | GPT-5.6 Sol/high — onboarding security, migration and contract authority | released accepted R32 diff; R33 remains dependency-held | ACCEPTED |
 | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | S12 / R34 implementation; R35-R37 held | GPT-5.6 Sol/high — offline/privacy/money protocol and migration authority | released frozen 38-file scope `f25bd28f...`; R35-R37 held | BLOCKED-INTEGRATION |
 | Claude session `Cardvert audit-route integration correction` | R34 inherited audit-registry integration | Claude Opus 5 / High — owner-selected bounded audit/security evidence correction | `tests/test_audit_route_coverage.py` only; transferred from frozen R34 | ACTIVE |
+| task `01a05ef6-632c-79b1-bdf3-16c6e95aafd4` | S10/S11/S13/S14 aggregate R18-R22 and R29-R31 planning | GPT-5.6 Sol/high — money/migration/concurrency planning | read-only; no mutation lease | ACTIVE-PLAN |
+| task `01a05ef6-92fc-7df1-bd39-50e8c2fee530` | S15-S19 aggregate R38-R44 privacy/audit planning | GPT-5.6 Sol/high — privacy/security/lifecycle planning | read-only; no mutation lease | ACTIVE-PLAN |
+| task `01a05ef6-c545-7401-8114-4afe32fc9bf7` | S20-S22 aggregate R45-R52 reporting planning | GPT-5.6 Sol/high — reporting/privacy/concurrency planning | read-only; no mutation lease | ACTIVE-PLAN |
+| task `01a05ef6-ee2d-79e0-9e50-153b035d771e` | S23-S27 aggregate R54-R58 release/test planning | GPT-5.6 Sol/high — release/security/worker planning | read-only; no mutation lease | ACTIVE-PLAN |
 | `/root/r15_re_review` | V02 / R15 repeat M and CP-WORKERS review | GPT-5.6 Sol/high — worker crash and claim/retry semantics | read-only frozen R15 diff | PASS |
 | `/root/r08_re_review` | V01 / R08 repeat M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — authorization concurrency, deadlock and evidence semantics | read-only frozen R08 diff | PASS |
 | `/root/r13_diff_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/xhigh — cross-sink PII and audit-authority semantics | released reviewed R13 diff `4636fce9...` | FIX |
@@ -326,8 +331,8 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e84-2c02-7bf0-8c55-382766692aed` | S02 / R05-R07 aggregate plan and independent review | GPT-5.6 Sol/medium — read-only database-chain current-source planning | no mutation lease; R05/R07 plans pass | BLOCKED-OWNER |
 | `/root/r13_attempt4_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy boundary | released reviewed R13 diff `6753a823...` | FIX |
 
-Implementation writers reserved/active: **2 / 3**, reserved S05/R13 attempt 11
-plus active Claude R34 integration; S12/R34 remains frozen. R24 is accepted and ready R25 is held for the owner-directed
+Implementation writers reserved/active: **1 / 3**, active Claude R34 integration;
+S05/R13 and S12/R34 are frozen. R24 is accepted and ready R25 is held for the owner-directed
 next Opus handoff. R02 remains temporarily
 conflict-held because its shared-fixture mutation would invalidate R13's final
 admission verification; R09 also waits for R13's audit/admin seam to release. S12/R34
@@ -610,3 +615,10 @@ verification is complete.
 | 203 | 96 | 1 | DISPATCH_STARTED | Owner-directed visible Claude Code session began the bounded inherited audit-route reconciliation, with the overlapping R34 test lease explicitly transferred after freeze. | Claude session `Cardvert audit-route integration correction`; Opus 5 / High; `tests/test_audit_route_coverage.py` only; shared master, no worktree |
 | 204 | 97 | 1 | DIFF_REVIEW_FIX | R13 attempt 10 closes Unicode punctuation and dotted allocation findings, but mismatched admitted quote pairs redact only after the leaked value and dotted paths classify only the terminal component, including accepting an empty terminal component. | Sol/high reviewer `/root/r13_attempt5_review`; exact `203ef022...`; deterministic cross-sink credential/identity/financial leaks |
 | 205 | 97 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 11 on the unchanged five-file lease, limited to fail-closed mismatched quote boundaries and complete dotted-key sensitive-family classification. | GPT-5.6 Sol/high; preserve exact safe bank authority exceptions; full repeat review required |
+| 206 | 98 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 11 reacquired the unchanged five-file privacy lease for mismatched quote-pair and dotted sensitive-family handling only. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/high; terminal callback required |
+| 207 | 98 | 1 | IMPLEMENTATION_RETURNED | S05/R13 correction attempt 11 released its exact five-file diff after fail-closed mismatched admitted quote handling and complete dotted sensitive-family classification with exact safe bank exceptions. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; frozen `a60288c2...`; 32 final PostgreSQL/compatibility passes; no stage or commit |
+| 208 | 98 | 1 | DIFF_REVIEW_RESERVED | Frozen R13 attempt 11 reserved repeat independent minimal-change, security/privacy-specialist and CP-PRIVACY review. | GPT-5.6 Sol/high; read-only exact `a60288c2...` diff; no mutation authority |
+| 209 | 98 | 1 | PLAN_DISPATCH_STARTED | Visible S10/S11/S13/S14 task began read-only aggregate planning for R18-R22 and R29-R31. | task `01a05ef6-632c-79b1-bdf3-16c6e95aafd4`; GPT-5.6 Sol/high; no mutation lease or worktree |
+| 210 | 98 | 1 | PLAN_DISPATCH_STARTED | Visible S15-S19 task began read-only aggregate planning for R38-R44. | task `01a05ef6-92fc-7df1-bd39-50e8c2fee530`; GPT-5.6 Sol/high; no mutation lease or worktree |
+| 211 | 98 | 1 | PLAN_DISPATCH_STARTED | Visible S20-S22 task began read-only aggregate planning for R45-R52. | task `01a05ef6-c545-7401-8114-4afe32fc9bf7`; GPT-5.6 Sol/high; no mutation lease or worktree |
+| 212 | 98 | 1 | PLAN_DISPATCH_STARTED | Visible S23-S27 task began read-only aggregate planning for R54-R58. | task `01a05ef6-ee2d-79e0-9e50-153b035d771e`; GPT-5.6 Sol/high; no mutation lease or worktree |
