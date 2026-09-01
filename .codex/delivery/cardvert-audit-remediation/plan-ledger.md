@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 55
+plan_revision: 56
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 129
+last_event_sequence: 132
 ---
 
 # Cardvert audit remediation programme
@@ -187,9 +187,9 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R02 | GOV-003, TST-001, DB-005 | READY | R01, R04; control | R02-P; GRAPH-CP-CONTROL | wait for a serialized central-config writer lane |
 | R03 | GOV-004 | QUEUED | R02; control | — | wait |
 | R04 | DB-004 | ACCEPTED | database opener | R04-P; R04-M; R04-CP-DB; exact PostgreSQL/PostGIS catalog and constraint-timing red/green | complete |
-| R05 | DB-001, TST-012, ONB-010 | QUEUED | R02, R04 | — | wait |
-| R06 | DB-002 | QUEUED | R02, R04, R05 | — | wait |
-| R07 | DB-003 | QUEUED | R02, R04, R06 | — | wait |
+| R05 | DB-001, TST-012, ONB-010 | WAITING | R02, R04 | R05-P; reviewed savepoint/conflict contract | wait for accepted R02, R23 disbursement recheck and exact lease |
+| R06 | DB-002 | BLOCKED-OWNER | R02, R04, R05; historical migration authority | plan review confirmed exact downgrade guards require superseding the D15/architecture freeze | owner must authorize narrow edits to shipped 0010/0014/0016 downgrade bodies plus authority updates |
+| R07 | DB-003 | WAITING | R02, R04, R06 | R07-P; reviewed database immutability contract | wait for R06 policy/dependency and serialized migration lane |
 | R08 | GOV-005 | ACCEPTED | security opener | R08-P; R08-M; R08-SEC; R08-CP-SECURITY; lock-removal red and real PostgreSQL green | complete |
 | R09 | GOV-007, AUT-001, AUT-002 | READY | R10 | R09-P; reviewed command/lock/race contract | wait for R13 release and an exact write lease |
 | R10 | AUT-005 | ACCEPTED | R08 | R10-P/M/SEC/CP-SECURITY; strict-claim and route-graph evidence | complete |
@@ -313,7 +313,7 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R23 implementation; R24-R27 held | GPT-5.6 Sol/medium — bounded frozen-refund implementation | R23 billing/model/cancellation/schema/API/migration/generated-contract/test lease plus `tests/test_pkg03_pro_corrections.py`; later slices have no mutation lease | ACTIVE |
 | `/root/r13_attempt3_review` | S05 / R13 repeat M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded parser and identifier-preservation boundary | released reviewed R13 diff `506dc438...` | FIX |
 | `/root/r16_diff_review` | S06 / R16 M, CONTRACT/control and CP-CONTROL review | GPT-5.6 Sol/medium — bounded provider-boundary refactor | released accepted seven-file diff | PASS |
-| task `01a05e84-2c02-7bf0-8c55-382766692aed` | S02 / R05-R07 aggregate plan and independent review | GPT-5.6 Sol/medium — read-only database-chain current-source planning | no mutation lease | PLANNING |
+| task `01a05e84-2c02-7bf0-8c55-382766692aed` | S02 / R05-R07 aggregate plan and independent review | GPT-5.6 Sol/medium — read-only database-chain current-source planning | no mutation lease; R05/R07 plans pass | BLOCKED-OWNER |
 | `/root/r13_attempt4_review` | S05 / R13 final M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy boundary | read-only frozen R13 diff `6753a823...` | ACTIVE |
 
 Implementation writers reserved/active: **1 / 3**, currently S09/R23. R13 is
@@ -356,14 +356,19 @@ owner policy choice: either approve and record visible sign-out-everywhere
 semantics using global `User.session_version` revocation, or authorize a
 per-session identity/model/migration design that preserves the existing
 current-device-only runbook promise. No logout semantics or migration may be
-invented while this is unresolved.
+invented while this is unresolved. R06/DB-002 is execution-blocked because the
+technically necessary first-action downgrade guards must modify the shipped
+0010/0014/0016 downgrade bodies, while architecture §§7.2/29.3 and D15 freeze
+those revisions. The owner must authorize a narrow historical-downgrade-safety
+exception, architecture amendment and D15-superseding decision before R06-P or
+any write lease; no forward-only migration can protect downgrade code after
+that newer migration removes itself.
 
 ## Next scheduler action
 
 Await the R13 final review verdict and S09/R23 callback. Continue one read-only
-Sol/medium S02/R05-R07 plan because no additional
-writer is conflict-free; later implementation/review is separately model-gated
-to its actual PostgreSQL/money/privacy boundary. Keep R11 and R28 blocked on their recorded owner choices without
+Sol/medium planning front elsewhere because no additional writer is conflict-
+free. Keep R06, R11 and R28 blocked on their recorded owner choices without
 freezing independent work. R09 remains write-held until R13 releases the
 admin/audit seam; R33 remains held behind R05; R34 has an accepted plan but is
 serialized behind R23's migration/contract lane. R24-R27 remain in the same S09
@@ -506,3 +511,6 @@ verification is complete.
 | 127 | 54 | 1 | SLICE_ACCEPTED | R16/GOV-008 accepted exactly once and integrated at `90fa772`, unlocking its downstream provider-boundary dependencies without enabling any live adapter. | R16-P/M/CONTRACT/CP-CONTROL; controller reran focused suite, Ruff and diff checks |
 | 128 | 55 | 1 | IMPLEMENTATION_RETURNED | S05/R13 correction attempt 4 released an exact four-file diff after closing nested serialized JSON/Python-dict leaks across logs, Sentry, audit persistence and legacy projection. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; frozen `6753a823...`; Sol/high; 14 final focused passes |
 | 129 | 55 | 1 | DIFF_REVIEW_STARTED | Frozen R13 attempt 4 entered final independent minimal-change, security/privacy-specialist and CP-PRIVACY review without xhigh escalation. | `/root/r13_attempt4_review`; GPT-5.6 Sol/high; read-only exact `6753a823...` diff |
+| 130 | 56 | 1 | PLAN_REVIEW_PASSED | R05-P passed with exact savepoint, real-constraint translation, outer-write preservation and public-envelope evidence; implementation remains dependency-held. | visible S02 task; independent Sol/medium review; zero file mutation |
+| 131 | 56 | 1 | PLAN_REVIEW_BLOCKED | R06-P cannot be accepted because exact downgrade safety requires narrow edits to shipped 0010/0014/0016 that contradict architecture §§7.2/29.3 and D15's freeze. | visible S02 task; independent Sol/medium review; owner authority needed; no forward-only workaround |
+| 132 | 56 | 1 | PLAN_REVIEW_PASSED | R07-P passed for database-enforced purge-audit update/delete/truncate denial with preserved append/read behavior; implementation remains held behind R06. | visible S02 task; independent Sol/medium review; zero file mutation |
