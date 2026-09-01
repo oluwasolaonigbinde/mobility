@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 102
+plan_revision: 103
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 217
+last_event_sequence: 218
 ---
 
 # Cardvert audit remediation programme
@@ -236,11 +236,11 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R51 | REP-006 | QUEUED | R43, R49, R50 | — | wait |
 | R52 | MET-006 | QUEUED | R51 | — | wait |
 | R53 | REL-005 | ACCEPTED | release opener | R53-P; R53-M; R53-RELEASE; R53-CP-RELEASE; real Docker red/green | complete |
-| R54 | REL-006 | QUEUED | R12, R16, R53 | — | wait |
-| R55 | REL-004 | QUEUED | R03, R18, R48, R51, R54 | — | wait |
-| R56 | TST-005 | QUEUED | R09, R11, R14, R40 | — | wait |
-| R57 | TST-008 | QUEUED | R19, R27, R49, R55 | — | wait |
-| R58 | TST-011 | QUEUED | R15, R20, R21, R43, R49, R51 | — | wait |
+| R54 | REL-006 | WAITING | R12, R16, R53 | R54-P; reviewed fail-closed environment-template contract | wait for R12 and central configuration release |
+| R55 | REL-004 | WAITING | R03, R18, R48, R51, R54 | R55-P; reviewed mechanically generated compatibility receipt contract | wait for predecessors and exclusive release lane |
+| R56 | TST-005 | WAITING | R09, R11, R14, R40 | R56-P; reviewed generated authorization-denial matrix | wait for predecessors and audit-route fixture release |
+| R57 | TST-008 | WAITING | R19, R27, R49, R55 | R57-P; reviewed deterministic clock boundary contract | wait for predecessors and shared auth/release fixtures |
+| R58 | TST-011 | WAITING | R15, R20, R21, R43, R49, R51 | R58-P; reviewed real worker termination/restart contract | wait for registered predecessor jobs and worker lane release |
 | R59 | TST-002 | QUEUED | R22, R31, R33, R37, R41, R44, R48, R50, R51, R56, R57, R58 | — | wait |
 | R60 | GOV-009 | QUEUED | R03, R17, R18, R22, R27, R31, R33, R37, R43, R44, R52, R55, R56, R59 | — | wait |
 
@@ -316,7 +316,7 @@ trigger and a newly reviewed authority amendment.
 | task `01a05ef6-632c-79b1-bdf3-16c6e95aafd4` | S10/S11/S13/S14 aggregate R18-R22 and R29-R31 planning | GPT-5.6 Sol/high — money/migration/concurrency planning | read-only; no mutation lease | ACTIVE-PLAN |
 | task `01a05ef6-92fc-7df1-bd39-50e8c2fee530` | S15-S19 aggregate R38-R44 privacy/audit planning | GPT-5.6 Sol/high — privacy/security/lifecycle planning | read-only; no mutation lease | ACTIVE-PLAN |
 | task `01a05ef6-c545-7401-8114-4afe32fc9bf7` | S20-S22 aggregate R45-R52 reporting planning | GPT-5.6 Sol/high — reporting/privacy/concurrency planning | read-only; no mutation lease | ACTIVE-PLAN |
-| task `01a05ef6-ee2d-79e0-9e50-153b035d771e` | S23-S27 aggregate R54-R58 release/test planning | GPT-5.6 Sol/high — release/security/worker planning | read-only; no mutation lease | ACTIVE-PLAN |
+| task `01a05ef6-ee2d-79e0-9e50-153b035d771e` | S23-S27 aggregate R54-R58 release/test planning | GPT-5.6 Sol/high — release/security/worker planning | read-only; R54-P through R58-P accepted | PLAN-PASS |
 | task `01a05ef8-af56-7192-825a-ce4f00f9c86b` | S04 aggregate R12-R14 security/readiness planning | GPT-5.6 Sol/high — authentication/trusted-edge/release planning | read-only; no mutation lease | ACTIVE-PLAN |
 | `/root/r15_re_review` | V02 / R15 repeat M and CP-WORKERS review | GPT-5.6 Sol/high — worker crash and claim/retry semantics | read-only frozen R15 diff | PASS |
 | `/root/r08_re_review` | V01 / R08 repeat M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — authorization concurrency, deadlock and evidence semantics | read-only frozen R08 diff | PASS |
@@ -628,3 +628,4 @@ verification is complete.
 | 215 | 101 | 1 | DIFF_REVIEW_FIX | R13 attempt 11 closes normal-orientation quote mismatches and complete dotted sensitive families, but wrong-orientation admitted quote symbols and leading-empty dotted paths still leak or inherit safe-bank handling. | Sol/high reviewer `/root/r13_attempt5_review`; exact `a60288c2...`; deterministic cross-sink name/credential/bank bypasses |
 | 216 | 101 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 12 on the unchanged five-file lease, limited to validating every admitted quote symbol at either boundary and rejecting leading-empty assignment-shaped dotted keys. | GPT-5.6 Sol/high; approved exact quote pairs/safe-bank exceptions unchanged; repeat review required |
 | 217 | 102 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 12 reacquired the unchanged five-file privacy lease for wrong-orientation admitted quote and leading-empty dotted-path handling only. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/high; terminal callback required |
+| 218 | 103 | 1 | PLAN_REVIEW_PASSED | R54-P through R58-P passed as separate reviewed contracts for environment templates, mechanical release compatibility, authorization denial, deterministic time and real worker restart evidence; all remain dependency-held. | task `01a05ef6-ee2d-79e0-9e50-153b035d771e`; GPT-5.6 Sol/high; exact no-write confirmation |
