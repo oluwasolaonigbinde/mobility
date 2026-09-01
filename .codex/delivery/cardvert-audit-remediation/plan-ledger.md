@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 108
+plan_revision: 109
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 225
+last_event_sequence: 226
 ---
 
 # Cardvert audit remediation programme
@@ -220,13 +220,13 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R35 | OFF-002, OFF-003 | WAITING | R34 | R35-P; separate OFF-002/OFF-003 reviewed contracts | wait for accepted R34 |
 | R36 | OFF-005 | WAITING | R35 | R36-P; reviewed partial-acceptance contract | wait for accepted R35 and recheck migration head |
 | R37 | OFF-006 | WAITING | R36 | R37-P; reviewed deactivation-drain contract | wait for accepted R36 |
-| R38 | PRV-001, PRV-002 | QUEUED | R13; privacy opener | — | wait |
-| R39 | PRV-003 | QUEUED | R38 | — | wait |
-| R40 | PRV-004, AUD-001, AUD-002 | QUEUED | R16, R39 | — | wait |
-| R41 | PRV-009, AUD-004, TST-010 | QUEUED | R40 | — | wait |
-| R42 | PRV-005, PRV-006 | QUEUED | R41 | — | wait |
-| R43 | PRV-007 | QUEUED | R42 | — | wait |
-| R44 | AUD-005 | QUEUED | R16, R40 | — | wait |
+| R38 | PRV-001, PRV-002 | WAITING | R13; privacy opener | R38-P; reviewed collection-time privacy-gate contract | wait for accepted R13 and release of R34 trip/config surfaces |
+| R39 | PRV-003 | WAITING | R38 | R39-P; reviewed aggregate-only campaign-trip contract | wait for accepted R38 and generated-contract lane |
+| R40 | PRV-004, AUD-001, AUD-002 | WAITING | R16, R39 | R40-P; reviewed authoritative aggregation/delivery-approval contract | wait for accepted R39 and migration/contract lane |
+| R41 | PRV-009, AUD-004, TST-010 | WAITING | R40 | R41-P; reviewed generalized disclosure-history contract | wait for accepted R40 and migration lane |
+| R42 | PRV-005, PRV-006 | WAITING | R41 | R42-P; reviewed truthful DSR inventory contract | wait for accepted R41 and stable R34 manifest schema |
+| R43 | PRV-007 | WAITING | R42 | R43-P; reviewed durable object-deletion contract | wait for accepted R42 and migration/worker lane |
+| R44 | AUD-005 | WAITING | R16, R40 | R44-P; reviewed stable browser-operation-key contract | wait for accepted R40; may run disjoint from R41 on exact frontend-only lease |
 | R45 | MET-003 | QUEUED | R04, R41; reporting opener | — | wait |
 | R46 | REP-001 | QUEUED | R45 | — | wait |
 | R47 | MET-001, MET-002, MET-004, REP-002 | QUEUED | R41, R46 | — | wait |
@@ -315,7 +315,7 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | S12 / R34 implementation; R35-R37 held | GPT-5.6 Sol/high — offline/privacy/money protocol and migration authority | released frozen 38-file scope `f25bd28f...`; R35-R37 held | BLOCKED-INTEGRATION |
 | Claude session `Cardvert audit-route integration correction` | R34 inherited audit-registry integration | Claude Opus 5 / High — owner-selected bounded audit/security evidence correction | `tests/test_audit_route_coverage.py` only; transferred from frozen R34 | ACTIVE |
 | task `01a05ef6-632c-79b1-bdf3-16c6e95aafd4` | S10/S11/S13/S14 aggregate R18-R22 and R29-R31 planning | GPT-5.6 Sol/high — money/migration/concurrency planning | read-only; R18-P through R22-P and R29-P through R31-P accepted | PLAN-PASS |
-| task `01a05ef6-92fc-7df1-bd39-50e8c2fee530` | S15-S19 aggregate R38-R44 privacy/audit planning | GPT-5.6 Sol/high — privacy/security/lifecycle planning | read-only; no mutation lease | ACTIVE-PLAN |
+| task `01a05ef6-92fc-7df1-bd39-50e8c2fee530` | S15-S19 aggregate R38-R44 privacy/audit planning | GPT-5.6 Sol/high — privacy/security/lifecycle planning | read-only; R38-P through R44-P accepted | PLAN-PASS |
 | task `01a05ef6-c545-7401-8114-4afe32fc9bf7` | S20-S22 aggregate R45-R52 reporting planning | GPT-5.6 Sol/high — reporting/privacy/concurrency planning | read-only; no mutation lease | ACTIVE-PLAN |
 | task `01a05ef6-ee2d-79e0-9e50-153b035d771e` | S23-S27 aggregate R54-R58 release/test planning | GPT-5.6 Sol/high — release/security/worker planning | read-only; R54-P through R58-P accepted | PLAN-PASS |
 | task `01a05ef8-af56-7192-825a-ce4f00f9c86b` | S04 aggregate R12-R14 security/readiness planning | GPT-5.6 Sol/high — authentication/trusted-edge/release planning | read-only; no mutation lease | ACTIVE-PLAN |
@@ -637,3 +637,4 @@ verification is complete.
 | 223 | 106 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 13 on the unchanged five-file lease, limited to recognizing one-or-more leading dots in every assignment-shaped grammar and using existing empty-component rejection. | GPT-5.6 Sol/high; no classification/punctuation expansion; repeat review required |
 | 224 | 107 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 13 reacquired the unchanged five-file privacy lease for repeated-leading-empty dotted-path handling only. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/high; terminal callback required |
 | 225 | 108 | 1 | PLAN_REVIEW_PASSED | R18-P through R22-P and R29-P through R31-P passed as separate reviewed money, disbursement, assignment, challenge and frozen-window contracts; all remain dependency/lease-held. | task `01a05ef6-632c-79b1-bdf3-16c6e95aafd4`; GPT-5.6 Sol/high; exact no-write confirmation |
+| 226 | 109 | 1 | PLAN_REVIEW_PASSED | R38-P through R44-P passed as separate reviewed collection privacy, aggregate reporting, disclosure, DSR deletion and browser-key contracts; all remain dependency/lease-held. | task `01a05ef6-92fc-7df1-bd39-50e8c2fee530`; GPT-5.6 Sol/high; exact no-write confirmation |

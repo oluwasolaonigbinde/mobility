@@ -47,7 +47,7 @@ the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
 **Current capacity assignment:** `R13, R34`
-**Current capacity justification:** `R13` owns the exact repeated-leading-dot grammar correction on its unchanged five-file lease. The owner-directed Claude Opus 5 / High integration session owns only `tests/test_audit_route_coverage.py`; R34's 38-file implementation is frozen and its overlapping test lease transferred. Four visible sessions plan future chains read-only, so they add no mutation conflicts. R02/R09 remain held until R13 admission, and ready R25 remains reserved for the second Opus handoff once contracts release. Shared fixtures and this file remain controller-serialized.
+**Current capacity justification:** `R13` owns the exact repeated-leading-dot grammar correction on its unchanged five-file lease. The owner-directed Claude Opus 5 / High integration session owns only `tests/test_audit_route_coverage.py`; R34's 38-file implementation is frozen and its overlapping test lease transferred. Two remaining visible sessions plan future chains read-only, so they add no mutation conflicts. R02/R09 remain held until R13 admission, and ready R25 remains reserved for the second Opus handoff once contracts release. Shared fixtures and this file remain controller-serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -1558,13 +1558,13 @@ durable ledger before changing a row.
 | R35 | OFF-002, OFF-003 | R34 | QUEUED | PASS — R35-P | PENDING | CP-OFFLINE PENDING |
 | R36 | OFF-005 | R35 | QUEUED | PASS — R36-P | PENDING | CP-OFFLINE PENDING |
 | R37 | OFF-006 | R36 | QUEUED | PASS — R37-P | PENDING | CP-OFFLINE PENDING |
-| R38 | PRV-001, PRV-002 | R13 | QUEUED | PENDING | PENDING | CP-PRIVACY PENDING |
-| R39 | PRV-003 | R38 | QUEUED | PENDING | PENDING | CP-PRIVACY PENDING |
-| R40 | PRV-004, AUD-001, AUD-002 | R16, R39 | QUEUED | PENDING | PENDING | CP-PRIVACY PENDING |
-| R41 | PRV-009, AUD-004, TST-010 | R40 | QUEUED | PENDING | PENDING | CP-PRIVACY PENDING |
-| R42 | PRV-005, PRV-006 | R41 | QUEUED | PENDING | PENDING | CP-PRIVACY PENDING |
-| R43 | PRV-007 | R42 | QUEUED | PENDING | PENDING | CP-PRIVACY PENDING |
-| R44 | AUD-005 | R16, R40 | QUEUED | PENDING | PENDING | CP-PRIVACY PENDING |
+| R38 | PRV-001, PRV-002 | R13 | QUEUED | PASS — R38-P | PENDING | CP-PRIVACY PENDING |
+| R39 | PRV-003 | R38 | QUEUED | PASS — R39-P | PENDING | CP-PRIVACY PENDING |
+| R40 | PRV-004, AUD-001, AUD-002 | R16, R39 | QUEUED | PASS — R40-P | PENDING | CP-PRIVACY PENDING |
+| R41 | PRV-009, AUD-004, TST-010 | R40 | QUEUED | PASS — R41-P | PENDING | CP-PRIVACY PENDING |
+| R42 | PRV-005, PRV-006 | R41 | QUEUED | PASS — R42-P | PENDING | CP-PRIVACY PENDING |
+| R43 | PRV-007 | R42 | QUEUED | PASS — R43-P | PENDING | CP-PRIVACY PENDING |
+| R44 | AUD-005 | R16, R40 | QUEUED | PASS — R44-P | PENDING | CP-PRIVACY PENDING |
 | R45 | MET-003 | R04, R41 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
 | R46 | REP-001 | R45 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
 | R47 | MET-001, MET-002, MET-004, REP-002 | R41, R46 | QUEUED | PENDING | PENDING | CP-REPORTING PENDING |
