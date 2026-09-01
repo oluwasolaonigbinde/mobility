@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 72
+plan_revision: 73
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 163
+last_event_sequence: 165
 ---
 
 # Cardvert audit remediation programme
@@ -195,7 +195,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R10 | AUT-005 | ACCEPTED | R08 | R10-P/M/SEC/CP-SECURITY; strict-claim and route-graph evidence | complete |
 | R11 | AUT-004 | BLOCKED-OWNER | R09; logout policy | plan review confirmed current-device documentation conflicts with schema-free global revocation | owner must choose visible sign-out-everywhere or per-session identity/migration authority |
 | R12 | AUT-003, REL-003 | QUEUED | R11 | — | wait |
-| R13 | SEC-001, PRV-008 | REVIEW | sensitive-metadata opener | R13-P; attempts 1-5 reviews FIX; attempt-6 frozen `08d04f8c...` | independent Sol/high R13-M/SEC/PRV/CP-PRIVACY review |
+| R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P; attempts 1-6 reviews FIX | preserve safe bank authority and make 1024-candidate text scanning linear/bounded |
 | R14 | SEC-002, TST-004 | QUEUED | R12 | — | wait |
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | ACCEPTED | provider-boundary opener | R16-P/M/CONTRACT/CP-CONTROL; structural and behavioral evidence | complete |
@@ -299,8 +299,8 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 6 | GPT-5.6 Sol/high — bounded cross-sink privacy/security correction | released exact frozen five-file diff `08d04f8c...` | REVIEW |
-| `/root/r13_attempt5_review` | S05 / R13 attempt-6 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | read-only exact `08d04f8c...` diff | ACTIVE |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 7 | GPT-5.6 Sol/high — bounded cross-sink privacy/performance correction | unchanged five-file R13 lease | RESERVED |
+| `/root/r13_attempt5_review` | S05 / R13 attempt-6 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `08d04f8c...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-5 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `6e171d42...` diff | FIX |
 | task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d` | S01 / R02-R03-R17 aggregate current-source plan | GPT-5.6 Sol/medium — CI, contract and coverage planning without mutation | no mutation lease; R02 baseline and R03 plan pass | BLOCKED-OWNER |
 | task `01a05e49-0107-7611-8ee8-515273881aa8` | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | released exact R15 diff | ACCEPTED |
@@ -319,8 +319,8 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e84-2c02-7bf0-8c55-382766692aed` | S02 / R05-R07 aggregate plan and independent review | GPT-5.6 Sol/medium — read-only database-chain current-source planning | no mutation lease; R05/R07 plans pass | BLOCKED-OWNER |
 | `/root/r13_attempt4_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy boundary | released reviewed R13 diff `6753a823...` | FIX |
 
-Implementation writers reserved/active: **2 / 3**, reserved S09/R24 and
-S12/R34. R13 is frozen for read-only admission review. R02 remains temporarily
+Implementation writers reserved/active: **3 / 3**, reserved S05/R13 attempt 7
+plus active S09/R24 and S12/R34. R02 remains temporarily
 conflict-held because its shared-fixture mutation would invalidate R13's repeat
 verification; R09 also waits for R13's audit/admin seam to release. S12/R34
 exclusively owns migrations, generated contracts and its configuration surface;
@@ -558,3 +558,5 @@ verification is complete.
 | 161 | 70 | 1 | DISPATCH_STARTED | Visible S12 began R34's reviewed signed/content-bound offline evidence protocol at actual head 0073. | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879`; GPT-5.6 Sol/high; exclusive migration/generated-contract/configuration lane; terminal callback required |
 | 162 | 71 | 1 | BASE_RECONCILED | R34's pinned HEAD advanced only by the controller's own dispatch receipt; permitted R34 targets remain clean and Alembic remains single-head 0073, so exact base `2e464d3` supersedes `2758070`. | no product/contract drift; authorize migration 0074 and unchanged reviewed R34 lease |
 | 163 | 72 | 1 | LEASE_EXPANDED | R34 may edit `tests/test_trips.py` solely to make the shared start helper send evidence protocol v2 and cover missing/old-version 409 rejection. | pre-write callback; no other scope or contract change; all R34 targets still clean |
+| 164 | 73 | 1 | DIFF_REVIEW_FIX | R13 attempt 6 over-redacts safe bank-account version/decision authority and its repeated dual-regex suffix scan takes about seven seconds at the allowed 1024-field boundary. | Sol/high reviewer `/root/r13_attempt5_review`; exact `08d04f8c...`; driver approval regression 409 and independent runtime probe |
+| 165 | 73 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 7 on the unchanged five-file lease, limited to narrow bank-secret qualification and single-pass bounded text scanning. | GPT-5.6 Sol/high; existing driver-approval compatibility must pass; full repeat review required |
