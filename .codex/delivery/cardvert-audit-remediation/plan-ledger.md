@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 10
+plan_revision: 24
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -11,8 +11,8 @@ authoritative_ref: master
 source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
-approved_writer_capacity: 2
-last_event_sequence: 25
+approved_writer_capacity: 3
+last_event_sequence: 57
 ---
 
 # Cardvert audit remediation programme
@@ -22,8 +22,12 @@ last_event_sequence: 25
 The owner authorized execution of the unchanged Pro-admitted remediation graph:
 86 `FIX` candidates in 60 dependency-safe slices, with 9 `DEFER`, 12 `OWNER
 DECISION`, and 8 `EXTERNAL INPUT` candidates retained as non-executable. The
-approved shape uses rolling dispatch and at most two simultaneous implementation
-owners only when their file and domain leases are demonstrably disjoint.
+approved shape uses work-conserving rolling dispatch. Two simultaneous
+implementation owners remain the repository baseline; the owner authorized a
+higher current limit only when the exact active set has a recorded disjoint-work
+justification. Future implementation is dispatched as visible top-level Codex
+tasks in the saved Mobility project, directly in this checkout without
+worktrees. Internal subagents are review-only.
 
 Authority and precedence:
 
@@ -79,6 +83,12 @@ non-executable until the owner supplies the complete policy named below.
 - The controller alone edits this ledger and `docs/progress.md`.
 - Central configuration, migrations, generated contracts, shared fixtures,
   route registries, package manifests, and overlapping services are serialized.
+- The controller never implements product changes. It plans, records, dispatches,
+  monitors, reviews, admits, and integrates visible top-level implementation
+  tasks. A session may cross several slices only where the table below shows a
+  shared surface and compatible partial-completion boundary; each constituent
+  slice retains its own acceptance receipts and may unlock successors once
+  admitted.
 - Each meaningful fix packet uses `$verified-feature-delivery`; a genuinely
   cohesive complex packet may use `$orchestrated-feature-delivery` only within
   the admitted outcomes and an isolated reviewed contract.
@@ -93,6 +103,68 @@ non-executable until the owner supplies the complete policy named below.
 - Candidate results remain provisional until the controller inspects the
   integrated diff, tests, red/green evidence, required specialist verdicts,
   and actual checkout state.
+- The repository slice register has no `REVIEW` state. A slice whose mutation
+  lease is released for read-only admission review maps back to repository
+  `QUEUED` while this durable ledger records `REVIEW`; this keeps its
+  dependencies closed and the repository's recorded writer assignment truthful.
+
+## Deterministic implementation-session partition
+
+This partition treats R01-R60 as one dependency/conflict graph. It is not a
+fixed batch schedule: the rolling scheduler starts the highest-priority ready
+session whose exact lease is disjoint from every active task. Multi-slice
+sessions group only shared code/contract surfaces with the same highest risk and
+verification environment. They checkpoint every slice separately so a safe
+prefix can be admitted without falsely completing the remainder. The three
+historical sessions below were already accepted before the visible-task
+amendment; the two correction continuations and all new implementation use
+visible top-level Mobility tasks.
+
+| Session | Slices and exact FIX candidates | Cohesive surface / dependency boundary | Highest risk and model | Verification and partial-completion semantics |
+| --- | --- | --- | --- | --- |
+| H01 | R01 — GOV-001 | repository execution authority | cross-package control; Sol/high | accepted R01-P/M/CP-CONTROL; historical controller-owned opener |
+| H02 | R04 — DB-004 | exact ORM/Alembic/PostgreSQL schema authority | migration/PostgreSQL; Sol/xhigh | accepted R04-P/M/CP-DB after exact catalog, downgrade/re-upgrade and constraint-timing evidence |
+| H03 | R53 — REL-005 | frontend release-image/map configuration | release provenance; Sol/high | accepted R53-P/M/CP-RELEASE after real-Docker red/green |
+| V01 | R08 — GOV-005 | canonical active-admin authorization and its PostgreSQL race oracle | security/concurrency; Sol/xhigh | existing implementation retained; visible correction owns only its race test, then R08-M/SEC/CP-SECURITY rerun |
+| V02 | R15 — GOV-006 | email-delivery service/job ownership and worker crash oracle | worker/concurrency; Sol/high | existing implementation retained; visible correction owns only the worker partial-completion test, then R15-M/CP-WORKERS rerun |
+| S01 | R02 — GOV-003, TST-001, DB-005; R03 — GOV-004; R17 — TST-007 | central CI workflow, real-service harness and contract/coverage gates; R03 and R17 follow R02 | cross-package CI/contract authority; Sol/high | serialized central-config lease; accept R02, R03 and R17 independently as their gates turn green |
+| S02 | R05 — DB-001, TST-012, ONB-010; R06 — DB-002; R07 — DB-003 | shared database integrity, savepoint, downgrade and purge schema behavior | migrations/PostgreSQL; Sol/xhigh | exclusive migration lane; each slice gets its own DB checkpoint before the next prefix is admitted |
+| S03 | R10 — AUT-005; R09 — GOV-007, AUT-001, AUT-002; R11 — AUT-004 | shared bearer/session/refresh security boundary; graph order is R10→R09→R11 | authentication/security; Sol/xhigh | strict claim, route-graph, session and refresh break cases; checkpoint each slice, preserving existing envelopes |
+| S04 | R12 — AUT-003, REL-003; R14 — SEC-002, TST-004 | readiness, rate-limit and trusted-edge configuration | security/release; Sol/high | configuration/edge simulations and security checkpoints; R12 may admit before R14 |
+| S05 | R13 — SEC-001, PRV-008 | central observability and audit-metadata PII redaction | privacy/security; Sol/xhigh | visible single-slice task; structured/free-log, Sentry and AuditEvent persistence/API red/green plus R13-M/PRIVACY/CP-PRIVACY |
+| S06 | R16 — GOV-008 | ad-platform port/adapters and dependency composition | provider-boundary control; Sol/high | no live provider and no contract change; single atomic boundary checkpoint |
+| S07 | R28 — CAM-001 | campaign lifecycle service and focused tests | ordinary campaign behavior; Terra/high | plan-first visible task, then lifecycle red/green and R28-M/CP-CAMPAIGN |
+| S08 | R32 — ONB-002; R33 — ONB-006 | driver application/evidence onboarding and its schema | onboarding plus migration; Sol/high | exclusive migration lane where needed; R32 may admit before dependency-gated R33 |
+| S09 | R23 — COM-001, COM-004; R24 — COM-002; R25 — COM-003, COM-005; R26 — COM-006; R27 — COM-007 | one billing/commercial service family, shared locks and time rules | money/concurrency; Sol/xhigh | real-PostgreSQL commercial tests; per-slice CP-COMMERCIAL admission preserves retry/partial semantics |
+| S10 | R29 — CAM-002; R30 — CAM-003 | campaign assignment and challenge workflow | authorization/concurrency; Sol/high | shared assignment lease; admit R29 before R30 when its independent gate passes |
+| S11 | R18 — MON-005, MON-006; R19 — MON-002 | monetary schema, caps and economic invariants | money/migration; Sol/xhigh | exclusive money/migration lane; separate R18/R19 CP-MONEY receipts |
+| S12 | R34 — OFF-001; R35 — OFF-002, OFF-003; R36 — OFF-005; R37 — OFF-006 | one backend/frontend offline protocol and queue state machine | privacy/offline/migration; Sol/xhigh | cross-stack protocol red/green and client break cases; checkpoint each graph prefix independently |
+| S13 | R20 — MON-001, DB-007, MON-008; R21 — MON-003; R22 — MON-004, MON-007, MON-009 | payout/disbursement state machine and shared transactional locks | money/concurrency/migration; Sol/xhigh | real-PostgreSQL retry/concurrency/rollback evidence; per-slice CP-MONEY acceptance |
+| S14 | R31 — CAM-004 | trip-to-assignment alignment | money-adjacent concurrency; Sol/xhigh | single atomic campaign checkpoint after R18/R19/R30 |
+| S15 | R38 — PRV-001, PRV-002 | collection-time privacy gates | privacy; Sol/xhigh | ingress denial/redaction evidence and CP-PRIVACY; atomic because both govern the same gate |
+| S16 | R39 — PRV-003 | aggregate-only reporting boundary | privacy/reporting; Sol/high | aggregate leak break cases and single CP-PRIVACY admission |
+| S17 | R40 — PRV-004, AUD-001, AUD-002; R41 — PRV-009, AUD-004, TST-010 | audience disclosure, audit and linked contract fixtures | privacy/security/contract; Sol/xhigh | privacy and contract baselines; admit R40 before R41 when independently green |
+| S18 | R42 — PRV-005, PRV-006; R43 — PRV-007 | erasure request and downstream deletion workflow | privacy/data lifecycle; Sol/xhigh | retention/erasure break cases; separate R42/R43 CP-PRIVACY receipts |
+| S19 | R44 — AUD-005 | browser-key handling | ordinary security; Terra/high | focused browser/storage security evidence and one CP-PRIVACY receipt |
+| S20 | R45 — MET-003; R46 — REP-001; R47 — MET-001, MET-002, MET-004, REP-002; R48 — REP-003 | measurement/report computation and authority shared across one reporting service family | reporting/privacy/concurrency; Sol/xhigh | deterministic calculation and authorization gates; each slice admits separately in dependency order |
+| S21 | R49 — REP-004; R50 — REP-005; R51 — REP-006 | report issuance lifecycle | reporting/security/concurrency; Sol/xhigh | issuance/revocation/retry evidence; separate slice receipts preserve partial completion |
+| S22 | R52 — MET-006 | measurement-copy guard | ordinary reporting behavior; Terra/high | focused content guard red/green and one CP-REPORTING receipt |
+| S23 | R54 — REL-006 | environment templates and provider-neutral configuration | secrets/release; Sol/high | config validation without credentials, deploy or provider action |
+| S24 | R55 — REL-004 | release compatibility and integrated environment authority | deployment/release; Sol/xhigh | synthetic/local release gates only; no live evidence claim |
+| S25 | R56 — TST-005 | authentication denial matrix | security; Sol/high | exact route/envelope denial matrix and CP-SECURITY |
+| S26 | R57 — TST-008 | deterministic clock evidence | release/money-adjacent timing; Sol/high | clock-bound regression harness and CP-RELEASE |
+| S27 | R58 — TST-011 | worker integration harness | worker/concurrency; Sol/xhigh | crash/retry/partial-completion harness and CP-WORKERS |
+| S28 | R59 — TST-002 | integrated real-stack browser journey | cross-stack release/security; Sol/xhigh | all predecessor contracts integrated; local real-stack evidence only |
+| S29 | R60 — GOV-009 | final architecture/progress/decision synchronization | cross-package closure; Sol/high | no product implementation; reconcile all 115 candidates, integrated gates and final minimal-change review |
+
+Current justified writer capacity is **3**, assigned exactly to V01/R08,
+S05/R13 and the visible R15 correction continuation. R08 owns only
+`tests/test_r08_admin_authorization_postgres.py`; R13 owns
+`app/core/observability.py`, `app/services/audit.py`, its two named tests and a
+dedicated R13 test if required; R15 owns only `tests/test_worker_jobs.py`.
+These paths, domain authorities and verification fixtures are disjoint. R04 is
+accepted and has no live lease. Central configuration, migrations, generated
+contracts, shared fixtures and controller documents remain serialized.
 
 ## Executable slice map
 
@@ -102,21 +174,21 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | Slice | Candidate IDs | State | Dependencies / lane | Accepted evidence | Next action |
 | --- | --- | --- | --- | --- | --- |
 | R01 | GOV-001 | ACCEPTED | control opener | R01-P; R01-M; R01-CP-CONTROL; red/green validator evidence | complete |
-| R02 | GOV-003, TST-001, DB-005 | WAITING | R01, R04; control | R02-P; GRAPH-CP-CONTROL | wait for R04 acceptance |
+| R02 | GOV-003, TST-001, DB-005 | READY | R01, R04; control | R02-P; GRAPH-CP-CONTROL | wait for a serialized central-config writer lane |
 | R03 | GOV-004 | QUEUED | R02; control | — | wait |
-| R04 | DB-004 | ACTIVE | database opener | R04-P | implementation attempt 1 |
+| R04 | DB-004 | ACCEPTED | database opener | R04-P; R04-M; R04-CP-DB; exact PostgreSQL/PostGIS catalog and constraint-timing red/green | complete |
 | R05 | DB-001, TST-012, ONB-010 | QUEUED | R02, R04 | — | wait |
 | R06 | DB-002 | QUEUED | R02, R04, R05 | — | wait |
 | R07 | DB-003 | QUEUED | R02, R04, R06 | — | wait |
-| R08 | GOV-005 | QUEUED | security opener | — | wait for R01 |
+| R08 | GOV-005 | ACTIVE | security opener | R08-P; implementation and first PostgreSQL red/green | visible test-evidence correction V01 |
 | R09 | GOV-007, AUT-001, AUT-002 | QUEUED | R10 | — | wait |
-| R10 | AUT-005 | QUEUED | R08 | — | wait |
+| R10 | AUT-005 | QUEUED | R08 | R10-P | wait for R08 acceptance and a writer slot |
 | R11 | AUT-004 | QUEUED | R09 | — | wait |
 | R12 | AUT-003, REL-003 | QUEUED | R11 | — | wait |
-| R13 | SEC-001, PRV-008 | QUEUED | sensitive-metadata opener | — | wait for R01 |
+| R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P | visible implementation S05 |
 | R14 | SEC-002, TST-004 | QUEUED | R12 | — | wait |
-| R15 | GOV-006 | QUEUED | worker opener | — | wait for R01 |
-| R16 | GOV-008 | QUEUED | provider-boundary opener | — | wait for R01 |
+| R15 | GOV-006 | ACTIVE | worker opener | R15-P; implementation and first PostgreSQL red/green | visible test-evidence correction V02 |
+| R16 | GOV-008 | QUEUED | provider-boundary opener | R16-P | wait for R08 acceptance and a writer slot |
 | R17 | TST-007 | QUEUED | R02, R03 | — | wait |
 | R18 | MON-005, MON-006 | QUEUED | R04, R06, R07 | — | wait |
 | R19 | MON-002 | QUEUED | R18 | — | wait |
@@ -128,13 +200,13 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R25 | COM-003, COM-005 | QUEUED | R08, R24 | — | wait |
 | R26 | COM-006 | QUEUED | R08, R25 | — | wait |
 | R27 | COM-007 | QUEUED | R08, R26 | — | wait |
-| R28 | CAM-001 | QUEUED | campaign opener | — | wait for R01 |
+| R28 | CAM-001 | READY | campaign opener | — | start visible read-only plan/review task S07 |
 | R29 | CAM-002 | QUEUED | R04, R08, R28 | — | wait |
 | R30 | CAM-003 | QUEUED | R29 | — | wait |
 | R31 | CAM-004 | QUEUED | R18, R19, R30 | — | wait |
-| R32 | ONB-002 | QUEUED | onboarding opener | — | wait for R01 |
+| R32 | ONB-002 | READY | onboarding opener | — | conflict-held until R08's unintegrated `driver_applications.py` surface is admitted |
 | R33 | ONB-006 | QUEUED | R05, R32 | — | wait |
-| R34 | OFF-001 | QUEUED | R04; offline opener | — | wait |
+| R34 | OFF-001 | READY | R04; offline opener | — | wait for a compatible high-risk writer lane |
 | R35 | OFF-002, OFF-003 | QUEUED | R34 | — | wait |
 | R36 | OFF-005 | QUEUED | R35 | — | wait |
 | R37 | OFF-006 | QUEUED | R36 | — | wait |
@@ -216,11 +288,13 @@ trigger and a newly reviewed authority amendment.
 | Owner | Packet / attempt | Model gate | Mutation lease | State |
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
-| `/root/r04_implementation` | R04 / attempt 1 | GPT-5.6 Sol/xhigh — Alembic/PostgreSQL/PostGIS schema and migration authority | `app/models/**`; `app/db/base.py`; `alembic/env.py`; `alembic/versions/**`; R04 migration/catalog tests; shared DB fixture only if pre-declared | ACTIVE |
-| `/root/r53_implementation` | R53 / attempt 1 | GPT-5.6 Sol/high — immutable frontend image and release-build provenance | released after exact three-file handoff | ACCEPTED |
+| visible task pending | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | `tests/test_r08_admin_authorization_postgres.py` | RESERVED |
+| visible task pending | S05 / R13 implementation | GPT-5.6 Sol/xhigh — privacy/security redaction at cross-cutting sinks | `app/core/observability.py`; `app/services/audit.py`; `tests/test_errors.py`; `tests/test_audit_events.py`; one dedicated R13 test if required | RESERVED |
+| visible task pending | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | `tests/test_worker_jobs.py` | RESERVED |
 
-Implementation writers active: **1 / 2**. Review/inventory work may use spare
-capacity only when it cannot contend with an implementation owner.
+Implementation writers reserved/active: **3 / 3**. The exact disjoint-work
+justification is recorded above and in `docs/progress.md`. Review/inventory work
+may continue only when it is read-only and cannot contend with a writer.
 
 ## Accepted evidence
 
@@ -229,8 +303,13 @@ includes the pre-fix terminal-state red, four safe-mutation red failures coverin
 manifest pinning, active capacity, receipt completion and post-PKG-10 pause,
 then 47 green validator tests, Ruff, the repository validator and diff check.
 R53 is accepted exactly once with R53-M, the release-specialist PASS and
-R53-CP-RELEASE after real Docker 29.5.3 red/green. R04 remains active; R02-P is
-accepted but waits for the reviewed R04 dependency.
+R53-CP-RELEASE after real Docker 29.5.3 red/green. R04 is accepted exactly once
+with R04-M, the database-specialist PASS and R04-CP-DB after six exact-head
+PostgreSQL/PostGIS cases, explicit ordered key/include/deferrability/timing
+catalog authority, downgrade/re-upgrade checks, and the reviewed mutation
+evidence. R02 and R34 are now dependency-ready but do not bypass active leases.
+R08 and R15 retain their implementations while their reviewers' narrow test-
+evidence corrections remain provisional.
 
 ## Outstanding decisions and waits
 
@@ -240,9 +319,15 @@ by omission.
 
 ## Next scheduler action
 
-Monitor R04, pre-review the next ready non-conflicting R08 security packet, and
-dispatch it into the released second writer slot only after its exact plan
-passes. R02 remains waiting for R04 acceptance.
+Obtain the independent control/concurrency review for revision 23, then create
+the three reserved visible tasks directly in the saved Mobility checkout:
+V01/R08, S05/R13 and V02/R15. Monitor them event-first and admit each only after
+its required review. In parallel, start S07/R28 as a visible read-only plan and
+independent plan-review task; it may acquire a writer lease only after R28-P and
+a fresh disjointness check. R32 is dependency-ready but conflicts with R08's
+unintegrated `driver_applications.py` mutation surface. On every released slot,
+rescan the full graph and refill with the highest-priority ready, conflict-free
+session; R02 and R34 are ready, while R16/R10/S09 remain gated on accepted R08.
 
 ## Material receipts
 
@@ -273,3 +358,35 @@ passes. R02 remains waiting for R04 acceptance.
 | 23 | 10 | 1 | CHECKPOINT_PASSED | R53 release-specialist and CP-RELEASE reviews passed with actual immutable-image authority. | Sol/high reviewer `/root/r53_diff_review` |
 | 24 | 10 | 1 | SLICE_ACCEPTED | R53/REL-005 accepted exactly once; no deploy, publication or live map action occurred. | 6 Docker image tests; 2 map tests; 434 frontend tests; build/type/lint; R53-P/M/CP |
 | 25 | 10 | 1 | GRAPH_CHECKPOINT_PASSED | R04 → R02 ordering-only amendment passed CP-CONTROL after the stale test correction. | Sol/high reviewer `/root/r02_plan_review`; 48 validator tests |
+| 26 | 11 | 1 | PLAN_REVIEW_FIX | R08-P required a complete 44-call-site inventory, authorization-before-domain-access ordering, deterministic multi-admin lock order, unchanged HTTP envelopes, and the exact per-call-site race obligation. | Sol/xhigh reviewer `/root/r08_plan_review` |
+| 27 | 11 | 1 | PLAN_REVIEW_PASSED | Corrected R08 contract passed with all 44 call sites, service-only scope, two-admin deadlock safety, and exact real-PostgreSQL race evidence retained. | R08-P; Sol/xhigh reviewer `/root/r08_plan_review` |
+| 28 | 11 | 1 | PLAN_REVIEW_PASSED | Corrected R13 contract passed with an explicit PII classification, central audit enforcement, unchanged top-level audit API fields, and no invented export behavior. | R13-P; Sol/xhigh reviewer `/root/r13_plan_review` |
+| 29 | 11 | 1 | DISPATCH_RESERVED | R08 attempt 1 reserved the disjoint service-only active-admin authorization lease as the second writer. | Sol/xhigh because PostgreSQL security races and multi-row deadlock safety are the hardest boundary |
+| 30 | 12 | 1 | DISPATCH_STARTED | R08 attempt 1 acquired the second implementation lane under its exact service-only lease. | agent `/root/r08_implementation`; Sol/xhigh; disjoint from active R04 schema lease |
+| 31 | 13 | 1 | PLAN_REVIEW_FIX | R15-P required an explicit service API, thin-job query/aggregation contract, claim-time eligibility, unchanged partial completion and an honest provider replay boundary. | Sol/high reviewer `/root/r15_plan_review` |
+| 32 | 13 | 1 | PLAN_REVIEW_PASSED | Corrected R15 ownership contract passed without broadening GOV-006 into provider exactly-once, schema or adapter work. | R15-P; Sol/high reviewer `/root/r15_plan_review` |
+| 33 | 14 | 1 | IMPLEMENTATION_RETURNED | R04 released its schema/migration lease after exact-head PostgreSQL/PostGIS verification; completion remains provisional. | 28 leased files; 6 focused tests; clean base/head/downgrade/re-upgrade checks |
+| 34 | 14 | 1 | DIFF_REVIEW_STARTED | Frozen R04 diff entered consolidated minimal-change, database-specialist and CP-DB review. | Sol/xhigh reviewer `/root/r04_diff_review` |
+| 35 | 14 | 1 | PLAN_REVIEW_PASSED | R16 adapter-boundary contract passed with repository-consistent modules, direct composition imports and no compatibility aliases or contract changes. | R16-P; Sol/high reviewer `/root/r15_plan_review` |
+| 36 | 14 | 1 | DISPATCH_RESERVED | R15 attempt 1 reserved the independent email job/service ownership lease as the second writer. | Sol/high because secret reconstruction and claim/retry crash semantics are the hardest boundary |
+| 37 | 15 | 1 | DISPATCH_STARTED | R15 attempt 1 acquired the second implementation lane under its exact email job/service lease. | agent `/root/r15_implementation`; Sol/high; disjoint from active R08 service lease |
+| 38 | 16 | 1 | LEASE_EXPANDED | R08 may update only stale direct-service envelope assertions in three existing test files; their API assertion already proves published dependency behavior unchanged. | 7 focused red failures: actual canonical `FORBIDDEN_ROLE` versus superseded service codes; no source/router/fixture expansion |
+| 39 | 17 | 1 | DIFF_REVIEW_FIX | R04-M, R04-DB and R04-CP-DB found that deferred PK/unique timing mutations escaped both the catalog oracle and canonical Alembic check. | Sol/xhigh reviewer `/root/r04_diff_review`; disposable PostgreSQL proof for deferred `audit_events_pkey` and `uq_users_email` |
+| 40 | 18 | 1 | IMPLEMENTATION_RETURNED | R15 released its exact email lease after architectural/mutation red-green and isolated real-PostgreSQL claim/concurrency proof. | 7 leased files; 45 focused passes; 4 PostgreSQL cases; one unrelated Redis skip |
+| 41 | 18 | 1 | IMPLEMENTATION_RETURNED | R08 released its exact service/test lease after migrating all 44 sites and running real-PostgreSQL authorization races. | 15 leased files; 9 R08 PostgreSQL passes; 14 envelope/API passes; 77 broader passes |
+| 42 | 18 | 1 | DISPATCH_RESERVED | R04 attempt 2 reserved only the migration test file to add PK/unique deferrability and initial-timing authority. | Sol/xhigh because PostgreSQL concurrency semantics are the hardest boundary |
+| 43 | 19 | 1 | DISPATCH_STARTED | R04 attempt 2 acquired its one-test-file correction lease. | agent `/root/r04_implementation`; Sol/xhigh |
+| 44 | 19 | 1 | DIFF_REVIEW_STARTED | Frozen R08 diff entered consolidated minimal-change, security-specialist and CP-SECURITY review. | Sol/xhigh reviewer `/root/r08_diff_review` |
+| 45 | 20 | 1 | PLAN_REVIEW_FIX | R10-P required strict non-coercive claim semantics, canonical UUID/time policy, route-graph proof, architecture alignment, and stable refresh handling across the second-decode expiry boundary. | Sol/xhigh reviewer `/root/r10_plan_review` |
+| 46 | 20 | 1 | PLAN_REVIEW_PASSED | Corrected R10 strict bearer-claim contract passed with the minimum security/router/architecture lease and no new lifetime policy. | R10-P; Sol/xhigh reviewer `/root/r10_plan_review` |
+| 47 | 21 | 1 | DIFF_REVIEW_STARTED | Frozen R15 diff entered consolidated minimal-change and CP-WORKERS review. | Sol/high reviewer `/root/r15_diff_review` |
+| 48 | 22 | 1 | REVIEW_FIX_VERIFIED | R04 attempt 2 added exact PK/unique ordered-key, include-column, deferrability and initial-timing catalog authority and reran its mutation/green matrix. | 6 real PostgreSQL/PostGIS tests; clean exact head; Ruff and diff check |
+| 49 | 22 | 1 | DIFF_REVIEW_PASSED | R04-M, database-specialist review and R04-CP-DB all passed after correction with no remaining findings or evidence gaps. | Sol/xhigh reviewer `/root/r04_diff_review` |
+| 50 | 22 | 1 | SLICE_ACCEPTED | R04/DB-004 accepted exactly once and unlocked R02 and R34. | R04-P/M/CP-DB; exact catalog and constraint-timing evidence |
+| 51 | 22 | 1 | DIFF_REVIEW_FIX | R08-M/SEC/CP-SECURITY found the PostgreSQL oracle manufactured a target-admin row lock and used scheduler latency rather than a database blocking witness. | Sol/xhigh reviewer `/root/r08_diff_review`; production implementation retained |
+| 52 | 22 | 1 | DIFF_REVIEW_FIX | R15-M/CP-WORKERS found no worker-level three-item crash/partial-completion regression proving the sweep re-raises and later work remains untouched/reclaimable. | Sol/high reviewer `/root/r15_diff_review`; production implementation retained |
+| 53 | 22 | 1 | USER_AUTHORIZED | Owner required one full dependency/conflict partition, visible top-level implementation tasks in the saved checkout, no implementation subagents, and maximum safely justified rolling concurrency above the two-writer baseline. | current controller task, 1 Sep 2026 |
+| 54 | 22 | 1 | SESSION_PARTITION_RECORDED | Every R01-R60 slice and all 86 FIX candidates were assigned exactly once to historical, correction or S01-S29 sessions by shared surface, dependencies, risk, verification and partial-completion semantics. | deterministic implementation-session partition above; all 29 non-executable dispositions unchanged |
+| 55 | 22 | 1 | CONTROL_CHANGE_VERIFIED | Progress authority now records capacity three, exact active assignment and disjoint justification; the validator rejects missing/mismatched/over-capacity control state. | 48 focused tests; repository validator; Ruff; diff check |
+| 56 | 23 | 1 | CONTROL_REVIEW_FIX | Independent review found stale ready-front labels for R28/R32 and an omitted R28 planning action; R28 is now plan-ready, while R32 is explicitly conflict-held behind R08's unintegrated driver-application surface. | Sol/high reviewer `/root/scheduler_control_review`; candidate/slice/disposition and current writer checks otherwise clean |
+| 57 | 24 | 1 | CONTROL_REVIEW_PASSED | The visible-task/concurrency amendment and deterministic session partition passed independent minimal-change and CP-CONTROL review with no remaining findings. | Sol/high reviewer `/root/scheduler_control_review`; 60/60 slices, 86/86 FIX candidates, exact 9/12/8 dispositions; 48 tests; validator; Ruff; diff check |

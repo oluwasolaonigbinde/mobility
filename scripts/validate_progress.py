@@ -807,9 +807,47 @@ def validate_text(text: str) -> list[str]:
         for remediation_slice in remediation_slices
         if remediation_slice.status == "ACTIVE"
     ]
-    if len(active_remediation_slices) > 2:
+    capacity_match = re.search(
+        r"^\*\*Current justified remediation writer capacity:\*\* `(\d+)`$",
+        text,
+        flags=re.MULTILINE,
+    )
+    assignment_match = re.search(
+        r"^\*\*Current capacity assignment:\*\* `([^`]*)`$",
+        text,
+        flags=re.MULTILINE,
+    )
+    justification_match = re.search(
+        r"^\*\*Current capacity justification:\*\* (.+)$",
+        text,
+        flags=re.MULTILINE,
+    )
+    remediation_writer_capacity = 2
+    if capacity_match is None:
+        errors.append("current remediation writer capacity is missing")
+    else:
+        remediation_writer_capacity = int(capacity_match.group(1))
+        if remediation_writer_capacity < 1:
+            errors.append("current remediation writer capacity must be positive")
+    assigned_active_ids = (
+        [item.strip() for item in assignment_match.group(1).split(",") if item.strip()]
+        if assignment_match is not None
+        else []
+    )
+    actual_active_ids = [item.slice_id for item in active_remediation_slices]
+    if assignment_match is None:
+        errors.append("current remediation capacity assignment is missing")
+    elif assigned_active_ids != actual_active_ids:
         errors.append(
-            f"at most two remediation slices may be ACTIVE; found {len(active_remediation_slices)}"
+            "current remediation capacity assignment does not match ACTIVE slices: "
+            f"assigned {assigned_active_ids}, actual {actual_active_ids}"
+        )
+    if justification_match is None or not justification_match.group(1).strip():
+        errors.append("current remediation capacity justification is missing")
+    if len(active_remediation_slices) > remediation_writer_capacity:
+        errors.append(
+            "current remediation writer capacity exceeded: "
+            f"capacity {remediation_writer_capacity}, found {len(active_remediation_slices)}"
         )
 
     try:

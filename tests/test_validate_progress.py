@@ -46,6 +46,32 @@ def _with_control_pointer(text: str, *, state: str, package: str, checkpoint: st
     )
 
 
+def _with_remediation_capacity(
+    text: str, *, capacity: int, active_slice_ids: list[str]
+) -> str:
+    text = re.sub(
+        r"^\*\*Current justified remediation writer capacity:\*\* `\d+`$",
+        f"**Current justified remediation writer capacity:** `{capacity}`",
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    text = re.sub(
+        r"^\*\*Current capacity assignment:\*\* `[^`]*`$",
+        f"**Current capacity assignment:** `{', '.join(active_slice_ids)}`",
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    return re.sub(
+        r"^\*\*Current capacity justification:\*\* .+$",
+        "**Current capacity justification:** synthetic validator fixture",
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+
+
 def _queue_all_remediation(text: str) -> str:
     lines: list[str] = []
     for line in text.splitlines():
@@ -58,7 +84,9 @@ def _queue_all_remediation(text: str) -> str:
             cells[6] = f"{checkpoint} PENDING"
             line = "| " + " | ".join(cells) + " |"
         lines.append(line)
-    return "\n".join(lines) + "\n"
+    return _with_remediation_capacity(
+        "\n".join(lines) + "\n", capacity=2, active_slice_ids=[]
+    )
 
 
 def _complete_all_remediation(text: str) -> str:
@@ -74,7 +102,9 @@ def _complete_all_remediation(text: str) -> str:
             cells[6] = f"{checkpoint} PASS — {slice_id}-{checkpoint}"
             line = "| " + " | ".join(cells) + " |"
         lines.append(line)
-    return "\n".join(lines) + "\n"
+    return _with_remediation_capacity(
+        "\n".join(lines) + "\n", capacity=2, active_slice_ids=[]
+    )
 
 
 def _r01_active_remediation() -> str:
@@ -94,11 +124,15 @@ def _r01_active_remediation() -> str:
         count=1,
         flags=re.MULTILINE,
     )
-    return _with_control_pointer(
-        text,
-        state="ACTIVE",
-        package="PKG-10",
-        checkpoint="R01",
+    return _with_remediation_capacity(
+        _with_control_pointer(
+            text,
+            state="ACTIVE",
+            package="PKG-10",
+            checkpoint="R01",
+        ),
+        capacity=2,
+        active_slice_ids=["R01"],
     )
 
 
@@ -235,8 +269,28 @@ def test_remediation_active_capacity_and_dependency_admission_are_enforced() -> 
         )
     )
     assert any(
-        "at most two remediation slices may be ACTIVE" in error
+        "current remediation capacity assignment does not match ACTIVE slices" in error
         for error in _errors(over_capacity)
+    )
+
+    over_recorded_capacity = _with_remediation_capacity(
+        over_capacity,
+        capacity=2,
+        active_slice_ids=["R01", "R04", "R08"],
+    )
+    assert any(
+        "current remediation writer capacity exceeded: capacity 2, found 3" in error
+        for error in _errors(over_recorded_capacity)
+    )
+
+    missing_justification = _progress().replace(
+        "**Current capacity justification:**",
+        "**Removed capacity justification:**",
+        1,
+    )
+    assert any(
+        "current remediation capacity justification is missing" in error
+        for error in _errors(missing_justification)
     )
 
     unmet = _r01_active_remediation().replace(
