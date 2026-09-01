@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R13, R34`
-**Current capacity justification:** `R13` is frozen in independent privacy/security review. The owner-directed Claude Opus 5 / High integration session owns only `tests/test_audit_route_coverage.py`; R34's 38-file implementation is frozen and its overlapping test lease transferred. All future-chain planning sessions have returned, so no planner mutates the checkout. R02/R09 remain held until R13 admission, and ready R25 remains reserved for the second Opus handoff once contracts release. Shared fixtures and this file remain controller-serialized.
+**Current capacity assignment:** `R34`
+**Current capacity justification:** The owner-directed Claude Opus 5 / High integration session owns only `tests/test_audit_route_coverage.py`; R34's 38-file implementation is frozen and its overlapping test lease transferred. R13 is accepted and its five-file lease is released. R09 is reserved as the next disjoint Opus session; R02 remains held against R34's configuration/test surfaces, and R25 remains held against R34's generated contracts. Shared fixtures and this file remain controller-serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -78,10 +78,10 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 now rolling across dependency-ready disjoint slices while all 29 non-executable
 findings retain their admitted dispositions.
-**Current checkpoint:** `PKG-10 / R13` — attempt 13 is frozen in independent
-privacy/security admission review alongside R34 integration and one remaining
-future-chain plan. R02/R09 wait for R13; R25 waits for the generated-contract
-lane.
+**Current checkpoint:** `PKG-10 / R34` — its inherited audit-route integration
+runs in the first owner-requested Opus session. Accepted R13 released the auth
+and audit seam; R09 is reserved for the second disjoint Opus session. R02 and
+R25 remain held against R34's central surfaces.
 
 ## Direct owner requests outside the package queue
 
@@ -1534,7 +1534,7 @@ durable ledger before changing a row.
 | R10 | AUT-005 | R08 | COMPLETE | PASS — R10-P | PASS — R10-M | CP-SECURITY PASS — R10-CP-SECURITY |
 | R11 | AUT-004 | R09 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
 | R12 | AUT-003, REL-003 | R11 | QUEUED | PASS — R12-P | PENDING | CP-SECURITY PENDING |
-| R13 | SEC-001, PRV-008 | none | ACTIVE | PASS — R13-P | PENDING | CP-PRIVACY PENDING |
+| R13 | SEC-001, PRV-008 | none | COMPLETE | PASS — R13-P | PASS — R13-M | CP-PRIVACY PASS — R13-CP-PRIVACY |
 | R14 | SEC-002, TST-004 | R12 | QUEUED | PASS — R14-P | PENDING | CP-SECURITY PENDING |
 | R15 | GOV-006 | none | COMPLETE | PASS — R15-P | PASS — R15-M | CP-WORKERS PASS — R15-CP-WORKERS |
 | R16 | GOV-008 | none | COMPLETE | PASS — R16-P | PASS — R16-M | CP-CONTROL PASS — R16-CP-CONTROL |

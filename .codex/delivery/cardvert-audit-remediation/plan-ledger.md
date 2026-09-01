@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 112
+plan_revision: 113
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 231
+last_event_sequence: 234
 ---
 
 # Cardvert audit remediation programme
@@ -191,11 +191,11 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R06 | DB-002 | BLOCKED-OWNER | R02, R04, R05; historical migration authority | plan review confirmed exact downgrade guards require superseding the D15/architecture freeze | owner must authorize narrow edits to shipped 0010/0014/0016 downgrade bodies plus authority updates |
 | R07 | DB-003 | WAITING | R02, R04, R06 | R07-P; reviewed database immutability contract | wait for R06 policy/dependency and serialized migration lane |
 | R08 | GOV-005 | ACCEPTED | security opener | R08-P; R08-M; R08-SEC; R08-CP-SECURITY; lock-removal red and real PostgreSQL green | complete |
-| R09 | GOV-007, AUT-001, AUT-002 | READY | R10 | R09-P; reviewed command/lock/race contract | wait for R13 release and an exact write lease |
+| R09 | GOV-007, AUT-001, AUT-002 | RESERVED | R10 | R09-P; reviewed command/lock/race contract | launch second owner-requested Opus 5 / High session on exact disjoint lease; exclude active audit-route registry |
 | R10 | AUT-005 | ACCEPTED | R08 | R10-P/M/SEC/CP-SECURITY; strict-claim and route-graph evidence | complete |
 | R11 | AUT-004 | BLOCKED-OWNER | R09; logout policy | plan review confirmed current-device documentation conflicts with schema-free global revocation | owner must choose visible sign-out-everywhere or per-session identity/migration authority |
 | R12 | AUT-003, REL-003 | WAITING | R11 | R12-P; reviewed fail-closed throttling/readiness contract | wait for R11 owner decision/acceptance and R34 config/health release |
-| R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P; attempts 1-12 reviews FIX; attempt 12 `b75a5d8f...` | recognize one-or-more leading dots and fail closed through existing empty-component validation |
+| R13 | SEC-001, PRV-008 | ACCEPTED | sensitive-metadata opener | R13-P/M/SEC/PRV/CP-PRIVACY; exact `bf8b2d2d...`; 29 fresh controller PostgreSQL-backed passes | complete |
 | R14 | SEC-002, TST-004 | WAITING | R12 | R14-P; reviewed deployed edge/browser security contract | wait for accepted R12; serialize central configuration before R54 |
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | ACCEPTED | provider-boundary opener | R16-P/M/CONTRACT/CP-CONTROL; structural and behavioral evidence | complete |
@@ -299,8 +299,8 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 13 | GPT-5.6 Sol/high — repeated-leading-dot privacy correction | released frozen exact `bf8b2d2d...` five-file diff | FROZEN-REVIEW |
-| `/root/r13_attempt5_review` | S05 / R13 attempt-13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — cross-sink privacy-security admission | read-only exact `bf8b2d2d...` diff | ACTIVE-REVIEW |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 13 | GPT-5.6 Sol/high — repeated-leading-dot privacy correction | integrated product commit `1b938ef` | ACCEPTED |
+| `/root/r13_attempt5_review` | S05 / R13 attempt-13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — cross-sink privacy-security admission | read-only exact `bf8b2d2d...` diff | PASS |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-12 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — malformed quote/path privacy-security admission | released reviewed exact `b75a5d8f...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-11 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — quote/path privacy-security admission | released reviewed exact `a60288c2...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-10 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded Unicode/path privacy-security admission | released reviewed exact `203ef022...` diff | FIX |
@@ -644,3 +644,6 @@ verification is complete.
 | 229 | 111 | 1 | DIFF_REVIEW_RESERVED | Frozen R13 attempt 13 reserved repeat independent minimal-change, security/privacy-specialist and CP-PRIVACY review. | GPT-5.6 Sol/high; read-only exact `bf8b2d2d...` diff; no mutation authority |
 | 230 | 111 | 1 | DIFF_REVIEW_STARTED | Frozen R13 attempt 13 entered repeat independent adversarial minimal-change, security/privacy-specialist and CP-PRIVACY review. | reused `/root/r13_attempt5_review`; GPT-5.6 Sol/high; read-only exact `bf8b2d2d...` diff |
 | 231 | 112 | 1 | PLAN_REVIEW_PASSED | R12-P and R14-P passed as separate reviewed fail-closed throttling/readiness and deployed edge/browser-security contracts; both remain dependency/owner/lease-held. | task `01a05ef8-af56-7192-825a-ce4f00f9c86b`; GPT-5.6 Sol/high; exact no-write confirmation; central lease order R12 → R14 → R54 |
+| 232 | 113 | 1 | DIFF_REVIEW_PASSED | R13 attempt 13 passed independent minimal-change, security, privacy and CP-PRIVACY review with no findings after a 144-case delimiter/path matrix and bounded-resource probes. | Sol/high reviewer `/root/r13_attempt5_review`; exact `bf8b2d2d...`; no writes |
+| 233 | 113 | 1 | SLICE_ACCEPTED | R13/SEC-001,PRV-008 accepted exactly once after exact-digest inspection and a fresh 29-test PostgreSQL-backed controller run. | product commit `1b938ef`; R13-P/M/SEC/PRV/CP-PRIVACY; exact five-file scope |
+| 234 | 113 | 1 | DISPATCH_RESERVED | R09 reserved as the second owner-requested visible Claude Code implementation session after accepted R13 released its auth/audit seam. | Claude Opus 5 / High; exact R09 command/lock/race lease; active audit-route registry excluded until R34 integration releases it |
