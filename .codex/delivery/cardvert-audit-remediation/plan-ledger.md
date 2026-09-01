@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 57
+plan_revision: 58
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 134
+last_event_sequence: 136
 ---
 
 # Cardvert audit remediation programme
@@ -299,7 +299,8 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- | --- | --- |
 | controller | rolling scheduler | GPT-5.6 Sol/medium — owner-adjusted controller | ledger and `docs/progress.md` | ACTIVE |
 | task `01a05e48-5e4b-7a23-8949-ade25c595d00` | V01 / R08 evidence correction | GPT-5.6 Sol/xhigh — authorization concurrency and lock-oracle safety | released exact R08 diff | ACCEPTED |
-| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 5 | GPT-5.6 Sol/high — bounded serialized-value and recursion safety correction | exact four-file R13 lease; no path expansion | RESERVED |
+| task `01a05e48-b4b6-7531-9aa4-486e42f20eb9` | S05 / R13 correction attempt 5 | GPT-5.6 Sol/high — bounded serialized-value and recursion safety correction | exact four-file R13 lease; no path expansion | ACTIVE |
+| pending visible task | S01 / R02-R03-R17 aggregate current-source plan | GPT-5.6 Sol/medium — CI, contract and coverage planning without mutation | no mutation lease; implementation remains held | RESERVED |
 | task `01a05e49-0107-7611-8ee8-515273881aa8` | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | released exact R15 diff | ACCEPTED |
 | task `01a05e49-48d5-7823-9388-537d0800e87b` | S07 / R28 plan and independent review | GPT-5.6 Terra/high — ordinary bounded campaign lifecycle planning | read-only; no mutation lease | BLOCKED-OWNER |
 | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32 implementation, R33 held | GPT-5.6 Sol/high — onboarding security, migration and contract authority | released accepted R32 diff; R33 remains dependency-held | ACCEPTED |
@@ -366,9 +367,10 @@ that newer migration removes itself.
 
 ## Next scheduler action
 
-Dispatch the exact R13 correction attempt 5 and await its event-driven callback
-alongside S09/R23. Continue one read-only Sol/medium planning front elsewhere
-only when it does not consume needed implementation/review capacity. Keep R06,
+Await the exact R13 correction attempt 5 callback alongside S09/R23. Start one
+read-only Sol/medium S01 plan for the cohesive R02-R03-R17 control/contract
+chain; it may not mutate until dependencies and central/shared lanes release.
+Keep R06,
 R11 and R28 blocked on their recorded owner choices without
 freezing independent work. R09 remains write-held until R13 releases the
 admin/audit seam; R33 remains held behind R05; R34 has an accepted plan but is
@@ -517,3 +519,5 @@ verification is complete.
 | 132 | 56 | 1 | PLAN_REVIEW_PASSED | R07-P passed for database-enforced purge-audit update/delete/truncate denial with preserved append/read behavior; implementation remains held behind R06. | visible S02 task; independent Sol/medium review; zero file mutation |
 | 133 | 57 | 1 | DIFF_REVIEW_FIX | R13 attempt 4 still truncates nested sensitive serialized values at assignment-like punctuation and can exhaust recursion on a roughly 1KB repeated-assignment chain. | Sol/high reviewer `/root/r13_attempt4_review`; exact `6753a823...`; deterministic direct, formatter, Sentry, audit-write and legacy-projection failures |
 | 134 | 57 | 1 | DISPATCH_RESERVED | The same visible S05 task reserved correction attempt 5 on the unchanged four-file lease, limited to delimiter-aware serialized-value handling and bounded fail-closed traversal with cross-sink regressions. | GPT-5.6 Sol/high; no xhigh escalation or path expansion; full repeat review required |
+| 135 | 58 | 1 | DISPATCH_STARTED | Visible S05/R13 correction attempt 5 reacquired the unchanged four-file lease for the two exact serialized-value and traversal findings. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; GPT-5.6 Sol/high; event-driven terminal callback required |
+| 136 | 58 | 1 | PLAN_DISPATCH_RESERVED | S01/R02-R03-R17 reserved one visible read-only aggregate planning task for the cohesive control/contract/coverage chain while its implementation surfaces remain conflict-held. | GPT-5.6 Sol/medium; no mutation lease or worktree; no product edits before controller steering |
