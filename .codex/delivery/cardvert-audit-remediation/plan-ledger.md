@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 114
+plan_revision: 115
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 238
+last_event_sequence: 239
 ---
 
 # Cardvert audit remediation programme
@@ -315,7 +315,7 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32 implementation, R33 held | GPT-5.6 Sol/high — onboarding security, migration and contract authority | released accepted R32 diff; R33 remains dependency-held | ACCEPTED |
 | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | S12 / R34 implementation; R35-R37 held | GPT-5.6 Sol/high — offline/privacy/money protocol and migration authority | reacquired corrected audit registry; rerunning full integrated R34 gates | ACTIVE-VERIFY |
 | Claude session `Cardvert audit-route integration correction` | R34 inherited audit-registry integration | Claude Opus 5 / High — owner-selected bounded audit/security evidence correction | exact `tests/test_audit_route_coverage.py` correction `34b7d55b...`; 7 controller PostgreSQL passes | COMPLETE-RETURNED |
-| Claude session `Cardvert R09 authentication remediation` | R09 auth command/status/reset implementation | Claude Opus 5 / High — owner-selected authentication and PostgreSQL race boundary | exact R09 auth/user/test lease; audit registry excluded | ACTIVE |
+| Claude session `Cardvert R09 authentication remediation` | R09 auth command/status/reset implementation | Claude Opus 5 / High — owner-selected authentication and PostgreSQL race boundary | exact R09 auth/user/test lease; audit registry and R34-owned architecture file excluded | ACTIVE |
 | task `01a05ef6-632c-79b1-bdf3-16c6e95aafd4` | S10/S11/S13/S14 aggregate R18-R22 and R29-R31 planning | GPT-5.6 Sol/high — money/migration/concurrency planning | read-only; R18-P through R22-P and R29-P through R31-P accepted | PLAN-PASS |
 | task `01a05ef6-92fc-7df1-bd39-50e8c2fee530` | S15-S19 aggregate R38-R44 privacy/audit planning | GPT-5.6 Sol/high — privacy/security/lifecycle planning | read-only; R38-P through R44-P accepted | PLAN-PASS |
 | task `01a05ef6-c545-7401-8114-4afe32fc9bf7` | S20-S22 aggregate R45-R52 reporting planning | GPT-5.6 Sol/high — reporting/privacy/concurrency planning | read-only; R45-P through R52-P accepted | PLAN-PASS |
@@ -652,3 +652,4 @@ verification is complete.
 | 236 | 114 | 1 | INTEGRATION_GATE_PASSED | The controller matched the returned audit-registry file/diff hashes and reran the complete module on real PostgreSQL with all seven tests passing. | `tests/test_audit_route_coverage.py`; KNOWN_UNAUDITED remains empty; R34 blocker released |
 | 237 | 114 | 1 | DISPATCH_RESUMED | Visible S12/R34 reacquired the corrected audit-registry lease to rerun the full integrated OFF-001 gates and refreeze its 38-file packet. | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879`; GPT-5.6 Sol/high; R35-R37 remain held |
 | 238 | 114 | 1 | DISPATCH_STARTED | The second owner-requested visible Claude Code session began R09's reviewed auth command, status-rotation and PostgreSQL race implementation. | Claude session `Cardvert R09 authentication remediation`; Opus 5 / High; exact disjoint lease; no audit-registry mutation |
+| 239 | 115 | 1 | LEASE_CORRECTED | R09's optional architecture documentation path was removed before product writes because active R34 already owns the dirty shared file. | Claude session `Cardvert R09 authentication remediation`; auth/user code and focused tests remain disjoint; stop if documentation is indispensable |
