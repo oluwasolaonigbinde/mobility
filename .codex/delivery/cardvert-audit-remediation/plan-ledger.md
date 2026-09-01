@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 111
+plan_revision: 112
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 230
+last_event_sequence: 231
 ---
 
 # Cardvert audit remediation programme
@@ -194,9 +194,9 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R09 | GOV-007, AUT-001, AUT-002 | READY | R10 | R09-P; reviewed command/lock/race contract | wait for R13 release and an exact write lease |
 | R10 | AUT-005 | ACCEPTED | R08 | R10-P/M/SEC/CP-SECURITY; strict-claim and route-graph evidence | complete |
 | R11 | AUT-004 | BLOCKED-OWNER | R09; logout policy | plan review confirmed current-device documentation conflicts with schema-free global revocation | owner must choose visible sign-out-everywhere or per-session identity/migration authority |
-| R12 | AUT-003, REL-003 | QUEUED | R11 | — | wait |
+| R12 | AUT-003, REL-003 | WAITING | R11 | R12-P; reviewed fail-closed throttling/readiness contract | wait for R11 owner decision/acceptance and R34 config/health release |
 | R13 | SEC-001, PRV-008 | ACTIVE | sensitive-metadata opener | R13-P; attempts 1-12 reviews FIX; attempt 12 `b75a5d8f...` | recognize one-or-more leading dots and fail closed through existing empty-component validation |
-| R14 | SEC-002, TST-004 | QUEUED | R12 | — | wait |
+| R14 | SEC-002, TST-004 | WAITING | R12 | R14-P; reviewed deployed edge/browser security contract | wait for accepted R12; serialize central configuration before R54 |
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | ACCEPTED | provider-boundary opener | R16-P/M/CONTRACT/CP-CONTROL; structural and behavioral evidence | complete |
 | R17 | TST-007 | BLOCKED-OWNER | R02, R03; coverage policy | plan review found no authoritative floor/path/base/ratchet policy | owner must adopt exact backend/frontend coverage enforcement policy before R17-P re-review |
@@ -236,7 +236,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R51 | REP-006 | WAITING | R43, R49, R50 | R51-P; reviewed fenced generation-scoped publication contract | wait for accepted predecessors; Sol/xhigh implementation gate retained |
 | R52 | MET-006 | WAITING | R51 | R52-P; reviewed methodology-derived copy-guard contract | wait for accepted R51 |
 | R53 | REL-005 | ACCEPTED | release opener | R53-P; R53-M; R53-RELEASE; R53-CP-RELEASE; real Docker red/green | complete |
-| R54 | REL-006 | WAITING | R12, R16, R53 | R54-P; reviewed fail-closed environment-template contract | wait for R12 and central configuration release |
+| R54 | REL-006 | WAITING | R12, R16, R53 | R54-P; reviewed fail-closed environment-template contract | wait for accepted R12 and R14; central lease order R12 → R14 → R54 |
 | R55 | REL-004 | WAITING | R03, R18, R48, R51, R54 | R55-P; reviewed mechanically generated compatibility receipt contract | wait for predecessors and exclusive release lane |
 | R56 | TST-005 | WAITING | R09, R11, R14, R40 | R56-P; reviewed generated authorization-denial matrix | wait for predecessors and audit-route fixture release |
 | R57 | TST-008 | WAITING | R19, R27, R49, R55 | R57-P; reviewed deterministic clock boundary contract | wait for predecessors and shared auth/release fixtures |
@@ -319,7 +319,7 @@ trigger and a newly reviewed authority amendment.
 | task `01a05ef6-92fc-7df1-bd39-50e8c2fee530` | S15-S19 aggregate R38-R44 privacy/audit planning | GPT-5.6 Sol/high — privacy/security/lifecycle planning | read-only; R38-P through R44-P accepted | PLAN-PASS |
 | task `01a05ef6-c545-7401-8114-4afe32fc9bf7` | S20-S22 aggregate R45-R52 reporting planning | GPT-5.6 Sol/high — reporting/privacy/concurrency planning | read-only; R45-P through R52-P accepted | PLAN-PASS |
 | task `01a05ef6-ee2d-79e0-9e50-153b035d771e` | S23-S27 aggregate R54-R58 release/test planning | GPT-5.6 Sol/high — release/security/worker planning | read-only; R54-P through R58-P accepted | PLAN-PASS |
-| task `01a05ef8-af56-7192-825a-ce4f00f9c86b` | S04 aggregate R12-R14 security/readiness planning | GPT-5.6 Sol/high — authentication/trusted-edge/release planning | read-only; no mutation lease | ACTIVE-PLAN |
+| task `01a05ef8-af56-7192-825a-ce4f00f9c86b` | S04 aggregate R12-R14 security/readiness planning | GPT-5.6 Sol/high — authentication/trusted-edge/release planning | read-only; R12-P and R14-P accepted | PLAN-PASS |
 | `/root/r15_re_review` | V02 / R15 repeat M and CP-WORKERS review | GPT-5.6 Sol/high — worker crash and claim/retry semantics | read-only frozen R15 diff | PASS |
 | `/root/r08_re_review` | V01 / R08 repeat M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — authorization concurrency, deadlock and evidence semantics | read-only frozen R08 diff | PASS |
 | `/root/r13_diff_review` | S05 / R13 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/xhigh — cross-sink PII and audit-authority semantics | released reviewed R13 diff `4636fce9...` | FIX |
@@ -643,3 +643,4 @@ verification is complete.
 | 228 | 111 | 1 | IMPLEMENTATION_RETURNED | S05/R13 correction attempt 13 released its exact five-file diff after recognizing every repeated-leading-empty dotted assignment form and retaining the prior privacy, compatibility and bounded-work corpus. | task `01a05e48-b4b6-7531-9aa4-486e42f20eb9`; frozen `bf8b2d2d...`; 32 final PostgreSQL/compatibility passes; no stage or commit |
 | 229 | 111 | 1 | DIFF_REVIEW_RESERVED | Frozen R13 attempt 13 reserved repeat independent minimal-change, security/privacy-specialist and CP-PRIVACY review. | GPT-5.6 Sol/high; read-only exact `bf8b2d2d...` diff; no mutation authority |
 | 230 | 111 | 1 | DIFF_REVIEW_STARTED | Frozen R13 attempt 13 entered repeat independent adversarial minimal-change, security/privacy-specialist and CP-PRIVACY review. | reused `/root/r13_attempt5_review`; GPT-5.6 Sol/high; read-only exact `bf8b2d2d...` diff |
+| 231 | 112 | 1 | PLAN_REVIEW_PASSED | R12-P and R14-P passed as separate reviewed fail-closed throttling/readiness and deployed edge/browser-security contracts; both remain dependency/owner/lease-held. | task `01a05ef8-af56-7192-825a-ce4f00f9c86b`; GPT-5.6 Sol/high; exact no-write confirmation; central lease order R12 → R14 → R54 |
