@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 179
+plan_revision: 180
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 305
+last_event_sequence: 306
 ---
 
 # Cardvert audit remediation programme
@@ -758,3 +758,4 @@ verification is complete.
 | 303 | 178 | 1 | CORRECTION_RESUMED | Existing visible S15 resumed only the bounded R38 default/fixture correction on its reconciled implementation bytes. | task `01a05ef6-92fc-7df1-bd39-50e8c2fee530`; GPT-5.6 Sol/high — privacy collection authority; repeat R38-M only; proactive terminal callback required |
 | 304 | 178 | 1 | INTEGRATION_CORRECTION_STARTED | Existing visible S12 began V04's one-file invited-membership assertion correction while R36 remains owner-blocked and unwritten. | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879`; GPT-5.6 Terra/high; exact `tests/test_campaigns.py` assertion lease; no product authority; proactive terminal callback required |
 | 305 | 179 | 1 | INTEGRATION_CORRECTION_ACCEPTED | V04's invited-membership assertion correction was admitted after exact-digest reconciliation, diff inspection and controller PostgreSQL verification. | binary diff `e3db3888...`; independent minimal-change/authorization PASS; controller exact test 1 passed; one test file only; no product behavior changed |
+| 306 | 180 | 1 | SCHEDULER_POLICY_AMENDED | The owner directed the controller to prefer the longest cohesive dependency-aligned multi-slice session that preserves disjoint ownership, model fit, verification, specialist gates and per-slice partial-completion receipts. | no arbitrary slice count; owners callback at full-packet terminal/block/conflict only; migrations/contracts/shared fixtures remain serialized; current S09 expands R26→R27 after an internal verified R26 checkpoint |
