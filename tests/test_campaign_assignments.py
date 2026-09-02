@@ -2491,7 +2491,11 @@ def test_admin_activation_then_driver_trip_uses_real_synthetic_authorities(
     trip = db_client.post(
         "/api/v1/driver/trips/start",
         headers=auth_headers(db_client, driver.email, PASSWORD),
-        json={"assignment_id": str(assignment_id), "metadata": {"synthetic_test": True}},
+        json={
+            "assignment_id": str(assignment_id),
+            "evidence_protocol_version": 2,
+            "metadata": {"synthetic_test": True},
+        },
     )
     assert trip.status_code == http_status.HTTP_201_CREATED, trip.text
     assert trip.json()["assignment_id"] == str(assignment_id)

@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 172
+plan_revision: 173
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 296
+last_event_sequence: 297
 ---
 
 # Cardvert audit remediation programme
@@ -749,3 +749,4 @@ verification is complete.
 | 294 | 170 | 1 | INTEGRATION_CORRECTION_RESERVED | An exact two-test correction is reserved for the accepted R34 protocol fixtures exposed by R02's full real-service gate: both trip starts must declare protocol v2 while preserving their campaign activation/cutoff assertions. | `tests/test_campaign_assignments.py`, `tests/test_campaign_cancellations.py`; Terra/high test-only correction; no product/contract/migration authority; disjoint from R25/R38 |
 | 295 | 171 | 1 | INTEGRATION_CORRECTION_STARTED | Existing visible S12 began the exact two-test accepted-R34 fixture correction needed to unblock R02's full authority gate. | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879`; GPT-5.6 Terra/high; proactive terminal callback required; R36 remains separately BLOCKED-OWNER |
 | 296 | 172 | 1 | LEASE_EXPANDED | V03 may update only `test_cancellation_and_trip_start_race_never_creates_post_cutoff_work` in the already leased cancellation test file so its direct `TripStartRequest` declares protocol v2 while preserving the PostGIS race outcomes. | adjacent module exposed one third stale accepted-R34 fixture; no product/helper/contract expansion; repeat exact race and both modules |
+| 297 | 173 | 1 | INTEGRATION_CORRECTION_ACCEPTED | The accepted-R34 trip fixture correction reproduced its exact two-file digest and all three affected activation/cancellation/race journeys passed on controller PostgreSQL/PostGIS. | binary diff `95879da3...`; V03 minimal-change PASS; controller 3 passed; no product/contract/migration change; R02 full gate unblocked |

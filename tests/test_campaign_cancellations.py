@@ -244,7 +244,11 @@ def test_post_cutoff_tracking_is_retained_as_non_economic_evidence(
     started = db_client.post(
         "/api/v1/driver/trips/start",
         headers=auth_headers(db_client, "cancel-track-driver@example.com"),
-        json={"assignment_id": str(assignment.id), "metadata": {}},
+        json={
+            "assignment_id": str(assignment.id),
+            "evidence_protocol_version": 2,
+            "metadata": {},
+        },
     )
     assert started.status_code == 201, started.text
 
@@ -263,7 +267,7 @@ def test_post_cutoff_tracking_is_retained_as_non_economic_evidence(
         f"/api/v1/driver/trips/{started.json()['id']}/pings",
         headers=auth_headers(db_client, "cancel-track-driver@example.com"),
         json=ping_payload(
-            recorded_at=cutoff + timedelta(microseconds=1),
+            recorded_at=cutoff + timedelta(milliseconds=1),
             idempotency_key="post-cancellation-evidence",
         ),
     )
@@ -417,7 +421,10 @@ def test_cancellation_and_trip_start_race_never_creates_post_cutoff_work(
                 await start_driver_trip(
                     session,
                     user_id=driver.id,
-                    payload=TripStartRequest(assignment_id=assignment.id),
+                    payload=TripStartRequest(
+                        assignment_id=assignment.id,
+                        evidence_protocol_version=2,
+                    ),
                     settings=settings,
                 )
                 await session.commit()
