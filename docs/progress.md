@@ -45,9 +45,9 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `3`
+**Current justified remediation writer capacity:** `2`
 **Current capacity assignment:** `R02, R46`
-**Current capacity justification:** R02's final aggregate remains held. Inside R02, fresh Opus 5 High packet R02-A owns only stale migration/control test fixtures and R02-B owns only stale seed/trip-processing test fixtures. R46 runs in a fresh Sol/medium local session and owns only the new cohort selector plus measurement/report services and their two focused tests. The seven paths are disjoint; no migration, generated-contract, frontend, shared-fixture or controller-document writer overlaps, which justifies the temporary third writer. Read-only Claude Opus product/UX audits remain outside this mutation pool.
+**Current capacity justification:** Both fresh Opus 5 High R02 correction packets are accepted: packet A at `aa7ff02` and packet B at `bce94ad`. R02 now holds only its final immutable integration run until R46 lands, avoiding a duplicate full-suite execution. R46 retains the only active implementation lease: the new cohort selector, measurement/report services and two focused tests. Its interrupted partial candidate is preserved for a fresh Sol/medium continuation. Read-only Claude Opus product/UX audits remain outside this mutation pool.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -89,9 +89,10 @@ chain with migrations 0075–0077. R29→R30 is accepted at `32d617f` and R45 at
 `7f7bd1c`; R56 is accepted at `751060c`. R02's exact CI-authority patch now also
 provisions the application Redis URL, `jq`, lockfile-pinned frontend dependencies and
 Playwright Chromium; focused checks and an immutable frontend-image build are green.
-Its final aggregate is held while fresh Opus packets R02-A and R02-B reconcile
-the remaining repository failures. R46 is active in a third, explicitly disjoint
-Sol/medium lane. R17 remains parked in
+Both Opus correction packets are now accepted at `aa7ff02` and `bce94ad`.
+R02's final aggregate is held only until R46 is accepted so it runs once against
+the next stable product base. R46's interrupted partial candidate remains active
+for fresh Sol/medium continuation. R17 remains parked in
 `to-do.md`.
 
 ## Direct owner requests outside the package queue
