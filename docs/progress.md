@@ -87,11 +87,12 @@ Sol/high seed-only v2 evidence correction. V07's genuine governed zone-insight
 staleness defect is accepted at `06b8a50`; R02 now waits only for V06 and R03
 remains unstarted. In parallel,
 the disjoint R11→R12→R14 security/readiness session and R28 administrator
-campaign-activation session are active. Four temporary writer lanes are safe:
-auth/config/edge, campaign lifecycle, two isolated test fixtures, and audience
-staleness share no files or mutation domains; R02 is frozen and non-writing.
-R17 remains parked in `to-do.md`; R39 and R36 wait for the serialized generated-
-contract/migration lane. No production legacy-money rule is weakened.
+campaign-activation session are active. The accepted V07 owner now holds the
+serialized R39→R44 privacy/audit migration and generated-contract lane. Four
+temporary writer lanes are safe: auth/config/edge, campaign lifecycle, seed-
+only demo compatibility, and privacy/audit share no files or mutation domains;
+R02 is frozen and non-writing. R17 remains parked in `to-do.md`; R36 waits for
+the serialized lane. No production legacy-money rule is weakened.
 
 ## Direct owner requests outside the package queue
 
