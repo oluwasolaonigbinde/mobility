@@ -45,9 +45,9 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `S04 (R11→R12→R14)`, `S15–S19 (R39→R44)`, and `R02` verification.
-**Current capacity justification:** Authentication/readiness and the serialized privacy/audit migration-and-contract lane are disjoint; R02 runs an immutable candidate snapshot and performs no shared-checkout writes. V10 is accepted and its test lease is released. Each owner must stop before any file or mutation-domain overlap.
+**Current justified remediation writer capacity:** `5`
+**Current capacity assignment:** `R02`
+**Current capacity justification:** Authentication/readiness, privacy/audience, historical migration tests, money/concurrency tests and trip-enqueue tests have enumerated disjoint paths. R02 is frozen and performs no writes. The privacy owner retains its existing dirty migration/generated-contract lease; none of the three new correction packets may touch those files. Each owner must stop before any file or mutation-domain overlap.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -79,17 +79,19 @@ authority. The active queue now prioritizes locally executable product and
 engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
-**Current checkpoint:** `PKG-10 / R02` — V10 audited the cohesive class of
-historical current-head inventory assertions and corrected the sole demonstrated
-stale case: migration 0028 now proves its exact four-table boundary at revision
-0028, then separately proves those required tables survive at current head.
-R02 may make one fresh immutable complete-suite attempt from that accepted base.
-R03 remains held until R02 passes and the privacy chain releases generated
-contracts. In parallel, the disjoint R11→R12→R14
-security/readiness session and serialized R39→R44 privacy/audit migration and
-generated-contract lane remain active. R28 and V09 are accepted at `a9c417a`
-and `f44068f`. R17 remains parked in `to-do.md`; R36 waits for the serialized
-lane. V10 changed no product behavior or migration.
+**Current checkpoint:** `PKG-10 / R02` — R02's single complete faithful
+real-service aggregate passed 1722 tests with zero skips and collected the full
+remaining blocker set: 47 out-of-packet repository failures plus five disposable
+runner environment failures. The 28-test control cascade is already reduced to
+and fixed as one controller formatting error. Three disjoint packets now own the
+remaining repository groups: historical migration fixtures; signed-v2 payout
+fixtures plus two genuine reversal deadlocks; and trip-end/enqueue lifecycle
+expectations. R02 stays frozen until those groups are admitted; its next broad
+run must also provide GPG, Node and a host-visible nested-Docker mount. R03
+remains held until R02 passes and the privacy chain releases generated contracts.
+In parallel, R11→R12→R14 and the serialized R39→R44 privacy/audit lane retain
+their existing leases. R17 remains parked in `to-do.md`; R36 waits for the
+serialized lane.
 
 ## Direct owner requests outside the package queue
 
