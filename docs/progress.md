@@ -45,9 +45,9 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R02, R46`
-**Current capacity justification:** Both fresh Opus 5 High R02 correction packets are accepted: packet A at `aa7ff02` and packet B at `bce94ad`. R02 now holds only its final immutable integration run until R46 lands, avoiding a duplicate full-suite execution. R46 retains the only active implementation lease: the new cohort selector, measurement/report services and two focused tests. Its interrupted partial candidate is preserved for a fresh Sol/medium continuation. Read-only Claude Opus product/UX audits remain outside this mutation pool.
+**Current justified remediation writer capacity:** `1`
+**Current capacity assignment:** `R02`
+**Current capacity justification:** Both Opus R02 correction packets and R46 are accepted. R02 now owns the sole active integration checkpoint: one immutable complete real-service run against the stable accepted base. No other writer starts until this exact contribution gate resolves, preventing candidate drift and a duplicate full-suite execution. Read-only Claude Opus product/UX audits remain outside this mutation pool.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -89,10 +89,9 @@ chain with migrations 0075–0077. R29→R30 is accepted at `32d617f` and R45 at
 `7f7bd1c`; R56 is accepted at `751060c`. R02's exact CI-authority patch now also
 provisions the application Redis URL, `jq`, lockfile-pinned frontend dependencies and
 Playwright Chromium; focused checks and an immutable frontend-image build are green.
-Both Opus correction packets are now accepted at `aa7ff02` and `bce94ad`.
-R02's final aggregate is held only until R46 is accepted so it runs once against
-the next stable product base. R46's interrupted partial candidate remains active
-for fresh Sol/medium continuation. R17 remains parked in
+Both Opus correction packets are accepted at `aa7ff02` and `bce94ad`, and R46
+is accepted at `1c89f16`. R02 is released for its one final immutable complete
+real-service authority run against this stable base. R17 remains parked in
 `to-do.md`.
 
 ## Direct owner requests outside the package queue
@@ -1595,7 +1594,7 @@ durable ledger before changing a row.
 | R43 | PRV-007 | R42 | COMPLETE | PASS — R43-P | PASS — R43-M | CP-PRIVACY PASS — R43-CP-PRIVACY |
 | R44 | AUD-005 | R16, R40 | COMPLETE | PASS — R44-P | PASS — R44-M | CP-PRIVACY PASS — R44-CP-PRIVACY |
 | R45 | MET-003 | R04, R41 | COMPLETE | PASS — R45-P | PASS — R45-M | CP-REPORTING PASS — R45-CP-REPORTING |
-| R46 | REP-001 | R45 | ACTIVE | PASS — R46-P | PENDING | CP-REPORTING PENDING |
+| R46 | REP-001 | R45 | COMPLETE | PASS — R46-P | PASS — R46-M | CP-REPORTING PASS — R46-CP-REPORTING |
 | R47 | MET-001, MET-002, MET-004, REP-002 | R41, R46 | QUEUED | PASS — R47-P | PENDING | CP-REPORTING PENDING |
 | R48 | REP-003 | R47 | QUEUED | PASS — R48-P | PENDING | CP-REPORTING PENDING |
 | R49 | REP-004 | R47, R48 | QUEUED | PASS — R49-P | PENDING | CP-REPORTING PENDING |
