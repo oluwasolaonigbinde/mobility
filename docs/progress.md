@@ -79,17 +79,16 @@ authority. The active queue now prioritizes locally executable product and
 engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
-**Current checkpoint:** `PKG-10 / R02` — V05's migration-0013/current-head
-fixture correction is accepted, so R02 resumes its exact immutable
-real-service gate and may continue directly into R03 after its verified
-checkpoint. The R23→R27 commercial chain and R38 collection-time privacy gate
-are accepted; R39 waits for R03 to release the generated-contract lane.
-The disjoint R11→R12→R14 security/readiness session and R28 administrator
-campaign-activation session are active. R06 and R36 may use their already
-reviewed technical safety designs; R17's undetermined coverage policy is parked
-in `to-do.md`. R39 and R36 wait only for the current serialized generated-
-contract/migration lane. R35's disclosed false red-evidence claims remain
-excluded from closure evidence and its final-sealing gap remains R37's.
+**Current checkpoint:** `PKG-10 / R02` — R02's immutable real-service gate is
+frozen on three out-of-packet failures. V06 owns two stale accepted-R34/current-
+head tests; V07 owns the genuine governed zone-insight staleness defect. R02
+resumes only after both are accepted and R03 remains unstarted. In parallel,
+the disjoint R11→R12→R14 security/readiness session and R28 administrator
+campaign-activation session are active. Four temporary writer lanes are safe:
+auth/config/edge, campaign lifecycle, two isolated test fixtures, and audience
+staleness share no files or mutation domains; R02 is frozen and non-writing.
+R17 remains parked in `to-do.md`; R39 and R36 wait for the serialized generated-
+contract/migration lane.
 
 ## Direct owner requests outside the package queue
 
