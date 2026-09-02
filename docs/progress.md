@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R45, R56`
-**Current capacity justification:** R29→R30 is accepted and releases migration 0078 plus campaign/evidence-verification surfaces. Two fresh, write-disjoint lanes now run: R45 owns versioned measurement provenance and its reporting/migration surfaces; R56 owns the authorization matrix, audit-route registry, and its one approved campaign-change ownership correction. R02's expensive complete-suite gate waits for R56's accepted matrix base so it is run once. Read-only Claude Opus product/UX audits remain outside the repository mutation pool.
+**Current capacity assignment:** `R46, R56`
+**Current capacity justification:** R45 is accepted and releases its measurement/migration surfaces. Two write-disjoint lanes now run: R46 owns one frozen cohort/time-boundary authority across measurement/report projections; R56 owns the authorization matrix and its bounded resource-denial corrections. R02's expensive complete-suite gate waits for R56's accepted matrix base so it is run once. Read-only Claude Opus product/UX audits remain outside the repository mutation pool.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -85,8 +85,8 @@ discovered by R02's complete 1,772-test authority run is now accepted: V11
 historical migration fixtures, V12 signed-v2 payout fixtures, V13 reversal
 deadlocks, V14 trip-end/enqueue lifecycle and the controller-state correction.
 R54 is accepted. R39→R44 plus D30 are accepted as one integrated privacy/audit
-chain with migrations 0075–0077. R29→R30 is accepted at `32d617f`; R45 and
-R56 are the current disjoint writers. R02 resumes after R56 is accepted with
+chain with migrations 0075–0077. R29→R30 is accepted at `32d617f` and R45 at
+`7f7bd1c`; R46 and R56 are the current disjoint writers. R02 resumes after R56 is accepted with
 GPG, Node and a host-visible nested-Docker path. R17 remains parked in
 `to-do.md`.
 
@@ -1589,8 +1589,8 @@ durable ledger before changing a row.
 | R42 | PRV-005, PRV-006 | R41 | COMPLETE | PASS — R42-P | PASS — R42-M | CP-PRIVACY PASS — R42-CP-PRIVACY |
 | R43 | PRV-007 | R42 | COMPLETE | PASS — R43-P | PASS — R43-M | CP-PRIVACY PASS — R43-CP-PRIVACY |
 | R44 | AUD-005 | R16, R40 | COMPLETE | PASS — R44-P | PASS — R44-M | CP-PRIVACY PASS — R44-CP-PRIVACY |
-| R45 | MET-003 | R04, R41 | ACTIVE | PASS — R45-P | PENDING | CP-REPORTING PENDING |
-| R46 | REP-001 | R45 | QUEUED | PASS — R46-P | PENDING | CP-REPORTING PENDING |
+| R45 | MET-003 | R04, R41 | COMPLETE | PASS — R45-P | PASS — R45-M | CP-REPORTING PASS — R45-CP-REPORTING |
+| R46 | REP-001 | R45 | ACTIVE | PASS — R46-P | PENDING | CP-REPORTING PENDING |
 | R47 | MET-001, MET-002, MET-004, REP-002 | R41, R46 | QUEUED | PASS — R47-P | PENDING | CP-REPORTING PENDING |
 | R48 | REP-003 | R47 | QUEUED | PASS — R48-P | PENDING | CP-REPORTING PENDING |
 | R49 | REP-004 | R47, R48 | QUEUED | PASS — R49-P | PENDING | CP-REPORTING PENDING |
