@@ -79,9 +79,10 @@ authority; the directly owner-authorized, Pro-admitted remediation programme is
 now rolling across dependency-ready disjoint slices while all 29 non-executable
 findings retain their admitted dispositions.
 **Current checkpoint:** `PKG-10 / R09` — R34/OFF-001 is accepted at `a95a7ca`.
-R09 is frozen for controller review while the newly started, mutually disjoint
-Opus 5 / High R02 and R35 sessions implement CI authority and offline queue
-recovery respectively.
+Independent review returned R09 for the missing typed refresh-command boundary
+and its now-unblocked §6.3 authority update. The same Opus 5 / High owner is
+correcting those exact items while disjoint R02 and R35 sessions implement CI
+authority and offline queue recovery.
 
 ## Direct owner requests outside the package queue
 
