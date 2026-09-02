@@ -431,10 +431,12 @@ async def evaluate_assignment_verification(
     now: datetime | None = None,
 ) -> VerificationSweepResult:
     assignment = await _locked_assignment(session, assignment_id)
-    if assignment is None or assignment.status != CampaignAssignmentStatus.ACTIVE.value:
+    if assignment is None:
         return VerificationSweepResult()
     now = _utc(now or await database_clock(session))
     missed = await _expire_due_challenges(session, assignment=assignment, now=now)
+    if assignment.status != CampaignAssignmentStatus.ACTIVE.value:
+        return VerificationSweepResult(missed_challenges=missed)
     # A two-day technical scan covers the current and immediately completed
     # Lagos day across the UTC boundary. It is not a configurable earnings policy.
     concurrent = await _detect_concurrent_sessions(

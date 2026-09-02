@@ -69,9 +69,13 @@ from app.services.vehicle_onboarding import (
     ensure_current_driver_vehicle_eligibility,
 )
 
-# FND-07 (RM7): a lost race on either assignment-exclusivity index returns the
+# FND-07 (RM7): a lost race on any assignment-exclusivity index returns the
 # same stable 409 code as the pre-check that guards it, never a 500.
 ASSIGNMENT_CONFLICT_ENVELOPES = {
+    "uq_campaign_assignments_driver_active": (
+        "ACTIVE_ASSIGNMENT_EXISTS_FOR_DRIVER",
+        "Another assignment is already active for this driver",
+    ),
     "uq_campaign_assignments_campaign_vehicle_non_terminal": (
         "DUPLICATE_CAMPAIGN_VEHICLE_ASSIGNMENT",
         "A non-terminal assignment already exists for this campaign and vehicle",
@@ -202,6 +206,27 @@ async def ensure_no_other_active_assignment_for_vehicle(
         raise AppError(
             "ACTIVE_ASSIGNMENT_EXISTS_FOR_VEHICLE",
             "Another assignment is already active for this vehicle",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+
+async def ensure_no_other_active_assignment_for_driver(
+    session: AsyncSession,
+    *,
+    driver_profile_id: UUID,
+    assignment_id: UUID,
+) -> None:
+    existing_assignment_id = await session.scalar(
+        select(CampaignAssignment.id).where(
+            CampaignAssignment.driver_profile_id == driver_profile_id,
+            CampaignAssignment.status == CampaignAssignmentStatus.ACTIVE.value,
+            CampaignAssignment.id != assignment_id,
+        )
+    )
+    if existing_assignment_id is not None:
+        raise AppError(
+            "ACTIVE_ASSIGNMENT_EXISTS_FOR_DRIVER",
+            "Another assignment is already active for this driver",
             status_code=status.HTTP_409_CONFLICT,
         )
 
@@ -1964,6 +1989,11 @@ async def activate_admin_assignment(
     await ensure_no_other_active_assignment_for_vehicle(
         session,
         vehicle_id=assignment.vehicle_id,
+        assignment_id=assignment.id,
+    )
+    await ensure_no_other_active_assignment_for_driver(
+        session,
+        driver_profile_id=assignment.driver_profile_id,
         assignment_id=assignment.id,
     )
     production_start = await activation_production_start(

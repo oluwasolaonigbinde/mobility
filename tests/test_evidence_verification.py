@@ -4,7 +4,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from conftest import auth_headers
+from conftest import auth_headers, create_test_display_proof
 from sqlalchemy import func, select
 from test_fraud_assessments import build_graph
 
@@ -23,11 +23,13 @@ from app.models.payout import (
 from app.models.trip import TripSession
 from app.models.trip_analytics import FraudFlag
 from app.services.evidence_verification import (
+    VerificationSweepResult,
     evaluate_assignment_verification,
     list_driver_pending_verifications,
     parse_evidence_renewal_policy,
     queue_physical_spot_check,
     resolve_physical_spot_check,
+    satisfy_pending_evidence_challenges,
 )
 from app.services.fraud_holds import acknowledge_fraud_flag, fraud_hold_counts, resolve_fraud_flag
 
@@ -483,3 +485,185 @@ def test_worker_reports_unconfigured_high_earner_policy_without_inventing_work(
     assert result["policy_unconfigured"] == 1
     assert result["high_earner_issued"] == 0
     assert count == 0
+
+
+@pytest.mark.parametrize(
+    "terminal_status",
+    [CampaignAssignmentStatus.CANCELLED, CampaignAssignmentStatus.COMPLETED],
+)
+def test_due_challenge_is_final_without_changing_terminal_assignment(
+    db_sessionmaker,
+    settings,
+    terminal_status,
+) -> None:
+    graph = build_graph(db_sessionmaker, f"final-{terminal_status.value}")
+    activate_and_add_earning(db_sessionmaker, graph)
+
+    async def run():
+        async with db_sessionmaker() as session:
+            issued = await evaluate_assignment_verification(
+                session,
+                assignment_id=graph.assignment.id,
+                settings=configured(settings),
+                now=NOW,
+            )
+            assert issued.high_earner_issued == 1
+            assignment = await session.get(CampaignAssignment, graph.assignment.id)
+            assignment.status = terminal_status.value
+            await session.commit()
+        async with db_sessionmaker() as session:
+            result = await evaluate_assignment_verification(
+                session,
+                assignment_id=graph.assignment.id,
+                settings=configured(settings),
+                now=NOW + timedelta(hours=25),
+            )
+            await session.commit()
+        async with db_sessionmaker() as session:
+            assignment = await session.get(CampaignAssignment, graph.assignment.id)
+            verification = await session.scalar(select(EvidenceVerification))
+            return result, assignment.status, verification.status
+
+    result, assignment_status, verification_status = asyncio.run(run())
+    assert result.missed_challenges == 1
+    assert assignment_status == terminal_status.value
+    assert verification_status == EvidenceVerificationStatus.MISSED.value
+
+
+def test_satisfied_challenge_stays_satisfied_after_assignment_cancellation(
+    db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_graph(db_sessionmaker, "satisfied-final")
+    activate_and_add_earning(db_sessionmaker, graph)
+    issued_at = datetime.now(UTC)
+
+    async def issue() -> None:
+        async with db_sessionmaker() as session:
+            result = await evaluate_assignment_verification(
+                session,
+                assignment_id=graph.assignment.id,
+                settings=configured(settings),
+                now=issued_at,
+            )
+            assert result.high_earner_issued == 1
+            await session.commit()
+
+    asyncio.run(issue())
+    proof = create_test_display_proof(
+        db_sessionmaker,
+        assignment_id=graph.assignment.id,
+        reviewed_by_user_id=graph.assignment.assigned_by_user_id,
+    )
+
+    async def satisfy_cancel_and_sweep():
+        async with db_sessionmaker() as session:
+            attached_proof = await session.get(type(proof), proof.id)
+            satisfied = await satisfy_pending_evidence_challenges(
+                session,
+                assignment_id=graph.assignment.id,
+                proof=attached_proof,
+                actor_user_id=graph.assignment.assigned_by_user_id,
+            )
+            assert satisfied == 1
+            assignment = await session.get(CampaignAssignment, graph.assignment.id)
+            assignment.status = CampaignAssignmentStatus.CANCELLED.value
+            await session.commit()
+        async with db_sessionmaker() as session:
+            result = await evaluate_assignment_verification(
+                session,
+                assignment_id=graph.assignment.id,
+                settings=configured(settings),
+                now=issued_at + timedelta(hours=25),
+            )
+            await session.commit()
+        async with db_sessionmaker() as session:
+            verification = await session.scalar(select(EvidenceVerification))
+            return result, verification.status
+
+    result, verification_status = asyncio.run(satisfy_cancel_and_sweep())
+    assert result.missed_challenges == 0
+    assert verification_status == EvidenceVerificationStatus.SATISFIED.value
+
+
+def test_worker_cursor_keeps_evidence_sweeps_bounded(db_sessionmaker, settings) -> None:
+    for tag in ("bounded-a", "bounded-b", "bounded-c"):
+        graph = build_graph(db_sessionmaker, tag)
+        activate_and_add_earning(db_sessionmaker, graph, amount="1.00")
+    ctx = {
+        "settings": settings.model_copy(update={"worker_sweep_batch_size": 2}),
+        "sessionmaker": db_sessionmaker,
+    }
+
+    async def run():
+        first = await sweep_evidence_verifications(ctx)
+        second = await sweep_evidence_verifications(ctx)
+        return first, second
+
+    first, second = asyncio.run(run())
+    assert first["processed"] == 2
+    assert first["cursor"] is not None
+    assert second["processed"] == 1
+    assert second["cursor"] is None
+
+
+def test_worker_reuses_one_database_instant_for_selection_and_evaluation(
+    db_sessionmaker,
+    settings,
+    monkeypatch,
+) -> None:
+    graph = build_graph(db_sessionmaker, "single-instant")
+    activate_and_add_earning(db_sessionmaker, graph, amount="1.00")
+    clock_calls = 0
+    observed: list[datetime] = []
+
+    async def fixed_clock(_session):
+        nonlocal clock_calls
+        clock_calls += 1
+        return NOW
+
+    async def capture_evaluation(_session, *, assignment_id, settings, now):
+        assert assignment_id == graph.assignment.id
+        observed.append(now)
+        return VerificationSweepResult()
+
+    monkeypatch.setattr("app.jobs.evidence_verification.database_clock", fixed_clock)
+    monkeypatch.setattr(
+        "app.jobs.evidence_verification.evaluate_assignment_verification",
+        capture_evaluation,
+    )
+
+    result = asyncio.run(
+        sweep_evidence_verifications({"settings": settings, "sessionmaker": db_sessionmaker})
+    )
+
+    assert result["processed"] == 1
+    assert clock_calls == 1
+    assert observed == [NOW]
+
+
+def test_non_active_assignment_never_receives_a_new_challenge(
+    db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_graph(db_sessionmaker, "inactive-no-issue")
+    activate_and_add_earning(db_sessionmaker, graph)
+
+    async def run() -> tuple[int, int]:
+        async with db_sessionmaker() as session:
+            assignment = await session.get(CampaignAssignment, graph.assignment.id)
+            assignment.status = CampaignAssignmentStatus.DEACTIVATED.value
+            await session.commit()
+        async with db_sessionmaker() as session:
+            result = await evaluate_assignment_verification(
+                session,
+                assignment_id=graph.assignment.id,
+                settings=configured(settings),
+                now=NOW,
+            )
+            await session.commit()
+        async with db_sessionmaker() as session:
+            count = await session.scalar(select(func.count(EvidenceVerification.id)))
+            return result.high_earner_issued, count
+
+    assert asyncio.run(run()) == (0, 0)

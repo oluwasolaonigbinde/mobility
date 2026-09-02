@@ -4,10 +4,15 @@ import time
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.core.observability import capture_exception
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
+from app.models.evidence_verification import (
+    EvidenceVerification,
+    EvidenceVerificationStatus,
+    EvidenceVerificationType,
+)
 from app.services.evidence_verification import evaluate_assignment_verification
 from app.services.payout_rule_serialization import database_clock
 
@@ -53,8 +58,23 @@ async def sweep_evidence_verifications(ctx: dict[str, Any]) -> dict[str, Any]:
     sessionmaker = ctx["sessionmaker"]
     after = await _load_cursor(ctx)
     async with sessionmaker() as session:
+        now = await database_clock(session)
+        due_challenge_exists = (
+            select(EvidenceVerification.id)
+            .where(
+                EvidenceVerification.assignment_id == CampaignAssignment.id,
+                EvidenceVerification.verification_type
+                == EvidenceVerificationType.HIGH_EARNER_RENEWAL.value,
+                EvidenceVerification.status == EvidenceVerificationStatus.PENDING.value,
+                EvidenceVerification.due_at <= now,
+            )
+            .exists()
+        )
         query = select(CampaignAssignment.id).where(
-            CampaignAssignment.status == CampaignAssignmentStatus.ACTIVE.value
+            or_(
+                CampaignAssignment.status == CampaignAssignmentStatus.ACTIVE.value,
+                due_challenge_exists,
+            )
         )
         if after is not None:
             query = query.where(CampaignAssignment.id > after)
@@ -65,7 +85,6 @@ async def sweep_evidence_verifications(ctx: dict[str, Any]) -> dict[str, Any]:
                 )
             ).all()
         )
-        now = await database_clock(session)
 
     totals = {
         "processed": 0,

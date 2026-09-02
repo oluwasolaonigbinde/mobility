@@ -95,6 +95,13 @@ class CampaignAssignment(Base):
             postgresql_where=text("status = 'active'"),
         ),
         Index(
+            "uq_campaign_assignments_driver_active",
+            "driver_profile_id",
+            unique=True,
+            sqlite_where=text("status = 'active'"),
+            postgresql_where=text("status = 'active'"),
+        ),
+        Index(
             "uq_campaign_assignments_campaign_vehicle_non_terminal",
             "campaign_id",
             "vehicle_id",
