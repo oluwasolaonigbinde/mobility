@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R02` active writer; `R09, R35` frozen review lanes
-**Current capacity justification:** R02 remains the sole active Opus 5 / High writer on CI workflow/integration fixture/config surfaces. R09's auth/test/docs correction and R35's four-file frontend queue/tracker implementation are frozen after their Opus sessions reached the Anthropic session limit at final review; independent Sol/high Codex reviews are running without product-write authority. Shared fixtures outside R02, generated contracts, migrations and this file remain controller-serialized.
+**Current capacity assignment:** `R02` active writer; `R35` Opus review; `R09` admission-ready
+**Current capacity justification:** R02 remains the active Opus 5 / High writer on CI workflow/integration fixture/config surfaces. The owner withdrew the Codex offline/security review after Opus capacity returned, so R35's existing Opus 5 / High session now owns its frozen-byte final reviews without new write authority. Corrected R09 has a completed independent security PASS and is ready for controller admission. Shared fixtures outside R02, generated contracts, migrations and this file remain controller-serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -79,10 +79,10 @@ authority; the directly owner-authorized, Pro-admitted remediation programme is
 now rolling across dependency-ready disjoint slices while all 29 non-executable
 findings retain their admitted dispositions.
 **Current checkpoint:** `PKG-10 / R09` — R34/OFF-001 is accepted at `a95a7ca`.
-R09's typed refresh-command/§6.3 correction and R35's offline recovery changes
-are frozen in independent admission review after their Opus sessions reached
-the Anthropic session limit. R02 remains actively verifying CI/integration
-authority; no quota-limited lane is being left idle waiting for reset.
+R09's typed refresh-command/§6.3 correction has passed independent admission
+review. R35's Opus 5 / High owner has resumed the frozen offline/security
+reviews after quota reset, replacing the withdrawn Codex review. R02 remains
+actively verifying CI/integration authority.
 
 ## Direct owner requests outside the package queue
 

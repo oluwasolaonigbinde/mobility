@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 137
+plan_revision: 139
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 261
+last_event_sequence: 263
 ---
 
 # Cardvert audit remediation programme
@@ -675,3 +675,5 @@ verification is complete.
 | 259 | 135 | 1 | DIFF_REVIEW_STARTED | Corrected R09 entered repeat independent Sol/high admission review so quota reset is not required for a safe decision. | reused `/root/r09_final_review`; security/minimal-change/CP-SECURITY; bounded checks only |
 | 260 | 136 | 1 | IMPLEMENTATION_FROZEN | R35 completed its exact four-file offline queue/tracker implementation with 64 leased and 451 full-frontend passes, then its Opus session reached the Anthropic session limit before final reviewer receipts returned. | no stage or commit; generated `frontend/test-results/**` excluded; reported deadletter-only seal limitation retained for independent disposition |
 | 261 | 137 | 1 | DIFF_REVIEW_STARTED | Frozen R35 entered independent Sol/high offline/security/minimal-change and CP-OFFLINE review so quota reset is not required for admission or correction steering. | `/root/r35_final_review`; exact four-file scope; R02 remains sole active writer |
+| 262 | 138 | 1 | REVIEW_AUTHORITY_WITHDRAWN | The owner directed the Sol/high Codex R35 offline/security review to stop now that Opus capacity returned; its just-completed PASS receipt is retained as non-admission evidence and will not be used for controller acceptance. | direct owner instruction; `/root/r35_final_review` discontinued; no product bytes changed |
+| 263 | 139 | 1 | DIFF_REVIEW_RESUMED | The existing visible R35 Opus 5 / High session resumed its frozen-byte R35-M, security and CP-OFFLINE reviews after quota reset. | session `Cardvert R35 offline queue recovery`; v3 bytes reconciled; no new mutation lease or scope expansion |
