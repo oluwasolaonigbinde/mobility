@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `1`
-**Current capacity assignment:** `R36`
-**Current capacity justification:** R02 is frozen BLOCKED-OWNER on the every-branch versus master-only CI authority decision. R36 remains the sole active owner on trip-ingest, queue-response and synchronized generated-contract surfaces. R25 cannot overlap R36's contract lane, R38 cannot overlap its trip surfaces, and all other unaccepted slices are dependency- or owner-blocked, so no additional safe writer exists until R36 returns or the owner resolves R02.
+**Current capacity assignment:** `R02`
+**Current capacity justification:** The owner selected every-branch push authority for R02, so its exact lease now adds only `tests/test_validate_progress.py` to reconcile the stale master-only validator. R36 is frozen BLOCKED-OWNER before first write because its accepted signed-disposition contract requires model/migration/signing authority outside the initial lease. R25 and R38 conflict with those held central/trip surfaces pending that decision; all other unaccepted slices are dependency- or owner-blocked.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -78,18 +78,19 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 resumed from the exact safe pause snapshot without changing any accepted slice
 or any of the 29 non-executable dispositions.
-**Current checkpoint:** `PKG-10 / R36` — R36 is implementing mixed-validity
-ping partial acceptance on its exact backend/frontend/contract lease. R02 is
-frozen BLOCKED-OWNER at digest `a3e8129f...`: the owner must choose every-branch
-push authority or master-only push plus PR authority before its lease, accepted
-contract and verification can be reconciled. R35's disclosed false red-evidence
-claims are excluded from closure evidence; its server-side deadletter-only
-final-sealing gap remains a durable R37 break case.
+**Current checkpoint:** `PKG-10 / R02` — R02 is resuming from digest
+`a3e8129f...` under the owner-selected every-branch push authority with one
+validator-file lease expansion. R36 is frozen before first write pending the
+owner's choice between restoring its reviewed migration/model/signing authority
+or revising the plan to a no-migration durability design. R35's disclosed false
+red-evidence claims remain excluded from closure evidence; its server-side
+deadletter-only final-sealing gap remains a durable R37 break case.
 
 ## Direct owner requests outside the package queue
 
 | Date | Item | Authority | Scope boundary | Queue effect |
 | --- | --- | --- | --- | --- |
+| 2 Sep 2026 | **R02 branch authority: every direct branch push runs CI** — retain the accepted GOV-003/R02 and architecture contract rather than narrowing it to master-plus-PR. | Direct owner choice in the active remediation controller, 2 Sep 2026 | R02 may additionally edit only `tests/test_validate_progress.py` to remove the stale master-only assertion and require every-branch push. The preserved three-path implementation, accepted plan/graph reviews and all other behavior remain unchanged. | Clears the R02 owner block and resumes its existing visible task; R03/R17 remain dependency-held until R02 admission. |
 | 2 Sep 2026 | **Resume the approved Cardvert remediation programme from the exact safe pause snapshot** — preserve accepted commits and safely frozen work, avoid duplicated slices/reviews, and return to dependency-safe rolling dispatch. | Direct project-owner instruction relayed from controller task `01a001ce-d025-7531-a84c-7498cd819eda`, 2 Sep 2026 | Reactivates only the unchanged frozen R02, R09 and R35 packets first. R09/R35 may proceed through admission on existing valid receipts; R02 may resume only against its preserved exact lease and evidence. Later work retains the admitted R01–R60 graph, disjoint shared-checkout leases, the existing risk-based model gates, all 29 non-executable dispositions, and all external/live prohibitions. | Lifts `PAUSED — OWNER-SCOPE-RECONCILIATION`, sets the controller `ACTIVE`, and restores work-conserving refill after current frozen packets are reconciled. |
 | 2 Sep 2026 | **Pause the admitted remediation programme for owner scope reconciliation** — preserve accepted commits and freeze every unfinished packet while the owner reassesses which of the 86 FIX candidates remain current product problems rather than CI/test/evidence/docs work or disproportionate hardening. | Direct project-owner instruction relayed from controller task `01a001ce-d025-7531-a84c-7498cd819eda`, 2 Sep 2026 | Preserve all accepted slices through R34 product commit `a95a7ca`; preserve the exact uncommitted R02, R09, R35 and unrelated user/audit bytes without staging, reverting, resetting, admitting or discarding them. No new R-slice, correction loop, review loop, writer, or lease may start. An already-running non-destructive R02 review may finish only to produce its frozen receipt. | Sets the controller to `PAUSED — OWNER-SCOPE-RECONCILIATION`, current writer capacity to zero, and awaits a narrowed approved inventory before any scheduler action resumes. |
 | 1 Sep 2026 | **Use Claude Opus 5 High for the next two implementation sessions after the current set clears** — create the next two safely ready, mutually disjoint packets as visible Claude desktop Code sessions. | Direct project-owner amendment in controller task `01a05de2-0b5d-73f0-ae3d-0e979b734658`, 1 Sep 2026 | The controller must still select packets from the admitted graph, preserve exact slice/candidate IDs, dependencies, leases, stop conditions, review gates and shared-checkout safety. Sessions use saved Mobility `master`, direct checkout, no worktrees, Opus 5 / High. No external action or authority boundary expands. | Deferred trigger: after the currently active/reviewing R13, R24 and R34 set reaches safe admission/steering points, allocate the next two compatible ready implementation packets to Claude; do not displace current owners. |
@@ -1528,7 +1529,7 @@ durable ledger before changing a row.
 | Slice | Candidate IDs | Dependencies | State | Plan review | Diff review | Domain checkpoint |
 | --- | --- | --- | --- | --- | --- | --- |
 | R01 | GOV-001 | none | COMPLETE | PASS — R01-P | PASS — R01-M | CP-CONTROL PASS — R01-CP-CONTROL |
-| R02 | GOV-003, TST-001, DB-005 | R01, R04 | QUEUED | PASS — R02-P | PENDING | CP-CONTROL PENDING |
+| R02 | GOV-003, TST-001, DB-005 | R01, R04 | ACTIVE | PASS — R02-P | PENDING | CP-CONTROL PENDING |
 | R03 | GOV-004 | R02 | QUEUED | PASS — R03-P | PENDING | CP-CONTROL PENDING |
 | R04 | DB-004 | none | COMPLETE | PASS — R04-P | PASS — R04-M | CP-DB PASS — R04-CP-DB |
 | R05 | DB-001, TST-012, ONB-010 | R02, R04 | QUEUED | PASS — R05-P | PENDING | CP-DB PENDING |
@@ -1562,7 +1563,7 @@ durable ledger before changing a row.
 | R33 | ONB-006 | R05, R32 | QUEUED | PASS — R33-P | PENDING | CP-ONBOARDING PENDING |
 | R34 | OFF-001 | R04 | COMPLETE | PASS — R34-P | PASS — R34-M | CP-OFFLINE PASS — R34-CP-OFFLINE |
 | R35 | OFF-002, OFF-003 | R34 | COMPLETE | PASS — R35-P | PASS — R35-M | CP-OFFLINE PASS — R35-CP-OFFLINE |
-| R36 | OFF-005 | R35 | ACTIVE | PASS — R36-P | PENDING | CP-OFFLINE PENDING |
+| R36 | OFF-005 | R35 | QUEUED | PASS — R36-P | PENDING | CP-OFFLINE PENDING |
 | R37 | OFF-006 | R36 | QUEUED | PASS — R37-P | PENDING | CP-OFFLINE PENDING |
 | R38 | PRV-001, PRV-002 | R13 | QUEUED | PASS — R38-P | PENDING | CP-PRIVACY PENDING |
 | R39 | PRV-003 | R38 | QUEUED | PASS — R39-P | PENDING | CP-PRIVACY PENDING |
