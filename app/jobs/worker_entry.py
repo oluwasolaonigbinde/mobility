@@ -10,6 +10,7 @@ class WorkerSettings:
     functions = ImportSafeWorkerSettings.functions
     cron_jobs = ImportSafeWorkerSettings.cron_jobs
     keep_result = ImportSafeWorkerSettings.keep_result
+    health_check_interval = ImportSafeWorkerSettings.health_check_interval
     on_startup = ImportSafeWorkerSettings.on_startup
     on_shutdown = ImportSafeWorkerSettings.on_shutdown
     redis_settings = REDIS_SETTINGS

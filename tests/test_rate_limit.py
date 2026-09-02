@@ -6,6 +6,7 @@ from conftest import auth_headers, create_test_user
 from fastapi import Request
 from redis.asyncio import Redis
 
+from app.api.v1 import auth as auth_api
 from app.api.v1.dependencies import get_login_rate_limiter
 from app.core.config import Settings
 from app.core.rate_limit import (
@@ -29,6 +30,20 @@ class BlockingLimiter:
             bucket="account",
             retry_after_seconds=42,
             newly_blocked=False,
+        )
+
+    async def release_success(self, ip: str, email: str) -> None:
+        del ip, email
+
+
+class UnavailableLimiter:
+    async def reserve(self, ip: str, email: str) -> RateLimitDecision:
+        del ip, email
+        return RateLimitDecision(
+            allowed=False,
+            bucket="storage",
+            retry_after_seconds=60,
+            storage_available=False,
         )
 
     async def release_success(self, ip: str, email: str) -> None:
@@ -93,7 +108,7 @@ def test_registration_client_ip_has_its_own_trust_boundary() -> None:
 
 def test_registration_in_memory_limits_stop_at_each_exact_boundary() -> None:
     async def exercise() -> None:
-        per_ip = InMemoryRegistrationRateLimiter(ip_limit=2, email_limit=20, global_limit=20)
+        per_ip = InMemoryRegistrationRateLimiter(ip_limit=2, email_limit=20)
         assert (await per_ip.reserve("203.0.113.1", "one@example.com")).allowed
         assert (await per_ip.reserve("203.0.113.1", "two@example.com")).allowed
         ip_block = await per_ip.reserve("203.0.113.1", "three@example.com")
@@ -101,17 +116,19 @@ def test_registration_in_memory_limits_stop_at_each_exact_boundary() -> None:
             not ip_block.allowed and ip_block.bucket == "ip" and ip_block.retry_after_seconds == 60
         )
 
-        per_email = InMemoryRegistrationRateLimiter(ip_limit=20, email_limit=2, global_limit=20)
+        per_email = InMemoryRegistrationRateLimiter(ip_limit=20, email_limit=2)
         assert (await per_email.reserve("203.0.113.1", "same@example.com")).allowed
         assert (await per_email.reserve("203.0.113.2", "same@example.com")).allowed
         email_block = await per_email.reserve("203.0.113.3", "SAME@example.com")
         assert not email_block.allowed and email_block.bucket == "email"
 
-        global_limit = InMemoryRegistrationRateLimiter(ip_limit=20, email_limit=20, global_limit=2)
-        assert (await global_limit.reserve("203.0.113.1", "one@example.com")).allowed
-        assert (await global_limit.reserve("203.0.113.2", "two@example.com")).allowed
-        global_block = await global_limit.reserve("203.0.113.3", "three@example.com")
-        assert not global_block.allowed and global_block.bucket == "global"
+        distributed = InMemoryRegistrationRateLimiter(ip_limit=2, email_limit=2)
+        for index in range(25):
+            assert (
+                await distributed.reserve(
+                    f"10.0.0.{index + 1}", f"applicant-{index}@example.com"
+                )
+            ).allowed
 
     asyncio.run(exercise())
 
@@ -151,6 +168,52 @@ def test_registration_redis_malformed_success_tuple_fails_closed() -> None:
         assert decision.storage_available is False
 
     asyncio.run(exercise())
+
+
+def test_login_redis_failure_is_reported_as_storage_unavailable() -> None:
+    class BrokenRedis:
+        def register_script(self, _script):
+            async def broken(**_kwargs):
+                raise TypeError("unavailable")
+
+            return broken
+
+    decision = asyncio.run(
+        RedisLoginRateLimiter(BrokenRedis(), Settings()).reserve(
+            "203.0.113.1", "driver@example.com"
+        )
+    )
+    assert not decision.allowed
+    assert decision.storage_available is False
+    assert decision.bucket == "storage"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        [1, 99, 0, 0],
+        [1, 0, 1, 0],
+        [0, 99, 1, 0],
+        [0, 1, 0, 0],
+        [0, 1, 1, 2],
+    ],
+)
+def test_login_redis_malformed_tuple_fails_closed(raw: list[int]) -> None:
+    class MalformedRedis:
+        def register_script(self, _script):
+            async def malformed(**_kwargs):
+                return raw
+
+            return malformed
+
+    decision = asyncio.run(
+        RedisLoginRateLimiter(MalformedRedis(), Settings()).reserve(
+            "203.0.113.1", "driver@example.com"
+        )
+    )
+    assert not decision.allowed
+    assert decision.storage_available is False
+    assert decision.bucket == "storage"
 
 
 def test_registration_invalid_redis_configuration_builds_fail_closed_limiter() -> None:
@@ -197,6 +260,44 @@ def test_change_password_429_surfaces_retry_after(db_client, db_sessionmaker) ->
     assert response.status_code == 429
     assert response.headers["Retry-After"] == "42"
     assert response.json()["error"]["details"]["retry_after_seconds"] == 42
+
+
+def test_login_and_change_password_fail_closed_before_credentials_or_audit(
+    db_client, db_sessionmaker, monkeypatch
+) -> None:
+    create_test_user(db_sessionmaker, email="unavailable@example.com", role=UserRole.ADMIN)
+    headers = auth_headers(db_client, "unavailable@example.com")
+    reached: list[str] = []
+
+    async def forbidden(*_args, **_kwargs):
+        reached.append("credential-or-audit")
+        raise AssertionError("unavailable limiter must stop before credentials or audit")
+
+    monkeypatch.setattr(auth_api, "login_with_password", forbidden)
+    monkeypatch.setattr(auth_api, "change_user_password", forbidden)
+    monkeypatch.setattr(auth_api, "create_audit_event", forbidden)
+    db_client.app.dependency_overrides[get_login_rate_limiter] = lambda: UnavailableLimiter()
+    try:
+        login = db_client.post(
+            "/api/v1/auth/login",
+            json={"email": "unavailable@example.com", "password": "long-secure-password"},
+        )
+        change = db_client.post(
+            "/api/v1/auth/change-password",
+            json={
+                "current_password": "long-secure-password",
+                "new_password": "another-long-secure-password",
+            },
+            headers=headers,
+        )
+    finally:
+        db_client.app.dependency_overrides.pop(get_login_rate_limiter, None)
+
+    for response in (login, change):
+        assert response.status_code == 503
+        assert response.headers["Retry-After"] == "60"
+        assert response.json()["error"]["code"] == "RATE_LIMIT_UNAVAILABLE"
+    assert reached == []
 
 
 def test_redis_reservations_are_atomic_ttl_bound_and_refundable() -> None:
@@ -253,6 +354,7 @@ def test_redis_reservations_are_atomic_ttl_bound_and_refundable() -> None:
         same_ip = await per_ip.reserve("198.51.100.1", "two@example.com")
         assert not same_ip.allowed and same_ip.bucket == "ip"
         assert (await per_ip.reserve("198.51.100.2", "two@example.com")).allowed
+
         await redis.aclose()
 
     asyncio.run(exercise())
@@ -270,10 +372,8 @@ def test_registration_redis_reservations_are_atomic_ttl_bound_and_notify_once() 
             redis_url=redis_url,
             driver_registration_rate_limit_ip_max_attempts=20,
             driver_registration_rate_limit_email_max_attempts=3,
-            driver_registration_rate_limit_global_max_attempts=30,
             driver_registration_rate_limit_ip_window_seconds=30,
             driver_registration_rate_limit_email_window_seconds=30,
-            driver_registration_rate_limit_global_window_seconds=30,
         )
         limiter = RedisRegistrationRateLimiter(redis, settings)
         decisions = await asyncio.gather(
@@ -286,6 +386,32 @@ def test_registration_redis_reservations_are_atomic_ttl_bound_and_notify_once() 
         assert sum(decision.newly_blocked for decision in blocked) == 1
         keys = limiter.keys("203.0.113.20", "applicant@example.com")
         assert all(ttl > 0 for ttl in await asyncio.gather(*(redis.ttl(key) for key in keys)))
+        for index in range(25):
+            assert (
+                await limiter.reserve(
+                    f"10.0.0.{index + 1}", f"distributed-{index}@example.com"
+                )
+            ).allowed
+
+        await redis.flushdb()
+        alias = RedisRegistrationRateLimiter(
+            redis,
+            Settings(
+                redis_url=redis_url,
+                driver_registration_rate_limit_ip_max_attempts=20,
+                driver_registration_rate_limit_email_max_attempts=1,
+                driver_registration_rate_limit_ip_window_seconds=30,
+                driver_registration_rate_limit_email_window_seconds=30,
+            ),
+        )
+        assert (await alias.reserve("198.51.100.3", "  Alias@Example.COM  ")).allowed
+        alias_block = await alias.reserve("198.51.100.4", "alias@example.com")
+        assert not alias_block.allowed
+        assert alias_block.bucket == "email"
+        assert alias_block.newly_blocked
+        repeated_alias_block = await alias.reserve("198.51.100.5", "ALIAS@EXAMPLE.COM")
+        assert not repeated_alias_block.allowed
+        assert not repeated_alias_block.newly_blocked
         await redis.aclose()
 
     asyncio.run(exercise())

@@ -41,11 +41,15 @@ def test_api_ready_without_database_url_is_deterministic(client) -> None:
 
     assert response.status_code == 200
     assert response.json() == {
-        "service": "mobility-adtech-api",
-        "environment": "test",
         "status": "ok",
-        "database": "not_configured",
-        "trip_evidence_signing": "ok",
+        "components": {
+            "database": "not_configured",
+            "redis": "not_configured",
+            "worker": "not_configured",
+            "storage": "not_configured",
+            "scanner": "not_configured",
+            "trip_evidence_signing": "ok",
+        },
     }
 
 
@@ -55,7 +59,10 @@ def test_api_ready_fails_closed_without_trip_evidence_signing_authority(client) 
     settings = Settings(
         environment="production",
         jwt_secret_key="production-secret-with-at-least-32-characters",
-        database_url=None,
+        database_url=(
+            "postgresql+asyncpg://mobility:synthetic-db-secret@db:5432/mobility?ssl=require"
+        ),
+        redis_url="rediss://:synthetic-redis-secret@redis:6379/0",
         trip_evidence_signing_keyring_b64=None,
     )
     previous = client.app.dependency_overrides.get(get_settings)
@@ -69,13 +76,12 @@ def test_api_ready_fails_closed_without_trip_evidence_signing_authority(client) 
             client.app.dependency_overrides[get_settings] = previous
 
     assert response.status_code == 503
-    assert response.json()["trip_evidence_signing"] == "unavailable"
+    assert response.json()["components"]["trip_evidence_signing"] == "not_configured"
 
 
 def test_api_ready_fails_closed_when_database_references_a_removed_signing_key(
     client, monkeypatch
 ) -> None:
-    from app.api.v1 import health as health_module
     from app.core.config import Settings, get_settings
 
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
@@ -125,11 +131,6 @@ def test_api_ready_fails_closed_when_database_references_a_removed_signing_key(
             trip_evidence_signing_key_version=1,
         )
 
-        async def database_is_available(_settings) -> bool:
-            return True
-
-        monkeypatch.setattr(health_module, "check_database", database_is_available)
-        monkeypatch.setattr(health_module, "get_engine", lambda _settings: engine)
         previous = client.app.dependency_overrides.get(get_settings)
         client.app.dependency_overrides[get_settings] = lambda: settings
         try:
@@ -141,8 +142,8 @@ def test_api_ready_fails_closed_when_database_references_a_removed_signing_key(
                 client.app.dependency_overrides[get_settings] = previous
 
         assert response.status_code == 503
-        assert response.json()["database"] == "ok"
-        assert response.json()["trip_evidence_signing"] == "missing_referenced_key"
+        assert response.json()["components"]["database"] == "ok"
+        assert response.json()["components"]["trip_evidence_signing"] == "unavailable"
     finally:
         if engine is not None:
             asyncio.run(engine.dispose())

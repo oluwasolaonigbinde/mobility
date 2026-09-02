@@ -191,7 +191,8 @@ fi
 
 echo "Checking authenticated Redis..."
 redis_reply="$("${compose[@]}" exec -T redis sh -c \
-  'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli --no-auth-warning ping')"
+  'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli --no-auth-warning --tls \
+    --cacert /run/secrets/redis_tls_ca -h redis -p 6379 ping')"
 [[ "${redis_reply}" == "PONG" ]] \
   || { echo "ERROR: authenticated Redis PING failed" >&2; exit 1; }
 

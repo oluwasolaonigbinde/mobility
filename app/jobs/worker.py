@@ -21,7 +21,11 @@ from app.jobs.earnings_release import sweep_earnings_release_reviews
 from app.jobs.email_delivery import sweep_email_notifications
 from app.jobs.evidence_verification import sweep_evidence_verifications
 from app.jobs.exposure_segments import materialize_exposure_segment_job
-from app.jobs.file_lifecycle import purge_expired_file_kyc, purge_orphaned_file_uploads
+from app.jobs.file_lifecycle import (
+    purge_expired_file_kyc,
+    purge_orphaned_file_uploads,
+    recover_stored_object_deletions,
+)
 from app.jobs.file_scanning import scan_pending_files
 from app.jobs.payment_gateway import (
     process_payment_gateway_event_job,
@@ -76,6 +80,7 @@ async def on_shutdown(ctx: dict[str, Any]) -> None:
 
 
 class WorkerSettings:
+    health_check_interval = 30
     # arq reads worker options from this class's raw __dict__ (arq.worker.get_kwargs), so
     # redis_settings cannot be a lazy property. It resolves at import when REDIS_URL is set
     # and stays None otherwise (unconfigured test imports never need a broker).
@@ -162,6 +167,11 @@ class WorkerSettings:
         cron(check_ping_partition_coverage, hour={7}, minute={20}, unique=True),
         cron(purge_expired_ping_partitions, hour={3}, minute={30}, unique=True),
         cron(purge_expired_disclosure_query_history, hour={4}, minute={40}, unique=True),
+        cron(
+            recover_stored_object_deletions,
+            minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
+            unique=True,
+        ),
         cron(purge_orphaned_file_uploads, hour={5}, minute={50}, unique=True),
         cron(purge_expired_file_kyc, hour={6}, minute={0}, unique=True),
     ]

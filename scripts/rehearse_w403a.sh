@@ -66,6 +66,23 @@ printf 'Backup-%s\n' "$(openssl rand -hex 32)" >"${passphrase_file}"
 printf 'Smoke-%s\n' "$(openssl rand -hex 24)" >"${smoke_password_file}"
 chmod 600 "${passphrase_file}" "${smoke_password_file}"
 
+tls_dir="${TEMP_DIR}/tls"
+mkdir -p "${tls_dir}"
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
+  -subj "/CN=Cardvert W4-03A rehearsal CA" \
+  -keyout "${tls_dir}/ca.key" -out "${tls_dir}/ca.crt" -days 1 >/dev/null 2>&1
+for tls_host in db redis; do
+  printf 'subjectAltName=DNS:%s\n' "${tls_host}" >"${tls_dir}/${tls_host}.ext"
+  openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
+    -subj "/CN=${tls_host}" -keyout "${tls_dir}/${tls_host}.key" \
+    -out "${tls_dir}/${tls_host}.csr" >/dev/null 2>&1
+  openssl x509 -req -in "${tls_dir}/${tls_host}.csr" \
+    -CA "${tls_dir}/ca.crt" -CAkey "${tls_dir}/ca.key" -CAcreateserial \
+    -out "${tls_dir}/${tls_host}.crt" -days 1 \
+    -extfile "${tls_dir}/${tls_host}.ext" >/dev/null 2>&1
+done
+chmod 600 "${tls_dir}/ca.key" "${tls_dir}/db.key" "${tls_dir}/redis.key"
+
 write_environment() {
   local path="$1"
   local release_id="$2"
@@ -88,9 +105,15 @@ PUBLIC_ORIGIN=https://cardvert.rehearsal.localhost
 BACKEND_CORS_ORIGINS=[]
 SESSION_COOKIE_NAME=__Host-cardvert_session
 POSTGRES_PASSWORD=${database_password}
-DATABASE_URL=postgresql+asyncpg://mobility:${database_password}@db:5432/mobility
+POSTGRES_TLS_CA_FILE=${tls_dir}/ca.crt
+POSTGRES_TLS_CERT_FILE=${tls_dir}/db.crt
+POSTGRES_TLS_KEY_FILE=${tls_dir}/db.key
+DATABASE_URL=postgresql+asyncpg://mobility:${database_password}@db:5432/mobility?ssl=verify-full
 REDIS_PASSWORD=${redis_password}
-REDIS_URL=redis://:${redis_password}@redis:6379/0
+REDIS_TLS_CA_FILE=${tls_dir}/ca.crt
+REDIS_TLS_CERT_FILE=${tls_dir}/redis.crt
+REDIS_TLS_KEY_FILE=${tls_dir}/redis.key
+REDIS_URL=rediss://:${redis_password}@redis:6379/0?ssl_ca_certs=/run/secrets/redis_tls_ca&ssl_cert_reqs=required
 JWT_SECRET_KEY=${jwt_secret}
 PAYOUT_CRYPTO_KEYRING_B64={"1":"${keyring}"}
 PAYOUT_CRYPTO_KEY_VERSION=1
@@ -105,9 +128,9 @@ DEMO_LOGIN_ENABLED=false
 PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE=false
 PRIVACY_DISCLOSURE_LIVE_AUTHORIZED=false
 MEASUREMENT_LIVE_ISSUANCE_AUTHORIZED=false
-LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER=false
-LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER=false
-LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS=
+LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER=true
+LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER=true
+LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS=10.255.254.10/32
 BACKUP_PASSPHRASE_FILE=${passphrase_file}
 BACKUP_RETENTION_DAYS=35
 SENTRY_DSN=

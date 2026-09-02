@@ -215,7 +215,7 @@ def test_repeated_registration_blocks_emit_one_transition_audit(
     settings,
 ):
     enabled = settings.model_copy(update={"driver_registration_enabled": True})
-    limiter = InMemoryRegistrationRateLimiter(ip_limit=10, email_limit=1, global_limit=10)
+    limiter = InMemoryRegistrationRateLimiter(ip_limit=10, email_limit=1)
     db_client.app.dependency_overrides[get_settings] = lambda: enabled
     db_client.app.dependency_overrides[get_registration_rate_limiter] = lambda: limiter
 
@@ -224,9 +224,17 @@ def test_repeated_registration_blocks_emit_one_transition_audit(
     assert db_client.post("/api/v1/auth/register-driver", json=payload).status_code == 429
     assert db_client.post("/api/v1/auth/register-driver", json=payload).status_code == 429
 
-    actions = [event.action for event in fetch_auth_audit_events(db_sessionmaker)]
+    events = fetch_auth_audit_events(db_sessionmaker)
+    actions = [event.action for event in events]
     assert actions.count("auth.driver_application.created") == 1
     assert actions.count("auth.driver_registration.rate_limited") == 1
+    [rate_limit_event] = [
+        event for event in events if event.action == "auth.driver_registration.rate_limited"
+    ]
+    assert rate_limit_event.event_metadata == {
+        "bucket": "email",
+        "retry_after_seconds": 60,
+    }
 
 
 def test_enabled_registration_fails_closed_without_rate_limit_storage(

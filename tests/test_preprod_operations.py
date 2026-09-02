@@ -63,9 +63,14 @@ def test_production_render_has_one_public_edge_and_no_development_mounts() -> No
     assert services["api"]["read_only"] is True
     assert services["worker"]["read_only"] is True
     assert services["frontend"]["read_only"] is True
-    assert services["frontend"]["environment"]["LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER"] == "false"
-    assert services["api"]["environment"]["LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER"] == "false"
-    assert services["api"]["environment"]["LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS"] == ""
+    assert services["frontend"]["environment"]["LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER"] == "true"
+    assert services["api"]["environment"]["LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER"] == "true"
+    assert (
+        services["api"]["environment"]["LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS"]
+        == "10.255.254.10/32"
+    )
+    assert services["frontend"]["networks"]["app"]["ipv4_address"] == "10.255.254.10"
+    assert model["networks"]["app"]["ipam"]["config"] == [{"subnet": "10.255.254.0/24"}]
     assert services["api"]["environment"]["ALLOW_DEMO_SEED"] == "false"
     assert services["api"]["environment"]["PRIVACY_DISCLOSURE_LIVE_AUTHORIZED"] == "false"
     assert services["api"]["environment"]["PRIVACY_LEGAL_APPROVAL_REFERENCE"] == ""
@@ -81,18 +86,14 @@ def test_production_render_has_one_public_edge_and_no_development_mounts() -> No
     assert "egress" not in services["redis"]["networks"]
 
 
-def test_trusted_client_ip_requires_explicit_three_setting_opt_in() -> None:
-    services = compose_config(
-        environment={
-            "LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER": "true",
-            "LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER": "true",
-            "LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS": "172.30.0.0/24",
-        }
-    )["services"]
+def test_trusted_client_ip_uses_one_exact_frontend_peer() -> None:
+    model = compose_config()
 
-    assert services["frontend"]["environment"]["LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER"] == "true"
-    assert services["api"]["environment"]["LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER"] == "true"
-    assert services["api"]["environment"]["LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS"] == "172.30.0.0/24"
+    assert model["services"]["frontend"]["networks"]["app"]["ipv4_address"] == "10.255.254.10"
+    assert (
+        model["services"]["api"]["environment"]["LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS"]
+        == "10.255.254.10/32"
+    )
 
 
 def test_worker_is_mandatory_and_migration_remains_explicit() -> None:
@@ -113,9 +114,15 @@ def test_worker_is_mandatory_and_migration_remains_explicit() -> None:
 def test_healthchecks_and_dependencies_are_rendered() -> None:
     services = compose_config()["services"]
 
-    assert "pg_isready" in services["db"]["healthcheck"]["test"][1]
+    assert "sslmode=verify-full" in services["db"]["healthcheck"]["test"][1]
+    assert "sslrootcert=/run/secrets/postgres_tls_ca" in services["db"]["healthcheck"]["test"][1]
     assert "redis-cli" in services["redis"]["healthcheck"]["test"][1]
+    assert "--tls" in services["redis"]["healthcheck"]["test"][1]
+    assert "--cacert /run/secrets/redis_tls_ca" in services["redis"]["healthcheck"]["test"][1]
     assert "/api/v1/health/ready" in services["api"]["healthcheck"]["test"][-1]
+    assert "timeout=6" in services["api"]["healthcheck"]["test"][-1]
+    assert services["api"]["healthcheck"]["interval"] == "30s"
+    assert services["api"]["healthcheck"]["timeout"] == "8s"
     assert "/login" in services["frontend"]["healthcheck"]["test"][-1]
     assert services["frontend"]["depends_on"]["api"]["condition"] == "service_healthy"
     assert services["edge"]["depends_on"]["frontend"]["condition"] == "service_healthy"
@@ -155,8 +162,14 @@ def test_development_compose_preserves_reload_mounts_profiles_and_ports() -> Non
     [
         "EDGE_HOSTNAME",
         "POSTGRES_PASSWORD",
+        "POSTGRES_TLS_CA_FILE",
+        "POSTGRES_TLS_CERT_FILE",
+        "POSTGRES_TLS_KEY_FILE",
         "DATABASE_URL",
         "REDIS_PASSWORD",
+        "REDIS_TLS_CA_FILE",
+        "REDIS_TLS_CERT_FILE",
+        "REDIS_TLS_KEY_FILE",
         "REDIS_URL",
         "JWT_SECRET_KEY",
         "PAYOUT_CRYPTO_KEYRING_B64",
@@ -286,6 +299,8 @@ def test_smoke_uses_the_base_and_production_compose_files() -> None:
 
     assert 'compose=(docker compose -f "${COMPOSE_PRODUCTION_FILE}"' in smoke
     assert 'if [[ -n "${COMPOSE_BASE_FILE}" ]]' in smoke
+    assert "redis-cli --no-auth-warning --tls" in smoke
+    assert "--cacert /run/secrets/redis_tls_ca -h redis -p 6379 ping" in smoke
 
 
 def test_backup_directory_can_be_isolated_for_restore_rehearsals() -> None:

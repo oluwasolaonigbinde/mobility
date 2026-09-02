@@ -7,6 +7,7 @@ x-backend-environment: &backend-environment
   API_V1_PREFIX: /api/v1
   DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
   REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
+  PGSSLROOTCERT: /run/secrets/postgres_tls_ca
   SENTRY_DSN: ${SENTRY_DSN:-}
   BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:?BACKEND_CORS_ORIGINS is required}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -27,15 +28,13 @@ x-backend-environment: &backend-environment
   LOGIN_RATE_LIMIT_GLOBAL_WINDOW_SECONDS: ${LOGIN_RATE_LIMIT_GLOBAL_WINDOW_SECONDS:-300}
   ALLOW_DEMO_SEED: "false"
   PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE: "false"
-  LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER: ${LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER:-false}
-  LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS: ${LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS:-}
+  LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER: ${LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER:-true}
+  LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS: ${LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS:-10.255.254.10/32}
   DRIVER_REGISTRATION_ENABLED: ${DRIVER_REGISTRATION_ENABLED:-false}
   DRIVER_REGISTRATION_RATE_LIMIT_IP_MAX_ATTEMPTS: ${DRIVER_REGISTRATION_RATE_LIMIT_IP_MAX_ATTEMPTS:-10}
   DRIVER_REGISTRATION_RATE_LIMIT_IP_WINDOW_SECONDS: ${DRIVER_REGISTRATION_RATE_LIMIT_IP_WINDOW_SECONDS:-3600}
   DRIVER_REGISTRATION_RATE_LIMIT_EMAIL_MAX_ATTEMPTS: ${DRIVER_REGISTRATION_RATE_LIMIT_EMAIL_MAX_ATTEMPTS:-3}
   DRIVER_REGISTRATION_RATE_LIMIT_EMAIL_WINDOW_SECONDS: ${DRIVER_REGISTRATION_RATE_LIMIT_EMAIL_WINDOW_SECONDS:-3600}
-  DRIVER_REGISTRATION_RATE_LIMIT_GLOBAL_MAX_ATTEMPTS: ${DRIVER_REGISTRATION_RATE_LIMIT_GLOBAL_MAX_ATTEMPTS:-100}
-  DRIVER_REGISTRATION_RATE_LIMIT_GLOBAL_WINDOW_SECONDS: ${DRIVER_REGISTRATION_RATE_LIMIT_GLOBAL_WINDOW_SECONDS:-3600}
   DRIVER_REGISTRATION_RATE_LIMIT_TRUST_CLIENT_IP_HEADER: ${DRIVER_REGISTRATION_RATE_LIMIT_TRUST_CLIENT_IP_HEADER:-false}
   DRIVER_REGISTRATION_RATE_LIMIT_TRUSTED_PROXY_CIDRS: ${DRIVER_REGISTRATION_RATE_LIMIT_TRUSTED_PROXY_CIDRS:-}
   F7_SEED_MAX_TRIPS_PER_DAY: ${F7_SEED_MAX_TRIPS_PER_DAY:-2}
@@ -115,6 +114,11 @@ x-backend-service: &backend-service
   read_only: true
   tmpfs:
     - /tmp:rw,noexec,nosuid,size=64m
+  secrets:
+    - source: postgres_tls_ca
+      target: postgres_tls_ca
+    - source: redis_tls_ca
+      target: redis_tls_ca
   cap_drop:
     - ALL
   security_opt:
@@ -129,14 +133,53 @@ x-backend-service: &backend-service
 services:
   db:
     image: ${POSTGIS_IMAGE:?POSTGIS_IMAGE is required}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        cp /run/secrets/postgres_tls_cert /run/cardvert-postgres/server.crt;
+        cp /run/secrets/postgres_tls_key /run/cardvert-postgres/server.key;
+        cp /run/secrets/postgres_tls_ca /run/cardvert-postgres/ca.crt;
+        printf '%s\n'
+        'local all all scram-sha-256'
+        'hostnossl all all 0.0.0.0/0 reject'
+        'hostnossl all all ::/0 reject'
+        'hostssl all all 0.0.0.0/0 scram-sha-256'
+        'hostssl all all ::/0 scram-sha-256'
+        > /run/cardvert-postgres/pg_hba.conf;
+        chown -R postgres:postgres /run/cardvert-postgres;
+        chmod 0700 /run/cardvert-postgres;
+        chmod 0600 /run/cardvert-postgres/server.key;
+        chmod 0644 /run/cardvert-postgres/server.crt /run/cardvert-postgres/ca.crt
+        /run/cardvert-postgres/pg_hba.conf;
+        exec docker-entrypoint.sh postgres
+        -c ssl=on
+        -c ssl_cert_file=/run/cardvert-postgres/server.crt
+        -c ssl_key_file=/run/cardvert-postgres/server.key
+        -c ssl_ca_file=/run/cardvert-postgres/ca.crt
+        -c hba_file=/run/cardvert-postgres/pg_hba.conf
+        -c password_encryption=scram-sha-256
     environment:
       POSTGRES_DB: mobility
       POSTGRES_USER: mobility
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    tmpfs:
+      - /run/cardvert-postgres:rw,noexec,nosuid,size=1m,mode=0700
+    secrets:
+      - source: postgres_tls_ca
+        target: postgres_tls_ca
+      - source: postgres_tls_cert
+        target: postgres_tls_cert
+      - source: postgres_tls_key
+        target: postgres_tls_key
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mobility -d mobility"]
+      test:
+        - CMD-SHELL
+        - >-
+          psql "host=db port=5432 dbname=mobility user=mobility sslmode=verify-full
+          sslrootcert=/run/secrets/postgres_tls_ca" -Atc 'SELECT 1' | grep -qx 1
       interval: 5s
       timeout: 5s
       retries: 20
@@ -146,13 +189,44 @@ services:
 
   redis:
     image: ${REDIS_IMAGE:?REDIS_IMAGE is required}
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"]
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        cp /run/secrets/redis_tls_cert /run/cardvert-redis/server.crt;
+        cp /run/secrets/redis_tls_key /run/cardvert-redis/server.key;
+        cp /run/secrets/redis_tls_ca /run/cardvert-redis/ca.crt;
+        chown -R redis:redis /run/cardvert-redis;
+        chmod 0700 /run/cardvert-redis;
+        chmod 0600 /run/cardvert-redis/server.key;
+        chmod 0644 /run/cardvert-redis/server.crt /run/cardvert-redis/ca.crt;
+        exec docker-entrypoint.sh redis-server
+        --appendonly yes
+        --port 0
+        --tls-port 6379
+        --tls-cert-file /run/cardvert-redis/server.crt
+        --tls-key-file /run/cardvert-redis/server.key
+        --tls-ca-cert-file /run/cardvert-redis/ca.crt
+        --tls-auth-clients no
+        --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     volumes:
       - redis_data:/data
+    tmpfs:
+      - /run/cardvert-redis:rw,noexec,nosuid,size=1m,mode=0700
+    secrets:
+      - source: redis_tls_ca
+        target: redis_tls_ca
+      - source: redis_tls_cert
+        target: redis_tls_cert
+      - source: redis_tls_key
+        target: redis_tls_key
     healthcheck:
-      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$${REDIS_PASSWORD}\" redis-cli --no-auth-warning ping | grep -qx PONG"]
+      test:
+        - CMD-SHELL
+        - >-
+          REDISCLI_AUTH="$${REDIS_PASSWORD}" redis-cli --no-auth-warning --tls
+          --cacert /run/secrets/redis_tls_ca -h redis -p 6379 ping | grep -qx PONG
       interval: 5s
       timeout: 5s
       retries: 20
@@ -179,10 +253,10 @@ services:
         - -c
         - >-
           from urllib.request import urlopen;
-          r=urlopen("http://127.0.0.1:8000/api/v1/health/ready",timeout=2);
+          r=urlopen("http://127.0.0.1:8000/api/v1/health/ready",timeout=6);
           raise SystemExit(0 if r.status == 200 else 1)
-      interval: 5s
-      timeout: 3s
+      interval: 30s
+      timeout: 8s
       retries: 20
     depends_on:
       db:
@@ -209,7 +283,7 @@ services:
     environment:
       API_BASE_URL: http://api:8000
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:?SESSION_COOKIE_NAME is required}
-      LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER: ${LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER:-false}
+      LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER: ${LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER:-true}
       DEMO_LOGIN_ENABLED: "false"
       SENTRY_DSN: ${SENTRY_DSN:-}
       RELEASE_REVISION: ${RELEASE_REVISION:?RELEASE_REVISION is required}
@@ -237,7 +311,8 @@ services:
         condition: service_healthy
     networks:
       edge: {}
-      app: {}
+      app:
+        ipv4_address: 10.255.254.10
       egress:
         gw_priority: 1
 
@@ -277,11 +352,28 @@ volumes:
   caddy_data:
   caddy_config:
 
+secrets:
+  postgres_tls_ca:
+    file: ${POSTGRES_TLS_CA_FILE:?POSTGRES_TLS_CA_FILE is required}
+  postgres_tls_cert:
+    file: ${POSTGRES_TLS_CERT_FILE:?POSTGRES_TLS_CERT_FILE is required}
+  postgres_tls_key:
+    file: ${POSTGRES_TLS_KEY_FILE:?POSTGRES_TLS_KEY_FILE is required}
+  redis_tls_ca:
+    file: ${REDIS_TLS_CA_FILE:?REDIS_TLS_CA_FILE is required}
+  redis_tls_cert:
+    file: ${REDIS_TLS_CERT_FILE:?REDIS_TLS_CERT_FILE is required}
+  redis_tls_key:
+    file: ${REDIS_TLS_KEY_FILE:?REDIS_TLS_KEY_FILE is required}
+
 networks:
   edge:
     internal: false
   app:
     internal: true
+    ipam:
+      config:
+        - subnet: 10.255.254.0/24
   data:
     internal: true
   egress:

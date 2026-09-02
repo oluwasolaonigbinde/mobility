@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { MeResponse } from "@/lib/auth/current-user";
-import { signOutAction } from "@/lib/auth/actions";
+import { SessionLogoutButton } from "@/components/driver/logout-button";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { SidebarNav, type NavItem } from "./sidebar-nav";
 
@@ -54,11 +54,11 @@ export function AppShell({
         <div className="border-edge mt-auto border-t p-4">
           <p className="truncate text-sm font-medium">{me.user.full_name}</p>
           <p className="micro text-faint mt-0.5">{roleLabel[me.user.role] ?? me.user.role}</p>
-          <form action={signOutAction} className="mt-3">
-            <button type="submit" className="micro text-muted hover:text-coral transition-colors">
-              Sign out →
-            </button>
-          </form>
+          <SessionLogoutButton
+            label="Sign out →"
+            className="micro text-muted hover:text-coral transition-colors"
+            formClassName="mt-3"
+          />
         </div>
       </aside>
 

@@ -1,6 +1,6 @@
 # Mobility operations runbook
 
-This runbook covers the Docker Compose pilot stack. Run commands from the repository root. Production-like environments must replace local credentials, keep Postgres and Redis private, and put the frontend behind a trusted TLS edge.
+This runbook covers the Docker Compose pilot stack. Run commands from the repository root. Production-like environments must use externally supplied credentials and explicit hostnames, require TLS and authentication for both PostgreSQL and Redis, keep both private, and put the frontend behind a trusted TLS edge. Bundled and managed data services are both permitted; do not infer provider values from this repository.
 
 ## Stack overview
 
@@ -34,6 +34,42 @@ standalone, image-only release model; it must **not** be merged with the local
 development Compose file. The database-only sections below remain local
 development recovery tools; they are not the W4-03A production backup or
 release path.
+
+### Production data-service TLS and edge preflight
+
+`production.env.example` names six external file authorities for the bundled
+adapter: a CA, server certificate and private key for each of PostgreSQL and
+Redis. Keep all six outside the repository. Private keys must be readable only
+by their owner (mode 0600 or stricter). Before Compose starts, run the same
+preflight used by the release script:
+
+```bash
+python3 scripts/release_contract.py preflight \
+  --env-file /absolute/path/to/approved-production.env \
+  --expected-checkout-revision "$(git rev-parse HEAD)"
+```
+
+Preflight fails without printing certificate contents when a file is missing,
+inside the repository, too permissive, signed by the wrong CA, missing the
+`db` or `redis` SAN, or paired with the wrong private key. The bundled services
+copy this material into service-owned tmpfs; PostgreSQL rejects `hostnossl` and
+requires SCRAM over verified TLS, while Redis disables its plaintext port and
+requires password authentication over verified TLS. Healthchecks and
+`scripts/release_smoke.sh` use those same CAs and service names.
+
+Managed PostgreSQL and Redis are valid production configuration when their URLs
+contain explicit authenticated host authorities and peer-verified TLS. The
+current release, backup, restore and recovery commands are nevertheless the
+bundled adapter and stop managed URLs with
+`MANAGED_DATA_RELEASE_ADAPTER_REQUIRED`. Do not point those commands at managed
+services or weaken verification; the later managed adapter must supply its own
+backup/restore and platform evidence. No provider, hostname, certificate or
+credential is supplied by this repository.
+
+The public edge must use the repository Caddy policy unchanged unless a
+security review approves a replacement. It overwrites inbound client identity
+with the accepted socket peer and a generated request ID, rejects framing, and
+keeps only the PWA-required geolocation, wake-lock and clipboard capabilities.
 
 ## Database backups
 
@@ -177,7 +213,13 @@ Apply migrations before starting newly deployed application code. A migration ro
 ## Sessions, password changes, and logout
 
 - Access tokens slide in 60-minute windows during eligible GET navigation, up to an absolute 12-hour lifetime from the original login.
-- Logout deletes only the current device's cookie. It does not revoke other devices.
+- Logout calls the private BFF session-revocation route, increments the user's
+  durable `session_version`, and then clears the current cookie. Every bearer
+  issued before that commit is rejected on every device. A 401/403 response
+  clears an already-invalid local cookie without claiming a new global
+  revocation. If backend revocation cannot be confirmed, the local session is
+  retained so the user can retry, the UI displays the failure, and no logout is
+  broadcast to other tabs.
 - A password change increments the user's `session_version`; every other token for that user is rejected immediately. The fresh token returned by the change-password flow remains valid.
 - Admin-created users have `must_change_password=true` and are sent to the role-appropriate password-change screen on first login.
 - Rotating `JWT_SECRET_KEY` invalidates every current session immediately.
@@ -216,6 +258,12 @@ Require exactly one returned row. The session bump immediately revokes possibly 
 
 While tracking, the mounted PWA sends a lightweight GET keepalive every 10 minutes. Middleware can refresh a near-expiry session without downloading a full page. Keepalive errors are fail-open and retried: buffered pings remain client-side, and a later flush surfaces the existing error if the session ultimately expires. No refresh can cross the 12-hour absolute login cap, so a trip longer than 12 hours must reauthenticate.
 
+Logout and refresh serialize on the same locked user row. If refresh commits
+first, logout immediately invalidates the refreshed bearer; if logout commits
+first, refresh returns `SESSION_REVOKED` and writes no refresh event. The logout
+broadcast occurs only after the backend confirms revocation, then stops active
+tracking in other open tabs before they navigate to the login page.
+
 The manifest and service worker are scoped to `/driver`. The forced first-login route `/driver/change-password` stays inside that scope. The shared `/login` route does not: if a driver's session fully expires, a standalone PWA can show browser scope-escape UI until navigation returns below `/driver`. This predates F7 and needs a separate product decision about a driver-scoped login or a wider manifest scope.
 
 ## Login rate limiting
@@ -228,7 +276,7 @@ Default failure/in-flight thresholds are:
 | Client IP | 150 | 5 minutes |
 | Platform global | 250 | 5 minutes |
 
-Successful login deletes the account counter and refunds its IP/global reservation. Redis/Lua errors fail open with a warning so a cache outage cannot lock out all users. The login form presents backend `429` responses and the retry delay.
+Successful login deletes the account counter and refunds its IP/global reservation. Redis/Lua reserve errors return `503 RATE_LIMIT_UNAVAILABLE` with `Retry-After` before password verification; a refund failure after valid credentials is warning-only and may overcount until TTL expiry. The login form presents backend `429` responses and the retry delay.
 
 Password-change attempts share the same buckets so a stolen session cannot brute-force the current password: a wrong current password keeps its reservation and is audited as `auth.password.change_failed`; proving the current password refunds it. Limit transitions appear as `auth.password.change_rate_limited`.
 
@@ -242,18 +290,27 @@ docker compose exec -T redis sh -c "redis-cli --scan --pattern 'ratelimit:login:
 
 This is temporary relief, not a substitute for blocking the source at the edge. Do not flush unrelated Redis data.
 
-### Trusted-edge preconditions
+### Production trusted-edge authority
 
-Do not enable `LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER` until all of these are true:
+The production Compose topology enables login client-IP relay only through the
+exact private frontend address `10.255.254.10/32` on the dedicated
+`10.255.254.0/24` application network. Release preflight rejects disabling the
+relay/trust pair, broadening that CIDR, or moving the frontend address. Do not
+copy this authority to a different topology without a new edge review. Its
+required invariants are:
 
 1. A public reverse proxy is the only client entry point and derives client identity from its accepted TCP socket peer, not from a client-supplied forwarding header.
-2. The proxy strips inbound `X-Client-IP` and `X-Forwarded-For`, then overwrites one internal `X-Client-IP` value.
+2. The proxy discards the inbound `X-Client-IP` value by overwriting it from the accepted socket peer, and does not preserve a client-supplied `X-Forwarded-For` value.
 3. Next passes only that proxy-created value through the login action; it never parses `X-Forwarded-For` itself.
 4. Both API `8000:8000` and frontend `3100:3000` host mappings are unpublished. Postgres and Redis mappings are also unpublished.
 5. `LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS` contains only the BFF container network(s) FastAPI sees as its direct peer. An empty allowlist means trust nobody.
 6. A test proves forged direct headers cannot select a limiter bucket and distinct edge socket peers do receive distinct buckets.
 
-If any condition is absent, leave header trust off. The browser-to-API path is `browser → edge → Next/BFF → FastAPI`; FastAPI sees the BFF peer, not the edge peer.
+If any condition is absent in a replacement topology, stop release rather than
+falling back to a shared browser-login bucket. The browser-to-API path is
+`browser → edge → Next/BFF → FastAPI`; FastAPI trusts the relayed value only
+when the direct BFF peer is that exact `/32`. Driver-registration header trust
+remains off until its separate BFF relay is reviewed.
 
 ## Post-trip processing worker
 
@@ -433,7 +490,7 @@ Keep secrets in the host/platform secret store, not Git or image layers. Rotate 
 
 1. Take a database backup and record the current deployment revision.
 2. Rotate the database password in Postgres, update `POSTGRES_PASSWORD` and `DATABASE_URL`, recreate API/database services as required, then check readiness.
-3. Configure Redis authentication in the private topology before putting a password into `REDIS_URL`; test limiter degradation and recovery.
+3. Rotate Redis authentication and its TLS certificate/key/CA material together in the private topology, update the verified `REDIS_URL`, then test limiter degradation and recovery. Rotate PostgreSQL TLS material with its matching URL/CA authority in the same deliberate one-dependency-at-a-time manner.
 4. Rotate `JWT_SECRET_KEY` during a communicated window. This intentionally logs out every user immediately.
 5. Rotate Sentry DSNs at runtime for servers; rebuild the frontend for `NEXT_PUBLIC_SENTRY_DSN`.
 6. Revoke the old value only after API health, login, tracking, and admin checks pass.
@@ -447,7 +504,7 @@ Keep secrets in the host/platform secret store, not Git or image layers. Rotate 
 | `relation ... does not exist` | `alembic current` versus `alembic heads` | Stop new writers, back up, and run reviewed pending migrations. |
 | All web logins return 429 | `/admin/audit` rate-limit transitions and Redis TTLs | Block the attacking source at the edge; clear only `ratelimit:login:*` keys if approved. |
 | One account returns 429 | Normalized account bucket and retry time | Wait for expiry or clear the targeted limiter keys after verifying identity; do not disable the limiter globally. |
-| Redis unavailable | API warning logs | Login intentionally fails open. Restore Redis and verify every limiter key has a positive TTL. |
+| Redis unavailable during login/password change | `503 RATE_LIMIT_UNAVAILABLE`, API warning logs, `/api/v1/health/ready` | Restore authenticated TLS Redis, confirm its script and worker-heartbeat components are `ok`, then retry. Do not bypass the limiter. |
 | Driver pings stop flushing | Device network, tracker error, 12-hour cap | Keep the app visible, preserve buffered pings, reauthenticate if the absolute cap passed, and retry. |
 | Restore stops after a rename | Script's stage/recovery output and database names | Keep writers stopped; follow the exact printed recovery SQL. Never drop the safety database first. |
 | Browser Sentry remains silent | Image build arguments | Rebuild with `NEXT_PUBLIC_SENTRY_DSN`; a container restart is insufficient. |

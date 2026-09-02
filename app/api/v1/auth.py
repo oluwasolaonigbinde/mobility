@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from starlette import status
 
 from app.adapters.crypto import EnvelopeCryptoProvider
@@ -54,6 +54,7 @@ from app.services.auth import (
     issue_session,
     login_with_password,
     refresh_user_session,
+    revoke_user_sessions,
 )
 from app.services.driver_applications import (
     PUBLIC_APPLICATION_MESSAGE,
@@ -245,6 +246,13 @@ async def login(
 ) -> LoginResponse:
     client_ip = login_client_ip(request, settings)
     decision = await rate_limiter.reserve(client_ip, payload.email)
+    if decision.storage_available is False:
+        raise AppError(
+            "RATE_LIMIT_UNAVAILABLE",
+            "Authentication service is temporarily unavailable",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            headers={"Retry-After": str(max(decision.retry_after_seconds, 1))},
+        )
     if not decision.allowed:
         if decision.newly_blocked:
             await create_audit_event(
@@ -502,6 +510,13 @@ async def change_password(
     # by brute force: current-password guesses share the login failure buckets.
     client_ip = login_client_ip(request, settings)
     decision = await rate_limiter.reserve(client_ip, current_user.email)
+    if decision.storage_available is False:
+        raise AppError(
+            "RATE_LIMIT_UNAVAILABLE",
+            "Authentication service is temporarily unavailable",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            headers={"Retry-After": str(max(decision.retry_after_seconds, 1))},
+        )
     if not decision.allowed:
         if decision.newly_blocked:
             await create_audit_event(
@@ -575,3 +590,28 @@ async def refresh_session(
 
     await session.commit()
     return login_response(issued)
+
+
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    include_in_schema=False,
+)
+async def logout_session(
+    current_user: CurrentUserDependency,
+    session: SessionDependency,
+    token: Annotated[str, Depends(oauth2_scheme)],
+    settings: SettingsDependency,
+) -> Response:
+    """Revoke the current global session authority for the private BFF."""
+    try:
+        await revoke_user_sessions(
+            session,
+            user=current_user,
+            token=token,
+            settings=settings,
+        )
+    except AuthCommandError as exc:
+        raise exc.error from exc
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

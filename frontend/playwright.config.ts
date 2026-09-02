@@ -20,6 +20,11 @@ export default defineConfig({
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL,
+    ignoreHTTPSErrors: process.env.PLAYWRIGHT_IGNORE_HTTPS_ERRORS === "1",
+    launchOptions:
+      process.env.PLAYWRIGHT_IGNORE_HTTPS_ERRORS === "1"
+        ? { args: ["--ignore-certificate-errors"] }
+        : undefined,
     trace: "on-first-retry",
   },
   projects: w401dSynthetic

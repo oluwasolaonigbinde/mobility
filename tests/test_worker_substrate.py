@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from app.core.config import Settings
 from app.jobs import worker
 from app.jobs.worker import WorkerSettings, build_redis_settings, sweep_cron_minutes
+from app.jobs.worker_entry import WorkerSettings as EntryWorkerSettings
 
 
 def test_worker_settings_defaults() -> None:
@@ -24,6 +25,8 @@ def test_worker_settings_defaults() -> None:
     assert settings.worker_sweep_interval_minutes == 5
     assert settings.worker_sweep_batch_size == 25
     assert settings.fraud_review_sla_days == 7
+    assert WorkerSettings.health_check_interval == 30
+    assert EntryWorkerSettings.health_check_interval == 30
 
 
 @pytest.mark.parametrize("invalid_value", [0, 7, 13, 61, -5])

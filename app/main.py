@@ -6,12 +6,15 @@ from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 from app.core.middleware import RequestIdMiddleware
 from app.core.observability import configure_logging, init_error_tracking
+from app.services.auth import warm_password_timing_equalizer
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings, service="api")
     init_error_tracking(settings)
+    if settings.environment.lower() == "production":
+        warm_password_timing_equalizer()
     app = FastAPI(title=settings.app_name)
     app.state.request_id_header = settings.request_id_header
     app.dependency_overrides[get_settings] = lambda: settings

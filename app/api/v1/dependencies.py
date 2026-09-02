@@ -131,6 +131,7 @@ async def get_current_user(
     allowed_while_password_change_required = {
         f"{settings.api_v1_prefix}/me",
         f"{settings.api_v1_prefix}/auth/change-password",
+        f"{settings.api_v1_prefix}/auth/logout",
         f"{settings.api_v1_prefix}/auth/refresh",
     }
     if user.must_change_password and request.url.path not in allowed_while_password_change_required:

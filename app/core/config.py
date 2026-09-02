@@ -1,12 +1,16 @@
 import base64
 import binascii
+import ipaddress
 import json
 import re
 from functools import lru_cache
 from typing import Annotated
+from urllib.parse import parse_qsl, urlsplit
 
 from pydantic import BeforeValidator, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from redis.connection import parse_url as parse_redis_url
+from sqlalchemy.engine import make_url
 
 
 def _parse_cors_origins(value: str | list[str]) -> list[str]:
@@ -37,9 +41,102 @@ OptionalFloat = Annotated[float | None, BeforeValidator(_blank_to_none)]
 OptionalInt = Annotated[int | None, BeforeValidator(_blank_to_none)]
 OptionalSecret = Annotated[SecretStr | None, BeforeValidator(_blank_to_none)]
 
+_RUNTIME_PLACEHOLDER_RE = re.compile(
+    r"(?i)(example-only|replace[-_ ]?me|change[-_ ]?me|placeholder|\btodo\b|\btbd\b|"
+    r"dummy|sample-secret|weak-password|local-secret|test-secret)"
+)
+_RUNTIME_SPECIAL_USE_SUFFIXES = (
+    "localhost",
+    "local",
+    "invalid",
+    "test",
+    "example",
+    "example.com",
+    "example.net",
+    "example.org",
+)
+
+
+def _runtime_host_is_allowed(host: str | None) -> bool:
+    if not host:
+        return False
+    normalized = host.strip().lower().rstrip(".")
+    if (
+        not normalized
+        or "*" in normalized
+        or _RUNTIME_PLACEHOLDER_RE.search(normalized)
+        or any(
+            normalized == suffix or normalized.endswith(f".{suffix}")
+            for suffix in _RUNTIME_SPECIAL_USE_SUFFIXES
+        )
+    ):
+        return False
+    try:
+        address = ipaddress.ip_address(normalized)
+    except ValueError:
+        return True
+    return not (
+        address.is_loopback
+        or address.is_link_local
+        or address.is_multicast
+        or address.is_unspecified
+        or address.is_reserved
+    )
+
+
+def _validate_database_url(value: str | None) -> None:
+    if not value:
+        raise ValueError("DATABASE_URL is required outside local/test")
+    try:
+        url = make_url(value)
+        query = url.normalized_query
+    except Exception as exc:
+        raise ValueError("DATABASE_URL is invalid") from exc
+    authority_overrides = {"host", "port", "user", "username", "password", "database", "dbname"}
+    ssl_values = query.get("ssl", ())
+    if (
+        url.drivername != "postgresql+asyncpg"
+        or not _runtime_host_is_allowed(url.host)
+        or not url.username
+        or not url.password
+        or any(name in query for name in authority_overrides)
+        or "sslmode" in query
+        or len(ssl_values) != 1
+        or ssl_values[0] not in {"require", "verify-ca", "verify-full"}
+    ):
+        raise ValueError("DATABASE_URL must use authenticated asyncpg with required TLS")
+
+
+def _validate_redis_url(value: str | None) -> None:
+    if not value:
+        raise ValueError("REDIS_URL is required outside local/test")
+    try:
+        split = urlsplit(value)
+        query_pairs = parse_qsl(split.query, keep_blank_values=True)
+        parsed = parse_redis_url(value)
+    except Exception as exc:
+        raise ValueError("REDIS_URL is invalid") from exc
+    query_names = [name.lower() for name, _ in query_pairs]
+    authority_overrides = {"host", "port", "user", "username", "password", "database", "db"}
+    cert_values = [item for name, item in query_pairs if name.lower() == "ssl_cert_reqs"]
+    if (
+        split.scheme != "rediss"
+        or not _runtime_host_is_allowed(parsed.get("host"))
+        or not parsed.get("password")
+        or any(name in authority_overrides for name in query_names)
+        or len(cert_values) > 1
+        or (cert_values and cert_values[0].lower() != "required")
+    ):
+        raise ValueError("REDIS_URL must use authenticated Redis TLS")
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        hide_input_in_errors=True,
+    )
 
     app_name: str = "mobility-adtech-api"
     environment: str = "local"
@@ -64,8 +161,6 @@ class Settings(BaseSettings):
     driver_registration_rate_limit_ip_window_seconds: int = 3600
     driver_registration_rate_limit_email_max_attempts: int = 3
     driver_registration_rate_limit_email_window_seconds: int = 3600
-    driver_registration_rate_limit_global_max_attempts: int = 100
-    driver_registration_rate_limit_global_window_seconds: int = 3600
     driver_onboarding_access_ttl_seconds: int = 1800
     driver_registration_rate_limit_trust_client_ip_header: bool = False
     driver_registration_rate_limit_trusted_proxy_cidrs: str = ""
@@ -290,8 +385,6 @@ class Settings(BaseSettings):
         "driver_registration_rate_limit_ip_window_seconds",
         "driver_registration_rate_limit_email_max_attempts",
         "driver_registration_rate_limit_email_window_seconds",
-        "driver_registration_rate_limit_global_max_attempts",
-        "driver_registration_rate_limit_global_window_seconds",
         "phone_verification_ttl_seconds",
         "phone_verification_max_code_attempts",
         "phone_verification_request_max_attempts",
@@ -326,6 +419,13 @@ class Settings(BaseSettings):
             0 < self.budget_resume_ratio <= self.budget_alert_ratio < self.budget_pause_ratio
         ):
             raise ValueError("Budget policy thresholds must satisfy resume <= alert < pause")
+        return self
+
+    @model_validator(mode="after")
+    def validate_runtime_dependency_urls(self):
+        if self.environment.lower() not in LOCAL_ENVIRONMENTS:
+            _validate_database_url(self.database_url)
+            _validate_redis_url(self.redis_url)
         return self
 
     @field_validator("password_min_length")

@@ -15,6 +15,7 @@ import asyncio
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
+from fastapi.routing import APIRoute
 from sqlalchemy import func, select
 from starlette import status as http_status
 from test_trips import (
@@ -36,6 +37,7 @@ AUDITED = {
     ("POST", "/api/v1/auth/password-reset/request"): "auth.password_reset.requested",
     ("POST", "/api/v1/auth/password-reset/complete"): "auth.password_reset.completed",
     ("POST", "/api/v1/auth/refresh"): "auth.session.refreshed",
+    ("POST", "/api/v1/auth/logout"): "auth.session.revoked",
     ("POST", "/api/v1/auth/register-driver"): "auth.driver_application.created",
     ("POST", "/api/v1/admin/users"): "admin.user.created",
     ("PATCH", "/api/v1/admin/users/{user_id}"): "admin.user.updated",
@@ -488,12 +490,21 @@ EXEMPT.update(
 
 
 def mutating_routes() -> set[tuple[str, str]]:
-    spec = create_app().openapi()
     routes: set[tuple[str, str]] = set()
-    for path, operations in spec["paths"].items():
-        for method in operations:
-            if method.upper() in {"POST", "PUT", "PATCH", "DELETE"}:
-                routes.add((method.upper(), path))
+
+    def collect(app_routes, prefix: str = "") -> None:
+        for route in app_routes:
+            if isinstance(route, APIRoute):
+                for method in route.methods:
+                    if method in {"POST", "PUT", "PATCH", "DELETE"}:
+                        routes.add((method, f"{prefix}{route.path}"))
+                continue
+            original_router = getattr(route, "original_router", None)
+            include_context = getattr(route, "include_context", None)
+            if original_router is not None and include_context is not None:
+                collect(original_router.routes, f"{prefix}{include_context.prefix}")
+
+    collect(create_app().routes)
     return routes
 
 

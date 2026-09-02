@@ -94,13 +94,11 @@ class FailClosedRegistrationRateLimiter:
 class InMemoryRegistrationRateLimiter:
     """Explicit deterministic fake for local/test injection only."""
 
-    def __init__(self, *, ip_limit: int = 100, email_limit: int = 20, global_limit: int = 1000):
+    def __init__(self, *, ip_limit: int = 100, email_limit: int = 20):
         self.ip_limit = ip_limit
         self.email_limit = email_limit
-        self.global_limit = global_limit
         self._ip: dict[str, int] = {}
         self._email: dict[str, int] = {}
-        self._global = 0
         self._notified: set[str] = set()
 
     async def reserve(self, ip: str, email: str) -> RateLimitDecision:
@@ -108,14 +106,12 @@ class InMemoryRegistrationRateLimiter:
         bucket_values = (
             ("ip", self._ip.get(ip, 0), self.ip_limit),
             ("email", self._email.get(normalized_email, 0), self.email_limit),
-            ("global", self._global, self.global_limit),
         )
         for bucket, value, limit in bucket_values:
             if value >= limit:
                 marker_value = {
                     "ip": ip,
                     "email": normalized_email,
-                    "global": "global",
                 }[bucket]
                 marker = f"{bucket}:{marker_value}"
                 newly_blocked = marker not in self._notified
@@ -128,7 +124,6 @@ class InMemoryRegistrationRateLimiter:
                 )
         self._ip[ip] = self._ip.get(ip, 0) + 1
         self._email[normalized_email] = self._email.get(normalized_email, 0) + 1
-        self._global += 1
         return RateLimitDecision(allowed=True)
 
 
@@ -162,8 +157,14 @@ class RedisLoginRateLimiter:
             if not isinstance(raw, (list, tuple)) or len(raw) != 4:
                 raise ValueError("malformed reserve response")
             values = [int(value) for value in raw]
-            if values[0] == 1:
+            if values == [1, 0, 0, 0]:
                 return RateLimitDecision(allowed=True)
+            if (
+                values[0] != 0
+                or values[2] < 1
+                or values[3] not in (0, 1)
+            ):
+                raise ValueError("invalid reserve response values")
             bucket = {1: "ip", 2: "account", 3: "global"}.get(values[1])
             if bucket is None:
                 raise ValueError("unknown rate-limit bucket")
@@ -174,8 +175,13 @@ class RedisLoginRateLimiter:
                 newly_blocked=values[3] == 1,
             )
         except (RedisError, TypeError, ValueError) as exc:
-            logger.warning("Login rate limiter degraded open: %s", exc)
-            return RateLimitDecision(allowed=True)
+            logger.warning("Login rate limiter unavailable: %s", exc)
+            return RateLimitDecision(
+                allowed=False,
+                bucket="storage",
+                retry_after_seconds=60,
+                storage_available=False,
+            )
 
     async def release_success(self, ip: str, email: str) -> None:
         try:
@@ -185,9 +191,9 @@ class RedisLoginRateLimiter:
 
 
 RESERVE_REGISTRATION_ATTEMPT = """
-local limits = {tonumber(ARGV[1]), tonumber(ARGV[3]), tonumber(ARGV[5])}
-local ttls = {tonumber(ARGV[2]), tonumber(ARGV[4]), tonumber(ARGV[6])}
-for i = 1, 3 do
+local limits = {tonumber(ARGV[1]), tonumber(ARGV[3])}
+local ttls = {tonumber(ARGV[2]), tonumber(ARGV[4])}
+for i = 1, 2 do
   local current = tonumber(redis.call('GET', KEYS[i]) or '0')
   if current >= limits[i] then
     local ttl = redis.call('TTL', KEYS[i])
@@ -200,7 +206,7 @@ for i = 1, 3 do
     return {0, i, ttl, notified and 1 or 0}
   end
 end
-for i = 1, 3 do
+for i = 1, 2 do
   local value = redis.call('INCR', KEYS[i])
   if value == 1 then redis.call('EXPIRE', KEYS[i], ttls[i]) end
 end
@@ -218,7 +224,6 @@ class RedisRegistrationRateLimiter:
         return [
             f"ratelimit:driver-registration:ip:{ip}",
             f"ratelimit:driver-registration:email:{normalize_email(email)}",
-            "ratelimit:driver-registration:global",
         ]
 
     async def reserve(self, ip: str, email: str) -> RateLimitDecision:
@@ -230,8 +235,6 @@ class RedisRegistrationRateLimiter:
                     self.settings.driver_registration_rate_limit_ip_window_seconds,
                     self.settings.driver_registration_rate_limit_email_max_attempts,
                     self.settings.driver_registration_rate_limit_email_window_seconds,
-                    self.settings.driver_registration_rate_limit_global_max_attempts,
-                    self.settings.driver_registration_rate_limit_global_window_seconds,
                 ],
             )
             if not isinstance(raw, (list, tuple)) or len(raw) != 4:
@@ -241,7 +244,7 @@ class RedisRegistrationRateLimiter:
                 return RateLimitDecision(allowed=True)
             if values[0] != 0 or values[2] < 1 or values[3] not in (0, 1):
                 raise ValueError("invalid registration reserve values")
-            bucket = {1: "ip", 2: "email", 3: "global"}.get(values[1])
+            bucket = {1: "ip", 2: "email"}.get(values[1])
             if bucket is None:
                 raise ValueError("unknown registration rate-limit bucket")
             return RateLimitDecision(
@@ -325,7 +328,7 @@ def build_login_rate_limiter(settings: Settings) -> LoginRateLimiter:
     return limiter
 
 
-_registration_limiters: dict[tuple[str, int, int, int, int, int, int], RegistrationRateLimiter] = {}
+_registration_limiters: dict[tuple[str, int, int, int, int], RegistrationRateLimiter] = {}
 
 
 def build_registration_rate_limiter(settings: Settings) -> RegistrationRateLimiter:
@@ -337,8 +340,6 @@ def build_registration_rate_limiter(settings: Settings) -> RegistrationRateLimit
         settings.driver_registration_rate_limit_ip_window_seconds,
         settings.driver_registration_rate_limit_email_max_attempts,
         settings.driver_registration_rate_limit_email_window_seconds,
-        settings.driver_registration_rate_limit_global_max_attempts,
-        settings.driver_registration_rate_limit_global_window_seconds,
     )
     existing = _registration_limiters.get(key)
     if existing is not None:

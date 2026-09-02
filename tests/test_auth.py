@@ -154,6 +154,50 @@ def test_unknown_and_wrong_password_paths_both_verify_argon2(
     assert calls == ["wrong", "wrong"]
 
 
+def test_password_timing_equalizer_is_warmed_once(monkeypatch) -> None:
+    from app.services import auth as auth_service
+
+    calls: list[str] = []
+    auth_service._timing_equalizer_hash.cache_clear()
+    monkeypatch.setattr(
+        auth_service,
+        "hash_password",
+        lambda value: calls.append(value) or "synthetic-equalizer-hash",
+    )
+    try:
+        auth_service.warm_password_timing_equalizer()
+        auth_service.warm_password_timing_equalizer()
+    finally:
+        auth_service._timing_equalizer_hash.cache_clear()
+    assert calls == ["cardvert-timing-equalizer-not-a-real-password"]
+
+
+def test_only_production_app_creation_prewarms_password_equalizer(
+    settings, monkeypatch
+) -> None:
+    from app import main as main_module
+
+    calls: list[str] = []
+    monkeypatch.setattr(
+        main_module,
+        "warm_password_timing_equalizer",
+        lambda: calls.append("warmed"),
+    )
+    main_module.create_app(settings.model_copy(update={"environment": "test"}))
+    assert calls == []
+    main_module.create_app(settings.model_copy(update={"environment": "production"}))
+    assert calls == ["warmed"]
+
+
+def test_production_cold_start_populates_password_equalizer_cache(settings) -> None:
+    from app import main as main_module
+    from app.services import auth as auth_service
+
+    auth_service._timing_equalizer_hash.cache_clear()
+    main_module.create_app(settings.model_copy(update={"environment": "production"}))
+    assert auth_service._timing_equalizer_hash.cache_info().currsize == 1
+
+
 @pytest.mark.parametrize(
     "user_status",
     [UserStatus.DISABLED, UserStatus.SUSPENDED],

@@ -19,7 +19,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote, unquote, urlparse, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, unquote, urlparse, urlsplit, urlunsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -50,14 +50,20 @@ SECRET_NAMES = (
     "JWT_SECRET_KEY",
     "OBJECT_STORAGE_SECRET_ACCESS_KEY",
 )
+TLS_FILE_NAMES = (
+    "POSTGRES_TLS_CA_FILE",
+    "POSTGRES_TLS_CERT_FILE",
+    "POSTGRES_TLS_KEY_FILE",
+    "REDIS_TLS_CA_FILE",
+    "REDIS_TLS_CERT_FILE",
+    "REDIS_TLS_KEY_FILE",
+)
 REQUIRED_NAMES = (
     "ENVIRONMENT",
     "RELEASE_ID",
     "RELEASE_REVISION",
     "BACKEND_IMAGE",
     "FRONTEND_IMAGE",
-    "POSTGIS_IMAGE",
-    "REDIS_IMAGE",
     "CADDY_IMAGE",
     "EDGE_HOSTNAME",
     "PUBLIC_ORIGIN",
@@ -79,6 +85,7 @@ REQUIRED_NAMES = (
     "BACKUP_PASSPHRASE_FILE",
     "BACKUP_RETENTION_DAYS",
 )
+BUNDLED_REQUIRED_NAMES = ("POSTGIS_IMAGE", "REDIS_IMAGE", *TLS_FILE_NAMES)
 STAGE_ORDER = (
     "preflight",
     "backup",
@@ -123,7 +130,9 @@ def database_url_for_name(database_url: str, database_name: str) -> str:
     parts = urlsplit(database_url)
     if not parts.scheme or not parts.netloc:
         raise ContractError("Database URL is invalid")
-    return urlunsplit((parts.scheme, parts.netloc, f"/{quote(database_name, safe='')}", "", ""))
+    return urlunsplit(
+        (parts.scheme, parts.netloc, f"/{quote(database_name, safe='')}", parts.query, "")
+    )
 
 
 def _validate_secret(name: str, value: str) -> None:
@@ -161,6 +170,115 @@ def _validate_private_key_file(value: str) -> Path:
     return path
 
 
+def _validate_external_tls_file(name: str, value: str, *, private_key: bool) -> Path:
+    path = Path(value).expanduser().resolve()
+    if not path.is_file() or not os.access(path, os.R_OK):
+        raise ContractError(f"{name} must be a readable regular file")
+    if ROOT == path or ROOT in path.parents:
+        raise ContractError(f"{name} must be outside the repository")
+    if private_key and path.stat().st_mode & (stat.S_IRWXG | stat.S_IRWXO):
+        raise ContractError(f"{name} must have mode 0600 or stricter")
+    return path
+
+
+def _openssl(*args: str) -> bytes:
+    result = subprocess.run(
+        ["openssl", *args], check=False, capture_output=True
+    )
+    if result.returncode:
+        raise ContractError("Bundled TLS certificate validation failed")
+    return result.stdout
+
+
+def _validate_server_certificate(*, ca: Path, certificate: Path, key: Path, host: str) -> None:
+    _openssl("verify", "-CAfile", str(ca), str(certificate))
+    _openssl("x509", "-in", str(certificate), "-noout", "-checkhost", host)
+    certificate_key = _openssl("x509", "-in", str(certificate), "-pubkey", "-noout")
+    private_key = _openssl("pkey", "-in", str(key), "-pubout")
+    if not certificate_key or certificate_key != private_key:
+        raise ContractError("Bundled TLS certificate and private key do not match")
+
+
+def _deployable_runtime_host(hostname: str | None) -> bool:
+    if not hostname:
+        return False
+    normalized = hostname.lower().rstrip(".")
+    if not normalized or "*" in normalized or PLACEHOLDER_RE.search(normalized):
+        return False
+    if _is_special_use_dns_name(normalized):
+        return False
+    try:
+        address = ipaddress.ip_address(normalized)
+    except ValueError:
+        return True
+    return not (
+        address.is_loopback
+        or address.is_link_local
+        or address.is_multicast
+        or address.is_unspecified
+        or address.is_reserved
+    )
+
+
+def validate_data_service_urls(environment: Mapping[str, str]) -> str:
+    """Validate provider-neutral data authorities and identify the release adapter."""
+    database_raw = _require(environment, "DATABASE_URL")
+    redis_raw = _require(environment, "REDIS_URL")
+    database = urlsplit(database_raw)
+    redis = urlsplit(redis_raw)
+    database_query = parse_qsl(database.query, keep_blank_values=True)
+    redis_query = parse_qsl(redis.query, keep_blank_values=True)
+    database_names = [name.lower() for name, _ in database_query]
+    redis_names = [name.lower() for name, _ in redis_query]
+    authority_names = {"host", "port", "user", "username", "password", "database", "dbname"}
+    database_ssl = [value for name, value in database_query if name.lower() == "ssl"]
+    redis_cert_reqs = [
+        value for name, value in redis_query if name.lower() == "ssl_cert_reqs"
+    ]
+    if (
+        database.scheme != "postgresql+asyncpg"
+        or not _deployable_runtime_host(database.hostname)
+        or not database.username
+        or not database.password
+        or not database.path.strip("/")
+        or any(name in authority_names for name in database_names)
+        or "sslmode" in database_names
+        or database_ssl != ["verify-full"]
+    ):
+        raise ContractError("DATABASE_URL must use authenticated asyncpg with verified TLS")
+    if (
+        redis.scheme != "rediss"
+        or not _deployable_runtime_host(redis.hostname)
+        or not redis.password
+        or any(name in authority_names | {"db"} for name in redis_names)
+        or [value.lower() for value in redis_cert_reqs] != ["required"]
+    ):
+        raise ContractError("REDIS_URL must use authenticated Redis with verified TLS")
+    if (
+        unquote(database.password) != _require(environment, "POSTGRES_PASSWORD")
+        or unquote(redis.password) != _require(environment, "REDIS_PASSWORD")
+    ):
+        raise ContractError("Database and Redis URL credentials must match supplied secrets")
+
+    database_bundled = (
+        database.hostname == "db"
+        and database.port == 5432
+        and unquote(database.username) == "mobility"
+        and database.path == "/mobility"
+    )
+    redis_bundled = redis.hostname == "redis" and redis.port == 6379 and redis.path == "/0"
+    if database_bundled != redis_bundled:
+        raise ContractError("Database and Redis must use one coherent release adapter")
+    if not database_bundled:
+        return "managed"
+    redis_ca_paths = [
+        value for name, value in redis_query if name.lower() == "ssl_ca_certs"
+    ]
+    if redis_ca_paths != ["/run/secrets/redis_tls_ca"]:
+        raise ContractError("Bundled Redis must use its mounted release CA")
+    return "bundled"
+
+
 def _validate_payout_keyring(environment: Mapping[str, str]) -> None:
     raw_keyring = _require(environment, "PAYOUT_CRYPTO_KEYRING_B64")
     version = _require(environment, "PAYOUT_CRYPTO_KEY_VERSION")
@@ -187,6 +305,15 @@ def validate_release_environment(
             raise ContractError("ENVIRONMENT must be rehearsal or production")
     elif mode != "production":
         raise ContractError("ENVIRONMENT must be production")
+
+    data_service_adapter = validate_data_service_urls(environment)
+    if data_service_adapter != "bundled":
+        raise ContractError(
+            "MANAGED_DATA_RELEASE_ADAPTER_REQUIRED: bundled release automation cannot "
+            "operate managed data services"
+        )
+    for name in BUNDLED_REQUIRED_NAMES:
+        _require(environment, name)
 
     release_id = _require(environment, "RELEASE_ID")
     revision = _require(environment, "RELEASE_REVISION").lower()
@@ -249,26 +376,26 @@ def validate_release_environment(
         _validate_secret(name, _require(environment, name))
     _validate_payout_keyring(environment)
 
-    database = urlparse(_require(environment, "DATABASE_URL"))
-    if (
-        database.scheme != "postgresql+asyncpg"
-        or database.hostname != "db"
-        or database.port != 5432
-        or database.username != "mobility"
-        or database.path != "/mobility"
-    ):
-        raise ContractError("DATABASE_URL must target the private db service over asyncpg")
-    redis = urlparse(_require(environment, "REDIS_URL"))
-    if redis.scheme not in {"redis", "rediss"} or redis.hostname != "redis" or redis.port != 6379:
-        raise ContractError("REDIS_URL must target the private redis service")
-    if (
-        not database.password
-        or not redis.password
-        or unquote(database.password) != _require(environment, "POSTGRES_PASSWORD")
-        or unquote(redis.password) != _require(environment, "REDIS_PASSWORD")
-        or redis.path != "/0"
-    ):
-        raise ContractError("Database and Redis URLs must contain credentials")
+    tls_paths = {
+        name: _validate_external_tls_file(
+            name,
+            _require(environment, name),
+            private_key=name.endswith("_KEY_FILE"),
+        )
+        for name in TLS_FILE_NAMES
+    }
+    _validate_server_certificate(
+        ca=tls_paths["POSTGRES_TLS_CA_FILE"],
+        certificate=tls_paths["POSTGRES_TLS_CERT_FILE"],
+        key=tls_paths["POSTGRES_TLS_KEY_FILE"],
+        host="db",
+    )
+    _validate_server_certificate(
+        ca=tls_paths["REDIS_TLS_CA_FILE"],
+        certificate=tls_paths["REDIS_TLS_CERT_FILE"],
+        key=tls_paths["REDIS_TLS_KEY_FILE"],
+        host="redis",
+    )
 
     storage_endpoint = urlparse(_require(environment, "OBJECT_STORAGE_ENDPOINT_URL"))
     public_storage_endpoint = urlparse(_require(environment, "OBJECT_STORAGE_PUBLIC_ENDPOINT_URL"))
@@ -335,14 +462,18 @@ def validate_release_environment(
     if log_level not in {"INFO", "WARNING", "ERROR", "CRITICAL"}:
         raise ContractError("LOG_LEVEL must be a non-debug production level")
     if (
-        _is_true(environment.get("LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER"))
-        or _is_true(environment.get("LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER"))
+        not _is_true(environment.get("LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER"))
+        or not _is_true(environment.get("LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER"))
         or environment.get("LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS", "").strip()
-        or _is_true(environment.get("DRIVER_REGISTRATION_RATE_LIMIT_TRUST_CLIENT_IP_HEADER"))
+        != "10.255.254.10/32"
+    ):
+        raise ContractError("Login client-IP forwarding must use the exact private BFF authority")
+    if (
+        _is_true(environment.get("DRIVER_REGISTRATION_RATE_LIMIT_TRUST_CLIENT_IP_HEADER"))
         or environment.get("DRIVER_REGISTRATION_RATE_LIMIT_TRUSTED_PROXY_CIDRS", "").strip()
     ):
         raise ContractError(
-            "Trusted client-IP forwarding requires a later environment-specific review"
+            "Driver-registration client-IP forwarding requires a separate reviewed BFF relay"
         )
 
     try:
@@ -358,6 +489,7 @@ def validate_release_environment(
         "release_id": release_id,
         "release_revision": revision,
         "public_origin": origin.geturl().rstrip("/"),
+        "data_service_adapter": data_service_adapter,
     }
 
 
@@ -639,6 +771,16 @@ def validate_compose_model(model: Mapping[str, Any]) -> None:
         raise ContractError("Application and data networks must be private")
     if networks["edge"].get("internal") or networks["egress"].get("internal"):
         raise ContractError("Edge and egress networks have an invalid direction")
+    frontend_environment = services["frontend"].get("environment", {})
+    api_environment = services["api"].get("environment", {})
+    if (
+        frontend_environment.get("LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER") != "true"
+        or api_environment.get("LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER") != "true"
+        or api_environment.get("LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS") != "10.255.254.10/32"
+        or services["frontend"]["networks"]["app"].get("ipv4_address") != "10.255.254.10"
+        or networks["app"].get("ipam", {}).get("config") != [{"subnet": "10.255.254.0/24"}]
+    ):
+        raise ContractError("Login client-IP forwarding topology is not the exact private BFF")
     for name in ("api", "frontend", "migrate", "worker"):
         service = services.get(name)
         if service is None:

@@ -24,6 +24,7 @@ from app.core.observability import (
 from app.operations import storage_snapshot
 from app.operations.readiness import _storage_check
 from scripts.release_contract import (
+    TLS_FILE_NAMES,
     ContractError,
     build_backup_manifest,
     database_url_for_name,
@@ -31,6 +32,7 @@ from scripts.release_contract import (
     validate_backup_manifest,
     validate_compatibility_evidence,
     validate_compose_model,
+    validate_data_service_urls,
     validate_release_environment,
     validate_release_state,
 )
@@ -56,9 +58,86 @@ def production_model(
 
 
 def valid_release_environment(tmp_path: Path) -> dict[str, str]:
+    tmp_path.mkdir(parents=True, exist_ok=True)
     passphrase = tmp_path / "backup-passphrase"
     passphrase.write_text("Release-Backup-Passphrase-Kept-Outside-Repository-2026!\n")
     passphrase.chmod(0o600)
+    tls = tmp_path / "tls"
+    tls.mkdir(exist_ok=True)
+    ca_key = tls / "ca.key"
+    ca_cert = tls / "ca.crt"
+    if not ca_cert.exists():
+        subprocess.run(
+            [
+                "openssl",
+                "req",
+                "-x509",
+                "-newkey",
+                "ec",
+                "-pkeyopt",
+                "ec_paramgen_curve:P-256",
+                "-nodes",
+                "-subj",
+                "/CN=Cardvert test CA",
+                "-keyout",
+                str(ca_key),
+                "-out",
+                str(ca_cert),
+                "-days",
+                "1",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        for host in ("db", "redis"):
+            key = tls / f"{host}.key"
+            csr = tls / f"{host}.csr"
+            certificate = tls / f"{host}.crt"
+            extensions = tls / f"{host}.ext"
+            extensions.write_text(f"subjectAltName=DNS:{host}\n")
+            subprocess.run(
+                [
+                    "openssl",
+                    "req",
+                    "-new",
+                    "-newkey",
+                    "ec",
+                    "-pkeyopt",
+                    "ec_paramgen_curve:P-256",
+                    "-nodes",
+                    "-subj",
+                    f"/CN={host}",
+                    "-keyout",
+                    str(key),
+                    "-out",
+                    str(csr),
+                ],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                [
+                    "openssl",
+                    "x509",
+                    "-req",
+                    "-in",
+                    str(csr),
+                    "-CA",
+                    str(ca_cert),
+                    "-CAkey",
+                    str(ca_key),
+                    "-CAcreateserial",
+                    "-out",
+                    str(certificate),
+                    "-days",
+                    "1",
+                    "-extfile",
+                    str(extensions),
+                ],
+                check=True,
+                capture_output=True,
+            )
+            key.chmod(0o600)
     return {
         "ENVIRONMENT": "production",
         "RELEASE_ID": "20260828T120000Z-1715fe53",
@@ -72,12 +151,21 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
         "PUBLIC_ORIGIN": "https://cardvert.client-owned-domain.com",
         "BACKEND_CORS_ORIGINS": "[]",
         "POSTGRES_PASSWORD": "Correct-Horse-Battery-Staple-Database-2026",
+        "POSTGRES_TLS_CA_FILE": str(ca_cert),
+        "POSTGRES_TLS_CERT_FILE": str(tls / "db.crt"),
+        "POSTGRES_TLS_KEY_FILE": str(tls / "db.key"),
         "DATABASE_URL": (
             "postgresql+asyncpg://mobility:Correct-Horse-Battery-Staple-Database-2026"
-            "@db:5432/mobility"
+            "@db:5432/mobility?ssl=verify-full"
         ),
         "REDIS_PASSWORD": "Correct-Horse-Battery-Staple-Redis-2026",
-        "REDIS_URL": "redis://:Correct-Horse-Battery-Staple-Redis-2026@redis:6379/0",
+        "REDIS_TLS_CA_FILE": str(ca_cert),
+        "REDIS_TLS_CERT_FILE": str(tls / "redis.crt"),
+        "REDIS_TLS_KEY_FILE": str(tls / "redis.key"),
+        "REDIS_URL": (
+            "rediss://:Correct-Horse-Battery-Staple-Redis-2026@redis:6379/0"
+            "?ssl_ca_certs=/run/secrets/redis_tls_ca&ssl_cert_reqs=required"
+        ),
         "JWT_SECRET_KEY": "Jwt-release-secret-with-more-than-thirty-two-random-characters-2026",
         "PAYOUT_CRYPTO_KEYRING_B64": ('{"1":"yPdM2Hgg3Q1M+MS4iF26TyMQmmuUOMf7p9hNSMlcycI="}'),
         "PAYOUT_CRYPTO_KEY_VERSION": "1",
@@ -95,9 +183,9 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
         "PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE": "false",
         "MEASUREMENT_LIVE_ISSUANCE_AUTHORIZED": "false",
         "PRIVACY_DISCLOSURE_LIVE_AUTHORIZED": "false",
-        "LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER": "false",
-        "LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER": "false",
-        "LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS": "",
+        "LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER": "true",
+        "LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER": "true",
+        "LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS": "10.255.254.10/32",
         "DRIVER_REGISTRATION_RATE_LIMIT_TRUST_CLIENT_IP_HEADER": "false",
         "DRIVER_REGISTRATION_RATE_LIMIT_TRUSTED_PROXY_CIDRS": "",
         "BACKUP_PASSPHRASE_FILE": str(passphrase),
@@ -243,6 +331,9 @@ def test_production_builds_pin_base_images_and_dependency_graphs() -> None:
         ("PUBLIC_ORIGIN", "https://cardvert.client-owned-domain.com:8443"),
         ("LOG_LEVEL", "DEBUG"),
         ("DEBUG", "true"),
+        ("LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER", "false"),
+        ("LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER", "false"),
+        ("LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS", "10.255.254.0/24"),
         ("DRIVER_REGISTRATION_RATE_LIMIT_TRUST_CLIENT_IP_HEADER", "true"),
         ("DRIVER_REGISTRATION_RATE_LIMIT_TRUSTED_PROXY_CIDRS", "10.0.0.0/8"),
     ],
@@ -262,6 +353,114 @@ def test_release_environment_accepts_complete_provider_neutral_contract(tmp_path
 
     assert validated["release_revision"] == "1715fe53b19972cd6db829a08a9d6cf572fbd656"
     assert validated["public_origin"] == "https://cardvert.client-owned-domain.com"
+    assert validated["data_service_adapter"] == "bundled"
+
+
+def test_provider_neutral_data_urls_allow_managed_but_bundled_release_stops(
+    tmp_path: Path,
+) -> None:
+    environment = valid_release_environment(tmp_path)
+    environment["DATABASE_URL"] = (
+        "postgresql+asyncpg://managed:Correct-Horse-Battery-Staple-Database-2026"
+        "@postgres.internal:5432/cardvert?ssl=verify-full"
+    )
+    environment["REDIS_URL"] = (
+        "rediss://:Correct-Horse-Battery-Staple-Redis-2026@cache.internal:6380/0"
+        "?ssl_cert_reqs=required"
+    )
+    for name in (*TLS_FILE_NAMES, "POSTGIS_IMAGE", "REDIS_IMAGE"):
+        environment.pop(name)
+    assert validate_data_service_urls(environment) == "managed"
+    with pytest.raises(ContractError, match="MANAGED_DATA_RELEASE_ADAPTER_REQUIRED"):
+        validate_release_environment(environment, allow_local_rehearsal=False)
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        (
+            "DATABASE_URL",
+            "postgresql+asyncpg://managed:Correct-Horse-Battery-Staple-Database-2026"
+            "@postgres.internal:5432/cardvert?ssl=verify-ca",
+        ),
+        (
+            "REDIS_URL",
+            "rediss://:Correct-Horse-Battery-Staple-Redis-2026@cache.internal:6380/0",
+        ),
+        (
+            "REDIS_URL",
+            "rediss://:Correct-Horse-Battery-Staple-Redis-2026@cache.internal:6380/0"
+            "?ssl_cert_reqs=none",
+        ),
+    ],
+)
+def test_provider_neutral_data_urls_require_explicit_peer_verification(
+    tmp_path: Path, name: str, value: str
+) -> None:
+    environment = valid_release_environment(tmp_path)
+    environment["DATABASE_URL"] = (
+        "postgresql+asyncpg://managed:Correct-Horse-Battery-Staple-Database-2026"
+        "@postgres.internal:5432/cardvert?ssl=verify-full"
+    )
+    environment["REDIS_URL"] = (
+        "rediss://:Correct-Horse-Battery-Staple-Redis-2026@cache.internal:6380/0"
+        "?ssl_cert_reqs=required"
+    )
+    environment[name] = value
+
+    with pytest.raises(ContractError):
+        validate_data_service_urls(environment)
+
+
+def test_bundled_tls_rejects_wrong_ca_without_disclosing_certificate_content(
+    tmp_path: Path,
+) -> None:
+    environment = valid_release_environment(tmp_path / "primary")
+    other = valid_release_environment(tmp_path / "other")
+    environment["POSTGRES_TLS_CA_FILE"] = other["POSTGRES_TLS_CA_FILE"]
+
+    with pytest.raises(ContractError, match="Bundled TLS certificate validation failed") as error:
+        validate_release_environment(environment, allow_local_rehearsal=False)
+
+    assert "BEGIN CERTIFICATE" not in str(error.value)
+
+
+def test_bundled_tls_rejects_wrong_san(tmp_path: Path) -> None:
+    environment = valid_release_environment(tmp_path)
+    environment["REDIS_TLS_CERT_FILE"] = environment["POSTGRES_TLS_CERT_FILE"]
+    environment["REDIS_TLS_KEY_FILE"] = environment["POSTGRES_TLS_KEY_FILE"]
+
+    with pytest.raises(ContractError, match="Bundled TLS certificate validation failed"):
+        validate_release_environment(environment, allow_local_rehearsal=False)
+
+
+def test_bundled_tls_rejects_certificate_key_mismatch(tmp_path: Path) -> None:
+    environment = valid_release_environment(tmp_path)
+    environment["POSTGRES_TLS_KEY_FILE"] = environment["REDIS_TLS_KEY_FILE"]
+
+    with pytest.raises(ContractError, match="do not match"):
+        validate_release_environment(environment, allow_local_rehearsal=False)
+
+
+def test_bundled_tls_rejects_permissive_private_key_mode(tmp_path: Path) -> None:
+    environment = valid_release_environment(tmp_path)
+    key = Path(environment["POSTGRES_TLS_KEY_FILE"])
+    key.chmod(0o640)
+
+    with pytest.raises(ContractError, match="mode 0600 or stricter"):
+        validate_release_environment(environment, allow_local_rehearsal=False)
+
+
+def test_w403a_rehearsal_supplies_verified_tls_data_service_material() -> None:
+    rehearsal = (ROOT / "scripts/rehearse_w403a.sh").read_text()
+
+    assert "subjectAltName=DNS:%s" in rehearsal
+    assert "POSTGRES_TLS_CA_FILE=${tls_dir}/ca.crt" in rehearsal
+    assert "DATABASE_URL=postgresql+asyncpg://" in rehearsal
+    assert "?ssl=verify-full" in rehearsal
+    assert "REDIS_TLS_CA_FILE=${tls_dir}/ca.crt" in rehearsal
+    assert "REDIS_URL=rediss://" in rehearsal
+    assert "ssl_cert_reqs=required" in rehearsal
 
 
 @pytest.mark.parametrize(
@@ -766,11 +965,15 @@ def test_backup_completion_binds_ciphertext_manifest_state_and_retention() -> No
         )
 
 
-def test_restore_database_url_preserves_percent_encoded_password() -> None:
-    original = "postgresql+asyncpg://mobility:p%40ss%2Fword%3A2026@db:5432/mobility"
+def test_restore_database_url_preserves_percent_encoded_password_and_tls_query() -> None:
+    original = (
+        "postgresql+asyncpg://mobility:p%40ss%2Fword%3A2026@db:5432/mobility"
+        "?ssl=verify-full"
+    )
 
     assert database_url_for_name(original, "cardvert_restore_verify_1234") == (
-        "postgresql+asyncpg://mobility:p%40ss%2Fword%3A2026@db:5432/cardvert_restore_verify_1234"
+        "postgresql+asyncpg://mobility:p%40ss%2Fword%3A2026@db:5432/"
+        "cardvert_restore_verify_1234?ssl=verify-full"
     )
     with pytest.raises(ContractError):
         database_url_for_name(original, "unsafe/name")

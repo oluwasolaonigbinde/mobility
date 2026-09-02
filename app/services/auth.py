@@ -29,6 +29,7 @@ from starlette import status
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.security import (
+    ValidatedAccessTokenClaims,
     create_access_token,
     decode_token_claims,
     hash_password,
@@ -102,20 +103,17 @@ async def refresh_user_session(
     sign-in and the new expiry is clamped to the cap measured from it, so
     refreshing can shorten a session but never lengthen it.
 
-    Status and session-version admission belong to the caller's authentication
-    step and are deliberately not repeated; revocation policy beyond that is
-    out of scope here.
+    The user row is locked and re-read before a bearer is minted. This closes the
+    gap between the route dependency's authentication read and this command: a
+    concurrent logout either waits for this refresh and then invalidates its new
+    bearer, or commits first and makes this refresh fail as revoked.
     """
-    try:
-        claims = decode_token_claims(token, settings)
-    except ValueError as exc:
-        raise AuthCommandError(
-            AppError(
-                "INVALID_TOKEN",
-                "Invalid authentication token",
-                status_code=status.HTTP_401_UNAUTHORIZED,
-            )
-        ) from exc
+    claims, locked_user = await _lock_authenticated_session(
+        session,
+        user=user,
+        token=token,
+        settings=settings,
+    )
     auth_time = datetime.fromtimestamp(claims.authenticated_at, UTC)
     now = datetime.now(UTC)
     cap_at = auth_time + timedelta(minutes=settings.session_absolute_lifetime_minutes)
@@ -130,17 +128,27 @@ async def refresh_user_session(
         )
     await create_audit_event(
         session,
-        actor_user_id=user.id,
+        actor_user_id=locked_user.id,
         action="auth.session.refreshed",
         entity_type="user",
-        entity_id=str(user.id),
+        entity_id=str(locked_user.id),
     )
-    return issue_session(user, settings, auth_time=auth_time, expires_at=expires_at)
+    return issue_session(
+        locked_user,
+        settings,
+        auth_time=auth_time,
+        expires_at=expires_at,
+    )
 
 
 @lru_cache(maxsize=1)
 def _timing_equalizer_hash() -> str:
     return hash_password("cardvert-timing-equalizer-not-a-real-password")
+
+
+def warm_password_timing_equalizer() -> None:
+    """Pay the dummy-hash setup cost before a production request can observe it."""
+    _timing_equalizer_hash()
 
 
 def _locked(statement):
@@ -153,6 +161,86 @@ async def _lock_user_by_email(session: AsyncSession, email: str) -> User | None:
 
 async def _lock_user_by_id(session: AsyncSession, user_id: UUID) -> User | None:
     return await session.scalar(_locked(select(User).where(User.id == user_id)))
+
+
+def _invalid_token() -> AuthCommandError:
+    return AuthCommandError(
+        AppError(
+            "INVALID_TOKEN",
+            "Invalid authentication token",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+    )
+
+
+async def _lock_authenticated_session(
+    session: AsyncSession,
+    *,
+    user: User,
+    token: str,
+    settings: Settings,
+) -> tuple[ValidatedAccessTokenClaims, User]:
+    """Lock the bearer subject and re-prove its live session authority."""
+    try:
+        initial_claims = decode_token_claims(token, settings)
+    except ValueError as exc:
+        raise _invalid_token() from exc
+    if initial_claims.subject != user.id:
+        raise _invalid_token()
+
+    locked_user = await _lock_user_by_id(session, initial_claims.subject)
+    if locked_user is None:
+        raise _invalid_token()
+
+    try:
+        claims = decode_token_claims(token, settings)
+    except ValueError as exc:
+        raise _invalid_token() from exc
+    if claims.subject != locked_user.id:
+        raise _invalid_token()
+    if locked_user.status in CONTAINED_USER_STATUSES:
+        raise AuthCommandError(
+            AppError(
+                "USER_NOT_ACTIVE",
+                "User account is not active",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        )
+    if claims.session_version != locked_user.session_version:
+        raise AuthCommandError(
+            AppError(
+                "SESSION_REVOKED",
+                "Session is no longer valid",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+        )
+    return claims, locked_user
+
+
+async def revoke_user_sessions(
+    session: AsyncSession,
+    *,
+    user: User,
+    token: str,
+    settings: Settings,
+) -> None:
+    """Revoke every bearer issued under the user's current session version."""
+    _, locked_user = await _lock_authenticated_session(
+        session,
+        user=user,
+        token=token,
+        settings=settings,
+    )
+    locked_user.session_version += 1
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=locked_user.id,
+        action="auth.session.revoked",
+        entity_type="user",
+        entity_id=str(locked_user.id),
+        metadata={"scope": "all_devices"},
+    )
 
 
 async def login_with_password(session: AsyncSession, *, email: str, password: str) -> User:

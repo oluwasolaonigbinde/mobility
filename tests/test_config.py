@@ -6,6 +6,22 @@ from pydantic import ValidationError
 
 from app.core.config import Settings
 
+PRODUCTION_DATABASE_URL = (
+    "postgresql+asyncpg://mobility:synthetic-db-secret@db:5432/mobility?ssl=require"
+)
+PRODUCTION_REDIS_URL = "rediss://:synthetic-redis-secret@redis:6379/0"
+
+
+def production_settings(**overrides):
+    values = {
+        "environment": "production",
+        "jwt_secret_key": "production-secret-with-at-least-32-characters",
+        "database_url": PRODUCTION_DATABASE_URL,
+        "redis_url": PRODUCTION_REDIS_URL,
+    }
+    values.update(overrides)
+    return Settings(_env_file=None, **values)
+
 
 def test_settings_defaults_load() -> None:
     settings = Settings()
@@ -164,26 +180,85 @@ def test_default_jwt_secret_rejected_outside_local_environment() -> None:
 
 
 def test_custom_jwt_secret_allowed_outside_local_environment() -> None:
-    settings = Settings(
-        environment="production",
-        jwt_secret_key="production-secret-with-at-least-32-characters",
-    )
+    settings = production_settings()
 
     assert settings.environment == "production"
     assert settings.jwt_secret_key == "production-secret-with-at-least-32-characters"
 
 
-def test_dsr_exception_references_require_legal_approval_outside_test() -> None:
-    with pytest.raises(ValidationError, match="approved privacy legal reference"):
-        Settings(
-            environment="production",
-            jwt_secret_key="production-secret-with-at-least-32-characters",
-            dsr_approved_exception_references="LEGAL-EXCEPTION-1",
+def test_nonlocal_runtime_dependencies_require_authenticated_tls_urls() -> None:
+    with pytest.raises(ValidationError, match="DATABASE_URL"):
+        production_settings(database_url=None)
+    with pytest.raises(ValidationError, match="REDIS_URL"):
+        production_settings(redis_url=None)
+    settings = production_settings()
+    assert settings.database_url == PRODUCTION_DATABASE_URL
+    assert settings.redis_url == PRODUCTION_REDIS_URL
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "db.local",
+        "db.example",
+        "example.com",
+        "cache.example.net",
+        "db.example.org",
+        "change-me",
+        "replace_me.internal",
+        "todo-db.internal",
+    ],
+)
+def test_nonlocal_runtime_urls_reject_special_use_and_placeholder_hosts(host: str) -> None:
+    with pytest.raises(ValidationError):
+        production_settings(
+            database_url=(
+                f"postgresql+asyncpg://mobility:synthetic-db-secret@{host}:5432/"
+                "mobility?ssl=require"
+            )
+        )
+    with pytest.raises(ValidationError):
+        production_settings(
+            redis_url=f"rediss://:synthetic-redis-secret@{host}:6379/0"
         )
 
-    settings = Settings(
-        environment="production",
-        jwt_secret_key="production-secret-with-at-least-32-characters",
+
+@pytest.mark.parametrize("host", ["db", "postgres.internal", "10.42.0.8"])
+def test_nonlocal_runtime_urls_allow_explicit_bundled_or_managed_hosts(host: str) -> None:
+    settings = production_settings(
+        database_url=(
+            f"postgresql+asyncpg://mobility:synthetic-db-secret@{host}:5432/"
+            "mobility?ssl=require"
+        ),
+        redis_url=f"rediss://:synthetic-redis-secret@{host}:6379/0",
+    )
+    assert settings.database_url
+    assert settings.redis_url
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("database_url", "postgresql+asyncpg://user:do-not-echo@db/mobility"),
+        (
+            "database_url",
+            "postgresql+asyncpg://user:do-not-echo@db/mobility?ssl=require&host=elsewhere",
+        ),
+        ("redis_url", "redis://:do-not-echo@redis:6379/0"),
+        ("redis_url", "rediss://:do-not-echo@redis:6379/0?ssl_cert_reqs=none"),
+    ],
+)
+def test_nonlocal_runtime_url_rejections_redact_credentials(field: str, value: str) -> None:
+    with pytest.raises(ValidationError) as captured:
+        production_settings(**{field: value})
+    assert "do-not-echo" not in str(captured.value)
+
+
+def test_dsr_exception_references_require_legal_approval_outside_test() -> None:
+    with pytest.raises(ValidationError, match="approved privacy legal reference"):
+        production_settings(dsr_approved_exception_references="LEGAL-EXCEPTION-1")
+
+    settings = production_settings(
         privacy_legal_approval_reference="COUNSEL-APPROVAL-1",
         dsr_approved_exception_references="LEGAL-EXCEPTION-1",
     )

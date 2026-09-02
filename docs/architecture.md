@@ -195,7 +195,8 @@ to conflict, the earlier-numbered principle wins.
   when a measured constraint (load, team, deploy cadence) demands it.
 - **P2 — The database is the only source of truth.** Postgres holds all facts.
   Redis is disposable infrastructure (rate limits, queue transport, cache): losing
-  Redis may degrade behaviour but must never lose data. Scheduled jobs derive
+  Redis must never lose data and security-sensitive authentication/registration
+  entry points fail closed until it recovers. Scheduled jobs derive
   their work-lists from DB state, not from queue contents.
 - **P3 — Contract-first.** `openapi.json` is the API's identity; the three
   baselines (§9) move together; frontend types are generated, never written.
@@ -302,7 +303,7 @@ Grouped by URL prefix (operation counts from `openapi.json`):
 | `/api/v1/admin/*` | 35 | users, advertiser-organizations, drivers (profiles + onboarding), vehicles, campaigns (read), campaign-assignments (+cancel), payout-rules, payout-calculations, trips (analytics / recompute / estimate-impressions / calculate-payout), fraud-flags, traffic-density-profiles, impression-estimates, heatmap, audit-events (F7) |
 | `/api/v1/advertiser/*` | 22 | organization, dashboard summary, campaigns CRUD (+status), creatives, zones CRUD, campaign heatmap, reports (summary, daily-metrics, trips, report, impressions summary, cost summary) |
 | `/api/v1/driver/*` | 18 | profile, vehicles (read), campaign-assignments (accept/activate/deactivate), trips (start/end/current/pings), analytics summary, earnings (summary + ledger) |
-| `/api/v1/auth/*` | 3 | login, refresh (sliding session), change-password — no logout endpoint (the BFF deletes its cookie), no register |
+| `/api/v1/auth/*` | 3 public | login, refresh (sliding session), change-password; the BFF also uses one schema-hidden logout transport for global revocation |
 | `/api/v1/me` | 1 | current user + advertiser-organization context; the route-guard endpoint |
 | `/api/v1/health`, `/api/v1/health/ready` | 2 | liveness + readiness |
 | `/health` (root) | 1 | container liveness |
@@ -338,12 +339,16 @@ callers authenticated by signature, not JWT; nothing else may join that namespac
   `SESSION_ABSOLUTE_LIFETIME_MINUTES` (default 720); the cap is also enforced on
   every authenticated request (`app/api/v1/dependencies.py`). The driver
   tracking surface additionally rotates its cookie via `GET /driver/keepalive`.
-- **Revocation (F7, extended by R09):** `sv` (session_version) is compared
+- **Revocation (F7, extended by R09/R11):** `sv` (session_version) is compared
   against the DB on every request, invalidating all outstanding tokens except
   the fresh one returned by the flow that rotated it (`SESSION_REVOKED` /
   `SESSION_EXPIRED` error codes). Two authorities rotate it: a completed
-  credential transition (change-password or password reset), and **every real
-  user-status transition** — see "User lifecycle" below.
+  credential transition (change-password or password reset), **every real
+  user-status transition**, and D26 global logout — see "User lifecycle" below.
+  The private BFF logout transport locks and re-reads the user, verifies the
+  presented `sv`, increments it once and writes `auth.session.revoked` in the
+  same transaction. Refresh locks the same row and re-decodes the bearer before
+  minting, so either race order leaves no valid pre-logout capability.
 - **Strict bearer claims (R10):** every protected bearer request requires the
   complete signed claim set above. `sub` is the canonical lower-case hyphenated UUID
   string; `exp`, `iat`, `auth_time`, and positive `sv` are exact integers (no
@@ -364,11 +369,11 @@ callers authenticated by signature, not JWT; nothing else may join that namespac
   the password is proven) and failures are audited
   (`auth.password.change_failed`).
 - **`must_change_password` (F7):** set on admin-created users; every endpoint
-  outside `{/me, /auth/change-password, /auth/refresh}` returns 403
+  outside `{/me, /auth/change-password, /auth/refresh, /auth/logout}` returns 403
   `PASSWORD_CHANGE_REQUIRED` until the password is replaced.
 - **Login rate limiting (F7):** Redis-backed, per-account 5/15 min, per-IP
-  150/5 min, global 250/5 min, atomic Lua reserve/refund, **fail-open** when
-  Redis is down; trusted-client-IP header honored only behind the documented
+  150/5 min, global 250/5 min, atomic Lua reserve/refund, **fail-closed with a
+  stable 503** when Redis is down; trusted-client-IP header honored only behind the documented
   edge preconditions (§12, runbook).
 - Passwords: argon2 (`argon2-cffi`), enforced minimum length 12
   (`PASSWORD_MIN_LENGTH`, validator refuses lower).
@@ -622,8 +627,9 @@ navigation via `POST /api/v1/auth/refresh` (non-verifying JWT peek in
 10 minutes while tracking. That route revalidates `/me`, driver role and any
 near-expiry refresh on the server: revoked/missing/wrong-role sessions clear
 the cookie and stop capture, while a provider/network outage degrades the
-tracker without pretending the session was renewed. Logout broadcasts the
-same-origin stop signal and retains encrypted local trip evidence. The 12-hour
+tracker without pretending the session was renewed. Confirmed global logout
+broadcasts the same-origin stop signal and retains encrypted local trip
+evidence; an unconfirmed logout outage remains local and visible. The 12-hour
 absolute cap is enforced by the backend; when it lapses, the next validation
 401s and the user lands on `/login` with no redirect loop. Forced password
 change (`must_change_password`) is enforced per-request by `requireRole` in
@@ -813,6 +819,33 @@ delivery-control files; matching pull requests use the same path filters).
   `production.env.example`, `Caddyfile`, `scripts/release_contract.py`,
   `scripts/release.sh`, `scripts/recover_release.sh`, and
   `scripts/release_smoke.sh` define the fail-closed operator boundary.
+- **[BUILT — R14 deployed boundary]** Caddy emits a deny-by-default CSP,
+  framing denial and capability-preserving Permissions Policy, discards
+  client-supplied forwarding identity, and supplies its socket-derived
+  `X-Client-IP` plus a generated request ID to upstreams. Production startup
+  prewarms the password timing equalizer. The bundled PostGIS/Redis adapter is
+  TLS-only and authenticated: external CA/certificate/key paths are checked
+  before Compose, private keys must be mode 0600 or stricter, certificate
+  chains/SANs/key pairs must match `db`/`redis`, PostgreSQL rejects non-TLS
+  host connections under the controlled HBA, and Redis disables its plaintext
+  port. Managed authenticated-TLS URLs are configuration-valid but stop with
+  `MANAGED_DATA_RELEASE_ADAPTER_REQUIRED` because the current release/recovery
+  scripts are explicitly the bundled adapter.
+  Browser login relay is enabled only for the deterministic frontend
+  `10.255.254.10/32` on the private `10.255.254.0/24` application network;
+  release preflight rejects any disabled or broader trust authority. The sole
+  script relaxation is Next's built inline bootstrap under `script-src`; a
+  deployed negative browser oracle proves removing it blocks the current
+  production client. The same built-image run covers policy headers on success,
+  redirect, not-found and failure responses; framing, cross-origin Server Action
+  rejection, PWA capability retention and hardened host-only session cookies.
+  A cold built-image restart oracle keeps randomized known-wrong and unique-
+  unknown login samples within the same bounded trimmed-mean and p95 timing
+  ratios; removing startup prewarming fails that same deployed oracle. A
+  server-only import mutation also proves the production build rejects secret
+  configuration in a Client Component, and the built static assets contain none
+  of the release secret names or synthetic credentials. Styles narrow inline
+  permission to attributes only, and `unsafe-eval` remains denied.
 - **[BUILT] (W4-03A preparation)** Encrypted revision/config/marker-bound
   PostGIS-plus-private-object backups and isolated agreement restore checks are
   the release recovery path (`scripts/backup_release.sh`,
@@ -855,12 +888,13 @@ delivery-control files; matching pull requests use the same path filters).
 - **Strict verification and revocation:** every protected bearer request requires
   the exact, complete, ordered claim contract from §6.3. Password change bumps
   `session_version`, rejecting every outstanding token for that user on the
-  next request; incomplete legacy tokens no longer authenticate.
+  next request; D26 logout does the same for all devices, and refresh/logout
+  serialize on the locked user row. Incomplete legacy tokens no longer authenticate.
 - **Forced password change:** admin-created users are 403-gated to the
   change-password flow (`/change-password`, `/driver/change-password`).
 - **Login rate limiting:** Redis Lua reserve/refund — per-account 5/15 min
-  (primary control), per-IP 150/5 min, global 250/5 min, **fail-open** if Redis
-  is down (R3). With header trust off, FastAPI buckets by its socket peer, so
+  (primary control), per-IP 150/5 min, global 250/5 min, **fail-closed** if Redis
+  is down. With header trust off, FastAPI buckets by its socket peer, so
   all BFF-relayed logins share one IP bucket — the runbook documents the
   resulting flood-lockout trade-off and the trusted-edge preconditions
   (`LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER` + relay + CIDR allowlist) that
@@ -2016,12 +2050,61 @@ aggregates only, k-floor rules of §22.2 apply to any zone-level display.
   high-entropy public status reference. New, duplicate and concurrent
   same-email requests expose the same pending response shape; unknown status
   references expose no existence signal. A separate atomic Redis
-  IP/email/global limiter fails closed, and only the first blocked transition
-  is audited. The generated credential is unreachable and no session, work,
+  per-IP and normalized-email limiter fails closed, and only the first blocked
+  transition per bucket/window is audited. Distinct IP/identity pairs do not
+  share a global availability switch. The generated credential is unreachable and no session, work,
   KYC, payee, vehicle, tracking or earnings authority is granted. The queue's
   sanitized service boundary revalidates an active admin. Operator-led
   onboarding remains available; W3-04B/C and their Package 4 secure-evidence
   dependencies still own approval and work eligibility.
+- **Approved-applicant activation (D28/ONB-009) [TARGET]:** approval of the
+  current person/payee and vehicle evidence does not itself activate the user.
+  After both decisions pass, an active Cardvert admin initiates activation and
+  the driver receives a short-lived, single-use, digest-only setup authority.
+  The driver chooses the password; completion serializes the setup authority,
+  user and application, rejects rejected, expired, superseded or replayed
+  attempts, then atomically consumes the setup authority, invalidates every
+  prior onboarding-access capability, changes `invited → active` and rotates
+  `session_version`. No admin assigns a password, and implementation may not
+  claim live email/provider delivery. Current source has only the reusable
+  onboarding-access token and automatically projects approved evidence into
+  profile/application eligibility; it has no durable activation/setup-token
+  state, admin-initiation command or single-use completion fence, so this
+  requires a migration and synchronized API contracts in a follow-on slice.
+- **Advertiser membership at sign-in (D29/AUT-007) [TARGET]:** every advertiser
+  login must resolve to exactly one active advertiser-organization membership;
+  zero or multiple active memberships fail closed. Multi-company agency access
+  and silent newest-membership selection are unsupported. Cardvert platform
+  admins are unaffected. Current source permits multiple active memberships and
+  several organization consumers select the newest row, so enforcement requires
+  a database invariant plus login/consumer reconciliation in the central
+  migration/contract lane.
+- **Applicant review actor authority (D29/ONB-005) [BUILT — no product
+  change]:** one active Cardvert admin may verify the bank account and approve
+  the same driver's person/payee and vehicle evidence; there is no maker-checker
+  separation. The existing immutable `verified_by_user_id` and
+  `decided_by_user_id` records plus append-only audit events retain the exact
+  actor for each action independently.
+- **Cross-driver applicant uniqueness (D30) [TARGET]:** a new driver
+  application must fail closed, with the same non-revealing public response,
+  when its NIN, normalized phone or payout bank account already belongs to an
+  existing driver. Current application creation checks only normalized email,
+  accepts an optional unnormalized phone and does not receive NIN or bank
+  details until later person/payee steps. Encrypted NIN and bank versions have
+  no cross-driver deterministic uniqueness authority, and the verified-phone
+  fingerprint is not consulted by application creation. A follow-on onboarding
+  slice therefore needs privacy-preserving comparison keys, database race
+  authority and a transaction boundary spanning application and later
+  person/payee capture; public errors and alerts must not disclose which
+  identity matched.
+- **Vehicle approval validity (D31) [BUILT — no product change]:** after the
+  required document reads, the active admin enters an explicit future
+  `valid_until` for vehicle approval. The selected date may be later than any
+  source-document expiry and has no automatic 12-month cap. The immutable
+  decision retains that date and `decided_by_user_id`; the expiry sweep records
+  a separate append-only expired decision and removes work eligibility, and a
+  fresh approval is required before the vehicle can qualify again. Current
+  source already implements this authority.
 - **Pilot driver client (Q10/D18):** a production-hardened installable PWA with
   explicit Start/End and screen-on enforcement. It stays behind the Next.js
   BFF-cookie boundary, reuses F7's capped sliding session, and inherits the
@@ -2232,6 +2315,19 @@ below assumes a specific vendor.
   frontend/BFF like every other browser surface. FastAPI is otherwise
   internal-only (§8.2). A later native bearer surface requires its own Phase 2
   edge/auth review. TLS terminates at the proxy.
+- **Data-plane transport authority (D27, R12/R14 bounded delivery):** application
+  startup outside local/test accepts bundled or managed PostgreSQL/Redis only
+  through explicit authenticated host authorities and mandatory TLS
+  (`postgresql+asyncpg` with strict `ssl`, and `rediss`). It reveals no URL or
+  topology in readiness. R14's bundled adapter requires externally supplied
+  CA, certificate and private-key paths, validates the chains, `db`/`redis`
+  SANs, key pairs and private-key modes, enforces PostgreSQL `hostnossl`
+  rejection and Redis's TLS-only port, and uses verified TLS in service
+  healthchecks and the release smoke probe. Managed URLs remain
+  provider-neutral configuration authority but fail the bundled preflight with
+  `MANAGED_DATA_RELEASE_ADAPTER_REQUIRED`; a later release/recovery adapter must
+  own managed backup, restore and platform evidence. No host, provider,
+  certificate or credential is selected here.
 - **Object storage:** provider bucket (§19), private, presigned access only.
 - **Secrets:** injected env from the platform's secret store; never in images
   or the repo ([BUILT] posture: `.env` gitignored, `.env.example` documents).
@@ -2527,7 +2623,7 @@ it.
 |---|-------------------|--------------------|
 | R1 | **Hourly pay invites time-farming**, and D18 now pays valid base time outside the premium zone. App-open time alone is never payable: campaign window, exclusions, movement/stationary policy, signal quality and fraud controls still apply. | D22's acceptance-frozen rolling detector is built in `payout_v3`; tune only through a later effective revision after real-route evidence. |
 | R2 | **Resolved authority risk:** Somto's Q1–Q34 list is the direct client answer and D20 is the later approved implementation clarification; together they supersede older conflicting defaults/proposal wording. | Affected slices cite D18/D20 and preserve immutable historic formula/data rows. |
-| R3 | **Redis fail-open** (F7 rate limiting) + queue-loss tolerance (§14.3.2) are deliberate availability-over-strictness choices. | Documented here; revisit post-pilot. |
+| R3 | Redis queue-loss tolerance remains deliberate because Postgres re-derives work; D27/R12 supersede the former fail-open authentication limiter, which now returns a retryable 503 when its Redis authority is unavailable. | §6.3, §12, §14.3.2. |
 | R4 | **Prototype promised "live" surfaces**; MVP is polling. Client expectations managed via demo framing. | §14.4; OJ handles comms. |
 | R5 | **Single-operator bus factor** (OJ + agents). This doc + SOP + memory files are the mitigation. | Keep doc current (amendment rule). |
 | R6 | **NDPR compliance depends on client deliverables** (policy, consent wording, DPO contact — Q31). Retention tech (§24) is ours; the words are theirs. | Flag at every review until landed. |
@@ -2668,6 +2764,11 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.82 | 2026-09-02 | **R14 deployed security and bundled data-plane boundary delivered (SEC-002, TST-004, REL-007 partial).** Caddy now sends a deny-by-default CSP, framing denial and capability-preserving Permissions Policy; forged standard/vendor forwarding identities are discarded and upstreams receive the socket-derived client IP plus generated request ID. Production app creation prewarms the cached password timing equalizer. Release preflight accepts provider-neutral authenticated verified-TLS PostgreSQL/Redis URLs, but explicitly stops managed URLs behind `MANAGED_DATA_RELEASE_ADAPTER_REQUIRED` until a managed release/recovery adapter exists. The bundled Compose adapter requires externally supplied CA/cert/key files, validates chain/SAN/key/mode, materializes keys as 0600 in tmpfs, enforces PostgreSQL TLS with controlled HBA and Redis TLS-only, and uses verified health/smoke probes. Focused wrong-CA/SAN/key/mode tests, disposable real PostGIS/Redis plaintext/auth denial simulations, forged-edge-header capture and a five-case built-image browser matrix covering CSP/PWA capabilities, status-path headers, cross-origin Server Actions and hardened cookies pass. A cold built-edge timing oracle keeps randomized known-wrong/unique-unknown trimmed-mean and p95 ratios within 0.80–1.25 and fails when prewarming is removed; a negative server-only import mutation and built-static-asset scan guard secret separation. No provider, host, secret, deployment, migration or §9 contract baseline moved by this slice. |
+| v1.81 | 2026-09-02 | **D30/D31 onboarding decisions synchronized without taking the active migration/contract lane.** New driver applications must fail closed and non-revealing when NIN, normalized phone or payout bank account matches an existing driver; current source checks only email at application creation, stores optional phone without that uniqueness check and receives encrypted NIN/bank data later without cross-driver deterministic uniqueness authority, so D30 remains a privacy-preserving migration/service/API follow-on. Vehicle approval already requires an explicit admin-entered future `valid_until` after required document reads, permits dates beyond document expiry without a 12-month cap, retains date/actor immutably and expires into a new approval requirement, so D31 is no product change. |
+| v1.80 | 2026-09-02 | **D28/D29 identity decisions synchronized without taking the active migration/contract lane.** Approved driver evidence no longer implies account activation: an active admin must initiate a short-lived single-use password-setup capability whose completion atomically consumes/supersedes setup and onboarding access, changes the invited user to active and rotates session authority. Advertiser login must have exactly one active organization membership, with no multi-company or newest-membership fallback; platform admins are unaffected. One active admin may perform bank verification and both applicant evidence approvals because immutable per-action actor attribution already satisfies ONB-005. Current-source checks confirm ONB-009 needs new durable setup state/API contracts and AUT-007 needs a database uniqueness invariant plus login/consumer reconciliation, so both remain exact follow-on work behind the active central migration/contract lane; no provider, password, migration, schema or API baseline is invented here. |
+| v1.79 | 2026-09-02 | **R12 production throttling and layered readiness (AUT-003, REL-003, ONB-008, REL-007 partial).** Login and password-change reservations fail closed with a stable retryable 503 when Redis/Lua is unavailable or malformed, while successful-login refunds remain non-blocking. Public registration retains its existing per-IP and normalized-identity thresholds, generic responses, fail-closed storage and notify-once audits but removes the shared global availability bucket. Outside local/test, provider-neutral PostgreSQL and Redis URLs require explicit authenticated authorities and TLS without selecting hosts or secrets. `/health/ready` now uses a cancellation-safe single-flight cache and bounded checks for exact migration/PostGIS, Redis script execution, a 30-second worker heartbeat, private storage write/read/checksum/unsigned-denial/delete, exact-clean scanner response and retained trip-signing keys, exposing only `ok`, `unavailable` or `not_configured`. Real local component and one-fault-at-a-time simulations pass; release-preflight/topology completion remains R14. No API baseline, schema, migration, provider, credential or deployment authority moves. |
+| v1.78 | 2026-09-02 | **R11 global logout and refresh fencing (AUT-004, D26).** The schema-hidden private BFF logout transport locks and re-reads the authenticated user, rotates `session_version` once and audits `auth.session.revoked` atomically. Refresh now locks the same row and re-decodes the bearer before minting, so refresh-first produces a bearer that logout immediately invalidates while logout-first refuses refresh without refresh evidence. Confirmed revocation clears the current cookie and broadcasts same-origin tracker stop before remote navigation; an already-invalid 401/403 clears only the local cookie, while an outage retains the local session, displays the failure and sends no broadcast. Forced-password users retain a logout control. No migration, per-device session model, public OpenAPI operation, provider or deployment authority is added. |
 | v1.77 | 2026-09-02 | **R09 authentication command authority and containment fencing (GOV-007, AUT-001, AUT-002).** Login, password change, bearer issuance and refresh become reusable typed commands in `app/services/auth.py`; routers keep only envelope and transaction mapping and commit audited failures before returning their stable errors. Credential transitions run against the `users` row locked `FOR UPDATE` and reloaded, ordered session-version snapshot → status re-check → password verification, closing the change-password/reset lost update. Every real user-status transition, including reactivation, rotates `session_version` in the same locked transaction, and reset completion re-reads live status under its lock and leaves a refused token unconsumed. No schema, migration, public envelope or OpenAPI change (generated spec byte-identical). |
 | v1.76 | 2026-09-01 | **R34/OFF-001 replaces count/grace trip completeness with D25's signed content-bound v2 manifest.** Migration `0074` adds immutable manifest headers/entries, conserved batch facts, signed live/quarantine/manifest receipts, key-version provenance, raw-SQL guards and guarded downgrade while preserving v1 reads and fencing new v1 money. Canonical Python/TypeScript encoding and shared golden vectors bind exact descriptors; the encrypted queue stores receipts, End commits the ordered manifest and reconcile alone seals complete evidence. Undeclared/mutated/reordered/duplicate/under/over-count evidence and grace expiry cannot seal or create money. Dedicated signing readiness fails closed. No physical-device, live-route, deployment or pilot evidence is claimed. |
 | v1.75 | 2026-09-01 | **R10 strict bearer claim contract delivered without changing session policy.** Protected bearer routes now share one immutable validated claim shape requiring canonical UUID `sub`, exact integer `exp`/`iat`/`auth_time`/positive `sv`, representable epochs, existing current-time boundaries and `auth_time <= iat < exp`. Missing, null, coercible, malformed, noncanonical, expired, future or misordered claims fail through the existing 401 `INVALID_TOKEN` envelope, including refresh when its second decode crosses expiry. The live FastAPI dependency graph proves every bearer route reaches the central validator; current issuance, 60-minute token lifetime, 12-hour absolute cap, database status/version checks, refresh success, public routes and authorization remain unchanged. |
