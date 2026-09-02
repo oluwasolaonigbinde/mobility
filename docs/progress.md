@@ -45,9 +45,9 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `4`
+**Current justified remediation writer capacity:** `3`
 **Current capacity assignment:** `R02`
-**Current capacity justification:** The four writers are disjoint: authentication/readiness, campaign lifecycle, the serialized privacy/audit migration-and-contract lane, and one test-only observability timing assertion. R02's exact CI patch is frozen while V08 removes its unrelated hardware-sensitive gate. Each owner must stop before any file or mutation-domain overlap.
+**Current capacity justification:** Authentication/readiness and the serialized privacy/audit migration-and-contract lane are disjoint; R02 is verification-only. R28 and V08 are accepted and their leases are released. Each owner must stop before any file or mutation-domain overlap.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -85,8 +85,8 @@ three-second timer at accepted commit `d6359f9` while preserving its exact
 redaction, adversarial input, component-bound and peak-memory assertions. R02
 is resuming its unchanged immutable real-service gate using Sol/medium. R03 remains held
 until R02 passes and the privacy chain releases generated contracts. In parallel,
-the disjoint R11→R12→R14 security/readiness session and R28 administrator
-campaign-activation session are active. The accepted V07 owner now holds the
+the disjoint R11→R12→R14 security/readiness session is active. R28 administrator
+campaign activation is accepted at `a9c417a`. The accepted V07 owner holds the
 serialized R39→R44 privacy/audit migration and generated-contract lane. Four
 temporary writer lanes are safe: auth/config/edge, campaign lifecycle and the
 privacy/audit chain share no files or mutation domains; R02 is verification-only.
@@ -1566,7 +1566,7 @@ durable ledger before changing a row.
 | R25 | COM-003, COM-005 | R08, R24 | COMPLETE | PASS — R25-P | PASS — R25-M | CP-COMMERCIAL PASS — R25-CP-COMMERCIAL |
 | R26 | COM-006 | R08, R25 | COMPLETE | PASS — R26-P | PASS — R26-M | CP-COMMERCIAL PASS — R26-CP-COMMERCIAL |
 | R27 | COM-007 | R08, R26 | COMPLETE | PASS — R27-P | PASS — R27-M | CP-COMMERCIAL PASS — R27-CP-COMMERCIAL |
-| R28 | CAM-001 | none | QUEUED | PENDING | PENDING | CP-CAMPAIGN PENDING |
+| R28 | CAM-001 | none | COMPLETE | PASS — R28-P | PASS — R28-M | CP-CAMPAIGN PASS — R28-CP-CAMPAIGN |
 | R29 | CAM-002 | R04, R08, R28 | QUEUED | PASS — R29-P | PENDING | CP-CAMPAIGN PENDING |
 | R30 | CAM-003 | R29 | QUEUED | PASS — R30-P | PENDING | CP-CAMPAIGN PENDING |
 | R31 | CAM-004 | R18, R19, R30 | QUEUED | PASS — R31-P | PENDING | CP-CAMPAIGN PENDING |
