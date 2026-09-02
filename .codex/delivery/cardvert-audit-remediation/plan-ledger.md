@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 174
+plan_revision: 175
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 299
+last_event_sequence: 300
 ---
 
 # Cardvert audit remediation programme
@@ -752,3 +752,4 @@ verification is complete.
 | 297 | 173 | 1 | INTEGRATION_CORRECTION_ACCEPTED | The accepted-R34 trip fixture correction reproduced its exact two-file digest and all three affected activation/cancellation/race journeys passed on controller PostgreSQL/PostGIS. | binary diff `95879da3...`; V03 minimal-change PASS; controller 3 passed; no product/contract/migration change; R02 full gate unblocked |
 | 298 | 174 | 1 | SLICE_ACCEPTED | R25/COM-003,COM-005 accepted exactly once after exact-digest reconciliation, diff inspection and focused controller PostgreSQL/API/OpenAPI verification. | binary diff `b3086d10...`; R25-P/M, MNY+CONTRACT and CP-COMMERCIAL PASS; controller 6 passed; exact 13-file scope |
 | 299 | 174 | 1 | DISPATCH_RESERVED | R26/COM-006 reserved the released accepted-R25 billing lane for invoice allocation/correction lock-order delivery. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; GPT-5.6 Sol/high — bounded money plus PostgreSQL concurrency; disjoint from active R02 CI and R38 privacy ingress leases; R27 held |
+| 300 | 175 | 1 | DISPATCH_STARTED | Existing visible S09 began R26/COM-006 on the exact accepted-R25 billing service and invoice concurrency-test lease with proactive terminal callback. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; GPT-5.6 Sol/high; no model/migration/API/generated-contract authority; R02 and R38 remain disjoint active owners |
