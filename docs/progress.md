@@ -75,22 +75,26 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 
 **Controller state:** `ACTIVE`
 **Control package:** `PKG-10` — R01 established truthful repository execution
-authority; the directly owner-authorized, Pro-admitted remediation programme is
-resumed from the exact safe pause snapshot without changing any accepted slice
-or any of the 29 non-executable dispositions.
+authority. The active queue now prioritizes locally executable product and
+engineering defects; unresolved client/business/legal choices, later developer
+policy, external inputs and evidence-triggered observations are parked in
+`to-do.md` without being claimed complete or blocking independent fixes.
 **Current checkpoint:** `PKG-10 / R02` — V05's migration-0013/current-head
 fixture correction is accepted, so R02 resumes its exact immutable
 real-service gate and may continue directly into R03 after its verified
 checkpoint. The R23→R27 commercial chain and R38 collection-time privacy gate
 are accepted; R39 waits for R03 to release the generated-contract lane.
-R36 remains frozen before first write pending the owner's migration/signing
-scope choice, with no active lease. R35's disclosed false red-evidence claims
-remain excluded from closure evidence and its final-sealing gap remains R37's.
+R11 is unblocked by D26's all-device logout decision. R06 and R36 may use their
+already reviewed technical safety designs, while R28 must derive administrator
+activation from D18/Q15. R17's undetermined coverage policy is parked in
+`to-do.md`. R35's disclosed false red-evidence claims remain excluded from
+closure evidence and its final-sealing gap remains R37's.
 
 ## Direct owner requests outside the package queue
 
 | Date | Item | Authority | Scope boundary | Queue effect |
 | --- | --- | --- | --- | --- |
+| 2 Sep 2026 | **Separate buildable defects from client/external follow-ups** — park work that cannot be completed from repository authority in `to-do.md`, and keep the active remediation queue focused on product and engineering defects that can be fixed locally. Logout must revoke sessions on every device. | Direct project-owner/developer instruction in the active remediation controller, 2 Sep 2026 | Client/business/legal choices, unanswered later developer policy, external systems/evidence and trigger-dependent observations remain explicit and incomplete in `to-do.md`. R11 uses existing global `session_version` authority; R06 may apply the reviewed historical-downgrade safety exception; R28 derives admin activation from D18/Q15; R36 uses the reviewed durable migration/model/signing design. R17 is parked as undetermined CI coverage policy. | Unblocks R11, R06, R28 and R36 planning/execution without inventing client or external facts. Parked items do not consume implementation capacity or block independent engineering slices; all source IDs remain reconciled for final reporting. |
 | 2 Sep 2026 | **Prefer cohesive multi-slice implementation sessions over one-slice handoffs** — pre-authorize each visible owner to continue through as many sequential slices as form one truthful bounded packet, rather than returning after every slice. | Direct project-owner amendment in controller task `01a05de2-0b5d-73f0-ae3d-0e979b734658`, 2 Sep 2026 | A packet may combine only dependency-aligned slices with compatible code surfaces, model gate, verification environment, specialist reviews and rollback/partial-completion semantics. Every slice/candidate ID, internal red/green checkpoint and separate admission receipt remains mandatory. Central migrations, generated contracts, shared fixtures, controller documents and overlapping services remain serialized. Packet size is evidence-derived, never an arbitrary target such as five. Owners proactively callback only when the full packet completes, blocks, conflicts or needs steering. | The rolling scheduler now prefers longer cohesive lane packets: current S09 may continue R26→R27 after a verified internal R26 checkpoint; future control, privacy, campaign, reporting and release sessions receive the longest safe dependency-aligned chain available. Controller admission still reconciles every slice exactly once at the packet terminal boundary. |
 | 2 Sep 2026 | **R02 branch authority: every direct branch push runs CI** — retain the accepted GOV-003/R02 and architecture contract rather than narrowing it to master-plus-PR. | Direct owner choice in the active remediation controller, 2 Sep 2026 | R02 may additionally edit only `tests/test_validate_progress.py` to remove the stale master-only assertion and require every-branch push. The preserved three-path implementation, accepted plan/graph reviews and all other behavior remain unchanged. | Clears the R02 owner block and resumes its existing visible task; R03/R17 remain dependency-held until R02 admission. |
 | 2 Sep 2026 | **Resume the approved Cardvert remediation programme from the exact safe pause snapshot** — preserve accepted commits and safely frozen work, avoid duplicated slices/reviews, and return to dependency-safe rolling dispatch. | Direct project-owner instruction relayed from controller task `01a001ce-d025-7531-a84c-7498cd819eda`, 2 Sep 2026 | Reactivates only the unchanged frozen R02, R09 and R35 packets first. R09/R35 may proceed through admission on existing valid receipts; R02 may resume only against its preserved exact lease and evidence. Later work retains the admitted R01–R60 graph, disjoint shared-checkout leases, the existing risk-based model gates, all 29 non-executable dispositions, and all external/live prohibitions. | Lifts `PAUSED — OWNER-SCOPE-RECONCILIATION`, sets the controller `ACTIVE`, and restores work-conserving refill after current frozen packets are reconciled. |
