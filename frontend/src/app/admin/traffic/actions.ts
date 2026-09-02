@@ -29,6 +29,21 @@ const profileSchema = z.object({
     .trim()
     .transform((v) => (v === "" ? undefined : v))
     .pipe(z.string().uuid().optional()),
+  expected_revision: z
+    .string()
+    .trim()
+    .transform((v) => (v === "" ? undefined : Number(v)))
+    .pipe(z.number().int().positive().optional()),
+  expected_value_fingerprint: z
+    .string()
+    .trim()
+    .transform((v) => (v === "" ? undefined : v))
+    .pipe(
+      z
+        .string()
+        .regex(/^[0-9a-f]{64}$/)
+        .optional(),
+    ),
   name: z.string().trim().min(1, "Profile name is required").max(255),
   description: z
     .string()
@@ -53,6 +68,8 @@ export async function saveProfileAction(
 ): Promise<ProfileActionState> {
   const keys = [
     "profile_id",
+    "expected_revision",
+    "expected_value_fingerprint",
     "name",
     "description",
     "traffic_density_per_km",

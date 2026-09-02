@@ -1,7 +1,18 @@
+import asyncio
+from datetime import UTC, datetime
+
 from conftest import auth_headers, create_test_user
+from sqlalchemy import func, select
 from starlette import status as http_status
 
+from app.core.errors import AppError
+from app.models.impression import TrafficDensityProfile
 from app.models.user import UserRole
+from app.schemas.impressions import TrafficDensityProfileCreate, TrafficDensityProfileUpdate
+from app.services.impressions import (
+    create_traffic_density_profile,
+    update_traffic_density_profile,
+)
 
 PASSWORD = "long-secure-password"
 
@@ -78,6 +89,109 @@ def test_admin_can_create_list_read_and_update_profiles(db_client, db_sessionmak
     assert update_response.json()["profile_type"] == "urban"
     assert update_response.json()["traffic_density_per_km"] == "140.0000"
     assert update_response.json()["metadata"] == {"updated": True}
+
+
+def test_profile_update_creates_an_immutable_effective_revision(db_client, db_sessionmaker) -> None:
+    create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
+    headers = admin_headers(db_client)
+    original = db_client.post(
+        "/api/v1/admin/traffic-density-profiles",
+        headers=headers,
+        json=profile_payload(),
+    ).json()
+
+    replacement = db_client.patch(
+        f"/api/v1/admin/traffic-density-profiles/{original['id']}",
+        headers=headers,
+        json={
+            "traffic_density_per_km": "240",
+            "expected_revision": original["revision"],
+            "expected_value_fingerprint": original["value_fingerprint"],
+        },
+    )
+
+    assert replacement.status_code == http_status.HTTP_200_OK
+    revised = replacement.json()
+    assert revised["id"] != original["id"]
+    assert revised["lineage_id"] == original["lineage_id"]
+    assert revised["revision"] == 2
+    assert revised["supersedes_id"] == original["id"]
+    assert revised["effective_from"] > original["effective_from"]
+    assert revised["value_fingerprint"] != original["value_fingerprint"]
+
+    frozen = db_client.get(
+        f"/api/v1/admin/traffic-density-profiles/{original['id']}", headers=headers
+    ).json()
+    assert frozen["traffic_density_per_km"] == "120.0000"
+    assert frozen["value_fingerprint"] == original["value_fingerprint"]
+
+    stale_retry = db_client.patch(
+        f"/api/v1/admin/traffic-density-profiles/{original['id']}",
+        headers=headers,
+        json={
+            "traffic_density_per_km": "360",
+            "expected_revision": original["revision"],
+            "expected_value_fingerprint": original["value_fingerprint"],
+        },
+    )
+    assert stale_retry.status_code == http_status.HTTP_409_CONFLICT
+    assert stale_retry.json()["error"]["code"] == "TRAFFIC_DENSITY_PROFILE_STALE"
+
+
+def test_profile_fingerprint_matches_database_numeric_scale(db_client, db_sessionmaker) -> None:
+    create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
+    headers = admin_headers(db_client)
+    original = db_client.post(
+        "/api/v1/admin/traffic-density-profiles",
+        headers=headers,
+        json=profile_payload(night_weight="0.70001"),
+    ).json()
+
+    assert original["night_weight"] == "0.7000"
+    replacement = db_client.patch(
+        f"/api/v1/admin/traffic-density-profiles/{original['id']}",
+        headers=headers,
+        json={
+            "description": "Revision after database numeric normalization",
+            "expected_revision": original["revision"],
+            "expected_value_fingerprint": original["value_fingerprint"],
+        },
+    )
+
+    assert replacement.status_code == http_status.HTTP_200_OK, replacement.text
+    assert replacement.json()["revision"] == 2
+
+
+def test_profile_revision_rejects_non_monotonic_or_future_effective_time(
+    db_client, db_sessionmaker
+) -> None:
+    create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
+    headers = admin_headers(db_client)
+    original = db_client.post(
+        "/api/v1/admin/traffic-density-profiles",
+        headers=headers,
+        json=profile_payload(effective_from="2026-01-01T00:00:00Z"),
+    ).json()
+
+    for effective_from in (
+        "2026-01-01T00:00:00Z",
+        "2026-06-01T00:00:00Z",
+        datetime(2099, 1, 1, tzinfo=UTC).isoformat(),
+    ):
+        response = db_client.patch(
+            f"/api/v1/admin/traffic-density-profiles/{original['id']}",
+            headers=headers,
+            json={
+                "traffic_density_per_km": "240",
+                "effective_from": effective_from,
+                "expected_revision": original["revision"],
+                "expected_value_fingerprint": original["value_fingerprint"],
+            },
+        )
+        assert response.status_code == http_status.HTTP_409_CONFLICT, response.text
+        assert response.json()["error"]["code"] == (
+            "TRAFFIC_DENSITY_PROFILE_EFFECTIVE_TIME_INVALID"
+        )
 
 
 def test_setting_active_default_clears_prior_default(db_client, db_sessionmaker) -> None:
@@ -209,3 +323,51 @@ def test_profile_endpoints_enforce_admin_role(db_client, db_sessionmaker) -> Non
         ),
     ]:
         assert response.status_code == http_status.HTTP_401_UNAUTHORIZED
+
+
+def test_postgres_concurrent_profile_revision_cannot_branch(
+    postgis_db_sessionmaker,
+) -> None:
+    async def exercise() -> None:
+        async with postgis_db_sessionmaker() as session:
+            profile = await create_traffic_density_profile(
+                session,
+                TrafficDensityProfileCreate.model_validate(profile_payload(is_default=False)),
+            )
+            profile_id = profile.id
+            revision = profile.revision
+            fingerprint = profile.value_fingerprint
+            lineage_id = profile.lineage_id
+            await session.commit()
+
+        async def revise(density: str):
+            async with postgis_db_sessionmaker() as session:
+                try:
+                    replacement = await update_traffic_density_profile(
+                        session,
+                        profile_id=profile_id,
+                        payload=TrafficDensityProfileUpdate(
+                            traffic_density_per_km=density,
+                            expected_revision=revision,
+                            expected_value_fingerprint=fingerprint,
+                        ),
+                    )
+                    await session.commit()
+                    return replacement.id
+                except AppError as exc:
+                    await session.rollback()
+                    return exc.code
+
+        outcomes = await asyncio.gather(revise("200"), revise("300"))
+        assert len([item for item in outcomes if item == "TRAFFIC_DENSITY_PROFILE_STALE"]) == 1
+
+        async with postgis_db_sessionmaker() as session:
+            successor_count = await session.scalar(
+                select(func.count()).where(
+                    TrafficDensityProfile.lineage_id == lineage_id,
+                    TrafficDensityProfile.revision == 2,
+                )
+            )
+            assert successor_count == 1
+
+    asyncio.run(exercise())

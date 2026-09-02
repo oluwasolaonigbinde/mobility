@@ -42,6 +42,7 @@ from app.services.heatmaps import (
     AUTHORITATIVE_AUDIENCE_CELL_FORMULA_VERSION,
     authoritative_audience_trip_cell_counts,
 )
+from app.services.impressions import current_authoritative_estimates
 from app.services.reports import build_dynamic_campaign_report
 
 MEASUREMENT_FORMULA_VERSION = "measurement-result-v1"
@@ -434,6 +435,11 @@ async def issue_measurement_run(
                 .order_by(ImpressionEstimate.id)
             )
         ).all()
+    )
+    impression_rows = await current_authoritative_estimates(
+        session,
+        impression_rows,
+        settings=settings,
     )
     payout_rows = list(
         (

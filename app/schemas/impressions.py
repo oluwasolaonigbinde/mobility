@@ -61,6 +61,7 @@ class TrafficDensityProfileBase(BaseModel):
     is_default: bool = False
     status: TrafficDensityProfileStatus = TrafficDensityProfileStatus.ACTIVE
     metadata: dict[str, Any] = Field(default_factory=dict)
+    effective_from: datetime | None = None
 
     @field_validator("name")
     @classmethod
@@ -71,6 +72,13 @@ class TrafficDensityProfileBase(BaseModel):
     @classmethod
     def trim_description(cls, value: str | None) -> str | None:
         return normalize_optional_text(value)
+
+    @field_validator("effective_from")
+    @classmethod
+    def require_effective_timezone(cls, value: datetime | None) -> datetime | None:
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise ValueError("effective_from must include a timezone offset")
+        return value
 
 
 class TrafficDensityProfileCreate(TrafficDensityProfileBase):
@@ -96,6 +104,14 @@ class TrafficDensityProfileUpdate(BaseModel):
     is_default: bool | None = None
     status: TrafficDensityProfileStatus | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    effective_from: datetime | None = None
+    expected_revision: int | None = Field(default=None, ge=1)
+    expected_value_fingerprint: str | None = Field(
+        default=None,
+        min_length=64,
+        max_length=64,
+        pattern=r"^[0-9a-f]{64}$",
+    )
 
     @field_validator("name")
     @classmethod
@@ -109,11 +125,23 @@ class TrafficDensityProfileUpdate(BaseModel):
     def trim_description(cls, value: str | None) -> str | None:
         return normalize_optional_text(value)
 
+    @field_validator("effective_from")
+    @classmethod
+    def require_effective_timezone(cls, value: datetime | None) -> datetime | None:
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise ValueError("effective_from must include a timezone offset")
+        return value
+
 
 class TrafficDensityProfileRead(DecimalStringMixin):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    lineage_id: UUID
+    revision: int
+    effective_from: datetime
+    supersedes_id: UUID | None
+    value_fingerprint: str
     name: str
     description: str | None
     profile_type: TrafficDensityProfileType

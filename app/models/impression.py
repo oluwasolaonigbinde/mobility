@@ -1,5 +1,7 @@
-from datetime import datetime
-from decimal import Decimal
+import hashlib
+import json
+from datetime import UTC, datetime
+from decimal import ROUND_HALF_UP, Decimal
 from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
@@ -10,10 +12,12 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
     UniqueConstraint,
+    event,
     func,
     text,
 )
@@ -21,6 +25,77 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+
+TRAFFIC_PROFILE_FINGERPRINT_FIELDS = (
+    "lineage_id",
+    "revision",
+    "effective_from",
+    "name",
+    "description",
+    "profile_type",
+    "traffic_density_per_km",
+    "dwell_impressions_per_minute",
+    "road_category_weight",
+    "morning_weight",
+    "midday_weight",
+    "evening_weight",
+    "night_weight",
+    "target_zone_weight",
+    "bonus_zone_weight",
+    "exclusion_zone_weight",
+    "profile_metadata",
+)
+TRAFFIC_PROFILE_DECIMAL_FIELDS = frozenset(
+    {
+        "traffic_density_per_km",
+        "dwell_impressions_per_minute",
+        "road_category_weight",
+        "morning_weight",
+        "midday_weight",
+        "evening_weight",
+        "night_weight",
+        "target_zone_weight",
+        "bonus_zone_weight",
+        "exclusion_zone_weight",
+    }
+)
+TRAFFIC_PROFILE_DECIMAL_QUANTUM = Decimal("0.0001")
+
+
+def _profile_fingerprint_value(value: Any) -> Any:
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        return value.astimezone(UTC).isoformat()
+    if isinstance(value, Decimal):
+        return format(value.normalize(), "f")
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): _profile_fingerprint_value(item) for key, item in sorted(value.items())}
+    if isinstance(value, list | tuple):
+        return [_profile_fingerprint_value(item) for item in value]
+    return value
+
+
+def traffic_density_profile_fingerprint(profile: Any) -> str:
+    values = {}
+    for field in TRAFFIC_PROFILE_FINGERPRINT_FIELDS:
+        value = profile[field] if isinstance(profile, dict) else getattr(profile, field)
+        values[field] = (
+            Decimal(str(value)).quantize(
+                TRAFFIC_PROFILE_DECIMAL_QUANTUM,
+                rounding=ROUND_HALF_UP,
+            )
+            if field in TRAFFIC_PROFILE_DECIMAL_FIELDS
+            else value
+        )
+    payload = json.dumps(
+        _profile_fingerprint_value(values),
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 class TrafficDensityProfileType(StrEnum):
@@ -93,8 +168,30 @@ class TrafficDensityProfile(Base):
             "exclusion_zone_weight >= 0",
             name="ck_traffic_density_profiles_exclusion_weight_non_negative",
         ),
+        CheckConstraint(
+            "revision >= 1",
+            name="ck_traffic_density_profiles_revision_positive",
+        ),
+        CheckConstraint(
+            "length(value_fingerprint) = 64",
+            name="ck_traffic_density_profiles_value_fingerprint_length",
+        ),
+        UniqueConstraint(
+            "lineage_id",
+            "revision",
+            name="uq_traffic_density_profiles_lineage_revision",
+        ),
+        UniqueConstraint(
+            "supersedes_id",
+            name="uq_traffic_density_profiles_supersedes_id",
+        ),
         Index("ix_traffic_density_profiles_status", "status"),
         Index("ix_traffic_density_profiles_profile_type", "profile_type"),
+        Index(
+            "ix_traffic_density_profiles_lineage_effective",
+            "lineage_id",
+            "effective_from",
+        ),
         Index(
             "uq_traffic_density_profiles_active_default",
             "is_default",
@@ -109,6 +206,14 @@ class TrafficDensityProfile(Base):
         default=uuid4,
         server_default=text("gen_random_uuid()"),
     )
+    lineage_id: Mapped[UUID] = mapped_column(nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    supersedes_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("traffic_density_profiles.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    value_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     profile_type: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -359,4 +464,15 @@ class ImpressionEstimate(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
+    )
+
+
+@event.listens_for(TrafficDensityProfile, "before_insert")
+def initialize_traffic_density_profile_revision(_, __, profile: TrafficDensityProfile) -> None:
+    profile.id = profile.id or uuid4()
+    profile.lineage_id = profile.lineage_id or profile.id
+    profile.revision = profile.revision or 1
+    profile.effective_from = profile.effective_from or datetime.now(UTC)
+    profile.value_fingerprint = profile.value_fingerprint or traffic_density_profile_fingerprint(
+        profile
     )

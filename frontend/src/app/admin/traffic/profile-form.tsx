@@ -17,6 +17,10 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
   return (
     <form key={profile?.id ?? "new"} action={formAction} className="flex flex-col gap-6" noValidate>
       {profile ? <input type="hidden" name="profile_id" value={profile.id} /> : null}
+      {profile ? <input type="hidden" name="expected_revision" value={profile.revision} /> : null}
+      {profile ? (
+        <input type="hidden" name="expected_value_fingerprint" value={profile.value_fingerprint} />
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
@@ -55,6 +59,13 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
           className="font-mono"
         />
       </fieldset>
+
+      {profile ? (
+        <p className="micro text-faint font-mono">
+          Revision {profile.revision} · effective{" "}
+          {new Date(profile.effective_from).toLocaleString()}
+        </p>
+      ) : null}
 
       <fieldset className="grid gap-4 sm:grid-cols-4">
         <legend className="micro text-muted mb-3">Time-of-day weights</legend>

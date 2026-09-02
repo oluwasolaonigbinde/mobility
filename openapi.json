@@ -18628,6 +18628,18 @@
             ],
             "title": "Dwell Impressions Per Minute"
           },
+          "effective_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective From"
+          },
           "evening_weight": {
             "anyOf": [
               {
@@ -18842,6 +18854,11 @@
             ],
             "title": "Dwell Impressions Per Minute"
           },
+          "effective_from": {
+            "format": "date-time",
+            "title": "Effective From",
+            "type": "string"
+          },
           "evening_weight": {
             "anyOf": [
               {
@@ -18872,6 +18889,11 @@
           "is_default": {
             "title": "Is Default",
             "type": "boolean"
+          },
+          "lineage_id": {
+            "format": "uuid",
+            "title": "Lineage Id",
+            "type": "string"
           },
           "metadata": {
             "additionalProperties": true,
@@ -18918,6 +18940,10 @@
           "profile_type": {
             "$ref": "#/components/schemas/TrafficDensityProfileType"
           },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
           "road_category_weight": {
             "anyOf": [
               {
@@ -18931,6 +18957,18 @@
           },
           "status": {
             "$ref": "#/components/schemas/TrafficDensityProfileStatus"
+          },
+          "supersedes_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes Id"
           },
           "target_zone_weight": {
             "anyOf": [
@@ -18958,10 +18996,19 @@
             "format": "date-time",
             "title": "Updated At",
             "type": "string"
+          },
+          "value_fingerprint": {
+            "title": "Value Fingerprint",
+            "type": "string"
           }
         },
         "required": [
           "id",
+          "lineage_id",
+          "revision",
+          "effective_from",
+          "supersedes_id",
+          "value_fingerprint",
           "name",
           "description",
           "profile_type",
@@ -19048,6 +19095,18 @@
             ],
             "title": "Dwell Impressions Per Minute"
           },
+          "effective_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective From"
+          },
           "evening_weight": {
             "anyOf": [
               {
@@ -19079,6 +19138,32 @@
               }
             ],
             "title": "Exclusion Zone Weight"
+          },
+          "expected_revision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Revision"
+          },
+          "expected_value_fingerprint": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Value Fingerprint"
           },
           "is_default": {
             "anyOf": [

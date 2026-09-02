@@ -48,6 +48,7 @@ from app.services.fraud_holds import fraud_hold_counts
 from app.services.impressions import (
     ensure_current_estimate_source,
     get_authoritative_estimate_for_trip,
+    impression_estimate_stale,
     impression_output_fingerprint,
     quantize_2,
     quantize_4,
@@ -891,7 +892,14 @@ async def get_impression_estimate_for_trip(
     )
     if estimate is None:
         raise impression_estimate_not_found()
-    return estimate
+    current = await get_authoritative_estimate_for_trip(
+        session,
+        trip_id=trip_id,
+        settings=settings,
+    )
+    if current is None:
+        raise impression_estimate_stale()
+    return current
 
 
 def ensure_payout_sources_match(

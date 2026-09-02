@@ -17,7 +17,7 @@ export default async function TrafficProfilesPage({
   const params = await searchParams;
   const api = createApiClient(await getSessionToken());
   const { data } = await api.GET("/api/v1/admin/traffic-density-profiles", {
-    params: { query: { limit: 50 } },
+    params: { query: { limit: 50, status: "active" } },
   });
   const items = data?.items ?? [];
   const editing =
@@ -45,7 +45,7 @@ export default async function TrafficProfilesPage({
               editing?.id === p.id ? "bg-raised text-amber" : "text-muted hover:text-ink",
             )}
           >
-            {p.name}
+            {p.name} · r{p.revision}
             {p.is_default ? " ★" : ""}
           </a>
         ))}

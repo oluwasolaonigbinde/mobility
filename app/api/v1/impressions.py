@@ -74,6 +74,11 @@ def ensure_impression_date_range(
 def profile_response(profile: TrafficDensityProfile) -> TrafficDensityProfileRead:
     return TrafficDensityProfileRead(
         id=profile.id,
+        lineage_id=profile.lineage_id,
+        revision=profile.revision,
+        effective_from=profile.effective_from,
+        supersedes_id=profile.supersedes_id,
+        value_fingerprint=profile.value_fingerprint,
         name=profile.name,
         description=profile.description,
         profile_type=profile.profile_type,
@@ -212,7 +217,15 @@ async def admin_update_traffic_density_profile(
         action="admin.traffic_density_profile.updated",
         entity_type="traffic_density_profile",
         entity_id=str(profile.id),
-        metadata={"changed_fields": sorted(payload.model_dump(exclude_unset=True))},
+        metadata={
+            "changed_fields": sorted(
+                set(payload.model_dump(exclude_unset=True))
+                - {"expected_revision", "expected_value_fingerprint"}
+            ),
+            "supersedes_id": str(profile.supersedes_id),
+            "revision": profile.revision,
+            "value_fingerprint": profile.value_fingerprint,
+        },
     )
     await session.commit()
     return profile_response(profile)

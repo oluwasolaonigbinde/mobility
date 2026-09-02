@@ -40,8 +40,10 @@ from app.models.trip import LocationPing, LocationPingBatch, TripSessionStatus
 from app.models.trip_analytics import FraudFlag, FraudFlagStatus, FraudFlagType, TripAnalytics
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
+from app.schemas.impressions import TrafficDensityProfileUpdate
 from app.services import fraud_assessments, route_replay, trip_processing
 from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
+from app.services.impressions import update_traffic_density_profile
 from app.services.payouts import calculate_trip_payout
 from app.services.trip_evidence import sign_manifest_receipt
 from app.services.trip_processing import (
@@ -1681,6 +1683,64 @@ def test_due_work_excludes_fully_processed_trip(db_sessionmaker, settings) -> No
     run_pipeline(db_sessionmaker, graph.trip.id, settings)
 
     assert find_due(db_sessionmaker, settings) == []
+
+
+def test_profile_replacement_reissues_worker_estimate_and_blocks_stale_payout(
+    db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_graph(db_sessionmaker, "profile-replacement")
+    seed_analytics(db_sessionmaker, graph)
+    run_pipeline(db_sessionmaker, graph.trip.id, settings)
+    original = fetch_impression_estimates(db_sessionmaker)[0]
+
+    async def replace_profile(profile_id) -> None:
+        async with db_sessionmaker() as session:
+            profile = await session.get(TrafficDensityProfile, profile_id)
+            assert profile is not None
+            await update_traffic_density_profile(
+                session,
+                profile_id=profile.id,
+                payload=TrafficDensityProfileUpdate(
+                    description="Replacement profile",
+                    expected_revision=profile.revision,
+                    expected_value_fingerprint=profile.value_fingerprint,
+                ),
+            )
+            await session.commit()
+
+    asyncio.run(replace_profile(original.traffic_density_profile_id))
+
+    assert find_due(db_sessionmaker, settings) == [graph.trip.id]
+    result = run_pipeline(db_sessionmaker, graph.trip.id, settings)
+    assert stage_outcomes(result)["impressions"] == "created"
+    estimates = fetch_impression_estimates(db_sessionmaker)
+    assert len(estimates) == 2
+    assert sum(estimate.is_authoritative for estimate in estimates) == 1
+
+    current = next(estimate for estimate in estimates if estimate.is_authoritative)
+    create_test_payout_rule(
+        db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        created_by_user_id=graph.admin.id,
+        base_rate_per_km=10,
+    )
+    run_pipeline(db_sessionmaker, graph.trip.id, settings)
+    asyncio.run(replace_profile(current.traffic_density_profile_id))
+
+    async def check_payout() -> None:
+        async with db_sessionmaker() as session:
+            with pytest.raises(AppError) as stale_estimate:
+                await calculate_trip_payout(
+                    session,
+                    trip_id=graph.trip.id,
+                    payout_rule_id=None,
+                    metadata={"source": "admin"},
+                    settings=settings,
+                )
+            assert stale_estimate.value.code == "IMPRESSION_ESTIMATE_STALE"
+
+    asyncio.run(check_payout())
 
 
 def test_due_work_replaces_scenario_only_estimate_with_canonical_authority(

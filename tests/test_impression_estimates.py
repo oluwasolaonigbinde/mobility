@@ -28,7 +28,12 @@ from app.models.trip import TripSessionStatus
 from app.models.trip_analytics import FraudFlag, FraudFlagStatus, TripAnalytics
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
-from app.services.impressions import estimate_trip_impressions
+from app.schemas.impressions import TrafficDensityProfileUpdate
+from app.services.impressions import (
+    estimate_trip_impressions,
+    get_authoritative_estimate_for_trip,
+    update_traffic_density_profile,
+)
 
 PASSWORD = "long-secure-password"
 BASE_TIME = datetime(2026, 5, 31, 12, 0, tzinfo=UTC)
@@ -823,6 +828,84 @@ def test_stale_authoritative_estimate_is_excluded_until_recomputed(
     assert fresh_summary.json()["trip_count"] == 1
 
 
+def test_profile_revision_stales_current_estimate_and_recompute_preserves_history(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    _, advertiser, _, campaign, _, _, _, trip, _ = create_estimation_graph(
+        db_sessionmaker,
+        advertiser_email="adv-profile-drift@example.com",
+        driver_email="driver-profile-drift@example.com",
+        plate_number="PROFILE-DRIFT",
+    )
+    profile = create_formula_profile(db_sessionmaker, name="Versioned density")
+    headers = admin_headers(db_client)
+    original = db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/estimate-impressions",
+        headers=headers,
+        json={"traffic_density_profile_id": str(profile.id)},
+    ).json()
+
+    replacement = db_client.patch(
+        f"/api/v1/admin/traffic-density-profiles/{profile.id}",
+        headers=headers,
+        json={
+            "traffic_density_per_km": "200",
+            "expected_revision": profile.revision,
+            "expected_value_fingerprint": profile.value_fingerprint,
+        },
+    )
+    assert replacement.status_code == http_status.HTTP_200_OK
+
+    advertiser_headers = auth_headers(db_client, advertiser.email, PASSWORD)
+    stale_summary = db_client.get(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
+        headers=advertiser_headers,
+    )
+    assert stale_summary.status_code == http_status.HTTP_200_OK
+    assert stale_summary.json()["trip_count"] == 0
+
+    stale_revision = db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/estimate-impressions",
+        headers=headers,
+        json={"traffic_density_profile_id": str(profile.id)},
+    )
+    assert stale_revision.status_code == http_status.HTTP_400_BAD_REQUEST
+    assert stale_revision.json()["error"]["code"] == "TRAFFIC_DENSITY_PROFILE_INACTIVE"
+
+    recomputed = db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/estimate-impressions",
+        headers=headers,
+        json={},
+    )
+    assert recomputed.status_code == http_status.HTTP_200_OK, recomputed.text
+    revised = recomputed.json()
+    assert revised["id"] != original["id"]
+    assert revised["traffic_density_profile_id"] == replacement.json()["id"]
+    assert revised["estimated_impressions"] != original["estimated_impressions"]
+    assert (
+        revised["metadata"]["traffic_density_profile_fingerprint"]
+        == replacement.json()["value_fingerprint"]
+    )
+
+    rows = db_client.get(
+        f"/api/v1/admin/impression-estimates?trip_session_id={trip.id}",
+        headers=headers,
+    ).json()["items"]
+    frozen = next(row for row in rows if row["id"] == original["id"])
+    assert frozen["estimated_impressions"] == original["estimated_impressions"]
+    assert frozen["metadata"]["traffic_density_profile"]["traffic_density_per_km"] == "100.0000"
+    assert frozen["is_authoritative"] is False
+    assert revised["is_authoritative"] is True
+
+    fresh_summary = db_client.get(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
+        headers=advertiser_headers,
+    )
+    assert fresh_summary.json()["trip_count"] == 1
+    assert fresh_summary.json()["estimated_impressions"] == revised["estimated_impressions"]
+
+
 def test_concurrent_scenario_and_recompute_preserve_pinned_authority(
     postgis_db_sessionmaker,
     settings,
@@ -906,6 +989,87 @@ def test_concurrent_scenario_and_recompute_preserve_pinned_authority(
             assert authoritative[0].id == pinned_id
             assert authoritative[0].traffic_density_profile_id == pinned_profile.id
             assert len(rows) == 2
+
+    asyncio.run(exercise())
+
+
+def test_postgres_profile_revision_stales_and_reissues_authoritative_estimate(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    _, _, _, _, _, _, _, trip, _ = create_estimation_graph(
+        postgis_db_sessionmaker,
+        advertiser_email="adv-profile-revision-pg@example.com",
+        driver_email="driver-profile-revision-pg@example.com",
+        plate_number="PROFILE-PG",
+    )
+    profile = create_formula_profile(
+        postgis_db_sessionmaker,
+        name="PostgreSQL versioned density",
+    )
+
+    async def exercise() -> None:
+        async with postgis_db_sessionmaker() as session:
+            original = await estimate_trip_impressions(
+                session,
+                trip_id=trip.id,
+                traffic_density_profile_id=profile.id,
+                metadata={"source": "profile-revision-pg"},
+                settings=settings,
+            )
+            original_id = original.id
+            original_value = original.estimated_impressions
+            await session.commit()
+
+        async with postgis_db_sessionmaker() as session:
+            replacement = await update_traffic_density_profile(
+                session,
+                profile_id=profile.id,
+                payload=TrafficDensityProfileUpdate(
+                    traffic_density_per_km=Decimal("200"),
+                    expected_revision=profile.revision,
+                    expected_value_fingerprint=profile.value_fingerprint,
+                ),
+            )
+            replacement_id = replacement.id
+            await session.commit()
+
+        async with postgis_db_sessionmaker() as session:
+            assert (
+                await get_authoritative_estimate_for_trip(
+                    session,
+                    trip_id=trip.id,
+                    settings=settings,
+                )
+                is None
+            )
+            revised = await estimate_trip_impressions(
+                session,
+                trip_id=trip.id,
+                traffic_density_profile_id=None,
+                metadata={"source": "profile-revision-pg-reissue"},
+                settings=settings,
+            )
+            await session.commit()
+            assert revised.id != original_id
+            assert revised.traffic_density_profile_id == replacement_id
+            assert revised.estimated_impressions != original_value
+
+        async with postgis_db_sessionmaker() as session:
+            rows = list(
+                (
+                    await session.scalars(
+                        select(ImpressionEstimate)
+                        .where(ImpressionEstimate.trip_session_id == trip.id)
+                        .order_by(ImpressionEstimate.created_at, ImpressionEstimate.id)
+                    )
+                ).all()
+            )
+            assert len(rows) == 2
+            assert rows[0].id == original_id
+            assert rows[0].estimated_impressions == original_value
+            assert rows[0].is_authoritative is False
+            assert rows[1].is_authoritative is True
 
     asyncio.run(exercise())
 

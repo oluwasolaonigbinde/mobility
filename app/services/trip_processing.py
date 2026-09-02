@@ -4,6 +4,7 @@ from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.core.config import Settings
 from app.core.errors import AppError
@@ -12,7 +13,7 @@ from app.models.fraud_assessment import (
     FraudAssessment,
     FraudAssessmentStatus,
 )
-from app.models.impression import ImpressionEstimate
+from app.models.impression import ImpressionEstimate, TrafficDensityProfile
 from app.models.payout import (
     AssignmentRuleBinding,
     CampaignPayoutRule,
@@ -38,13 +39,12 @@ from app.services.campaign_assignments import as_aware_utc
 from app.services.fraud_assessments import assess_trip_fraud, load_current_detection_flags
 from app.services.fraud_holds import (
     fraud_hold_active_clause,
-    fraud_hold_counts,
     lock_fraud_hold_scope,
     lock_fraud_reconciliation_gate,
 )
 from app.services.impressions import (
+    current_authoritative_estimates,
     estimate_trip_impressions,
-    is_current_estimate_for_analytics,
 )
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 from app.services.payouts import (
@@ -365,9 +365,7 @@ async def process_ended_trip(
         )
     )
 
-    # Reuse only an estimate derived from the current analytics and the one
-    # authoritative hold-active fraud state.
-    current_fraud_counts = await fraud_hold_counts(session, trip.id)
+    # Reuse only an estimate derived from current analytics and profile authority.
     estimate_result = await session.execute(
         select(ImpressionEstimate)
         .where(
@@ -377,19 +375,12 @@ async def process_ended_trip(
         )
         .order_by(ImpressionEstimate.estimated_at.desc(), ImpressionEstimate.id)
     )
-    estimate = next(
-        (
-            candidate
-            for candidate in estimate_result.scalars().all()
-            if is_current_estimate_for_analytics(
-                candidate,
-                analytics,
-                settings,
-                fraud_counts=current_fraud_counts,
-            )
-        ),
-        None,
+    current_estimates = await current_authoritative_estimates(
+        session,
+        list(estimate_result.scalars().all()),
+        settings=settings,
     )
+    estimate = current_estimates[0] if current_estimates else None
     if estimate is not None:
         stages.append(
             StageResult(
@@ -605,14 +596,30 @@ async def find_unprocessed_trip_page(
     estimate_high_count = ImpressionEstimate.estimate_metadata["fraud_flag_counts"][
         FraudFlagSeverity.HIGH.value
     ].as_integer()
+    estimate_profile_fingerprint = ImpressionEstimate.estimate_metadata[
+        "traffic_density_profile_fingerprint"
+    ].as_string()
+    successor_profile = aliased(TrafficDensityProfile)
+    successor_profile_exists = (
+        select(successor_profile.id)
+        .where(successor_profile.supersedes_id == TrafficDensityProfile.id)
+        .correlate(TrafficDensityProfile)
+        .exists()
+    )
     current_estimate_exists = (
         select(ImpressionEstimate.id)
         .join(TripAnalytics, TripAnalytics.id == ImpressionEstimate.trip_analytics_id)
+        .join(
+            TrafficDensityProfile,
+            TrafficDensityProfile.id == ImpressionEstimate.traffic_density_profile_id,
+        )
         .where(
             TripAnalytics.trip_session_id == TripSession.id,
             TripAnalytics.formula_version == settings.route_analytics_formula_version,
             ImpressionEstimate.formula_version == settings.impression_formula_version,
             ImpressionEstimate.is_authoritative.is_(True),
+            estimate_profile_fingerprint == TrafficDensityProfile.value_fingerprint,
+            ~successor_profile_exists,
             estimate_low_count == open_low_count,
             estimate_medium_count == open_medium_count,
             estimate_high_count == open_high_count,

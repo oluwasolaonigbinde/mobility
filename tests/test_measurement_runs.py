@@ -232,6 +232,53 @@ def test_measurement_run_replays_reproduces_reissues_and_drives_report(
     assert asyncio.run(count_runs()) == 2
 
 
+def test_profile_revision_reissues_current_measurement_without_rewriting_frozen_run(
+    db_client, db_sessionmaker
+) -> None:
+    admin, _, campaign = create_measurement_graph(
+        db_sessionmaker,
+        identity_tag="measurement-profile-drift",
+    )
+    headers = auth_headers(db_client, admin.email, PASSWORD)
+    first = db_client.post(
+        "/api/v1/admin/measurement-runs",
+        json=issue_payload(campaign.id),
+        headers=headers,
+    ).json()
+    impression_source = first["input_manifest"]["sources"]["impression_estimates"][0]
+    profile_id = impression_source["traffic_density_profile_id"]
+    profile = db_client.get(
+        f"/api/v1/admin/traffic-density-profiles/{profile_id}", headers=headers
+    ).json()
+
+    revised_profile = db_client.patch(
+        f"/api/v1/admin/traffic-density-profiles/{profile_id}",
+        headers=headers,
+        json={
+            "traffic_density_per_km": "240",
+            "expected_revision": profile["revision"],
+            "expected_value_fingerprint": profile["value_fingerprint"],
+        },
+    )
+    assert revised_profile.status_code == 200, revised_profile.text
+
+    second = db_client.post(
+        "/api/v1/admin/measurement-runs",
+        json=issue_payload(campaign.id),
+        headers=headers,
+    )
+    assert second.status_code == 201, second.text
+    second_body = second.json()
+    assert second_body["reissue_of_run_id"] == first["id"]
+    assert second_body["input_manifest_sha256"] != first["input_manifest_sha256"]
+    assert second_body["input_manifest"]["sources"]["impression_estimates"] == []
+
+    frozen = db_client.get(f"/api/v1/admin/measurement-runs/{first['id']}", headers=headers).json()
+    assert frozen["input_manifest_sha256"] == first["input_manifest_sha256"]
+    assert frozen["input_manifest"]["sources"]["impression_estimates"] == [impression_source]
+    assert frozen["reproducible"] is True
+
+
 def test_measurement_run_fails_closed_without_proof_or_roi_prerequisites(
     db_client, db_sessionmaker
 ) -> None:

@@ -11366,6 +11366,8 @@ export interface components {
             description?: string | null;
             /** Dwell Impressions Per Minute */
             dwell_impressions_per_minute: number | string;
+            /** Effective From */
+            effective_from?: string | null;
             /**
              * Evening Weight
              * @default 1.0
@@ -11443,6 +11445,11 @@ export interface components {
             description: string | null;
             /** Dwell Impressions Per Minute */
             dwell_impressions_per_minute: string | null;
+            /**
+             * Effective From
+             * Format: date-time
+             */
+            effective_from: string;
             /** Evening Weight */
             evening_weight: string | null;
             /** Exclusion Zone Weight */
@@ -11454,6 +11461,11 @@ export interface components {
             id: string;
             /** Is Default */
             is_default: boolean;
+            /**
+             * Lineage Id
+             * Format: uuid
+             */
+            lineage_id: string;
             /** Metadata */
             metadata?: {
                 [key: string]: unknown;
@@ -11467,9 +11479,13 @@ export interface components {
             /** Night Weight */
             night_weight: string | null;
             profile_type: components["schemas"]["TrafficDensityProfileType"];
+            /** Revision */
+            revision: number;
             /** Road Category Weight */
             road_category_weight: string | null;
             status: components["schemas"]["TrafficDensityProfileStatus"];
+            /** Supersedes Id */
+            supersedes_id: string | null;
             /** Target Zone Weight */
             target_zone_weight: string | null;
             /** Traffic Density Per Km */
@@ -11479,6 +11495,8 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /** Value Fingerprint */
+            value_fingerprint: string;
         };
         /**
          * TrafficDensityProfileStatus
@@ -11498,10 +11516,16 @@ export interface components {
             description?: string | null;
             /** Dwell Impressions Per Minute */
             dwell_impressions_per_minute?: number | string | null;
+            /** Effective From */
+            effective_from?: string | null;
             /** Evening Weight */
             evening_weight?: number | string | null;
             /** Exclusion Zone Weight */
             exclusion_zone_weight?: number | string | null;
+            /** Expected Revision */
+            expected_revision?: number | null;
+            /** Expected Value Fingerprint */
+            expected_value_fingerprint?: string | null;
             /** Is Default */
             is_default?: boolean | null;
             /** Metadata */
