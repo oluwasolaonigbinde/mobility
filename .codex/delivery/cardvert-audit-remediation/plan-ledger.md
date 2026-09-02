@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 180
+plan_revision: 181
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 306
+last_event_sequence: 308
 ---
 
 # Cardvert audit remediation programme
@@ -247,8 +247,8 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R23 | COM-001, COM-004 | ACCEPTED | R08; commercial opener | R23-P/M/MNY/CP-COMMERCIAL; PostgreSQL, migration 0073 and contract evidence | complete at `8fd5fc4` |
 | R24 | COM-002 | ACCEPTED | R08, R23 | R24-P/M/MNY/CP-COMMERCIAL; causal epoch and PostgreSQL race evidence | complete at `36df828` |
 | R25 | COM-003, COM-005 | COMPLETE | R08, R24 | R25-P/M; MNY+CONTRACT; CP-COMMERCIAL | accepted exactly once at binary diff `b3086d10...`; controller 6-test PostgreSQL/API/OpenAPI check passed |
-| R26 | COM-006 | ACTIVE | R08, R25 | R26-P; reviewed lock-order contract | exact invoice allocation/correction lock-order service and concurrency-test lease; bounded Sol/high DB+money gate |
-| R27 | COM-007 | WAITING | R08, R26 | R27-P; reviewed Lagos-year contract | wait for accepted R26 |
+| R26 | COM-006 | COMPLETE | R08, R25 | R26-P/M; DB+MNY; CP-COMMERCIAL | accepted exactly once at binary diff `1215074a...`; controller focused PostgreSQL gate passed |
+| R27 | COM-007 | ACTIVE | R08, R26 | R27-P; reviewed Lagos-year contract | same cohesive S09 session continues on billing invoice sequencing after verified R26 checkpoint |
 | R28 | CAM-001 | BLOCKED-OWNER | campaign opener | current-source finding confirmed; R28-P blocked | owner must define scheduled→active actor/API/idempotency, readiness coupling, and lifecycle-evidence authority |
 | R29 | CAM-002 | WAITING | R04, R08, R28 | R29-P; reviewed active-driver uniqueness contract | wait for R28 owner decision and migration lane |
 | R30 | CAM-003 | WAITING | R29 | R30-P; reviewed due-challenge finality contract | wait for R29 |
@@ -366,7 +366,7 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e60-6ce7-7cb2-ac20-300ac5275d05` | S03 / R09-R11 planning after accepted R10 | GPT-5.6 Sol/medium for planning | no mutation lease; R09 plan PASS, R11 plan BLOCKED-OWNER | PLAN-RETURNED |
 | `/root/r10_diff_review` | S03 / R10 M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — strict bearer claims, refresh and route authority | released accepted R10 diff `de0c8d60...` | PASS |
 | task `01a05e7a-2699-79b2-9b63-e911dfe302ef` | S06 / R16 implementation | GPT-5.6 Sol/medium — bounded provider-port composition refactor | released accepted seven-file boundary diff | ACCEPTED |
-| task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R26 invoice correction lock authority | GPT-5.6 Sol/high — bounded money and PostgreSQL concurrency authority | accepted R25 base; exact billing service and invoice allocation/correction concurrency-test lease; R27 held | ACTIVE |
+| task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R26→R27 commercial money packet | GPT-5.6 Sol/high — bounded money and PostgreSQL concurrency authority | R26 accepted; continue directly into R27 Lagos-year invoice sequencing with separate receipt | ACTIVE |
 | `/root/r24_review` | S09 / R24 attempt-2 M, MNY and CP-COMMERCIAL review | GPT-5.6 Sol/high — bounded money/idempotency admission | released reviewed exact `d4cbf20c...` diff | PASS |
 | `/root/r24_review` | S09 / R24 M, MNY and CP-COMMERCIAL review | GPT-5.6 Sol/high — bounded money/idempotency admission | released reviewed exact `0a6333b5...` diff | FIX |
 | `/root/r13_attempt3_review` | S05 / R13 repeat M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded parser and identifier-preservation boundary | released reviewed R13 diff `506dc438...` | FIX |
@@ -759,3 +759,5 @@ verification is complete.
 | 304 | 178 | 1 | INTEGRATION_CORRECTION_STARTED | Existing visible S12 began V04's one-file invited-membership assertion correction while R36 remains owner-blocked and unwritten. | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879`; GPT-5.6 Terra/high; exact `tests/test_campaigns.py` assertion lease; no product authority; proactive terminal callback required |
 | 305 | 179 | 1 | INTEGRATION_CORRECTION_ACCEPTED | V04's invited-membership assertion correction was admitted after exact-digest reconciliation, diff inspection and controller PostgreSQL verification. | binary diff `e3db3888...`; independent minimal-change/authorization PASS; controller exact test 1 passed; one test file only; no product behavior changed |
 | 306 | 180 | 1 | SCHEDULER_POLICY_AMENDED | The owner directed the controller to prefer the longest cohesive dependency-aligned multi-slice session that preserves disjoint ownership, model fit, verification, specialist gates and per-slice partial-completion receipts. | no arbitrary slice count; owners callback at full-packet terminal/block/conflict only; migrations/contracts/shared fixtures remain serialized; current S09 expands R26→R27 after an internal verified R26 checkpoint |
+| 307 | 181 | 1 | SLICE_ACCEPTED | R26/COM-006 accepted exactly once after exact-digest reconciliation, diff inspection and focused controller PostgreSQL verification of forced correction/allocation overlap. | binary diff `1215074a...`; R26-P/M, DB+MNY and CP-COMMERCIAL PASS; controller combined gate 5 passed; exact two-file scope |
+| 308 | 181 | 1 | PACKET_CONTINUED | The cohesive S09 commercial owner may continue directly from accepted R26 into R27 without a controller handoff between slices, preserving a separate R27 checkpoint and receipt. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; same Sol/high gate; billing sequencing only; no model/migration/API/generated-contract expansion |

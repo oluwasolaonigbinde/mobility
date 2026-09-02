@@ -857,8 +857,8 @@ async def allocate_payment_receipt(
         select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
     )
     # Receipt-first ordering is shared with reversal. The campaign advisory,
-    # campaign and terms order then matches evaluation/pause/resume, avoiding a
-    # terms↔campaign lock inversion while serializing the new funding fact.
+    # campaign, terms and invoice order then matches correction and budget
+    # transitions while serializing the obligation and its new funding fact.
     await acquire_campaign_terms_lock(session, campaign_id)
     await _campaign(session, campaign_id, lock=True)
     terms = await session.scalar(
@@ -868,6 +868,9 @@ async def allocate_payment_receipt(
         raise AppError(
             "BILLING_AUTHORITY_NOT_FOUND", "Billing authority was not found", status_code=404
         )
+    await session.scalar(
+        select(Invoice.id).where(Invoice.commercial_terms_id == terms.id).with_for_update()
+    )
     if actor_user_id is None and (
         gateway_terms.id != terms.id
         or gateway_event.provider != receipt.provider
@@ -2644,6 +2647,11 @@ async def record_invoice_correction(
     reason: str,
 ) -> InvoiceCorrection:
     await require_active_admin(session, actor_user_id)
+    campaign_id = await session.scalar(select(Invoice.campaign_id).where(Invoice.id == invoice_id))
+    if campaign_id is None:
+        raise AppError("INVOICE_NOT_FOUND", "Invoice was not found", status_code=404)
+    await acquire_campaign_terms_lock(session, campaign_id)
+    await _campaign(session, campaign_id, lock=True)
     invoice = await session.scalar(
         select(Invoice).where(Invoice.id == invoice_id).with_for_update()
     )

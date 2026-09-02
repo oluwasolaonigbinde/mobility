@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R02, R26, R38`
-**Current capacity justification:** V04 is accepted and released. R02 remains byte-frozen and non-writing on its remaining CI paths until R38's transferred collection-authority fixture line becomes an accepted baseline; R26 owns the accepted R25 billing service and invoice concurrency tests; R38 owns privacy configuration, GPS/KYC ingress, and that one `tests/conftest.py` fixture argument. The two actual writer domains are disjoint, no fourth slice is currently executable without an unresolved owner decision or one of these dependency admissions, and migrations and all other files remain unleased.
+**Current capacity assignment:** `R02, R27, R38`
+**Current capacity justification:** V04 is accepted and released. R02 remains byte-frozen and non-writing on its remaining CI paths until R38's transferred collection-authority fixture line becomes an accepted baseline; the cohesive S09 commercial session continues from accepted R26 into R27 on billing invoice sequencing; R38 owns privacy configuration, GPS/KYC ingress, and that one `tests/conftest.py` fixture argument. The two actual writer domains are disjoint, no fourth slice is currently executable without an unresolved owner decision or one of these dependency admissions, and migrations and all other files remain unleased.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -1554,8 +1554,8 @@ durable ledger before changing a row.
 | R23 | COM-001, COM-004 | R08 | COMPLETE | PASS — R23-P | PASS — R23-M | CP-COMMERCIAL PASS — R23-CP-COMMERCIAL |
 | R24 | COM-002 | R08, R23 | COMPLETE | PASS — R24-P | PASS — R24-M | CP-COMMERCIAL PASS — R24-CP-COMMERCIAL |
 | R25 | COM-003, COM-005 | R08, R24 | COMPLETE | PASS — R25-P | PASS — R25-M | CP-COMMERCIAL PASS — R25-CP-COMMERCIAL |
-| R26 | COM-006 | R08, R25 | ACTIVE | PASS — R26-P | PENDING | CP-COMMERCIAL PENDING |
-| R27 | COM-007 | R08, R26 | QUEUED | PASS — R27-P | PENDING | CP-COMMERCIAL PENDING |
+| R26 | COM-006 | R08, R25 | COMPLETE | PASS — R26-P | PASS — R26-M | CP-COMMERCIAL PASS — R26-CP-COMMERCIAL |
+| R27 | COM-007 | R08, R26 | ACTIVE | PASS — R27-P | PENDING | CP-COMMERCIAL PENDING |
 | R28 | CAM-001 | none | QUEUED | PENDING | PENDING | CP-CAMPAIGN PENDING |
 | R29 | CAM-002 | R04, R08, R28 | QUEUED | PASS — R29-P | PENDING | CP-CAMPAIGN PENDING |
 | R30 | CAM-003 | R29 | QUEUED | PASS — R30-P | PENDING | CP-CAMPAIGN PENDING |

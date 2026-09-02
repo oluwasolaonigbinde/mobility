@@ -3,11 +3,19 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from conftest import create_test_campaign, create_test_organization, create_test_user
+from sqlalchemy import func, select
 from test_receipt_allocations import _accepted_terms
 
 import app.services.billing as billing_service
 from app.core.errors import AppError
-from app.models.billing import IssuerVerificationStatus, ReceiptMethod
+from app.models.audit import AuditEvent
+from app.models.billing import (
+    InvoiceCorrection,
+    InvoiceCorrectionType,
+    IssuerVerificationStatus,
+    ReceiptAllocation,
+    ReceiptMethod,
+)
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.user import UserRole
 from app.schemas.campaign_cancellations import CampaignCancellationCreate
@@ -18,6 +26,7 @@ from app.services.billing import (
     invoice_payment_status,
     issue_invoice,
     reconcile_payment_receipt,
+    record_invoice_correction,
     record_invoice_issuer_profile,
     record_payment_receipt,
     record_refund_settlement,
@@ -28,6 +37,199 @@ from app.services.campaign_cancellations import request_campaign_cancellation
 
 async def _parallel(*awaitables):
     return await asyncio.gather(*awaitables)
+
+
+def test_invoice_credit_and_allocation_overlap_respects_corrected_obligation(
+    postgis_db_sessionmaker, settings, monkeypatch
+) -> None:
+    correction_admin = create_test_user(
+        postgis_db_sessionmaker, email="correction-overlap-admin@example.com"
+    )
+    allocation_admin = create_test_user(
+        postgis_db_sessionmaker, email="allocation-overlap-admin@example.com"
+    )
+    owner = create_test_user(
+        postgis_db_sessionmaker,
+        email="correction-overlap-owner@example.com",
+        role=UserRole.ADVERTISER,
+    )
+    organization, _ = create_test_organization(postgis_db_sessionmaker, owner_user_id=owner.id)
+    campaign = create_test_campaign(
+        postgis_db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=correction_admin.id,
+    )
+
+    async def setup():
+        async with postgis_db_sessionmaker() as session:
+            terms = await _accepted_terms(
+                session,
+                campaign=campaign,
+                admin=correction_admin,
+                owner=owner,
+                reference="CORRECTION-ALLOCATION-OVERLAP",
+                amount="100.00",
+            )
+            issuer = await record_invoice_issuer_profile(
+                session,
+                actor_user_id=correction_admin.id,
+                legal_name="Synthetic overlap issuer",
+                tax_identification_number="TEST",
+                registered_address="Test",
+                country_code="NG",
+                invoice_wording="Synthetic",
+                numbering_prefix="CAO",
+                verification_status=IssuerVerificationStatus.SYNTHETIC,
+                external_input_reference="SYNTHETIC-CORRECTION-ALLOCATION-OVERLAP",
+                settings=settings,
+            )
+            draft = await create_invoice_draft(
+                session,
+                commercial_terms_id=terms.id,
+                actor_user_id=correction_admin.id,
+            )
+            invoice = await issue_invoice(
+                session,
+                invoice_id=draft.id,
+                issuer_profile_id=issuer.id,
+                actor_user_id=correction_admin.id,
+                settings=settings,
+            )
+            receipt = await record_payment_receipt(
+                session,
+                organization_id=organization.id,
+                actor_user_id=allocation_admin.id,
+                method=ReceiptMethod.MANUAL_TRANSFER,
+                provider="bank",
+                external_transaction_id="CORRECTION-ALLOCATION-OVERLAP-RECEIPT",
+                amount="100.00",
+                currency="NGN",
+                payer_name="Advertiser",
+                evidence_reference="correction-allocation-overlap",
+                observed_at=datetime.now(UTC),
+            )
+            await reconcile_payment_receipt(
+                session,
+                receipt_id=receipt.id,
+                actor_user_id=allocation_admin.id,
+                expected_amount="100.00",
+                expected_currency="NGN",
+            )
+            await confirm_payment_receipt(
+                session, receipt_id=receipt.id, actor_user_id=allocation_admin.id
+            )
+            await session.commit()
+            return terms.id, invoice.id, receipt.id
+
+    terms_id, invoice_id, receipt_id = asyncio.run(setup())
+
+    async def overlap():
+        correction_at_insert = asyncio.Event()
+        release_correction = asyncio.Event()
+        allocation_read_obligation = asyncio.Event()
+        original_clock = billing_service.database_clock
+        original_obligation = billing_service.effective_invoice_obligation
+        correction_task = None
+        allocation_task = None
+
+        async def controlled_clock(session):
+            if asyncio.current_task() is correction_task:
+                correction_at_insert.set()
+                await release_correction.wait()
+            return await original_clock(session)
+
+        async def observed_obligation(session, *, commercial_terms_id):
+            obligation = await original_obligation(session, commercial_terms_id=commercial_terms_id)
+            if asyncio.current_task() is allocation_task:
+                allocation_read_obligation.set()
+            return obligation
+
+        monkeypatch.setattr(billing_service, "database_clock", controlled_clock)
+        monkeypatch.setattr(billing_service, "effective_invoice_obligation", observed_obligation)
+
+        async def correct():
+            async with postgis_db_sessionmaker() as session:
+                correction = await record_invoice_correction(
+                    session,
+                    invoice_id=invoice_id,
+                    actor_user_id=correction_admin.id,
+                    correction_reference="correction-allocation-overlap-credit",
+                    correction_type=InvoiceCorrectionType.CREDIT_NOTE,
+                    net_amount="40.00",
+                    tax_amount="0.00",
+                    reason="approved scope reduction during allocation",
+                )
+                await session.commit()
+                return str(correction.id)
+
+        async def allocate():
+            async with postgis_db_sessionmaker() as session:
+                try:
+                    allocation = await allocate_payment_receipt(
+                        session,
+                        receipt_id=receipt_id,
+                        commercial_terms_id=terms_id,
+                        actor_user_id=allocation_admin.id,
+                        amount="100.00",
+                    )
+                    await session.commit()
+                    return str(allocation.id)
+                except AppError as exc:
+                    await session.rollback()
+                    return exc.code
+
+        correction_task = asyncio.create_task(correct())
+        await asyncio.wait_for(correction_at_insert.wait(), timeout=5)
+        allocation_task = asyncio.create_task(allocate())
+        try:
+            await asyncio.wait_for(allocation_read_obligation.wait(), timeout=0.5)
+        except TimeoutError:
+            pass
+        if allocation_read_obligation.is_set():
+            await asyncio.wait_for(allocation_task, timeout=5)
+        release_correction.set()
+        correction_result, allocation_result = await asyncio.wait_for(
+            asyncio.gather(correction_task, allocation_task), timeout=5
+        )
+        return correction_result, allocation_result
+
+    correction_result, allocation_result = asyncio.run(overlap())
+    assert correction_result not in {
+        "INVOICE_CORRECTION_REFERENCE_CONFLICT",
+        "INVOICE_CREDIT_EXCEEDS_OBLIGATION",
+    }
+    assert allocation_result == "OBLIGATION_OVERFUNDING"
+
+    async def effect_counts() -> tuple[int, int, int, int]:
+        async with postgis_db_sessionmaker() as session:
+            correction_count = await session.scalar(
+                select(func.count())
+                .select_from(InvoiceCorrection)
+                .where(InvoiceCorrection.invoice_id == invoice_id)
+            )
+            allocation_count = await session.scalar(
+                select(func.count())
+                .select_from(ReceiptAllocation)
+                .where(ReceiptAllocation.commercial_terms_id == terms_id)
+            )
+            correction_audits = await session.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(AuditEvent.action == "billing.invoice.corrected")
+            )
+            allocation_audits = await session.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(AuditEvent.action == "billing.receipt.allocated")
+            )
+            return (
+                int(correction_count or 0),
+                int(allocation_count or 0),
+                int(correction_audits or 0),
+                int(allocation_audits or 0),
+            )
+
+    assert asyncio.run(effect_counts()) == (1, 0, 1, 0)
 
 
 def test_forced_overlap_receipt_allocation_reversal_and_numbering(
