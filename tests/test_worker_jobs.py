@@ -89,7 +89,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert gateway.name == "process_payment_gateway_event"
     assert gateway.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 18
+    assert len(WorkerSettings.cron_jobs) == 19
     cron_job = WorkerSettings.cron_jobs[0]
     assert isinstance(cron_job, CronJob)
     assert cron_job.coroutine is jobs.process_unprocessed_trips
@@ -160,9 +160,12 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
         data_lifecycle_jobs.check_ping_partition_coverage,
         data_lifecycle_jobs.purge_expired_ping_partitions,
         disclosure_retention_jobs.purge_expired_disclosure_query_history,
+        file_lifecycle_jobs.recover_stored_object_deletions,
         file_lifecycle_jobs.purge_orphaned_file_uploads,
         file_lifecycle_jobs.purge_expired_file_kyc,
     }
+    recovery = lifecycle_crons.pop(file_lifecycle_jobs.recover_stored_object_deletions)
+    assert recovery.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
     for cron_job in lifecycle_crons.values():
         assert isinstance(cron_job, CronJob)
         assert cron_job.unique is True
@@ -273,9 +276,7 @@ def test_email_sweep_selects_bounded_due_ids_and_delegates_once_each(
             )
             return "sent" if len(calls) == 1 else "retry_scheduled"
 
-        monkeypatch.setattr(
-            email_delivery_jobs, "build_email_adapter", fake_build_email_adapter
-        )
+        monkeypatch.setattr(email_delivery_jobs, "build_email_adapter", fake_build_email_adapter)
         monkeypatch.setattr(
             email_delivery_jobs,
             "process_email_notification",

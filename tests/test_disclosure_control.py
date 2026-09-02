@@ -13,6 +13,7 @@ from conftest import (
     create_test_driver_profile,
     create_test_impression_estimate,
     create_test_organization,
+    create_test_payout_rule,
     create_test_traffic_density_profile,
     create_test_trip_analytics,
     create_test_trip_session,
@@ -36,16 +37,20 @@ from app.models.organization import (
     OrganizationMembership,
     OrganizationStatus,
 )
+from app.models.payout import PayoutCalculation
 from app.models.trip import TripSessionStatus
+from app.models.trip_analytics import FraudFlag, TripAnalytics
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
-from app.services import heatmaps, impressions, reports
+from app.services import audience, audience_delivery, heatmaps, impressions, reports
 from app.services.disclosure import (
     DISCLOSURE_ROUTE_INVENTORY,
     DisclosureQuery,
     ensure_disclosure_live_gate,
+    frozen_manifest_meets_disclosure_floor,
     record_heatmap_disclosure,
     require_governed_advertiser_output,
+    trip_cohort_meets_disclosure_floor,
 )
 
 
@@ -91,6 +96,10 @@ def test_live_gate_is_default_deny_and_thresholds_cannot_enable_it() -> None:
     with pytest.raises(ValueError, match="environment=test"):
         Settings(
             environment="production",
+            database_url=(
+                "postgresql+asyncpg://mobility:synthetic-db-secret@db:5432/mobility?ssl=require"
+            ),
+            redis_url="rediss://:synthetic-redis-secret@redis:6379/0",
             jwt_secret_key="production-test-secret-key-that-is-long-enough",
             privacy_disclosure_synthetic_test_mode=True,
         )
@@ -100,6 +109,97 @@ def test_report_outputs_remain_blocked_after_legal_gate_until_safe_runs() -> Non
     with pytest.raises(AppError) as blocked:
         ensure_disclosure_live_gate(live_test_settings(), requires_measurement_run=True)
     assert blocked.value.code == "SAFE_MEASUREMENT_RUN_REQUIRED"
+
+
+def test_frozen_measurement_manifest_caps_each_released_metric() -> None:
+    first_vehicle, second_vehicle = uuid4(), uuid4()
+
+    def analytics(vehicle_id, trip_id, distance):
+        return {
+            "trip_session_id": str(trip_id),
+            "vehicle_id": str(vehicle_id),
+            "started_at": "2026-08-01T10:00:00+00:00",
+            "distance_m": distance,
+            "target_zone_distance_m": distance,
+            "bonus_zone_distance_m": 0,
+            "exclusion_zone_distance_m": 0,
+            "active_tracking_seconds": 60,
+            "quality_score": 1,
+        }
+
+    first_trip, second_trip = uuid4(), uuid4()
+    manifest = {
+        "sources": {
+            "trip_analytics": [
+                {**analytics(first_vehicle, first_trip, 1000), "status": "computed"},
+                {**analytics(second_vehicle, second_trip, 1), "status": "computed"},
+            ],
+            "impression_estimates": [
+                {
+                    "trip_session_id": str(first_trip),
+                    "status": "estimated",
+                    "estimated_impressions": 1000,
+                    "confidence_score": 1,
+                },
+                {
+                    "trip_session_id": str(second_trip),
+                    "status": "estimated",
+                    "estimated_impressions": 1,
+                    "confidence_score": 1,
+                },
+            ],
+            "payout_calculations": [],
+        }
+    }
+    settings = live_test_settings(
+        privacy_min_vehicles_per_cell=2,
+        privacy_min_trips_per_cell=2,
+        privacy_min_days_per_cell=1,
+        privacy_max_contributor_share=0.75,
+    )
+    assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is False
+    manifest["sources"]["trip_analytics"].append(
+        {**analytics(second_vehicle, uuid4(), 1000), "status": "blocked"}
+    )
+    assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is False
+    manifest["sources"]["trip_analytics"][1]["distance_m"] = 1000
+    manifest["sources"]["trip_analytics"][1]["target_zone_distance_m"] = 1000
+    manifest["sources"]["impression_estimates"][1]["estimated_impressions"] = 1000
+    assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is True
+
+
+def test_frozen_report_authority_rechecks_daily_and_measurement_contributions() -> None:
+    first_vehicle, second_vehicle = str(uuid4()), str(uuid4())
+    authority = {
+        "schema_version": "frozen-report-disclosure-v1",
+        "route_id": "advertiser.campaign.report",
+        "passed": True,
+        "vehicle_count": 2,
+        "trip_count": 2,
+        "day_count": 1,
+        "report_snapshot_sha256": "a" * 64,
+        "contributions": {
+            "daily:trip_count:2026-08-01": {first_vehicle: "1"},
+            "measurement:analytics:active_tracking_seconds": {
+                first_vehicle: "1000",
+                second_vehicle: "1",
+            },
+        },
+    }
+    settings = live_test_settings(
+        privacy_min_vehicles_per_cell=2,
+        privacy_min_trips_per_cell=2,
+        privacy_min_days_per_cell=1,
+        privacy_max_contributor_share=0.75,
+    )
+    manifest = {"disclosure_authority": authority}
+    assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is False
+    authority["contributions"]["daily:trip_count:2026-08-01"][second_vehicle] = "1"
+    assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is False
+    authority["contributions"]["measurement:analytics:active_tracking_seconds"][
+        second_vehicle
+    ] = "1000"
+    assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is True
 
 
 def test_route_inventory_covers_every_current_output_at_the_service_boundary() -> None:
@@ -112,6 +212,12 @@ def test_route_inventory_covers_every_current_output_at_the_service_boundary() -
         "advertiser.campaign.impressions_summary",
         "advertiser.campaign.heatmap",
         "admin.heatmap",
+        "advertiser.audience.recommendations",
+        "admin.audience.recommendations",
+        "advertiser.audience.export",
+        "admin.audience.activation",
+        "advertiser.campaign.zone_insights",
+        "admin.campaign.zone_insights",
     }
     assert DISCLOSURE_ROUTE_INVENTORY == expected
 
@@ -125,6 +231,11 @@ def test_route_inventory_covers_every_current_output_at_the_service_boundary() -
             inspect.getsource(impressions.advertiser_campaign_impression_summary),
             inspect.getsource(heatmaps.advertiser_campaign_heatmap),
             inspect.getsource(heatmaps.admin_heatmap),
+            inspect.getsource(audience_delivery.recommendations_for_link),
+            inspect.getsource(audience_delivery._recommendations_for_segment),
+            inspect.getsource(audience_delivery.export_exposure_segment),
+            inspect.getsource(audience_delivery.activate_exposure_segment),
+            inspect.getsource(audience.high_exposure_zone_insights),
         ]
     )
     for route_id in expected:
@@ -772,6 +883,200 @@ def test_heatmap_floor_enforces_exact_vehicle_trip_day_and_metric_contributor_ed
 
     assert exact == 1
     assert (below_vehicle, below_trip, below_day, over_cap) == (0, 0, 0, 0)
+
+
+def test_non_heatmap_floor_caps_each_released_metric_by_vehicle_contribution(
+    postgis_db_sessionmaker,
+) -> None:
+    admin, _, organization, campaign, _, _, _, first_trip, first_estimate = create_heatmap_graph(
+        postgis_db_sessionmaker,
+        advertiser_email="disclosure-report-cap-advertiser@example.com",
+        driver_email="disclosure-report-cap-driver@example.com",
+        plate_number="DISC-REPORT-1",
+    )
+    driver = create_test_user(
+        postgis_db_sessionmaker,
+        email="disclosure-report-cap-second@example.com",
+        password=PASSWORD,
+        role=UserRole.DRIVER,
+    )
+    profile = create_test_driver_profile(
+        postgis_db_sessionmaker,
+        user_id=driver.id,
+        onboarding_status=DriverOnboardingStatus.ACTIVE,
+    )
+    vehicle = create_test_vehicle(
+        postgis_db_sessionmaker,
+        driver_profile_id=profile.id,
+        plate_number="DISC-REPORT-2",
+        vehicle_status=VehicleStatus.ACTIVE,
+    )
+    assignment = create_test_campaign_assignment(
+        postgis_db_sessionmaker,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        assigned_by_user_id=admin.id,
+        assignment_status=CampaignAssignmentStatus.ACTIVE,
+        activated_at=RECORDED_AT,
+    )
+    trip = create_test_trip_session(
+        postgis_db_sessionmaker,
+        assignment_id=assignment.id,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        started_by_user_id=driver.id,
+        trip_status=TripSessionStatus.ENDED,
+        started_at=RECORDED_AT,
+        ended_at=RECORDED_AT.replace(hour=11),
+    )
+    analytics = create_test_trip_analytics(
+        postgis_db_sessionmaker,
+        trip_session_id=trip.id,
+        assignment_id=assignment.id,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        started_at=RECORDED_AT,
+        ended_at=RECORDED_AT.replace(hour=11),
+        first_ping_at=RECORDED_AT,
+        last_ping_at=RECORDED_AT.replace(minute=5),
+        distance_m=Decimal("1.00"),
+    )
+    density = create_test_traffic_density_profile(
+        postgis_db_sessionmaker,
+        name="Report contributor cap density",
+    )
+    estimate = create_test_impression_estimate(
+        postgis_db_sessionmaker,
+        trip_session_id=trip.id,
+        trip_analytics_id=analytics.id,
+        assignment_id=assignment.id,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        traffic_density_profile_id=density.id,
+        estimated_impressions=Decimal("1.00"),
+    )
+    settings = live_test_settings(
+        privacy_min_vehicles_per_cell=2,
+        privacy_min_trips_per_cell=2,
+        privacy_min_days_per_cell=1,
+        privacy_max_contributor_share=0.75,
+    )
+    payout_rule = create_test_payout_rule(
+        postgis_db_sessionmaker,
+        campaign_id=campaign.id,
+        created_by_user_id=admin.id,
+    )
+
+    async def evaluate() -> tuple[bool, bool, bool, bool]:
+        async with postgis_db_sessionmaker() as session:
+            dominated = await trip_cohort_meets_disclosure_floor(
+                session,
+                tenant_id=organization.id,
+                campaign_id=campaign.id,
+                start_at=None,
+                end_at=None,
+                route_id="advertiser.campaign.trips",
+                settings=settings,
+            )
+            analytics.distance_m = Decimal("1000.00")
+            estimate.estimated_impressions = Decimal("200.00")
+            await session.merge(analytics)
+            await session.merge(estimate)
+            await session.flush()
+            first_analytics = await session.scalar(
+                select(TripAnalytics).where(TripAnalytics.trip_session_id == first_trip.id)
+            )
+            assert first_analytics is not None
+            first_payout = PayoutCalculation(
+                trip_session_id=first_trip.id,
+                trip_analytics_id=first_analytics.id,
+                impression_estimate_id=first_estimate.id,
+                payout_rule_id=payout_rule.id,
+                assignment_id=first_trip.assignment_id,
+                campaign_id=campaign.id,
+                driver_profile_id=first_trip.driver_profile_id,
+                vehicle_id=first_trip.vehicle_id,
+                formula_version="payout_v1",
+                status="calculated",
+                currency="NGN",
+                gross_payout=Decimal("1000.00"),
+                final_payout=Decimal("1000.00"),
+                calculated_at=RECORDED_AT,
+                payout_metadata={},
+            )
+            second_payout = PayoutCalculation(
+                trip_session_id=trip.id,
+                trip_analytics_id=analytics.id,
+                impression_estimate_id=estimate.id,
+                payout_rule_id=payout_rule.id,
+                assignment_id=trip.assignment_id,
+                campaign_id=campaign.id,
+                driver_profile_id=trip.driver_profile_id,
+                vehicle_id=trip.vehicle_id,
+                formula_version="payout_v1",
+                status="calculated",
+                currency="NGN",
+                gross_payout=Decimal("1.00"),
+                final_payout=Decimal("1.00"),
+                calculated_at=RECORDED_AT,
+                payout_metadata={},
+            )
+            session.add_all([first_payout, second_payout])
+            await session.flush()
+            cost_dominated = await trip_cohort_meets_disclosure_floor(
+                session,
+                tenant_id=organization.id,
+                campaign_id=campaign.id,
+                start_at=None,
+                end_at=None,
+                route_id="advertiser.campaign.trips",
+                settings=settings,
+            )
+            second_payout.gross_payout = Decimal("1000.00")
+            second_payout.final_payout = Decimal("1000.00")
+            await session.flush()
+            balanced = await trip_cohort_meets_disclosure_floor(
+                session,
+                tenant_id=organization.id,
+                campaign_id=campaign.id,
+                start_at=None,
+                end_at=None,
+                route_id="advertiser.campaign.trips",
+                settings=settings,
+            )
+            session.add(
+                FraudFlag(
+                    trip_session_id=first_trip.id,
+                    trip_analytics_id=first_analytics.id,
+                    assignment_id=first_trip.assignment_id,
+                    campaign_id=campaign.id,
+                    driver_profile_id=first_trip.driver_profile_id,
+                    vehicle_id=first_trip.vehicle_id,
+                    flag_type="insufficient_pings",
+                    severity="low",
+                    status="open",
+                    description="Synthetic daily authority boundary",
+                    evidence={},
+                    detected_at=RECORDED_AT - timedelta(days=30),
+                )
+            )
+            await session.flush()
+            daily_out_of_detection_window = await trip_cohort_meets_disclosure_floor(
+                session,
+                tenant_id=organization.id,
+                campaign_id=campaign.id,
+                start_at=RECORDED_AT - timedelta(minutes=1),
+                end_at=RECORDED_AT.replace(hour=12),
+                route_id="advertiser.campaign.daily_metrics",
+                settings=settings,
+            )
+            return dominated, cost_dominated, balanced, daily_out_of_detection_window
+
+    assert asyncio.run(evaluate()) == (False, False, True, False)
 
 
 def test_heatmap_suppresses_when_an_unselected_serialized_metric_is_dominated(

@@ -7,10 +7,6 @@ from starlette import status
 
 from app.api.v1.dependencies import AdvertiserUserDependency, SessionDependency, SettingsDependency
 from app.core.errors import AppError
-from app.models.impression import ImpressionEstimateStatus
-from app.models.payout import PayoutCalculationStatus
-from app.models.trip import TripSessionStatus
-from app.models.trip_analytics import TripAnalyticsStatus
 from app.schemas.campaigns import ensure_timezone_aware
 from app.schemas.reports import (
     AdvertiserDashboardSummary,
@@ -140,38 +136,22 @@ async def advertiser_get_campaign_daily_metrics(
 @router.get(
     "/advertiser/campaigns/{campaign_id}/trips",
     response_model=CampaignTripsResponse,
-    summary="List advertiser campaign trip summaries",
-    description="List privacy-safe campaign trip summaries without raw GPS or driver PII.",
+    summary="Read advertiser campaign trip aggregate",
+    description=(
+        "Return one privacy-governed whole-campaign aggregate without trip rows, identifiers, "
+        "or event timestamps."
+    ),
 )
-async def advertiser_list_campaign_trips(
+async def advertiser_get_campaign_trip_aggregate(
     campaign_id: UUID,
     current_user: AdvertiserUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
-    start_at: datetime | None = None,
-    end_at: datetime | None = None,
-    limit: Annotated[int, Query(ge=1, le=100)] = 50,
-    offset: Annotated[int, Query(ge=0)] = 0,
-    status: TripSessionStatus | None = None,
-    has_fraud_flags: bool | None = None,
-    analytics_status: TripAnalyticsStatus | None = None,
-    impression_status: ImpressionEstimateStatus | None = None,
-    payout_status: PayoutCalculationStatus | None = None,
 ) -> CampaignTripsResponse:
-    start_at, end_at = ensure_report_date_range(start_at, end_at)
     return await advertiser_campaign_trips(
         session,
         user_id=current_user.id,
         campaign_id=campaign_id,
-        start_at=start_at,
-        end_at=end_at,
-        limit=limit,
-        offset=offset,
-        trip_status=status.value if status is not None else None,
-        has_fraud_flags=has_fraud_flags,
-        analytics_status=analytics_status.value if analytics_status is not None else None,
-        impression_status=impression_status.value if impression_status is not None else None,
-        payout_status=payout_status.value if payout_status is not None else None,
         settings=settings,
     )
 

@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -10,6 +11,7 @@ from conftest import (
 )
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import func, select
+from test_heatmaps import add_ping_batch
 from test_measurement_runs import DAY_1, PASSWORD, create_measurement_graph, issue_payload
 from test_retargeting_source_links import source_payload
 
@@ -18,8 +20,10 @@ from app.core.errors import AppError
 from app.jobs.exposure_segments import materialize_exposure_segment_job
 from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.exposure_segment import ExposureSegment, ExposureSegmentCell
+from app.models.measurement import MeasurementRun
+from app.models.trip import TripSession
 from app.models.user import UserRole
-from app.schemas.exposure_segments import ExposureCellInput
+from app.schemas.exposure_segments import AuthoritativeExposureCell
 from app.schemas.measurement import MeasurementRunCreate
 from app.schemas.retargeting_source_links import RetargetingSourceLinkCreate
 from app.schemas.retargeting_sources import RetargetingSourceCreate
@@ -43,7 +47,11 @@ def cells(*, safe_count: int = 3, contacts: str = "120") -> list[dict]:
             "context": "vehicle_transit",
             "distinct_vehicle_count": safe_count,
             "trip_count": safe_count,
+            "distinct_day_count": 1,
+            "max_contributor_share": "0.5000000",
             "modelled_potential_contacts": contacts,
+            "formula_version": "audience_exposure_v1",
+            "synthetic": True,
         },
         {
             "coverage_cell": "grid-500m:10:21",
@@ -52,14 +60,18 @@ def cells(*, safe_count: int = 3, contacts: str = "120") -> list[dict]:
             "context": "vehicle_transit",
             "distinct_vehicle_count": 2,
             "trip_count": 2,
+            "distinct_day_count": 1,
+            "max_contributor_share": "0.5000000",
             "modelled_potential_contacts": "40",
+            "formula_version": "audience_exposure_v1",
+            "synthetic": True,
         },
     ]
 
 
 def test_exposure_cell_contract_rejects_identifiers_and_free_form_payloads() -> None:
     valid = cells()[0]
-    assert ExposureCellInput.model_validate(valid).coverage_cell == "grid-500m:10:20"
+    assert AuthoritativeExposureCell.model_validate(valid).coverage_cell == "grid-500m:10:20"
     for field in (
         "driver_id",
         "device_id",
@@ -72,12 +84,25 @@ def test_exposure_cell_contract_rejects_identifiers_and_free_form_payloads() -> 
         "metadata",
     ):
         with pytest.raises(ValidationError):
-            ExposureCellInput.model_validate(valid | {field: str(uuid4())})
+            AuthoritativeExposureCell.model_validate(valid | {field: str(uuid4())})
     with pytest.raises(ValidationError):
-        ExposureCellInput.model_validate(valid | {"coverage_cell": str(uuid4())})
+        AuthoritativeExposureCell.model_validate(valid | {"coverage_cell": str(uuid4())})
+    with pytest.raises(ValidationError):
+        AuthoritativeExposureCell.model_validate(
+            valid
+            | {
+                "coverage_cell": "grid-1m:10:20",
+                "window_end_at": (DAY_1 + timedelta(microseconds=1)).isoformat(),
+            }
+        )
 
 
-def _create_link_and_run(db_client, db_sessionmaker):
+def test_materialization_boundary_does_not_accept_claimed_cells() -> None:
+    assert "cells" not in inspect.signature(materialize_exposure_segment_job).parameters
+    assert "cells" not in inspect.signature(materialize_exposure_segment).parameters
+
+
+def _create_link_and_run(db_client, db_sessionmaker, *, points=None):
     admin, advertiser, campaign = create_measurement_graph(db_sessionmaker)
     other = create_test_user(
         db_sessionmaker,
@@ -103,6 +128,21 @@ def _create_link_and_run(db_client, db_sessionmaker):
             return zone.id
 
     zone_id = asyncio.run(add_zone())
+    if points is not None:
+        async def trip_id() -> UUID:
+            async with db_sessionmaker() as session:
+                value = await session.scalar(
+                    select(TripSession.id).where(TripSession.campaign_id == campaign.id)
+                )
+                assert value is not None
+                return value
+
+        add_ping_batch(
+            db_sessionmaker,
+            trip_id=asyncio.run(trip_id()),
+            points=points,
+            idempotency_key=f"segment-authority-{uuid4()}",
+        )
     advertiser_headers = auth_headers(db_client, advertiser.email, PASSWORD)
     source = db_client.post(
         "/api/v1/advertiser/retargeting-sources",
@@ -131,42 +171,85 @@ def _create_link_and_run(db_client, db_sessionmaker):
     return advertiser, other, UUID(link.json()["id"]), UUID(run.json()["id"])
 
 
+def test_postgis_materialization_uses_measurement_frozen_ping_authority(
+    postgis_db_client, postgis_db_sessionmaker, settings
+) -> None:
+    original_points = [
+        (DAY_1 + timedelta(minutes=10), 6.05, 3.05),
+        (DAY_1 + timedelta(minutes=20), 6.05001, 3.05001),
+    ]
+    advertiser, _other, link_id, run_id = _create_link_and_run(
+        postgis_db_client,
+        postgis_db_sessionmaker,
+        points=original_points,
+    )
+    governed = settings.model_copy(
+        update={"privacy_disclosure_synthetic_test_mode": True}
+    )
+
+    async def frozen_trip_id() -> UUID:
+        async with postgis_db_sessionmaker() as session:
+            run = await session.get(MeasurementRun, run_id)
+            assert run is not None
+            rows = run.input_manifest["audience_exposure_authority"]["rows"]
+            assert len(rows) == 1
+            return UUID(rows[0]["trip_session_id"])
+
+    trip_id = asyncio.run(frozen_trip_id())
+    add_ping_batch(
+        postgis_db_sessionmaker,
+        trip_id=trip_id,
+        points=[(DAY_1 + timedelta(minutes=30), 6.09, 3.09)],
+        idempotency_key=f"segment-late-ping-{uuid4()}",
+    )
+
+    async def scenario() -> None:
+        async with postgis_db_sessionmaker() as session:
+            segment = await materialize_exposure_segment(
+                session,
+                settings=governed,
+                source_link_id=link_id,
+                measurement_run_id=run_id,
+            )
+            await session.commit()
+            rows = await exposure_segment_cells(session, segment)
+            assert len(rows) == 1
+            assert rows[0].resolution_m == governed.privacy_min_resolution_m
+            assert rows[0].trip_count == 1
+            assert rows[0].distinct_vehicle_count == 1
+            assert segment.snapshot["synthetic"] is True
+
+    asyncio.run(scenario())
+
+
 def test_materialization_suppresses_isolates_retries_and_reissues(
     db_client, db_sessionmaker, settings
 ) -> None:
     advertiser, other, link_id, run_id = _create_link_and_run(db_client, db_sessionmaker)
-    governed = settings.model_copy(
-        update={
-            "privacy_disclosure_synthetic_test_mode": True,
-            "privacy_min_vehicles_per_cell": 3,
-        }
-    )
+    governed = settings.model_copy(update={"privacy_disclosure_synthetic_test_mode": True})
 
     async def scenario() -> None:
-        typed = TypeAdapter(list[ExposureCellInput]).validate_python(cells())
         async with db_sessionmaker() as session:
             first = await materialize_exposure_segment(
                 session,
                 settings=governed,
                 source_link_id=link_id,
                 measurement_run_id=run_id,
-                cells=typed,
             )
             await session.commit()
             first_id = first.id
             assert first.version == 1
             assert first.reissue_of_segment_id is None
             assert first.releasable_cell_count == 1
-            assert first.suppressed_cell_count == 1
+            assert first.suppressed_cell_count == 0
             assert [row.coverage_cell for row in await exposure_segment_cells(session, first)] == [
-                "grid-500m:10:20"
+                "grid-50m:0:0"
             ]
 
         worker_replay = await materialize_exposure_segment_job(
             {"sessionmaker": db_sessionmaker, "settings": governed},
             str(run_id),
             str(link_id),
-            cells(),
         )
         assert UUID(worker_replay) == first_id
 
@@ -176,21 +259,18 @@ def test_materialization_suppresses_isolates_retries_and_reissues(
                 settings=governed,
                 source_link_id=link_id,
                 measurement_run_id=run_id,
-                cells=typed,
             )
             await session.commit()
             assert replay.id == first_id
 
-        changed = TypeAdapter(list[ExposureCellInput]).validate_python(
-            cells(safe_count=4, contacts="160")
-        )
         async with db_sessionmaker() as session:
             second = await materialize_exposure_segment(
                 session,
-                settings=governed,
+                settings=governed.model_copy(
+                    update={"privacy_min_vehicles_per_cell": 2}
+                ),
                 source_link_id=link_id,
                 measurement_run_id=run_id,
-                cells=changed,
             )
             await session.commit()
             assert second.version == 2
@@ -220,7 +300,7 @@ def test_materialization_suppresses_isolates_retries_and_reissues(
             ) == 2
             assert int(
                 await session.scalar(select(func.count()).select_from(ExposureSegmentCell)) or 0
-            ) == 2
+            ) == 1
 
         async with db_sessionmaker() as session:
             frozen = await session.get(ExposureSegment, first_id)
@@ -252,7 +332,10 @@ def test_concurrent_worker_materialization_converges_on_postgres(
     governed = Settings(
         environment="test",
         privacy_disclosure_synthetic_test_mode=True,
-        privacy_min_vehicles_per_cell=3,
+        privacy_min_vehicles_per_cell=1,
+        privacy_min_trips_per_cell=1,
+        privacy_min_days_per_cell=1,
+        privacy_max_contributor_share=1,
     )
 
     async def prepare() -> tuple[UUID, UUID]:
@@ -298,8 +381,6 @@ def test_concurrent_worker_materialization_converges_on_postgres(
             return link.id, run.id
 
     link_id, run_id = asyncio.run(prepare())
-    typed = TypeAdapter(list[ExposureCellInput]).validate_python(cells())
-
     async def materialize_once() -> UUID:
         async with postgis_db_sessionmaker() as session:
             segment = await materialize_exposure_segment(
@@ -307,7 +388,6 @@ def test_concurrent_worker_materialization_converges_on_postgres(
                 settings=governed,
                 source_link_id=link_id,
                 measurement_run_id=run_id,
-                cells=typed,
             )
             await session.commit()
             return segment.id

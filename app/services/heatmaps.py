@@ -31,6 +31,7 @@ from app.services.disclosure import (
 
 DECIMAL_2 = Decimal("0.01")
 DECIMAL_4 = Decimal("0.0001")
+AUTHORITATIVE_AUDIENCE_CELL_FORMULA_VERSION = "audience_exposure_v1"
 
 
 @dataclass(frozen=True)
@@ -633,6 +634,79 @@ def aggregation_sql(
         ORDER BY grid_y, grid_x
         LIMIT :max_cells
     """
+
+
+async def authoritative_audience_trip_cell_counts(
+    session: AsyncSession,
+    *,
+    trip_ids: list[UUID],
+    zone_id: UUID,
+    resolution_m: int,
+    window_start_at: datetime,
+    window_end_at: datetime,
+) -> list[dict]:
+    """Use the grandfathered raw-ping reader to produce bounded aggregate inputs."""
+    if session.get_bind().dialect.name != "postgresql":
+        raise RuntimeError("Authoritative audience cell derivation requires PostGIS")
+    if not trip_ids:
+        return []
+    result = await session.execute(
+        text(
+            """
+            WITH eligible AS (
+                SELECT
+                    lp.trip_session_id,
+                    ts.vehicle_id,
+                    floor(ST_X(ST_Transform(lp.geom, 3857)) / :resolution_m)::bigint
+                        AS grid_x,
+                    floor(ST_Y(ST_Transform(lp.geom, 3857)) / :resolution_m)::bigint
+                        AS grid_y,
+                    date_trunc('day', lp.recorded_at)::date AS recorded_day
+                FROM location_pings lp
+                JOIN trip_sessions ts ON ts.id = lp.trip_session_id
+                JOIN campaign_zones cz ON cz.id = :zone_id
+                WHERE lp.trip_session_id = ANY(CAST(:trip_ids AS uuid[]))
+                  AND lp.recorded_at >= :window_start_at
+                  AND lp.recorded_at < :window_end_at
+                  AND ST_Intersects(lp.geom, cz.geom)
+            ),
+            trip_totals AS (
+                SELECT lp.trip_session_id, count(*)::integer AS total_ping_count
+                FROM location_pings lp
+                WHERE lp.trip_session_id = ANY(CAST(:trip_ids AS uuid[]))
+                  AND lp.recorded_at >= :window_start_at
+                  AND lp.recorded_at < :window_end_at
+                GROUP BY lp.trip_session_id
+            )
+            SELECT
+                eligible.grid_x,
+                eligible.grid_y,
+                eligible.trip_session_id,
+                eligible.vehicle_id,
+                count(*)::integer AS cell_ping_count,
+                trip_totals.total_ping_count,
+                array_agg(DISTINCT eligible.recorded_day ORDER BY eligible.recorded_day)
+                    AS recorded_days
+            FROM eligible
+            JOIN trip_totals USING (trip_session_id)
+            GROUP BY
+                eligible.grid_x,
+                eligible.grid_y,
+                eligible.trip_session_id,
+                eligible.vehicle_id,
+                trip_totals.total_ping_count
+            ORDER BY eligible.grid_y, eligible.grid_x, eligible.trip_session_id
+            """
+        ),
+        {
+            "trip_ids": trip_ids,
+            "zone_id": zone_id,
+            "resolution_m": resolution_m,
+            "window_start_at": window_start_at,
+            "window_end_at": window_end_at,
+        },
+    )
+    return [dict(row) for row in result.mappings().all()]
 
 
 def heatmap_feature(row, *, metric: HeatmapMetric) -> HeatmapFeature:

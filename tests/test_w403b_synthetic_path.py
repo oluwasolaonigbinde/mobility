@@ -13,12 +13,11 @@ from uuid import UUID, uuid5
 
 import pytest
 from conftest import auth_headers, create_test_organization, create_test_user
-from pydantic import TypeAdapter
 from sqlalchemy import func, select
-from test_exposure_segments import cells
 from test_measurement_runs import DAY_1, PASSWORD, create_measurement_graph, issue_payload
 from test_retargeting_source_links import source_payload
 
+from app.adapters.ad_platforms import FakeAdPlatformAdapter
 from app.adapters.crypto import EnvelopeCryptoProvider
 from app.adapters.disbursement import FakeDisbursementAdapter
 from app.api.v1.dependencies import get_ad_platform_adapter
@@ -30,9 +29,7 @@ from app.models.measurement import MeasurementRun
 from app.models.payout import EarningsLedgerEntry, PayoutCalculation
 from app.models.report_issuance import ReportArtifact, ReportIssuance
 from app.models.user import User, UserRole
-from app.schemas.exposure_segments import ExposureCellInput
 from app.services.audience import materialize_exposure_segment
-from app.adapters.ad_platforms import FakeAdPlatformAdapter
 from app.services.disbursements import (
     approve_payout_batch,
     create_payout_batch_draft,
@@ -126,7 +123,6 @@ async def _materialize_segment(
             settings=settings,
             source_link_id=link_id,
             measurement_run_id=run_id,
-            cells=TypeAdapter(list[ExposureCellInput]).validate_python(cells()),
         )
         await session.commit()
         return segment.id

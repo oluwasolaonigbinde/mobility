@@ -2,6 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { createSourceLinkAction, type SourceActionState } from "./actions";
+import { ensureOperationKey, stableOperationKey } from "./operation-form";
 
 interface SourceOption {
   id: string;
@@ -32,6 +33,7 @@ export function LinkForm({
 }) {
   const [campaignId, setCampaignId] = useState(campaigns[0]?.id ?? "");
   const [state, action, pending] = useActionState(createSourceLinkAction, initialState);
+  const operation = stableOperationKey(state);
   const targetZones = useMemo(
     () => zones.filter((zone) => zone.campaignId === campaignId),
     [campaignId, zones],
@@ -39,7 +41,18 @@ export function LinkForm({
   const unavailable = sources.length === 0 || campaigns.length === 0 || targetZones.length === 0;
 
   return (
-    <form action={action} className="grid gap-4" data-testid="planning-source-link-form">
+    <form
+      action={action}
+      onSubmit={ensureOperationKey}
+      className="grid gap-4"
+      data-testid="planning-source-link-form"
+    >
+      <input
+        key={operation.inputKey}
+        type="hidden"
+        name="operation_key"
+        defaultValue={operation.defaultValue}
+      />
       <label className="grid gap-1 text-sm">
         <span className="text-muted">Source</span>
         <select name="source_id" required className="border-edge bg-bg rounded-lg border px-3 py-2">

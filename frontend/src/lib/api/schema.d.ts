@@ -827,6 +827,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/exposure-segments/{segment_id}/delivery-approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Segment Delivery */
+        post: operations["approve_segment_delivery_api_v1_admin_exposure_segments__segment_id__delivery_approvals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/files/{file_id}/download": {
         parameters: {
             query?: never;
@@ -2588,10 +2605,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List advertiser campaign trip summaries
-         * @description List privacy-safe campaign trip summaries without raw GPS or driver PII.
+         * Read advertiser campaign trip aggregate
+         * @description Return one privacy-governed whole-campaign aggregate without trip rows, identifiers, or event timestamps.
          */
-        get: operations["advertiser_list_campaign_trips_api_v1_advertiser_campaigns__campaign_id__trips_get"];
+        get: operations["advertiser_get_campaign_trip_aggregate_api_v1_advertiser_campaigns__campaign_id__trips_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4972,6 +4989,11 @@ export interface components {
             /** Adapter Name */
             adapter_name: string;
             /**
+             * Approval Id
+             * Format: uuid
+             */
+            approval_id: string;
+            /**
              * Created At
              * Format: date-time
              */
@@ -4990,6 +5012,8 @@ export interface components {
             payload_sha256: string;
             /** Provider Reference */
             provider_reference: string;
+            /** Purpose Code */
+            purpose_code: string;
             /**
              * Segment Id
              * Format: uuid
@@ -4998,10 +5022,109 @@ export interface components {
             /** Synthetic */
             synthetic: boolean;
         };
+        /** AudienceDeliveryApprovalCreate */
+        AudienceDeliveryApprovalCreate: {
+            /** Budget Ceiling */
+            budget_ceiling?: number | string | null;
+            /** Legal Approval Reference */
+            legal_approval_reference: string;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "csv_export" | "ad_platform_activation";
+            /** Provider */
+            provider: string;
+            /** Provider Account Reference */
+            provider_account_reference?: string | null;
+            /**
+             * Purpose Code
+             * @enum {string}
+             */
+            purpose_code: "aggregate_campaign_planning" | "aggregate_contextual_activation";
+            /**
+             * Valid Until
+             * Format: date-time
+             */
+            valid_until: string;
+        };
+        /** AudienceDeliveryApprovalRead */
+        AudienceDeliveryApprovalRead: {
+            /**
+             * Approved By User Id
+             * Format: uuid
+             */
+            approved_by_user_id: string;
+            /** Budget Ceiling */
+            budget_ceiling: string | null;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Legal Approval Reference */
+            legal_approval_reference: string;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "csv_export" | "ad_platform_activation";
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Provider */
+            provider: string;
+            /** Provider Account Reference */
+            provider_account_reference: string | null;
+            /** Purpose Code */
+            purpose_code: string;
+            /**
+             * Segment Id
+             * Format: uuid
+             */
+            segment_id: string;
+            /** Snapshot Sha256 */
+            snapshot_sha256: string;
+            /** Synthetic */
+            synthetic: boolean;
+            /**
+             * Valid From
+             * Format: date-time
+             */
+            valid_from: string;
+            /**
+             * Valid Until
+             * Format: date-time
+             */
+            valid_until: string;
+        };
         /** AudienceDeliveryRequest */
-        AudienceDeliveryRequest: Record<string, never>;
+        AudienceDeliveryRequest: {
+            /**
+             * Approval Id
+             * Format: uuid
+             */
+            approval_id: string;
+        };
         /** AudienceExportRead */
         AudienceExportRead: {
+            /**
+             * Approval Id
+             * Format: uuid
+             */
+            approval_id: string;
             /**
              * Created At
              * Format: date-time
@@ -5023,6 +5146,8 @@ export interface components {
             operation: "csv_export";
             /** Payload Sha256 */
             payload_sha256: string;
+            /** Purpose Code */
+            purpose_code: string;
             /**
              * Segment Id
              * Format: uuid
@@ -6232,32 +6357,6 @@ export interface components {
             trips: components["schemas"]["TripStatusCounts"];
             zones: components["schemas"]["ZoneTypeCounts"];
         };
-        /** CampaignTripSummary */
-        CampaignTripSummary: {
-            analytics: components["schemas"]["TripAnalyticsSummary"] | null;
-            /**
-             * Assignment Id
-             * Format: uuid
-             */
-            assignment_id: string;
-            cost: components["schemas"]["TripCostSummary"] | null;
-            /** Ended At */
-            ended_at: string | null;
-            fraud_flags: components["schemas"]["TripFraudFlagCounts"];
-            impressions: components["schemas"]["TripImpressionSummary"] | null;
-            /**
-             * Started At
-             * Format: date-time
-             */
-            started_at: string;
-            /**
-             * Trip Id
-             * Format: uuid
-             */
-            trip_id: string;
-            trip_status: components["schemas"]["TripSessionStatus"];
-            vehicle_type: components["schemas"]["VehicleType"];
-        };
         /** CampaignTripsResponse */
         CampaignTripsResponse: {
             /**
@@ -6265,14 +6364,11 @@ export interface components {
              * Format: uuid
              */
             campaign_id: string;
-            /** Items */
-            items: components["schemas"]["CampaignTripSummary"][];
-            /** Limit */
-            limit: number;
-            /** Offset */
-            offset: number;
-            /** Total */
-            total: number;
+            costs: components["schemas"]["app__schemas__reports__CampaignCostSummary"];
+            fraud_flags: components["schemas"]["FraudFlagCounts"];
+            impressions: components["schemas"]["ImpressionSummary"];
+            route_analytics: components["schemas"]["RouteAnalyticsSummary"];
+            trips: components["schemas"]["TripStatusCounts"];
         };
         /** CampaignUpdate */
         CampaignUpdate: {
@@ -10675,6 +10771,8 @@ export interface components {
             campaign_id: string | null;
             /** Disclaimer */
             disclaimer: string;
+            /** Export Approval Id */
+            export_approval_id?: string | null;
             provenance: components["schemas"]["RecommendationProvenance"] | null;
             /** Recommendations */
             recommendations: components["schemas"]["AggregateRecommendation"][];
@@ -11535,28 +11633,6 @@ export interface components {
          * @enum {string}
          */
         TripAnalyticsStatus: "computed" | "insufficient_data" | "blocked";
-        /** TripAnalyticsSummary */
-        TripAnalyticsSummary: {
-            /** Distance M */
-            distance_m: string | null;
-            /** Moving Seconds */
-            moving_seconds: number;
-            /** Quality Score */
-            quality_score: string | null;
-            /** Stationary Seconds */
-            stationary_seconds: number;
-            status: components["schemas"]["TripAnalyticsStatus"];
-        };
-        /** TripCostSummary */
-        TripCostSummary: {
-            /** Currency */
-            currency: string;
-            /** Final Payout */
-            final_payout: string | null;
-            /** Gross Payout */
-            gross_payout: string | null;
-            status: components["schemas"]["PayoutCalculationStatus"];
-        };
         /** TripEndRequest */
         TripEndRequest: {
             /** Client Batch Count */
@@ -11632,37 +11708,6 @@ export interface components {
              * Format: uuid
              */
             trip_id: string;
-        };
-        /** TripFraudFlagCounts */
-        TripFraudFlagCounts: {
-            /**
-             * High Count
-             * @default 0
-             */
-            high_count: number;
-            /**
-             * Low Count
-             * @default 0
-             */
-            low_count: number;
-            /**
-             * Medium Count
-             * @default 0
-             */
-            medium_count: number;
-            /**
-             * Open Count
-             * @default 0
-             */
-            open_count: number;
-        };
-        /** TripImpressionSummary */
-        TripImpressionSummary: {
-            /** Confidence Score */
-            confidence_score: string | null;
-            /** Estimated Impressions */
-            estimated_impressions: string | null;
-            status: components["schemas"]["ImpressionEstimateStatus"];
         };
         /** TripRead */
         TripRead: {
@@ -14275,6 +14320,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AudienceActivationRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_segment_delivery_api_v1_admin_exposure_segments__segment_id__delivery_approvals_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                segment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AudienceDeliveryApprovalCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AudienceDeliveryApprovalRead"];
                 };
             };
             /** @description Validation Error */
@@ -17996,19 +18078,9 @@ export interface operations {
             };
         };
     };
-    advertiser_list_campaign_trips_api_v1_advertiser_campaigns__campaign_id__trips_get: {
+    advertiser_get_campaign_trip_aggregate_api_v1_advertiser_campaigns__campaign_id__trips_get: {
         parameters: {
-            query?: {
-                start_at?: string | null;
-                end_at?: string | null;
-                limit?: number;
-                offset?: number;
-                status?: components["schemas"]["TripSessionStatus"] | null;
-                has_fraud_flags?: boolean | null;
-                analytics_status?: components["schemas"]["TripAnalyticsStatus"] | null;
-                impression_status?: components["schemas"]["ImpressionEstimateStatus"] | null;
-                payout_status?: components["schemas"]["PayoutCalculationStatus"] | null;
-            };
+            query?: never;
             header?: never;
             path: {
                 campaign_id: string;

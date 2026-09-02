@@ -25,9 +25,14 @@ from app.adapters.storage import (
 from app.api.v1.dependencies import get_storage_provider
 from app.models.audit import AuditEvent
 from app.models.organization import MembershipRole
-from app.models.stored_file import FileUploadIntent, StoredFile
+from app.models.stored_file import FileUploadIntent, StoredFile, StoredObjectDeletion
 from app.models.user import UserRole
 from app.services.stored_files import purge_expired_upload_intents
+from app.services.stored_object_deletions import (
+    delete_stored_object,
+    ensure_stored_object_deletion,
+    process_stored_object_deletions,
+)
 
 PASSWORD = "long-secure-password"
 
@@ -490,6 +495,239 @@ def test_orphan_cleanup_deletes_both_possible_keys_and_is_retry_safe(
             f"unconfirmed/{organization.id}/orphan",
             managed_key,
         ]
+
+    asyncio.run(scenario())
+
+
+def test_postgres_overlapping_orphan_cleaners_claim_one_owner(
+    postgis_db_sessionmaker,
+) -> None:
+    sessionmaker = postgis_db_sessionmaker
+    storage = FakeStorageProvider()
+    advertiser, organization = advertiser_with_org(
+        sessionmaker, "cleanup-overlap@example.com"
+    )
+
+    async def scenario() -> None:
+        async with sessionmaker() as session:
+            intent = FileUploadIntent(
+                organization_id=organization.id,
+                uploader_user_id=advertiser.id,
+                client_request_id=UUID("cb8af331-b11d-4f4b-a06f-54d81ac77f85"),
+                request_fingerprint="9" * 64,
+                purpose="creative",
+                original_filename="overlap.png",
+                declared_content_type="image/png",
+                declared_size_bytes=68,
+                declared_sha256="8" * 64,
+                object_key=f"unconfirmed/{organization.id}/overlap",
+                expires_at=datetime.now(UTC) - timedelta(hours=1),
+                status="pending",
+            )
+            session.add(intent)
+            await session.commit()
+
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        original_delete = storage.delete
+
+        async def blocking_delete(object_key: str) -> None:
+            entered.set()
+            await release.wait()
+            await original_delete(object_key)
+
+        storage.delete = blocking_delete  # type: ignore[method-assign]
+
+        async def first_cleaner() -> int:
+            async with sessionmaker() as session:
+                result = await purge_expired_upload_intents(session, storage=storage, limit=1)
+                await session.commit()
+                return result
+
+        first_task = asyncio.create_task(first_cleaner())
+        await entered.wait()
+        async with sessionmaker() as session:
+            second = await purge_expired_upload_intents(session, storage=storage, limit=1)
+            await session.commit()
+        release.set()
+        first = await first_task
+        async with sessionmaker() as session:
+            audits = int(
+                await session.scalar(
+                    select(func.count(AuditEvent.id)).where(
+                        AuditEvent.action == "stored_file.upload_deletion_completed"
+                    )
+                )
+                or 0
+            )
+        assert (first, second, audits) == (1, 0, 1)
+
+    asyncio.run(scenario())
+
+
+def test_orphan_cleanup_recovers_after_delete_before_receipt_commit(
+    postgis_db_sessionmaker,
+) -> None:
+    db_sessionmaker = postgis_db_sessionmaker
+    storage = FakeStorageProvider()
+    advertiser, organization = advertiser_with_org(
+        db_sessionmaker, "cleanup-kill-restart@example.com"
+    )
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            intent = FileUploadIntent(
+                organization_id=organization.id,
+                uploader_user_id=advertiser.id,
+                client_request_id=UUID("6ecb31ed-4d7e-4d60-a1d1-a85c387560d0"),
+                request_fingerprint="e" * 64,
+                purpose="creative",
+                original_filename="crashed.png",
+                declared_content_type="image/png",
+                declared_size_bytes=68,
+                declared_sha256="b" * 64,
+                object_key=f"unconfirmed/{organization.id}/crashed",
+                expires_at=datetime.now(UTC) - timedelta(hours=1),
+                status="pending",
+            )
+            session.add(intent)
+            await session.commit()
+            intent_id = intent.id
+        managed_key = f"managed/{organization.id}/{intent_id}"
+        for object_key in (intent.object_key, managed_key):
+            storage.objects[object_key] = ObjectMetadata(
+                object_key=object_key,
+                size_bytes=68,
+                content_type="image/png",
+                checksum_sha256="b" * 64,
+            )
+
+        original_delete = storage.delete
+        killed = False
+
+        async def kill_after_delete(object_key: str) -> None:
+            nonlocal killed
+            await original_delete(object_key)
+            if not killed:
+                killed = True
+                raise RuntimeError("synthetic process kill after provider delete")
+
+        storage.delete = kill_after_delete  # type: ignore[method-assign]
+        async with db_sessionmaker() as session:
+            with pytest.raises(RuntimeError, match="synthetic process kill"):
+                await purge_expired_upload_intents(session, storage=storage, limit=10)
+            await session.rollback()
+
+        async with db_sessionmaker() as session:
+            persisted = await session.get(FileUploadIntent, intent_id)
+            assert persisted is not None and persisted.status == "pending"
+            deletions = list(await session.scalars(select(StoredObjectDeletion)))
+            assert len(deletions) == 2
+            assert {row.state for row in deletions} == {"pending"}
+
+        storage.delete = original_delete  # type: ignore[method-assign]
+        assert (
+            await process_stored_object_deletions(
+                db_sessionmaker,
+                storage=storage,
+                limit=10,
+            )
+            == 1
+        )
+        async with db_sessionmaker() as session:
+            persisted = await session.get(FileUploadIntent, intent_id)
+            assert persisted is not None and persisted.status == "expired"
+            deletions = list(await session.scalars(select(StoredObjectDeletion)))
+            assert {row.state for row in deletions} == {"completed"}
+
+    asyncio.run(scenario())
+
+
+def test_duplicate_workers_serialize_one_object_and_resume_provider_receipt(
+    postgis_db_sessionmaker,
+) -> None:
+    storage = FakeStorageProvider()
+    storage_key = "managed/synthetic/recoverable-object"
+    storage.objects[storage_key] = ObjectMetadata(
+        object_key=storage_key,
+        size_bytes=68,
+        content_type="image/png",
+        checksum_sha256="c" * 64,
+    )
+
+    async def scenario() -> None:
+        async with postgis_db_sessionmaker() as session:
+            intent = await ensure_stored_object_deletion(
+                session,
+                storage_key=storage_key,
+                object_checksum_sha256="c" * 64,
+                reason="synthetic_worker_recovery",
+                owner_type="synthetic_test",
+                owner_id=UUID("16f4ac7d-e46c-49d8-8746-3804950d50de"),
+                organization_id=UUID("4fe55530-3d29-4d68-971e-42d66e34eb91"),
+                subject_user_id=None,
+            )
+            await session.commit()
+            intent_id = intent.id
+
+        original_delete = storage.delete
+
+        async def delayed_delete(object_key: str) -> None:
+            await asyncio.sleep(0.05)
+            await original_delete(object_key)
+
+        storage.delete = delayed_delete  # type: ignore[method-assign]
+        results = await asyncio.gather(
+            process_stored_object_deletions(
+                postgis_db_sessionmaker,
+                storage=storage,
+                limit=1,
+            ),
+            process_stored_object_deletions(
+                postgis_db_sessionmaker,
+                storage=storage,
+                limit=1,
+            ),
+        )
+        assert sum(results) == 1
+        assert storage.deleted == [storage_key]
+
+        second_key = "managed/synthetic/provider-receipt"
+        storage.objects[second_key] = ObjectMetadata(
+            object_key=second_key,
+            size_bytes=68,
+            content_type="image/png",
+            checksum_sha256="d" * 64,
+        )
+        async with postgis_db_sessionmaker() as session:
+            second = await ensure_stored_object_deletion(
+                session,
+                storage_key=second_key,
+                object_checksum_sha256="d" * 64,
+                reason="synthetic_provider_receipt",
+                owner_type="synthetic_test",
+                owner_id=UUID("39232649-8a4f-4027-985a-cb52da08027f"),
+                organization_id=UUID("4fe55530-3d29-4d68-971e-42d66e34eb91"),
+                subject_user_id=None,
+            )
+            await session.commit()
+            await delete_stored_object(session, intent=second, storage=storage)
+            assert second.state == "provider_deleted"
+        assert (
+            await process_stored_object_deletions(
+                postgis_db_sessionmaker,
+                storage=storage,
+                limit=1,
+            )
+            == 1
+        )
+        assert storage.deleted.count(second_key) == 1
+
+        async with postgis_db_sessionmaker() as session:
+            first = await session.get(StoredObjectDeletion, intent_id)
+            second = await session.get(StoredObjectDeletion, second.id)
+            assert first is not None and first.state == "completed"
+            assert second is not None and second.state == "completed"
 
     asyncio.run(scenario())
 

@@ -26,7 +26,11 @@ from app.models.trip_analytics import (
 )
 from app.schemas.impressions import TrafficDensityProfileCreate, TrafficDensityProfileUpdate
 from app.services.campaigns import get_advertiser_campaign
-from app.services.disclosure import require_governed_advertiser_output
+from app.services.disclosure import (
+    lock_trip_disclosure_snapshot,
+    record_governed_trip_output,
+    require_governed_advertiser_output,
+)
 from app.services.fraud_holds import fraud_hold_counts
 from app.services.provenance import stable_source_fingerprint
 from app.services.trip_analytics import (
@@ -39,9 +43,7 @@ from app.services.trips import trip_not_found
 DECIMAL_2 = Decimal("0.01")
 DECIMAL_4 = Decimal("0.0001")
 DEFAULT_PROFILE_CONSTRAINTS = frozenset({"uq_traffic_density_profiles_active_default"})
-IMPRESSION_ESTIMATE_CONSTRAINTS = frozenset(
-    {"uq_impression_estimates_trip_formula_profile"}
-)
+IMPRESSION_ESTIMATE_CONSTRAINTS = frozenset({"uq_impression_estimates_trip_formula_profile"})
 IMPRESSION_FINGERPRINT_FIELDS = (
     "trip_analytics_id",
     "assignment_id",
@@ -162,15 +164,11 @@ def is_current_estimate_for_analytics(
     source_fingerprint = metadata.get("source_analytics_fingerprint")
     if source_fingerprint is not None:
         return source_fingerprint == analytics_output_fingerprint(analytics)
-    source_formula_version = metadata.get(
-        "source_analytics_formula_version"
-    )
+    source_formula_version = metadata.get("source_analytics_formula_version")
     if source_formula_version is not None:
-        return (
-            source_formula_version == analytics.formula_version
-            and _normalized_utc(estimate.estimated_at)
-            >= _normalized_utc(analytics.computed_at)
-        )
+        return source_formula_version == analytics.formula_version and _normalized_utc(
+            estimate.estimated_at
+        ) >= _normalized_utc(analytics.computed_at)
     return _normalized_utc(estimate.estimated_at) >= _normalized_utc(analytics.computed_at)
 
 
@@ -195,9 +193,7 @@ def impression_output_fingerprint(
         metadata = estimate.estimate_metadata or {}
         values["formula_version"] = estimate.formula_version
         values["traffic_density_profile_id"] = estimate.traffic_density_profile_id
-        values["source_analytics_fingerprint"] = metadata.get(
-            "source_analytics_fingerprint"
-        )
+        values["source_analytics_fingerprint"] = metadata.get("source_analytics_fingerprint")
         values["fraud_flag_counts"] = metadata.get("fraud_flag_counts")
     return stable_source_fingerprint(values)
 
@@ -225,9 +221,7 @@ async def pin_authoritative_estimate(
     formula_version: str,
 ) -> ImpressionEstimate | None:
     """Preserve pinned authority, or establish it from the active default only."""
-    await session.execute(
-        select(TripSession.id).where(TripSession.id == trip_id).with_for_update()
-    )
+    await session.execute(select(TripSession.id).where(TripSession.id == trip_id).with_for_update())
     rows = list(
         (
             await session.execute(
@@ -256,15 +250,12 @@ async def pin_authoritative_estimate(
             (
                 estimate
                 for estimate, profile in rows
-                if profile.status == TrafficDensityProfileStatus.ACTIVE.value
-                and profile.is_default
+                if profile.status == TrafficDensityProfileStatus.ACTIVE.value and profile.is_default
             ),
             None,
         )
     for estimate, _profile in rows:
-        estimate.is_authoritative = (
-            authoritative is not None and estimate.id == authoritative.id
-        )
+        estimate.is_authoritative = authoritative is not None and estimate.id == authoritative.id
         metadata = dict(estimate.estimate_metadata or {})
         metadata["authority"] = (
             "authoritative"
@@ -459,10 +450,7 @@ async def update_traffic_density_profile(
         profile.profile_metadata = update_values.pop("metadata")
     for field, value in update_values.items():
         setattr(profile, field, value)
-    if (
-        profile.is_default
-        and profile.status == TrafficDensityProfileStatus.ACTIVE.value
-    ):
+    if profile.is_default and profile.status == TrafficDensityProfileStatus.ACTIVE.value:
         await clear_other_active_defaults(session, profile_id=profile.id)
     await session.flush()
     await session.refresh(profile)
@@ -704,15 +692,10 @@ def estimate_values(
         * quality_multiplier
     )
     dwell_impressions = quantize_2(
-        stationary_minutes
-        * profile.dwell_impressions_per_minute
-        * time_weight
-        * quality_multiplier
+        stationary_minutes * profile.dwell_impressions_per_minute * time_weight * quality_multiplier
     )
     exclusion_zone_adjustment = quantize_2(
-        exclusion_zone_distance_km
-        * profile.traffic_density_per_km
-        * profile.exclusion_zone_weight
+        exclusion_zone_distance_km * profile.traffic_density_per_km * profile.exclusion_zone_weight
     )
     pre_fraud_estimate = (
         base_distance_impressions
@@ -943,13 +926,19 @@ async def advertiser_campaign_impression_summary(
     end_at: datetime | None,
     settings: Settings,
 ) -> ImpressionSummary:
-    await require_governed_advertiser_output(
+    organization_id = await require_governed_advertiser_output(
         session,
         settings=settings,
         route_id="advertiser.campaign.impressions_summary",
         user_id=user_id,
+        requires_measurement_run=False,
     )
     campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
+    await lock_trip_disclosure_snapshot(
+        session,
+        tenant_id=organization_id,
+        campaign_id=campaign.id,
+    )
     filters = [
         ImpressionEstimate.campaign_id == campaign.id,
         ImpressionEstimate.formula_version == settings.impression_formula_version,
@@ -986,7 +975,7 @@ async def advertiser_campaign_impression_summary(
         (Decimal(estimate.confidence_score or 0) for estimate in estimates),
         Decimal("0"),
     )
-    return ImpressionSummary(
+    result = ImpressionSummary(
         campaign_id=campaign.id,
         formula_version=settings.impression_formula_version,
         estimated_impressions=quantize_2(estimated_impressions),
@@ -1000,3 +989,16 @@ async def advertiser_campaign_impression_summary(
         start_at=start_at,
         end_at=end_at,
     )
+    await record_governed_trip_output(
+        session,
+        settings=settings,
+        route_id="advertiser.campaign.impressions_summary",
+        principal_id=user_id,
+        tenant_id=organization_id,
+        campaign_id=campaign.id,
+        start_at=start_at,
+        end_at=end_at,
+        filters={},
+        result=result,
+    )
+    return result

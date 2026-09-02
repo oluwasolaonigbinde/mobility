@@ -12,6 +12,8 @@ from app.api.v1.dependencies import (
 )
 from app.schemas.audience_delivery import (
     AudienceActivationRead,
+    AudienceDeliveryApprovalCreate,
+    AudienceDeliveryApprovalRead,
     AudienceDeliveryRequest,
     AudienceExportRead,
     RecommendationsRead,
@@ -20,6 +22,7 @@ from app.schemas.zone_insights import HighExposureZoneInsightsRead
 from app.services.audience import high_exposure_zone_insights
 from app.services.audience_delivery import (
     activate_exposure_segment,
+    create_audience_delivery_approval,
     export_exposure_segment,
     recommendations_for_link,
 )
@@ -28,6 +31,31 @@ router = APIRouter(tags=["Audience Recommendations and Delivery"])
 IdempotencyKey = Annotated[
     str, Header(alias="Idempotency-Key", min_length=1, max_length=255)
 ]
+
+
+@router.post(
+    "/admin/exposure-segments/{segment_id}/delivery-approvals",
+    response_model=AudienceDeliveryApprovalRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def approve_segment_delivery(
+    segment_id: UUID,
+    payload: AudienceDeliveryApprovalCreate,
+    user: AdminUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+    idempotency_key: IdempotencyKey,
+) -> AudienceDeliveryApprovalRead:
+    approval = await create_audience_delivery_approval(
+        session,
+        settings=settings,
+        actor_user_id=user.id,
+        segment_id=segment_id,
+        idempotency_key=idempotency_key,
+        payload=payload,
+    )
+    await session.commit()
+    return approval
 
 
 @router.get(
@@ -113,7 +141,7 @@ async def admin_recommendations(
 )
 async def export_segment(
     segment_id: UUID,
-    _payload: AudienceDeliveryRequest,
+    payload: AudienceDeliveryRequest,
     user: AdvertiserUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
@@ -124,6 +152,7 @@ async def export_segment(
         settings=settings,
         actor_user_id=user.id,
         segment_id=segment_id,
+        approval_id=payload.approval_id,
         idempotency_key=idempotency_key,
     )
     await session.commit()
@@ -137,7 +166,7 @@ async def export_segment(
 )
 async def activate_segment(
     segment_id: UUID,
-    _payload: AudienceDeliveryRequest,
+    payload: AudienceDeliveryRequest,
     user: AdminUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
@@ -149,6 +178,7 @@ async def activate_segment(
         settings=settings,
         actor_user_id=user.id,
         segment_id=segment_id,
+        approval_id=payload.approval_id,
         idempotency_key=idempotency_key,
         adapter=adapter,
     )

@@ -2,12 +2,14 @@
 
 import { useActionState, useState } from "react";
 import { createSourceAction, type SourceActionState } from "./actions";
+import { ensureOperationKey, stableOperationKey } from "./operation-form";
 
 const initialState: SourceActionState = {};
 
 export function SourceForm() {
   const [sourceType, setSourceType] = useState("website-traffic");
   const [state, action, pending] = useActionState(createSourceAction, initialState);
+  const operation = stableOperationKey(state);
   const website = sourceType === "website-traffic";
   const digital = sourceType === "digital-campaign-audience";
   const crm = sourceType === "CRM-upload-reference";
@@ -15,7 +17,18 @@ export function SourceForm() {
   const manual = sourceType === "manual-insight";
 
   return (
-    <form action={action} className="grid gap-4" data-testid="planning-source-form">
+    <form
+      action={action}
+      onSubmit={ensureOperationKey}
+      className="grid gap-4"
+      data-testid="planning-source-form"
+    >
+      <input
+        key={operation.inputKey}
+        type="hidden"
+        name="operation_key"
+        defaultValue={operation.defaultValue}
+      />
       <label className="grid gap-1 text-sm">
         <span className="text-muted">Source type</span>
         <select

@@ -492,7 +492,7 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(db_clien
     assert report_data["creative_summary"]["total"] == 2
 
 
-def test_campaign_trip_reports_are_private_filterable_and_rbac_protected(
+def test_campaign_trip_report_is_aggregate_only_and_rbac_protected(
     db_client,
     db_sessionmaker,
 ) -> None:
@@ -510,7 +510,7 @@ def test_campaign_trip_reports_are_private_filterable_and_rbac_protected(
         created_by_user_id=advertiser.id,
         campaign_status=CampaignStatus.ACTIVE,
     )
-    driver, _, vehicle, _, trip, analytics, estimate = create_report_graph(
+    driver, _, _, _, trip, analytics, estimate = create_report_graph(
         db_sessionmaker,
         admin=admin,
         advertiser=advertiser,
@@ -534,34 +534,37 @@ def test_campaign_trip_reports_are_private_filterable_and_rbac_protected(
     headers = auth_headers(db_client, advertiser.email, PASSWORD)
 
     response = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/trips"
-        "?status=ended&has_fraud_flags=true&analytics_status=computed"
-        "&impression_status=estimated&payout_status=calculated",
+        f"/api/v1/advertiser/campaigns/{campaign.id}/trips",
         headers=headers,
     )
-    invalid_filter = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/trips?status=done",
+    sub_day_probe = db_client.get(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/trips"
+        "?start_at=2026-06-01T12:34:56Z&end_at=2026-06-01T12:34:57Z",
         headers=headers,
     )
 
     data = response.json()
     serialized = str(data)
     assert response.status_code == http_status.HTTP_200_OK
-    assert data["total"] == 1
-    item = data["items"][0]
-    assert item["trip_id"] == str(trip.id)
-    assert item["assignment_id"] == str(trip.assignment_id)
-    assert item["vehicle_type"] == vehicle.vehicle_type
-    assert item["analytics"]["distance_m"] == "10000.00"
-    assert item["impressions"]["estimated_impressions"] == "500.00"
-    assert item["cost"]["final_payout"] == "1200.00"
-    assert item["fraud_flags"] == {
-        "open_count": 1,
-        "high_count": 0,
-        "medium_count": 1,
-        "low_count": 0,
+    assert sub_day_probe.status_code == http_status.HTTP_200_OK
+    assert sub_day_probe.json() == data
+    assert data["campaign_id"] == str(campaign.id)
+    assert data["trips"] == {"total": 1, "ended": 1, "active": 0}
+    assert data["route_analytics"]["total_distance_m"] == "10000.00"
+    assert data["impressions"]["estimated_impressions"] == "500.00"
+    assert data["costs"]["totals_by_currency"][0]["final_payout_total"] == "1200.00"
+    assert data["fraud_flags"] == {
+        "open": 1,
+        "acknowledged": 0,
+        "confirmed": 0,
+        "dismissed": 0,
+        "low": 0,
+        "medium": 1,
+        "high": 0,
     }
     for forbidden in [
+        str(trip.id),
+        str(trip.assignment_id),
         str(driver.id),
         "Sensitive Driver",
         "+234555000",
@@ -572,11 +575,14 @@ def test_campaign_trip_reports_are_private_filterable_and_rbac_protected(
         "latitude",
         "longitude",
         "idempotency_key",
-        "ledger",
+        "ledger_entry_id",
+        "trip_id",
+        "assignment_id",
+        "started_at",
+        "ended_at",
+        "items",
     ]:
         assert forbidden not in serialized
-    assert invalid_filter.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
-    assert invalid_filter.json()["error"]["code"] == "VALIDATION_ERROR"
     assert (
         db_client.get(
             f"/api/v1/advertiser/campaigns/{campaign.id}/trips",
@@ -663,6 +669,10 @@ def test_reporting_zero_state_cross_org_date_validation_and_no_auto_calculation(
         f"/api/v1/advertiser/campaigns/{other_campaign.id}/summary",
         headers=headers,
     )
+    cross_org_trips = db_client.get(
+        f"/api/v1/advertiser/campaigns/{other_campaign.id}/trips",
+        headers=headers,
+    )
     invalid_range = db_client.get(
         f"/api/v1/advertiser/campaigns/{empty_campaign.id}/summary"
         "?start_at=2026-06-02T00:00:00Z&end_at=2026-06-01T00:00:00Z",
@@ -701,8 +711,9 @@ def test_reporting_zero_state_cross_org_date_validation_and_no_auto_calculation(
         "high": 0,
     }
     assert daily.json()["items"] == []
-    assert trips.json()["items"] == []
+    assert trips.json()["trips"] == {"total": 0, "ended": 0, "active": 0}
     assert cross_org.status_code == http_status.HTTP_404_NOT_FOUND
+    assert cross_org_trips.status_code == http_status.HTTP_404_NOT_FOUND
     assert invalid_range.status_code == http_status.HTTP_400_BAD_REQUEST
     assert invalid_range.json()["error"]["code"] == "INVALID_DATE_RANGE"
     assert naive_date.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT

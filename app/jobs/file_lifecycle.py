@@ -6,8 +6,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.adapters.storage import build_storage_provider
 from app.services.file_kyc_lifecycle import purge_terminal_file_kyc
 from app.services.stored_files import purge_expired_upload_intents
+from app.services.stored_object_deletions import process_stored_object_deletions
 
 logger = logging.getLogger(__name__)
+
+
+async def recover_stored_object_deletions(ctx: dict[str, Any]) -> dict[str, int]:
+    settings = ctx["settings"]
+    storage = build_storage_provider(settings)
+    completed = await process_stored_object_deletions(
+        ctx["sessionmaker"],
+        storage=storage,
+        limit=settings.worker_sweep_batch_size,
+    )
+    logger.info("job=recover_stored_object_deletions completed=%d", completed)
+    return {"completed": completed}
 
 
 async def purge_orphaned_file_uploads(ctx: dict[str, Any]) -> dict[str, int]:

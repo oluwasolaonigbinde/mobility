@@ -126,11 +126,14 @@ class DataSubjectLocationAssessment(Base):
             name="ck_data_subject_location_assessments_location",
         ),
         CheckConstraint(
-            "disposition IN ('provided', 'rectified', 'erased', 'not_found', "
-            "'retained_exception')",
+            "disposition IN ('provided', 'rectified', 'erased', 'not_found', 'retained_exception')",
             name="ck_data_subject_location_assessments_disposition",
         ),
         CheckConstraint("record_count >= 0", name="ck_data_subject_assessments_count"),
+        CheckConstraint(
+            "disposition NOT IN ('erased', 'not_found') OR record_count = 0",
+            name="ck_data_subject_assessments_zero_claim",
+        ),
         CheckConstraint(
             "length(request_fingerprint) = 64",
             name="ck_data_subject_assessments_fingerprint",

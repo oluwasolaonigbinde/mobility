@@ -4,8 +4,7 @@ from uuid import UUID
 
 import pytest
 from conftest import auth_headers
-from pydantic import TypeAdapter
-from test_exposure_segments import PASSWORD, _create_link_and_run, cells
+from test_exposure_segments import PASSWORD, _create_link_and_run
 
 from app.core.errors import AppError
 from app.models.campaign_zone import CampaignZone
@@ -13,7 +12,6 @@ from app.models.exposure_segment import ExposureSegment
 from app.models.measurement import MeasurementRun
 from app.models.retargeting_source_link import RetargetingSourceLink
 from app.models.user import User
-from app.schemas.exposure_segments import ExposureCellInput
 from app.services.audience import (
     HIGH_EXPOSURE_ZONE_DISCLAIMER,
     ZoneInsightTotal,
@@ -52,7 +50,7 @@ def test_zone_insights_are_governed_authorized_and_frozen_into_segment_history(
     db_client, db_sessionmaker, settings
 ) -> None:
     advertiser, outsider, link_id, run_id = _create_link_and_run(db_client, db_sessionmaker)
-    governed = settings.model_copy(update={"privacy_min_vehicles_per_cell": 3})
+    governed = settings
 
     async def issue_and_read() -> tuple[UUID, UUID, dict]:
         async with db_sessionmaker() as session:
@@ -61,7 +59,6 @@ def test_zone_insights_are_governed_authorized_and_frozen_into_segment_history(
                 settings=governed,
                 source_link_id=link_id,
                 measurement_run_id=run_id,
-                cells=TypeAdapter(list[ExposureCellInput]).validate_python(cells()),
             )
             await session.commit()
             link = await session.get(RetargetingSourceLink, link_id)
@@ -78,7 +75,7 @@ def test_zone_insights_are_governed_authorized_and_frozen_into_segment_history(
     assert first["state"] == "ready"
     assert first["items"][0]["rank"] == 1
     assert first["items"][0]["zone_name"] == "Segment target"
-    assert first["items"][0]["modelled_potential_contacts"] == "120.0000"
+    assert first["items"][0]["modelled_potential_contacts"] == "500.0000"
     assert first["campaign_exposure_score"] == "84.00"
     assert first["provenance"]["measurement_run_id"] == str(run_id)
     assert first["provenance"]["source_segments"][0]["segment_version"] == 1
@@ -119,58 +116,29 @@ def test_zone_insights_are_governed_authorized_and_frozen_into_segment_history(
     assert report.json()["high_exposure_zone_insights"] == first
     assert report.json()["measurement_result"]["roi"] is None
 
-    async def reissue_and_suppress_fixed() -> tuple[UUID, dict, dict, dict]:
+    async def replay_and_suppress_fixed() -> tuple[dict, dict]:
         async with db_sessionmaker() as session:
             replay = await materialize_exposure_segment(
                 session,
                 settings=governed,
                 source_link_id=link_id,
                 measurement_run_id=run_id,
-                cells=TypeAdapter(list[ExposureCellInput]).validate_python(cells()),
             )
             assert replay.id == first_segment_id
-            changed = await materialize_exposure_segment(
-                session,
-                settings=governed,
-                source_link_id=link_id,
-                measurement_run_id=run_id,
-                cells=TypeAdapter(list[ExposureCellInput]).validate_python(
-                    cells(safe_count=4, contacts="180")
-                ),
-            )
             await session.commit()
             frozen = await session.get(ExposureSegment, first_segment_id)
             assert frozen is not None
-            current = await high_exposure_zone_insights(
-                session,
-                settings=governed,
-                actor_user_id=advertiser.id,
-                campaign_id=campaign_id,
-            )
             suppressed = await high_exposure_zone_insights(
                 session,
-                settings=governed.model_copy(update={"privacy_min_vehicles_per_cell": 5}),
+                settings=governed.model_copy(update={"privacy_min_vehicles_per_cell": 2}),
                 actor_user_id=advertiser.id,
                 campaign_id=campaign_id,
             )
-            return (
-                changed.id,
-                frozen.snapshot,
-                current.model_dump(mode="json"),
-                suppressed.model_dump(mode="json"),
-            )
+            return frozen.snapshot, suppressed.model_dump(mode="json")
 
-    second_segment_id, frozen_snapshot, current, suppressed = asyncio.run(
-        reissue_and_suppress_fixed()
-    )
-    assert second_segment_id != first_segment_id
+    frozen_snapshot, suppressed = asyncio.run(replay_and_suppress_fixed())
     assert frozen_snapshot["version"] == 1
     assert frozen_snapshot["zone_insight_authority"]["formula_version"] == ("high_exposure_zone_v1")
-    assert current["items"][0]["modelled_potential_contacts"] == "180.0000"
-    assert current["provenance"]["source_segments"][0]["segment_version"] == 2
-    assert current["provenance"]["source_segments"][0]["reissue_of_segment_id"] == str(
-        first_segment_id
-    )
     assert suppressed["state"] == "suppressed"
     assert suppressed["items"] == []
     assert suppressed["campaign_exposure_score"] is None
@@ -180,7 +148,7 @@ def test_zone_insights_are_governed_authorized_and_frozen_into_segment_history(
 
     async def make_parent_stale() -> dict:
         async with db_sessionmaker() as session:
-            segment = await session.get(ExposureSegment, second_segment_id)
+            segment = await session.get(ExposureSegment, first_segment_id)
             assert segment is not None
             zone = await session.get(CampaignZone, segment.zone_id)
             assert zone is not None

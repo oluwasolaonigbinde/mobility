@@ -4,16 +4,30 @@ import { getSessionToken } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(_request: Request, context: { params: Promise<{ segmentId: string }> }) {
+export async function POST(request: Request, context: { params: Promise<{ segmentId: string }> }) {
   const { segmentId } = await context.params;
   try {
+    const form = await request.formData();
+    const approvalId = form.get("approval_id");
+    if (typeof approvalId !== "string" || approvalId.length === 0) {
+      return Response.json(
+        {
+          error: {
+            code: "AUDIENCE_DELIVERY_APPROVAL_REQUIRED",
+            message: "A current aggregate-export approval is required",
+            details: {},
+          },
+        },
+        { status: 422, headers: { "cache-control": "no-store" } },
+      );
+    }
     const api = createApiClient(await getSessionToken());
     const { data } = await api.POST("/api/v1/advertiser/exposure-segments/{segment_id}/exports", {
       params: {
         path: { segment_id: segmentId },
         header: { "Idempotency-Key": `w3-01d-export-${segmentId}` },
       },
-      body: {},
+      body: { approval_id: approvalId },
     });
     if (!data) throw new Error("Backend returned an empty export");
     return new Response(data.csv_content, {

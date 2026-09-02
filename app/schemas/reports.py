@@ -7,11 +7,8 @@ from pydantic import BaseModel, field_serializer
 from app.models.campaign import CampaignStatus, CreativeStatus
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.campaign_zone import CampaignZoneType
-from app.models.impression import ImpressionEstimateStatus
-from app.models.payout import PayoutCalculationStatus
 from app.models.trip import TripSessionStatus
-from app.models.trip_analytics import FraudFlagSeverity, FraudFlagStatus, TripAnalyticsStatus
-from app.models.vehicle import VehicleType
+from app.models.trip_analytics import FraudFlagSeverity, FraudFlagStatus
 from app.schemas.exposure_scores import AdvertiserExposureScoreRead
 from app.schemas.measurement import MeasurementResultRead, MeasurementRunSummary
 from app.schemas.zone_insights import HighExposureZoneInsightsRead
@@ -200,53 +197,13 @@ class DailyMetricsResponse(BaseModel):
     offset: int
 
 
-class TripAnalyticsSummary(DecimalStringMixin):
-    status: TripAnalyticsStatus
-    distance_m: Decimal
-    moving_seconds: int
-    stationary_seconds: int
-    quality_score: Decimal
-
-
-class TripImpressionSummary(DecimalStringMixin):
-    status: ImpressionEstimateStatus
-    estimated_impressions: Decimal
-    confidence_score: Decimal
-
-
-class TripCostSummary(DecimalStringMixin):
-    status: PayoutCalculationStatus
-    currency: str
-    final_payout: Decimal
-    gross_payout: Decimal
-
-
-class TripFraudFlagCounts(BaseModel):
-    open_count: int = 0
-    high_count: int = 0
-    medium_count: int = 0
-    low_count: int = 0
-
-
-class CampaignTripSummary(BaseModel):
-    trip_id: UUID
-    assignment_id: UUID
-    vehicle_type: VehicleType
-    trip_status: TripSessionStatus
-    started_at: datetime
-    ended_at: datetime | None
-    analytics: TripAnalyticsSummary | None
-    impressions: TripImpressionSummary | None
-    cost: TripCostSummary | None
-    fraud_flags: TripFraudFlagCounts
-
-
 class CampaignTripsResponse(BaseModel):
     campaign_id: UUID
-    items: list[CampaignTripSummary]
-    total: int
-    limit: int
-    offset: int
+    trips: TripStatusCounts
+    route_analytics: RouteAnalyticsSummary
+    impressions: ImpressionSummary
+    costs: CampaignCostSummary
+    fraud_flags: FraudFlagCounts
 
 
 class CampaignReportResponse(BaseModel):

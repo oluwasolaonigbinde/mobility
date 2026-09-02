@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -38,6 +39,18 @@ class ExposureSegment(Base):
             "AND length(measurement_result_sha256) = 64 "
             "AND length(measurement_proof_sha256) = 64",
             name="ck_exposure_segments_fingerprints",
+        ),
+        CheckConstraint(
+            "(aggregate_formula_version IS NULL "
+            "AND aggregate_authority_sha256 IS NULL "
+            "AND disclosure_policy_sha256 IS NULL) OR "
+            "(aggregate_formula_version IS NOT NULL "
+            "AND aggregate_authority_sha256 IS NOT NULL "
+            "AND disclosure_policy_sha256 IS NOT NULL "
+            "AND length(trim(aggregate_formula_version)) > 0 "
+            "AND length(aggregate_authority_sha256) = 64 "
+            "AND length(disclosure_policy_sha256) = 64)",
+            name="ck_exposure_segments_governance",
         ),
         UniqueConstraint(
             "source_link_id", "version", name="uq_exposure_segments_link_version"
@@ -84,6 +97,12 @@ class ExposureSegment(Base):
     measurement_input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     measurement_result_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     measurement_proof_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    aggregate_formula_version: Mapped[str | None] = mapped_column(String(64))
+    aggregate_authority_sha256: Mapped[str | None] = mapped_column(String(64))
+    disclosure_policy_sha256: Mapped[str | None] = mapped_column(String(64))
+    synthetic: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
     snapshot: Mapped[dict] = mapped_column(
         JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
     )
@@ -110,6 +129,15 @@ class ExposureSegmentCell(Base):
             "window_start_at < window_end_at", name="ck_exposure_segment_cells_window"
         ),
         CheckConstraint(
+            "(resolution_m IS NULL AND distinct_day_count IS NULL "
+            "AND max_contributor_share IS NULL) OR "
+            "(resolution_m IS NOT NULL AND distinct_day_count IS NOT NULL "
+            "AND max_contributor_share IS NOT NULL "
+            "AND resolution_m >= 50 AND distinct_day_count >= 0 "
+            "AND max_contributor_share >= 0 AND max_contributor_share <= 1)",
+            name="ck_exposure_segment_cells_governance",
+        ),
+        CheckConstraint(
             "context = 'vehicle_transit'", name="ck_exposure_segment_cells_context"
         ),
         UniqueConstraint(
@@ -133,8 +161,11 @@ class ExposureSegmentCell(Base):
     window_start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     window_end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     context: Mapped[str] = mapped_column(String(32), nullable=False)
+    resolution_m: Mapped[int | None] = mapped_column(Integer)
     distinct_vehicle_count: Mapped[int] = mapped_column(Integer, nullable=False)
     trip_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    distinct_day_count: Mapped[int | None] = mapped_column(Integer)
+    max_contributor_share: Mapped[Decimal | None] = mapped_column(Numeric(8, 7))
     modelled_potential_contacts: Mapped[Decimal] = mapped_column(
         Numeric(20, 4), nullable=False
     )

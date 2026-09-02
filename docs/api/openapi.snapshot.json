@@ -2189,6 +2189,11 @@
             "title": "Adapter Name",
             "type": "string"
           },
+          "approval_id": {
+            "format": "uuid",
+            "title": "Approval Id",
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -2212,6 +2217,10 @@
             "title": "Provider Reference",
             "type": "string"
           },
+          "purpose_code": {
+            "title": "Purpose Code",
+            "type": "string"
+          },
           "segment_id": {
             "format": "uuid",
             "title": "Segment Id",
@@ -2226,6 +2235,8 @@
           "id",
           "segment_id",
           "operation",
+          "approval_id",
+          "purpose_code",
           "adapter_name",
           "provider_reference",
           "payload_sha256",
@@ -2235,14 +2246,220 @@
         "title": "AudienceActivationRead",
         "type": "object"
       },
+      "AudienceDeliveryApprovalCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "budget_ceiling": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,18}|(?=[\\d.]{1,21}0*$)\\d{0,18}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Ceiling"
+          },
+          "legal_approval_reference": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Legal Approval Reference",
+            "type": "string"
+          },
+          "operation": {
+            "enum": [
+              "csv_export",
+              "ad_platform_activation"
+            ],
+            "title": "Operation",
+            "type": "string"
+          },
+          "provider": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_account_reference": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Account Reference"
+          },
+          "purpose_code": {
+            "enum": [
+              "aggregate_campaign_planning",
+              "aggregate_contextual_activation"
+            ],
+            "title": "Purpose Code",
+            "type": "string"
+          },
+          "valid_until": {
+            "format": "date-time",
+            "title": "Valid Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation",
+          "purpose_code",
+          "provider",
+          "legal_approval_reference",
+          "valid_until"
+        ],
+        "title": "AudienceDeliveryApprovalCreate",
+        "type": "object"
+      },
+      "AudienceDeliveryApprovalRead": {
+        "properties": {
+          "approved_by_user_id": {
+            "format": "uuid",
+            "title": "Approved By User Id",
+            "type": "string"
+          },
+          "budget_ceiling": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Ceiling"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "legal_approval_reference": {
+            "title": "Legal Approval Reference",
+            "type": "string"
+          },
+          "operation": {
+            "enum": [
+              "csv_export",
+              "ad_platform_activation"
+            ],
+            "title": "Operation",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_account_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Account Reference"
+          },
+          "purpose_code": {
+            "title": "Purpose Code",
+            "type": "string"
+          },
+          "segment_id": {
+            "format": "uuid",
+            "title": "Segment Id",
+            "type": "string"
+          },
+          "snapshot_sha256": {
+            "title": "Snapshot Sha256",
+            "type": "string"
+          },
+          "synthetic": {
+            "title": "Synthetic",
+            "type": "boolean"
+          },
+          "valid_from": {
+            "format": "date-time",
+            "title": "Valid From",
+            "type": "string"
+          },
+          "valid_until": {
+            "format": "date-time",
+            "title": "Valid Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "organization_id",
+          "campaign_id",
+          "segment_id",
+          "approved_by_user_id",
+          "operation",
+          "purpose_code",
+          "provider",
+          "provider_account_reference",
+          "budget_ceiling",
+          "legal_approval_reference",
+          "snapshot_sha256",
+          "synthetic",
+          "valid_from",
+          "valid_until",
+          "created_at"
+        ],
+        "title": "AudienceDeliveryApprovalRead",
+        "type": "object"
+      },
       "AudienceDeliveryRequest": {
         "additionalProperties": false,
-        "properties": {},
+        "properties": {
+          "approval_id": {
+            "format": "uuid",
+            "title": "Approval Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approval_id"
+        ],
         "title": "AudienceDeliveryRequest",
         "type": "object"
       },
       "AudienceExportRead": {
         "properties": {
+          "approval_id": {
+            "format": "uuid",
+            "title": "Approval Id",
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -2270,6 +2487,10 @@
             "title": "Payload Sha256",
             "type": "string"
           },
+          "purpose_code": {
+            "title": "Purpose Code",
+            "type": "string"
+          },
           "segment_id": {
             "format": "uuid",
             "title": "Segment Id",
@@ -2280,6 +2501,8 @@
           "id",
           "segment_id",
           "operation",
+          "approval_id",
+          "purpose_code",
           "payload_sha256",
           "csv_content",
           "csv_sha256",
@@ -5988,90 +6211,6 @@
         "title": "CampaignSummary",
         "type": "object"
       },
-      "CampaignTripSummary": {
-        "properties": {
-          "analytics": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TripAnalyticsSummary"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "assignment_id": {
-            "format": "uuid",
-            "title": "Assignment Id",
-            "type": "string"
-          },
-          "cost": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TripCostSummary"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "ended_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ended At"
-          },
-          "fraud_flags": {
-            "$ref": "#/components/schemas/TripFraudFlagCounts"
-          },
-          "impressions": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TripImpressionSummary"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "started_at": {
-            "format": "date-time",
-            "title": "Started At",
-            "type": "string"
-          },
-          "trip_id": {
-            "format": "uuid",
-            "title": "Trip Id",
-            "type": "string"
-          },
-          "trip_status": {
-            "$ref": "#/components/schemas/TripSessionStatus"
-          },
-          "vehicle_type": {
-            "$ref": "#/components/schemas/VehicleType"
-          }
-        },
-        "required": [
-          "trip_id",
-          "assignment_id",
-          "vehicle_type",
-          "trip_status",
-          "started_at",
-          "ended_at",
-          "analytics",
-          "impressions",
-          "cost",
-          "fraud_flags"
-        ],
-        "title": "CampaignTripSummary",
-        "type": "object"
-      },
       "CampaignTripsResponse": {
         "properties": {
           "campaign_id": {
@@ -6079,32 +6218,29 @@
             "title": "Campaign Id",
             "type": "string"
           },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/CampaignTripSummary"
-            },
-            "title": "Items",
-            "type": "array"
+          "costs": {
+            "$ref": "#/components/schemas/app__schemas__reports__CampaignCostSummary"
           },
-          "limit": {
-            "title": "Limit",
-            "type": "integer"
+          "fraud_flags": {
+            "$ref": "#/components/schemas/FraudFlagCounts"
           },
-          "offset": {
-            "title": "Offset",
-            "type": "integer"
+          "impressions": {
+            "$ref": "#/components/schemas/ImpressionSummary"
           },
-          "total": {
-            "title": "Total",
-            "type": "integer"
+          "route_analytics": {
+            "$ref": "#/components/schemas/RouteAnalyticsSummary"
+          },
+          "trips": {
+            "$ref": "#/components/schemas/TripStatusCounts"
           }
         },
         "required": [
           "campaign_id",
-          "items",
-          "total",
-          "limit",
-          "offset"
+          "trips",
+          "route_analytics",
+          "impressions",
+          "costs",
+          "fraud_flags"
         ],
         "title": "CampaignTripsResponse",
         "type": "object"
@@ -16980,6 +17116,18 @@
             "title": "Disclaimer",
             "type": "string"
           },
+          "export_approval_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Export Approval Id"
+          },
           "provenance": {
             "anyOf": [
               {
@@ -19375,93 +19523,6 @@
         "title": "TripAnalyticsStatus",
         "type": "string"
       },
-      "TripAnalyticsSummary": {
-        "properties": {
-          "distance_m": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Distance M"
-          },
-          "moving_seconds": {
-            "title": "Moving Seconds",
-            "type": "integer"
-          },
-          "quality_score": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Quality Score"
-          },
-          "stationary_seconds": {
-            "title": "Stationary Seconds",
-            "type": "integer"
-          },
-          "status": {
-            "$ref": "#/components/schemas/TripAnalyticsStatus"
-          }
-        },
-        "required": [
-          "status",
-          "distance_m",
-          "moving_seconds",
-          "stationary_seconds",
-          "quality_score"
-        ],
-        "title": "TripAnalyticsSummary",
-        "type": "object"
-      },
-      "TripCostSummary": {
-        "properties": {
-          "currency": {
-            "title": "Currency",
-            "type": "string"
-          },
-          "final_payout": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Final Payout"
-          },
-          "gross_payout": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Gross Payout"
-          },
-          "status": {
-            "$ref": "#/components/schemas/PayoutCalculationStatus"
-          }
-        },
-        "required": [
-          "status",
-          "currency",
-          "final_payout",
-          "gross_payout"
-        ],
-        "title": "TripCostSummary",
-        "type": "object"
-      },
       "TripEndRequest": {
         "additionalProperties": false,
         "properties": {
@@ -19661,68 +19722,6 @@
           "duplicate"
         ],
         "title": "TripEvidenceReconcileResponse",
-        "type": "object"
-      },
-      "TripFraudFlagCounts": {
-        "properties": {
-          "high_count": {
-            "default": 0,
-            "title": "High Count",
-            "type": "integer"
-          },
-          "low_count": {
-            "default": 0,
-            "title": "Low Count",
-            "type": "integer"
-          },
-          "medium_count": {
-            "default": 0,
-            "title": "Medium Count",
-            "type": "integer"
-          },
-          "open_count": {
-            "default": 0,
-            "title": "Open Count",
-            "type": "integer"
-          }
-        },
-        "title": "TripFraudFlagCounts",
-        "type": "object"
-      },
-      "TripImpressionSummary": {
-        "properties": {
-          "confidence_score": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Confidence Score"
-          },
-          "estimated_impressions": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Estimated Impressions"
-          },
-          "status": {
-            "$ref": "#/components/schemas/ImpressionEstimateStatus"
-          }
-        },
-        "required": [
-          "status",
-          "estimated_impressions",
-          "confidence_score"
-        ],
-        "title": "TripImpressionSummary",
         "type": "object"
       },
       "TripRead": {
@@ -25084,6 +25083,75 @@
           }
         ],
         "summary": "Activate Segment",
+        "tags": [
+          "Audience Recommendations and Delivery"
+        ]
+      }
+    },
+    "/api/v1/admin/exposure-segments/{segment_id}/delivery-approvals": {
+      "post": {
+        "operationId": "approve_segment_delivery_api_v1_admin_exposure_segments__segment_id__delivery_approvals_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "segment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Segment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AudienceDeliveryApprovalCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AudienceDeliveryApprovalRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Approve Segment Delivery",
         "tags": [
           "Audience Recommendations and Delivery"
         ]
@@ -32108,8 +32176,8 @@
     },
     "/api/v1/advertiser/campaigns/{campaign_id}/trips": {
       "get": {
-        "description": "List privacy-safe campaign trip summaries without raw GPS or driver PII.",
-        "operationId": "advertiser_list_campaign_trips_api_v1_advertiser_campaigns__campaign_id__trips_get",
+        "description": "Return one privacy-governed whole-campaign aggregate without trip rows, identifiers, or event timestamps.",
+        "operationId": "advertiser_get_campaign_trip_aggregate_api_v1_advertiser_campaigns__campaign_id__trips_get",
         "parameters": [
           {
             "in": "path",
@@ -32119,143 +32187,6 @@
               "format": "uuid",
               "title": "Campaign Id",
               "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "start_at",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Start At"
-            }
-          },
-          {
-            "in": "query",
-            "name": "end_at",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date-time",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "End At"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 100,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/TripSessionStatus"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Status"
-            }
-          },
-          {
-            "in": "query",
-            "name": "has_fraud_flags",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Has Fraud Flags"
-            }
-          },
-          {
-            "in": "query",
-            "name": "analytics_status",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/TripAnalyticsStatus"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Analytics Status"
-            }
-          },
-          {
-            "in": "query",
-            "name": "impression_status",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/ImpressionEstimateStatus"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Impression Status"
-            }
-          },
-          {
-            "in": "query",
-            "name": "payout_status",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/PayoutCalculationStatus"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Payout Status"
             }
           }
         ],
@@ -32286,7 +32217,7 @@
             "OAuth2PasswordBearer": []
           }
         ],
-        "summary": "List advertiser campaign trip summaries",
+        "summary": "Read advertiser campaign trip aggregate",
         "tags": [
           "Advertiser Reports"
         ]

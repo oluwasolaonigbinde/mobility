@@ -126,9 +126,13 @@ async def complete_data_subject_request_case(
     request_id: UUID,
     actor: AdminUserDependency,
     session: SessionDependency,
+    storage: StorageDependency,
 ) -> DataSubjectRequestRead:
     case = await complete_data_subject_request(
-        session, actor_user_id=actor.id, request_id=request_id
+        session,
+        actor_user_id=actor.id,
+        request_id=request_id,
+        storage=storage,
     )
     await session.commit()
     return DataSubjectRequestRead.model_validate(case)

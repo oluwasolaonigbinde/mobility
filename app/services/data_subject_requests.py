@@ -23,24 +23,30 @@ from app.models.stored_file import FileUploadIntent, StoredFile, UploadIntentSta
 from app.models.user import User
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
+from app.services.data_subject_inventory import build_subject_link_registry
 
-_DATABASE_COUNTS = {
+_LEGACY_DATABASE_COUNTS = {
     "account_identity": "SELECT count(*) FROM users WHERE id = :subject_user_id",
-    "authentication_security": "SELECT count(*) FROM users WHERE id = :subject_user_id",
     "organization_membership": (
         "SELECT count(*) FROM organization_memberships WHERE user_id = :subject_user_id"
     ),
     "driver_application": (
-        "SELECT count(*) FROM driver_applications WHERE user_id = :subject_user_id"
+        "SELECT (SELECT count(*) FROM driver_applications "
+        "WHERE user_id = :subject_user_id) + "
+        "(SELECT count(*) FROM driver_application_access_tokens t "
+        "JOIN driver_applications a ON a.id = t.application_id "
+        "WHERE a.user_id = :subject_user_id)"
     ),
-    "driver_profile": (
-        "SELECT count(*) FROM driver_profiles WHERE user_id = :subject_user_id"
-    ),
+    "driver_profile": ("SELECT count(*) FROM driver_profiles WHERE user_id = :subject_user_id"),
     "identity_kyc": (
         "SELECT (SELECT count(*) FROM driver_kyc_submissions k JOIN driver_profiles d "
         "ON d.id = k.driver_profile_id WHERE d.user_id = :subject_user_id) + "
         "(SELECT count(*) FROM driver_kyc_documents kd JOIN driver_kyc_submissions k "
         "ON k.id = kd.submission_id JOIN driver_profiles d ON d.id = k.driver_profile_id "
+        "WHERE d.user_id = :subject_user_id) + "
+        "(SELECT count(*) FROM driver_kyc_review_decisions r "
+        "JOIN driver_kyc_submissions k ON k.id = r.submission_id "
+        "JOIN driver_profiles d ON d.id = k.driver_profile_id "
         "WHERE d.user_id = :subject_user_id)"
     ),
     "vehicle_evidence": (
@@ -64,7 +70,11 @@ _DATABASE_COUNTS = {
         "(SELECT count(*) FROM display_proofs p JOIN driver_profiles d "
         "ON d.id = p.driver_profile_id WHERE d.user_id = :subject_user_id) + "
         "(SELECT count(*) FROM evidence_verifications e JOIN driver_profiles d "
-        "ON d.id = e.driver_profile_id WHERE d.user_id = :subject_user_id)"
+        "ON d.id = e.driver_profile_id WHERE d.user_id = :subject_user_id) + "
+        "(SELECT count(*) FROM vehicle_evidence_review_decisions r "
+        "JOIN vehicle_evidence_submissions s ON s.id = r.submission_id JOIN vehicles v "
+        "ON v.id = s.vehicle_id JOIN driver_profiles d ON d.id = v.driver_profile_id "
+        "WHERE d.user_id = :subject_user_id)"
     ),
     "trip_session": (
         "SELECT count(*) FROM trip_sessions t JOIN driver_profiles d "
@@ -96,7 +106,10 @@ _DATABASE_COUNTS = {
     "fraud_evidence": (
         "SELECT (SELECT count(*) FROM fraud_flags f JOIN driver_profiles d "
         "ON d.id = f.driver_profile_id WHERE d.user_id = :subject_user_id) + "
-        "(SELECT count(*) FROM fraud_disputes WHERE submitted_by_user_id = :subject_user_id)"
+        "(SELECT count(*) FROM fraud_disputes WHERE submitted_by_user_id = :subject_user_id) + "
+        "(SELECT count(*) FROM fraud_assessments a JOIN trip_sessions t "
+        "ON t.id = a.trip_session_id JOIN driver_profiles d ON d.id = t.driver_profile_id "
+        "WHERE d.user_id = :subject_user_id)"
     ),
     "impression_estimates": (
         "SELECT count(*) FROM impression_estimates i JOIN trip_sessions t "
@@ -139,14 +152,20 @@ _DATABASE_COUNTS = {
         "(SELECT count(*) FROM payee_bank_account_versions av "
         "JOIN payee_bank_accounts a ON a.id = av.bank_account_id "
         "JOIN payees p ON p.id = a.payee_id JOIN driver_profiles d ON d.id = p.subject_id "
+        "WHERE d.user_id = :subject_user_id) + "
+        "(SELECT count(*) FROM payee_bank_account_payout_verifications v "
+        "JOIN payee_bank_account_versions av ON av.id = v.bank_account_version_id "
+        "JOIN payee_bank_accounts a ON a.id = av.bank_account_id "
+        "JOIN payees p ON p.id = a.payee_id JOIN driver_profiles d ON d.id = p.subject_id "
         "WHERE d.user_id = :subject_user_id)"
     ),
     "notification_evidence": (
-        "SELECT count(*) FROM notifications WHERE recipient_user_id = :subject_user_id"
+        "SELECT (SELECT count(*) FROM notifications "
+        "WHERE recipient_user_id = :subject_user_id) + "
+        "(SELECT count(*) FROM notification_delivery_receipts r JOIN notifications n "
+        "ON n.id = r.notification_id WHERE n.recipient_user_id = :subject_user_id)"
     ),
-    "audit_event": (
-        "SELECT count(*) FROM audit_events WHERE actor_user_id = :subject_user_id"
-    ),
+    "audit_event": ("SELECT count(*) FROM audit_events WHERE actor_user_id = :subject_user_id"),
     "privacy_request_evidence": (
         "SELECT count(*) FROM data_subject_requests WHERE subject_user_id = :subject_user_id"
     ),
@@ -159,6 +178,8 @@ _DATABASE_COUNTS = {
         "WHERE d.user_id = :subject_user_id)"
     ),
 }
+
+SUBJECT_LINK_REGISTRY = build_subject_link_registry(_LEGACY_DATABASE_COUNTS)
 
 _ALL_LOCATIONS = set(DataSubjectLocation)
 
@@ -308,9 +329,9 @@ async def data_subject_inventory(
     )
     parameters = {"subject_user_id": subject_parameter}
     database: dict[str, int] = {}
-    for data_class, query in _DATABASE_COUNTS.items():
-        database[data_class] = int(
-            (await session.execute(text(query), parameters)).scalar_one() or 0
+    for rule in SUBJECT_LINK_REGISTRY:
+        database[rule.data_class] = int(
+            (await session.execute(text(rule.count_query), parameters)).scalar_one() or 0
         )
     stored_files = list(
         await session.scalars(
@@ -319,9 +340,7 @@ async def data_subject_inventory(
     )
     upload_intents = list(
         await session.scalars(
-            select(FileUploadIntent).where(
-                FileUploadIntent.subject_user_id == case.subject_user_id
-            )
+            select(FileUploadIntent).where(FileUploadIntent.subject_user_id == case.subject_user_id)
         )
     )
     object_storage = {
@@ -504,7 +523,6 @@ async def record_location_assessment(
         raise _conflict("DSR_RECORDS_EXIST", "Not-found disposition conflicts with inventory")
     if (
         case.request_type == DataSubjectRequestType.ERASURE.value
-        and location in {DataSubjectLocation.DATABASE, DataSubjectLocation.OBJECT_STORAGE}
         and disposition is DataSubjectDisposition.ERASED
         and record_count != 0
     ):
@@ -582,7 +600,11 @@ async def record_location_assessment(
 
 
 async def complete_data_subject_request(
-    session: AsyncSession, *, actor_user_id: UUID, request_id: UUID
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    request_id: UUID,
+    storage: StorageProvider,
 ) -> DataSubjectRequest:
     await require_active_admin(session, actor_user_id)
     case = await session.scalar(
@@ -598,13 +620,14 @@ async def complete_data_subject_request(
         return case
     if case.status != DataSubjectRequestStatus.IDENTITY_VERIFIED.value:
         raise _conflict("DSR_NOT_COMPLETABLE", "Request is not ready for completion")
-    locations = set(
+    assessments = list(
         await session.scalars(
-            select(DataSubjectLocationAssessment.location).where(
+            select(DataSubjectLocationAssessment).where(
                 DataSubjectLocationAssessment.request_id == request_id
             )
         )
     )
+    locations = {assessment.location for assessment in assessments}
     missing = sorted(
         location.value for location in _ALL_LOCATIONS if location.value not in locations
     )
@@ -615,6 +638,53 @@ async def complete_data_subject_request(
             status_code=status.HTTP_409_CONFLICT,
             details={"missing_locations": missing},
         )
+    inventory = await data_subject_inventory(
+        session,
+        actor_user_id=actor_user_id,
+        request_id=request_id,
+        storage=storage,
+        verify_object_storage=True,
+    )
+    current_system_counts = {
+        DataSubjectLocation.DATABASE.value: sum(inventory["database"].values()),
+        DataSubjectLocation.OBJECT_STORAGE.value: sum(
+            count
+            for name, count in inventory["object_storage"].items()
+            if name not in {"objects_verified", "pending_objects_verified"}
+        ),
+    }
+    invalid_system_claims = sorted(
+        assessment.location
+        for assessment in assessments
+        if assessment.location in current_system_counts
+        and assessment.disposition
+        in {
+            DataSubjectDisposition.ERASED.value,
+            DataSubjectDisposition.NOT_FOUND.value,
+        }
+        and current_system_counts[assessment.location] != 0
+    )
+    if invalid_system_claims:
+        raise AppError(
+            "DSR_SYSTEM_INVENTORY_CHANGED",
+            "System-controlled data changed after assessment and must be reassessed",
+            status_code=status.HTTP_409_CONFLICT,
+            details={"invalid_locations": invalid_system_claims},
+        )
+    if case.request_type == DataSubjectRequestType.ERASURE.value:
+        invalid = sorted(
+            assessment.location
+            for assessment in assessments
+            if assessment.disposition == DataSubjectDisposition.ERASED.value
+            and assessment.record_count != 0
+        )
+        if invalid:
+            raise AppError(
+                "DSR_ERASURE_EVIDENCE_INVALID",
+                "Erasure completion requires zero-count evidence for every erased location",
+                status_code=status.HTTP_409_CONFLICT,
+                details={"invalid_locations": invalid},
+            )
     case.status = DataSubjectRequestStatus.COMPLETED.value
     case.completed_at = datetime.now(UTC)
     case.completed_by_user_id = actor_user_id

@@ -6,8 +6,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
-import { deactivateSourceAction, removeSourceLinkAction } from "./actions";
 import { LinkForm } from "./link-form";
+import { TerminalPlanningActionForm } from "./operation-form";
 import { SourceForm } from "./source-form";
 
 export const metadata: Metadata = { title: "Planning sources" };
@@ -89,11 +89,11 @@ export default async function PlanningSourcesPage() {
                         </p>
                       </div>
                       {source.status === "active" ? (
-                        <form action={deactivateSourceAction.bind(null, source.id)}>
-                          <button className="border-edge hover:border-coral rounded-lg border px-3 py-2 text-sm">
-                            Deactivate
-                          </button>
-                        </form>
+                        <TerminalPlanningActionForm
+                          kind="deactivate-source"
+                          resourceId={source.id}
+                          label="Deactivate"
+                        />
                       ) : null}
                     </div>
                   </article>
@@ -137,11 +137,11 @@ export default async function PlanningSourcesPage() {
                           </p>
                         </div>
                         {link.status === "active" ? (
-                          <form action={removeSourceLinkAction.bind(null, link.id)}>
-                            <button className="border-edge hover:border-coral rounded-lg border px-3 py-2 text-sm">
-                              Remove link
-                            </button>
-                          </form>
+                          <TerminalPlanningActionForm
+                            kind="remove-link"
+                            resourceId={link.id}
+                            label="Remove link"
+                          />
                         ) : null}
                       </div>
                       <div className="border-edge mt-4 border-t pt-4">
@@ -160,15 +160,28 @@ export default async function PlanningSourcesPage() {
                                     : "No issued aggregate is available yet."}
                             </p>
                           </div>
-                          {recommendation?.state === "ready" && recommendation.segment_id ? (
+                          {recommendation?.state === "ready" &&
+                          recommendation.segment_id &&
+                          recommendation.export_approval_id ? (
                             <form
                               action={`/api/advertiser/exposure-segments/${recommendation.segment_id}/export`}
                               method="post"
                             >
+                              <input
+                                type="hidden"
+                                name="approval_id"
+                                value={recommendation.export_approval_id}
+                              />
                               <button className="border-edge hover:border-coral rounded-lg border px-3 py-2 text-sm">
                                 Download controlled CSV
                               </button>
                             </form>
+                          ) : null}
+                          {recommendation?.state === "ready" &&
+                          !recommendation.export_approval_id ? (
+                            <p className="micro text-faint">
+                              Awaiting current privacy approval for controlled export.
+                            </p>
                           ) : null}
                         </div>
                         {recommendation?.state === "ready"

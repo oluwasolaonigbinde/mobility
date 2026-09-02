@@ -245,6 +245,91 @@ def test_erasure_preserves_protected_history_without_approved_exception(
     asyncio.run(run())
 
 
+@pytest.mark.parametrize(
+    "location",
+    [
+        DataSubjectLocation.DEVICE_QUEUE,
+        DataSubjectLocation.OPERATIONAL_LOGS,
+        DataSubjectLocation.BACKUPS,
+        DataSubjectLocation.PROCESSORS,
+    ],
+)
+def test_external_erasure_requires_zero_records_or_an_approved_exception(
+    db_sessionmaker, location
+) -> None:
+    admin = create_test_user(
+        db_sessionmaker,
+        email=f"external-erasure-{location.value}-admin@example.test",
+        role=UserRole.ADMIN,
+    )
+    subject = create_test_user(
+        db_sessionmaker,
+        email=f"external-erasure-{location.value}-subject@example.test",
+        role=UserRole.DRIVER,
+    )
+
+    async def run() -> None:
+        async with db_sessionmaker() as session:
+            case = await create_data_subject_request(
+                session,
+                actor_user_id=admin.id,
+                subject_user_id=subject.id,
+                request_type=DataSubjectRequestType.ERASURE,
+                client_request_id=uuid4(),
+                requested_at=datetime.now(UTC),
+            )
+            await verify_data_subject_identity(
+                session, actor_user_id=admin.id, request_id=case.id
+            )
+            await session.commit()
+
+            with pytest.raises(AppError) as false_erasure:
+                await record_location_assessment(
+                    session,
+                    actor_user_id=admin.id,
+                    request_id=case.id,
+                    location=location,
+                    disposition=DataSubjectDisposition.ERASED,
+                    evidence_reference="SYNTHETIC-EXTERNAL-ERASURE",
+                    exception_reference=None,
+                    external_record_count=1,
+                    client_request_id=uuid4(),
+                    approved_exception_references={"SYNTHETIC-RETENTION"},
+                )
+            assert false_erasure.value.code == "DSR_RECORDS_REMAIN"
+
+            with pytest.raises(AppError) as false_not_found:
+                await record_location_assessment(
+                    session,
+                    actor_user_id=admin.id,
+                    request_id=case.id,
+                    location=location,
+                    disposition=DataSubjectDisposition.NOT_FOUND,
+                    evidence_reference="SYNTHETIC-EXTERNAL-NOT-FOUND",
+                    exception_reference=None,
+                    external_record_count=1,
+                    client_request_id=uuid4(),
+                    approved_exception_references=set(),
+                )
+            assert false_not_found.value.code == "DSR_RECORDS_EXIST"
+
+            retained = await record_location_assessment(
+                session,
+                actor_user_id=admin.id,
+                request_id=case.id,
+                location=location,
+                disposition=DataSubjectDisposition.RETAINED_EXCEPTION,
+                evidence_reference="SYNTHETIC-EXTERNAL-RETENTION",
+                exception_reference="SYNTHETIC-RETENTION",
+                external_record_count=1,
+                client_request_id=uuid4(),
+                approved_exception_references={"SYNTHETIC-RETENTION"},
+            )
+            assert retained.record_count == 1
+
+    asyncio.run(run())
+
+
 def test_non_admin_cannot_open_data_subject_request(db_client, db_sessionmaker) -> None:
     actor = create_test_user(
         db_sessionmaker, email="dsr-driver@example.test", role=UserRole.DRIVER
@@ -285,12 +370,93 @@ def test_completion_requires_every_store(db_sessionmaker) -> None:
             )
             with pytest.raises(AppError) as incomplete:
                 await complete_data_subject_request(
-                    session, actor_user_id=admin.id, request_id=case.id
+                    session,
+                    actor_user_id=admin.id,
+                    request_id=case.id,
+                    storage=FakeStorageProvider(),
                 )
             assert incomplete.value.code == "DSR_LOCATIONS_INCOMPLETE"
             assert set(incomplete.value.details["missing_locations"]) == {
                 location.value for location in DataSubjectLocation
             }
+
+    asyncio.run(run())
+
+
+def test_completion_rechecks_system_inventory_after_assessment(db_sessionmaker) -> None:
+    admin = create_test_user(
+        db_sessionmaker, email="dsr-recheck-admin@example.test", role=UserRole.ADMIN
+    )
+    subject = create_test_user(
+        db_sessionmaker, email="dsr-recheck-subject@example.test", role=UserRole.DRIVER
+    )
+    storage = FakeStorageProvider()
+
+    async def run() -> None:
+        async with db_sessionmaker() as session:
+            case = await create_data_subject_request(
+                session,
+                actor_user_id=admin.id,
+                subject_user_id=subject.id,
+                request_type=DataSubjectRequestType.ACCESS,
+                client_request_id=uuid4(),
+                requested_at=datetime.now(UTC),
+            )
+            await verify_data_subject_identity(
+                session, actor_user_id=admin.id, request_id=case.id
+            )
+            for location in DataSubjectLocation:
+                await record_location_assessment(
+                    session,
+                    actor_user_id=admin.id,
+                    request_id=case.id,
+                    location=location,
+                    disposition=(
+                        DataSubjectDisposition.PROVIDED
+                        if location is DataSubjectLocation.DATABASE
+                        else DataSubjectDisposition.NOT_FOUND
+                    ),
+                    evidence_reference=f"SYNTHETIC-RECHECK-{location.value}",
+                    exception_reference=None,
+                    external_record_count=(
+                        0
+                        if location
+                        not in {
+                            DataSubjectLocation.DATABASE,
+                            DataSubjectLocation.OBJECT_STORAGE,
+                        }
+                        else None
+                    ),
+                    client_request_id=uuid4(),
+                    approved_exception_references=set(),
+                    storage=storage,
+                )
+            session.add(
+                FileUploadIntent(
+                    subject_user_id=subject.id,
+                    uploader_user_id=admin.id,
+                    client_request_id=uuid4(),
+                    request_fingerprint="c" * 64,
+                    purpose="driver_kyc",
+                    original_filename="late-object.png",
+                    declared_content_type="image/png",
+                    declared_size_bytes=3,
+                    declared_sha256="d" * 64,
+                    object_key=f"quarantine/{uuid4()}",
+                    expires_at=datetime.now(UTC) + timedelta(hours=1),
+                    status=UploadIntentStatus.PENDING.value,
+                )
+            )
+            await session.flush()
+            with pytest.raises(AppError) as changed:
+                await complete_data_subject_request(
+                    session,
+                    actor_user_id=admin.id,
+                    request_id=case.id,
+                    storage=storage,
+                )
+            assert changed.value.code == "DSR_SYSTEM_INVENTORY_CHANGED"
+            assert changed.value.details == {"invalid_locations": ["object_storage"]}
 
     asyncio.run(run())
 
@@ -370,7 +536,10 @@ def test_rectification_and_erasure_manual_workflows_complete_with_explicit_evide
                     storage=FakeStorageProvider(),
                 )
             completed = await complete_data_subject_request(
-                session, actor_user_id=admin.id, request_id=case.id
+                session,
+                actor_user_id=admin.id,
+                request_id=case.id,
+                storage=FakeStorageProvider(),
             )
             await session.commit()
             assert completed.status == "completed"

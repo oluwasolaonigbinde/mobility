@@ -15,7 +15,7 @@ from sqlalchemy import func, select, text
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
-from app.models.campaign import Campaign
+from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.organization import MembershipStatus, OrganizationMembership
 from app.models.retargeting_source import RetargetingSource
@@ -39,6 +39,126 @@ from app.services.audience import (
 )
 
 PASSWORD = "StrongPassword123!"
+
+
+def test_planning_links_follow_campaign_mutability_policy(db_sessionmaker) -> None:
+    advertiser = create_test_user(
+        db_sessionmaker,
+        email="link-campaign-policy@example.com",
+        password=PASSWORD,
+        role=UserRole.ADVERTISER,
+    )
+    organization, _ = create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
+    start_at = datetime.now(UTC) + timedelta(days=2)
+    end_at = start_at + timedelta(days=2)
+    settings = Settings(environment="test", privacy_disclosure_synthetic_test_mode=True)
+    mutable = {
+        CampaignStatus.DRAFT,
+        CampaignStatus.PENDING_REVIEW,
+        CampaignStatus.APPROVED,
+        CampaignStatus.SCHEDULED,
+        CampaignStatus.ACTIVE,
+        CampaignStatus.PAUSED,
+    }
+    read_only = {
+        CampaignStatus.COMPLETED,
+        CampaignStatus.CANCELLED,
+        CampaignStatus.REJECTED,
+    }
+
+    async def run() -> None:
+        async with db_sessionmaker() as session:
+            source = await create_retargeting_source(
+                session,
+                settings=settings,
+                actor_user_id=advertiser.id,
+                payload=TypeAdapter(RetargetingSourceCreate).validate_python(
+                    source_payload(end_at + timedelta(days=30))
+                ),
+                idempotency_key="campaign-policy-source",
+            )
+            links: dict[CampaignStatus, RetargetingSourceLink] = {}
+            campaigns: dict[CampaignStatus, Campaign] = {}
+            for campaign_status in mutable | read_only:
+                campaign = Campaign(
+                    organization_id=organization.id,
+                    created_by_user_id=advertiser.id,
+                    name=f"Policy {campaign_status.value}",
+                    status=campaign_status,
+                    start_at=start_at - timedelta(days=1),
+                    end_at=end_at + timedelta(days=1),
+                    budget_amount=1000,
+                    currency="NGN",
+                )
+                session.add(campaign)
+                await session.flush()
+                zone = CampaignZone(
+                    campaign_id=campaign.id,
+                    created_by_user_id=advertiser.id,
+                    name="Policy target",
+                    zone_type=CampaignZoneType.TARGET,
+                    geom="MULTIPOLYGON(((3 6,3.1 6,3.1 6.1,3 6.1,3 6)))",
+                )
+                session.add(zone)
+                await session.flush()
+                payload = RetargetingSourceLinkCreate(
+                    source_id=source.id,
+                    campaign_id=campaign.id,
+                    zone_id=zone.id,
+                    start_at=start_at,
+                    end_at=end_at,
+                )
+                if campaign_status in mutable:
+                    links[campaign_status] = await create_retargeting_source_link(
+                        session,
+                        settings=settings,
+                        actor_user_id=advertiser.id,
+                        payload=payload,
+                        idempotency_key=f"campaign-policy-create-{campaign_status.value}",
+                    )
+                else:
+                    with pytest.raises(AppError) as blocked:
+                        await create_retargeting_source_link(
+                            session,
+                            settings=settings,
+                            actor_user_id=advertiser.id,
+                            payload=payload,
+                            idempotency_key=f"campaign-policy-create-{campaign_status.value}",
+                        )
+                    assert blocked.value.code == "RETARGETING_LINK_CAMPAIGN_READ_ONLY"
+                campaigns[campaign_status] = campaign
+
+            terminal_transitions = {
+                CampaignStatus.DRAFT: CampaignStatus.COMPLETED,
+                CampaignStatus.PENDING_REVIEW: CampaignStatus.CANCELLED,
+                CampaignStatus.APPROVED: CampaignStatus.REJECTED,
+            }
+            for campaign_status, link in links.items():
+                if campaign_status in terminal_transitions:
+                    terminal_status = terminal_transitions[campaign_status]
+                    campaigns[campaign_status].status = terminal_status
+                    await session.flush()
+                    with pytest.raises(AppError) as blocked:
+                        await remove_retargeting_source_link(
+                            session,
+                            settings=settings,
+                            actor_user_id=advertiser.id,
+                            link_id=link.id,
+                            idempotency_key=f"campaign-policy-remove-{terminal_status.value}",
+                        )
+                    assert blocked.value.code == "RETARGETING_LINK_CAMPAIGN_READ_ONLY"
+                    assert link.status == "active"
+                else:
+                    removed = await remove_retargeting_source_link(
+                        session,
+                        settings=settings,
+                        actor_user_id=advertiser.id,
+                        link_id=link.id,
+                        idempotency_key=f"campaign-policy-remove-{campaign_status.value}",
+                    )
+                    assert removed.status == "removed"
+
+    asyncio.run(run())
 
 
 def source_payload(expires_at: datetime) -> dict:
@@ -581,6 +701,33 @@ def test_concurrent_link_create_and_remove_retries_converge_on_postgres(
         assert isinstance(distinct_id, UUID)
         await remove_once(distinct_id, "link-distinct-remove")
 
+        race_link_id = await create_once("link-status-race-create")
+        async with postgis_db_sessionmaker() as campaign_session:
+            locked_campaign = await campaign_session.scalar(
+                select(Campaign).where(Campaign.id == campaign.id).with_for_update()
+            )
+            assert locked_campaign is not None
+            blocked_remove = asyncio.create_task(
+                remove_once(race_link_id, "link-status-race-remove")
+            )
+            with pytest.raises(TimeoutError):
+                await asyncio.wait_for(asyncio.shield(blocked_remove), timeout=0.25)
+            locked_campaign.status = CampaignStatus.CANCELLED
+            await campaign_session.commit()
+        with pytest.raises(AppError) as terminal_race:
+            await blocked_remove
+        assert terminal_race.value.code == "RETARGETING_LINK_CAMPAIGN_READ_ONLY"
+
+        async with postgis_db_sessionmaker() as session:
+            race_link = await session.get(RetargetingSourceLink, race_link_id)
+            assert race_link is not None
+            assert race_link.status == "active"
+            persisted_campaign = await session.get(Campaign, campaign.id)
+            assert persisted_campaign is not None
+            persisted_campaign.status = CampaignStatus.ACTIVE
+            await session.commit()
+        await remove_once(race_link_id, "link-status-race-cleanup")
+
         async def new_source(key: str) -> UUID:
             async with postgis_db_sessionmaker() as session:
                 source = await create_retargeting_source(
@@ -651,7 +798,7 @@ def test_concurrent_link_create_and_remove_retries_converge_on_postgres(
                     await session.scalar(select(func.count()).select_from(RetargetingSourceLink))
                     or 0
                 )
-                == 3
+                == 4
             )
             assert (
                 int(
@@ -660,7 +807,7 @@ def test_concurrent_link_create_and_remove_retries_converge_on_postgres(
                     )
                     or 0
                 )
-                == 5
+                == 7
             )
             assert (
                 int(
@@ -671,7 +818,7 @@ def test_concurrent_link_create_and_remove_retries_converge_on_postgres(
                     )
                     or 0
                 )
-                == 5
+                == 7
             )
 
     asyncio.run(scenario())

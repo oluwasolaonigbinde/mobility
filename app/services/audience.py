@@ -13,7 +13,7 @@ from starlette import status
 
 from app.core.config import Settings
 from app.core.errors import AppError
-from app.models.campaign import Campaign
+from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_zone import CampaignZone
 from app.models.exposure_score import ExposureScore
 from app.models.exposure_segment import ExposureSegment, ExposureSegmentCell
@@ -35,7 +35,10 @@ from app.models.retargeting_source_link import (
     RetargetingSourceLinkEvent,
     RetargetingSourceLinkIdempotency,
 )
-from app.schemas.exposure_segments import ExposureCellInput
+from app.schemas.exposure_segments import (
+    MIN_AUDIENCE_RESOLUTION_M,
+    AuthoritativeExposureCell,
+)
 from app.schemas.retargeting_source_links import RetargetingSourceLinkCreate
 from app.schemas.retargeting_sources import RetargetingSourceCreate
 from app.schemas.zone_insights import (
@@ -47,10 +50,14 @@ from app.schemas.zone_insights import (
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.disclosure import (
+    DisclosureQuery,
     _approved_reference,
+    audience_disclosure_policy,
     ensure_disclosure_live_gate,
     exposure_cell_meets_disclosure_floor,
+    record_disclosure,
 )
+from app.services.heatmaps import AUTHORITATIVE_AUDIENCE_CELL_FORMULA_VERSION
 from app.services.measurement import measurement_run_reproducible
 from app.services.payout_rule_serialization import database_clock
 
@@ -90,6 +97,28 @@ HIGH_EXPOSURE_ZONE_FORMULA_CONTRACT = {
         "financial ROI, or a new exposure score."
     ),
 }
+
+_PLANNING_LINK_MUTABLE_CAMPAIGN_STATUSES = frozenset(
+    {
+        CampaignStatus.DRAFT.value,
+        CampaignStatus.PENDING_REVIEW.value,
+        CampaignStatus.APPROVED.value,
+        CampaignStatus.SCHEDULED.value,
+        CampaignStatus.ACTIVE.value,
+        CampaignStatus.PAUSED.value,
+    }
+)
+
+
+def _require_planning_link_mutable_campaign(campaign: Campaign) -> None:
+    if campaign.status not in _PLANNING_LINK_MUTABLE_CAMPAIGN_STATUSES:
+        raise AppError(
+            "RETARGETING_LINK_CAMPAIGN_READ_ONLY",
+            "Planning-source links cannot change after the campaign becomes read-only",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+
 HIGH_EXPOSURE_ZONE_FORMULA_FINGERPRINT = _canonical_hash(HIGH_EXPOSURE_ZONE_FORMULA_CONTRACT)
 HIGH_EXPOSURE_ZONE_DISCLAIMER = (
     "Ranks disclosure-cleared zones by frozen modelled potential contacts. The campaign "
@@ -604,6 +633,7 @@ async def create_retargeting_source_link(
         raise AppError(
             "RETARGETING_LINK_CAMPAIGN_NOT_FOUND", "Campaign was not found", status_code=404
         )
+    _require_planning_link_mutable_campaign(campaign)
     zone = await session.scalar(
         select(CampaignZone).where(CampaignZone.id == payload.zone_id).with_for_update()
     )
@@ -803,19 +833,48 @@ async def remove_retargeting_source_link(
     )
     if replay is not None:
         return replay
+    link_authority = await session.scalar(
+        select(RetargetingSourceLink).where(
+            RetargetingSourceLink.id == link_id,
+            RetargetingSourceLink.organization_id == membership.organization_id,
+        )
+    )
+    if link_authority is None:
+        raise AppError(
+            "RETARGETING_SOURCE_LINK_NOT_FOUND",
+            "Retargeting source link was not found",
+            status_code=404,
+        )
     source = await session.scalar(
         select(RetargetingSource)
-        .join(RetargetingSourceLink, RetargetingSourceLink.source_id == RetargetingSource.id)
+        .where(RetargetingSource.id == link_authority.source_id)
+        .with_for_update()
+    )
+    campaign = await session.scalar(
+        select(Campaign)
+        .where(
+            Campaign.id == link_authority.campaign_id,
+            Campaign.organization_id == membership.organization_id,
+        )
+        .with_for_update()
+    )
+    if campaign is None:
+        raise AppError(
+            "RETARGETING_LINK_CAMPAIGN_NOT_FOUND", "Campaign was not found", status_code=404
+        )
+    _require_planning_link_mutable_campaign(campaign)
+    await session.scalar(
+        select(CampaignZone).where(CampaignZone.id == link_authority.zone_id).with_for_update()
+    )
+    link = await session.scalar(
+        select(RetargetingSourceLink)
         .where(
             RetargetingSourceLink.id == link_id,
             RetargetingSourceLink.organization_id == membership.organization_id,
         )
-        .with_for_update(of=RetargetingSource)
+        .with_for_update()
     )
-    link = await _link_access(
-        session, settings=settings, actor_user_id=actor_user_id, link_id=link_id, write=True
-    )
-    if source is None:
+    if source is None or link is None:
         raise AppError(
             "RETARGETING_SOURCE_LINK_NOT_FOUND",
             "Retargeting source link was not found",
@@ -891,8 +950,218 @@ async def _exposure_materialization_lock(
     )
 
 
-def _cell_snapshot(cell: ExposureCellInput) -> dict:
+AUDIENCE_EXPOSURE_FORMULA_VERSION = AUTHORITATIVE_AUDIENCE_CELL_FORMULA_VERSION
+
+
+def _cell_snapshot(cell: AuthoritativeExposureCell) -> dict:
     return cell.model_dump(mode="json")
+
+
+def _measurement_trip_authority(
+    run: MeasurementRun,
+) -> tuple[dict[UUID, UUID], dict[UUID, Decimal]]:
+    sources = run.input_manifest.get("sources")
+    if not isinstance(sources, dict):
+        raise AppError(
+            "EXPOSURE_AGGREGATE_AUTHORITY_MISSING",
+            "The measurement run has no governed aggregate source authority",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    analytics = sources.get("trip_analytics")
+    estimates = sources.get("impression_estimates")
+    if not isinstance(analytics, list) or not isinstance(estimates, list):
+        raise AppError(
+            "EXPOSURE_AGGREGATE_AUTHORITY_MISSING",
+            "The measurement run has no governed aggregate source authority",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    trip_vehicles: dict[UUID, UUID] = {}
+    for item in analytics:
+        if item.get("status") != "computed":
+            continue
+        try:
+            trip_id = UUID(item["trip_session_id"])
+            vehicle_id = UUID(item["vehicle_id"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise AppError(
+                "EXPOSURE_AGGREGATE_AUTHORITY_MISSING",
+                "The measurement run does not bind each aggregate trip to a vehicle",
+                status_code=status.HTTP_409_CONFLICT,
+            ) from exc
+        trip_vehicles[trip_id] = vehicle_id
+    contacts: dict[UUID, Decimal] = {}
+    for item in estimates:
+        if item.get("status") != "estimated":
+            continue
+        try:
+            trip_id = UUID(item["trip_session_id"])
+            value = Decimal(str(item["estimated_impressions"]))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise AppError(
+                "EXPOSURE_AGGREGATE_AUTHORITY_MISSING",
+                "The measurement run has malformed aggregate contact authority",
+                status_code=status.HTTP_409_CONFLICT,
+            ) from exc
+        if trip_id in trip_vehicles:
+            contacts[trip_id] = value
+    return trip_vehicles, contacts
+
+
+def _aggregate_authoritative_rows(
+    *,
+    rows: list[dict],
+    trip_vehicles: dict[UUID, UUID],
+    contacts: dict[UUID, Decimal],
+    resolution_m: int,
+    window_start_at: datetime,
+    window_end_at: datetime,
+    synthetic: bool,
+) -> list[AuthoritativeExposureCell]:
+    grouped: dict[tuple[int, int], dict] = {}
+    for row in rows:
+        trip_id = UUID(str(row["trip_session_id"]))
+        vehicle_id = UUID(str(row.get("vehicle_id") or trip_vehicles[trip_id]))
+        cell_key = (int(row["grid_x"]), int(row["grid_y"]))
+        group = grouped.setdefault(
+            cell_key,
+            {
+                "vehicles": set(),
+                "trips": set(),
+                "days": set(),
+                "pings": 0,
+                "vehicle_pings": {},
+                "vehicle_trips": {},
+                "contacts": Decimal("0"),
+                "vehicle_contacts": {},
+            },
+        )
+        ping_count = int(row["cell_ping_count"])
+        total_ping_count = int(row["total_ping_count"])
+        allocated_contacts = (
+            contacts.get(trip_id, Decimal("0")) * Decimal(ping_count) / Decimal(total_ping_count)
+        )
+        group["vehicles"].add(vehicle_id)
+        group["trips"].add(trip_id)
+        group["days"].update(row["recorded_days"])
+        group["pings"] += ping_count
+        group["vehicle_pings"][vehicle_id] = group["vehicle_pings"].get(vehicle_id, 0) + ping_count
+        group["vehicle_trips"].setdefault(vehicle_id, set()).add(trip_id)
+        group["contacts"] += allocated_contacts
+        group["vehicle_contacts"][vehicle_id] = (
+            group["vehicle_contacts"].get(vehicle_id, Decimal("0")) + allocated_contacts
+        )
+
+    cells: list[AuthoritativeExposureCell] = []
+    for (grid_x, grid_y), group in sorted(grouped.items()):
+        shares = [
+            Decimal(max(group["vehicle_pings"].values())) / Decimal(group["pings"]),
+            Decimal(max(len(items) for items in group["vehicle_trips"].values()))
+            / Decimal(len(group["trips"])),
+        ]
+        if group["contacts"] > 0:
+            shares.append(max(group["vehicle_contacts"].values()) / group["contacts"])
+        cells.append(
+            AuthoritativeExposureCell(
+                coverage_cell=f"grid-{resolution_m}m:{grid_x}:{grid_y}",
+                window_start_at=window_start_at,
+                window_end_at=window_end_at,
+                context="vehicle_transit",
+                distinct_vehicle_count=len(group["vehicles"]),
+                trip_count=len(group["trips"]),
+                distinct_day_count=len(group["days"]),
+                max_contributor_share=max(shares).quantize(Decimal("0.0000001")),
+                modelled_potential_contacts=group["contacts"].quantize(Decimal("0.0001")),
+                formula_version=AUDIENCE_EXPOSURE_FORMULA_VERSION,
+                synthetic=synthetic,
+            )
+        )
+    return cells
+
+
+async def _derive_authoritative_cells(
+    session: AsyncSession,
+    *,
+    settings: Settings,
+    link: RetargetingSourceLink,
+    run: MeasurementRun,
+) -> list[AuthoritativeExposureCell]:
+    resolution_m = settings.privacy_min_resolution_m
+    if resolution_m < MIN_AUDIENCE_RESOLUTION_M:
+        raise AppError(
+            "EXPOSURE_SEGMENT_RESOLUTION_INVALID",
+            "Audience resolution is below the governed minimum",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    trip_vehicles, contacts = _measurement_trip_authority(run)
+    start_at = _as_utc(run.period_start_at)
+    end_at = _as_utc(run.period_end_at)
+    authority = run.input_manifest.get("audience_exposure_authority")
+    if (
+        not isinstance(authority, dict)
+        or authority.get("schema_version") != "audience-exposure-authority-v1"
+        or authority.get("formula_version") != AUDIENCE_EXPOSURE_FORMULA_VERSION
+        or authority.get("resolution_m") != resolution_m
+        or authority.get("window_start_at") != start_at.isoformat()
+        or authority.get("window_end_at") != end_at.isoformat()
+        or not isinstance(authority.get("rows"), list)
+    ):
+        raise AppError(
+            "EXPOSURE_AGGREGATE_AUTHORITY_MISSING",
+            "The measurement run has no compatible governed aggregate authority",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    try:
+        rows = [
+            {
+                **row,
+                "recorded_days": [
+                    datetime.fromisoformat(day).date() for day in row["recorded_days"]
+                ],
+            }
+            for row in authority["rows"]
+            if row.get("zone_id") == str(link.zone_id)
+        ]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise AppError(
+            "EXPOSURE_AGGREGATE_AUTHORITY_MISSING",
+            "The measurement run has malformed governed aggregate authority",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from exc
+    synthetic = run.test_only
+    if (
+        not rows
+        and settings.environment in {"test", "testing"}
+        and settings.privacy_disclosure_synthetic_test_mode
+    ):
+        rows = [
+            {
+                "grid_x": 0,
+                "grid_y": 0,
+                "trip_session_id": trip_id,
+                "vehicle_id": vehicle_id,
+                "cell_ping_count": 1,
+                "total_ping_count": 1,
+                "recorded_days": [start_at.date()],
+            }
+            for trip_id, vehicle_id in sorted(trip_vehicles.items())
+        ]
+        synthetic = True
+    cells = _aggregate_authoritative_rows(
+        rows=rows,
+        trip_vehicles=trip_vehicles,
+        contacts=contacts,
+        resolution_m=resolution_m,
+        window_start_at=start_at,
+        window_end_at=end_at,
+        synthetic=synthetic,
+    )
+    if not cells:
+        raise AppError(
+            "EXPOSURE_SEGMENT_CELLS_REQUIRED",
+            "The measurement authority produced no aggregate cells in the linked zone",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    return cells
 
 
 async def materialize_exposure_segment(
@@ -901,15 +1170,8 @@ async def materialize_exposure_segment(
     settings: Settings,
     source_link_id: UUID,
     measurement_run_id: UUID,
-    cells: list[ExposureCellInput],
 ) -> ExposureSegment:
     await _privacy_gate(settings)
-    if not cells:
-        raise AppError(
-            "EXPOSURE_SEGMENT_CELLS_REQUIRED",
-            "At least one aggregate coverage cell is required",
-            status_code=status.HTTP_409_CONFLICT,
-        )
     await _exposure_materialization_lock(session, source_link_id)
     link = await session.scalar(
         select(RetargetingSourceLink)
@@ -988,6 +1250,7 @@ async def materialize_exposure_segment(
         "exposure_score_status": score.result_snapshot.get("status"),
         "campaign_exposure_score": score.result_snapshot.get("score"),
     }
+    cells = await _derive_authoritative_cells(session, settings=settings, link=link, run=run)
 
     normalized = sorted(
         (_cell_snapshot(cell) for cell in cells),
@@ -1027,6 +1290,21 @@ async def materialize_exposure_segment(
                 status_code=status.HTTP_409_CONFLICT,
             )
 
+    disclosure_policy = audience_disclosure_policy(settings)
+    disclosure_policy_sha256 = _canonical_hash(disclosure_policy)
+    aggregate_authority = {
+        "schema_version": "audience-exposure-authority-v1",
+        "formula_version": AUDIENCE_EXPOSURE_FORMULA_VERSION,
+        "measurement_run_id": str(run.id),
+        "measurement_input_sha256": run.input_manifest_sha256,
+        "measurement_result_sha256": run.result_manifest_sha256,
+        "measurement_proof_sha256": run.proof_manifest_sha256,
+        "source_link_snapshot_sha256": link.snapshot_sha256,
+        "disclosure_policy": disclosure_policy,
+        "cells": normalized,
+    }
+    aggregate_authority_sha256 = _canonical_hash(aggregate_authority)
+
     facts = {
         "schema_version": "exposure-segment-facts-v1",
         "source_link_id": str(link.id),
@@ -1036,6 +1314,8 @@ async def materialize_exposure_segment(
         "measurement_result_sha256": run.result_manifest_sha256,
         "measurement_proof_sha256": run.proof_manifest_sha256,
         "zone_insight_authority": zone_insight_authority,
+        "aggregate_authority_sha256": aggregate_authority_sha256,
+        "disclosure_policy_sha256": disclosure_policy_sha256,
         "cells": normalized,
     }
     facts_fingerprint = _canonical_hash(facts)
@@ -1057,7 +1337,12 @@ async def materialize_exposure_segment(
         item
         for item in normalized
         if exposure_cell_meets_disclosure_floor(
-            distinct_vehicle_count=item["distinct_vehicle_count"], settings=settings
+            distinct_vehicle_count=item["distinct_vehicle_count"],
+            trip_count=item["trip_count"],
+            distinct_day_count=item["distinct_day_count"],
+            max_contributor_share=float(item["max_contributor_share"]),
+            resolution_m=int(item["coverage_cell"].split("m:", 1)[0].split("-")[1]),
+            settings=settings,
         )
     ]
     snapshot = {
@@ -1069,6 +1354,11 @@ async def materialize_exposure_segment(
         "measurement_run_id": str(run.id),
         "version": (latest.version + 1) if latest is not None else 1,
         "zone_insight_authority": zone_insight_authority,
+        "aggregate_formula_version": AUDIENCE_EXPOSURE_FORMULA_VERSION,
+        "aggregate_authority_sha256": aggregate_authority_sha256,
+        "disclosure_policy_sha256": disclosure_policy_sha256,
+        "synthetic": all(item["synthetic"] for item in normalized),
+        "authoritative_cells": normalized,
         "cells": releasable,
     }
     segment = ExposureSegment(
@@ -1084,6 +1374,10 @@ async def materialize_exposure_segment(
         measurement_input_sha256=run.input_manifest_sha256,
         measurement_result_sha256=run.result_manifest_sha256,
         measurement_proof_sha256=run.proof_manifest_sha256,
+        aggregate_formula_version=AUDIENCE_EXPOSURE_FORMULA_VERSION,
+        aggregate_authority_sha256=aggregate_authority_sha256,
+        disclosure_policy_sha256=disclosure_policy_sha256,
+        synthetic=snapshot["synthetic"],
         snapshot=snapshot,
         snapshot_sha256=_canonical_hash(snapshot),
         releasable_cell_count=len(releasable),
@@ -1100,8 +1394,11 @@ async def materialize_exposure_segment(
                 window_start_at=datetime.fromisoformat(item["window_start_at"]),
                 window_end_at=datetime.fromisoformat(item["window_end_at"]),
                 context=item["context"],
+                resolution_m=int(item["coverage_cell"].split("m:", 1)[0].split("-")[1]),
                 distinct_vehicle_count=item["distinct_vehicle_count"],
                 trip_count=item["trip_count"],
+                distinct_day_count=item["distinct_day_count"],
+                max_contributor_share=item["max_contributor_share"],
                 modelled_potential_contacts=item["modelled_potential_contacts"],
             )
         )
@@ -1150,9 +1447,7 @@ async def list_exposure_segments(
     )
 
 
-async def exposure_segment_is_stale(
-    session: AsyncSession, segment: ExposureSegment
-) -> bool:
+async def exposure_segment_is_stale(session: AsyncSession, segment: ExposureSegment) -> bool:
     link = await session.get(RetargetingSourceLink, segment.source_link_id)
     run = await session.get(MeasurementRun, segment.measurement_run_id)
     return (
@@ -1217,6 +1512,7 @@ async def high_exposure_zone_insights(
     campaign_id: UUID,
     admin: bool = False,
     measurement_run_id: UUID | None = None,
+    record_history: bool = True,
 ) -> HighExposureZoneInsightsRead:
     # The central disclosure gate is deliberately first: no membership,
     # campaign, run, score, segment, zone label, or ranking fact is read before it.
@@ -1336,7 +1632,12 @@ async def high_exposure_zone_insights(
         cells = await exposure_segment_cells(session, segment)
         if any(
             not exposure_cell_meets_disclosure_floor(
-                distinct_vehicle_count=cell.distinct_vehicle_count, settings=settings
+                distinct_vehicle_count=cell.distinct_vehicle_count,
+                trip_count=cell.trip_count,
+                distinct_day_count=cell.distinct_day_count or 0,
+                max_contributor_share=float(cell.max_contributor_share or 1),
+                resolution_m=cell.resolution_m or 0,
+                settings=settings,
             )
             for cell in cells
         ):
@@ -1390,7 +1691,7 @@ async def high_exposure_zone_insights(
     ):
         return _zone_insight_response(campaign_id=campaign.id, state="stale")
 
-    return HighExposureZoneInsightsRead(
+    result = HighExposureZoneInsightsRead(
         state="ready",
         campaign_id=campaign.id,
         campaign_exposure_score=score.result_snapshot["score"],
@@ -1425,3 +1726,22 @@ async def high_exposure_zone_insights(
         uncertainty=_zone_insight_uncertainty(run, score),
         disclaimer=HIGH_EXPOSURE_ZONE_DISCLAIMER,
     )
+    if record_history:
+        await record_disclosure(
+            session,
+            query=DisclosureQuery(
+                route_id=(
+                    "admin.campaign.zone_insights" if admin else "advertiser.campaign.zone_insights"
+                ),
+                principal_id=actor_user_id,
+                tenant_id=campaign.organization_id,
+                campaign_id=campaign.id,
+                start_at=_as_utc(run.period_start_at),
+                end_at=_as_utc(run.period_end_at),
+                filters={"measurement_run_id": str(run.id)},
+            ),
+            settings=settings,
+            has_releasable_cells=True,
+            result_hash=_canonical_hash(result.model_dump(mode="json")),
+        )
+    return result

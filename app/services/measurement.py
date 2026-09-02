@@ -19,6 +19,7 @@ from app.models.campaign_assignment import (
     CampaignActivationEventType,
     CampaignAssignment,
 )
+from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.exposure_score import ExposureScore
 from app.models.impression import ImpressionEstimate
 from app.models.installation_evidence import InstallationEvidenceSubmission
@@ -32,7 +33,15 @@ from app.schemas.measurement import MeasurementRunCreate, MeasurementRunRead
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.campaign_assignments import activation_snapshot_digest
-from app.services.disclosure import _approved_reference
+from app.services.disclosure import (
+    _approved_reference,
+    lock_trip_disclosure_snapshot,
+    trip_cohort_meets_disclosure_floor,
+)
+from app.services.heatmaps import (
+    AUTHORITATIVE_AUDIENCE_CELL_FORMULA_VERSION,
+    authoritative_audience_trip_cell_counts,
+)
 from app.services.reports import build_dynamic_campaign_report
 
 MEASUREMENT_FORMULA_VERSION = "measurement-result-v1"
@@ -151,6 +160,11 @@ def measurement_run_reproducible(run: MeasurementRun) -> bool:
         return False
     if canonical_sha256(run.report_snapshot) != run.report_snapshot_sha256:
         return False
+    disclosure_authority = run.input_manifest.get("disclosure_authority")
+    if not isinstance(disclosure_authority, dict) or (
+        disclosure_authority.get("report_snapshot_sha256") != run.report_snapshot_sha256
+    ):
+        return False
     reproduced = calculate_measurement_result(run.input_manifest)
     return (
         canonical_sha256(reproduced) == run.result_manifest_sha256
@@ -210,6 +224,63 @@ async def _lock_request(session: AsyncSession, actor_id: UUID, request_id: UUID)
         text("SELECT pg_advisory_xact_lock(:key)"),
         {"key": int.from_bytes(digest, "big", signed=True)},
     )
+
+
+async def _audience_exposure_authority(
+    session: AsyncSession,
+    *,
+    campaign_id: UUID,
+    trip_ids: list[UUID],
+    resolution_m: int,
+    window_start_at: datetime,
+    window_end_at: datetime,
+) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    if session.get_bind().dialect.name == "postgresql" and trip_ids:
+        zone_ids = list(
+            (
+                await session.scalars(
+                    select(CampaignZone.id)
+                    .where(
+                        CampaignZone.campaign_id == campaign_id,
+                        CampaignZone.zone_type == CampaignZoneType.TARGET,
+                    )
+                    .order_by(CampaignZone.id)
+                )
+            ).all()
+        )
+        for zone_id in zone_ids:
+            zone_rows = await authoritative_audience_trip_cell_counts(
+                session,
+                trip_ids=trip_ids,
+                zone_id=zone_id,
+                resolution_m=resolution_m,
+                window_start_at=window_start_at,
+                window_end_at=window_end_at,
+            )
+            rows.extend(
+                {
+                    "zone_id": str(zone_id),
+                    "grid_x": int(row["grid_x"]),
+                    "grid_y": int(row["grid_y"]),
+                    "trip_session_id": str(row["trip_session_id"]),
+                    "vehicle_id": str(row["vehicle_id"]),
+                    "cell_ping_count": int(row["cell_ping_count"]),
+                    "total_ping_count": int(row["total_ping_count"]),
+                    "recorded_days": [
+                        day.isoformat() for day in row["recorded_days"]
+                    ],
+                }
+                for row in zone_rows
+            )
+    return {
+        "schema_version": "audience-exposure-authority-v1",
+        "formula_version": AUTHORITATIVE_AUDIENCE_CELL_FORMULA_VERSION,
+        "resolution_m": resolution_m,
+        "window_start_at": _json_value(window_start_at),
+        "window_end_at": _json_value(window_end_at),
+        "rows": rows,
+    }
 
 
 async def _proof_manifest(
@@ -330,6 +401,11 @@ async def issue_measurement_run(
         raise AppError(
             "CAMPAIGN_NOT_FOUND", "Campaign was not found", status_code=status.HTTP_404_NOT_FOUND
         )
+    await lock_trip_disclosure_snapshot(
+        session,
+        tenant_id=campaign.organization_id,
+        campaign_id=campaign.id,
+    )
     analytics_rows = list(
         (
             await session.scalars(
@@ -385,6 +461,22 @@ async def issue_measurement_run(
         if payload.test_only
         else settings.measurement_report_method_reference
     )
+    measured_trip_ids = sorted(
+        {
+            row.trip_session_id
+            for row in analytics_rows
+            if row.status == "computed"
+        },
+        key=str,
+    )
+    audience_exposure_authority = await _audience_exposure_authority(
+        session,
+        campaign_id=campaign.id,
+        trip_ids=measured_trip_ids,
+        resolution_m=settings.privacy_min_resolution_m,
+        window_start_at=payload.period_start_at,
+        window_end_at=payload.period_end_at,
+    )
     input_manifest: dict[str, Any] = {
         "schema_version": "measurement-input-manifest-v1",
         "campaign_id": str(campaign.id),
@@ -398,6 +490,7 @@ async def issue_measurement_run(
             "end_at": _json_value(payload.period_end_at),
         },
         "proof_manifest_sha256": proof_sha,
+        "audience_exposure_authority": audience_exposure_authority,
         "sources": {
             "trip_analytics": [
                 _json_value(
@@ -405,9 +498,15 @@ async def issue_measurement_run(
                         "id": row.id,
                         "trip_session_id": row.trip_session_id,
                         "assignment_id": row.assignment_id,
+                        "vehicle_id": row.vehicle_id,
                         "status": row.status,
                         "formula_version": row.formula_version,
+                        "started_at": row.started_at,
+                        "ended_at": row.ended_at,
                         "distance_m": row.distance_m,
+                        "target_zone_distance_m": row.target_zone_distance_m,
+                        "bonus_zone_distance_m": row.bonus_zone_distance_m,
+                        "exclusion_zone_distance_m": row.exclusion_zone_distance_m,
                         "active_tracking_seconds": row.active_tracking_seconds,
                         "quality_score": row.quality_score,
                         "computed_at": row.computed_at,
@@ -422,6 +521,7 @@ async def issue_measurement_run(
                         "id": row.id,
                         "trip_session_id": row.trip_session_id,
                         "assignment_id": row.assignment_id,
+                        "vehicle_id": row.vehicle_id,
                         "status": row.status,
                         "formula_version": row.formula_version,
                         "traffic_density_profile_id": row.traffic_density_profile_id,
@@ -440,6 +540,7 @@ async def issue_measurement_run(
                         "id": row.id,
                         "trip_session_id": row.trip_session_id,
                         "assignment_id": row.assignment_id,
+                        "vehicle_id": row.vehicle_id,
                         "status": row.status,
                         "formula_version": row.formula_version,
                         "payout_rule_id": row.payout_rule_id,
@@ -507,9 +608,87 @@ async def issue_measurement_run(
         .order_by(MeasurementRun.created_at.desc(), MeasurementRun.id.desc())
         .limit(1)
     )
+    report_sha = canonical_sha256(report_snapshot)
+    disclosure_authority = await trip_cohort_meets_disclosure_floor(
+        session,
+        tenant_id=campaign.organization_id,
+        campaign_id=campaign.id,
+        start_at=payload.period_start_at,
+        end_at=payload.period_end_at,
+        route_id="advertiser.campaign.report",
+        settings=settings,
+        return_manifest=True,
+    )
+    assert isinstance(disclosure_authority, dict)
+    daily_disclosure_authority = await trip_cohort_meets_disclosure_floor(
+        session,
+        tenant_id=campaign.organization_id,
+        campaign_id=campaign.id,
+        start_at=payload.period_start_at,
+        end_at=payload.period_end_at,
+        route_id="advertiser.campaign.daily_metrics",
+        settings=settings,
+        return_manifest=True,
+    )
+    if isinstance(daily_disclosure_authority, dict):
+        disclosure_authority["passed"] = bool(
+            disclosure_authority["passed"] and daily_disclosure_authority["passed"]
+        )
+        disclosure_authority["contributions"].update(
+            {
+                f"daily:{metric}": values
+                for metric, values in daily_disclosure_authority["contributions"].items()
+            }
+        )
+    else:
+        disclosure_authority["passed"] = False
+    measurement_contributions: dict[str, dict[str, Decimal]] = {}
+
+    def add_measurement(metric: str, vehicle_id: UUID, value: Any) -> None:
+        amount = Decimal(str(value or 0))
+        if amount > 0:
+            by_vehicle = measurement_contributions.setdefault(metric, {})
+            key = str(vehicle_id)
+            by_vehicle[key] = by_vehicle.get(key, Decimal("0")) + amount
+
+    for row in analytics_rows:
+        if row.status != "computed":
+            continue
+        add_measurement("measurement:analytics:trip_count", row.vehicle_id, 1)
+        add_measurement("measurement:analytics:distance_m", row.vehicle_id, row.distance_m)
+        add_measurement(
+            "measurement:analytics:active_tracking_seconds",
+            row.vehicle_id,
+            row.active_tracking_seconds,
+        )
+    for row in impression_rows:
+        if row.status == "estimated":
+            add_measurement(
+                "measurement:estimated_impressions",
+                row.vehicle_id,
+                row.estimated_impressions,
+            )
+    for row in payout_rows:
+        if row.status == "calculated":
+            add_measurement(
+                f"measurement:final_payout:{row.currency}",
+                row.vehicle_id,
+                row.final_payout,
+            )
+    disclosure_authority["contributions"].update(
+        {
+            metric: {vehicle_id: str(value) for vehicle_id, value in values.items()}
+            for metric, values in measurement_contributions.items()
+        }
+    )
+    input_manifest["disclosure_authority"] = {
+        **disclosure_authority,
+        "schema_version": "frozen-report-disclosure-v1",
+        "route_id": "advertiser.campaign.report",
+        "report_snapshot_sha256": report_sha,
+    }
     input_sha = canonical_sha256(input_manifest)
     result_sha = canonical_sha256(result_manifest)
-    report_sha = canonical_sha256(report_snapshot)
     run = MeasurementRun(
         organization_id=campaign.organization_id,
         campaign_id=campaign.id,

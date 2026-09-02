@@ -15,8 +15,7 @@ from app.models.impression import ImpressionEstimate, ImpressionEstimateStatus
 from app.models.measurement import MeasurementRun
 from app.models.payout import EarningsLedgerEntry, PayoutCalculation, PayoutCalculationStatus
 from app.models.trip import TripSession, TripSessionStatus
-from app.models.trip_analytics import FraudFlag, FraudFlagSeverity, FraudFlagStatus, TripAnalytics
-from app.models.vehicle import Vehicle
+from app.models.trip_analytics import FraudFlag, FraudFlagStatus, TripAnalytics
 from app.schemas.measurement import MeasurementResultRead, MeasurementRunSummary
 from app.schemas.reports import (
     ASSIGNMENT_STATUSES,
@@ -35,7 +34,6 @@ from app.schemas.reports import (
     CampaignStatusCounts,
     CampaignSummary,
     CampaignTripsResponse,
-    CampaignTripSummary,
     CreativeStatusCounts,
     DailyMetricItem,
     DailyMetricsResponse,
@@ -45,15 +43,16 @@ from app.schemas.reports import (
     ImpressionSummary,
     QualitySummary,
     RouteAnalyticsSummary,
-    TripAnalyticsSummary,
-    TripCostSummary,
-    TripFraudFlagCounts,
-    TripImpressionSummary,
     TripStatusCounts,
     ZoneTypeCounts,
 )
 from app.services.campaigns import get_advertiser_campaign, get_required_advertiser_context
-from app.services.disclosure import _approved_reference, require_governed_advertiser_output
+from app.services.disclosure import (
+    _approved_reference,
+    lock_trip_disclosure_snapshot,
+    record_governed_trip_output,
+    require_governed_advertiser_output,
+)
 from app.services.impressions import current_authoritative_estimates
 from app.services.payouts import latest_payout_calculation_ids
 
@@ -195,9 +194,7 @@ async def trip_counts_for_org(
         .where(*filters)
         .group_by(TripSession.status)
     )
-    return TripStatusCounts(
-        **status_counts(fold_sealed_into_ended(result.all()), TRIP_STATUSES)
-    )
+    return TripStatusCounts(**status_counts(fold_sealed_into_ended(result.all()), TRIP_STATUSES))
 
 
 async def trip_counts_for_campaign(
@@ -214,9 +211,7 @@ async def trip_counts_for_campaign(
         .where(*filters)
         .group_by(TripSession.status)
     )
-    return TripStatusCounts(
-        **status_counts(fold_sealed_into_ended(result.all()), TRIP_STATUSES)
-    )
+    return TripStatusCounts(**status_counts(fold_sealed_into_ended(result.all()), TRIP_STATUSES))
 
 
 async def impression_summary_for_org(
@@ -233,9 +228,7 @@ async def impression_summary_for_org(
         ImpressionEstimate.is_authoritative.is_(True),
     ]
     apply_range(filters, ImpressionEstimate.estimated_at, start_at, end_at)
-    return await impression_summary_query(
-        session, filters, join_campaign=True, settings=settings
-    )
+    return await impression_summary_query(session, filters, join_campaign=True, settings=settings)
 
 
 async def impression_summary_for_campaign(
@@ -252,9 +245,7 @@ async def impression_summary_for_campaign(
         ImpressionEstimate.is_authoritative.is_(True),
     ]
     apply_range(filters, ImpressionEstimate.estimated_at, start_at, end_at)
-    return await impression_summary_query(
-        session, filters, join_campaign=False, settings=settings
-    )
+    return await impression_summary_query(session, filters, join_campaign=False, settings=settings)
 
 
 async def impression_summary_query(
@@ -298,7 +289,6 @@ async def impression_summary_query(
     )
 
 
-
 async def dashboard_cost_summary(
     session: AsyncSession,
     organization_id: UUID,
@@ -310,9 +300,7 @@ async def dashboard_cost_summary(
 ) -> DashboardCostSummary:
     filters = [
         Campaign.organization_id == organization_id,
-        PayoutCalculation.id.in_(
-            latest_payout_calculation_ids(organization_id=organization_id)
-        ),
+        PayoutCalculation.id.in_(latest_payout_calculation_ids(organization_id=organization_id)),
     ]
     apply_range(filters, PayoutCalculation.calculated_at, start_at, end_at)
     result = await session.execute(
@@ -363,9 +351,7 @@ async def campaign_cost_summary(
 ) -> CampaignCostSummary:
     filters = [
         PayoutCalculation.campaign_id == campaign_id,
-        PayoutCalculation.id.in_(
-            latest_payout_calculation_ids(campaign_id=campaign_id)
-        ),
+        PayoutCalculation.id.in_(latest_payout_calculation_ids(campaign_id=campaign_id)),
     ]
     apply_range(filters, PayoutCalculation.calculated_at, start_at, end_at)
     result = await session.execute(
@@ -377,8 +363,7 @@ async def campaign_cost_summary(
                 func.sum(
                     case(
                         (
-                            PayoutCalculation.status
-                            == PayoutCalculationStatus.CALCULATED.value,
+                            PayoutCalculation.status == PayoutCalculationStatus.CALCULATED.value,
                             1,
                         ),
                         else_=0,
@@ -476,9 +461,7 @@ async def fraud_counts_query(
     join_campaign: bool,
 ) -> FraudFlagCounts:
     status_statement = select(FraudFlag.status, func.count(FraudFlag.id)).select_from(FraudFlag)
-    severity_statement = select(FraudFlag.severity, func.count(FraudFlag.id)).select_from(
-        FraudFlag
-    )
+    severity_statement = select(FraudFlag.severity, func.count(FraudFlag.id)).select_from(FraudFlag)
     if join_campaign:
         status_statement = status_statement.join(Campaign, Campaign.id == FraudFlag.campaign_id)
         severity_statement = severity_statement.join(Campaign, Campaign.id == FraudFlag.campaign_id)
@@ -570,14 +553,20 @@ async def advertiser_dashboard_summary(
     end_at: datetime | None,
     settings: Settings,
 ) -> AdvertiserDashboardSummary:
-    await require_governed_advertiser_output(
+    organization_id = await require_governed_advertiser_output(
         session,
         settings=settings,
         route_id="advertiser.dashboard.summary",
         user_id=user_id,
+        requires_measurement_run=False,
     )
     organization, _ = await get_required_advertiser_context(session, user_id)
-    return AdvertiserDashboardSummary(
+    await lock_trip_disclosure_snapshot(
+        session,
+        tenant_id=organization.id,
+        campaign_id=None,
+    )
+    result = AdvertiserDashboardSummary(
         organization_id=organization.id,
         currency=organization.currency,
         start_at=start_at,
@@ -612,6 +601,19 @@ async def advertiser_dashboard_summary(
             end_at=end_at,
         ),
     )
+    await record_governed_trip_output(
+        session,
+        settings=settings,
+        route_id="advertiser.dashboard.summary",
+        principal_id=user_id,
+        tenant_id=organization_id,
+        campaign_id=None,
+        start_at=start_at,
+        end_at=end_at,
+        filters={},
+        result=result,
+    )
+    return result
 
 
 async def advertiser_campaign_summary(
@@ -623,14 +625,20 @@ async def advertiser_campaign_summary(
     end_at: datetime | None,
     settings: Settings,
 ) -> CampaignSummary:
-    await require_governed_advertiser_output(
+    organization_id = await require_governed_advertiser_output(
         session,
         settings=settings,
         route_id="advertiser.campaign.summary",
         user_id=user_id,
+        requires_measurement_run=False,
     )
     campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
-    return CampaignSummary(
+    await lock_trip_disclosure_snapshot(
+        session,
+        tenant_id=organization_id,
+        campaign_id=campaign.id,
+    )
+    result = CampaignSummary(
         campaign=campaign_response(campaign),
         start_at=start_at,
         end_at=end_at,
@@ -671,6 +679,19 @@ async def advertiser_campaign_summary(
             end_at=end_at,
         ),
     )
+    await record_governed_trip_output(
+        session,
+        settings=settings,
+        route_id="advertiser.campaign.summary",
+        principal_id=user_id,
+        tenant_id=organization_id,
+        campaign_id=campaign.id,
+        start_at=start_at,
+        end_at=end_at,
+        filters={},
+        result=result,
+    )
+    return result
 
 
 async def daily_metrics_for_campaign(
@@ -684,13 +705,19 @@ async def daily_metrics_for_campaign(
     offset: int,
     settings: Settings,
 ) -> DailyMetricsResponse:
-    await require_governed_advertiser_output(
+    organization_id = await require_governed_advertiser_output(
         session,
         settings=settings,
         route_id="advertiser.campaign.daily_metrics",
         user_id=user_id,
+        requires_measurement_run=False,
     )
     campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
+    await lock_trip_disclosure_snapshot(
+        session,
+        tenant_id=organization_id,
+        campaign_id=campaign.id,
+    )
     by_day: dict[date, dict[str, object]] = defaultdict(
         lambda: {
             "trip_count": 0,
@@ -730,9 +757,7 @@ async def daily_metrics_for_campaign(
         for trip_id, distance_m, quality_score in analytics_rows:
             day = trip_days[trip_id]
             by_day[day]["analyzed_trip_count"] = int(by_day[day]["analyzed_trip_count"]) + 1
-            by_day[day]["distance_m"] = decimal_2(by_day[day]["distance_m"]) + decimal_2(
-                distance_m
-            )
+            by_day[day]["distance_m"] = decimal_2(by_day[day]["distance_m"]) + decimal_2(distance_m)
             by_day[day]["quality_total"] = decimal_4(by_day[day]["quality_total"]) + decimal_4(
                 quality_score
             )
@@ -769,9 +794,7 @@ async def daily_metrics_for_campaign(
                     PayoutCalculation.gross_payout,
                 ).where(
                     PayoutCalculation.trip_session_id.in_(trip_ids),
-                    PayoutCalculation.id.in_(
-                        latest_payout_calculation_ids(trip_ids=trip_ids)
-                    ),
+                    PayoutCalculation.id.in_(latest_payout_calculation_ids(trip_ids=trip_ids)),
                 )
             )
         ).all()
@@ -796,13 +819,13 @@ async def daily_metrics_for_campaign(
         ).all()
         for trip_id, count in fraud_rows:
             day = trip_days[trip_id]
-            by_day[day]["open_fraud_flag_count"] = int(
-                by_day[day]["open_fraud_flag_count"]
-            ) + int(count or 0)
+            by_day[day]["open_fraud_flag_count"] = int(by_day[day]["open_fraud_flag_count"]) + int(
+                count or 0
+            )
 
     sorted_days = sorted(by_day, reverse=True)
     items = [daily_item(day, by_day[day]) for day in sorted_days[offset : offset + limit]]
-    return DailyMetricsResponse(
+    result = DailyMetricsResponse(
         campaign_id=campaign.id,
         start_at=start_at,
         end_at=end_at,
@@ -811,6 +834,19 @@ async def daily_metrics_for_campaign(
         limit=limit,
         offset=offset,
     )
+    await record_governed_trip_output(
+        session,
+        settings=settings,
+        route_id="advertiser.campaign.daily_metrics",
+        principal_id=user_id,
+        tenant_id=organization_id,
+        campaign_id=campaign.id,
+        start_at=start_at,
+        end_at=end_at,
+        filters={"limit": limit, "offset": offset},
+        result=result,
+    )
+    return result
 
 
 def daily_item(day: date, values: dict[str, object]) -> DailyMetricItem:
@@ -843,219 +879,70 @@ async def advertiser_campaign_trips(
     *,
     user_id: UUID,
     campaign_id: UUID,
-    start_at: datetime | None,
-    end_at: datetime | None,
-    limit: int,
-    offset: int,
-    trip_status: str | None,
-    has_fraud_flags: bool | None,
-    analytics_status: str | None,
-    impression_status: str | None,
-    payout_status: str | None,
     settings: Settings,
 ) -> CampaignTripsResponse:
-    await require_governed_advertiser_output(
+    organization_id = await require_governed_advertiser_output(
         session,
         settings=settings,
         route_id="advertiser.campaign.trips",
         user_id=user_id,
+        requires_measurement_run=False,
     )
     campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
-    filters = [TripSession.campaign_id == campaign.id]
-    apply_range(filters, TripSession.started_at, start_at, end_at)
-    if trip_status is not None:
-        if trip_status == TripSessionStatus.ENDED.value:
-            # Report consumers see one "ended" state; sealed (RM3) is an
-            # internal refinement of it.
-            filters.append(
-                TripSession.status.in_(
-                    [TripSessionStatus.ENDED.value, TripSessionStatus.SEALED.value]
-                )
-            )
-        else:
-            filters.append(TripSession.status == trip_status)
-    if analytics_status is not None:
-        filters.append(
-            TripSession.id.in_(
-                select(TripAnalytics.trip_session_id).where(
-                    TripAnalytics.status == analytics_status
-                )
-            )
-        )
-    if impression_status is not None:
-        candidate_estimates = list(
-            (
-                await session.scalars(
-                    select(ImpressionEstimate).where(
-                        ImpressionEstimate.campaign_id == campaign.id,
-                        ImpressionEstimate.status == impression_status,
-                        ImpressionEstimate.formula_version
-                        == settings.impression_formula_version,
-                        ImpressionEstimate.is_authoritative.is_(True),
-                    )
-                )
-            ).all()
-        )
-        current_estimates = await current_authoritative_estimates(
-            session,
-            candidate_estimates,
-            settings=settings,
-        )
-        filters.append(
-            TripSession.id.in_(
-                [estimate.trip_session_id for estimate in current_estimates]
-            )
-        )
-    if payout_status is not None:
-        filters.append(
-            TripSession.id.in_(
-                select(PayoutCalculation.trip_session_id).where(
-                    PayoutCalculation.status == payout_status,
-                    PayoutCalculation.id.in_(
-                        latest_payout_calculation_ids(campaign_id=campaign.id)
-                    ),
-                )
-            )
-        )
-    if has_fraud_flags is not None:
-        flagged_trip_ids = select(FraudFlag.trip_session_id).where(
-            FraudFlag.campaign_id == campaign.id
-        )
-        filters.append(
-            TripSession.id.in_(flagged_trip_ids)
-            if has_fraud_flags
-            else TripSession.id.not_in(flagged_trip_ids)
-        )
-
-    total = await session.scalar(select(func.count()).select_from(TripSession).where(*filters))
-    result = await session.execute(
-        select(TripSession, Vehicle.vehicle_type)
-        .join(Vehicle, Vehicle.id == TripSession.vehicle_id)
-        .where(*filters)
-        .order_by(TripSession.started_at.desc(), TripSession.id)
-        .limit(limit)
-        .offset(offset)
-    )
-    rows = result.all()
-    trips = [row[0] for row in rows]
-    trip_ids = [trip.id for trip in trips]
-    analytics_by_trip = {}
-    estimates_by_trip = {}
-    payouts_by_trip = {}
-    fraud_by_trip = defaultdict(TripFraudFlagCounts)
-    if trip_ids:
-        analytics_by_trip = {
-            analytics.trip_session_id: analytics
-            for analytics in (
-                await session.execute(
-                    select(TripAnalytics).where(TripAnalytics.trip_session_id.in_(trip_ids))
-                )
-            )
-            .scalars()
-            .all()
-        }
-        estimate_rows = list(
-            (
-                await session.scalars(
-                    select(ImpressionEstimate)
-                    .where(
-                        ImpressionEstimate.trip_session_id.in_(trip_ids),
-                        ImpressionEstimate.formula_version == settings.impression_formula_version,
-                        ImpressionEstimate.is_authoritative.is_(True),
-                    )
-                    .order_by(ImpressionEstimate.id)
-                )
-            ).all()
-        )
-        estimates_by_trip = {
-            estimate.trip_session_id: estimate
-            for estimate in await current_authoritative_estimates(
-                session, estimate_rows, settings=settings
-            )
-        }
-        for payout in (
-            await session.execute(
-                select(PayoutCalculation)
-                .where(
-                    PayoutCalculation.trip_session_id.in_(trip_ids),
-                    PayoutCalculation.id.in_(
-                        latest_payout_calculation_ids(trip_ids=trip_ids)
-                    ),
-                )
-                .order_by(PayoutCalculation.calculated_at.desc(), PayoutCalculation.id)
-            )
-        ).scalars():
-            payouts_by_trip.setdefault(payout.trip_session_id, payout)
-        fraud_rows = await session.execute(
-            select(FraudFlag.trip_session_id, FraudFlag.status, FraudFlag.severity).where(
-                FraudFlag.trip_session_id.in_(trip_ids)
-            )
-        )
-        for trip_id, flag_status, severity in fraud_rows.all():
-            counts = fraud_by_trip[trip_id]
-            if flag_status == FraudFlagStatus.OPEN.value:
-                counts.open_count += 1
-                if severity == FraudFlagSeverity.HIGH.value:
-                    counts.high_count += 1
-                elif severity == FraudFlagSeverity.MEDIUM.value:
-                    counts.medium_count += 1
-                elif severity == FraudFlagSeverity.LOW.value:
-                    counts.low_count += 1
-
-    items = []
-    for trip, vehicle_type in rows:
-        analytics = analytics_by_trip.get(trip.id)
-        estimate = estimates_by_trip.get(trip.id)
-        payout = payouts_by_trip.get(trip.id)
-        items.append(
-            CampaignTripSummary(
-                trip_id=trip.id,
-                assignment_id=trip.assignment_id,
-                vehicle_type=vehicle_type,
-                trip_status=trip.status,
-                started_at=trip.started_at,
-                ended_at=trip.ended_at,
-                analytics=(
-                    TripAnalyticsSummary(
-                        status=analytics.status,
-                        distance_m=analytics.distance_m,
-                        moving_seconds=analytics.moving_seconds,
-                        stationary_seconds=analytics.stationary_seconds,
-                        quality_score=analytics.quality_score,
-                    )
-                    if analytics is not None
-                    else None
-                ),
-                impressions=(
-                    TripImpressionSummary(
-                        status=estimate.status,
-                        estimated_impressions=estimate.estimated_impressions,
-                        confidence_score=estimate.confidence_score,
-                    )
-                    if estimate is not None
-                    else None
-                ),
-                cost=(
-                    TripCostSummary(
-                        status=payout.status,
-                        currency=payout.currency,
-                        final_payout=payout.final_payout,
-                        gross_payout=payout.gross_payout,
-                    )
-                    if payout is not None
-                    else None
-                ),
-                fraud_flags=fraud_by_trip[trip.id],
-            )
-        )
-
-    return CampaignTripsResponse(
+    await lock_trip_disclosure_snapshot(
+        session,
+        tenant_id=organization_id,
         campaign_id=campaign.id,
-        items=items,
-        total=int(total or 0),
-        limit=limit,
-        offset=offset,
     )
+    result = CampaignTripsResponse(
+        campaign_id=campaign.id,
+        trips=await trip_counts_for_campaign(
+            session,
+            campaign.id,
+            start_at=None,
+            end_at=None,
+        ),
+        route_analytics=await route_analytics_summary(
+            session,
+            campaign.id,
+            start_at=None,
+            end_at=None,
+        ),
+        impressions=await impression_summary_for_campaign(
+            session,
+            campaign.id,
+            start_at=None,
+            end_at=None,
+            settings=settings,
+        ),
+        costs=await campaign_cost_summary(
+            session,
+            campaign.id,
+            start_at=None,
+            end_at=None,
+            default_currency=campaign.currency,
+            settings=settings,
+        ),
+        fraud_flags=await fraud_counts_for_campaign(
+            session,
+            campaign.id,
+            start_at=None,
+            end_at=None,
+        ),
+    )
+    await record_governed_trip_output(
+        session,
+        settings=settings,
+        route_id="advertiser.campaign.trips",
+        principal_id=user_id,
+        tenant_id=organization_id,
+        campaign_id=campaign.id,
+        start_at=None,
+        end_at=None,
+        filters={},
+        result=result,
+    )
+    return result
 
 
 async def advertiser_campaign_report(
@@ -1067,7 +954,7 @@ async def advertiser_campaign_report(
     end_at: datetime | None,
     settings: Settings,
 ) -> CampaignReportResponse:
-    await require_governed_advertiser_output(
+    organization_id = await require_governed_advertiser_output(
         session,
         settings=settings,
         route_id="advertiser.campaign.report",
@@ -1075,6 +962,11 @@ async def advertiser_campaign_report(
         requires_measurement_run=False,
     )
     await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
+    await lock_trip_disclosure_snapshot(
+        session,
+        tenant_id=organization_id,
+        campaign_id=campaign_id,
+    )
     filters = [MeasurementRun.campaign_id == campaign_id]
     if start_at is not None:
         filters.append(MeasurementRun.period_start_at == start_at)
@@ -1095,7 +987,7 @@ async def advertiser_campaign_report(
     )
     if run is None:
         if settings.privacy_disclosure_synthetic_test_mode:
-            return await build_dynamic_campaign_report(
+            result = await build_dynamic_campaign_report(
                 session,
                 user_id=user_id,
                 campaign_id=campaign_id,
@@ -1103,6 +995,19 @@ async def advertiser_campaign_report(
                 end_at=end_at,
                 settings=settings,
             )
+            await record_governed_trip_output(
+                session,
+                settings=settings,
+                route_id="advertiser.campaign.report",
+                principal_id=user_id,
+                tenant_id=organization_id,
+                campaign_id=campaign_id,
+                start_at=start_at,
+                end_at=end_at,
+                filters={"measurement_run_id": None},
+                result=result,
+            )
+            return result
         raise AppError(
             "SAFE_MEASUREMENT_RUN_REQUIRED",
             "An immutable measurement run is required for this report",
@@ -1172,6 +1077,20 @@ async def advertiser_campaign_report(
         actor_user_id=user_id,
         campaign_id=campaign_id,
         measurement_run_id=run.id,
+        record_history=False,
+    )
+    await record_governed_trip_output(
+        session,
+        settings=settings,
+        route_id="advertiser.campaign.report",
+        principal_id=user_id,
+        tenant_id=organization_id,
+        campaign_id=campaign_id,
+        start_at=run.period_start_at,
+        end_at=run.period_end_at,
+        filters={"measurement_run_id": str(run.id)},
+        result=report,
+        contribution_manifest=run.input_manifest,
     )
     return report
 

@@ -33,6 +33,8 @@ from app.models.stored_file import (
     FileScanStatus,
     FileUploadIntent,
     StoredFile,
+    StoredObjectDeletion,
+    StoredObjectDeletionState,
     UploadIntentStatus,
 )
 from app.models.user import User, UserRole, UserStatus
@@ -40,6 +42,11 @@ from app.schemas.stored_files import FileUploadCreate
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.organizations import get_advertiser_organization_for_user
+from app.services.stored_object_deletions import (
+    delete_stored_object,
+    ensure_stored_object_deletion,
+    finalize_stored_object_deletion,
+)
 
 
 def _error(code: str, message: str, status_code: int) -> AppError:
@@ -715,38 +722,60 @@ async def purge_expired_upload_intents(
     limit: int,
 ) -> int:
     now = datetime.now(UTC)
-    intents = list(
-        (
-            await session.scalars(
-                select(FileUploadIntent)
+    processed = 0
+    for _ in range(limit):
+        intent = await session.scalar(
+            select(FileUploadIntent)
+            .where(
+                FileUploadIntent.status == UploadIntentStatus.PENDING,
+                FileUploadIntent.expires_at <= now,
+                ~select(StoredObjectDeletion.id)
                 .where(
-                    FileUploadIntent.status == UploadIntentStatus.PENDING,
-                    FileUploadIntent.expires_at <= now,
+                    StoredObjectDeletion.upload_intent_id == FileUploadIntent.id,
+                    StoredObjectDeletion.state != StoredObjectDeletionState.COMPLETED.value,
                 )
-                .order_by(FileUploadIntent.expires_at, FileUploadIntent.id)
-                .limit(limit)
-                .with_for_update(skip_locked=True)
+                .exists(),
             )
-        ).all()
-    )
-    for intent in intents:
+            .order_by(FileUploadIntent.expires_at, FileUploadIntent.id)
+            .limit(1)
+            .with_for_update(skip_locked=True)
+        )
+        if intent is None:
+            break
         scope = _file_scope(intent)
-        try:
-            await storage.delete(intent.object_key)
-            await storage.delete(f"managed/{scope.path}/{intent.id}")
-        except StorageUnavailable:
-            raise _storage_unavailable() from None
-        intent.status = UploadIntentStatus.EXPIRED
+        deletions = [
+            await ensure_stored_object_deletion(
+                session,
+                storage_key=key,
+                object_checksum_sha256=intent.declared_sha256,
+                reason="expired_upload_intent",
+                owner_type="file_upload_intent",
+                owner_id=intent.id,
+                organization_id=intent.organization_id,
+                subject_user_id=intent.subject_user_id,
+                upload_intent_id=intent.id,
+            )
+            for key in (intent.object_key, f"managed/{scope.path}/{intent.id}")
+        ]
+        await session.commit()
+        for deletion in deletions:
+            await delete_stored_object(session, intent=deletion, storage=storage)
+        for deletion in deletions:
+            await finalize_stored_object_deletion(
+                session,
+                intent=deletion,
+            )
         await create_audit_event(
             session,
             actor_user_id=None,
-            action="stored_file.upload_expired",
+            action="stored_file.upload_deletion_completed",
             entity_type="file_upload_intent",
             entity_id=str(intent.id),
             metadata=_scope_metadata(scope),
         )
+        processed += 1
     await session.flush()
-    return len(intents)
+    return processed
 
 
 async def scan_stored_file(

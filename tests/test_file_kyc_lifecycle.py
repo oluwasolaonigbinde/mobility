@@ -3,8 +3,9 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from conftest import auth_headers
+from conftest import auth_headers, create_test_campaign, create_test_organization
 from sqlalchemy import func, select
+from sqlalchemy.exc import DBAPIError
 from test_kyc import NIN, PASSWORD, _seed_driver_authority
 from test_stored_files import FakeStorageProvider
 
@@ -14,10 +15,12 @@ from app.api.v1.dependencies import get_storage_provider
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
+from app.models.campaign import CampaignCreative
 from app.models.kyc import DriverKycDocument, DriverKycSubmission, KycSubmissionStatus
-from app.models.stored_file import StoredFile
+from app.models.stored_file import FileUploadIntent, StoredFile, StoredObjectDeletion
 from app.services.file_kyc_lifecycle import purge_terminal_file_kyc
 from app.services.kyc import submit_driver_kyc
+from app.services.stored_object_deletions import process_stored_object_deletions
 
 
 async def _create_terminal_submission(
@@ -36,8 +39,7 @@ async def _create_terminal_submission(
         nin=NIN,
         bank_account_version_id=bank_id,
         document_file_ids={
-            name: files[name]
-            for name in ("driver_license", "driver_photo", "signed_agreement")
+            name: files[name] for name in ("driver_license", "driver_photo", "signed_agreement")
         },
         crypto=EnvelopeCryptoProvider(keys={1: bytes(range(32))}, active_key_version=1),
         settings=settings,
@@ -52,9 +54,7 @@ def test_file_kyc_retention_is_dry_run_first_audited_and_removes_terminal_object
     db_sessionmaker,
     settings,
 ) -> None:
-    admin, driver, _, bank_id, files = _seed_driver_authority(
-        db_sessionmaker, suffix="retention"
-    )
+    admin, driver, _, bank_id, files = _seed_driver_authority(db_sessionmaker, suffix="retention")
     storage = FakeStorageProvider()
     now = datetime.now(UTC)
 
@@ -147,9 +147,7 @@ def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_clos
                     name: files[name]
                     for name in ("driver_license", "driver_photo", "signed_agreement")
                 },
-                crypto=EnvelopeCryptoProvider(
-                    keys={1: bytes(range(32))}, active_key_version=1
-                ),
+                crypto=EnvelopeCryptoProvider(keys={1: bytes(range(32))}, active_key_version=1),
                 settings=settings,
             )
             await session.commit()
@@ -206,9 +204,7 @@ def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_clos
     assert storage.deleted == []
 
 
-def test_storage_outage_rolls_back_all_file_kyc_retention_rows(
-    db_sessionmaker, settings
-) -> None:
+def test_storage_outage_rolls_back_all_file_kyc_retention_rows(db_sessionmaker, settings) -> None:
     admin, driver, _, bank_id, files = _seed_driver_authority(
         db_sessionmaker, suffix="retention-outage"
     )
@@ -242,20 +238,14 @@ def test_storage_outage_rolls_back_all_file_kyc_retention_rows(
             assert raised.value.code == "FILE_STORAGE_UNAVAILABLE"
             await session.rollback()
         async with db_sessionmaker() as session:
-            submissions = int(
-                await session.scalar(select(func.count(DriverKycSubmission.id))) or 0
-            )
-            documents = int(
-                await session.scalar(select(func.count(DriverKycDocument.id))) or 0
-            )
+            submissions = int(await session.scalar(select(func.count(DriverKycSubmission.id))) or 0)
+            documents = int(await session.scalar(select(func.count(DriverKycDocument.id))) or 0)
             return submissions, documents
 
     assert asyncio.run(exercise()) == (1, 3)
 
 
-def test_mid_batch_storage_outage_is_idempotently_recoverable(
-    db_sessionmaker, settings
-) -> None:
+def test_mid_batch_storage_outage_is_idempotently_recoverable(db_sessionmaker, settings) -> None:
     admin, driver, _, bank_id, files = _seed_driver_authority(
         db_sessionmaker, suffix="retention-mid-batch"
     )
@@ -317,6 +307,102 @@ def test_mid_batch_storage_outage_is_idempotently_recoverable(
 
     assert asyncio.run(exercise()) == (1, 3)
     assert len(set(storage.deleted)) == 3
+
+
+def test_kill_after_external_delete_recovers_from_durable_intent(
+    postgis_db_sessionmaker, settings
+) -> None:
+    db_sessionmaker = postgis_db_sessionmaker
+    admin, driver, _, bank_id, files = _seed_driver_authority(
+        db_sessionmaker, suffix="retention-kill-restart"
+    )
+    storage = FakeStorageProvider()
+    now = datetime.now(UTC)
+
+    async def exercise() -> tuple[int, int, int, list[str]]:
+        async with db_sessionmaker() as session:
+            await _create_terminal_submission(
+                session,
+                driver_id=driver.id,
+                bank_id=bank_id,
+                files=files,
+                now=now,
+                settings=settings,
+            )
+            await session.commit()
+
+        original_delete = storage.delete
+        killed = False
+
+        async def kill_after_delete(object_key: str) -> None:
+            nonlocal killed
+            await original_delete(object_key)
+            if not killed:
+                killed = True
+                raise RuntimeError("synthetic process kill after provider delete")
+
+        storage.delete = kill_after_delete  # type: ignore[method-assign]
+        async with db_sessionmaker() as session:
+            with pytest.raises(RuntimeError, match="synthetic process kill"):
+                await purge_terminal_file_kyc(
+                    session,
+                    storage=storage,
+                    retention_days=30,
+                    limit=10,
+                    dry_run=False,
+                    actor_user_id=admin.id,
+                    reason="synthetic_kill_restart",
+                    now=now,
+                )
+            await session.rollback()
+
+        async with db_sessionmaker() as session:
+            assert int(await session.scalar(select(func.count(DriverKycSubmission.id))) or 0) == 1
+            assert int(await session.scalar(select(func.count(DriverKycDocument.id))) or 0) == 3
+            pending = list(await session.scalars(select(StoredObjectDeletion)))
+            assert len(pending) == 3
+            assert {row.state for row in pending} == {"pending"}
+            owned_upload_intent_ids = {
+                row.upload_intent_id for row in pending if row.upload_intent_id is not None
+            }
+            assert {row.object_checksum_sha256 for row in pending} == {
+                "1" * 64,
+                "2" * 64,
+                "3" * 64,
+            }
+
+        storage.delete = original_delete  # type: ignore[method-assign]
+        assert (
+            await process_stored_object_deletions(
+                db_sessionmaker,
+                storage=storage,
+                limit=10,
+            )
+            == 1
+        )
+        async with db_sessionmaker() as session:
+            remaining_submissions = int(
+                await session.scalar(select(func.count(DriverKycSubmission.id))) or 0
+            )
+            remaining_documents = int(
+                await session.scalar(select(func.count(DriverKycDocument.id))) or 0
+            )
+            remaining_owned_upload_intents = int(
+                await session.scalar(
+                    select(func.count(FileUploadIntent.id)).where(
+                        FileUploadIntent.id.in_(owned_upload_intent_ids)
+                    )
+                )
+                or 0
+            )
+            states = list(
+                await session.scalars(
+                    select(StoredObjectDeletion.state).order_by(StoredObjectDeletion.id)
+                )
+            )
+        return remaining_submissions, remaining_documents, remaining_owned_upload_intents, states
+
+    assert asyncio.run(exercise()) == (0, 0, 0, ["completed", "completed", "completed"])
 
 
 def test_admin_retention_endpoint_is_dry_run_first_and_policy_gated(
@@ -432,9 +518,7 @@ def test_postgres_retention_lock_prevents_concurrent_double_purge(
         release.set()
         first = await first_task
         async with sessionmaker() as session:
-            remaining = int(
-                await session.scalar(select(func.count(DriverKycSubmission.id))) or 0
-            )
+            remaining = int(await session.scalar(select(func.count(DriverKycSubmission.id))) or 0)
             executions = int(
                 await session.scalar(
                     select(func.count(AuditEvent.id)).where(
@@ -453,3 +537,160 @@ def test_postgres_retention_lock_prevents_concurrent_double_purge(
     assert remaining == 0
     assert executions == 1
     assert len(storage.deleted) == 3
+
+
+def test_postgres_deletion_intent_fences_concurrent_new_file_reference(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    sessionmaker = postgis_db_sessionmaker
+    admin, driver, _, bank_id, files = _seed_driver_authority(
+        sessionmaker, suffix="retention-reference-fence"
+    )
+    organization, _ = create_test_organization(sessionmaker, owner_user_id=admin.id)
+    campaign = create_test_campaign(
+        sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=admin.id,
+    )
+    storage = FakeStorageProvider()
+    now = datetime.now(UTC)
+
+    async def exercise() -> None:
+        async with sessionmaker() as session:
+            await _create_terminal_submission(
+                session,
+                driver_id=driver.id,
+                bank_id=bank_id,
+                files=files,
+                now=now,
+                settings=settings,
+            )
+            creative = CampaignCreative(
+                campaign_id=campaign.id,
+                name="Synthetic pending reference",
+                creative_type="image",
+                placement="vehicle_exterior",
+                asset_url="https://example.test/pending.png",
+                status="draft",
+            )
+            session.add(creative)
+            await session.commit()
+            creative_id = creative.id
+
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        original_delete = storage.delete
+
+        async def blocking_delete(object_key: str) -> None:
+            entered.set()
+            await release.wait()
+            await original_delete(object_key)
+
+        storage.delete = blocking_delete  # type: ignore[method-assign]
+
+        async def purge() -> None:
+            async with sessionmaker() as session:
+                await purge_terminal_file_kyc(
+                    session,
+                    storage=storage,
+                    retention_days=30,
+                    limit=10,
+                    dry_run=False,
+                    actor_user_id=admin.id,
+                    reason="synthetic_reference_fence",
+                    now=now,
+                )
+                await session.commit()
+
+        task = asyncio.create_task(purge())
+        await entered.wait()
+        try:
+            async with sessionmaker() as session:
+                creative = await session.get(CampaignCreative, creative_id)
+                assert creative is not None
+                creative.asset_url = None
+                creative.stored_file_id = next(iter(files.values()))
+                with pytest.raises((DBAPIError, ValueError), match="active deletion intent"):
+                    await session.flush()
+                await session.rollback()
+        finally:
+            release.set()
+            await task
+
+    asyncio.run(exercise())
+
+
+def test_postgres_deletion_waits_for_prior_reference_then_skips_that_file(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    sessionmaker = postgis_db_sessionmaker
+    admin, driver, _, bank_id, files = _seed_driver_authority(
+        sessionmaker, suffix="retention-prior-reference"
+    )
+    organization, _ = create_test_organization(sessionmaker, owner_user_id=admin.id)
+    campaign = create_test_campaign(
+        sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=admin.id,
+    )
+    storage = FakeStorageProvider()
+    now = datetime.now(UTC)
+    target_file_id = next(iter(files.values()))
+
+    async def exercise() -> None:
+        async with sessionmaker() as seed_session:
+            await _create_terminal_submission(
+                seed_session,
+                driver_id=driver.id,
+                bank_id=bank_id,
+                files=files,
+                now=now,
+                settings=settings,
+            )
+            creative = CampaignCreative(
+                campaign_id=campaign.id,
+                name="Synthetic prior reference",
+                creative_type="image",
+                placement="vehicle_exterior",
+                asset_url="https://example.test/prior.png",
+                status="draft",
+            )
+            seed_session.add(creative)
+            await seed_session.commit()
+            creative_id = creative.id
+
+        async with sessionmaker() as link_session:
+            creative = await link_session.get(CampaignCreative, creative_id)
+            assert creative is not None
+            creative.asset_url = None
+            creative.stored_file_id = target_file_id
+            await link_session.flush()
+
+            async def purge():
+                async with sessionmaker() as purge_session:
+                    result = await purge_terminal_file_kyc(
+                        purge_session,
+                        storage=storage,
+                        retention_days=30,
+                        limit=10,
+                        dry_run=False,
+                        actor_user_id=admin.id,
+                        reason="synthetic_prior_reference",
+                        now=now,
+                    )
+                    await purge_session.commit()
+                    return result
+
+            task = asyncio.create_task(purge())
+            with pytest.raises(TimeoutError):
+                await asyncio.wait_for(asyncio.shield(task), timeout=0.1)
+            await link_session.commit()
+            result = await task
+        assert result.purged_submissions == 1
+        assert result.purged_files == 2
+        async with sessionmaker() as session:
+            assert await session.get(StoredFile, target_file_id) is not None
+
+    asyncio.run(exercise())
