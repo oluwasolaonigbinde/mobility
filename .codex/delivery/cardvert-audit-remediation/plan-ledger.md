@@ -315,7 +315,7 @@ trigger and a newly reviewed authority amendment.
 | ONB-004 | OWNER DECISION | maximum vehicle-approval horizon and renewal relation |
 | ONB-005 | OWNER DECISION | maker-checker separation for onboarding approvals |
 | ONB-008 | DECIDED — REVIEW FOR EXECUTION | D27: per-IP and normalized-identity limits, non-revealing responses and alerts; no global switch |
-| ONB-009 | OWNER DECISION | account activation and initial credential/session policy |
+| ONB-009 | DECIDED — REVIEW FOR EXECUTION | D28: administrator-authorised, driver-completed single-use setup link after full approval |
 | REL-007 | DECIDED — REVIEW FOR EXECUTION | D27: bundled or managed; production requires TLS, authentication, explicit hostnames and supplied secrets |
 | REP-007 | OWNER DECISION | lawful report retention/withdrawal/link policy |
 
@@ -795,3 +795,5 @@ verification is complete.
 | 340 | 210 | 1 | VERIFICATION_CORRECTION_ACCEPTED | V08 removed only the two absolute three-second assertions from R13's 500KB dotted and leading-dot cases while retaining exact output, fail-closed boundary, input-size and peak-memory authority. | test commit `d6359f9`; exact patch `795d4005...`; controller 21-test module pass plus Ruff/format/diff checks; independent minimal-change PASS |
 | 341 | 211 | 1 | PACKET_RESUMED | R02 may rerun its unchanged faithful immutable complete real-service authority gate from the accepted V08 base; R03 remains held behind R02 and the privacy generated-contract lane. | task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d`; GPT-5.6 Sol/medium; exact four-file R02 patch remains frozen |
 | 342 | 212 | 1 | SLICE_ACCEPTED | R28/CAM-001 accepted exactly once: the existing admin offer schedules an approved API-created campaign, and existing admin activation promotes it to active only after all established readiness gates. | product commit `a9c417a`; exact patch `d5674f93...`; controller 15 focused PostgreSQL passes plus Ruff/diff checks; R28-P/M and CP-CAMPAIGN PASS; no route/schema/migration/contract change |
+| 343 | 213 | 1 | OWNER_DECISION_RECORDED | D28 selects administrator-authorised, driver-completed account activation after full approval using a short-lived single-use setup link and driver-chosen password. | ONB-009 moves from parked client decision to current-source review eligibility; no live provider or credential invented; architecture synchronization is delegated to active S04 because it already owns the dirty architecture lease |
+| 344 | 214 | 1 | INTEGRATION_CORRECTION_STARTED | V09 returns R02's two campaign-concurrency blockers to the campaign lane: reconcile the stale v1 trip-start fixture and the adjacent activation/cancellation barrier against accepted R28 and R34 behavior. | existing R28 visible task; GPT-5.6 Terra/high — bounded test-only concurrency reconciliation; exact `tests/test_exclusivity_conflicts.py` lease; no product change without STOP |

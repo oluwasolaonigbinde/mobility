@@ -20,8 +20,6 @@ below is claimed complete, waived, or supplied.
   to document expiry.
 - `ONB-005` — decide maker-checker separation for payee, person, and vehicle
   approvals.
-- `ONB-009` — decide who activates approved accounts and how initial
-  credentials/sessions are issued.
 - `REP-007` — approve lawful report retention, withdrawal/tombstone, backup,
   and presigned-link expiry/revocation rules.
 
@@ -89,3 +87,6 @@ below is claimed complete, waived, or supplied.
 - `REL-007` — bundled and managed PostgreSQL/Redis are both supported, while
   production requires TLS, authentication, explicit hostnames, and supplied
   secrets.
+- `ONB-009` — an authorised Cardvert admin initiates activation only after the
+  driver is fully approved; the driver completes a short-lived, single-use
+  setup link to choose the password and atomically activate the account.
