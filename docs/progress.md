@@ -47,7 +47,7 @@ the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `6`
 **Current capacity assignment:** `R02`
-**Current capacity justification:** Six implementation owners have enumerated disjoint paths: R54 release templates/preflight; the cohesive privacy/audience continuation; historical migration tests; signed-v2 payout fixtures; money/reversal concurrency; and trip-enqueue tests. R02 is frozen and performs no writes. The privacy continuation exclusively owns the migration/generated-contract lane and must reconcile the inherited R39–R44 dirty bytes before further mutation. V13 exclusively owns its product-service lock surfaces, while V11, V12 and V14 remain test-only. R54 owns the newly released configuration/template lane from accepted R12/R14. Each owner must stop before any file or mutation-domain overlap.
+**Current capacity justification:** Six implementation owners have enumerated disjoint paths: R54 release templates/preflight; the cohesive privacy/audience continuation; historical migration tests; signed-v2 payout fixtures; AUT-006 admin-elevation security; and trip-enqueue tests. R02 is frozen and performs no writes. The privacy continuation exclusively owns the migration/generated-contract lane and must reconcile the inherited R39–R44 dirty bytes before further mutation. V11, V12 and V14 remain test-only. R54 owns the configuration/template lane, while AUT-006 owns only user-mutation elevation and focused auth tests. Each owner must stop before any file or mutation-domain overlap.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
