@@ -83,8 +83,8 @@ policy, external inputs and evidence-triggered observations are parked in
 accepted at `9e1c0d7`. V08 removed the unrelated R13 test's hardware-sensitive
 three-second timer at accepted commit `d6359f9` while preserving its exact
 redaction, adversarial input, component-bound and peak-memory assertions. R02
-is frozen again after two out-of-packet campaign concurrency fixtures failed;
-V09 owns only their accepted-protocol reconciliation. R03 remains held
+is resuming unchanged after V09 aligned the out-of-packet campaign concurrency
+fixtures with accepted admin-lock and trip-protocol authority at `f44068f`. R03 remains held
 until R02 passes and the privacy chain releases generated contracts. In parallel,
 the disjoint R11→R12→R14 security/readiness session is active. R28 administrator
 campaign activation is accepted at `a9c417a`. The accepted V07 owner holds the
