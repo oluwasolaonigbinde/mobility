@@ -83,8 +83,8 @@ policy, external inputs and evidence-triggered observations are parked in
 frozen. V06 corrected its two initial stale tests, then found one more stale v1
 trip request and a genuine demo-seed incompatibility: fresh v1 demo trips now
 correctly cannot originate money under R34. V06 continues as a narrowly scoped
-Sol/high seed-only v2 evidence correction; V07 owns the genuine governed zone-
-insight staleness defect. R02 resumes only after both are accepted and R03
+Sol/high seed-only v2 evidence correction. V07's genuine governed zone-insight
+staleness defect is accepted at `06b8a50`; R02 now waits only for V06 and R03
 remains unstarted. In parallel,
 the disjoint R11→R12→R14 security/readiness session and R28 administrator
 campaign-activation session are active. Four temporary writer lanes are safe:
