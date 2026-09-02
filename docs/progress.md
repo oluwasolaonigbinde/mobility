@@ -47,7 +47,7 @@ the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
 **Current capacity assignment:** `R02, R26, R38`
-**Current capacity justification:** R02 remains byte-frozen on its four CI paths while its capacity slot is temporarily used by V04, which owns only one stale membership assertion in `tests/test_campaigns.py`; R26 owns the accepted R25 billing service and invoice concurrency tests; R38 owns privacy configuration, GPS/KYC ingress, and the one transferred collection-authority fixture line in `tests/conftest.py`. These three actual writer domains are mutually disjoint; R02 retains no active command or writer until V04 and the R38 fixture baseline are accepted, and migrations and all other files remain unleased.
+**Current capacity justification:** V04 is accepted and released. R02 remains byte-frozen and non-writing on its remaining CI paths until R38's transferred collection-authority fixture line becomes an accepted baseline; R26 owns the accepted R25 billing service and invoice concurrency tests; R38 owns privacy configuration, GPS/KYC ingress, and that one `tests/conftest.py` fixture argument. The two actual writer domains are disjoint, no fourth slice is currently executable without an unresolved owner decision or one of these dependency admissions, and migrations and all other files remain unleased.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are

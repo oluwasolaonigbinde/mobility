@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 178
+plan_revision: 179
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 304
+last_event_sequence: 305
 ---
 
 # Cardvert audit remediation programme
@@ -352,7 +352,7 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e49-0107-7611-8ee8-515273881aa8` | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | released exact R15 diff | ACCEPTED |
 | task `01a05e49-48d5-7823-9388-537d0800e87b` | S07 / R28 plan and independent review | GPT-5.6 Terra/high — ordinary bounded campaign lifecycle planning | read-only; no mutation lease | BLOCKED-OWNER |
 | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32 implementation, R33 held | GPT-5.6 Sol/high — onboarding security, migration and contract authority | released accepted R32 diff; R33 remains dependency-held | ACCEPTED |
-| task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | V04 / accepted privacy-authority campaign assertion correction | GPT-5.6 Terra/high — ordinary test integration with authorization semantics | `tests/test_campaigns.py` assertion only; no product authority; R36 remains separately BLOCKED-OWNER | ACTIVE |
+| task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | V04 / accepted privacy-authority campaign assertion correction | GPT-5.6 Terra/high — ordinary test integration with authorization semantics | exact one-file correction integrated; R36 remains separately BLOCKED-OWNER | ACCEPTED |
 | Claude session `Cardvert audit-route integration correction` | R34 inherited audit-registry integration | Claude Opus 5 / High — owner-selected bounded audit/security evidence correction | exact `tests/test_audit_route_coverage.py` correction `34b7d55b...`; 7 controller PostgreSQL passes | COMPLETE-RETURNED |
 | Claude session `Cardvert R09 authentication remediation` | R09 auth command/status/reset implementation | Claude Opus 5 / High — owner-selected authentication and PostgreSQL race boundary | exact eight-path `5b0a3f68...` freeze released after controller verification | ACCEPTED |
 | task `01a05ef6-632c-79b1-bdf3-16c6e95aafd4` | S10/S11/S13/S14 aggregate R18-R22 and R29-R31 planning | GPT-5.6 Sol/high — money/migration/concurrency planning | read-only; R18-P through R22-P and R29-P through R31-P accepted | PLAN-PASS |
@@ -757,3 +757,4 @@ verification is complete.
 | 302 | 177 | 1 | LEASE_TRANSFERRED | Frozen R02 released one line in `tests/conftest.py` to R38 so the collection synthetic authority can default independently to false while the shared test fixture enables it explicitly; R02 retains its other CI authority bytes and will absorb the accepted fixture baseline before its final stable run. | R38 exact expansion: `tests/conftest.py` fixture argument only; existing owned `app/core/config.py` and `tests/test_driver_applications.py` cover the default regression; no disclosure-authority coupling or broader R02 mutation; actual writers V04/R26/R38 remain disjoint |
 | 303 | 178 | 1 | CORRECTION_RESUMED | Existing visible S15 resumed only the bounded R38 default/fixture correction on its reconciled implementation bytes. | task `01a05ef6-92fc-7df1-bd39-50e8c2fee530`; GPT-5.6 Sol/high — privacy collection authority; repeat R38-M only; proactive terminal callback required |
 | 304 | 178 | 1 | INTEGRATION_CORRECTION_STARTED | Existing visible S12 began V04's one-file invited-membership assertion correction while R36 remains owner-blocked and unwritten. | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879`; GPT-5.6 Terra/high; exact `tests/test_campaigns.py` assertion lease; no product authority; proactive terminal callback required |
+| 305 | 179 | 1 | INTEGRATION_CORRECTION_ACCEPTED | V04's invited-membership assertion correction was admitted after exact-digest reconciliation, diff inspection and controller PostgreSQL verification. | binary diff `e3db3888...`; independent minimal-change/authorization PASS; controller exact test 1 passed; one test file only; no product behavior changed |

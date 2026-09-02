@@ -291,11 +291,8 @@ def test_advertiser_viewer_and_missing_membership_cannot_write_campaigns(
     assert viewer_submit.json()["error"]["code"] == "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN"
     assert missing_org_create.status_code == http_status.HTTP_404_NOT_FOUND
     assert missing_org_create.json()["error"]["code"] == "ADVERTISER_ORGANIZATION_NOT_FOUND"
-    assert invited_manager_create.status_code == http_status.HTTP_403_FORBIDDEN
-    assert (
-        invited_manager_create.json()["error"]["code"]
-        == "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN"
-    )
+    assert invited_manager_create.status_code == http_status.HTTP_404_NOT_FOUND
+    assert invited_manager_create.json()["error"]["code"] == "ADVERTISER_ORGANIZATION_NOT_FOUND"
 
 
 def test_non_advertisers_and_unauthenticated_are_rejected_from_advertiser_campaigns(
