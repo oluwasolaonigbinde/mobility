@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R09`; `R02` and `R35` dispatch-ready
-**Current capacity justification:** R34 is accepted and has released the central migration/generated-contract/configuration lane. The Opus 5 / High R09 session owns only auth/user command and focused test paths. The next two owner-requested Opus 5 / High sessions may now take R02's CI/integration surfaces and R35's offline frontend queue/tracker surfaces concurrently: their exact writes are disjoint from each other and from R09. Shared fixtures, generated contracts, migrations and this file remain controller-serialized outside those leases.
+**Current capacity assignment:** `R09, R02, R35`
+**Current capacity justification:** Three visible Opus 5 / High sessions are active under an explicit higher-concurrency justification: R09 owns only auth/user commands and focused tests; R02 owns CI workflow/integration fixture/config surfaces; R35 owns only the four frontend trip queue/tracker files. These write sets are mutually disjoint. Shared fixtures outside R02, generated contracts, migrations and this file remain controller-serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -78,10 +78,10 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 now rolling across dependency-ready disjoint slices while all 29 non-executable
 findings retain their admitted dispositions.
-**Current checkpoint:** `PKG-10 / R09` — R34/OFF-001 is accepted at `a95a7ca`
-after all three admission corrections and named high-risk gates passed. R09 is
-finishing bounded auth verification; R02 and R35 are dependency-ready and
-write-disjoint for immediate owner-requested Opus 5 / High dispatch.
+**Current checkpoint:** `PKG-10 / R09` — R34/OFF-001 is accepted at `a95a7ca`.
+R09 is frozen for controller review while the newly started, mutually disjoint
+Opus 5 / High R02 and R35 sessions implement CI authority and offline queue
+recovery respectively.
 
 ## Direct owner requests outside the package queue
 
@@ -1523,7 +1523,7 @@ durable ledger before changing a row.
 | Slice | Candidate IDs | Dependencies | State | Plan review | Diff review | Domain checkpoint |
 | --- | --- | --- | --- | --- | --- | --- |
 | R01 | GOV-001 | none | COMPLETE | PASS — R01-P | PASS — R01-M | CP-CONTROL PASS — R01-CP-CONTROL |
-| R02 | GOV-003, TST-001, DB-005 | R01, R04 | QUEUED | PASS — R02-P | PENDING | CP-CONTROL PENDING |
+| R02 | GOV-003, TST-001, DB-005 | R01, R04 | ACTIVE | PASS — R02-P | PENDING | CP-CONTROL PENDING |
 | R03 | GOV-004 | R02 | QUEUED | PASS — R03-P | PENDING | CP-CONTROL PENDING |
 | R04 | DB-004 | none | COMPLETE | PASS — R04-P | PASS — R04-M | CP-DB PASS — R04-CP-DB |
 | R05 | DB-001, TST-012, ONB-010 | R02, R04 | QUEUED | PASS — R05-P | PENDING | CP-DB PENDING |
@@ -1556,7 +1556,7 @@ durable ledger before changing a row.
 | R32 | ONB-002 | none | COMPLETE | PASS — R32-P | PASS — R32-M | CP-ONBOARDING PASS — R32-CP-ONBOARDING |
 | R33 | ONB-006 | R05, R32 | QUEUED | PASS — R33-P | PENDING | CP-ONBOARDING PENDING |
 | R34 | OFF-001 | R04 | COMPLETE | PASS — R34-P | PASS — R34-M | CP-OFFLINE PASS — R34-CP-OFFLINE |
-| R35 | OFF-002, OFF-003 | R34 | QUEUED | PASS — R35-P | PENDING | CP-OFFLINE PENDING |
+| R35 | OFF-002, OFF-003 | R34 | ACTIVE | PASS — R35-P | PENDING | CP-OFFLINE PENDING |
 | R36 | OFF-005 | R35 | QUEUED | PASS — R36-P | PENDING | CP-OFFLINE PENDING |
 | R37 | OFF-006 | R36 | QUEUED | PASS — R37-P | PENDING | CP-OFFLINE PENDING |
 | R38 | PRV-001, PRV-002 | R13 | QUEUED | PASS — R38-P | PENDING | CP-PRIVACY PENDING |

@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 125
+plan_revision: 129
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 249
+last_event_sequence: 253
 ---
 
 # Cardvert audit remediation programme
@@ -663,3 +663,7 @@ verification is complete.
 | 247 | 123 | 1 | VERIFICATION_STALL_STEERED | R09's optional broad backend run was interrupted after sleeping at zero CPU for more than 42 minutes; its partial 1,141-pass/38-failure state is non-admission evidence and must not be rerun unbounded. | Claude Opus 5 / High session; retain exact R09 lease; classify concurrent-byte failures and use bounded focused auth/admin/recovery/PostgreSQL race gates with explicit timeouts |
 | 248 | 124 | 1 | VERIFICATION_SCOPE_ENFORCED | R09's owner started another full 1,675-test rerun despite the bounded steering; the controller interrupted it after one minute and directed immediate focused/failure-isolation verification and freeze. | Claude Opus 5 / High session; contribution-ready proportional evidence remains required; no product bytes or leases changed |
 | 249 | 125 | 1 | SLICE_ACCEPTED | R34/OFF-001 accepted exactly once after the corrected 38-file freeze reproduced, all named DB/privacy/security/money/offline/minimal-change reviews passed, and fresh controller checks returned 131 backend plus 107 frontend passes and typecheck. | product commit `a95a7ca`; content manifest `746a4ea4...`; binary diff `9a6b2ba3...`; R35 dependency released and central migration/generated-contract/configuration lane returned |
+| 250 | 126 | 1 | DISPATCH_RESERVED | R02 reserved the released CI/integration authority lease as the first new owner-requested Opus packet after R34 admission. | Claude Opus 5 / High; exact workflow/test/config surfaces; disjoint from R09 auth and R35 offline frontend paths |
+| 251 | 127 | 1 | DISPATCH_STARTED | Visible Claude Mobility session began R02/GOV-003,TST-001,DB-005 implementation from accepted R02-P and GRAPH-CP-CONTROL. | session `Cardvert R02 CI integration authority`; Opus 5 / High; shared master, no worktree; terminal callback required |
+| 252 | 128 | 1 | DISPATCH_RESERVED | R35 reserved the accepted R34 queue/tracker surfaces for cohesive OFF-002 and OFF-003 delivery with separate evidence. | Claude Opus 5 / High; four-file frontend queue/tracker lease; disjoint from R02 and R09 |
+| 253 | 129 | 1 | DISPATCH_STARTED | Visible Claude Mobility session began R35/OFF-002,OFF-003 durable recovery and truthful capture acknowledgement implementation. | session `Cardvert R35 offline queue recovery`; Opus 5 / High; shared master, no worktree; R36-R37 held; terminal callback required |
