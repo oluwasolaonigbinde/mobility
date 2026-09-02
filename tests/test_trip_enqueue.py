@@ -50,13 +50,15 @@ def end_trip(db_client, trip_id: str):
         headers=driver_headers(db_client),
         json={
             "end_reason": "driver_ended",
-            # Complete watermark: fast-seals at end time (RM3), which is the
-            # sole path that enqueues processing.
-            "client_batch_count": 0,
-            "client_ping_count": 0,
-            "client_complete": True,
             "metadata": {},
         },
+    )
+
+
+def reconcile_trip_evidence(db_client, trip_id: str):
+    return db_client.post(
+        f"/api/v1/driver/trips/{trip_id}/evidence/reconcile",
+        headers=driver_headers(db_client),
     )
 
 
@@ -67,36 +69,49 @@ def start_ended_ready_trip(db_client, db_sessionmaker) -> str:
     return response.json()["id"]
 
 
-def test_trip_end_commits_before_enqueue_and_calls_once(db_client, db_sessionmaker) -> None:
+def test_trip_reconcile_commits_before_enqueue_and_calls_once(db_client, db_sessionmaker) -> None:
     trip_id = start_ended_ready_trip(db_client, db_sessionmaker)
     spy = SpyEnqueuer(db_sessionmaker)
     db_client.app.dependency_overrides[get_trip_enqueuer] = lambda: spy
     try:
-        response = end_trip(db_client, trip_id)
+        ended = end_trip(db_client, trip_id)
+        assert ended.status_code == http_status.HTTP_200_OK
+        assert ended.json()["status"] == "ended"
+        assert ended.json()["ended_at"] is not None
+        assert spy.calls == []
+        response = reconcile_trip_evidence(db_client, trip_id)
+        replay = reconcile_trip_evidence(db_client, trip_id)
     finally:
         db_client.app.dependency_overrides.pop(get_trip_enqueuer, None)
 
     assert response.status_code == http_status.HTTP_200_OK
     body = response.json()
-    assert body["id"] == trip_id
+    assert body["trip_id"] == trip_id
     assert body["status"] == "sealed"
-    assert body["ended_at"] is not None
+    assert body["duplicate"] is False
     assert spy.calls == [UUID(trip_id)]
     status_at_enqueue, ended_at_at_enqueue = spy.observed[0]
     assert status_at_enqueue == "sealed"
     assert ended_at_at_enqueue is not None
+    assert replay.status_code == http_status.HTTP_200_OK
+    assert replay.json() == {**body, "duplicate": True}
+    assert spy.calls == [UUID(trip_id)]
 
 
-def test_trip_end_fails_open_when_redis_unreachable(db_client, db_sessionmaker, caplog) -> None:
+def test_trip_reconcile_fails_open_when_redis_unreachable(
+    db_client, db_sessionmaker, caplog
+) -> None:
     trip_id = start_ended_ready_trip(db_client, db_sessionmaker)
+    assert end_trip(db_client, trip_id).json()["status"] == "ended"
     # Real implementation pointed at a closed port: the swallow lives in the
-    # enqueuer itself, the router stays a bare await.
+    # enqueuer itself, the router stays a bare await after a successful exact
+    # reconciliation seals the trip.
     unreachable = RedisTripProcessingEnqueuer("redis://127.0.0.1:1/0")
     db_client.app.dependency_overrides[get_trip_enqueuer] = lambda: unreachable
     try:
         with caplog.at_level(logging.WARNING, logger="app.core.trip_enqueue"):
             started = time.monotonic()
-            response = end_trip(db_client, trip_id)
+            response = reconcile_trip_evidence(db_client, trip_id)
             elapsed = time.monotonic() - started
     finally:
         db_client.app.dependency_overrides.pop(get_trip_enqueuer, None)
@@ -110,15 +125,18 @@ def test_trip_end_fails_open_when_redis_unreachable(db_client, db_sessionmaker, 
     assert trips[0].ended_at is not None
 
 
-def test_trip_end_warns_when_redis_url_unset(db_client, db_sessionmaker, caplog) -> None:
+def test_trip_reconcile_warns_when_redis_url_unset(db_client, db_sessionmaker, caplog) -> None:
     # No override: the settings fixture has redis_url=None, so the default
-    # dependency resolves to the unconfigured (warn-and-return) enqueuer.
+    # dependency resolves to the unconfigured (warn-and-return) enqueuer after
+    # exact reconciliation seals the v2 trip.
     trip_id = start_ended_ready_trip(db_client, db_sessionmaker)
+    assert end_trip(db_client, trip_id).json()["status"] == "ended"
 
     with caplog.at_level(logging.WARNING, logger="app.core.trip_enqueue"):
-        response = end_trip(db_client, trip_id)
+        response = reconcile_trip_evidence(db_client, trip_id)
 
     assert response.status_code == http_status.HTTP_200_OK
+    assert response.json()["status"] == "sealed"
     assert "event=trip_enqueue_failed" in caplog.text
     assert "error_class=RedisUrlNotConfigured" in caplog.text
     assert trip_id in caplog.text
