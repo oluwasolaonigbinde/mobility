@@ -57,6 +57,28 @@ requires SCRAM over verified TLS, while Redis disables its plaintext port and
 requires password authentication over verified TLS. Healthchecks and
 `scripts/release_smoke.sh` use those same CAs and service names.
 
+The staging and production examples carry the same complete key set. Preflight
+derives the application portion from the current `Settings` class and the
+deployment portion from production Compose, so a newly added setting cannot be
+silently omitted from a release environment. Every copied environment file must
+name the complete contract even when an external gate remains deliberately
+blank or false. Placeholder values are always rejected.
+
+Before staging or production can start, the live path additionally requires a
+configured scanner, retained trip-evidence signing keyring, approved privacy
+collection reference, authenticated STARTTLS SMTP adapter with an independent
+receipt key, an approved HTTPS basemap build input, and complete evidence and
+activity-policy inputs. The checked-in examples intentionally contain blanks,
+false gates, and `EXAMPLE-ONLY` markers, so neither file is deployable. Replace
+them only with externally approved values in the mode-0600 copy outside the
+repository; never weaken preflight to make an example pass.
+
+The basemap build URL must be a deployable HTTPS URL without query credentials.
+It is included in the release configuration digest, and the post-pull
+`--check-images` preflight confirms that the immutable frontend artifact contains
+the exact approved build input. A runtime environment value cannot replace a
+different value compiled into the image.
+
 Managed PostgreSQL and Redis are valid production configuration when their URLs
 contain explicit authenticated host authorities and peer-verified TLS. The
 current release, backup, restore and recovery commands are nevertheless the

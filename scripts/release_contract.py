@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import base64
 import binascii
 import hashlib
@@ -49,6 +50,8 @@ SECRET_NAMES = (
     "REDIS_PASSWORD",
     "JWT_SECRET_KEY",
     "OBJECT_STORAGE_SECRET_ACCESS_KEY",
+    "EMAIL_SMTP_PASSWORD",
+    "EMAIL_RECEIPT_SIGNING_SECRET",
 )
 TLS_FILE_NAMES = (
     "POSTGRES_TLS_CA_FILE",
@@ -86,6 +89,23 @@ REQUIRED_NAMES = (
     "BACKUP_RETENTION_DAYS",
 )
 BUNDLED_REQUIRED_NAMES = ("POSTGIS_IMAGE", "REDIS_IMAGE", *TLS_FILE_NAMES)
+RELEASE_ONLY_NAMES = (
+    "RELEASE_ID",
+    "PREVIOUS_RELEASE_ID",
+    "BACKEND_IMAGE",
+    "FRONTEND_IMAGE",
+    "POSTGIS_IMAGE",
+    "REDIS_IMAGE",
+    "CADDY_IMAGE",
+    "EDGE_HOSTNAME",
+    "PUBLIC_ORIGIN",
+    "SESSION_COOKIE_NAME",
+    "POSTGRES_PASSWORD",
+    "REDIS_PASSWORD",
+    "BACKUP_PASSPHRASE_FILE",
+    "BACKUP_RETENTION_DAYS",
+    *TLS_FILE_NAMES,
+)
 STAGE_ORDER = (
     "preflight",
     "backup",
@@ -104,11 +124,95 @@ def _canonical_sha256(value: Any) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+def release_config_sha256(
+    *, caddyfile_sha256: str, compose: Mapping[str, Any], environment: Mapping[str, str]
+) -> str:
+    return _canonical_sha256(
+        {
+            "caddyfile_sha256": caddyfile_sha256,
+            "compose": compose,
+            "frontend_build": {
+                name: environment.get(name, "")
+                for name in sorted(frontend_build_environment_names())
+            },
+        }
+    )
+
+
 def _require(environment: Mapping[str, str], name: str) -> str:
     value = environment.get(name, "").strip()
     if not value:
         raise ContractError(f"{name} is required")
     return value
+
+
+def settings_environment_names(config_file: Path | None = None) -> frozenset[str]:
+    """Derive environment names from the current Settings source."""
+    path = config_file or ROOT / "app/core/config.py"
+    try:
+        module = ast.parse(path.read_text())
+        settings = next(
+            node
+            for node in module.body
+            if isinstance(node, ast.ClassDef) and node.name == "Settings"
+        )
+    except (OSError, StopIteration, SyntaxError) as exc:
+        raise ContractError("Unable to derive the live Settings contract") from exc
+    names = {
+        node.target.id.upper()
+        for node in settings.body
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+    }
+    if not names:
+        raise ContractError("The live Settings contract is empty")
+    return frozenset(names)
+
+
+def compose_environment_names(compose_file: Path | None = None) -> frozenset[str]:
+    path = compose_file or ROOT / "docker-compose.production.yml"
+    try:
+        names = set(re.findall(r"\$\{([A-Z][A-Z0-9_]*)", path.read_text()))
+    except OSError as exc:
+        raise ContractError("Unable to derive the production Compose contract") from exc
+    if not names:
+        raise ContractError("The production Compose environment contract is empty")
+    return frozenset(names)
+
+
+def frontend_build_environment_names(dockerfile: Path | None = None) -> frozenset[str]:
+    path = dockerfile or ROOT / "frontend/Dockerfile"
+    try:
+        names = {
+            match.group(1)
+            for match in re.finditer(
+                r"^ARG (NEXT_PUBLIC_[A-Z0-9_]+)(?:=|$)", path.read_text(), re.MULTILINE
+            )
+        }
+    except OSError as exc:
+        raise ContractError("Unable to derive the frontend build contract") from exc
+    if not names:
+        raise ContractError("The frontend build environment contract is empty")
+    return frozenset(names)
+
+
+def release_environment_names() -> frozenset[str]:
+    return frozenset(
+        (
+            *settings_environment_names(),
+            *compose_environment_names(),
+            *frontend_build_environment_names(),
+            *RELEASE_ONLY_NAMES,
+        )
+    )
+
+
+def validate_environment_key_contract(environment: Mapping[str, str]) -> None:
+    missing = sorted(release_environment_names() - environment.keys())
+    if missing:
+        raise ContractError(f"Release environment omits required names: {', '.join(missing)}")
+    for name, value in environment.items():
+        if value.strip() and PLACEHOLDER_RE.search(value):
+            raise ContractError(f"{name} contains a placeholder or development value")
 
 
 def _is_true(value: str | None) -> bool:
@@ -292,6 +396,103 @@ def _validate_payout_keyring(environment: Mapping[str, str]) -> None:
         raise ContractError("Payout keyring must contain 32-byte keys")
 
 
+def _validate_versioned_keyring(
+    environment: Mapping[str, str], *, keyring_name: str, version_name: str
+) -> None:
+    raw_keyring = _require(environment, keyring_name)
+    version = _require(environment, version_name)
+    try:
+        keyring = json.loads(raw_keyring)
+        encoded_key = keyring[version]
+        decoded_key = base64.b64decode(encoded_key, validate=True)
+    except (KeyError, TypeError, ValueError, binascii.Error, json.JSONDecodeError) as exc:
+        raise ContractError(f"{keyring_name} must contain its active base64 key version") from exc
+    if not isinstance(keyring, dict) or len(decoded_key) != 32:
+        raise ContractError(f"{keyring_name} must contain 32-byte keys")
+
+
+def _validate_https_authority(name: str, value: str) -> None:
+    parsed = urlparse(value)
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ContractError(f"{name} contains an invalid port") from exc
+    if (
+        parsed.scheme != "https"
+        or not _deployable_runtime_host(parsed.hostname)
+        or port == 0
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.params
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ContractError(f"{name} must use a deployable HTTPS authority")
+
+
+def _validate_live_adapters(environment: Mapping[str, str]) -> None:
+    _validate_versioned_keyring(
+        environment,
+        keyring_name="TRIP_EVIDENCE_SIGNING_KEYRING_B64",
+        version_name="TRIP_EVIDENCE_SIGNING_KEY_VERSION",
+    )
+    scanner_host = _require(environment, "MALWARE_SCANNER_HOST")
+    if not _deployable_runtime_host(scanner_host):
+        raise ContractError("MALWARE_SCANNER_HOST must be a deployable hostname")
+    for name in ("MALWARE_SCANNER_PORT", "MALWARE_SCANNER_TIMEOUT_SECONDS"):
+        try:
+            value = int(_require(environment, name))
+        except ValueError as exc:
+            raise ContractError(f"{name} must be an integer") from exc
+        if value <= 0 or name.endswith("PORT") and value > 65535:
+            raise ContractError(f"{name} is outside its accepted range")
+
+    if not _is_true(environment.get("PRIVACY_COLLECTION_LIVE_AUTHORIZED")):
+        raise ContractError("PRIVACY_COLLECTION_LIVE_AUTHORIZED must be true")
+    _require(environment, "PRIVACY_LEGAL_APPROVAL_REFERENCE")
+    if _is_true(environment.get("PRIVACY_COLLECTION_SYNTHETIC_TEST_MODE")):
+        raise ContractError("PRIVACY_COLLECTION_SYNTHETIC_TEST_MODE must be false")
+
+    if _require(environment, "EMAIL_PROVIDER").lower() != "smtp":
+        raise ContractError("EMAIL_PROVIDER must select the accepted smtp adapter")
+    email_host = _require(environment, "EMAIL_SMTP_HOST")
+    if not _deployable_runtime_host(email_host):
+        raise ContractError("EMAIL_SMTP_HOST must be a deployable hostname")
+    if not _is_true(environment.get("EMAIL_SMTP_STARTTLS")):
+        raise ContractError("EMAIL_SMTP_STARTTLS must be true")
+    for name in (
+        "EMAIL_SENDER_ADDRESS",
+        "EMAIL_SMTP_USERNAME",
+        "EMAIL_SMTP_PASSWORD",
+        "EMAIL_RECEIPT_SIGNING_SECRET",
+        "EMAIL_RECEIPT_KEY_ID",
+    ):
+        _require(environment, name)
+    try:
+        email_port = int(_require(environment, "EMAIL_SMTP_PORT"))
+    except ValueError as exc:
+        raise ContractError("EMAIL_SMTP_PORT must be an integer") from exc
+    if not 1 <= email_port <= 65535:
+        raise ContractError("EMAIL_SMTP_PORT is outside its accepted range")
+
+    _validate_https_authority(
+        "NEXT_PUBLIC_MAP_STYLE_URL", _require(environment, "NEXT_PUBLIC_MAP_STYLE_URL")
+    )
+    for name in (
+        "FILE_KYC_RETENTION_DAYS",
+        "INSTALLATION_EVIDENCE_UPLOADER_ROLES",
+        "INSTALLATION_EVIDENCE_REQUIRED_VIEWS",
+        "INSTALLATION_EVIDENCE_VALIDITY_HOURS",
+        "DISPLAY_PROOF_CHALLENGE_TTL_SECONDS",
+        "DISPLAY_PROOF_VALIDITY_SECONDS",
+        "EVIDENCE_HIGH_EARNER_THRESHOLD_NGN",
+        "EVIDENCE_RENEWAL_LOOKBACK_DAYS",
+        "EVIDENCE_CHALLENGE_RESPONSE_HOURS",
+        "VERIFIED_HOURS_FLOOR_PER_WEEK",
+    ):
+        _require(environment, name)
+
+
 def validate_release_environment(
     environment: Mapping[str, str], *, allow_local_rehearsal: bool
 ) -> dict[str, str]:
@@ -303,8 +504,8 @@ def validate_release_environment(
     if allow_local_rehearsal:
         if mode not in {"rehearsal", "production"}:
             raise ContractError("ENVIRONMENT must be rehearsal or production")
-    elif mode != "production":
-        raise ContractError("ENVIRONMENT must be production")
+    elif mode not in {"staging", "production"}:
+        raise ContractError("ENVIRONMENT must be staging or production")
 
     data_service_adapter = validate_data_service_urls(environment)
     if data_service_adapter != "bundled":
@@ -312,6 +513,7 @@ def validate_release_environment(
             "MANAGED_DATA_RELEASE_ADAPTER_REQUIRED: bundled release automation cannot "
             "operate managed data services"
         )
+    validate_environment_key_contract(environment)
     for name in BUNDLED_REQUIRED_NAMES:
         _require(environment, name)
 
@@ -375,6 +577,7 @@ def validate_release_environment(
     for name in SECRET_NAMES:
         _validate_secret(name, _require(environment, name))
     _validate_payout_keyring(environment)
+    _validate_live_adapters(environment)
 
     tls_paths = {
         name: _validate_external_tls_file(
@@ -453,6 +656,7 @@ def validate_release_environment(
         "ALLOW_DEMO_SEED",
         "DEMO_LOGIN_ENABLED",
         "PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE",
+        "PRIVACY_COLLECTION_SYNTHETIC_TEST_MODE",
     ):
         if _is_true(environment.get(name)):
             raise ContractError(f"{name} must be false")
@@ -773,6 +977,11 @@ def validate_compose_model(model: Mapping[str, Any]) -> None:
         raise ContractError("Edge and egress networks have an invalid direction")
     frontend_environment = services["frontend"].get("environment", {})
     api_environment = services["api"].get("environment", {})
+    missing_settings = sorted(settings_environment_names() - api_environment.keys())
+    if missing_settings:
+        raise ContractError(
+            "Production Compose omits live Settings names: " + ", ".join(missing_settings)
+        )
     if (
         frontend_environment.get("LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER") != "true"
         or api_environment.get("LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER") != "true"
@@ -818,7 +1027,9 @@ def _render_compose(compose_file: Path, env_file: Path) -> dict[str, Any]:
     return json.loads(result.stdout)
 
 
-def _check_image_labels(model: Mapping[str, Any], revision: str) -> None:
+def _check_image_labels(
+    model: Mapping[str, Any], revision: str, environment: Mapping[str, str]
+) -> None:
     checked: set[str] = set()
     for service in ("api", "frontend"):
         image = str(model["services"][service]["image"])
@@ -840,6 +1051,30 @@ def _check_image_labels(model: Mapping[str, Any], revision: str) -> None:
         )
         if result.returncode or result.stdout.strip() != revision:
             raise ContractError(f"{service} image revision label does not match RELEASE_REVISION")
+    frontend_image = str(model["services"]["frontend"]["image"])
+    for name in frontend_build_environment_names():
+        value = environment.get(name, "").strip()
+        if not value:
+            continue
+        result = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "--entrypoint",
+                "sh",
+                frontend_image,
+                "-c",
+                'grep -R -F -l -- "$1" /app/.next >/dev/null',
+                "release-build-input-check",
+                value,
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode:
+            raise ContractError(f"Frontend image does not contain the approved {name} build input")
 
 
 def _check_release_checkout(revision: str, *, allow_local_rehearsal: bool) -> None:
@@ -896,14 +1131,16 @@ def _cli_preflight(args: argparse.Namespace) -> int:
     model = _render_compose(compose_file, env_file)
     validate_compose_model(model)
     if args.check_images:
-        _check_image_labels(model, validated["release_revision"])
+        _check_image_labels(model, validated["release_revision"], environment)
     caddyfile_sha256 = hashlib.sha256((ROOT / "Caddyfile").read_bytes()).hexdigest()
     output = {
         **validated,
         "caddyfile_sha256": caddyfile_sha256,
         "checkout_revision": checkout_revision,
-        "config_sha256": _canonical_sha256(
-            {"caddyfile_sha256": caddyfile_sha256, "compose": model}
+        "config_sha256": release_config_sha256(
+            caddyfile_sha256=caddyfile_sha256,
+            compose=model,
+            environment=environment,
         ),
         "services": sorted(model["services"]),
         "status": "ready",

@@ -26,13 +26,21 @@ from app.operations.readiness import _storage_check
 from scripts.release_contract import (
     TLS_FILE_NAMES,
     ContractError,
+    _check_image_labels,
     build_backup_manifest,
+    compose_environment_names,
     database_url_for_name,
+    frontend_build_environment_names,
+    read_env_file,
+    release_config_sha256,
+    release_environment_names,
+    settings_environment_names,
     validate_backup_authority,
     validate_backup_manifest,
     validate_compatibility_evidence,
     validate_compose_model,
     validate_data_service_urls,
+    validate_environment_key_contract,
     validate_release_environment,
     validate_release_state,
 )
@@ -40,15 +48,77 @@ from scripts.release_contract import (
 ROOT = Path(__file__).resolve().parents[1]
 PRODUCTION_COMPOSE = ROOT / "docker-compose.production.yml"
 PRODUCTION_ENV = ROOT / "production.env.example"
+STAGING_ENV = ROOT / "staging.env.example"
+
+
+def example_environment_names(path: Path) -> set[str]:
+    return {
+        line.split("=", 1)[0]
+        for line in path.read_text().splitlines()
+        if line and not line.startswith("#") and "=" in line
+    }
+
+
+def test_live_environment_examples_cover_current_settings_source() -> None:
+    expected = release_environment_names()
+
+    assert expected <= example_environment_names(STAGING_ENV)
+    assert expected <= example_environment_names(PRODUCTION_ENV)
+    assert example_environment_names(STAGING_ENV) == example_environment_names(PRODUCTION_ENV)
+    assert frontend_build_environment_names() <= expected
+    assert settings_environment_names() <= compose_environment_names() | {
+        "APP_NAME",
+        "API_V1_PREFIX",
+        "LOG_FORMAT",
+        "REQUEST_ID_HEADER",
+        "JWT_ALGORITHM",
+        "ALLOW_DEMO_SEED",
+        "PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE",
+    }
+
+
+@pytest.mark.parametrize("path", [STAGING_ENV, PRODUCTION_ENV])
+def test_checked_in_environment_examples_cannot_pass_preflight(path: Path) -> None:
+    with pytest.raises(ContractError, match="placeholder|development value"):
+        validate_environment_key_contract(read_env_file(path))
+
+
+@pytest.mark.parametrize("name", sorted(release_environment_names()))
+def test_release_key_contract_rejects_each_omission(name: str) -> None:
+    environment = {item: "" for item in release_environment_names()}
+    environment.pop(name)
+
+    with pytest.raises(ContractError, match=name):
+        validate_environment_key_contract(environment)
+
+
+@pytest.mark.parametrize("value", ["REPLACE-ME", "placeholder", "sample-secret"])
+def test_release_key_contract_rejects_placeholders(value: str) -> None:
+    environment = {item: "" for item in release_environment_names()}
+    environment["PRIVACY_LEGAL_APPROVAL_REFERENCE"] = value
+
+    with pytest.raises(ContractError, match="PRIVACY_LEGAL_APPROVAL_REFERENCE"):
+        validate_environment_key_contract(environment)
+
+
+def test_environment_file_rejects_duplicate_names(tmp_path: Path) -> None:
+    path = tmp_path / "duplicate.env"
+    path.write_text("ENVIRONMENT=production\nENVIRONMENT=staging\n")
+
+    with pytest.raises(ContractError, match="duplicate environment name"):
+        read_env_file(path)
 
 
 def production_model(
-    *, profiles: tuple[str, ...] = (), overrides: dict[str, str] | None = None
+    *,
+    profiles: tuple[str, ...] = (),
+    overrides: dict[str, str] | None = None,
+    env_file: Path = PRODUCTION_ENV,
 ) -> dict:
     command = ["docker", "compose", "-f", str(PRODUCTION_COMPOSE)]
     for profile in profiles:
         command.extend(("--profile", profile))
-    command.extend(("--env-file", str(PRODUCTION_ENV), "config", "--format", "json"))
+    command.extend(("--env-file", str(env_file), "config", "--format", "json"))
     environment = os.environ.copy()
     environment.update(overrides or {})
     result = subprocess.run(
@@ -138,60 +208,98 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
                 capture_output=True,
             )
             key.chmod(0o600)
-    return {
-        "ENVIRONMENT": "production",
-        "RELEASE_ID": "20260828T120000Z-1715fe53",
-        "RELEASE_REVISION": "1715fe53b19972cd6db829a08a9d6cf572fbd656",
-        "BACKEND_IMAGE": "registry.invalid/cardvert/backend@sha256:" + "1" * 64,
-        "FRONTEND_IMAGE": "registry.invalid/cardvert/frontend@sha256:" + "2" * 64,
-        "POSTGIS_IMAGE": "postgis/postgis@sha256:" + "3" * 64,
-        "REDIS_IMAGE": "redis@sha256:" + "4" * 64,
-        "CADDY_IMAGE": "caddy@sha256:" + "5" * 64,
-        "EDGE_HOSTNAME": "cardvert.client-owned-domain.com",
-        "PUBLIC_ORIGIN": "https://cardvert.client-owned-domain.com",
-        "BACKEND_CORS_ORIGINS": "[]",
-        "POSTGRES_PASSWORD": "Correct-Horse-Battery-Staple-Database-2026",
-        "POSTGRES_TLS_CA_FILE": str(ca_cert),
-        "POSTGRES_TLS_CERT_FILE": str(tls / "db.crt"),
-        "POSTGRES_TLS_KEY_FILE": str(tls / "db.key"),
-        "DATABASE_URL": (
-            "postgresql+asyncpg://mobility:Correct-Horse-Battery-Staple-Database-2026"
-            "@db:5432/mobility?ssl=verify-full"
-        ),
-        "REDIS_PASSWORD": "Correct-Horse-Battery-Staple-Redis-2026",
-        "REDIS_TLS_CA_FILE": str(ca_cert),
-        "REDIS_TLS_CERT_FILE": str(tls / "redis.crt"),
-        "REDIS_TLS_KEY_FILE": str(tls / "redis.key"),
-        "REDIS_URL": (
-            "rediss://:Correct-Horse-Battery-Staple-Redis-2026@redis:6379/0"
-            "?ssl_ca_certs=/run/secrets/redis_tls_ca&ssl_cert_reqs=required"
-        ),
-        "JWT_SECRET_KEY": "Jwt-release-secret-with-more-than-thirty-two-random-characters-2026",
-        "PAYOUT_CRYPTO_KEYRING_B64": ('{"1":"yPdM2Hgg3Q1M+MS4iF26TyMQmmuUOMf7p9hNSMlcycI="}'),
-        "PAYOUT_CRYPTO_KEY_VERSION": "1",
-        "OBJECT_STORAGE_ENDPOINT_URL": "https://objects.client-storage.net",
-        "OBJECT_STORAGE_PUBLIC_ENDPOINT_URL": "https://objects.client-storage.net",
-        "OBJECT_STORAGE_REGION": "client-approved-region",
-        "OBJECT_STORAGE_BUCKET": "cardvert-private-production",
-        "OBJECT_STORAGE_ACCESS_KEY_ID": "client-storage-access-key",
-        "OBJECT_STORAGE_SECRET_ACCESS_KEY": (
-            "Client-storage-secret-with-more-than-thirty-two-characters-2026"
-        ),
-        "SESSION_COOKIE_NAME": "__Host-cardvert_session",
-        "ALLOW_DEMO_SEED": "false",
-        "DEMO_LOGIN_ENABLED": "false",
-        "PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE": "false",
-        "MEASUREMENT_LIVE_ISSUANCE_AUTHORIZED": "false",
-        "PRIVACY_DISCLOSURE_LIVE_AUTHORIZED": "false",
-        "LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER": "true",
-        "LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER": "true",
-        "LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS": "10.255.254.10/32",
-        "DRIVER_REGISTRATION_RATE_LIMIT_TRUST_CLIENT_IP_HEADER": "false",
-        "DRIVER_REGISTRATION_RATE_LIMIT_TRUSTED_PROXY_CIDRS": "",
-        "BACKUP_PASSPHRASE_FILE": str(passphrase),
-        "BACKUP_RETENTION_DAYS": "35",
-        "LOG_LEVEL": "INFO",
-    }
+    environment = read_env_file(PRODUCTION_ENV)
+    environment.update(
+        {
+            "ENVIRONMENT": "production",
+            "RELEASE_ID": "20260828T120000Z-1715fe53",
+            "RELEASE_REVISION": "1715fe53b19972cd6db829a08a9d6cf572fbd656",
+            "BACKEND_IMAGE": "registry.invalid/cardvert/backend@sha256:" + "1" * 64,
+            "FRONTEND_IMAGE": "registry.invalid/cardvert/frontend@sha256:" + "2" * 64,
+            "POSTGIS_IMAGE": "postgis/postgis@sha256:" + "3" * 64,
+            "REDIS_IMAGE": "redis@sha256:" + "4" * 64,
+            "CADDY_IMAGE": "caddy@sha256:" + "5" * 64,
+            "EDGE_HOSTNAME": "cardvert.client-owned-domain.com",
+            "PUBLIC_ORIGIN": "https://cardvert.client-owned-domain.com",
+            "BACKEND_CORS_ORIGINS": "[]",
+            "POSTGRES_PASSWORD": "Correct-Horse-Battery-Staple-Database-2026",
+            "POSTGRES_TLS_CA_FILE": str(ca_cert),
+            "POSTGRES_TLS_CERT_FILE": str(tls / "db.crt"),
+            "POSTGRES_TLS_KEY_FILE": str(tls / "db.key"),
+            "DATABASE_URL": (
+                "postgresql+asyncpg://mobility:Correct-Horse-Battery-Staple-Database-2026"
+                "@db:5432/mobility?ssl=verify-full"
+            ),
+            "REDIS_PASSWORD": "Correct-Horse-Battery-Staple-Redis-2026",
+            "REDIS_TLS_CA_FILE": str(ca_cert),
+            "REDIS_TLS_CERT_FILE": str(tls / "redis.crt"),
+            "REDIS_TLS_KEY_FILE": str(tls / "redis.key"),
+            "REDIS_URL": (
+                "rediss://:Correct-Horse-Battery-Staple-Redis-2026@redis:6379/0"
+                "?ssl_ca_certs=/run/secrets/redis_tls_ca&ssl_cert_reqs=required"
+            ),
+            "JWT_SECRET_KEY": "Jwt-release-secret-with-more-than-thirty-two-random-characters-2026",
+            "PAYOUT_CRYPTO_KEYRING_B64": ('{"1":"yPdM2Hgg3Q1M+MS4iF26TyMQmmuUOMf7p9hNSMlcycI="}'),
+            "PAYOUT_CRYPTO_KEY_VERSION": "1",
+            "TRIP_EVIDENCE_SIGNING_KEYRING_B64": (
+                '{"1":"N3PXmtgm1eTDuCG8zb7JojEgXkQp4GbgN5j5kHlp4Rs="}'
+            ),
+            "TRIP_EVIDENCE_SIGNING_KEY_VERSION": "1",
+            "OBJECT_STORAGE_ENDPOINT_URL": "https://objects.client-storage.net",
+            "OBJECT_STORAGE_PUBLIC_ENDPOINT_URL": "https://objects.client-storage.net",
+            "OBJECT_STORAGE_REGION": "client-approved-region",
+            "OBJECT_STORAGE_BUCKET": "cardvert-private-production",
+            "OBJECT_STORAGE_ACCESS_KEY_ID": "client-storage-access-key",
+            "OBJECT_STORAGE_SECRET_ACCESS_KEY": (
+                "Client-storage-secret-with-more-than-thirty-two-characters-2026"
+            ),
+            "MALWARE_SCANNER_HOST": "scanner.internal.client-owned-domain.com",
+            "MALWARE_SCANNER_PORT": "3310",
+            "MALWARE_SCANNER_TIMEOUT_SECONDS": "30",
+            "FILE_KYC_RETENTION_DAYS": "365",
+            "INSTALLATION_EVIDENCE_UPLOADER_ROLES": "driver,admin",
+            "INSTALLATION_EVIDENCE_REQUIRED_VIEWS": "front,rear,left,right",
+            "INSTALLATION_EVIDENCE_VALIDITY_HOURS": "24",
+            "DISPLAY_PROOF_CHALLENGE_TTL_SECONDS": "900",
+            "DISPLAY_PROOF_VALIDITY_SECONDS": "86400",
+            "EVIDENCE_HIGH_EARNER_THRESHOLD_NGN": "100000",
+            "EVIDENCE_RENEWAL_LOOKBACK_DAYS": "30",
+            "EVIDENCE_CHALLENGE_RESPONSE_HOURS": "24",
+            "VERIFIED_HOURS_FLOOR_PER_WEEK": "10",
+            "EMAIL_PROVIDER": "smtp",
+            "EMAIL_SENDER_ADDRESS": "notifications@client-owned-domain.com",
+            "EMAIL_SMTP_HOST": "smtp.client-owned-domain.com",
+            "EMAIL_SMTP_PORT": "587",
+            "EMAIL_SMTP_USERNAME": "cardvert-notifications",
+            "EMAIL_SMTP_PASSWORD": "Smtp-password-with-more-than-thirty-two-characters-2026!",
+            "EMAIL_SMTP_STARTTLS": "true",
+            "EMAIL_RECEIPT_SIGNING_SECRET": (
+                "Email-receipt-secret-with-more-than-thirty-two-characters-2026!"
+            ),
+            "EMAIL_RECEIPT_KEY_ID": "email-receipt-2026-01",
+            "PRIVACY_COLLECTION_LIVE_AUTHORIZED": "true",
+            "PRIVACY_COLLECTION_SYNTHETIC_TEST_MODE": "false",
+            "PRIVACY_LEGAL_APPROVAL_REFERENCE": "legal-approval-reference-2026-01",
+            "NEXT_PUBLIC_MAP_STYLE_URL": (
+                "https://maps.client-owned-domain.com/styles/cardvert.json"
+            ),
+            "SESSION_COOKIE_NAME": "__Host-cardvert_session",
+            "ALLOW_DEMO_SEED": "false",
+            "DEMO_LOGIN_ENABLED": "false",
+            "PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE": "false",
+            "MEASUREMENT_LIVE_ISSUANCE_AUTHORIZED": "false",
+            "PRIVACY_DISCLOSURE_LIVE_AUTHORIZED": "false",
+            "LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER": "true",
+            "LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER": "true",
+            "LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS": "10.255.254.10/32",
+            "DRIVER_REGISTRATION_RATE_LIMIT_TRUST_CLIENT_IP_HEADER": "false",
+            "DRIVER_REGISTRATION_RATE_LIMIT_TRUSTED_PROXY_CIDRS": "",
+            "BACKUP_PASSPHRASE_FILE": str(passphrase),
+            "BACKUP_RETENTION_DAYS": "35",
+            "LOG_LEVEL": "INFO",
+        }
+    )
+    return environment
 
 
 def test_production_model_has_only_tls_edge_public_and_no_builds() -> None:
@@ -221,6 +329,11 @@ def test_compose_contract_rejects_public_data_or_privileged_application() -> Non
     model = production_model(profiles=("release",))
     model["services"]["db"]["ports"] = [{"published": "5432", "target": 5432}]
     with pytest.raises(ContractError):
+        validate_compose_model(model)
+
+    model = production_model(profiles=("release",))
+    model["services"]["api"]["environment"].pop("TRIP_SEAL_GRACE_SECONDS")
+    with pytest.raises(ContractError, match="TRIP_SEAL_GRACE_SECONDS"):
         validate_compose_model(model)
 
 
@@ -354,6 +467,149 @@ def test_release_environment_accepts_complete_provider_neutral_contract(tmp_path
     assert validated["release_revision"] == "1715fe53b19972cd6db829a08a9d6cf572fbd656"
     assert validated["public_origin"] == "https://cardvert.client-owned-domain.com"
     assert validated["data_service_adapter"] == "bundled"
+
+
+def test_staging_environment_uses_same_fail_closed_contract(tmp_path: Path) -> None:
+    environment = valid_release_environment(tmp_path)
+    environment["ENVIRONMENT"] = "staging"
+
+    validated = validate_release_environment(environment, allow_local_rehearsal=False)
+
+    assert validated["environment"] == "staging"
+
+
+@pytest.mark.parametrize("mode", ["staging", "production"])
+def test_complete_synthetic_environment_validates_settings_and_renders_compose(
+    tmp_path: Path, mode: str
+) -> None:
+    environment = valid_release_environment(tmp_path)
+    environment["ENVIRONMENT"] = mode
+    env_file = tmp_path / f"{mode}.env"
+    env_file.write_text("".join(f"{name}={value}\n" for name, value in environment.items()))
+    env_file.chmod(0o600)
+
+    validate_release_environment(environment, allow_local_rehearsal=False)
+    settings_values = {name.lower(): environment[name] for name in settings_environment_names()}
+    settings = Settings(_env_file=None, **settings_values)
+    model = production_model(profiles=("release",), env_file=env_file)
+    validate_compose_model(model)
+
+    assert settings.environment == mode
+    assert model["services"]["api"]["environment"]["ENVIRONMENT"] == mode
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "reason"),
+    [
+        ("TRIP_EVIDENCE_SIGNING_KEYRING_B64", "", "TRIP_EVIDENCE"),
+        ("TRIP_EVIDENCE_SIGNING_KEY_VERSION", "2", "TRIP_EVIDENCE"),
+        ("MALWARE_SCANNER_HOST", "", "MALWARE_SCANNER_HOST"),
+        ("MALWARE_SCANNER_HOST", "scanner.invalid", "MALWARE_SCANNER_HOST"),
+        ("MALWARE_SCANNER_PORT", "0", "MALWARE_SCANNER_PORT"),
+        ("MALWARE_SCANNER_TIMEOUT_SECONDS", "0", "MALWARE_SCANNER_TIMEOUT_SECONDS"),
+        ("PRIVACY_COLLECTION_LIVE_AUTHORIZED", "false", "PRIVACY_COLLECTION"),
+        ("PRIVACY_LEGAL_APPROVAL_REFERENCE", "", "PRIVACY_LEGAL"),
+        ("PRIVACY_COLLECTION_SYNTHETIC_TEST_MODE", "true", "SYNTHETIC_TEST_MODE"),
+        ("EMAIL_PROVIDER", "", "EMAIL_PROVIDER"),
+        ("EMAIL_SENDER_ADDRESS", "", "EMAIL_SENDER_ADDRESS"),
+        ("EMAIL_SMTP_HOST", "", "EMAIL_SMTP_HOST"),
+        ("EMAIL_SMTP_USERNAME", "", "EMAIL_SMTP_USERNAME"),
+        ("EMAIL_SMTP_PASSWORD", "", "EMAIL_SMTP_PASSWORD"),
+        ("EMAIL_SMTP_STARTTLS", "false", "EMAIL_SMTP_STARTTLS"),
+        ("EMAIL_RECEIPT_SIGNING_SECRET", "", "EMAIL_RECEIPT_SIGNING_SECRET"),
+        ("EMAIL_RECEIPT_KEY_ID", "", "EMAIL_RECEIPT_KEY_ID"),
+        ("NEXT_PUBLIC_MAP_STYLE_URL", "", "NEXT_PUBLIC_MAP_STYLE_URL"),
+        ("NEXT_PUBLIC_MAP_STYLE_URL", "http://maps.example.org/style", "MAP_STYLE"),
+        (
+            "NEXT_PUBLIC_MAP_STYLE_URL",
+            "https://maps.client-owned-domain.com/style?access_token=secret",
+            "MAP_STYLE",
+        ),
+        ("FILE_KYC_RETENTION_DAYS", "", "FILE_KYC_RETENTION_DAYS"),
+        ("INSTALLATION_EVIDENCE_UPLOADER_ROLES", "", "UPLOADER_ROLES"),
+        ("INSTALLATION_EVIDENCE_REQUIRED_VIEWS", "", "REQUIRED_VIEWS"),
+        ("INSTALLATION_EVIDENCE_VALIDITY_HOURS", "", "VALIDITY_HOURS"),
+        ("DISPLAY_PROOF_CHALLENGE_TTL_SECONDS", "", "CHALLENGE_TTL"),
+        ("DISPLAY_PROOF_VALIDITY_SECONDS", "", "PROOF_VALIDITY"),
+        ("EVIDENCE_HIGH_EARNER_THRESHOLD_NGN", "", "HIGH_EARNER"),
+        ("EVIDENCE_RENEWAL_LOOKBACK_DAYS", "", "RENEWAL_LOOKBACK"),
+        ("EVIDENCE_CHALLENGE_RESPONSE_HOURS", "", "CHALLENGE_RESPONSE"),
+        ("VERIFIED_HOURS_FLOOR_PER_WEEK", "", "VERIFIED_HOURS_FLOOR_PER_WEEK"),
+    ],
+)
+def test_release_environment_rejects_incomplete_live_authority(
+    tmp_path: Path, name: str, value: str, reason: str
+) -> None:
+    environment = valid_release_environment(tmp_path)
+    environment[name] = value
+
+    with pytest.raises(ContractError, match=reason):
+        validate_release_environment(environment, allow_local_rehearsal=False)
+
+
+def test_image_check_proves_frontend_build_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    revision = "1" * 40
+    frontend_image = "registry.invalid/frontend@sha256:" + "2" * 64
+    model = {
+        "services": {
+            "api": {"image": "registry.invalid/backend@sha256:" + "3" * 64},
+            "frontend": {"image": frontend_image},
+        }
+    }
+    environment = {
+        "NEXT_PUBLIC_MAP_STYLE_URL": "https://maps.client-owned-domain.com/style.json",
+        "NEXT_PUBLIC_SENTRY_DSN": "",
+    }
+    calls: list[list[str]] = []
+
+    def successful_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        stdout = revision if command[1:3] == ["image", "inspect"] else ""
+        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(subprocess, "run", successful_run)
+    _check_image_labels(model, revision, environment)
+
+    assert any(
+        command[:4] == ["docker", "run", "--rm", "--entrypoint"]
+        and command[-1] == environment["NEXT_PUBLIC_MAP_STYLE_URL"]
+        for command in calls
+    )
+
+    def missing_input(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        is_build_check = command[1:3] == ["run", "--rm"]
+        return subprocess.CompletedProcess(
+            command,
+            1 if is_build_check else 0,
+            stdout="" if is_build_check else revision,
+            stderr="",
+        )
+
+    monkeypatch.setattr(subprocess, "run", missing_input)
+    with pytest.raises(ContractError, match="approved NEXT_PUBLIC_MAP_STYLE_URL"):
+        _check_image_labels(model, revision, environment)
+
+
+def test_release_config_digest_binds_frontend_build_inputs() -> None:
+    environment = {
+        "NEXT_PUBLIC_MAP_STYLE_URL": "https://maps.client-owned-domain.com/style-a.json",
+        "NEXT_PUBLIC_SENTRY_DSN": "",
+    }
+    first = release_config_sha256(
+        caddyfile_sha256="1" * 64, compose={"services": {}}, environment=environment
+    )
+    changed = release_config_sha256(
+        caddyfile_sha256="1" * 64,
+        compose={"services": {}},
+        environment={
+            **environment,
+            "NEXT_PUBLIC_MAP_STYLE_URL": "https://maps.client-owned-domain.com/style-b.json",
+        },
+    )
+
+    assert changed != first
 
 
 def test_provider_neutral_data_urls_allow_managed_but_bundled_release_stops(
