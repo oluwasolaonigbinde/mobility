@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 163
+plan_revision: 166
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 287
+last_event_sequence: 290
 ---
 
 # Cardvert audit remediation programme
@@ -246,7 +246,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R22 | MON-004, MON-007, MON-009 | WAITING | R20, R21 | R22-P; reviewed exclusive conservation/replacement state contract | wait for R20/R21 and migration/contracts |
 | R23 | COM-001, COM-004 | ACCEPTED | R08; commercial opener | R23-P/M/MNY/CP-COMMERCIAL; PostgreSQL, migration 0073 and contract evidence | complete at `8fd5fc4` |
 | R24 | COM-002 | ACCEPTED | R08, R23 | R24-P/M/MNY/CP-COMMERCIAL; causal epoch and PostgreSQL race evidence | complete at `36df828` |
-| R25 | COM-003, COM-005 | READY | R08, R24 | R25-P; reviewed quotation/waiver contract | reserve for the owner-directed next Opus 5 / High session after the current set clears |
+| R25 | COM-003, COM-005 | ACTIVE | R08, R24 | R25-P; reviewed quotation/waiver contract | exact billing/API/schema/commercial-test/UI/generated-contract lease; no model/migration/privacy/CI authority |
 | R26 | COM-006 | WAITING | R08, R25 | R26-P; reviewed lock-order contract | wait for accepted R25; bounded Sol/high DB+money gate |
 | R27 | COM-007 | WAITING | R08, R26 | R27-P; reviewed Lagos-year contract | wait for accepted R26 |
 | R28 | CAM-001 | BLOCKED-OWNER | campaign opener | current-source finding confirmed; R28-P blocked | owner must define scheduled→active actor/API/idempotency, readiness coupling, and lifecycle-evidence authority |
@@ -259,7 +259,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R35 | OFF-002, OFF-003 | COMPLETE | R34 | R35-P/M; OFF+SEC; CP-OFFLINE; exact `e232ab7d...` freeze; 65 focused frontend passes plus typecheck/lint/format | accepted exactly once; offline frontend lease released |
 | R36 | OFF-005 | BLOCKED-OWNER | R35; signed per-sample disposition authority | R36-P; reviewed migration/model/signing contract; exact initial lease remained clean | owner must restore the reviewed Alembic/model/`trip_evidence.py` authority or revise and independently re-review a no-migration durable cryptographic design; no implementation before choice |
 | R37 | OFF-006 | WAITING | R36 | R37-P; reviewed deactivation-drain contract; durable break case: terminal deadletter-only retained evidence needs server-side final adjudication/sealing authority without client deletion | wait for accepted R36; reconcile the R35 evidence pointer during R37 implementation/review |
-| R38 | PRV-001, PRV-002 | WAITING | R13; privacy opener | R38-P; reviewed collection-time privacy-gate contract | wait for accepted R13 and release of R34 trip/config surfaces |
+| R38 | PRV-001, PRV-002 | ACTIVE | R13; privacy opener | R38-P; reviewed collection-time privacy-gate contract; R34 trip/config surfaces released | exact privacy-config/GPS/KYC ingress and focused-test lease; no generated-contract/billing/CI authority |
 | R39 | PRV-003 | WAITING | R38 | R39-P; reviewed aggregate-only campaign-trip contract | wait for accepted R38 and generated-contract lane |
 | R40 | PRV-004, AUD-001, AUD-002 | WAITING | R16, R39 | R40-P; reviewed authoritative aggregation/delivery-approval contract | wait for accepted R39 and migration/contract lane |
 | R41 | PRV-009, AUD-004, TST-010 | WAITING | R40 | R41-P; reviewed generalized disclosure-history contract | wait for accepted R40 and migration lane |
@@ -740,3 +740,6 @@ verification is complete.
 | 285 | 161 | 1 | OWNER_DECISION_RECORDED | The owner selected every-branch push for R02, preserving the accepted GOV-003/R02 and architecture authority. | direct owner choice; master-only validator invariant retired; no plan/graph re-review required |
 | 286 | 162 | 1 | LEASE_EXPANDED | R02 may edit `tests/test_validate_progress.py` only to replace the stale master-only push assertion with every-branch push authority and add proportional event-matrix regression evidence. | preserved three-path `a3e8129f...` packet otherwise unchanged; no architecture or other scope expansion |
 | 287 | 163 | 1 | IMPLEMENTATION_BLOCKED_OWNER | R36 stopped before first write because its accepted signed per-sample disposition contract requires durable model/migration/signing authority excluded by the initial lease; generic metadata would violate replay/cryptographic authority. | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879`; exact 13-file lease clean; owner choice restore reviewed authority or re-review no-migration design |
+| 288 | 164 | 1 | LEASE_RELEASED | R36's exact lease is byte-clean and released while its owner scope decision remains open, so it no longer blocks disjoint trip or generated-contract work. | no R36 write, test, stage or commit; R36 remains BLOCKED-OWNER and must reacquire authority after a decision |
+| 289 | 165 | 1 | DISPATCH_RESERVED | R25/COM-003,COM-005 reserved the billing quotation/waiver and commercial generated-contract lane after R36 released it. | GPT-5.6 Sol/high — money plus public contract authority; disjoint from R02 and R38; no migration/model authority |
+| 290 | 166 | 1 | DISPATCH_RESERVED | R38/PRV-001,PRV-002 reserved collection-time privacy gates across GPS/KYC ingress and configuration after R36 released its clean trip lease. | GPT-5.6 Sol/high — precise-location, NIN, encryption and no-side-effect denial boundary; disjoint from R02/R25; no generated-contract authority |
