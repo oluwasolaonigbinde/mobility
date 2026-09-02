@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 166
+plan_revision: 168
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 290
+last_event_sequence: 292
 ---
 
 # Cardvert audit remediation programme
@@ -356,7 +356,7 @@ trigger and a newly reviewed authority amendment.
 | Claude session `Cardvert audit-route integration correction` | R34 inherited audit-registry integration | Claude Opus 5 / High — owner-selected bounded audit/security evidence correction | exact `tests/test_audit_route_coverage.py` correction `34b7d55b...`; 7 controller PostgreSQL passes | COMPLETE-RETURNED |
 | Claude session `Cardvert R09 authentication remediation` | R09 auth command/status/reset implementation | Claude Opus 5 / High — owner-selected authentication and PostgreSQL race boundary | exact eight-path `5b0a3f68...` freeze released after controller verification | ACCEPTED |
 | task `01a05ef6-632c-79b1-bdf3-16c6e95aafd4` | S10/S11/S13/S14 aggregate R18-R22 and R29-R31 planning | GPT-5.6 Sol/high — money/migration/concurrency planning | read-only; R18-P through R22-P and R29-P through R31-P accepted | PLAN-PASS |
-| task `01a05ef6-92fc-7df1-bd39-50e8c2fee530` | S15-S19 aggregate R38-R44 privacy/audit planning | GPT-5.6 Sol/high — privacy/security/lifecycle planning | read-only; R38-P through R44-P accepted | PLAN-PASS |
+| task `01a05ef6-92fc-7df1-bd39-50e8c2fee530` | S15 / R38 collection-time GPS/KYC privacy gates | GPT-5.6 Sol/high — precise-location, NIN and no-side-effect denial authority | exact privacy config/trip/KYC ingress lease; R39-R44 held | ACTIVE |
 | task `01a05ef6-c545-7401-8114-4afe32fc9bf7` | S20-S22 aggregate R45-R52 reporting planning | GPT-5.6 Sol/high — reporting/privacy/concurrency planning | read-only; R45-P through R52-P accepted | PLAN-PASS |
 | task `01a05ef6-ee2d-79e0-9e50-153b035d771e` | S23-S27 aggregate R54-R58 release/test planning | GPT-5.6 Sol/high — release/security/worker planning | read-only; R54-P through R58-P accepted | PLAN-PASS |
 | task `01a05ef8-af56-7192-825a-ce4f00f9c86b` | S04 aggregate R12-R14 security/readiness planning | GPT-5.6 Sol/high — authentication/trusted-edge/release planning | read-only; R12-P and R14-P accepted | PLAN-PASS |
@@ -366,7 +366,7 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e60-6ce7-7cb2-ac20-300ac5275d05` | S03 / R09-R11 planning after accepted R10 | GPT-5.6 Sol/medium for planning | no mutation lease; R09 plan PASS, R11 plan BLOCKED-OWNER | PLAN-RETURNED |
 | `/root/r10_diff_review` | S03 / R10 M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — strict bearer claims, refresh and route authority | released accepted R10 diff `de0c8d60...` | PASS |
 | task `01a05e7a-2699-79b2-9b63-e911dfe302ef` | S06 / R16 implementation | GPT-5.6 Sol/medium — bounded provider-port composition refactor | released accepted seven-file boundary diff | ACCEPTED |
-| task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R24 correction attempt 2; R25-R27 held | GPT-5.6 Sol/high — bounded money epoch/race correction | released accepted exact two-file diff `d4cbf20c...`; no migration/contract lease | ACCEPTED |
+| task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R25 quotation and waiver authority | GPT-5.6 Sol/high — money-adjacent immutable commercial/public-contract authority | exact billing/UI/generated-contract lease; R26-R27 held | ACTIVE |
 | `/root/r24_review` | S09 / R24 attempt-2 M, MNY and CP-COMMERCIAL review | GPT-5.6 Sol/high — bounded money/idempotency admission | released reviewed exact `d4cbf20c...` diff | PASS |
 | `/root/r24_review` | S09 / R24 M, MNY and CP-COMMERCIAL review | GPT-5.6 Sol/high — bounded money/idempotency admission | released reviewed exact `0a6333b5...` diff | FIX |
 | `/root/r13_attempt3_review` | S05 / R13 repeat M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded parser and identifier-preservation boundary | released reviewed R13 diff `506dc438...` | FIX |
@@ -743,3 +743,5 @@ verification is complete.
 | 288 | 164 | 1 | LEASE_RELEASED | R36's exact lease is byte-clean and released while its owner scope decision remains open, so it no longer blocks disjoint trip or generated-contract work. | no R36 write, test, stage or commit; R36 remains BLOCKED-OWNER and must reacquire authority after a decision |
 | 289 | 165 | 1 | DISPATCH_RESERVED | R25/COM-003,COM-005 reserved the billing quotation/waiver and commercial generated-contract lane after R36 released it. | GPT-5.6 Sol/high — money plus public contract authority; disjoint from R02 and R38; no migration/model authority |
 | 290 | 166 | 1 | DISPATCH_RESERVED | R38/PRV-001,PRV-002 reserved collection-time privacy gates across GPS/KYC ingress and configuration after R36 released its clean trip lease. | GPT-5.6 Sol/high — precise-location, NIN, encryption and no-side-effect denial boundary; disjoint from R02/R25; no generated-contract authority |
+| 291 | 167 | 1 | DISPATCH_STARTED | Existing visible S09 began R25/COM-003,COM-005 implementation on its exact billing/UI/generated-contract lease. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; GPT-5.6 Sol/high; R26-R27 held; proactive terminal callback required |
+| 292 | 168 | 1 | DISPATCH_STARTED | Existing visible S15 began R38/PRV-001,PRV-002 implementation on its exact privacy-config/GPS/KYC ingress lease. | task `01a05ef6-92fc-7df1-bd39-50e8c2fee530`; GPT-5.6 Sol/high; no generated-contract authority; proactive terminal callback required |
