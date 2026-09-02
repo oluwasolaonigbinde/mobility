@@ -80,15 +80,18 @@ engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
 **Current checkpoint:** `PKG-10 / R02` — R02's immutable real-service gate is
-frozen on three out-of-packet failures. V06 owns two stale accepted-R34/current-
-head tests; V07 owns the genuine governed zone-insight staleness defect. R02
-resumes only after both are accepted and R03 remains unstarted. In parallel,
+frozen. V06 corrected its two initial stale tests, then found one more stale v1
+trip request and a genuine demo-seed incompatibility: fresh v1 demo trips now
+correctly cannot originate money under R34. V06 continues as a narrowly scoped
+Sol/high seed-only v2 evidence correction; V07 owns the genuine governed zone-
+insight staleness defect. R02 resumes only after both are accepted and R03
+remains unstarted. In parallel,
 the disjoint R11→R12→R14 security/readiness session and R28 administrator
 campaign-activation session are active. Four temporary writer lanes are safe:
 auth/config/edge, campaign lifecycle, two isolated test fixtures, and audience
 staleness share no files or mutation domains; R02 is frozen and non-writing.
 R17 remains parked in `to-do.md`; R39 and R36 wait for the serialized generated-
-contract/migration lane.
+contract/migration lane. No production legacy-money rule is weakened.
 
 ## Direct owner requests outside the package queue
 
