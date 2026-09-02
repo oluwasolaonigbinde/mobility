@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R02, R25, R38`
-**Current capacity justification:** R36 stopped before first write, so its clean trip/contract reservation is released while the owner scope decision remains open. R02 owns only CI workflow/fixtures/validator; R25 owns billing quotation/waiver plus commercial generated-contract surfaces; R38 owns privacy configuration and GPS/KYC ingress services/tests with no generated-contract authority. These three exact domains are mutually disjoint; migrations and all other files remain unleased.
+**Current capacity assignment:** `R02, R26, R38`
+**Current capacity justification:** R36 stopped before first write, so its clean trip/contract reservation is released while the owner scope decision remains open. R02 owns only CI workflow/fixtures/validator; R26 owns the accepted R25 billing base plus invoice allocation/correction lock-order services and tests; R38 owns privacy configuration and GPS/KYC ingress services/tests with no billing or generated-contract authority. These three exact domains are mutually disjoint; migrations and all other files remain unleased.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -79,8 +79,9 @@ authority; the directly owner-authorized, Pro-admitted remediation programme is
 resumed from the exact safe pause snapshot without changing any accepted slice
 or any of the 29 non-executable dispositions.
 **Current checkpoint:** `PKG-10 / R02` — R02 is resuming under the
-owner-selected every-branch authority; R25 implements latest-quotation and
-canonical-waiver authority; R38 adds collection-time GPS/KYC privacy denial.
+owner-selected every-branch authority; R26 implements invoice
+allocation/correction lock ordering on the accepted R25 base; R38 adds
+collection-time GPS/KYC privacy denial.
 R36 remains frozen before first write pending the owner's migration/signing
 scope choice, with no active lease. R35's disclosed false red-evidence claims
 remain excluded from closure evidence and its final-sealing gap remains R37's.
@@ -1551,8 +1552,8 @@ durable ledger before changing a row.
 | R22 | MON-004, MON-007, MON-009 | R20, R21 | QUEUED | PASS — R22-P | PENDING | CP-MONEY PENDING |
 | R23 | COM-001, COM-004 | R08 | COMPLETE | PASS — R23-P | PASS — R23-M | CP-COMMERCIAL PASS — R23-CP-COMMERCIAL |
 | R24 | COM-002 | R08, R23 | COMPLETE | PASS — R24-P | PASS — R24-M | CP-COMMERCIAL PASS — R24-CP-COMMERCIAL |
-| R25 | COM-003, COM-005 | R08, R24 | ACTIVE | PASS — R25-P | PENDING | CP-COMMERCIAL PENDING |
-| R26 | COM-006 | R08, R25 | QUEUED | PASS — R26-P | PENDING | CP-COMMERCIAL PENDING |
+| R25 | COM-003, COM-005 | R08, R24 | COMPLETE | PASS — R25-P | PASS — R25-M | CP-COMMERCIAL PASS — R25-CP-COMMERCIAL |
+| R26 | COM-006 | R08, R25 | ACTIVE | PASS — R26-P | PENDING | CP-COMMERCIAL PENDING |
 | R27 | COM-007 | R08, R26 | QUEUED | PASS — R27-P | PENDING | CP-COMMERCIAL PENDING |
 | R28 | CAM-001 | none | QUEUED | PENDING | PENDING | CP-CAMPAIGN PENDING |
 | R29 | CAM-002 | R04, R08, R28 | QUEUED | PASS — R29-P | PENDING | CP-CAMPAIGN PENDING |

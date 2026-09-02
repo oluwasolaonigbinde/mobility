@@ -62,10 +62,14 @@ from app.schemas.billing import (
     ReceiptReverse,
     RefundCreate,
     SettlementRead,
+    WaiverCopyRead,
     WaiverCreate,
     WaiverRead,
 )
 from app.services.billing import (
+    EXPEDITED_WAIVER_WORDING,
+    EXPEDITED_WAIVER_WORDING_HASH,
+    EXPEDITED_WAIVER_WORDING_VERSION,
     accept_quotation_revision,
     adjusted_invoice_obligation,
     billing_history,
@@ -189,6 +193,11 @@ async def _campaign_commercial_state(
         terms=terms,
         invoices=[await _invoice_read(session, invoice) for invoice in invoices],
         financial_authority=financial_authority,
+        expedited_waiver_copy=WaiverCopyRead(
+            wording_version=EXPEDITED_WAIVER_WORDING_VERSION,
+            accepted_wording=EXPEDITED_WAIVER_WORDING,
+            accepted_wording_hash=EXPEDITED_WAIVER_WORDING_HASH,
+        ),
         waiver=waiver,
         production_start=production_start,
         settlements=settlements,

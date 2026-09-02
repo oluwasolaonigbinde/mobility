@@ -1,10 +1,11 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from uuid import UUID
 
 import pytest
 from conftest import create_test_campaign, create_test_organization, create_test_user
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
@@ -101,16 +102,167 @@ def test_custom_quote_acceptance_freezes_exact_commercial_snapshot(db_sessionmak
                 "commercial.terms.accepted",
             }
 
-            with pytest.raises(AppError) as duplicate:
+            retried = await accept_quotation_revision(
+                session,
+                quotation_revision_id=revision.id,
+                actor_user_id=owner.id,
+                acceptance_method=AcceptanceMethod.IN_PLATFORM,
+            )
+            assert retried.id == terms.id
+
+    asyncio.run(scenario())
+
+
+def test_only_latest_quotation_revision_can_bind_and_exact_retry_converges(
+    db_sessionmaker,
+) -> None:
+    admin, owner, _, campaign = _commercial_fixture(db_sessionmaker)
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            request = await request_custom_quote(
+                session,
+                campaign_id=campaign.id,
+                actor_user_id=owner.id,
+                source=QuoteRequestSource.IN_PLATFORM,
+                request_details={"brief": "revision authority"},
+            )
+            revisions = []
+            for reference, amount in (("LATEST-Q-1", "100.00"), ("LATEST-Q-2", "150.00")):
+                revisions.append(
+                    await record_quotation_revision(
+                        session,
+                        quote_request_id=request.id,
+                        actor_user_id=admin.id,
+                        quote_reference=reference,
+                        currency="NGN",
+                        line_items=[
+                            {
+                                "code": "MEDIA",
+                                "description": "Campaign media",
+                                "kind": "media",
+                                "amount": amount,
+                            }
+                        ],
+                        production_scope={"vehicle_count": 1},
+                        payment_class=PaymentClass.STANDARD_PREPAID,
+                        payment_terms={},
+                        tax_rate="0",
+                    )
+                )
+
+            with pytest.raises(AppError) as superseded:
                 await accept_quotation_revision(
                     session,
-                    quotation_revision_id=revision.id,
+                    quotation_revision_id=revisions[0].id,
                     actor_user_id=owner.id,
                     acceptance_method=AcceptanceMethod.IN_PLATFORM,
                 )
-            assert duplicate.value.code == "COMMERCIAL_TERMS_ALREADY_ACCEPTED"
+            assert superseded.value.code == "QUOTATION_REVISION_SUPERSEDED"
+
+            terms = await accept_quotation_revision(
+                session,
+                quotation_revision_id=revisions[1].id,
+                actor_user_id=owner.id,
+                acceptance_method=AcceptanceMethod.IN_PLATFORM,
+            )
+            await session.commit()
+            terms_id = terms.id
+            revision_id = revisions[1].id
+
+        async with db_sessionmaker() as retry_session:
+            retried = await accept_quotation_revision(
+                retry_session,
+                quotation_revision_id=revision_id,
+                actor_user_id=owner.id,
+                acceptance_method=AcceptanceMethod.IN_PLATFORM,
+            )
+            assert retried.id == terms_id
+            assert retried.quotation_revision_id == revision_id
+            assert retried.gross_amount == Decimal("150.00")
+            await retry_session.commit()
+
+            accepted_events = list(
+                await retry_session.scalars(
+                    select(AuditEvent).where(AuditEvent.action == "commercial.terms.accepted")
+                )
+            )
+            assert len(accepted_events) == 1
 
     asyncio.run(scenario())
+
+
+def test_concurrent_latest_quotation_acceptance_converges_on_postgresql(
+    postgis_db_sessionmaker,
+) -> None:
+    admin, owner, _, campaign = _commercial_fixture(postgis_db_sessionmaker)
+
+    async def setup() -> UUID:
+        async with postgis_db_sessionmaker() as session:
+            request = await request_custom_quote(
+                session,
+                campaign_id=campaign.id,
+                actor_user_id=owner.id,
+                source=QuoteRequestSource.IN_PLATFORM,
+                request_details={"brief": "concurrent acceptance"},
+            )
+            revision = await record_quotation_revision(
+                session,
+                quote_request_id=request.id,
+                actor_user_id=admin.id,
+                quote_reference="CONCURRENT-Q-1",
+                currency="NGN",
+                line_items=[
+                    {
+                        "code": "MEDIA",
+                        "description": "Campaign media",
+                        "kind": "media",
+                        "amount": "100.00",
+                    }
+                ],
+                production_scope={"vehicle_count": 1},
+                payment_class=PaymentClass.STANDARD_PREPAID,
+                payment_terms={},
+                tax_rate="0",
+            )
+            await session.commit()
+            return revision.id
+
+    revision_id = asyncio.run(setup())
+
+    async def accept() -> UUID:
+        async with postgis_db_sessionmaker() as session:
+            terms = await accept_quotation_revision(
+                session,
+                quotation_revision_id=revision_id,
+                actor_user_id=owner.id,
+                acceptance_method=AcceptanceMethod.IN_PLATFORM,
+            )
+            await session.commit()
+            return terms.id
+
+    async def concurrent_acceptances() -> tuple[UUID, UUID]:
+        first_id, second_id = await asyncio.gather(accept(), accept())
+        return first_id, second_id
+
+    first_id, second_id = asyncio.run(concurrent_acceptances())
+    assert first_id == second_id
+
+    async def effect_counts() -> tuple[int, int]:
+        async with postgis_db_sessionmaker() as session:
+            terms_count = await session.scalar(
+                select(func.count())
+                .select_from(CommercialTerms)
+                .where(CommercialTerms.campaign_id == campaign.id)
+            )
+            audit_count = await session.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(AuditEvent.action == "commercial.terms.accepted")
+            )
+            return int(terms_count or 0), int(audit_count or 0)
+
+    assert asyncio.run(effect_counts()) == (1, 1)
 
 
 def test_external_acceptance_preserves_provenance_and_effective_time(db_sessionmaker) -> None:
@@ -158,6 +310,28 @@ def test_external_acceptance_preserves_provenance_and_effective_time(db_sessionm
             assert terms.recorded_by_user_id == admin.id
             assert terms.external_acceptance_reference == "SIGNED-PDF-SHA256:abc"
             assert terms.accepted_at == accepted_at
+            terms_id = terms.id
+
+        async with db_sessionmaker() as retry_session:
+            retried = await accept_quotation_revision(
+                retry_session,
+                quotation_revision_id=revision.id,
+                actor_user_id=admin.id,
+                acceptance_method=AcceptanceMethod.EXTERNAL_RECORDED,
+                external_accepted_at=accepted_at,
+                external_acceptance_reference="SIGNED-PDF-SHA256:abc",
+            )
+            assert retried.id == terms_id
+            with pytest.raises(AppError) as changed_evidence:
+                await accept_quotation_revision(
+                    retry_session,
+                    quotation_revision_id=revision.id,
+                    actor_user_id=admin.id,
+                    acceptance_method=AcceptanceMethod.EXTERNAL_RECORDED,
+                    external_accepted_at=accepted_at,
+                    external_acceptance_reference="SIGNED-PDF-SHA256:changed",
+                )
+            assert changed_evidence.value.code == "COMMERCIAL_TERMS_ALREADY_ACCEPTED"
 
     asyncio.run(scenario())
 

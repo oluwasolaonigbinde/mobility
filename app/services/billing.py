@@ -80,6 +80,13 @@ from app.services.payout_rule_serialization import acquire_campaign_terms_lock, 
 
 MONEY_QUANTUM = Decimal("0.01")
 
+EXPEDITED_WAIVER_WORDING_VERSION = "advertiser-expedited-v1"
+EXPEDITED_WAIVER_WORDING = (
+    "I request expedited production and understand refund eligibility ends only when "
+    "expedited production actually starts."
+)
+EXPEDITED_WAIVER_WORDING_HASH = hashlib.sha256(EXPEDITED_WAIVER_WORDING.encode()).hexdigest()
+
 RECEIPT_SEQUENCE = {
     ReceiptLifecycleStatus.OBSERVED: 1,
     ReceiptLifecycleStatus.RECONCILED: 2,
@@ -418,6 +425,37 @@ async def accept_quotation_revision(
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
         accepted_by_user_id = None
+    existing_terms = await _commercial_terms_for_campaign(session, revision.campaign_id, lock=True)
+    if existing_terms is not None:
+        same_acceptance = (
+            existing_terms.quotation_revision_id == revision.id
+            and existing_terms.acceptance_method == acceptance_method
+            and existing_terms.recorded_by_user_id == actor_user_id
+            and existing_terms.accepted_by_user_id == accepted_by_user_id
+            and existing_terms.external_acceptance_reference == external_reference
+            and (
+                acceptance_method == AcceptanceMethod.IN_PLATFORM
+                or _stored_aware_utc(existing_terms.accepted_at) == accepted_at
+            )
+        )
+        if same_acceptance:
+            return existing_terms
+        raise AppError(
+            "COMMERCIAL_TERMS_ALREADY_ACCEPTED",
+            "This campaign already has immutable accepted commercial terms",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    latest_revision_number = await session.scalar(
+        select(func.max(CommercialQuotationRevision.revision_number)).where(
+            CommercialQuotationRevision.quote_request_id == revision.quote_request_id
+        )
+    )
+    if latest_revision_number != revision.revision_number:
+        raise AppError(
+            "QUOTATION_REVISION_SUPERSEDED",
+            "Only the latest quotation revision can be accepted",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     terms = CommercialTerms(
         campaign_id=revision.campaign_id,
         organization_id=revision.organization_id,
@@ -1965,6 +2003,7 @@ async def record_expedited_production_waiver(
     actor_user_id: UUID,
     wording_version: str,
     accepted_wording: str,
+    accepted_wording_hash: str,
 ) -> ExpeditedProductionWaiver:
     organization, _ = await get_required_advertiser_context(
         session, actor_user_id, require_write=True
@@ -1974,25 +2013,33 @@ async def record_expedited_production_waiver(
     if campaign.organization_id != organization.id:
         raise AppError("CAMPAIGN_NOT_FOUND", "Campaign was not found", status_code=404)
     terms = await _commercial_terms_for_campaign(session, campaign_id, lock=True)
-    version = wording_version.strip()
-    wording = accepted_wording.strip()
-    if terms is None or not version or not wording:
+    if terms is None or not wording_version or not accepted_wording or not accepted_wording_hash:
         raise AppError(
             "EXPEDITED_WAIVER_EVIDENCE_REQUIRED",
-            "Accepted terms, wording version and accepted wording are required",
+            "Accepted terms, wording version, wording and wording hash are required",
             status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if (
+        wording_version != EXPEDITED_WAIVER_WORDING_VERSION
+        or accepted_wording != EXPEDITED_WAIVER_WORDING
+        or accepted_wording_hash != EXPEDITED_WAIVER_WORDING_HASH
+    ):
+        raise AppError(
+            "EXPEDITED_WAIVER_COPY_MISMATCH",
+            "The expedited-production waiver copy is not the approved canonical version",
+            status_code=status.HTTP_409_CONFLICT,
         )
     existing = await session.scalar(
         select(ExpeditedProductionWaiver).where(
             ExpeditedProductionWaiver.campaign_id == campaign_id
         )
     )
-    wording_hash = hashlib.sha256(wording.encode()).hexdigest()
     if existing is not None:
         if (
             existing.accepted_by_user_id == actor_user_id
-            and existing.wording_version == version
-            and existing.accepted_wording_hash == wording_hash
+            and existing.commercial_terms_id == terms.id
+            and existing.wording_version == EXPEDITED_WAIVER_WORDING_VERSION
+            and existing.accepted_wording_hash == EXPEDITED_WAIVER_WORDING_HASH
         ):
             return existing
         raise AppError(
@@ -2008,8 +2055,8 @@ async def record_expedited_production_waiver(
         requested_at=now,
         accepted_by_user_id=actor_user_id,
         accepted_at=now,
-        wording_version=version,
-        accepted_wording_hash=wording_hash,
+        wording_version=EXPEDITED_WAIVER_WORDING_VERSION,
+        accepted_wording_hash=EXPEDITED_WAIVER_WORDING_HASH,
     )
     session.add(waiver)
     await session.flush()
@@ -2019,7 +2066,11 @@ async def record_expedited_production_waiver(
         action="billing.expedited_waiver.accepted",
         entity_type="expedited_production_waiver",
         entity_id=str(waiver.id),
-        metadata={"campaign_id": str(campaign_id), "wording_version": version},
+        metadata={
+            "campaign_id": str(campaign_id),
+            "wording_version": EXPEDITED_WAIVER_WORDING_VERSION,
+            "accepted_wording_hash": EXPEDITED_WAIVER_WORDING_HASH,
+        },
     )
     return waiver
 

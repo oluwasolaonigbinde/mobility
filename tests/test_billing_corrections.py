@@ -22,6 +22,9 @@ from app.models.user import UserRole
 from app.schemas.campaign_cancellations import CampaignCancellationCreate
 from app.services import billing, campaign_cancellations
 from app.services.billing import (
+    EXPEDITED_WAIVER_WORDING,
+    EXPEDITED_WAIVER_WORDING_HASH,
+    EXPEDITED_WAIVER_WORDING_VERSION,
     accept_quotation_revision,
     adjusted_invoice_obligation,
     allocate_payment_receipt,
@@ -651,8 +654,9 @@ def test_frozen_refund_survives_wall_clock_and_waiver_acceptance_alone_does_not_
                 session,
                 campaign_id=campaign.id,
                 actor_user_id=owner.id,
-                wording_version="refund-v1",
-                accepted_wording="I accept the expedited refund effect if production starts.",
+                wording_version=EXPEDITED_WAIVER_WORDING_VERSION,
+                accepted_wording=EXPEDITED_WAIVER_WORDING,
+                accepted_wording_hash=EXPEDITED_WAIVER_WORDING_HASH,
             )
             cancellation = await _cancel_for_refund(
                 session,
@@ -789,8 +793,9 @@ def test_actual_expedited_start_closes_refund_eligibility(db_sessionmaker, monke
                 session,
                 campaign_id=campaign.id,
                 actor_user_id=owner.id,
-                wording_version="refund-v1",
-                accepted_wording="I accept the expedited refund effect if production starts.",
+                wording_version=EXPEDITED_WAIVER_WORDING_VERSION,
+                accepted_wording=EXPEDITED_WAIVER_WORDING,
+                accepted_wording_hash=EXPEDITED_WAIVER_WORDING_HASH,
             )
             production = await record_production_start(
                 session,

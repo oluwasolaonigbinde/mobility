@@ -50,8 +50,9 @@ export async function acceptExpeditedWaiverAction(campaignId: string, formData: 
     await api.POST("/api/v1/advertiser/campaigns/{campaign_id}/expedited-waiver", {
       params: { path: { campaign_id: campaignId } },
       body: {
-        wording_version: "advertiser-expedited-v1",
-        accepted_wording: String(formData.get("accepted_wording") ?? "").trim(),
+        wording_version: String(formData.get("wording_version") ?? ""),
+        accepted_wording: String(formData.get("accepted_wording") ?? ""),
+        accepted_wording_hash: String(formData.get("accepted_wording_hash") ?? ""),
       },
     });
   } catch (error) {

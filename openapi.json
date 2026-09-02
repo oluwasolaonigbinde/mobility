@@ -4113,6 +4113,9 @@
             "title": "Budget Evaluations",
             "type": "array"
           },
+          "expedited_waiver_copy": {
+            "$ref": "#/components/schemas/WaiverCopyRead"
+          },
           "financial_authority": {
             "anyOf": [
               {
@@ -4191,6 +4194,7 @@
           "terms",
           "invoices",
           "financial_authority",
+          "expedited_waiver_copy",
           "waiver",
           "production_start",
           "settlements",
@@ -21160,10 +21164,14 @@
         "title": "VerifiedMovementMetricRead",
         "type": "object"
       },
-      "WaiverCreate": {
+      "WaiverCopyRead": {
         "properties": {
           "accepted_wording": {
             "title": "Accepted Wording",
+            "type": "string"
+          },
+          "accepted_wording_hash": {
+            "title": "Accepted Wording Hash",
             "type": "string"
           },
           "wording_version": {
@@ -21173,7 +21181,34 @@
         },
         "required": [
           "wording_version",
-          "accepted_wording"
+          "accepted_wording",
+          "accepted_wording_hash"
+        ],
+        "title": "WaiverCopyRead",
+        "type": "object"
+      },
+      "WaiverCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted_wording": {
+            "title": "Accepted Wording",
+            "type": "string"
+          },
+          "accepted_wording_hash": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Accepted Wording Hash",
+            "type": "string"
+          },
+          "wording_version": {
+            "title": "Wording Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "wording_version",
+          "accepted_wording",
+          "accepted_wording_hash"
         ],
         "title": "WaiverCreate",
         "type": "object"

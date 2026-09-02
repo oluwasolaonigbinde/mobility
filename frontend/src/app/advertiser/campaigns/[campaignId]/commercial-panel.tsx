@@ -115,15 +115,22 @@ export function CommercialPanel({
           <form action={waiverAction} className="border-edge mt-5 border-t pt-5">
             <label className="flex items-start gap-3 text-sm">
               <input type="checkbox" required className="mt-1" />
-              <span>
-                I request expedited production and understand refund eligibility ends only when
-                expedited production actually starts.
-              </span>
+              <span>{commercial.expedited_waiver_copy.accepted_wording}</span>
             </label>
             <input
               type="hidden"
+              name="wording_version"
+              value={commercial.expedited_waiver_copy.wording_version}
+            />
+            <input
+              type="hidden"
               name="accepted_wording"
-              value="I request expedited production and understand refund eligibility ends only when expedited production actually starts."
+              value={commercial.expedited_waiver_copy.accepted_wording}
+            />
+            <input
+              type="hidden"
+              name="accepted_wording_hash"
+              value={commercial.expedited_waiver_copy.accepted_wording_hash}
             />
             <Button type="submit" variant="ghost" className="mt-3">
               Record expedited waiver

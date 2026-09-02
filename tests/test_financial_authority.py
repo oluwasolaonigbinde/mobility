@@ -10,7 +10,7 @@ from conftest import (
     create_test_user,
     create_test_vehicle,
 )
-from sqlalchemy import select
+from sqlalchemy import func, select
 from test_campaign_assignments import create_assignment_ready_graph, create_postgres_offer
 from test_payouts_v2 import create_v2_rule
 from test_payouts_v3 import create_revision_row, insert_binding
@@ -18,9 +18,11 @@ from test_receipt_allocations import _accepted_terms
 from test_trips import create_trip_ready_graph, start_trip
 
 from app.core.errors import AppError
+from app.models.audit import AuditEvent
 from app.models.billing import (
     AcceptanceMethod,
     CampaignLiabilityReservation,
+    ExpeditedProductionWaiver,
     PaymentClass,
     ProductionAuthorityBasis,
     QuoteRequestSource,
@@ -34,6 +36,9 @@ from app.models.vehicle import VehicleStatus
 from app.schemas.campaign_assignments import CampaignAssignmentTransition
 from app.services import billing
 from app.services.billing import (
+    EXPEDITED_WAIVER_WORDING,
+    EXPEDITED_WAIVER_WORDING_HASH,
+    EXPEDITED_WAIVER_WORDING_VERSION,
     accept_quotation_revision,
     allocate_payment_receipt,
     assert_campaign_production_authorized,
@@ -324,19 +329,20 @@ def test_expedited_waiver_is_immutable_and_start_is_separate(db_sessionmaker) ->
                 session,
                 campaign_id=campaign.id,
                 actor_user_id=owner.id,
-                wording_version="refund-waiver-v1",
-                accepted_wording="I request expedited production and accept the refund effect.",
+                wording_version=EXPEDITED_WAIVER_WORDING_VERSION,
+                accepted_wording=EXPEDITED_WAIVER_WORDING,
+                accepted_wording_hash=EXPEDITED_WAIVER_WORDING_HASH,
             )
             assert len(waiver.accepted_wording_hash) == 64
-            with pytest.raises(AppError) as error:
-                await record_expedited_production_waiver(
-                    session,
-                    campaign_id=campaign.id,
-                    actor_user_id=owner.id,
-                    wording_version="refund-waiver-v2",
-                    accepted_wording="Different wording",
-                )
-            assert error.value.code == "EXPEDITED_WAIVER_IMMUTABLE"
+            retried = await record_expedited_production_waiver(
+                session,
+                campaign_id=campaign.id,
+                actor_user_id=owner.id,
+                wording_version=EXPEDITED_WAIVER_WORDING_VERSION,
+                accepted_wording=EXPEDITED_WAIVER_WORDING,
+                accepted_wording_hash=EXPEDITED_WAIVER_WORDING_HASH,
+            )
+            assert retried.id == waiver.id
             production = await record_production_start(
                 session,
                 campaign_id=campaign.id,
@@ -350,6 +356,107 @@ def test_expedited_waiver_is_immutable_and_start_is_separate(db_sessionmaker) ->
             await session.commit()
 
     asyncio.run(scenario())
+
+
+def test_expedited_waiver_rejects_noncanonical_copy(db_sessionmaker) -> None:
+    admin, owner, organization, campaign = _fixture(db_sessionmaker, "waiver-copy")
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            await _funded_terms(
+                session,
+                admin=admin,
+                owner=owner,
+                organization=organization,
+                campaign=campaign,
+                reference="AUTH-WAIVER-COPY",
+            )
+            altered_copies = (
+                (
+                    "advertiser-expedited-v2",
+                    EXPEDITED_WAIVER_WORDING,
+                    EXPEDITED_WAIVER_WORDING_HASH,
+                ),
+                (
+                    EXPEDITED_WAIVER_WORDING_VERSION,
+                    "Caller-mutated waiver text",
+                    EXPEDITED_WAIVER_WORDING_HASH,
+                ),
+                (
+                    EXPEDITED_WAIVER_WORDING_VERSION,
+                    EXPEDITED_WAIVER_WORDING,
+                    "0" * 64,
+                ),
+            )
+            for version, wording, wording_hash in altered_copies:
+                with pytest.raises(AppError) as altered:
+                    await record_expedited_production_waiver(
+                        session,
+                        campaign_id=campaign.id,
+                        actor_user_id=owner.id,
+                        wording_version=version,
+                        accepted_wording=wording,
+                        accepted_wording_hash=wording_hash,
+                    )
+                assert altered.value.code == "EXPEDITED_WAIVER_COPY_MISMATCH"
+
+    asyncio.run(scenario())
+
+
+def test_concurrent_canonical_waiver_retry_converges_on_postgresql(
+    postgis_db_sessionmaker,
+) -> None:
+    admin, owner, organization, campaign = _fixture(postgis_db_sessionmaker, "waiver-race")
+
+    async def setup() -> None:
+        async with postgis_db_sessionmaker() as session:
+            await _funded_terms(
+                session,
+                admin=admin,
+                owner=owner,
+                organization=organization,
+                campaign=campaign,
+                reference="AUTH-WAIVER-RACE",
+            )
+            await session.commit()
+
+    asyncio.run(setup())
+
+    async def accept_waiver():
+        async with postgis_db_sessionmaker() as session:
+            waiver = await record_expedited_production_waiver(
+                session,
+                campaign_id=campaign.id,
+                actor_user_id=owner.id,
+                wording_version=EXPEDITED_WAIVER_WORDING_VERSION,
+                accepted_wording=EXPEDITED_WAIVER_WORDING,
+                accepted_wording_hash=EXPEDITED_WAIVER_WORDING_HASH,
+            )
+            await session.commit()
+            return waiver.id
+
+    async def concurrent_acceptances():
+        first_id, second_id = await asyncio.gather(accept_waiver(), accept_waiver())
+        return first_id, second_id
+
+    first_id, second_id = asyncio.run(concurrent_acceptances())
+    assert first_id == second_id
+
+    async def effect_counts() -> tuple[int, int]:
+        async with postgis_db_sessionmaker() as session:
+            waiver_count = await session.scalar(
+                select(func.count())
+                .select_from(ExpeditedProductionWaiver)
+                .where(ExpeditedProductionWaiver.campaign_id == campaign.id)
+            )
+            audit_count = await session.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(AuditEvent.action == "billing.expedited_waiver.accepted")
+            )
+            return int(waiver_count or 0), int(audit_count or 0)
+
+    assert asyncio.run(effect_counts()) == (1, 1)
 
 
 def test_approved_credit_snapshots_limit_due_date_approver_and_terms(db_sessionmaker) -> None:
@@ -436,8 +543,9 @@ def test_new_work_revalidates_reversed_cash_and_expired_credit(
                 session,
                 campaign_id=cash_campaign.id,
                 actor_user_id=cash_owner.id,
-                wording_version="reversal-v1",
-                accepted_wording="I request expedited production.",
+                wording_version=EXPEDITED_WAIVER_WORDING_VERSION,
+                accepted_wording=EXPEDITED_WAIVER_WORDING,
+                accepted_wording_hash=EXPEDITED_WAIVER_WORDING_HASH,
             )
             await record_production_start(
                 session,

@@ -21,6 +21,9 @@ from app.models.trip import TripSession
 from app.schemas.campaign_assignments import CampaignAssignmentTransition
 from app.schemas.trips import TripStartRequest
 from app.services.billing import (
+    EXPEDITED_WAIVER_WORDING,
+    EXPEDITED_WAIVER_WORDING_HASH,
+    EXPEDITED_WAIVER_WORDING_VERSION,
     assert_new_work_authorized,
     record_expedited_production_waiver,
     record_production_start,
@@ -83,8 +86,9 @@ def test_production_start_commits_before_waiting_reversal_cutoff(
                 session,
                 campaign_id=campaign.id,
                 actor_user_id=owner.id,
-                wording_version="race-v1",
-                accepted_wording="I request expedited production.",
+                wording_version=EXPEDITED_WAIVER_WORDING_VERSION,
+                accepted_wording=EXPEDITED_WAIVER_WORDING,
+                accepted_wording_hash=EXPEDITED_WAIVER_WORDING_HASH,
             )
             await session.commit()
             return allocation.receipt_id, waiver.id
@@ -208,8 +212,9 @@ def test_campaign_activation_commits_before_waiting_reversal_cutoff(
                 session,
                 campaign_id=campaign.id,
                 actor_user_id=owner.id,
-                wording_version="race-v1",
-                accepted_wording="I request expedited production.",
+                wording_version=EXPEDITED_WAIVER_WORDING_VERSION,
+                accepted_wording=EXPEDITED_WAIVER_WORDING,
+                accepted_wording_hash=EXPEDITED_WAIVER_WORDING_HASH,
             )
             await record_production_start(
                 session,
@@ -339,8 +344,9 @@ def test_trip_start_commits_before_waiting_reversal_cutoff(
                 session,
                 campaign_id=campaign.id,
                 actor_user_id=owner.id,
-                wording_version="race-v1",
-                accepted_wording="I request expedited production.",
+                wording_version=EXPEDITED_WAIVER_WORDING_VERSION,
+                accepted_wording=EXPEDITED_WAIVER_WORDING,
+                accepted_wording_hash=EXPEDITED_WAIVER_WORDING_HASH,
             )
             await record_production_start(
                 session,

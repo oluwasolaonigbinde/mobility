@@ -5696,6 +5696,7 @@ export interface components {
         CampaignCommercialRead: {
             /** Budget Evaluations */
             budget_evaluations: components["schemas"]["BudgetEvaluationRead"][];
+            expedited_waiver_copy: components["schemas"]["WaiverCopyRead"];
             financial_authority: components["schemas"]["FinancialAuthorityRead"] | null;
             /** Invoices */
             invoices: components["schemas"]["InvoiceRead"][];
@@ -12211,10 +12212,21 @@ export interface components {
             /** Trip Count */
             trip_count: number;
         };
+        /** WaiverCopyRead */
+        WaiverCopyRead: {
+            /** Accepted Wording */
+            accepted_wording: string;
+            /** Accepted Wording Hash */
+            accepted_wording_hash: string;
+            /** Wording Version */
+            wording_version: string;
+        };
         /** WaiverCreate */
         WaiverCreate: {
             /** Accepted Wording */
             accepted_wording: string;
+            /** Accepted Wording Hash */
+            accepted_wording_hash: string;
             /** Wording Version */
             wording_version: string;
         };

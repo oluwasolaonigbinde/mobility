@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 from datetime import UTC, datetime
 
@@ -16,6 +17,7 @@ from app.adapters.payments import FakePaymentGatewayAdapter
 from app.api.v1.billing import get_payment_gateway_adapter
 from app.api.v1.dependencies import get_payment_event_enqueuer
 from app.jobs.payment_gateway import sweep_payment_gateway_events
+from app.models.audit import AuditEvent
 from app.models.billing import (
     InvoiceCorrectionType,
     IssuerVerificationStatus,
@@ -92,13 +94,50 @@ def test_commercial_api_journey_is_tenant_scoped_and_uses_canonical_cash(
     )
     assert revision.status_code == 201, revision.text
 
-    accepted = db_client.post(
+    latest_revision = db_client.post(
+        f"/api/v1/admin/quote-requests/{quote_request_id}/revisions",
+        headers=admin_headers,
+        json={
+            "quote_reference": "API-Q-002",
+            "currency": "NGN",
+            "line_items": [
+                {
+                    "code": "MEDIA",
+                    "description": "Media campaign",
+                    "kind": "media",
+                    "amount": "100.00",
+                }
+            ],
+            "production_scope": {"vehicle_count": 1},
+            "payment_class": "standard_prepaid",
+            "payment_terms": {},
+            "tax_rate": "0.00",
+        },
+    )
+    assert latest_revision.status_code == 201, latest_revision.text
+
+    superseded = db_client.post(
         f"/api/v1/advertiser/quotations/{revision.json()['id']}/accept",
+        headers=owner_headers,
+        json={"acceptance_method": "in_platform"},
+    )
+    assert superseded.status_code == 409, superseded.text
+    assert superseded.json()["error"]["code"] == "QUOTATION_REVISION_SUPERSEDED"
+
+    accepted = db_client.post(
+        f"/api/v1/advertiser/quotations/{latest_revision.json()['id']}/accept",
         headers=owner_headers,
         json={"acceptance_method": "in_platform"},
     )
     assert accepted.status_code == 200, accepted.text
     terms_id = accepted.json()["id"]
+    retried_acceptance = db_client.post(
+        f"/api/v1/advertiser/quotations/{latest_revision.json()['id']}/accept",
+        headers=owner_headers,
+        json={"acceptance_method": "in_platform"},
+    )
+    assert retried_acceptance.status_code == 200, retried_acceptance.text
+    assert retried_acceptance.json()["id"] == terms_id
 
     submitted = db_client.post(
         f"/api/v1/advertiser/campaigns/{campaign.id}/submit",
@@ -147,6 +186,54 @@ def test_commercial_api_journey_is_tenant_scoped_and_uses_canonical_cash(
     )
     assert snapshot.status_code == 200, snapshot.text
     assert snapshot.json()["terms"]["id"] == terms_id
+    canonical_wording = (
+        "I request expedited production and understand refund eligibility ends only when "
+        "expedited production actually starts."
+    )
+    canonical_copy = snapshot.json()["expedited_waiver_copy"]
+    assert canonical_copy == {
+        "wording_version": "advertiser-expedited-v1",
+        "accepted_wording": canonical_wording,
+        "accepted_wording_hash": hashlib.sha256(canonical_wording.encode()).hexdigest(),
+    }
+
+    altered_waiver = db_client.post(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/expedited-waiver",
+        headers=owner_headers,
+        json={**canonical_copy, "accepted_wording": f"{canonical_wording} altered"},
+    )
+    assert altered_waiver.status_code == 409, altered_waiver.text
+    assert altered_waiver.json()["error"]["code"] == "EXPEDITED_WAIVER_COPY_MISMATCH"
+
+    waiver = db_client.post(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/expedited-waiver",
+        headers=owner_headers,
+        json=canonical_copy,
+    )
+    assert waiver.status_code == 200, waiver.text
+    retried_waiver = db_client.post(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/expedited-waiver",
+        headers=owner_headers,
+        json=canonical_copy,
+    )
+    assert retried_waiver.status_code == 200, retried_waiver.text
+    assert retried_waiver.json()["id"] == waiver.json()["id"]
+
+    async def accepted_effect_counts() -> tuple[int, int]:
+        async with db_sessionmaker() as session:
+            terms_events = await session.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(AuditEvent.action == "commercial.terms.accepted")
+            )
+            waiver_events = await session.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(AuditEvent.action == "billing.expedited_waiver.accepted")
+            )
+            return int(terms_events or 0), int(waiver_events or 0)
+
+    assert asyncio.run(accepted_effect_counts()) == (1, 1)
 
     blocked = db_client.post(
         f"/api/v1/admin/campaigns/{campaign.id}/budget-policy-evaluation",

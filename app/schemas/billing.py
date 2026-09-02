@@ -299,8 +299,17 @@ class FinancialAuthorityRead(ORMRead):
 
 
 class WaiverCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     wording_version: str
     accepted_wording: str
+    accepted_wording_hash: str = Field(min_length=64, max_length=64)
+
+
+class WaiverCopyRead(BaseModel):
+    wording_version: str
+    accepted_wording: str
+    accepted_wording_hash: str
 
 
 class WaiverRead(ORMRead):
@@ -427,6 +436,7 @@ class CampaignCommercialRead(BaseModel):
     terms: CommercialTermsRead | None
     invoices: list[InvoiceRead]
     financial_authority: FinancialAuthorityRead | None
+    expedited_waiver_copy: WaiverCopyRead
     waiver: WaiverRead | None
     production_start: ProductionStartRead | None
     settlements: list[SettlementRead]
