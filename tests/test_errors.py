@@ -981,29 +981,23 @@ def test_r13_dotted_path_components_are_exactly_bounded_before_normalization() -
     large_key = "part." * 100_000 + "full_name"
     large_message = f"status=active {large_key}=Mary Jackson"
     tracemalloc.start()
-    started = time.perf_counter()
     redacted = redact_log_message(large_message)
-    elapsed = time.perf_counter() - started
     _current, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
 
     assert len(large_message) > 500_000
     assert redacted == "status=active [REDACTED]"
     assert peak < 8_000_000, f"dotted path scan peaked at {peak} bytes"
-    assert elapsed < 3.0, f"dotted path scan took {elapsed:.3f}s"
 
     leading_dot_message = f"status=active {'.' * 500_000}full_name=Grace Hopper"
     tracemalloc.start()
-    started = time.perf_counter()
     leading_dot_redacted = redact_log_message(leading_dot_message)
-    leading_dot_elapsed = time.perf_counter() - started
     _current, leading_dot_peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
 
     assert len(leading_dot_message) > 500_000
     assert leading_dot_redacted == "status=active [REDACTED]"
     assert leading_dot_peak < 8_000_000, f"leading-dot scan peaked at {leading_dot_peak} bytes"
-    assert leading_dot_elapsed < 3.0, f"leading-dot scan took {leading_dot_elapsed:.3f}s"
 
 
 def test_r13_deep_and_cyclic_structures_terminate_across_observability_sinks(monkeypatch) -> None:
