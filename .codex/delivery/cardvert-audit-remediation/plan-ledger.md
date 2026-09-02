@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 133
+plan_revision: 137
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 257
+last_event_sequence: 261
 ---
 
 # Cardvert audit remediation programme
@@ -671,3 +671,7 @@ verification is complete.
 | 255 | 131 | 1 | DIFF_REVIEW_STARTED | Frozen R09 entered independent minimal-change, security and CP-SECURITY review, including whether its deferred architecture wording is contribution-blocking after R34 released that file. | `/root/r09_final_review`; GPT-5.6 Sol/high; exact six-file diff; bounded checks only |
 | 256 | 132 | 1 | DIFF_REVIEW_FIX | R09 lacks the accepted reusable typed refresh command/direct parity evidence, and its genuine auth authority amendment remains undocumented now that R34 released architecture ownership. | Sol/high `/root/r09_final_review`; exact `307f13c7...`; 68 focused passes; refresh policy/audit/issuance still router-owned |
 | 257 | 133 | 1 | DISPATCH_RESUMED | The same visible R09 Opus session reacquired its six-file lease plus `docs/architecture.md` solely for typed refresh-command parity and the previously deferred §6.3/changelog authority update. | Claude Opus 5 / High; no R11 logout scope; no full-suite rerun; R02/R35 paths remain disjoint |
+| 258 | 134 | 1 | IMPLEMENTATION_FROZEN | R09 completed the typed refresh-command and architecture corrections but its Opus session reached the Anthropic session limit during final bounded verification. | exact auth/test/docs bytes preserved; no stage or commit; quota is an execution limit, not a code finding |
+| 259 | 135 | 1 | DIFF_REVIEW_STARTED | Corrected R09 entered repeat independent Sol/high admission review so quota reset is not required for a safe decision. | reused `/root/r09_final_review`; security/minimal-change/CP-SECURITY; bounded checks only |
+| 260 | 136 | 1 | IMPLEMENTATION_FROZEN | R35 completed its exact four-file offline queue/tracker implementation with 64 leased and 451 full-frontend passes, then its Opus session reached the Anthropic session limit before final reviewer receipts returned. | no stage or commit; generated `frontend/test-results/**` excluded; reported deadletter-only seal limitation retained for independent disposition |
+| 261 | 137 | 1 | DIFF_REVIEW_STARTED | Frozen R35 entered independent Sol/high offline/security/minimal-change and CP-OFFLINE review so quota reset is not required for admission or correction steering. | `/root/r35_final_review`; exact four-file scope; R02 remains sole active writer |
