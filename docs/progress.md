@@ -45,9 +45,9 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R02, R35`
-**Current capacity justification:** R09 has passed exact-byte admission and released its authentication lease. R35 remains in its admission-only lane; R02 occupies one preserved-checkpoint lane but has no write authority until its failed Claude session is replaced or safely resumed against the exact three-path digest. The active CI and offline-frontend surfaces are disjoint.
+**Current justified remediation writer capacity:** `1`
+**Current capacity assignment:** `R02`
+**Current capacity justification:** R09 and R35 have passed exact-byte admission and released their authentication and offline-frontend leases. R02 remains preserved at its exact three-path checkpoint pending a replacement visible owner. The released R35 dependency makes R36 the next offline-chain refill candidate once its exact disjoint lease is activated.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -78,12 +78,12 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 resumed from the exact safe pause snapshot without changing any accepted slice
 or any of the 29 non-executable dispositions.
-**Current checkpoint:** `PKG-10 / R35-ADMISSION` — R09/GOV-007,AUT-001,AUT-002
-is accepted after exact-byte security review reconciliation and five focused
-real-PostgreSQL refresh checks. Admit the exact frozen R35 packet if its final
-receipt and focused checks hold; resume R02 only from its preserved three-path
-checkpoint. Refill only after each lease is released and the next
-dependency-safe packet is proven disjoint.
+**Current checkpoint:** `PKG-10 / R02-R36-DISPATCH` — R09 and R35 are accepted
+after exact-byte admission. Resume R02 only from its preserved three-path
+checkpoint and refill the released offline lane with R36 after an exact
+disjoint lease is recorded. R35's disclosed false red-evidence claims are
+excluded from closure evidence; its server-side deadletter-only final-sealing
+gap is a durable R37 break case, not a client-side R35 deletion authority.
 
 ## Direct owner requests outside the package queue
 
@@ -1560,7 +1560,7 @@ durable ledger before changing a row.
 | R32 | ONB-002 | none | COMPLETE | PASS — R32-P | PASS — R32-M | CP-ONBOARDING PASS — R32-CP-ONBOARDING |
 | R33 | ONB-006 | R05, R32 | QUEUED | PASS — R33-P | PENDING | CP-ONBOARDING PENDING |
 | R34 | OFF-001 | R04 | COMPLETE | PASS — R34-P | PASS — R34-M | CP-OFFLINE PASS — R34-CP-OFFLINE |
-| R35 | OFF-002, OFF-003 | R34 | ACTIVE | PASS — R35-P | PENDING | CP-OFFLINE PENDING |
+| R35 | OFF-002, OFF-003 | R34 | COMPLETE | PASS — R35-P | PASS — R35-M | CP-OFFLINE PASS |
 | R36 | OFF-005 | R35 | QUEUED | PASS — R36-P | PENDING | CP-OFFLINE PENDING |
 | R37 | OFF-006 | R36 | QUEUED | PASS — R37-P | PENDING | CP-OFFLINE PENDING |
 | R38 | PRV-001, PRV-002 | R13 | QUEUED | PASS — R38-P | PENDING | CP-PRIVACY PENDING |

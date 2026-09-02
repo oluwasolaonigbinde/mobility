@@ -98,6 +98,17 @@ const UNBOUND_KEY_ID = "__cardvert_legacy_unbound__";
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
+/**
+ * Marks an open failure where encrypted evidence is retained on the device but
+ * can no longer be read. The queue still fails closed: the data is never
+ * re-keyed, discarded or resent, but callers can say so truthfully.
+ */
+export const UNREADABLE_EVIDENCE_CODE = "cardvert-unreadable-evidence";
+
+function unreadableEvidenceError(message: string): Error {
+  return Object.assign(new Error(message), { code: UNREADABLE_EVIDENCE_CODE });
+}
+
 // Retain the v1 database name: later versions upgrade it in place.
 export const DEFAULT_DB_NAME = "cardvert-ping-queue";
 
@@ -195,7 +206,7 @@ async function loadOrCreateDriverKey(db: IDBDatabase, driverId: string): Promise
     ...(await getAll<EncryptedRecord>(db, DEAD_LETTERS)),
   ];
   if (records.some((record) => record.ownerDriverId === driverId)) {
-    throw new Error("Encrypted driver data exists but its key is missing");
+    throw unreadableEvidenceError("Encrypted driver data exists but its key is missing");
   }
   const key = await createKey();
   await putKey(db, driverId, key);
@@ -313,7 +324,7 @@ async function migrateLegacy(
     (record) => record.ownerDriverId === null,
   );
   if (unbound.length > 0 && !unboundKey) {
-    throw new Error("Encrypted legacy data exists but its migration key is missing");
+    throw unreadableEvidenceError("Encrypted legacy data exists but its migration key is missing");
   }
   if (unbound.length > 0) {
     const tx = db.transaction(MIGRATION, "readwrite");
@@ -584,8 +595,16 @@ export class PingQueue {
     await transactionDone(tx);
   }
 
-  async listDeadLetters(tripId?: string): Promise<DeadLetter[]> {
-    const rows = (
+  private async deadLetterRecords(tripId?: string): Promise<
+    Array<
+      EncryptedRecord & {
+        terminalStatus?: number;
+        terminalCode?: string;
+        rejectedAt?: number;
+      }
+    >
+  > {
+    return (
       await getAll<
         EncryptedRecord & {
           terminalStatus?: number;
@@ -598,6 +617,10 @@ export class PingQueue {
         record.ownerDriverId === this.driverId &&
         (tripId === undefined || record.tripId === tripId),
     );
+  }
+
+  async listDeadLetters(tripId?: string): Promise<DeadLetter[]> {
+    const rows = await this.deadLetterRecords(tripId);
     return Promise.all(
       rows.map(async (record) => ({
         ...(await decryptPayload<QueuedBatch>(this.key, record)),
@@ -608,8 +631,9 @@ export class PingQueue {
     );
   }
 
+  /** Counts without decrypting, so a corrupted dead letter stays countable. */
   async deadLetterCount(tripId: string): Promise<number> {
-    return (await this.listDeadLetters(tripId)).length;
+    return (await this.deadLetterRecords(tripId)).length;
   }
 
   async recordAttempt(key: string): Promise<void> {
@@ -640,21 +664,31 @@ export class PingQueue {
     return this.metaOrDefault(tripId);
   }
 
+  /**
+   * Trips that still hold local evidence of any kind. Dead letters live in
+   * their own store, so a deadletter-only trip is discoverable here and stays
+   * recoverable across reloads; it is surfaced and reconciled, never resent.
+   */
   async tripsWithLeftovers(): Promise<string[]> {
-    const rows = await this.records();
+    const [rows, deadLetters] = await Promise.all([this.records(), this.deadLetterRecords()]);
     return [
-      ...new Set(
-        rows
+      ...new Set([
+        ...rows
           .filter((row) => row.kind === "pending" || row.kind === "batch" || row.kind === "receipt")
           .map((row) => row.tripId),
-      ),
+        ...deadLetters.map((row) => row.tripId),
+      ]),
     ];
   }
 
   async forgetTrip(tripId: string): Promise<void> {
-    const rows = await this.records(undefined, tripId);
-    const tx = this.db.transaction(RECORDS, "readwrite");
+    const [rows, deadLetters] = await Promise.all([
+      this.records(undefined, tripId),
+      this.deadLetterRecords(tripId),
+    ]);
+    const tx = this.db.transaction([RECORDS, DEAD_LETTERS], "readwrite");
     for (const row of rows) tx.objectStore(RECORDS).delete(row.storageKey);
+    for (const row of deadLetters) tx.objectStore(DEAD_LETTERS).delete(row.storageKey);
     await transactionDone(tx);
   }
 

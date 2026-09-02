@@ -24,7 +24,10 @@ const actions = vi.hoisted(() => ({
 }));
 vi.mock("@/app/driver/actions", () => actions);
 
-const pingQueue = vi.hoisted(() => ({ openPingQueue: vi.fn() }));
+const pingQueue = vi.hoisted(() => ({
+  openPingQueue: vi.fn(),
+  UNREADABLE_EVIDENCE_CODE: "cardvert-unreadable-evidence",
+}));
 vi.mock("@/lib/trips/ping-queue", () => pingQueue);
 
 const TRIP_ID = "11111111-1111-4111-8111-111111111111";
@@ -855,5 +858,226 @@ describe("stranded-data recovery (finding 7)", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("durable-before-acknowledgement capture (OFF-003)", () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    let reject!: (reason: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+
+  const POSITION = {
+    timestamp: 1_700_000_000_000,
+    coords: { latitude: 6.45, longitude: 3.39, accuracy: 12, speed: 5, heading: 90 },
+  } as GeolocationPosition;
+
+  it("does not display a captured fix until the encrypted queue has persisted it", async () => {
+    const runtime = installRuntime();
+    const durable = deferred<{ sequence_number: number }>();
+    const queue = fakeQueue({ addPing: vi.fn().mockReturnValue(durable.promise) });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+    const onFix = runtime.watchPosition.mock.calls[0]![0] as PositionCallback;
+
+    await act(async () => {
+      onFix(POSITION);
+    });
+
+    // The write has not committed yet: the UI must not claim the fix is captured.
+    expect(queue.addPing).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/±12m fix/)).not.toBeInTheDocument();
+
+    await act(async () => {
+      durable.resolve({ sequence_number: 0 });
+    });
+    await waitFor(() => expect(screen.getByText(/±12m fix/)).toBeInTheDocument());
+  });
+
+  it("never acknowledges a fix that the durable write rejected (quota or abort)", async () => {
+    const runtime = installRuntime();
+    const queue = fakeQueue({
+      addPing: vi.fn().mockRejectedValue(new Error("QuotaExceededError")),
+    });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+    const onFix = runtime.watchPosition.mock.calls[0]![0] as PositionCallback;
+
+    await act(async () => {
+      onFix(POSITION);
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        /stopped storing encrypted GPS evidence/i,
+      ),
+    );
+    expect(screen.queryByText(/±12m fix/)).not.toBeInTheDocument();
+    expect(runtime.clearWatch).toHaveBeenCalledWith(1);
+  });
+});
+
+describe("deadletter-only recovery (OFF-002)", () => {
+  it("surfaces and reconciles a deadletter-only trip without resending terminal evidence", async () => {
+    grantWebLock();
+    const queue = fakeQueue({
+      tripsWithLeftovers: vi.fn().mockResolvedValue([TRIP_ID]),
+      listBatches: vi.fn().mockResolvedValue([]),
+      cutBatch: vi.fn().mockResolvedValue(null),
+      unsyncedCount: vi.fn().mockResolvedValue(0),
+      deadLetterCount: vi.fn().mockResolvedValue(1),
+    });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    actions.getTripEvidenceAuthorityAction.mockResolvedValue({
+      protocolVersion: 2,
+      status: "ended",
+    });
+    // Reachable when the server already accepted the batch and only a later
+    // resubmission was refused, so the manifest still reconciles complete. The
+    // rejected-batch case reconciles "failed" and is covered separately below.
+    actions.reconcileTripEvidenceAction.mockResolvedValue({ outcome: "ended" });
+
+    render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/Earlier GPS evidence was rejected/i),
+    );
+    // Terminal evidence is diagnosed, never blindly resent.
+    expect(actions.sendPingBatchAction).not.toHaveBeenCalled();
+    await waitFor(() => expect(queue.forgetTrip).toHaveBeenCalledWith(TRIP_ID));
+  });
+});
+
+describe("unreadable retained evidence (OFF-003)", () => {
+  it("says evidence is retained but unreadable instead of claiming storage is unavailable", async () => {
+    pingQueue.openPingQueue.mockRejectedValue(
+      Object.assign(new Error("Encrypted driver data exists but its key is missing"), {
+        code: "cardvert-unreadable-evidence",
+      }),
+    );
+    render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/can no longer be read/i),
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(/cannot be recovered or resent/i);
+    expect(screen.getByRole("button", { name: /Start trip/ })).toBeDisabled();
+  });
+});
+
+describe("recovery termination and fault containment (OFF-002)", () => {
+  it("reports a terminally incomplete trip once instead of retrying it every minute", async () => {
+    vi.useFakeTimers();
+    try {
+      grantWebLock();
+      const RETRYABLE_TRIP = "88888888-8888-4888-8888-888888888888";
+      const listBatches = vi.fn().mockResolvedValue([]);
+      const queue = fakeQueue({
+        tripsWithLeftovers: vi.fn().mockResolvedValue([TRIP_ID, RETRYABLE_TRIP]),
+        listBatches,
+        // Only TRIP_ID is deadletter-only; RETRYABLE_TRIP stays undrained, so it
+        // proves the recovery interval is still alive rather than silently dead.
+        unsyncedCount: vi.fn().mockImplementation(async (id: string) => (id === TRIP_ID ? 0 : 1)),
+        deadLetterCount: vi.fn().mockImplementation(async (id: string) => (id === TRIP_ID ? 1 : 0)),
+      });
+      pingQueue.openPingQueue.mockResolvedValue(queue);
+      actions.getTripEvidenceAuthorityAction.mockResolvedValue({
+        protocolVersion: 2,
+        status: "ended",
+      });
+      // A rejected batch leaves the server manifest permanently incomplete.
+      actions.reconcileTripEvidenceAction.mockResolvedValue({
+        outcome: "failed",
+        error: "Trip evidence is incomplete",
+      });
+
+      render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
+
+      await vi.waitFor(() => expect(actions.reconcileTripEvidenceAction).toHaveBeenCalledTimes(1));
+      await vi.waitFor(() =>
+        expect(screen.getByRole("alert")).toHaveTextContent(
+          /could not be delivered, so this trip's record stays incomplete/i,
+        ),
+      );
+      const drainsAfterFirstPass = listBatches.mock.calls.length;
+      await act(() => vi.advanceTimersByTimeAsync(61_000));
+      await act(() => vi.advanceTimersByTimeAsync(61_000));
+
+      // Retrying cannot help, so it must not be retried, and never forgotten.
+      expect(actions.reconcileTripEvidenceAction).toHaveBeenCalledTimes(1);
+      expect(queue.forgetTrip).not.toHaveBeenCalled();
+      expect(actions.sendPingBatchAction).not.toHaveBeenCalled();
+      // …but the loop itself must still be running for the retryable trip.
+      expect(listBatches.mock.calls.length).toBeGreaterThan(drainsAfterFirstPass);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops reserving the writer lock once every leftover trip is terminal", async () => {
+    vi.useFakeTimers();
+    try {
+      const requested: string[] = [];
+      Object.defineProperty(navigator, "locks", {
+        configurable: true,
+        value: {
+          request: async (name: string, _options: unknown, callback: (lock: object) => unknown) => {
+            requested.push(name);
+            return callback({});
+          },
+        },
+      });
+      const queue = fakeQueue({
+        tripsWithLeftovers: vi.fn().mockResolvedValue([TRIP_ID]),
+        listBatches: vi.fn().mockResolvedValue([]),
+        unsyncedCount: vi.fn().mockResolvedValue(0),
+        deadLetterCount: vi.fn().mockResolvedValue(1),
+      });
+      pingQueue.openPingQueue.mockResolvedValue(queue);
+      actions.getTripEvidenceAuthorityAction.mockResolvedValue({
+        protocolVersion: 2,
+        status: "ended",
+      });
+      actions.reconcileTripEvidenceAction.mockResolvedValue({ outcome: "failed" });
+
+      render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
+      await vi.waitFor(() => expect(actions.reconcileTripEvidenceAction).toHaveBeenCalled());
+      const locksAfterFirstPass = requested.length;
+
+      await act(() => vi.advanceTimersByTimeAsync(61_000));
+      await act(() => vi.advanceTimersByTimeAsync(61_000));
+
+      // Nothing is left to recover, so later ticks must not contend for the
+      // writer lock — that contention showed the driver a permanent alert.
+      expect(requested.length).toBe(locksAfterFirstPass);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps capture running when a leftover trip's diagnostics cannot be read", async () => {
+    const runtime = installRuntime();
+    const queue = fakeQueue({
+      tripsWithLeftovers: vi.fn().mockResolvedValue(["99999999-9999-4999-8999-999999999999"]),
+      deadLetterCount: vi.fn().mockRejectedValue(new Error("corrupted dead letter")),
+    });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+
+    // A corrupt leftover must not be mislabelled as a failed queue open…
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/could not finish recovering/i),
+    );
+    expect(screen.getByRole("alert")).not.toHaveTextContent(/offline storage is unavailable/i);
+    // …and must not silently stop GPS capture.
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
   });
 });

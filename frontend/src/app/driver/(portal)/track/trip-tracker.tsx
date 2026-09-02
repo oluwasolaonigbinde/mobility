@@ -13,7 +13,7 @@ import {
   startTripAction,
   verifyDriverTripOwnershipAction,
 } from "@/app/driver/actions";
-import { openPingQueue, type PingQueue } from "@/lib/trips/ping-queue";
+import { UNREADABLE_EVIDENCE_CODE, openPingQueue, type PingQueue } from "@/lib/trips/ping-queue";
 import {
   EMPTY_CAPABILITY_SNAPSHOT,
   assessPilotPwa,
@@ -105,6 +105,7 @@ export function TripTracker({
   const protocolByTripRef = useRef(new Map<string, 1 | 2>());
   const tripRef = useRef<DriverTrackerTrip | null>(initialTrip);
   const reconciledTripRef = useRef<string | null>(null);
+  const terminalLeftoversRef = useRef(new Set<string>());
   const mountedRef = useRef(true);
 
   const patchRuntime = useCallback((patch: Partial<CapabilitySnapshot>) => {
@@ -423,7 +424,6 @@ export function TripTracker({
             return;
           }
           setGps("granted");
-          setLastFix(position);
           const queue = queueRef.current;
           if (!queue || !identityValidRef.current) return;
           void queue
@@ -439,15 +439,18 @@ export function TripTracker({
                   : null,
             })
             .then(async () => {
+              // Acknowledge the capture only once the durable write has committed.
+              if (mountedRef.current) setLastFix(position);
               const pending = await queue.pendingCount(tripId);
               if (pending >= FLUSH_AT_COUNT) await flush(tripId);
               else await refreshCounts(tripId);
             })
             .catch(() => {
               storageBrokenRef.current = true;
-              setStorageReady(false);
               stopWatch();
               patchRuntime({ indexedDb: "failed", durableQueue: "failed" });
+              if (!mountedRef.current) return;
+              setStorageReady(false);
               setError("This device stopped storing encrypted GPS evidence; capture is stopped.");
             });
         },
@@ -489,12 +492,26 @@ export function TripTracker({
       if (!queue || !identityValidRef.current) return;
       for (const leftoverTripId of await queue.tripsWithLeftovers()) {
         if (leftoverTripId === currentTripId) continue;
+        if (terminalLeftoversRef.current.has(leftoverTripId)) continue;
         await flush(leftoverTripId);
+        // Terminal evidence is never resent. Reconciliation below may dispose it,
+        // so this wording must stay true after disposal.
+        if ((await queue.deadLetterCount(leftoverTripId)) > 0 && mountedRef.current)
+          setError("Earlier GPS evidence was rejected by the server and could not be delivered.");
         if ((await queue.unsyncedCount(leftoverTripId)) === 0) {
           const authority = await getTripEvidenceAuthorityAction(leftoverTripId);
           if (authority?.protocolVersion === 2) {
             const reconciled = await reconcileTripEvidenceAction(leftoverTripId);
             if (reconciled.outcome === "ended") await queue.forgetTrip(leftoverTripId);
+            // A rejected batch keeps the server manifest permanently incomplete, so
+            // retrying cannot help. Report it once instead of looping every minute.
+            else if (reconciled.outcome === "failed") {
+              terminalLeftoversRef.current.add(leftoverTripId);
+              if (mountedRef.current)
+                setError(
+                  "Earlier GPS evidence could not be delivered, so this trip's record stays incomplete.",
+                );
+            }
           } else if (authority?.protocolVersion === 1 && authority.status === "sealed") {
             await queue.forgetTrip(leftoverTripId);
           }
@@ -504,12 +521,23 @@ export function TripTracker({
     [flush],
   );
 
+  const reportRecoveryFault = useCallback(() => {
+    // Recovering earlier trips is best-effort: it must never be mistaken for a
+    // failed queue open, and must never block capture of the current trip.
+    if (mountedRef.current) setError("Cardvert could not finish recovering earlier trip evidence.");
+  }, []);
+
   const recoverWithWriter = useCallback(async () => {
     const queue = queueRef.current;
     if (!queue || !identityValidRef.current) return;
     const currentTripId = tripRef.current?.id ?? null;
     const leftovers = await queue.tripsWithLeftovers();
-    if (!leftovers.some((tripId) => tripId !== currentTripId)) return;
+    if (
+      !leftovers.some(
+        (tripId) => tripId !== currentTripId && !terminalLeftoversRef.current.has(tripId),
+      )
+    )
+      return;
     if (!(await acquireWriter())) return;
     try {
       await drainLeftovers(currentTripId);
@@ -522,7 +550,7 @@ export function TripTracker({
     mountedRef.current = true;
     let cancelled = false;
     const currentTripId = initialTrip?.id ?? null;
-    const recover = () => void recoverWithWriter();
+    const recover = () => void recoverWithWriter().catch(reportRecoveryFault);
     void openPingQueue({ driverId, verifyTripOwner: verifyDriverTripOwnershipAction })
       .then(async (queue) => {
         if (cancelled) return queue.close();
@@ -530,14 +558,20 @@ export function TripTracker({
         setStorageReady(true);
         patchRuntime({ indexedDb: "pass", durableQueue: "pass" });
         if (currentTripId) await refreshCounts(currentTripId);
-        await recoverWithWriter();
+        // The queue opened; a recovery fault must not be reported as an open failure
+        // nor prevent later retries from being scheduled.
+        await recoverWithWriter().catch(reportRecoveryFault);
         recoveryRef.current = setInterval(recover, RECOVERY_INTERVAL_MS);
         window.addEventListener("online", recover);
       })
-      .catch(() => {
+      .catch((openError: unknown) => {
         setStorageReady(false);
         patchRuntime({ indexedDb: "failed", durableQueue: "failed" });
-        setError("Encrypted offline storage is unavailable, blocked, or could not be verified.");
+        setError(
+          (openError as { code?: string } | null)?.code === UNREADABLE_EVIDENCE_CODE
+            ? "Earlier encrypted GPS evidence on this device can no longer be read, so it cannot be recovered or resent."
+            : "Encrypted offline storage is unavailable, blocked, or could not be verified.",
+        );
       });
     return () => {
       cancelled = true;
@@ -587,7 +621,7 @@ export function TripTracker({
           patchRuntime({ activeTrip: true });
           if (current.trip.id !== trip.id) setTrip(current.trip);
         }
-        await drainLeftovers(tripRef.current?.id ?? null);
+        await drainLeftovers(tripRef.current?.id ?? null).catch(reportRecoveryFault);
         const ready = await prepareCapture(false);
         if (ready && !cancelled && tripRef.current) beginWatch(tripRef.current.id);
       });
@@ -597,6 +631,7 @@ export function TripTracker({
     };
   }, [
     acquireWriter,
+    reportRecoveryFault,
     beginWatch,
     drainLeftovers,
     patchRuntime,

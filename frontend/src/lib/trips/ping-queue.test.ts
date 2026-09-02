@@ -4,8 +4,8 @@
  */
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
-import { beforeEach, describe, expect, it } from "vitest";
-import { openPingQueue, type PingQueue } from "./ping-queue";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { UNREADABLE_EVIDENCE_CODE, openPingQueue, type PingQueue } from "./ping-queue";
 
 const TRIP = "11111111-1111-4111-8111-111111111111";
 const OTHER_TRIP = "22222222-2222-4222-8222-222222222222";
@@ -293,6 +293,10 @@ describe("encrypted at-rest state", () => {
     });
     raw.close();
     await expect(openPingQueue(dbName)).rejects.toThrow(/key is missing/i);
+    // Tagged, so callers can say "retained but unreadable" instead of "unavailable".
+    await expect(openPingQueue(dbName)).rejects.toMatchObject({
+      code: UNREADABLE_EVIDENCE_CODE,
+    });
   });
 });
 
@@ -445,5 +449,95 @@ describe("forgetTrip", () => {
     expect(await queue.unsyncedCount(TRIP)).toBe(0);
     expect((await queue.meta(TRIP)).nextSeq).toBe(0);
     expect(await queue.pendingCount(OTHER_TRIP)).toBe(1);
+  });
+});
+
+describe("deadletter-only recovery (OFF-002)", () => {
+  it("still discovers a trip whose only leftover evidence is a dead letter", async () => {
+    await queue.addPing(TRIP, ping(0));
+    const batch = await queue.cutBatch(TRIP);
+    await queue.dropBatch(batch!.key, { status: 400, code: "invalid_ping" });
+    queue.close();
+
+    const reopened = await openPingQueue(dbName);
+    expect(await reopened.listBatches(TRIP)).toEqual([]);
+    expect(await reopened.unsyncedCount(TRIP)).toBe(0);
+    expect(await reopened.deadLetterCount(TRIP)).toBe(1);
+    // The trip must remain visibly recoverable rather than silently disappearing.
+    expect(await reopened.tripsWithLeftovers()).toEqual([TRIP]);
+    reopened.close();
+  });
+
+  it("forgetTrip clears retained dead letters so a reconciled trip stops recurring", async () => {
+    await queue.addPing(TRIP, ping(0));
+    const batch = await queue.cutBatch(TRIP);
+    await queue.dropBatch(batch!.key, { status: 400, code: "invalid_ping" });
+    await queue.forgetTrip(TRIP);
+    expect(await queue.deadLetterCount(TRIP)).toBe(0);
+    expect(await queue.tripsWithLeftovers()).toEqual([]);
+  });
+});
+
+describe("break-case recovery visibility (OFF-002/OFF-003)", () => {
+  it("finds a deadletter-only trip after an abrupt close that never ran close()", async () => {
+    await queue.addPing(TRIP, ping(0));
+    const batch = await queue.cutBatch(TRIP);
+    await queue.dropBatch(batch!.key, { status: 400, code: "invalid_ping" });
+    await queue.addPing(OTHER_TRIP, ping(0));
+    // No queue.close(): simulate the tab being killed after the writes committed.
+
+    const reopened = await openPingQueue(dbName);
+    // TRIP is deadletter-only; OTHER_TRIP proves the healthy path still recovers.
+    expect((await reopened.tripsWithLeftovers()).sort()).toEqual([TRIP, OTHER_TRIP].sort());
+    expect(await reopened.deadLetterCount(TRIP)).toBe(1);
+    expect(await reopened.pendingCount(OTHER_TRIP)).toBe(1);
+    reopened.close();
+  });
+
+  it("leaves no partial evidence and no consumed sequence when the write aborts", async () => {
+    const db = (queue as unknown as { db: IDBDatabase }).db;
+    const realTransaction = db.transaction.bind(db);
+    const aborting = vi
+      .spyOn(db, "transaction")
+      .mockImplementation(
+        (names: Parameters<IDBDatabase["transaction"]>[0], mode?: IDBTransactionMode) => {
+          const tx = realTransaction(names, mode);
+          // Abort only the durable write, so the preceding reads still resolve.
+          if (mode === "readwrite") queueMicrotask(() => tx.abort());
+          return tx;
+        },
+      );
+
+    await expect(queue.addPing(TRIP, ping(0))).rejects.toThrow();
+
+    aborting.mockRestore();
+    expect(await queue.pendingCount(TRIP)).toBe(0);
+    expect((await queue.meta(TRIP)).nextSeq).toBe(0);
+    expect(await queue.tripsWithLeftovers()).toEqual([]);
+  });
+
+  it("keeps a corrupted dead letter discoverable while reading it still fails closed", async () => {
+    await queue.addPing(TRIP, ping(0));
+    const batch = await queue.cutBatch(TRIP);
+    await queue.dropBatch(batch!.key, { status: 400, code: "invalid_ping" });
+    const raw = await rawOpen(dbName);
+    const tx = raw.transaction("encrypted-dead-letters", "readwrite");
+    const store = tx.objectStore("encrypted-dead-letters");
+    const [record] = (await requestResult(store.getAll())) as Array<{
+      ciphertext: ArrayBuffer;
+      [key: string]: unknown;
+    }>;
+    const bytes = new Uint8Array(record!.ciphertext.slice(0));
+    bytes[0] = (bytes[0] ?? 0) ^ 1;
+    store.put({ ...record, ciphertext: bytes.buffer });
+    await new Promise<void>((resolve) => {
+      tx.oncomplete = () => resolve();
+    });
+    raw.close();
+
+    // Discovery needs no decryption, so the gap stays visible instead of vanishing…
+    expect(await queue.tripsWithLeftovers()).toEqual([TRIP]);
+    // …while reading the corrupted evidence itself still fails closed.
+    await expect(queue.listDeadLetters(TRIP)).rejects.toThrow();
   });
 });

@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 151
+plan_revision: 154
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 275
+last_event_sequence: 278
 ---
 
 # Cardvert audit remediation programme
@@ -256,9 +256,9 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R32 | ONB-002 | ACCEPTED | onboarding opener | R32-P/M/SEC/DB/CP-ONBOARDING; PostgreSQL and contract evidence | complete |
 | R33 | ONB-006 | WAITING | R05, R32 | R33-P; current 50k-row exact-index experiment | wait for accepted R05; revalidate exact-index plan |
 | R34 | OFF-001 | ACTIVE | R04; offline opener | R34-P; frozen 38-file implementation `f25bd28f...`; registry correction returned | fix order-dependent v2 batch fixture, then repeat mandatory aggregate/full gates and admission review |
-| R35 | OFF-002, OFF-003 | WAITING | R34 | R35-P; separate OFF-002/OFF-003 reviewed contracts | wait for accepted R34 |
-| R36 | OFF-005 | WAITING | R35 | R36-P; reviewed partial-acceptance contract | wait for accepted R35 and recheck migration head |
-| R37 | OFF-006 | WAITING | R36 | R37-P; reviewed deactivation-drain contract | wait for accepted R36 |
+| R35 | OFF-002, OFF-003 | COMPLETE | R34 | R35-P/M; OFF+SEC; CP-OFFLINE; exact `e232ab7d...` freeze; 65 focused frontend passes plus typecheck/lint/format | accepted exactly once; offline frontend lease released |
+| R36 | OFF-005 | READY | R35 | R36-P; reviewed partial-acceptance contract | activate an exact disjoint DB/offline lease after R35 integration |
+| R37 | OFF-006 | WAITING | R36 | R37-P; reviewed deactivation-drain contract; durable break case: terminal deadletter-only retained evidence needs server-side final adjudication/sealing authority without client deletion | wait for accepted R36; reconcile the R35 evidence pointer during R37 implementation/review |
 | R38 | PRV-001, PRV-002 | WAITING | R13; privacy opener | R38-P; reviewed collection-time privacy-gate contract | wait for accepted R13 and release of R34 trip/config surfaces |
 | R39 | PRV-003 | WAITING | R38 | R39-P; reviewed aggregate-only campaign-trip contract | wait for accepted R38 and generated-contract lane |
 | R40 | PRV-004, AUD-001, AUD-002 | WAITING | R16, R39 | R40-P; reviewed authoritative aggregation/delivery-approval contract | wait for accepted R39 and migration/contract lane |
@@ -728,3 +728,6 @@ verification is complete.
 | 273 | 149 | 1 | DIFF_REVIEW_PASSED | The existing R09 security/minimal-change/CP-SECURITY PASS remains substantively valid for the exact resumed digest; three post-review path deltas only clarify existing refresh handling, add the absolute-cap boundary regression and correct architecture wording. | reused Sol/high `/root/r09_final_review`; no duplicate broad review; no substantive condition remains |
 | 274 | 150 | 1 | INTEGRATION_GATE_PASSED | The controller reproduced the exact eight-path R09 digest and ran the five required refresh command/route/cap checks on real PostgreSQL plus scoped Ruff, format and diff checks. | digest `5b0a3f68...`; 5 passed; concurrent R02/R35 bytes excluded |
 | 275 | 151 | 1 | SLICE_ACCEPTED | R09/GOV-007,AUT-001,AUT-002 accepted exactly once: typed auth commands own login/change/refresh decisions, status transitions rotate session authority, and reset completion rechecks live locked eligibility. | R09-P/M/SEC/CP-SECURITY; exact eight-path scope; authentication lease released; R11 dependency advances but remains owner-policy blocked |
+| 276 | 152 | 1 | INTEGRATION_GATE_PASSED | The controller reproduced R35's exact four-file digest and reran its complete 65-test queue/tracker set plus typecheck, scoped lint, Prettier and diff checks. | exact `e232ab7d...`; all focused gates passed; unrelated Playwright artifacts excluded |
+| 277 | 153 | 1 | SLICE_ACCEPTED | R35/OFF-002,OFF-003 accepted exactly once: deadletter-only trips remain discoverable, retained unreadable evidence fails closed with truthful UI, and a GPS fix is acknowledged only after its encrypted write commits. | R35-P/M; OFF+SEC; CP-OFFLINE; exact four-file scope; two disclosed false red-evidence claims excluded from closure evidence |
+| 278 | 154 | 1 | DEFERRED_OBLIGATION_RECORDED | R35 correctly retains terminal deadletter-only evidence but cannot itself produce a final server seal; R37 must reconcile server-side final adjudication/sealing without granting client deletion or blind resend. | trigger: R37 implementation/review; evidence: R35 v4 callback and `trip.py` GRACE_EXPIRED observation; R36 remains separate partial-batch authority |
