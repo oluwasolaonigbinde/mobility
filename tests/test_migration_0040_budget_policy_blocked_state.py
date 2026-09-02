@@ -3,6 +3,8 @@
 import asyncio
 
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -16,14 +18,30 @@ from test_migration_0014_partitioning import (
 )
 
 PRE_BUDGET_REVISION = "0039_billing_corrections_refunds"
+BUDGET_POLICY_REVISION = "0040_budget_policy_blocked_state"
+
+
+async def _version_rows(migration_url: str) -> list:
+    engine = create_async_engine(migration_url, poolclass=NullPool)
+    try:
+        async with engine.connect() as connection:
+            return list(
+                (
+                    await connection.execute(
+                        text("SELECT version_num FROM alembic_version ORDER BY version_num")
+                    )
+                ).all()
+            )
+    finally:
+        await engine.dispose()
 
 
 def test_budget_policy_state_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, BUDGET_POLICY_REVISION, monkeypatch)
         downgrade_to(migration_url, PRE_BUDGET_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, BUDGET_POLICY_REVISION, monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -64,9 +82,22 @@ def test_budget_policy_state_is_append_only_and_blocks_populated_downgrade(monke
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, BUDGET_POLICY_REVISION, monkeypatch)
         asyncio.run(seed_and_mutate())
         with pytest.raises(RuntimeError, match="0040 downgrade blocked"):
             downgrade_to(migration_url, PRE_BUDGET_REVISION, monkeypatch)
+    finally:
+        asyncio.run(drop_database(migration_url))
+
+
+def test_budget_policy_state_survives_current_head_upgrade(monkeypatch) -> None:
+    migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
+    try:
+        upgrade_to(migration_url, BUDGET_POLICY_REVISION, monkeypatch)
+        upgrade_to(migration_url, "head", monkeypatch)
+        assert asyncio.run(_version_rows(migration_url)) == [
+            (revision,)
+            for revision in sorted(ScriptDirectory.from_config(Config("alembic.ini")).get_heads())
+        ]
     finally:
         asyncio.run(drop_database(migration_url))

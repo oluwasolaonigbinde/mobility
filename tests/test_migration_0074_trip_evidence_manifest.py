@@ -5,12 +5,15 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from alembic.autogenerate import compare_metadata
+from alembic.config import Config
 from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 from test_migration_0014_partitioning import (
+    REVISION_0014,
     configured_postgres_url,
     create_database_from_url,
     downgrade_to,
@@ -25,6 +28,7 @@ from app.db.base import Base
 from app.services.data_lifecycle import add_months, month_start, run_ping_retention
 
 PRE_EVIDENCE_REVISION = "0073_refund_cancellation_provenance"
+EVIDENCE_REVISION = "0074_trip_evidence_manifest"
 TRIP_ID = "74000000-0000-0000-0000-000000000001"
 
 
@@ -32,9 +36,9 @@ def test_r34_empty_downgrade_upgrade_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_EVIDENCE_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, EVIDENCE_REVISION, monkeypatch)
         downgrade_to(migration_url, PRE_EVIDENCE_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, EVIDENCE_REVISION, monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -83,9 +87,7 @@ def test_r34_backfill_write_once_guards_and_guarded_downgrade(monkeypatch) -> No
             async with engine.begin() as connection:
                 trip = (
                     await connection.execute(
-                        text(
-                            "SELECT evidence_protocol_version FROM trip_sessions WHERE id=:trip"
-                        ),
+                        text("SELECT evidence_protocol_version FROM trip_sessions WHERE id=:trip"),
                         {"trip": TRIP_ID},
                     )
                 ).one()
@@ -202,7 +204,7 @@ def test_r34_backfill_write_once_guards_and_guarded_downgrade(monkeypatch) -> No
     try:
         upgrade_to(migration_url, PRE_EVIDENCE_REVISION, monkeypatch)
         asyncio.run(seed_legacy_trip())
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, EVIDENCE_REVISION, monkeypatch)
         asyncio.run(inspect_backfill_and_seed_v2())
         asyncio.run(
             assert_mutation_rejected(
@@ -369,7 +371,7 @@ def test_manifest_entry_insert_serializes_with_manifest_commit(monkeypatch) -> N
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, EVIDENCE_REVISION, monkeypatch)
         asyncio.run(exercise_race())
     finally:
         asyncio.run(drop_database(migration_url))
@@ -476,14 +478,13 @@ def test_signed_v2_batches_follow_audited_partition_retention(monkeypatch) -> No
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, REVISION_0014, monkeypatch)
         seeded = seed_ping_graph(migration_url)
+        upgrade_to(migration_url, EVIDENCE_REVISION, monkeypatch)
         current_month = month_start(datetime.now(UTC))
         asyncio.run(sign_seeded_evidence(seeded, current_month))
 
-        result = asyncio.run(
-            run_retention(add_months(current_month, 13) + timedelta(days=1))
-        )
+        result = asyncio.run(run_retention(add_months(current_month, 13) + timedelta(days=1)))
 
         oldest_partition = f"location_pings_p{seeded['months'][0].strftime('%Y_%m')}"
         assert oldest_partition in result["dropped"]
@@ -543,6 +544,12 @@ def test_r34_trip_evidence_metadata_has_no_autogenerate_drift(monkeypatch) -> No
 
     try:
         upgrade_to(migration_url, "head", monkeypatch)
+        assert asyncio.run(
+            fetch_all(migration_url, "SELECT version_num FROM alembic_version ORDER BY version_num")
+        ) == [
+            (revision,)
+            for revision in sorted(ScriptDirectory.from_config(Config("alembic.ini")).get_heads())
+        ]
         diffs = asyncio.run(compare())
         owned_tables = {
             "trip_sessions",

@@ -4,7 +4,9 @@ import asyncio
 
 import pytest
 from alembic.autogenerate import compare_metadata
+from alembic.config import Config
 from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
@@ -122,7 +124,7 @@ def test_refund_provenance_empty_upgrade_downgrade_and_reupgrade(monkeypatch) ->
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_PROVENANCE_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, PROVENANCE_REVISION, monkeypatch)
         assert asyncio.run(
             _fetch_all(migration_url, "SELECT version_num FROM alembic_version")
         ) == [(PROVENANCE_REVISION,)]
@@ -145,7 +147,7 @@ def test_refund_provenance_empty_upgrade_downgrade_and_reupgrade(monkeypatch) ->
             _fetch_all(migration_url, "SELECT version_num FROM alembic_version")
         ) == [(PRE_PROVENANCE_REVISION,)]
 
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, PROVENANCE_REVISION, monkeypatch)
         assert asyncio.run(
             _fetch_all(migration_url, "SELECT version_num FROM alembic_version")
         ) == [(PROVENANCE_REVISION,)]
@@ -158,7 +160,7 @@ def test_refund_provenance_backfill_catalog_and_downgrade_guard(monkeypatch) -> 
     try:
         upgrade_to(migration_url, PRE_PROVENANCE_REVISION, monkeypatch)
         asyncio.run(_seed_legacy_refunds(migration_url))
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, PROVENANCE_REVISION, monkeypatch)
 
         provenance = asyncio.run(
             _fetch_all(
@@ -276,6 +278,14 @@ def test_refund_provenance_model_has_no_owned_autogenerate_drift(monkeypatch) ->
 
     try:
         upgrade_to(migration_url, "head", monkeypatch)
+        assert asyncio.run(
+            _fetch_all(
+                migration_url, "SELECT version_num FROM alembic_version ORDER BY version_num"
+            )
+        ) == [
+            (revision,)
+            for revision in sorted(ScriptDirectory.from_config(Config("alembic.ini")).get_heads())
+        ]
         diffs = asyncio.run(compare())
         owned_diffs = []
         for diff in diffs:

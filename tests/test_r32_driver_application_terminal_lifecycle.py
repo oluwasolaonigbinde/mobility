@@ -6,7 +6,9 @@ from uuid import UUID, uuid4
 
 import pytest
 from alembic.autogenerate import compare_metadata
+from alembic.config import Config
 from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -51,6 +53,7 @@ from app.services.drivers import update_driver_profile
 from app.services.vehicle_onboarding import review_application_vehicle
 
 PRE_TERMINAL_REVISION = "0071_report_issuances"
+TERMINAL_REVISION = "0072_driver_application_terminal_status"
 
 
 async def _seed_application(sessionmaker, settings, *, suffix: str):
@@ -608,21 +611,21 @@ def test_r32_terminal_status_migration_matrix(monkeypatch) -> None:
 
     try:
         upgrade_to(migration_url, PRE_TERMINAL_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, TERMINAL_REVISION, monkeypatch)
         downgrade_to(migration_url, PRE_TERMINAL_REVISION, monkeypatch)
         asyncio.run(seed_pending())
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, TERMINAL_REVISION, monkeypatch)
         downgrade_to(migration_url, PRE_TERMINAL_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, TERMINAL_REVISION, monkeypatch)
         assert asyncio.run(read_state()) == (
-            "0072_driver_application_terminal_status",
+            TERMINAL_REVISION,
             "pending",
         )
         asyncio.run(assert_invalid_and_set_terminal())
         with pytest.raises(RuntimeError, match="0072 downgrade blocked"):
             downgrade_to(migration_url, PRE_TERMINAL_REVISION, monkeypatch)
         assert asyncio.run(read_state()) == (
-            "0072_driver_application_terminal_status",
+            TERMINAL_REVISION,
             "approved",
         )
     finally:
@@ -650,6 +653,25 @@ def test_r32_driver_application_model_has_no_owned_autogenerate_drift(monkeypatc
 
     try:
         upgrade_to(migration_url, "head", monkeypatch)
+
+        async def version_rows() -> list:
+            engine = create_async_engine(migration_url, poolclass=NullPool)
+            try:
+                async with engine.connect() as connection:
+                    return list(
+                        (
+                            await connection.execute(
+                                text("SELECT version_num FROM alembic_version ORDER BY version_num")
+                            )
+                        ).all()
+                    )
+            finally:
+                await engine.dispose()
+
+        assert asyncio.run(version_rows()) == [
+            (revision,)
+            for revision in sorted(ScriptDirectory.from_config(Config("alembic.ini")).get_heads())
+        ]
         diffs = asyncio.run(compare())
         owned_diffs = []
         for diff in diffs:
