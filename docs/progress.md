@@ -47,7 +47,7 @@ the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `2`
 **Current capacity assignment:** `R02, R46`
-**Current capacity justification:** R45 and R56 are accepted. R02 now owns only its frozen CI-authority paths plus one immutable full-service verification run from the accepted base; R46 owns one frozen cohort/time-boundary authority across measurement/report projections and is reserved for a fresh Opus 5 session. These surfaces are write-disjoint. Read-only Claude Opus product/UX audits remain outside the repository mutation pool.
+**Current capacity justification:** R45 and R56 are accepted. R02's focused CI runner correction is accepted and its next full-service run is held until the two reserved Opus repository-correction packets land; R46 owns one frozen cohort/time-boundary authority across measurement/report projections and remains reserved for a fresh Opus 5 session. These surfaces are write-disjoint. Read-only Claude Opus product/UX audits remain outside the repository mutation pool.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -86,8 +86,11 @@ historical migration fixtures, V12 signed-v2 payout fixtures, V13 reversal
 deadlocks, V14 trip-end/enqueue lifecycle and the controller-state correction.
 R54 is accepted. R39→R44 plus D30 are accepted as one integrated privacy/audit
 chain with migrations 0075–0077. R29→R30 is accepted at `32d617f` and R45 at
-`7f7bd1c`; R56 is accepted at `751060c`. R02 and R46 are the current disjoint
-lanes. R02 uses GPG, Node and a host-visible nested-Docker path. R17 remains parked in
+`7f7bd1c`; R56 is accepted at `751060c`. R02's exact CI-authority patch now also
+provisions the application Redis URL, `jq`, lockfile-pinned frontend dependencies and
+Playwright Chromium; focused checks and an immutable frontend-image build are green.
+Its final aggregate is held until the two reserved Opus correction packets reconcile
+the remaining repository failures. R02 and R46 are the current disjoint lanes. R17 remains parked in
 `to-do.md`.
 
 ## Direct owner requests outside the package queue
