@@ -501,12 +501,14 @@ def test_refresh_second_decode_expiry_returns_invalid_token_envelope(
         "/api/v1/auth/login",
         json={"email": user.email, "password": PASSWORD},
     )
-    from app.api.v1 import auth as auth_api
+    # R09 moved the refresh decode into the auth command; the observable
+    # second-decode envelope is unchanged, so only the patch target moves.
+    from app.services import auth as auth_commands
 
     def expire_on_second_decode(*_args, **_kwargs):
         raise ValueError("Invalid token")
 
-    monkeypatch.setattr(auth_api, "decode_token_claims", expire_on_second_decode)
+    monkeypatch.setattr(auth_commands, "decode_token_claims", expire_on_second_decode)
     request_id = "refresh-second-decode-expired"
 
     response = db_client.post(

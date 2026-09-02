@@ -45,9 +45,9 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R02, R09, R35`
-**Current capacity justification:** The owner resumed the exact paused programme snapshot. R09 and R35 occupy admission-only lanes on their unchanged frozen bytes; R02 occupies one preserved-checkpoint lane but has no write authority until its failed Claude session is replaced or safely resumed against the exact three-path digest. These paths are mutually disjoint, and no successor slice may acquire them before the current packet is admitted or released.
+**Current justified remediation writer capacity:** `2`
+**Current capacity assignment:** `R02, R35`
+**Current capacity justification:** R09 has passed exact-byte admission and released its authentication lease. R35 remains in its admission-only lane; R02 occupies one preserved-checkpoint lane but has no write authority until its failed Claude session is replaced or safely resumed against the exact three-path digest. The active CI and offline-frontend surfaces are disjoint.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -78,11 +78,12 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 resumed from the exact safe pause snapshot without changing any accepted slice
 or any of the 29 non-executable dispositions.
-**Current checkpoint:** `PKG-10 / R09-R35-ADMISSION` — the latest accepted
-product commit remains R34/OFF-001 at `a95a7ca`. Reconcile and admit the exact
-frozen R09 and R35 packets if their receipts and focused checks hold; resume R02
-only from its preserved three-path checkpoint. Refill only after each lease is
-released and the next dependency-safe packet is proven disjoint.
+**Current checkpoint:** `PKG-10 / R35-ADMISSION` — R09/GOV-007,AUT-001,AUT-002
+is accepted after exact-byte security review reconciliation and five focused
+real-PostgreSQL refresh checks. Admit the exact frozen R35 packet if its final
+receipt and focused checks hold; resume R02 only from its preserved three-path
+checkpoint. Refill only after each lease is released and the next
+dependency-safe packet is proven disjoint.
 
 ## Direct owner requests outside the package queue
 
@@ -1533,7 +1534,7 @@ durable ledger before changing a row.
 | R06 | DB-002 | R02, R04, R05 | QUEUED | PENDING | PENDING | CP-DB PENDING |
 | R07 | DB-003 | R02, R04, R06 | QUEUED | PASS — R07-P | PENDING | CP-DB PENDING |
 | R08 | GOV-005 | none | COMPLETE | PASS — R08-P | PASS — R08-M | CP-SECURITY PASS — R08-CP-SECURITY |
-| R09 | GOV-007, AUT-001, AUT-002 | R10 | ACTIVE | PASS — R09-P | PENDING | CP-SECURITY PENDING |
+| R09 | GOV-007, AUT-001, AUT-002 | R10 | COMPLETE | PASS — R09-P | PASS — R09-M | CP-SECURITY PASS |
 | R10 | AUT-005 | R08 | COMPLETE | PASS — R10-P | PASS — R10-M | CP-SECURITY PASS — R10-CP-SECURITY |
 | R11 | AUT-004 | R09 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
 | R12 | AUT-003, REL-003 | R11 | QUEUED | PASS — R12-P | PENDING | CP-SECURITY PENDING |

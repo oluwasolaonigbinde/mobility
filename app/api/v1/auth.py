@@ -1,4 +1,3 @@
-from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
@@ -18,13 +17,6 @@ from app.api.v1.dependencies import (
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.rate_limit import login_client_ip, registration_client_ip
-from app.core.security import (
-    create_access_token,
-    decode_token_claims,
-    hash_password,
-    verify_password,
-)
-from app.models.user import UserStatus
 from app.schemas.auth import (
     ChangePasswordRequest,
     LoginRequest,
@@ -55,7 +47,14 @@ from app.services.account_recovery import (
     request_password_reset,
 )
 from app.services.audit import create_audit_event
-from app.services.auth import authenticate_user
+from app.services.auth import (
+    AuthCommandError,
+    IssuedSession,
+    change_user_password,
+    issue_session,
+    login_with_password,
+    refresh_user_session,
+)
 from app.services.driver_applications import (
     PUBLIC_APPLICATION_MESSAGE,
     PUBLIC_NOT_FOUND_MESSAGE,
@@ -74,7 +73,6 @@ from app.services.stored_files import (
     create_application_driver_upload_intent,
     get_application_driver_file,
 )
-from app.services.users import validate_password_length
 from app.services.vehicle_onboarding import (
     VehicleStageView,
     submit_application_vehicle,
@@ -187,18 +185,11 @@ async def reserve_driver_registration(
         )
 
 
-def login_response(user, settings, *, auth_time: datetime | None = None, expires_at=None):
-    token, expires_in = create_access_token(
-        user.id,
-        settings,
-        session_version=user.session_version,
-        auth_time=auth_time,
-        expires_at=expires_at,
-    )
+def login_response(issued: IssuedSession) -> LoginResponse:
     return LoginResponse(
-        access_token=token,
-        expires_in=expires_in,
-        user=LoginUser.model_validate(user, from_attributes=True),
+        access_token=issued.access_token,
+        expires_in=issued.expires_in,
+        user=LoginUser.model_validate(issued.user, from_attributes=True),
     )
 
 
@@ -277,49 +268,18 @@ async def login(
             details={"retry_after_seconds": decision.retry_after_seconds},
             headers={"Retry-After": str(decision.retry_after_seconds)},
         )
-    user = await authenticate_user(session, payload.email, payload.password)
-    if user is None:
-        await create_audit_event(
-            session,
-            actor_user_id=None,
-            action="auth.login.failed",
-            entity_type="authentication",
-            entity_id=None,
-            metadata={"email": payload.email.lower(), "reason": "invalid_credentials"},
-        )
-        await session.commit()
-        raise AppError(
-            "INVALID_CREDENTIALS",
-            "Invalid email or password",
-            status_code=status.HTTP_401_UNAUTHORIZED,
-        )
-    if user.status in {UserStatus.SUSPENDED.value, UserStatus.DISABLED.value}:
-        await create_audit_event(
-            session,
-            actor_user_id=user.id,
-            action="auth.login.failed",
-            entity_type="authentication",
-            entity_id=str(user.id),
-            metadata={"email": user.email, "reason": "not_active"},
-        )
-        await session.commit()
-        raise AppError(
-            "USER_NOT_ACTIVE",
-            "User account is not active",
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
+    try:
+        user = await login_with_password(session, email=payload.email, password=payload.password)
+    except AuthCommandError as exc:
+        # The rejection's audit event lives in this transaction; commit it before
+        # the error leaves, or the evidence rolls back with the request.
+        if exc.audited:
+            await session.commit()
+        raise exc.error from exc
 
     await rate_limiter.release_success(client_ip, payload.email)
-    await create_audit_event(
-        session,
-        actor_user_id=user.id,
-        action="auth.login.succeeded",
-        entity_type="authentication",
-        entity_id=str(user.id),
-        metadata={"email": user.email},
-    )
     await session.commit()
-    return login_response(user, settings)
+    return login_response(issue_session(user, settings))
 
 
 @router.post(
@@ -564,44 +524,30 @@ async def change_password(
             details={"retry_after_seconds": decision.retry_after_seconds},
             headers={"Retry-After": str(decision.retry_after_seconds)},
         )
-    if not verify_password(payload.current_password, current_user.password_hash):
-        await create_audit_event(
+    try:
+        user = await change_user_password(
             session,
-            actor_user_id=current_user.id,
-            action="auth.password.change_failed",
-            entity_type="user",
-            entity_id=str(current_user.id),
-            metadata={"reason": "current_password_incorrect", "ip": client_ip},
+            user_id=current_user.id,
+            # get_current_user already proved this equals the bearer's `sv`
+            # claim, so it is the version the caller is authorised to replace.
+            expected_session_version=current_user.session_version,
+            current_password=payload.current_password,
+            new_password=payload.new_password,
+            settings=settings,
+            client_ip=client_ip,
         )
-        await session.commit()
-        raise AppError(
-            "CURRENT_PASSWORD_INCORRECT",
-            "Current password is incorrect",
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-    # The current password is proven; refund the reservation so validation
-    # mistakes below never count toward the credential-guessing buckets.
-    await rate_limiter.release_success(client_ip, current_user.email)
-    validate_password_length(payload.new_password, settings)
-    if payload.new_password == payload.current_password:
-        raise AppError(
-            "PASSWORD_REUSE",
-            "New password must be different from the current password",
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
+    except AuthCommandError as exc:
+        # Only a failed current-password guess may consume the shared login
+        # buckets; every other rejection refunds the reservation.
+        if exc.error.code != "CURRENT_PASSWORD_INCORRECT":
+            await rate_limiter.release_success(client_ip, current_user.email)
+        if exc.audited:
+            await session.commit()
+        raise exc.error from exc
 
-    current_user.password_hash = hash_password(payload.new_password)
-    current_user.must_change_password = False
-    current_user.session_version += 1
-    await create_audit_event(
-        session,
-        actor_user_id=current_user.id,
-        action="auth.password.changed",
-        entity_type="user",
-        entity_id=str(current_user.id),
-    )
+    await rate_limiter.release_success(client_ip, current_user.email)
     await session.commit()
-    return login_response(current_user, settings)
+    return login_response(issue_session(user, settings))
 
 
 @router.post(
@@ -616,32 +562,16 @@ async def refresh_session(
     settings: SettingsDependency,
 ) -> LoginResponse:
     try:
-        claims = decode_token_claims(token, settings)
-    except ValueError as exc:
-        raise AppError(
-            "INVALID_TOKEN",
-            "Invalid authentication token",
-            status_code=status.HTTP_401_UNAUTHORIZED,
-        ) from exc
-    auth_time = datetime.fromtimestamp(claims.authenticated_at, UTC)
-    now = datetime.now(UTC)
-    cap_at = auth_time + timedelta(minutes=settings.session_absolute_lifetime_minutes)
-    expires_at = min(
-        now + timedelta(minutes=settings.access_token_expire_minutes),
-        cap_at,
-    )
-    if expires_at <= now:
-        raise AppError(
-            "SESSION_EXPIRED",
-            "Session has reached its maximum lifetime",
-            status_code=status.HTTP_401_UNAUTHORIZED,
+        issued = await refresh_user_session(
+            session,
+            user=current_user,
+            token=token,
+            settings=settings,
         )
-    await create_audit_event(
-        session,
-        actor_user_id=current_user.id,
-        action="auth.session.refreshed",
-        entity_type="user",
-        entity_id=str(current_user.id),
-    )
+    except AuthCommandError as exc:
+        # Refresh has no audited rejection: both refusals are decided before any
+        # event is written, so there is nothing to commit before returning.
+        raise exc.error from exc
+
     await session.commit()
-    return login_response(current_user, settings, auth_time=auth_time, expires_at=expires_at)
+    return login_response(issued)

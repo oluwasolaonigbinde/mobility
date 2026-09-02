@@ -18,6 +18,8 @@ from app.services.payout_rule_serialization import database_clock
 from app.services.users import get_user_by_email, normalize_email, validate_password_length
 
 PASSWORD_RESET_RESPONSE = "If the account can be recovered, reset instructions will be sent."
+RECOVERY_ELIGIBLE_ROLES = frozenset({UserRole.ADVERTISER.value, UserRole.ADMIN.value})
+RECOVERY_ELIGIBLE_STATUSES = frozenset({UserStatus.ACTIVE.value, UserStatus.INVITED.value})
 
 
 def _digest(value: str, settings: Settings, *, purpose: str) -> str:
@@ -125,12 +127,8 @@ async def request_password_reset(
     user = await get_user_by_email(session, normalized_email)
     eligible = (
         user is not None
-        and user.role
-        in {
-            UserRole.ADVERTISER.value,
-            UserRole.ADMIN.value,
-        }
-        and user.status in {UserStatus.ACTIVE.value, UserStatus.INVITED.value}
+        and user.role in RECOVERY_ELIGIBLE_ROLES
+        and user.status in RECOVERY_ELIGIBLE_STATUSES
     )
     attempt = PasswordResetAttempt(
         email_digest=email_digest,
@@ -205,7 +203,12 @@ async def complete_password_reset(
             "Password reset token is invalid or expired",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
-    user = await session.scalar(select(User).where(User.id == reset.user_id).with_for_update())
+    user = await session.scalar(
+        select(User)
+        .where(User.id == reset.user_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     now = await database_clock(session)
     supplied_hash = hashlib.sha256(token.encode()).hexdigest()
     if (
@@ -214,7 +217,12 @@ async def complete_password_reset(
         or now >= _utc(reset.expires_at)
         or reset.session_version != user.session_version
         or not hmac.compare_digest(supplied_hash, reset.token_hash)
-        or user.role not in {UserRole.ADVERTISER.value, UserRole.ADMIN.value}
+        or user.role not in RECOVERY_ELIGIBLE_ROLES
+        # Eligibility is re-read live under this lock, never trusted from
+        # issuance: a bearer minted before suspension must not survive it. The
+        # token is deliberately left unconsumed, so a later reactivation still
+        # requires a fresh request rather than silently burning the old one.
+        or user.status not in RECOVERY_ELIGIBLE_STATUSES
     ):
         raise AppError(
             "PASSWORD_RESET_INVALID",

@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 148
+plan_revision: 151
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 272
+last_event_sequence: 275
 ---
 
 # Cardvert audit remediation programme
@@ -230,7 +230,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R06 | DB-002 | BLOCKED-OWNER | R02, R04, R05; historical migration authority | plan review confirmed exact downgrade guards require superseding the D15/architecture freeze | owner must authorize narrow edits to shipped 0010/0014/0016 downgrade bodies plus authority updates |
 | R07 | DB-003 | WAITING | R02, R04, R06 | R07-P; reviewed database immutability contract | wait for R06 policy/dependency and serialized migration lane |
 | R08 | GOV-005 | ACCEPTED | security opener | R08-P; R08-M; R08-SEC; R08-CP-SECURITY; lock-removal red and real PostgreSQL green | complete |
-| R09 | GOV-007, AUT-001, AUT-002 | ACTIVE | R10 | R09-P; reviewed command/lock/race contract | owner-requested Opus 5 / High implementation; exact auth/user command lease; audit registry excluded |
+| R09 | GOV-007, AUT-001, AUT-002 | COMPLETE | R10 | R09-P/M; SEC; CP-SECURITY; exact `5b0a3f68...` freeze; five focused real-PostgreSQL refresh passes | accepted exactly once; authentication lease released |
 | R10 | AUT-005 | ACCEPTED | R08 | R10-P/M/SEC/CP-SECURITY; strict-claim and route-graph evidence | complete |
 | R11 | AUT-004 | BLOCKED-OWNER | R09; logout policy | plan review confirmed current-device documentation conflicts with schema-free global revocation | owner must choose visible sign-out-everywhere or per-session identity/migration authority |
 | R12 | AUT-003, REL-003 | WAITING | R11 | R12-P; reviewed fail-closed throttling/readiness contract | wait for R11 owner decision/acceptance and R34 config/health release |
@@ -354,7 +354,7 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32 implementation, R33 held | GPT-5.6 Sol/high — onboarding security, migration and contract authority | released accepted R32 diff; R33 remains dependency-held | ACCEPTED |
 | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | S12 / R34 implementation; R35-R37 held | GPT-5.6 Sol/high — offline/privacy/money protocol and migration authority | reacquired corrected audit registry; rerunning full integrated R34 gates | ACTIVE-VERIFY |
 | Claude session `Cardvert audit-route integration correction` | R34 inherited audit-registry integration | Claude Opus 5 / High — owner-selected bounded audit/security evidence correction | exact `tests/test_audit_route_coverage.py` correction `34b7d55b...`; 7 controller PostgreSQL passes | COMPLETE-RETURNED |
-| Claude session `Cardvert R09 authentication remediation` | R09 auth command/status/reset implementation | Claude Opus 5 / High — owner-selected authentication and PostgreSQL race boundary | exact R09 auth/user/test lease; audit registry and R34-owned architecture file excluded | ACTIVE |
+| Claude session `Cardvert R09 authentication remediation` | R09 auth command/status/reset implementation | Claude Opus 5 / High — owner-selected authentication and PostgreSQL race boundary | exact eight-path `5b0a3f68...` freeze released after controller verification | ACCEPTED |
 | task `01a05ef6-632c-79b1-bdf3-16c6e95aafd4` | S10/S11/S13/S14 aggregate R18-R22 and R29-R31 planning | GPT-5.6 Sol/high — money/migration/concurrency planning | read-only; R18-P through R22-P and R29-P through R31-P accepted | PLAN-PASS |
 | task `01a05ef6-92fc-7df1-bd39-50e8c2fee530` | S15-S19 aggregate R38-R44 privacy/audit planning | GPT-5.6 Sol/high — privacy/security/lifecycle planning | read-only; R38-P through R44-P accepted | PLAN-PASS |
 | task `01a05ef6-c545-7401-8114-4afe32fc9bf7` | S20-S22 aggregate R45-R52 reporting planning | GPT-5.6 Sol/high — reporting/privacy/concurrency planning | read-only; R45-P through R52-P accepted | PLAN-PASS |
@@ -725,3 +725,6 @@ verification is complete.
 | 270 | 146 | 1 | RESUME_BASE_RECONCILED | R02, R09 and R35 binary digests reproduce exactly; HEAD `4c791eb` is the pause control commit and no files are staged. | R02 `a3e8129f...`; R09 `5b0a3f68...`; R35 `e232ab7d...`; unrelated audit and browser artifacts preserved |
 | 271 | 147 | 1 | IMPLEMENTATION_RETURNED | R35/OFF-002,OFF-003 returned exact v4 frozen bytes with R35-M, offline/security and CP-OFFLINE PASS receipts after correction; its disclosed false red-evidence claims remain excluded from closure evidence. | Opus 5 / High session; exact four-file `e232ab7d...`; deadletter-only server sealing gap remains outside R35 lease and must be reconciled by its owning follow-up |
 | 272 | 148 | 1 | RESUME_LANES_ACTIVATED | R09 and R35 entered exact-byte admission reconciliation; R02 remains preserved at its three-path checkpoint because its Claude session is in error and may not be restarted from scratch. | capacity three; mutually disjoint auth, offline frontend and CI fixture/workflow surfaces; successor refill waits for lease release |
+| 273 | 149 | 1 | DIFF_REVIEW_PASSED | The existing R09 security/minimal-change/CP-SECURITY PASS remains substantively valid for the exact resumed digest; three post-review path deltas only clarify existing refresh handling, add the absolute-cap boundary regression and correct architecture wording. | reused Sol/high `/root/r09_final_review`; no duplicate broad review; no substantive condition remains |
+| 274 | 150 | 1 | INTEGRATION_GATE_PASSED | The controller reproduced the exact eight-path R09 digest and ran the five required refresh command/route/cap checks on real PostgreSQL plus scoped Ruff, format and diff checks. | digest `5b0a3f68...`; 5 passed; concurrent R02/R35 bytes excluded |
+| 275 | 151 | 1 | SLICE_ACCEPTED | R09/GOV-007,AUT-001,AUT-002 accepted exactly once: typed auth commands own login/change/refresh decisions, status transitions rotate session authority, and reset completion rechecks live locked eligibility. | R09-P/M/SEC/CP-SECURITY; exact eight-path scope; authentication lease released; R11 dependency advances but remains owner-policy blocked |

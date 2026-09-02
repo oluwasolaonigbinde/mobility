@@ -222,17 +222,20 @@ async def admin_update_user(
     current_user: AdminUserDependency,
     session: SessionDependency,
 ) -> UserRead:
-    user, changed_fields = await update_user(session, user_id, payload)
+    result = await update_user(session, user_id, payload)
     await create_audit_event(
         session,
         actor_user_id=current_user.id,
         action="admin.user.updated",
         entity_type="user",
-        entity_id=str(user.id),
-        metadata={"changed_fields": changed_fields},
+        entity_id=str(result.user.id),
+        metadata={
+            "changed_fields": result.changed_fields,
+            "sessions_revoked": result.sessions_revoked,
+        },
     )
     await session.commit()
-    return UserRead.model_validate(user)
+    return UserRead.model_validate(result.user)
 
 
 @router.post(

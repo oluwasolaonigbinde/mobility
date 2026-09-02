@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy import Select, func, select
@@ -91,18 +92,45 @@ async def list_users(
     return list(result.scalars().all()), int(total or 0)
 
 
+@dataclass(frozen=True)
+class UserUpdateResult:
+    user: User
+    changed_fields: list[str]
+    sessions_revoked: bool
+
+
 async def update_user(
     session: AsyncSession,
     user_id: UUID,
     payload: UserUpdate,
-) -> tuple[User, list[str]]:
-    user = await get_user_by_id(session, user_id)
+) -> UserUpdateResult:
+    """Apply an administrative user update under the user row lock.
+
+    Any real status transition rotates ``session_version``. That covers entering
+    containment, leaving it, and reactivation, and it is what ends capabilities
+    issued under the previous status: live bearers stop verifying, and an unused
+    password reset fails its captured-version fence. Restating the current status
+    is not a transition and rotates nothing.
+    """
+    user = await session.scalar(
+        select(User)
+        .where(User.id == user_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if user is None:
         raise AppError("USER_NOT_FOUND", "User not found", status_code=status.HTTP_404_NOT_FOUND)
 
     update_values = payload.model_dump(exclude_unset=True)
     changed_fields = list(update_values)
+    status_changed = "status" in update_values and update_values["status"] != user.status
     for field, value in update_values.items():
         setattr(user, field, value)
+    if status_changed:
+        user.session_version += 1
     await session.flush()
-    return user, changed_fields
+    return UserUpdateResult(
+        user=user,
+        changed_fields=changed_fields,
+        sessions_revoked=status_changed,
+    )

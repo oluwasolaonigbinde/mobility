@@ -320,6 +320,15 @@ callers authenticated by signature, not JWT; nothing else may join that namespac
 
 ### 6.3 Auth model **[BUILT]**
 
+- **Service-owned auth commands (R09, GOV-007):** login, password change,
+  bearer issuance and refresh are reusable typed commands in
+  `app/services/auth.py`. They own the business decision, the stable `AppError`,
+  and the audit event; routers own the HTTP envelope, rate-limit accounting and
+  the transaction — including committing an audited failure before returning its
+  error, so a rejection's evidence is never rolled back with the request. A direct non-HTTP
+  caller gets the same decision, error and audit row as a request. Lock order
+  across the surface is fixed: password reset takes `password_reset_tokens` then
+  `users`; login, change-password and admin status updates take `users` only.
 - `POST /api/v1/auth/login` exchanges email+password for a bearer JWT.
 - JWT: HS256, payload **`{sub, exp, iat, auth_time, sv}`**
   (`app/core/security.py`), default lifetime 60 min
@@ -329,10 +338,12 @@ callers authenticated by signature, not JWT; nothing else may join that namespac
   `SESSION_ABSOLUTE_LIFETIME_MINUTES` (default 720); the cap is also enforced on
   every authenticated request (`app/api/v1/dependencies.py`). The driver
   tracking surface additionally rotates its cookie via `GET /driver/keepalive`.
-- **Revocation (F7):** `sv` (session_version) is compared against the DB on
-  every request; a password change increments it, invalidating all outstanding
-  tokens except the fresh one returned by the change-password flow
-  (`SESSION_REVOKED` / `SESSION_EXPIRED` error codes).
+- **Revocation (F7, extended by R09):** `sv` (session_version) is compared
+  against the DB on every request, invalidating all outstanding tokens except
+  the fresh one returned by the flow that rotated it (`SESSION_REVOKED` /
+  `SESSION_EXPIRED` error codes). Two authorities rotate it: a completed
+  credential transition (change-password or password reset), and **every real
+  user-status transition** — see "User lifecycle" below.
 - **Strict bearer claims (R10):** every protected bearer request requires the
   complete signed claim set above. `sub` is the canonical lower-case hyphenated UUID
   string; `exp`, `iat`, `auth_time`, and positive `sv` are exact integers (no
@@ -340,8 +351,15 @@ callers authenticated by signature, not JWT; nothing else may join that namespac
   with `auth_time <= iat < exp`, a non-future `iat`, and a future `exp`.
   Invalid claims use the stable 401 `INVALID_TOKEN` envelope, including refresh
   if expiry is crossed before its second decode.
-- **`POST /api/v1/auth/change-password` (F7):** requires the current password,
-  refuses reuse, enforces min length, bumps `sv`, returns a fresh token.
+- **`POST /api/v1/auth/change-password` (F7, fenced by R09):** requires the
+  current password, refuses reuse, enforces min length, bumps `sv`, returns a
+  fresh token. The transition runs against the `users` row locked
+  `FOR UPDATE` and reloaded (`populate_existing`, so an already-loaded ORM user
+  cannot decide on stale state): the locked `session_version` is snapshotted and
+  must still equal the bearer's `sv`, status is re-checked, and only then is the
+  current password verified against the locked hash. A caller that lost a race
+  to another credential transition gets `SESSION_REVOKED` instead of
+  overwriting it.
   Current-password guesses share the login rate-limit buckets (refunded once
   the password is proven) and failures are audited
   (`auth.password.change_failed`).
@@ -356,8 +374,17 @@ callers authenticated by signature, not JWT; nothing else may join that namespac
   (`PASSWORD_MIN_LENGTH`, validator refuses lower).
 - Roles: exactly **`admin`, `advertiser`, `driver`** — `UserRole` StrEnum plus a
   DB check constraint `ck_users_role`. <!-- verified: app/models/user.py -->
-- User lifecycle: suspended and disabled users are rejected at login **and** on
-  every authenticated request.
+- **User lifecycle (R09):** suspended and disabled users are rejected at login
+  **and** on every authenticated request. Any real change of `status` rotates
+  `session_version` in the same locked transaction as the status write — into
+  containment, **and back out of it on reactivation** — so no capability issued
+  under the previous status survives the transition. Restating the current
+  status is not a transition and rotates nothing. Because an unused password
+  reset is fenced on the `session_version` captured at issuance, containment
+  also invalidates outstanding reset tokens without a separate revocation
+  record; reset completion additionally re-reads live status under its lock and
+  refuses a contained account with the generic invalid-token response, leaving
+  the token unconsumed.
 - **No self-registration.** Users are created by admins (`POST /api/v1/admin/users`).
   Config guards: JWT secret must be changed and ≥32 chars outside local/test
   environments; wildcard CORS origins refused outside local/test.
@@ -2641,6 +2668,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.77 | 2026-09-02 | **R09 authentication command authority and containment fencing (GOV-007, AUT-001, AUT-002).** Login, password change, bearer issuance and refresh become reusable typed commands in `app/services/auth.py`; routers keep only envelope and transaction mapping and commit audited failures before returning their stable errors. Credential transitions run against the `users` row locked `FOR UPDATE` and reloaded, ordered session-version snapshot → status re-check → password verification, closing the change-password/reset lost update. Every real user-status transition, including reactivation, rotates `session_version` in the same locked transaction, and reset completion re-reads live status under its lock and leaves a refused token unconsumed. No schema, migration, public envelope or OpenAPI change (generated spec byte-identical). |
 | v1.76 | 2026-09-01 | **R34/OFF-001 replaces count/grace trip completeness with D25's signed content-bound v2 manifest.** Migration `0074` adds immutable manifest headers/entries, conserved batch facts, signed live/quarantine/manifest receipts, key-version provenance, raw-SQL guards and guarded downgrade while preserving v1 reads and fencing new v1 money. Canonical Python/TypeScript encoding and shared golden vectors bind exact descriptors; the encrypted queue stores receipts, End commits the ordered manifest and reconcile alone seals complete evidence. Undeclared/mutated/reordered/duplicate/under/over-count evidence and grace expiry cannot seal or create money. Dedicated signing readiness fails closed. No physical-device, live-route, deployment or pilot evidence is claimed. |
 | v1.75 | 2026-09-01 | **R10 strict bearer claim contract delivered without changing session policy.** Protected bearer routes now share one immutable validated claim shape requiring canonical UUID `sub`, exact integer `exp`/`iat`/`auth_time`/positive `sv`, representable epochs, existing current-time boundaries and `auth_time <= iat < exp`. Missing, null, coercible, malformed, noncanonical, expired, future or misordered claims fail through the existing 401 `INVALID_TOKEN` envelope, including refresh when its second decode crosses expiry. The live FastAPI dependency graph proves every bearer route reaches the central validator; current issuance, 60-minute token lifetime, 12-hour absolute cap, database status/version checks, refresh success, public routes and authorization remain unchanged. |
 | v1.74 | 2026-08-28 | **W4-03A provider-neutral release preparation delivered; live gate remains.** Digest-pinned base images plus exact-version/hash-locked Python and npm dependency graphs remove release-host dependency drift. Standalone immutable-image production Compose exposes only the TLS edge and keeps API/frontend/PostGIS/Redis/worker private while preserving Package 1–8 controls; preflight rejects missing/placeholder/weak secrets, unsafe origin/CORS/test/proxy settings, mutable images and revision-label mismatch. Durable ordered release state binds revision/images/config/previous release; first-release bootstrap, authenticated backup retry, forward migration, layered readiness, compatibility canary, smoke and failure-closed traffic are explicit. Writer-quiesced PostGIS plus versioned private objects are authenticated, encrypted and atomically completed; isolated restore verifies completion marker, embedded state, database/object agreement and a known compatible migration revision. Edge/API/worker JSON correlation scrubs structured arguments and private facts. A disposable exact-image PostGIS/Redis/MinIO rehearsal passed migration 0001→0071, first-release retry, readiness, 100-request load, encrypted backup, repeated isolated restore and authenticated recovery through a distinct pre-0071 image while retaining the forward schema. No API/schema/model or §9 baseline moved. `EXT-RELEASE-ENV`, `EXT-STAGING-APPROVAL`, `DV-STAGING-LIVE`, provider alerts/off-host scheduling and previous-release live compatibility remain unrun external gates; W4-03A is not claimed complete. |
