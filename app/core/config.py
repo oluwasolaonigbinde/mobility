@@ -208,6 +208,8 @@ class Settings(BaseSettings):
     heatmap_min_trips_per_cell: int = 1
     privacy_disclosure_live_authorized: bool = False
     privacy_disclosure_synthetic_test_mode: bool = False
+    privacy_collection_live_authorized: bool = False
+    privacy_collection_synthetic_test_mode: bool = False
     privacy_legal_approval_reference: str = ""
     privacy_disclosure_config_reference: str = ""
     privacy_query_history_retention_reference: str = ""
@@ -807,6 +809,8 @@ class Settings(BaseSettings):
             raise ValueError("IMPRESSION_MIN_CONFIDENCE must not exceed IMPRESSION_MAX_CONFIDENCE")
         if self.privacy_disclosure_synthetic_test_mode and self.environment.lower() != "test":
             raise ValueError("PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE requires environment=test")
+        if self.privacy_collection_synthetic_test_mode and self.environment.lower() != "test":
+            raise ValueError("PRIVACY_COLLECTION_SYNTHETIC_TEST_MODE requires environment=test")
         if (
             self.dsr_approved_exception_references
             and self.environment.lower() != "test"

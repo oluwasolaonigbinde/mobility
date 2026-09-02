@@ -49,6 +49,7 @@ from app.services.campaign_assignments import (
 from app.services.campaign_cancellations import campaign_financial_cutoff
 from app.services.installation_evidence import ensure_current_display_proof
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
+from app.services.privacy_authority import require_collection_authority
 from app.services.trip_evidence import (
     BATCH_HASH_VERSION,
     ManifestCompleteness,
@@ -225,6 +226,7 @@ async def start_driver_trip(
         from app.core.config import get_settings
 
         settings = get_settings()
+    require_collection_authority(settings)
     if payload.evidence_protocol_version != 2:
         raise AppError(
             "TRIP_EVIDENCE_PROTOCOL_UPGRADE_REQUIRED",
@@ -760,6 +762,7 @@ async def ingest_location_ping_batch(
     payload: LocationPingBatchCreate,
     settings: Settings,
 ) -> PingBatchResult:
+    require_collection_authority(settings)
     trip = await get_driver_trip(session, user_id=user_id, trip_id=trip_id)
     # Cancellation owns this same campaign authority. Whichever transaction
     # wins establishes whether this batch is pre- or post-cutoff evidence.

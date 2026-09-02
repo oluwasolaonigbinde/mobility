@@ -18,12 +18,15 @@ from conftest import (
     fetch_location_pings,
     fetch_trip_sessions,
 )
-from sqlalchemy import delete, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status as http_status
 from test_payouts_v2 import create_v2_rule
 from test_payouts_v3 import create_revision_row
 
+from app.core.config import get_settings
+from app.core.errors import AppError
+from app.models.audit import AuditEvent
 from app.models.billing import AcceptanceMethod, PaymentClass, QuoteRequestSource
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_assignment import (
@@ -33,10 +36,14 @@ from app.models.campaign_assignment import (
 )
 from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.payout import AssignmentRuleBinding
-from app.models.trip import TripSessionStatus
+from app.models.trip import LocationPing, LocationPingBatch, TripSession, TripSessionStatus
 from app.models.user import UserRole
 from app.models.vehicle import Vehicle, VehicleStatus
-from app.schemas.trips import LocationPingBatchCreate, TripEvidenceManifestEntryCreate
+from app.schemas.trips import (
+    LocationPingBatchCreate,
+    TripEvidenceManifestEntryCreate,
+    TripStartRequest,
+)
 from app.services.billing import (
     accept_quotation_revision,
     record_approved_credit_authorization,
@@ -46,6 +53,7 @@ from app.services.billing import (
     reserve_assignment_liability,
 )
 from app.services.trip_evidence import batch_payload_hash, manifest_root
+from app.services.trips import ingest_location_ping_batch, start_driver_trip
 
 PASSWORD = "long-secure-password"
 PAST = datetime(2020, 1, 1, tzinfo=UTC)
@@ -321,6 +329,130 @@ def start_trip(db_client, assignment_id, email: str = "driver@example.com"):
             "metadata": {"shift": "morning"},
         },
     )
+
+
+def test_collection_gate_denies_trip_start_and_ping_routes_without_side_effects(
+    db_client,
+    db_sessionmaker,
+    settings,
+) -> None:
+    _, _, driver, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
+    headers = driver_headers(db_client, driver.email)
+    db_client.app.dependency_overrides[get_settings] = lambda: settings
+    started = start_trip(db_client, assignment.id, driver.email)
+    assert started.status_code == http_status.HTTP_201_CREATED
+
+    async def counts() -> tuple[int, int, int, int]:
+        async with db_sessionmaker() as session:
+            return (
+                int(await session.scalar(select(func.count(TripSession.id))) or 0),
+                int(await session.scalar(select(func.count(LocationPingBatch.id))) or 0),
+                int(await session.scalar(select(func.count(LocationPing.id))) or 0),
+                int(
+                    await session.scalar(
+                        select(func.count(AuditEvent.id)).where(
+                            AuditEvent.action.in_(
+                                {"driver.trip.started", "trip.ping_batch.quarantined"}
+                            )
+                        )
+                    )
+                    or 0
+                ),
+            )
+
+    before_ping = asyncio.run(counts())
+    blocked = settings.model_copy(
+        update={
+            "privacy_disclosure_synthetic_test_mode": False,
+            "privacy_collection_live_authorized": False,
+            "privacy_collection_synthetic_test_mode": False,
+            "privacy_legal_approval_reference": "",
+        }
+    )
+    db_client.app.dependency_overrides[get_settings] = lambda: blocked
+    denied_ping = db_client.post(
+        f"/api/v1/driver/trips/{started.json()['id']}/pings",
+        headers=headers,
+        json=ping_payload(),
+    )
+    after_ping = asyncio.run(counts())
+
+    _, _, second_driver, _, _, second_assignment = create_trip_ready_graph(
+        db_sessionmaker,
+        admin_email="privacy-start-admin@example.com",
+        advertiser_email="privacy-start-advertiser@example.com",
+        driver_email="privacy-start-driver@example.com",
+        plate_number="PRV-001",
+    )
+    denied_start = start_trip(db_client, second_assignment.id, second_driver.email)
+    after_start = asyncio.run(counts())
+
+    assert denied_ping.status_code == http_status.HTTP_503_SERVICE_UNAVAILABLE
+    assert denied_ping.json()["error"]["code"] == "PRIVACY_COLLECTION_BLOCKED"
+    assert after_ping == before_ping
+    assert denied_start.status_code == http_status.HTTP_503_SERVICE_UNAVAILABLE
+    assert denied_start.json()["error"]["code"] == "PRIVACY_COLLECTION_BLOCKED"
+    assert after_start == after_ping
+
+    live = blocked.model_copy(
+        update={
+            "privacy_collection_live_authorized": True,
+            "privacy_legal_approval_reference": "approved-privacy-authority-v1",
+        }
+    )
+    db_client.app.dependency_overrides[get_settings] = lambda: live
+    assert (
+        db_client.post(
+            f"/api/v1/driver/trips/{started.json()['id']}/pings",
+            headers=headers,
+            json=ping_payload(),
+        ).status_code
+        == http_status.HTTP_200_OK
+    )
+    assert (
+        start_trip(db_client, second_assignment.id, second_driver.email).status_code
+        == http_status.HTTP_201_CREATED
+    )
+
+
+def test_collection_gate_denies_direct_trip_services_before_database_access(settings) -> None:
+    class NoDatabaseSession:
+        def __getattr__(self, name):
+            raise AssertionError(f"database access attempted through {name}")
+
+    blocked = settings.model_copy(
+        update={
+            "privacy_disclosure_synthetic_test_mode": False,
+            "privacy_collection_live_authorized": False,
+            "privacy_collection_synthetic_test_mode": False,
+            "privacy_legal_approval_reference": "",
+        }
+    )
+
+    async def exercise() -> None:
+        session = NoDatabaseSession()
+        with pytest.raises(AppError) as start_denial:
+            await start_driver_trip(
+                session,  # type: ignore[arg-type]
+                user_id=UUID("11111111-1111-4111-8111-111111111111"),
+                payload=TripStartRequest(
+                    assignment_id=UUID("22222222-2222-4222-8222-222222222222")
+                ),
+                settings=blocked,
+            )
+        assert start_denial.value.code == "PRIVACY_COLLECTION_BLOCKED"
+
+        with pytest.raises(AppError) as ping_denial:
+            await ingest_location_ping_batch(
+                session,  # type: ignore[arg-type]
+                user_id=UUID("11111111-1111-4111-8111-111111111111"),
+                trip_id=UUID("33333333-3333-4333-8333-333333333333"),
+                payload=LocationPingBatchCreate.model_validate(ping_payload()),
+                settings=blocked,
+            )
+        assert ping_denial.value.code == "PRIVACY_COLLECTION_BLOCKED"
+
+    asyncio.run(exercise())
 
 
 @pytest.mark.parametrize("protocol_version", [None, 1, 3])

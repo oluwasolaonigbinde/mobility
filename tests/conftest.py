@@ -95,6 +95,7 @@ def settings() -> Settings:
         jwt_secret_key="test-secret-key-at-least-32-bytes",
         access_token_expire_minutes=60,
         privacy_disclosure_synthetic_test_mode=True,
+        privacy_collection_synthetic_test_mode=True,
         privacy_min_vehicles_per_cell=1,
         privacy_min_trips_per_cell=1,
         privacy_min_days_per_cell=1,

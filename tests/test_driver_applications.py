@@ -15,13 +15,14 @@ from sqlalchemy.exc import IntegrityError
 from starlette import status as http_status
 
 from app.api.v1.dependencies import get_registration_rate_limiter
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.errors import AppError
 from app.core.rate_limit import InMemoryRegistrationRateLimiter, RateLimitDecision
 from app.models.audit import AuditEvent
 from app.models.campaign_assignment import CampaignAssignment
 from app.models.driver import DriverProfile
 from app.models.driver_application import DriverApplication, DriverApplicationAccessToken
+from app.models.kyc import DriverKycSubmission
 from app.models.payee import Payee
 from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle
@@ -31,8 +32,133 @@ from app.services.driver_applications import (
     list_driver_applications,
     synthetic_driver_application_access_token,
 )
+from app.services.privacy_authority import require_collection_authority
 
 PASSWORD = "long-secure-password"
+
+
+def test_public_person_payee_collection_denies_before_application_or_payee_writes(
+    db_client,
+    db_sessionmaker,
+    settings,
+) -> None:
+    blocked = settings.model_copy(
+        update={
+            "driver_registration_enabled": True,
+            "privacy_disclosure_synthetic_test_mode": False,
+            "privacy_collection_live_authorized": False,
+            "privacy_collection_synthetic_test_mode": False,
+            "privacy_legal_approval_reference": "",
+        }
+    )
+    db_client.app.dependency_overrides[get_settings] = lambda: blocked
+
+    async def counts() -> tuple[int, int, int]:
+        async with db_sessionmaker() as session:
+            return (
+                int(await session.scalar(select(func.count(Payee.id))) or 0),
+                int(await session.scalar(select(func.count(DriverKycSubmission.id))) or 0),
+                int(await session.scalar(select(func.count(AuditEvent.id))) or 0),
+            )
+
+    before = asyncio.run(counts())
+    response = db_client.post(
+        "/api/v1/auth/driver-onboarding/person-payee",
+        json={
+            "application_access_token": "synthetic-but-unauthorized-access-token",
+            "client_request_id": str(uuid4()),
+            "nin": "12345678901",
+            "account_name": "Synthetic Applicant",
+            "account_number": "0123456789",
+            "bank_code": "058",
+            "driver_license_file_id": str(uuid4()),
+            "driver_photo_file_id": str(uuid4()),
+            "signed_agreement_file_id": str(uuid4()),
+        },
+    )
+
+    assert response.status_code == http_status.HTTP_503_SERVICE_UNAVAILABLE
+    assert response.json()["error"]["code"] == "PRIVACY_COLLECTION_BLOCKED"
+    assert asyncio.run(counts()) == before
+
+
+@pytest.mark.parametrize(
+    "legal_reference",
+    ["", "missing", "placeholder", "EXT-LEGAL-PRIVACY"],
+)
+def test_collection_authority_rejects_absent_or_placeholder_legal_references(
+    settings, legal_reference
+) -> None:
+    blocked = settings.model_copy(
+        update={
+            "privacy_disclosure_synthetic_test_mode": False,
+            "privacy_collection_live_authorized": True,
+            "privacy_collection_synthetic_test_mode": False,
+            "privacy_legal_approval_reference": legal_reference,
+        }
+    )
+    with pytest.raises(AppError) as denial:
+        require_collection_authority(blocked)
+    assert denial.value.code == "PRIVACY_COLLECTION_BLOCKED"
+
+    approved = blocked.model_copy(
+        update={"privacy_legal_approval_reference": "approved-privacy-authority-v1"}
+    )
+    require_collection_authority(approved)
+
+
+def test_synthetic_privacy_authority_is_rejected_outside_test() -> None:
+    with pytest.raises(
+        ValueError,
+        match="PRIVACY_COLLECTION_SYNTHETIC_TEST_MODE requires environment=test",
+    ):
+        Settings(environment="local", privacy_collection_synthetic_test_mode=True)
+
+
+def test_disclosure_synthetic_authority_does_not_default_collection_authority() -> None:
+    disclosure_only = Settings(
+        environment="test",
+        privacy_disclosure_synthetic_test_mode=True,
+    )
+    assert disclosure_only.privacy_collection_synthetic_test_mode is False
+    with pytest.raises(AppError) as denial:
+        require_collection_authority(disclosure_only)
+    assert denial.value.code == "PRIVACY_COLLECTION_BLOCKED"
+
+
+def test_collection_authority_rechecks_synthetic_environment_at_runtime(settings) -> None:
+    copied_without_validation = settings.model_copy(
+        update={
+            "environment": "production",
+            "privacy_collection_synthetic_test_mode": True,
+            "privacy_collection_live_authorized": False,
+        }
+    )
+    with pytest.raises(AppError) as denial:
+        require_collection_authority(copied_without_validation)
+    assert denial.value.code == "PRIVACY_COLLECTION_BLOCKED"
+
+
+def test_collection_and_disclosure_synthetic_authorities_can_be_controlled_separately(
+    settings,
+) -> None:
+    collection_disabled = settings.model_copy(
+        update={
+            "privacy_collection_synthetic_test_mode": False,
+            "privacy_collection_live_authorized": False,
+        }
+    )
+    with pytest.raises(AppError) as denial:
+        require_collection_authority(collection_disabled)
+    assert denial.value.code == "PRIVACY_COLLECTION_BLOCKED"
+
+    collection_enabled = settings.model_copy(
+        update={
+            "privacy_disclosure_synthetic_test_mode": False,
+            "privacy_collection_synthetic_test_mode": True,
+        }
+    )
+    require_collection_authority(collection_enabled)
 
 
 class BlockingRegistrationLimiter:

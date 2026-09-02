@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 181
+plan_revision: 182
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 308
+last_event_sequence: 310
 ---
 
 # Cardvert audit remediation programme
@@ -259,7 +259,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R35 | OFF-002, OFF-003 | COMPLETE | R34 | R35-P/M; OFF+SEC; CP-OFFLINE; exact `e232ab7d...` freeze; 65 focused frontend passes plus typecheck/lint/format | accepted exactly once; offline frontend lease released |
 | R36 | OFF-005 | BLOCKED-OWNER | R35; signed per-sample disposition authority | R36-P; reviewed migration/model/signing contract; exact initial lease remained clean | owner must restore the reviewed Alembic/model/`trip_evidence.py` authority or revise and independently re-review a no-migration durable cryptographic design; no implementation before choice |
 | R37 | OFF-006 | WAITING | R36 | R37-P; reviewed deactivation-drain contract; durable break case: terminal deadletter-only retained evidence needs server-side final adjudication/sealing authority without client deletion | wait for accepted R36; reconcile the R35 evidence pointer during R37 implementation/review |
-| R38 | PRV-001, PRV-002 | ACTIVE | R13; privacy opener | R38-P; reviewed collection-time privacy-gate contract; R34 trip/config surfaces released | exact privacy-config/GPS/KYC ingress and focused-test lease; no generated-contract/billing/CI authority |
+| R38 | PRV-001, PRV-002 | COMPLETE | R13; privacy opener | R38-P/M; PRV+SEC; CP-PRIVACY | accepted exact 12-file collection-authority packet with separately owned test-fixture line and no generated-contract change |
 | R39 | PRV-003 | WAITING | R38 | R39-P; reviewed aggregate-only campaign-trip contract | wait for accepted R38 and generated-contract lane |
 | R40 | PRV-004, AUD-001, AUD-002 | WAITING | R16, R39 | R40-P; reviewed authoritative aggregation/delivery-approval contract | wait for accepted R39 and migration/contract lane |
 | R41 | PRV-009, AUD-004, TST-010 | WAITING | R40 | R41-P; reviewed generalized disclosure-history contract | wait for accepted R40 and migration lane |
@@ -356,7 +356,7 @@ trigger and a newly reviewed authority amendment.
 | Claude session `Cardvert audit-route integration correction` | R34 inherited audit-registry integration | Claude Opus 5 / High — owner-selected bounded audit/security evidence correction | exact `tests/test_audit_route_coverage.py` correction `34b7d55b...`; 7 controller PostgreSQL passes | COMPLETE-RETURNED |
 | Claude session `Cardvert R09 authentication remediation` | R09 auth command/status/reset implementation | Claude Opus 5 / High — owner-selected authentication and PostgreSQL race boundary | exact eight-path `5b0a3f68...` freeze released after controller verification | ACCEPTED |
 | task `01a05ef6-632c-79b1-bdf3-16c6e95aafd4` | S10/S11/S13/S14 aggregate R18-R22 and R29-R31 planning | GPT-5.6 Sol/high — money/migration/concurrency planning | read-only; R18-P through R22-P and R29-P through R31-P accepted | PLAN-PASS |
-| task `01a05ef6-92fc-7df1-bd39-50e8c2fee530` | S15 / R38 collection-time GPS/KYC privacy gates | GPT-5.6 Sol/high — precise-location, NIN and no-side-effect denial authority | exact privacy config/trip/KYC ingress lease; R39-R44 held | ACTIVE |
+| task `01a05ef6-92fc-7df1-bd39-50e8c2fee530` | S15 / R38 collection-time GPS/KYC privacy gates | GPT-5.6 Sol/high — precise-location, NIN and no-side-effect denial authority | exact 12-file packet integrated; R39 waits for R03 generated-contract lane | ACCEPTED |
 | task `01a05ef6-c545-7401-8114-4afe32fc9bf7` | S20-S22 aggregate R45-R52 reporting planning | GPT-5.6 Sol/high — reporting/privacy/concurrency planning | read-only; R45-P through R52-P accepted | PLAN-PASS |
 | task `01a05ef6-ee2d-79e0-9e50-153b035d771e` | S23-S27 aggregate R54-R58 release/test planning | GPT-5.6 Sol/high — release/security/worker planning | read-only; R54-P through R58-P accepted | PLAN-PASS |
 | task `01a05ef8-af56-7192-825a-ce4f00f9c86b` | S04 aggregate R12-R14 security/readiness planning | GPT-5.6 Sol/high — authentication/trusted-edge/release planning | read-only; R12-P and R14-P accepted | PLAN-PASS |
@@ -761,3 +761,5 @@ verification is complete.
 | 306 | 180 | 1 | SCHEDULER_POLICY_AMENDED | The owner directed the controller to prefer the longest cohesive dependency-aligned multi-slice session that preserves disjoint ownership, model fit, verification, specialist gates and per-slice partial-completion receipts. | no arbitrary slice count; owners callback at full-packet terminal/block/conflict only; migrations/contracts/shared fixtures remain serialized; current S09 expands R26→R27 after an internal verified R26 checkpoint |
 | 307 | 181 | 1 | SLICE_ACCEPTED | R26/COM-006 accepted exactly once after exact-digest reconciliation, diff inspection and focused controller PostgreSQL verification of forced correction/allocation overlap. | binary diff `1215074a...`; R26-P/M, DB+MNY and CP-COMMERCIAL PASS; controller combined gate 5 passed; exact two-file scope |
 | 308 | 181 | 1 | PACKET_CONTINUED | The cohesive S09 commercial owner may continue directly from accepted R26 into R27 without a controller handoff between slices, preserving a separate R27 checkpoint and receipt. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; same Sol/high gate; billing sequencing only; no model/migration/API/generated-contract expansion |
+| 309 | 182 | 1 | SLICE_ACCEPTED | R38/PRV-001,PRV-002 accepted exactly once after full-file hash reconciliation, diff inspection and focused controller collection-denial/default verification. | manifest `8ac0685d...`; R38-P/M, PRV+SEC and CP-PRIVACY PASS; controller combined gate 5 passed; exact 12-file scope including only one transferred conftest fixture line |
+| 310 | 182 | 1 | PACKET_RESERVED | The cohesive S01 owner may resume the frozen R02 exact CI packet on the accepted R38 fixture baseline and, after a verified internal R02 checkpoint, continue directly into R03 before one terminal callback. | task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d`; GPT-5.6 Sol/high for cross-package CI authority, then Terra/high-equivalent contract work retained under the harder packet gate; R39 waits for the shared generated-contract lane |

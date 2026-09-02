@@ -12,6 +12,7 @@ from conftest import (
 from sqlalchemy import func, select
 
 from app.adapters.crypto import EnvelopeCryptoProvider
+from app.core.config import get_settings
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
 from app.models.kyc import DriverKycSubmission, VehicleEvidenceSubmission
@@ -126,6 +127,108 @@ def _payload(bank_id: UUID, files: dict[str, UUID], **changes):
     }
     payload.update(changes)
     return payload
+
+
+def test_collection_gate_denies_authenticated_kyc_before_encryption_or_writes(
+    db_client,
+    db_sessionmaker,
+    settings,
+) -> None:
+    _, driver, _, bank_id, files = _seed_driver_authority(
+        db_sessionmaker, suffix="privacy-denial"
+    )
+    blocked = settings.model_copy(
+        update={
+            "privacy_disclosure_synthetic_test_mode": False,
+            "privacy_collection_live_authorized": False,
+            "privacy_collection_synthetic_test_mode": False,
+            "privacy_legal_approval_reference": "",
+        }
+    )
+    db_client.app.dependency_overrides[get_settings] = lambda: blocked
+
+    async def counts() -> tuple[int, int, int]:
+        async with db_sessionmaker() as session:
+            return (
+                int(await session.scalar(select(func.count(DriverKycSubmission.id))) or 0),
+                int(await session.scalar(select(func.count(StoredFile.id))) or 0),
+                int(
+                    await session.scalar(
+                        select(func.count(AuditEvent.id)).where(
+                            AuditEvent.action.like("driver.kyc.%")
+                        )
+                    )
+                    or 0
+                ),
+            )
+
+    before = asyncio.run(counts())
+    response = db_client.post(
+        "/api/v1/driver/kyc/submissions",
+        headers=auth_headers(db_client, driver.email, PASSWORD),
+        json=_payload(bank_id, files),
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "PRIVACY_COLLECTION_BLOCKED"
+    assert asyncio.run(counts()) == before
+
+    live = blocked.model_copy(
+        update={
+            "privacy_collection_live_authorized": True,
+            "privacy_legal_approval_reference": "approved-privacy-authority-v1",
+        }
+    )
+    db_client.app.dependency_overrides[get_settings] = lambda: live
+    allowed = db_client.post(
+        "/api/v1/driver/kyc/submissions",
+        headers=auth_headers(db_client, driver.email, PASSWORD),
+        json=_payload(bank_id, files),
+    )
+    assert allowed.status_code == 201
+    assert allowed.json()["masked_nin"] == "*******8901"
+
+
+def test_collection_gate_denies_direct_kyc_before_database_or_crypto_access(settings) -> None:
+    class NoDatabaseSession:
+        def __getattr__(self, name):
+            raise AssertionError(f"database access attempted through {name}")
+
+    class NoCrypto:
+        def encrypt(self, *args, **kwargs):
+            raise AssertionError("encryption attempted")
+
+        def decrypt(self, *args, **kwargs):
+            raise AssertionError("decryption attempted")
+
+    blocked = settings.model_copy(
+        update={
+            "privacy_disclosure_synthetic_test_mode": False,
+            "privacy_collection_live_authorized": False,
+            "privacy_collection_synthetic_test_mode": False,
+            "privacy_legal_approval_reference": "",
+        }
+    )
+
+    async def exercise() -> None:
+        with pytest.raises(AppError) as denial:
+            await submit_driver_kyc(
+                NoDatabaseSession(),  # type: ignore[arg-type]
+                actor_user_id=uuid4(),
+                client_request_id=uuid4(),
+                nin=NIN,
+                bank_account_version_id=uuid4(),
+                document_file_ids={
+                    "driver_license": uuid4(),
+                    "driver_photo": uuid4(),
+                    "signed_agreement": uuid4(),
+                },
+                crypto=NoCrypto(),  # type: ignore[arg-type]
+                settings=blocked,
+            )
+        assert denial.value.code == "PRIVACY_COLLECTION_BLOCKED"
+
+    asyncio.run(exercise())
 
 
 def test_kyc_submission_is_masked_idempotent_encrypted_and_reveal_is_audited(
@@ -298,7 +401,7 @@ def test_vehicle_evidence_is_owned_versioned_and_idempotent(db_client, db_sessio
     assert asyncio.run(count()) == 1
 
 
-def test_nin_rewrap_appends_once_and_preserves_ciphertext(db_sessionmaker) -> None:
+def test_nin_rewrap_appends_once_and_preserves_ciphertext(db_sessionmaker, settings) -> None:
     admin, driver, _, bank_id, files = _seed_driver_authority(db_sessionmaker, suffix="rewrap")
     first_crypto = EnvelopeCryptoProvider(keys={1: bytes(range(32))}, active_key_version=1)
     rotating_crypto = EnvelopeCryptoProvider(
@@ -317,6 +420,7 @@ def test_nin_rewrap_appends_once_and_preserves_ciphertext(db_sessionmaker) -> No
                     "driver_license", "driver_photo", "signed_agreement"
                 )},
                 crypto=first_crypto,
+                settings=settings,
             )
             await session.commit()
             original_mapping = dict(original.submission.encrypted_nin)
@@ -361,7 +465,7 @@ def test_nin_rewrap_appends_once_and_preserves_ciphertext(db_sessionmaker) -> No
     assert audits == 1
 
 
-def test_rewrap_cannot_resurrect_a_superseded_nin_chain(db_sessionmaker) -> None:
+def test_rewrap_cannot_resurrect_a_superseded_nin_chain(db_sessionmaker, settings) -> None:
     admin, driver, _, bank_id, files = _seed_driver_authority(
         db_sessionmaker, suffix="stale-rewrap"
     )
@@ -384,6 +488,7 @@ def test_rewrap_cannot_resurrect_a_superseded_nin_chain(db_sessionmaker) -> None
                 bank_account_version_id=bank_id,
                 document_file_ids=document_file_ids,
                 crypto=first_crypto,
+                settings=settings,
             )
             await submit_driver_kyc(
                 session,
@@ -393,6 +498,7 @@ def test_rewrap_cannot_resurrect_a_superseded_nin_chain(db_sessionmaker) -> None
                 bank_account_version_id=bank_id,
                 document_file_ids=document_file_ids,
                 crypto=first_crypto,
+                settings=settings,
             )
             await session.commit()
             with pytest.raises(AppError) as raised:
@@ -409,6 +515,7 @@ def test_rewrap_cannot_resurrect_a_superseded_nin_chain(db_sessionmaker) -> None
 
 def test_postgres_concurrent_kyc_retry_and_versions_serialize(
     postgis_db_sessionmaker,
+    settings,
 ) -> None:
     _, driver, _, bank_id, files = _seed_driver_authority(
         postgis_db_sessionmaker, suffix="concurrent"
@@ -430,6 +537,7 @@ def test_postgres_concurrent_kyc_retry_and_versions_serialize(
                 bank_account_version_id=bank_id,
                 document_file_ids=document_file_ids,
                 crypto=crypto,
+                settings=settings,
             )
             await session.commit()
             return view.submission.id, view.submission.version

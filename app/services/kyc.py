@@ -12,6 +12,7 @@ from app.adapters.crypto import (
     CryptoOperationError,
     CryptoProvider,
 )
+from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.driver import DriverProfile
 from app.models.kyc import (
@@ -29,6 +30,7 @@ from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
+from app.services.privacy_authority import require_collection_authority
 
 DRIVER_NIN_FIELD = "driver_kyc.nin"
 PURPOSE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
@@ -211,8 +213,10 @@ async def submit_driver_kyc(
     bank_account_version_id: UUID,
     document_file_ids: dict[str, UUID],
     crypto: CryptoProvider,
+    settings: Settings,
     allow_invited_actor: bool = False,
 ) -> DriverKycView:
+    require_collection_authority(settings)
     if len(nin) != 11 or not nin.isascii() or not nin.isdigit():
         raise _error("KYC_NIN_INVALID", "NIN must contain exactly 11 digits", 422)
     required = {item.value for item in DriverKycDocumentType}

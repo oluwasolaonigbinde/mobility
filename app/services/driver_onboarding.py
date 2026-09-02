@@ -40,6 +40,7 @@ from app.services.payees import (
     read_applicant_verified_bank_account,
     verification_reference_hash,
 )
+from app.services.privacy_authority import require_collection_authority
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +153,7 @@ async def submit_application_person_payee(
     crypto: CryptoProvider,
     settings: Settings,
 ) -> PersonPayeeView:
+    require_collection_authority(settings)
     application = await application_from_access_token(
         session,
         token=payload.application_access_token.get_secret_value(),
@@ -219,6 +221,7 @@ async def submit_application_person_payee(
             bank_account_version_id=existing.bank_account_version_id,
             document_file_ids=documents,
             crypto=crypto,
+            settings=settings,
             allow_invited_actor=True,
         )
         return PersonPayeeView(view.submission, None, view.document_file_ids)
@@ -259,6 +262,7 @@ async def submit_application_person_payee(
         bank_account_version_id=account.id,
         document_file_ids=documents,
         crypto=crypto,
+        settings=settings,
         allow_invited_actor=True,
     )
     return PersonPayeeView(kyc_view.submission, None, kyc_view.document_file_ids)

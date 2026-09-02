@@ -27,6 +27,7 @@ async def _create_terminal_submission(
     bank_id,
     files,
     now,
+    settings,
 ) -> DriverKycSubmission:
     view = await submit_driver_kyc(
         session,
@@ -39,6 +40,7 @@ async def _create_terminal_submission(
             for name in ("driver_license", "driver_photo", "signed_agreement")
         },
         crypto=EnvelopeCryptoProvider(keys={1: bytes(range(32))}, active_key_version=1),
+        settings=settings,
     )
     view.submission.status = KycSubmissionStatus.REJECTED
     view.submission.created_at = now - timedelta(days=31)
@@ -48,6 +50,7 @@ async def _create_terminal_submission(
 
 def test_file_kyc_retention_is_dry_run_first_audited_and_removes_terminal_objects(
     db_sessionmaker,
+    settings,
 ) -> None:
     admin, driver, _, bank_id, files = _seed_driver_authority(
         db_sessionmaker, suffix="retention"
@@ -63,6 +66,7 @@ def test_file_kyc_retention_is_dry_run_first_audited_and_removes_terminal_object
                 bank_id=bank_id,
                 files=files,
                 now=now,
+                settings=settings,
             )
             await session.commit()
             submission_id = submission.id
@@ -115,6 +119,7 @@ def test_file_kyc_retention_is_dry_run_first_audited_and_removes_terminal_object
 
 def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_closed(
     db_sessionmaker,
+    settings,
 ) -> None:
     admin, driver, _, bank_id, files = _seed_driver_authority(
         db_sessionmaker, suffix="retention-shared"
@@ -130,6 +135,7 @@ def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_clos
                 bank_id=bank_id,
                 files=files,
                 now=now,
+                settings=settings,
             )
             await submit_driver_kyc(
                 session,
@@ -144,6 +150,7 @@ def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_clos
                 crypto=EnvelopeCryptoProvider(
                     keys={1: bytes(range(32))}, active_key_version=1
                 ),
+                settings=settings,
             )
             await session.commit()
         async with db_sessionmaker() as session:
@@ -199,7 +206,9 @@ def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_clos
     assert storage.deleted == []
 
 
-def test_storage_outage_rolls_back_all_file_kyc_retention_rows(db_sessionmaker) -> None:
+def test_storage_outage_rolls_back_all_file_kyc_retention_rows(
+    db_sessionmaker, settings
+) -> None:
     admin, driver, _, bank_id, files = _seed_driver_authority(
         db_sessionmaker, suffix="retention-outage"
     )
@@ -215,6 +224,7 @@ def test_storage_outage_rolls_back_all_file_kyc_retention_rows(db_sessionmaker) 
                 bank_id=bank_id,
                 files=files,
                 now=now,
+                settings=settings,
             )
             await session.commit()
         async with db_sessionmaker() as session:
@@ -243,7 +253,9 @@ def test_storage_outage_rolls_back_all_file_kyc_retention_rows(db_sessionmaker) 
     assert asyncio.run(exercise()) == (1, 3)
 
 
-def test_mid_batch_storage_outage_is_idempotently_recoverable(db_sessionmaker) -> None:
+def test_mid_batch_storage_outage_is_idempotently_recoverable(
+    db_sessionmaker, settings
+) -> None:
     admin, driver, _, bank_id, files = _seed_driver_authority(
         db_sessionmaker, suffix="retention-mid-batch"
     )
@@ -258,6 +270,7 @@ def test_mid_batch_storage_outage_is_idempotently_recoverable(db_sessionmaker) -
                 bank_id=bank_id,
                 files=files,
                 now=now,
+                settings=settings,
             )
             await session.commit()
 
@@ -352,6 +365,7 @@ def test_admin_retention_endpoint_is_dry_run_first_and_policy_gated(
 
 def test_postgres_retention_lock_prevents_concurrent_double_purge(
     postgis_db_sessionmaker,
+    settings,
 ) -> None:
     sessionmaker = postgis_db_sessionmaker
     admin, driver, _, bank_id, files = _seed_driver_authority(
@@ -382,6 +396,7 @@ def test_postgres_retention_lock_prevents_concurrent_double_purge(
                 bank_id=bank_id,
                 files=files,
                 now=now,
+                settings=settings,
             )
             await seed_session.commit()
 

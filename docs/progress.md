@@ -45,9 +45,9 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R02, R27, R38`
-**Current capacity justification:** V04 is accepted and released. R02 remains byte-frozen and non-writing on its remaining CI paths until R38's transferred collection-authority fixture line becomes an accepted baseline; the cohesive S09 commercial session continues from accepted R26 into R27 on billing invoice sequencing; R38 owns privacy configuration, GPS/KYC ingress, and that one `tests/conftest.py` fixture argument. The two actual writer domains are disjoint, no fourth slice is currently executable without an unresolved owner decision or one of these dependency admissions, and migrations and all other files remain unleased.
+**Current justified remediation writer capacity:** `2`
+**Current capacity assignment:** `R02, R27`
+**Current capacity justification:** R38 and its transferred collection-authority fixture line are accepted, so the cohesive S01 control packet may resume R02 and continue into R03 on the serialized CI/generated-contract lane. The cohesive S09 commercial packet continues R27 on billing invoice sequencing. These domains are disjoint. R39 is dependency-ready but shares generated-contract baselines with R03; it remains queued until that central lane releases, while every other unfinished front is dependency- or owner-blocked.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -79,9 +79,10 @@ authority; the directly owner-authorized, Pro-admitted remediation programme is
 resumed from the exact safe pause snapshot without changing any accepted slice
 or any of the 29 non-executable dispositions.
 **Current checkpoint:** `PKG-10 / R02` — R02 is resuming under the
-owner-selected every-branch authority; R26 implements invoice
-allocation/correction lock ordering on the accepted R25 base; R38 adds
-collection-time GPS/KYC privacy denial.
+owner-selected every-branch authority and may continue directly into R03 after
+its verified internal checkpoint; R27 implements Lagos-year invoice numbering
+on the accepted R26 base. R38's collection-time GPS/KYC privacy denial is
+accepted; R39 waits for R03 to release the generated-contract lane.
 R36 remains frozen before first write pending the owner's migration/signing
 scope choice, with no active lease. R35's disclosed false red-evidence claims
 remain excluded from closure evidence and its final-sealing gap remains R37's.
@@ -1566,7 +1567,7 @@ durable ledger before changing a row.
 | R35 | OFF-002, OFF-003 | R34 | COMPLETE | PASS — R35-P | PASS — R35-M | CP-OFFLINE PASS — R35-CP-OFFLINE |
 | R36 | OFF-005 | R35 | QUEUED | PASS — R36-P | PENDING | CP-OFFLINE PENDING |
 | R37 | OFF-006 | R36 | QUEUED | PASS — R37-P | PENDING | CP-OFFLINE PENDING |
-| R38 | PRV-001, PRV-002 | R13 | ACTIVE | PASS — R38-P | PENDING | CP-PRIVACY PENDING |
+| R38 | PRV-001, PRV-002 | R13 | COMPLETE | PASS — R38-P | PASS — R38-M | CP-PRIVACY PASS — R38-CP-PRIVACY |
 | R39 | PRV-003 | R38 | QUEUED | PASS — R39-P | PENDING | CP-PRIVACY PENDING |
 | R40 | PRV-004, AUD-001, AUD-002 | R16, R39 | QUEUED | PASS — R40-P | PENDING | CP-PRIVACY PENDING |
 | R41 | PRV-009, AUD-004, TST-010 | R40 | QUEUED | PASS — R41-P | PENDING | CP-PRIVACY PENDING |
