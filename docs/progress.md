@@ -47,7 +47,7 @@ the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `6`
 **Current capacity assignment:** `R02`
-**Current capacity justification:** Six implementation owners have enumerated disjoint paths: authentication/readiness; the cohesive privacy/audience continuation; historical migration tests; signed-v2 payout fixtures; money/reversal concurrency; and trip-enqueue tests. R02 is frozen and performs no writes. The new privacy continuation exclusively owns the released migration/generated-contract lane and must reconcile the inherited R39–R44 dirty bytes before further mutation. V13 exclusively owns its three product services, while V11, V12 and V14 remain test-only. Each owner must stop before any file or mutation-domain overlap.
+**Current capacity justification:** Six implementation owners have enumerated disjoint paths: R54 release templates/preflight; the cohesive privacy/audience continuation; historical migration tests; signed-v2 payout fixtures; money/reversal concurrency; and trip-enqueue tests. R02 is frozen and performs no writes. The privacy continuation exclusively owns the migration/generated-contract lane and must reconcile the inherited R39–R44 dirty bytes before further mutation. V13 exclusively owns its product-service lock surfaces, while V11, V12 and V14 remain test-only. R54 owns the newly released configuration/template lane from accepted R12/R14. Each owner must stop before any file or mutation-domain overlap.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -88,8 +88,9 @@ the remaining repository groups: historical migration fixtures; signed-v2
 payout fixtures; two genuine reversal deadlocks; and trip-end/enqueue lifecycle
 expectations. R02 stays frozen until those groups are admitted; its next broad
 run must also provide GPG, Node and a host-visible nested-Docker mount. R03
-remains held until R02 passes and generated contracts stabilize. In parallel,
-R11→R12→R14 remains active. The prior privacy owner terminalized partially:
+remains held until R02 passes and generated contracts stabilize. R11→R12→R14
+is accepted and its released configuration/template lane is now assigned to
+R54. The prior privacy owner terminalized partially:
 R39, R40 and R44 are frozen complete; R41 and D30 need bounded correction; and
 R42–R43 were unstarted. A fresh cohesive Sol/medium task now owns that exact
 R41/D30→R42→R43 continuation and the serialized migration/generated-contract
