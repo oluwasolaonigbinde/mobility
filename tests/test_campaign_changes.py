@@ -203,8 +203,8 @@ def test_campaign_change_retry_conflict_and_tenant_isolation(
     assert first.status_code == 201
     assert conflict.status_code == 409
     assert conflict.json()["error"]["code"] == "CAMPAIGN_CHANGE_RETRY_CONFLICT"
-    assert isolated.status_code == 200
-    assert isolated.json()["items"] == []
+    assert isolated.status_code == 404
+    assert isolated.json()["error"]["code"] == "CAMPAIGN_NOT_FOUND"
 
 
 def test_campaign_change_rejects_retroactive_date_and_resolves_effective_revision(

@@ -1719,6 +1719,8 @@ async def record_prepaid_cash_authorization(
     max_driver_liability: Decimal | str,
     reason: str,
 ) -> CampaignFinancialAuthorization:
+    if await session.scalar(select(Campaign.id).where(Campaign.id == campaign_id)) is None:
+        raise AppError("CAMPAIGN_NOT_FOUND", "Campaign was not found", status_code=404)
     terms = await _commercial_terms_for_campaign(session, campaign_id)
     if terms is None:
         raise AppError(

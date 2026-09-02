@@ -2,9 +2,12 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from sqlalchemy import select
 
 from app.adapters.disbursement import DisabledDisbursementAdapter, DisbursementAdapter
 from app.api.v1.dependencies import AdminUserDependency, SessionDependency
+from app.core.errors import AppError
+from app.models.driver import DriverProfile
 from app.schemas.disbursements import (
     DriverMoneyBalanceRead,
     PayoutBatchCreate,
@@ -71,6 +74,15 @@ async def admin_get_driver_money_balance(
     session: SessionDependency,
     currency: str = Query(min_length=3, max_length=3),
 ) -> DriverMoneyBalanceRead:
+    if (
+        await session.scalar(select(DriverProfile.id).where(DriverProfile.id == driver_profile_id))
+        is None
+    ):
+        raise AppError(
+            "DRIVER_PROFILE_NOT_FOUND",
+            "Driver profile was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
     return DriverMoneyBalanceRead.model_validate(
         await driver_money_balance(
             session,

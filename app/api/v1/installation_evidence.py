@@ -2,6 +2,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
+from sqlalchemy import select
 
 from app.api.v1.dependencies import (
     AdminUserDependency,
@@ -10,6 +11,9 @@ from app.api.v1.dependencies import (
     SettingsDependency,
     StorageDependency,
 )
+from app.core.errors import AppError
+from app.models.campaign_assignment import CampaignAssignment
+from app.models.driver import DriverProfile
 from app.models.evidence_verification import EvidenceVerification, EvidenceVerificationStatus
 from app.models.installation_evidence import DisplayProof, InstallationEvidenceSubmission
 from app.models.stored_file import StoredFile
@@ -58,6 +62,25 @@ from app.services.stored_files import (
 )
 
 router = APIRouter(tags=["Installation evidence"])
+
+
+async def require_history_assignment(
+    session: SessionDependency,
+    *,
+    assignment_id: UUID,
+    driver_user_id: UUID | None = None,
+) -> None:
+    query = select(CampaignAssignment.id).where(CampaignAssignment.id == assignment_id)
+    if driver_user_id is not None:
+        query = query.join(
+            DriverProfile, DriverProfile.id == CampaignAssignment.driver_profile_id
+        ).where(DriverProfile.user_id == driver_user_id)
+    if await session.scalar(query) is None:
+        raise AppError(
+            "CAMPAIGN_ASSIGNMENT_NOT_FOUND",
+            "Campaign assignment was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
 
 
 async def evidence_response(
@@ -191,19 +214,12 @@ async def driver_list_evidence(
     user: DriverUserDependency,
     session: SessionDependency,
 ) -> InstallationEvidenceList:
-    # Ownership is rechecked by using the same guarded submission service path
-    # authority: a non-owner gets no evidence rows.
-    from sqlalchemy import select
-
-    from app.models.campaign_assignment import CampaignAssignment
-    from app.models.driver import DriverProfile
-
-    owned = await session.scalar(
-        select(CampaignAssignment.id)
-        .join(DriverProfile, DriverProfile.id == CampaignAssignment.driver_profile_id)
-        .where(CampaignAssignment.id == assignment_id, DriverProfile.user_id == user.id)
+    await require_history_assignment(
+        session,
+        assignment_id=assignment_id,
+        driver_user_id=user.id,
     )
-    rows = await list_evidence(session, assignment_id=assignment_id) if owned else []
+    rows = await list_evidence(session, assignment_id=assignment_id)
     await create_audit_event(
         session,
         actor_user_id=user.id,
@@ -324,6 +340,7 @@ async def admin_evidence_history(
     user: AdminUserDependency,
     session: SessionDependency,
 ) -> InstallationEvidenceList:
+    await require_history_assignment(session, assignment_id=assignment_id)
     rows = await list_evidence(session, assignment_id=assignment_id)
     await create_audit_event(
         session,

@@ -87,6 +87,10 @@ AUDITED = {
     ): "retargeting_source_link.removed",
     (
         "POST",
+        "/api/v1/admin/exposure-segments/{segment_id}/delivery-approvals",
+    ): "audience_delivery.approved",
+    (
+        "POST",
         "/api/v1/advertiser/exposure-segments/{segment_id}/exports",
     ): "audience_segment.exported",
     (

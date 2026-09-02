@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
 from conftest import (
@@ -158,6 +159,38 @@ def test_cash_authority_uses_confirmed_allocations_and_standard_boundary(
             assert production.authority_basis == ProductionAuthorityBasis.STANDARD_WINDOW_ELAPSED
             assert production.started_at == allocation.allocated_at + timedelta(hours=24)
             await session.commit()
+
+    asyncio.run(scenario())
+
+
+def test_prepaid_authority_distinguishes_missing_campaign_from_missing_terms(
+    db_sessionmaker,
+) -> None:
+    admin, _, _, campaign = _fixture(db_sessionmaker, "missing-campaign")
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            with pytest.raises(AppError) as missing_campaign:
+                await record_prepaid_cash_authorization(
+                    session,
+                    campaign_id=uuid4(),
+                    actor_user_id=admin.id,
+                    max_driver_liability="80.00",
+                    reason="matrix guessed campaign",
+                )
+            assert missing_campaign.value.code == "CAMPAIGN_NOT_FOUND"
+            assert missing_campaign.value.status_code == 404
+
+            with pytest.raises(AppError) as missing_terms:
+                await record_prepaid_cash_authorization(
+                    session,
+                    campaign_id=campaign.id,
+                    actor_user_id=admin.id,
+                    max_driver_liability="80.00",
+                    reason="existing campaign without terms",
+                )
+            assert missing_terms.value.code == "COMMERCIAL_TERMS_REQUIRED"
+            assert missing_terms.value.status_code == 409
 
     asyncio.run(scenario())
 

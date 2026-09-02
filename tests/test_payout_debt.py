@@ -683,6 +683,26 @@ def test_admin_debt_balance_and_allocation_api(db_client, db_sessionmaker) -> No
     assert len(allocated.json()["settlement_ids"]) == 1
 
 
+def test_admin_debt_balance_hides_missing_driver_profile(db_client, db_sessionmaker) -> None:
+    graph = build_graph(db_sessionmaker, f"debt-balance-auth-{uuid4().hex[:8]}")
+    headers = auth_headers(db_client, graph.admin.email)
+
+    existing = db_client.get(
+        f"/api/v1/admin/payout-batches/debt-balances/{graph.profile.id}?currency=NGN",
+        headers=headers,
+    )
+    missing = db_client.get(
+        f"/api/v1/admin/payout-batches/debt-balances/{uuid4()}?currency=NGN",
+        headers=headers,
+    )
+
+    assert existing.status_code == 200
+    assert existing.json()["carry_forward_debt"] == "0.00"
+    assert existing.json()["batch_payable"] == "0.00"
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "DRIVER_PROFILE_NOT_FOUND"
+
+
 def test_approved_post_payment_correction_posts_new_debt_authority(
     postgis_db_sessionmaker, settings
 ) -> None:

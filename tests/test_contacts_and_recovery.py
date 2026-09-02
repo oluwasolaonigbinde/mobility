@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 from datetime import UTC, datetime
+from uuid import uuid4
 
 import pytest
 from conftest import (
@@ -40,6 +41,71 @@ from app.services.contacts import (
     verify_phone_challenge,
 )
 from app.services.email_delivery import process_email_notification
+
+
+def test_missing_manual_contact_task_returns_hidden_not_found(db_sessionmaker) -> None:
+    admin = create_test_user(db_sessionmaker, email="contact-missing-admin@example.com")
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            with pytest.raises(AppError) as missing:
+                await complete_manual_driver_contact_task(
+                    session,
+                    task_id=uuid4(),
+                    actor_user_id=admin.id,
+                    outcome="reached",
+                    note="No matching manual contact task.",
+                )
+            assert missing.value.code == "CONTACT_TASK_NOT_FOUND"
+            assert missing.value.status_code == 404
+
+    asyncio.run(scenario())
+
+
+def test_missing_phone_challenge_returns_hidden_not_found(db_sessionmaker, settings) -> None:
+    admin = create_test_user(db_sessionmaker, email="phone-missing-admin@example.com")
+    settings.phone_operator_external_approved = True
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            with pytest.raises(AppError) as missing:
+                await record_phone_challenge_sent(
+                    session,
+                    challenge_id=uuid4(),
+                    actor_user_id=admin.id,
+                    channel="whatsapp",
+                    operator_evidence_reference="operator-evidence",
+                    provider_message_id="provider-message",
+                    settings=settings,
+                )
+            assert missing.value.code == "PHONE_CHALLENGE_NOT_FOUND"
+            assert missing.value.status_code == 404
+
+    asyncio.run(scenario())
+
+
+def test_missing_phone_challenge_verify_returns_hidden_not_found(db_sessionmaker, settings) -> None:
+    driver = create_test_user(
+        db_sessionmaker,
+        email="phone-verify-missing-driver@example.com",
+        role=UserRole.DRIVER,
+    )
+    create_test_driver_profile(db_sessionmaker, user_id=driver.id)
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            with pytest.raises(AppError) as missing:
+                await verify_phone_challenge(
+                    session,
+                    user_id=driver.id,
+                    challenge_id=uuid4(),
+                    code="123456",
+                    settings=settings,
+                )
+            assert missing.value.code == "PHONE_CHALLENGE_NOT_FOUND"
+            assert missing.value.status_code == 404
+
+    asyncio.run(scenario())
 
 
 def test_verified_phone_consent_and_manual_contact_are_versioned_and_secret_safe(

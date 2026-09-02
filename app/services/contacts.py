@@ -285,7 +285,9 @@ async def record_phone_challenge_sent(
         .with_for_update()
     )
     if challenge is None:
-        raise AppError("PHONE_CHALLENGE_NOT_FOUND", "Phone challenge was not found", 404)
+        raise AppError(
+            "PHONE_CHALLENGE_NOT_FOUND", "Phone challenge was not found", status_code=404
+        )
     if challenge.status == PhoneChallengeStatus.SENT.value:
         if (
             challenge.sent_by_user_id == actor_user_id
@@ -392,7 +394,13 @@ async def verify_phone_challenge(
         .where(PhoneVerificationChallenge.id == challenge_id)
         .with_for_update()
     )
-    if challenge is None or current_phone is None or challenge.phone_version_id != current_phone.id:
+    if challenge is None:
+        raise AppError(
+            "PHONE_CHALLENGE_NOT_FOUND",
+            "Phone challenge was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    if current_phone is None or challenge.phone_version_id != current_phone.id:
         raise AppError(
             "PHONE_CHALLENGE_INVALID",
             "Phone verification challenge is invalid",
@@ -699,7 +707,7 @@ async def complete_manual_driver_contact_task(
         .with_for_update()
     )
     if task is None:
-        raise AppError("CONTACT_TASK_NOT_FOUND", "Contact task was not found", 404)
+        raise AppError("CONTACT_TASK_NOT_FOUND", "Contact task was not found", status_code=404)
     if task.status == ManualContactTaskStatus.COMPLETED.value:
         if (
             task.completed_by_user_id == actor_user_id

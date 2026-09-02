@@ -461,6 +461,11 @@ async def list_advertiser_campaign_changes(
     campaign_id: UUID,
 ) -> list[CampaignChangeRequest]:
     organization, _ = await get_required_advertiser_context(session, actor_user_id)
+    campaign_organization_id = await session.scalar(
+        select(Campaign.organization_id).where(Campaign.id == campaign_id)
+    )
+    if campaign_organization_id != organization.id:
+        raise _error("CAMPAIGN_NOT_FOUND", "Campaign was not found", 404)
     return list(
         await session.scalars(
             select(CampaignChangeRequest)
