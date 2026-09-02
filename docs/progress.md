@@ -45,9 +45,9 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `0`
-**Current capacity assignment:** `none`
-**Current capacity justification:** The owner paused all remediation dispatch and admission while reconsidering which admitted FIX candidates remain proportionate current-product problems. R09 and R35 are frozen; R02 has received the same stop instruction and may only return the read-only reviews already in flight when the pause arrived. No new slice, correction, review, writer, lease, or scheduler refill is authorized until the owner supplies a narrowed approved inventory.
+**Current justified remediation writer capacity:** `3`
+**Current capacity assignment:** `R02, R09, R35`
+**Current capacity justification:** The owner resumed the exact paused programme snapshot. R09 and R35 occupy admission-only lanes on their unchanged frozen bytes; R02 occupies one preserved-checkpoint lane but has no write authority until its failed Claude session is replaced or safely resumed against the exact three-path digest. These paths are mutually disjoint, and no successor slice may acquire them before the current packet is admitted or released.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -73,21 +73,22 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 
 ### Current control pointer
 
-**Controller state:** `PAUSED — OWNER-SCOPE-RECONCILIATION`
+**Controller state:** `ACTIVE`
 **Control package:** `PKG-10` — R01 established truthful repository execution
 authority; the directly owner-authorized, Pro-admitted remediation programme is
-now paused without changing any accepted slice or any of the 29 non-executable
-dispositions.
-**Current checkpoint:** `PKG-10 / OWNER-SCOPE-RECONCILIATION` — the latest
-accepted product commit remains R34/OFF-001 at `a95a7ca`. R02, R09, and R35 are
-unadmitted preserved working-tree packets. Do not dispatch, resume, review,
-correct, admit, integrate, or refill any remediation lane until a narrowed
-owner-approved inventory replaces this pause.
+resumed from the exact safe pause snapshot without changing any accepted slice
+or any of the 29 non-executable dispositions.
+**Current checkpoint:** `PKG-10 / R09-R35-ADMISSION` — the latest accepted
+product commit remains R34/OFF-001 at `a95a7ca`. Reconcile and admit the exact
+frozen R09 and R35 packets if their receipts and focused checks hold; resume R02
+only from its preserved three-path checkpoint. Refill only after each lease is
+released and the next dependency-safe packet is proven disjoint.
 
 ## Direct owner requests outside the package queue
 
 | Date | Item | Authority | Scope boundary | Queue effect |
 | --- | --- | --- | --- | --- |
+| 2 Sep 2026 | **Resume the approved Cardvert remediation programme from the exact safe pause snapshot** — preserve accepted commits and safely frozen work, avoid duplicated slices/reviews, and return to dependency-safe rolling dispatch. | Direct project-owner instruction relayed from controller task `01a001ce-d025-7531-a84c-7498cd819eda`, 2 Sep 2026 | Reactivates only the unchanged frozen R02, R09 and R35 packets first. R09/R35 may proceed through admission on existing valid receipts; R02 may resume only against its preserved exact lease and evidence. Later work retains the admitted R01–R60 graph, disjoint shared-checkout leases, the existing risk-based model gates, all 29 non-executable dispositions, and all external/live prohibitions. | Lifts `PAUSED — OWNER-SCOPE-RECONCILIATION`, sets the controller `ACTIVE`, and restores work-conserving refill after current frozen packets are reconciled. |
 | 2 Sep 2026 | **Pause the admitted remediation programme for owner scope reconciliation** — preserve accepted commits and freeze every unfinished packet while the owner reassesses which of the 86 FIX candidates remain current product problems rather than CI/test/evidence/docs work or disproportionate hardening. | Direct project-owner instruction relayed from controller task `01a001ce-d025-7531-a84c-7498cd819eda`, 2 Sep 2026 | Preserve all accepted slices through R34 product commit `a95a7ca`; preserve the exact uncommitted R02, R09, R35 and unrelated user/audit bytes without staging, reverting, resetting, admitting or discarding them. No new R-slice, correction loop, review loop, writer, or lease may start. An already-running non-destructive R02 review may finish only to produce its frozen receipt. | Sets the controller to `PAUSED — OWNER-SCOPE-RECONCILIATION`, current writer capacity to zero, and awaits a narrowed approved inventory before any scheduler action resumes. |
 | 1 Sep 2026 | **Use Claude Opus 5 High for the next two implementation sessions after the current set clears** — create the next two safely ready, mutually disjoint packets as visible Claude desktop Code sessions. | Direct project-owner amendment in controller task `01a05de2-0b5d-73f0-ae3d-0e979b734658`, 1 Sep 2026 | The controller must still select packets from the admitted graph, preserve exact slice/candidate IDs, dependencies, leases, stop conditions, review gates and shared-checkout safety. Sessions use saved Mobility `master`, direct checkout, no worktrees, Opus 5 / High. No external action or authority boundary expands. | Deferred trigger: after the currently active/reviewing R13, R24 and R34 set reaches safe admission/steering points, allocate the next two compatible ready implementation packets to Claude; do not displace current owners. |
 | 1 Sep 2026 | **Execute the admitted Cardvert audit-remediation programme** — deliver the 86 FIX candidates through the dependency-safe R01–R60 graph with rolling, maximally useful parallel dispatch. | Direct project-owner authorization in task `01a05de2-0b5d-73f0-ae3d-0e979b734658`, continuing source task `01a001ce-d025-7531-a84c-7498cd819eda`, 1 Sep 2026; visible-task/concurrency and event-driven-callback amendments in the same controller task | Owns PKG-10, the exact admitted slice/candidate graph and repository fixes. Two implementation writers remain the baseline; a higher current capacity is authorized only with a recorded, exact disjoint-work justification. Implementation runs in visible top-level Mobility tasks directly in the saved checkout without worktrees, reusing a task across its compatible multi-slice session; internal subagents are review-only. Every visible task messages this controller only when its owned slice or planning packet completes, blocks, conflicts or requires steering; the controller then reconciles actual state before review, admission or refill. Periodic polling and recurring monitoring automation are disabled. Central configuration, migrations, contracts, shared fixtures and this file serialize. The 9 DEFER, 12 OWNER DECISION and 8 EXTERNAL INPUT findings remain non-executable; COM-008 remains open. No deployment, live payment/provider action, credential invention, external publication, legal approval, or live-evidence claim is authorized. The UI/product-flow prompt suite remains paused. | Activates PKG-10 and R01 first. After R01 acceptance, use the deterministic session partition and refill every safely justified writer slot without artificial batch boundaries. |

@@ -1,8 +1,8 @@
 ---
 schema_version: 1
 program_id: cardvert-audit-remediation
-program_status: PAUSED
-plan_revision: 144
+program_status: EXECUTING
+plan_revision: 148
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,12 +12,16 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 268
+last_event_sequence: 272
 ---
 
 # Cardvert audit remediation programme
 
 ## Owner scope pause — 2 Sep 2026
+
+**Lifted by direct owner resume after exact digest reconciliation.** The pause
+snapshot remains the resume baseline and evidence boundary below; its
+prohibition on dispatch no longer applies after event 269.
 
 The owner paused remediation dispatch and admission while reconsidering which
 of the 86 admitted FIX candidates remain proportionate current-product work.
@@ -717,3 +721,7 @@ verification is complete.
 | 266 | 142 | 1 | IMPLEMENTATION_FROZEN | R35 remains an unadmitted four-file packet; its withdrawn Codex review and later Opus activity confer no admission. | exact binary patch `e232ab7d...`; generated browser evidence preserved separately |
 | 267 | 143 | 1 | PAUSE_DELIVERED | R02 received the owner stop instruction while three non-destructive read-only reviews were already in flight; no further mutation, correction, or dispatch is authorized. | exact three-path binary patch `a3e8129f...`; frozen receipt may return, but cannot be admitted during pause |
 | 268 | 144 | 1 | SCHEDULER_PAUSED | Rolling capacity is zero and no new dispatch remains; all accepted commits and unadmitted working-tree bytes are preserved for owner scope reconciliation. | accepted product head `a95a7ca`; control snapshot `ab0c449`; no staged files or active product command |
+| 269 | 145 | 1 | OWNER_RESUME_REQUESTED | The owner resumed the approved programme from the exact safe paused snapshot without changing the admitted graph, accepted slices, non-executable dispositions, or risk-based model gates. | direct owner instruction from source controller task; controller remains Sol/medium and implementation/review gates follow owned risk |
+| 270 | 146 | 1 | RESUME_BASE_RECONCILED | R02, R09 and R35 binary digests reproduce exactly; HEAD `4c791eb` is the pause control commit and no files are staged. | R02 `a3e8129f...`; R09 `5b0a3f68...`; R35 `e232ab7d...`; unrelated audit and browser artifacts preserved |
+| 271 | 147 | 1 | IMPLEMENTATION_RETURNED | R35/OFF-002,OFF-003 returned exact v4 frozen bytes with R35-M, offline/security and CP-OFFLINE PASS receipts after correction; its disclosed false red-evidence claims remain excluded from closure evidence. | Opus 5 / High session; exact four-file `e232ab7d...`; deadletter-only server sealing gap remains outside R35 lease and must be reconciled by its owning follow-up |
+| 272 | 148 | 1 | RESUME_LANES_ACTIVATED | R09 and R35 entered exact-byte admission reconciliation; R02 remains preserved at its three-path checkpoint because its Claude session is in error and may not be restarted from scratch. | capacity three; mutually disjoint auth, offline frontend and CI fixture/workflow surfaces; successor refill waits for lease release |
