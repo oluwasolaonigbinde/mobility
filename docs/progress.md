@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R09, R34`
-**Current capacity justification:** R34's integrated PostgreSQL and frontend gates are green, but independent admission review returned exact receipt-lifecycle, key-version canonicalization and signed-batch deletion corrections within its existing frontend, configuration and migration-test leases. The Opus 5 / High R09 session owns only auth/user command and focused test paths; it remains disjoint from R34's trip/offline/migration/contract surfaces. R02 remains held against R34's configuration/test surfaces, and R25 remains held against R34's generated contracts. Shared fixtures and this file remain controller-serialized.
+**Current capacity assignment:** `R09`; `R02` and `R35` dispatch-ready
+**Current capacity justification:** R34 is accepted and has released the central migration/generated-contract/configuration lane. The Opus 5 / High R09 session owns only auth/user command and focused test paths. The next two owner-requested Opus 5 / High sessions may now take R02's CI/integration surfaces and R35's offline frontend queue/tracker surfaces concurrently: their exact writes are disjoint from each other and from R09. Shared fixtures, generated contracts, migrations and this file remain controller-serialized outside those leases.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -78,15 +78,10 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 now rolling across dependency-ready disjoint slices while all 29 non-executable
 findings retain their admitted dispositions.
-**Current checkpoint:** `PKG-10 / R34` — its integrated 241-test PostgreSQL and
-105-test frontend gates are green, but admission review found that locally
-complete evidence receipts were deleted on authoritative `ended` before
-server-side `sealed` confirmation, noncanonical key-version aliases could
-silently select different verification keys by JSON order, and raw PostgreSQL
-could delete a signed batch plus its child pings while retaining the manifest
-receipt. The Sol/high owner is applying those narrow corrections while the Opus
-session implements disjoint R09 auth commands. R02 and R25 remain held against
-R34's central surfaces.
+**Current checkpoint:** `PKG-10 / R09` — R34/OFF-001 is accepted at `a95a7ca`
+after all three admission corrections and named high-risk gates passed. R09 is
+finishing bounded auth verification; R02 and R35 are dependency-ready and
+write-disjoint for immediate owner-requested Opus 5 / High dispatch.
 
 ## Direct owner requests outside the package queue
 
@@ -1560,7 +1555,7 @@ durable ledger before changing a row.
 | R31 | CAM-004 | R18, R19, R30 | QUEUED | PASS — R31-P | PENDING | CP-CAMPAIGN PENDING |
 | R32 | ONB-002 | none | COMPLETE | PASS — R32-P | PASS — R32-M | CP-ONBOARDING PASS — R32-CP-ONBOARDING |
 | R33 | ONB-006 | R05, R32 | QUEUED | PASS — R33-P | PENDING | CP-ONBOARDING PENDING |
-| R34 | OFF-001 | R04 | ACTIVE | PASS — R34-P | PENDING | CP-OFFLINE PENDING |
+| R34 | OFF-001 | R04 | COMPLETE | PASS — R34-P | PASS — R34-M | CP-OFFLINE PASS — R34-CP-OFFLINE |
 | R35 | OFF-002, OFF-003 | R34 | QUEUED | PASS — R35-P | PENDING | CP-OFFLINE PENDING |
 | R36 | OFF-005 | R35 | QUEUED | PASS — R36-P | PENDING | CP-OFFLINE PENDING |
 | R37 | OFF-006 | R36 | QUEUED | PASS — R37-P | PENDING | CP-OFFLINE PENDING |

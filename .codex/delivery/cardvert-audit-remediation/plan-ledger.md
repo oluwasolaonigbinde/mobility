@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 124
+plan_revision: 125
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 248
+last_event_sequence: 249
 ---
 
 # Cardvert audit remediation programme
@@ -662,3 +662,4 @@ verification is complete.
 | 246 | 122 | 1 | ADMISSION_REVIEW_FIX | PostgreSQL permits direct deletion of a signed live evidence batch and cascades away its signed pings while the trip-level manifest receipt remains valid. | independent Sol/high scope review `/root/r34_scope_review`; fresh isolated 0074 database reproduced `DELETE_SUCCEEDED`; existing migration/test lease must protect signed parent deletion and add exact regression |
 | 247 | 123 | 1 | VERIFICATION_STALL_STEERED | R09's optional broad backend run was interrupted after sleeping at zero CPU for more than 42 minutes; its partial 1,141-pass/38-failure state is non-admission evidence and must not be rerun unbounded. | Claude Opus 5 / High session; retain exact R09 lease; classify concurrent-byte failures and use bounded focused auth/admin/recovery/PostgreSQL race gates with explicit timeouts |
 | 248 | 124 | 1 | VERIFICATION_SCOPE_ENFORCED | R09's owner started another full 1,675-test rerun despite the bounded steering; the controller interrupted it after one minute and directed immediate focused/failure-isolation verification and freeze. | Claude Opus 5 / High session; contribution-ready proportional evidence remains required; no product bytes or leases changed |
+| 249 | 125 | 1 | SLICE_ACCEPTED | R34/OFF-001 accepted exactly once after the corrected 38-file freeze reproduced, all named DB/privacy/security/money/offline/minimal-change reviews passed, and fresh controller checks returned 131 backend plus 107 frontend passes and typecheck. | product commit `a95a7ca`; content manifest `746a4ea4...`; binary diff `9a6b2ba3...`; R35 dependency released and central migration/generated-contract/configuration lane returned |
