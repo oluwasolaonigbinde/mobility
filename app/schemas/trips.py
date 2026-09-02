@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -14,7 +14,33 @@ class TripStartRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     assignment_id: UUID
+    evidence_protocol_version: int | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class TripEvidenceManifestEntryCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    batch_sequence: int = Field(ge=0)
+    idempotency_key: str = Field(min_length=1)
+    payload_hash_version: Literal[2] = 2
+    payload_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    submitted_count: int = Field(ge=0)
+
+    @field_validator("idempotency_key")
+    @classmethod
+    def trim_manifest_idempotency_key(cls, value: str) -> str:
+        return normalize_required_text(value)
+
+
+class TripEvidenceManifestCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: Literal[2] = 2
+    root_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    ping_count: int = Field(ge=0)
+    complete: bool
+    entries: list[TripEvidenceManifestEntryCreate]
 
 
 class TripEndRequest(BaseModel):
@@ -28,6 +54,7 @@ class TripEndRequest(BaseModel):
     client_batch_count: int | None = Field(default=None, ge=0)
     client_ping_count: int | None = Field(default=None, ge=0)
     client_complete: bool | None = None
+    evidence_manifest: TripEvidenceManifestCreate | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("end_reason")
@@ -59,6 +86,7 @@ class LocationPingBatchCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     idempotency_key: str = Field(min_length=1)
+    batch_sequence: int | None = Field(default=None, ge=0)
     pings: list[LocationPingCreate] = Field(min_length=1)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -79,6 +107,10 @@ class TripRead(BaseModel):
     started_at: datetime
     ended_at: datetime | None
     end_reason: str | None = None
+    evidence_protocol_version: int
+    evidence_manifest_root_sha256: str | None = None
+    evidence_manifest_complete: bool = False
+    evidence_manifest_verified_at: datetime | None = None
     sealed_at: datetime | None = None
     seal_reason: str | None = None
     ping_count: int
@@ -97,11 +129,32 @@ class LocationPingBatchResponse(BaseModel):
     batch_id: UUID
     trip_id: UUID
     accepted_count: int
+    submitted_count: int
+    rejected_count: int = 0
+    batch_sequence: int | None = None
+    payload_hash_version: int
+    payload_hash: str
+    outcome: str | None = None
+    receipt_format_version: int | None = None
+    receipt_key_version: int | None = None
+    receipt_signature: str | None = None
     duplicate: bool
     # True when the trip was already sealed: the payload is preserved in
     # quarantine (batch_id is the quarantine row) and no pings were inserted.
     # The client must treat this as an ACK and drop the batch from its queue.
     quarantined: bool = False
+
+
+class TripEvidenceReconcileResponse(BaseModel):
+    trip_id: UUID
+    status: TripSessionStatus
+    manifest_root_sha256: str
+    manifest_complete: bool
+    manifest_verified_at: datetime
+    receipt_format_version: int
+    receipt_key_version: int
+    receipt_signature: str
+    duplicate: bool
 
 
 class QuarantinedPingBatchRead(BaseModel):

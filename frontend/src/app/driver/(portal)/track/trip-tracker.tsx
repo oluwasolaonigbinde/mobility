@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import type { DriverTrackerAssignment, DriverTrackerTrip } from "@/lib/driver/campaign-journey";
 import {
   endTripAction,
+  endLegacyTripAction,
   getCurrentTripAction,
+  getTripEvidenceAuthorityAction,
+  reconcileTripEvidenceAction,
   sendPingBatchAction,
   startTripAction,
   verifyDriverTripOwnershipAction,
@@ -99,6 +102,7 @@ export function TripTracker({
   const startUncertainRef = useRef(false);
   const authorityUncertainRef = useRef(false);
   const pendingEndCompleteRef = useRef<boolean | null>(null);
+  const protocolByTripRef = useRef(new Map<string, 1 | 2>());
   const tripRef = useRef<DriverTrackerTrip | null>(initialTrip);
   const reconciledTripRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
@@ -333,6 +337,17 @@ export function TripTracker({
       if (!queue || !identityValidRef.current) return;
       const operation = (async () => {
         try {
+          let protocolVersion = protocolByTripRef.current.get(tripId);
+          if (!protocolVersion) {
+            const authority = await getTripEvidenceAuthorityAction(tripId);
+            if (!authority) {
+              if (mountedRef.current)
+                setError("Cardvert could not verify the trip evidence protocol.");
+              return;
+            }
+            protocolVersion = authority.protocolVersion;
+            protocolByTripRef.current.set(tripId, protocolVersion);
+          }
           const backlog = await queue.listBatches(tripId);
           for (;;) {
             const batch = backlog.shift() ?? (await queue.cutBatch(tripId, MAX_BATCH_PINGS));
@@ -341,6 +356,8 @@ export function TripTracker({
             const result = await sendPingBatchAction({
               tripId: batch.tripId,
               idempotencyKey: batch.key,
+              batchSequence: batch.cutSeq,
+              evidenceProtocolVersion: protocolVersion,
               pings: batch.pings,
             });
             if (result.error) {
@@ -361,7 +378,15 @@ export function TripTracker({
                 setError("Cardvert could not confirm the GPS batch acknowledgement.");
               break;
             }
-            await queue.ackBatch(batch.key);
+            if (protocolVersion === 1) {
+              await queue.acknowledgeLegacyBatch(batch.key);
+            } else if (!result.receipt) {
+              if (mountedRef.current)
+                setError("Cardvert did not return a signed GPS evidence receipt.");
+              break;
+            } else {
+              await queue.acknowledgeBatch(batch, result.receipt);
+            }
             if (mountedRef.current) setError(undefined);
           }
         } catch {
@@ -466,7 +491,13 @@ export function TripTracker({
         if (leftoverTripId === currentTripId) continue;
         await flush(leftoverTripId);
         if ((await queue.unsyncedCount(leftoverTripId)) === 0) {
-          await queue.forgetTrip(leftoverTripId);
+          const authority = await getTripEvidenceAuthorityAction(leftoverTripId);
+          if (authority?.protocolVersion === 2) {
+            const reconciled = await reconcileTripEvidenceAction(leftoverTripId);
+            if (reconciled.outcome === "ended") await queue.forgetTrip(leftoverTripId);
+          } else if (authority?.protocolVersion === 1 && authority.status === "sealed") {
+            await queue.forgetTrip(leftoverTripId);
+          }
         }
       }
     },
@@ -550,6 +581,7 @@ export function TripTracker({
             return;
           }
           reconciledTripRef.current = current.trip.id;
+          protocolByTripRef.current.set(current.trip.id, current.trip.evidenceProtocolVersion);
           tripRef.current = current.trip;
           setServerTripVerified(true);
           patchRuntime({ activeTrip: true });
@@ -667,6 +699,7 @@ export function TripTracker({
       startUncertainRef.current = false;
       setStartUncertain(false);
       tripRef.current = result.trip;
+      protocolByTripRef.current.set(result.trip.id, result.trip.evidenceProtocolVersion);
       reconciledTripRef.current = result.trip.id;
       setServerTripVerified(true);
       setTrip(result.trip);
@@ -726,8 +759,23 @@ export function TripTracker({
         return;
       }
       if (current.outcome === "failed") {
-        await finishEndedTrip(complete);
-        return;
+        const endedTripId = tripRef.current?.id;
+        const protocolVersion = endedTripId
+          ? protocolByTripRef.current.get(endedTripId)
+          : undefined;
+        if (endedTripId && protocolVersion === 2) {
+          const reconciled = await reconcileTripEvidenceAction(endedTripId);
+          if (reconciled.outcome === "ended" && reconciled.status === "sealed") {
+            await finishEndedTrip(complete);
+            return;
+          }
+        } else if (endedTripId && protocolVersion === 1) {
+          const authority = await getTripEvidenceAuthorityAction(endedTripId);
+          if (authority?.status === "sealed") {
+            await finishEndedTrip(complete);
+            return;
+          }
+        }
       }
       stopWatch();
       await releaseWake();
@@ -784,11 +832,22 @@ export function TripTracker({
         await reconcileAfterEnd(null);
         return;
       }
-      const result = await endTripAction(activeTrip.id, {
-        clientBatchCount: meta.batchesCut,
-        clientPingCount: meta.pingsRecorded,
-        clientComplete: complete,
-      });
+      const protocolVersion = protocolByTripRef.current.get(activeTrip.id);
+      if (!protocolVersion) {
+        if (mountedRef.current) setError("Cardvert could not verify the trip evidence protocol.");
+        return;
+      }
+      const result =
+        protocolVersion === 1
+          ? await endLegacyTripAction(activeTrip.id, {
+              clientBatchCount: meta.batchesCut,
+              clientPingCount: meta.pingsRecorded,
+              clientComplete: complete,
+            })
+          : await endTripAction(
+              activeTrip.id,
+              await queue.evidenceManifest(activeTrip.id, complete),
+            );
       if (result.outcome !== "ended") {
         if (mountedRef.current)
           setError(result.error ?? "Cardvert could not confirm whether the trip ended.");
@@ -798,7 +857,8 @@ export function TripTracker({
         await reconcileAfterEnd(complete);
         return;
       }
-      await finishEndedTrip(complete);
+      if (result.status === "sealed") await finishEndedTrip(complete);
+      else await reconcileAfterEnd(complete);
     })().finally(() => {
       if (mountedRef.current) setBusy(false);
     });

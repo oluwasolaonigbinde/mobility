@@ -445,7 +445,9 @@ seal, not the end, is the money-chain trigger) and refreshes
 an impression estimate when its analytics or open-fraud inputs are stale. It is
 fed by a fail-open enqueue-after-commit on trip seal
 (`app/core/trip_enqueue.py`) and backstopped by a Postgres-derived cron sweep,
-plus a seal sweep that force-seals ended trips past the recovery grace.
+plus a seal sweep. Under D25/migration `0074`, that sweep records an immutable
+audited grace-expiry marker only; it never seals or unlocks money. Exact signed
+v2 manifest reconciliation is the sole new-trip seal predicate.
 Admin recompute endpoints remain the synchronous recompute/override tools.
 Redis's consumers: **[BUILT] F7 login rate limiting** (`app/core/rate_limit.py`
 — disposable counters, fail-open per P2) and **[BUILT]** the arq queue (also
@@ -490,9 +492,10 @@ Matching & execution:
 |-------|------------------------------|
 | `campaign_assignments` | campaign ↔ driver_profile ↔ vehicle; status lifecycle; `assigned_by_user_id` |
 | `campaign_activation_events` | Assignment lifecycle event log |
-| `trip_sessions` | A tracked drive under an assignment; denormalized FKs to campaign/driver/vehicle; timestamps only — **no geometry columns** (stale pre-S4 claim corrected; only `location_pings.geom` carries coordinates) |
-| `location_ping_batches` | Idempotent ingestion envelope (unique trip+key, payload hash, accepted count); purged by retention only when zero pings remain (§24.2.1) |
-| `quarantined_ping_batches` | Post-seal ping batches held for serialized admin apply/discard without automatic money recomputation (RM3/D15) |
+| `trip_sessions` | A tracked drive under an assignment; denormalized FKs to campaign/driver/vehicle; timestamps only — **no geometry columns**. D25 adds protocol version, immutable v2 manifest header, verified signed receipt and grace-marker authority. |
+| `trip_evidence_manifest_entries` | D25's append-only ordered v2 descriptors: exact trip/batch sequence, idempotency key, canonical payload hash/version and submitted count; unique by trip+sequence and trip+key. |
+| `location_ping_batches` | Idempotent ingestion envelope (unique trip+key) with canonical hash/version, submitted/accepted/rejected conservation, manifest scope and an immutable signed receipt; purged only when zero pings remain (§24.2.1). |
+| `quarantined_ping_batches` | Post-seal ping batches held for serialized admin apply/discard without automatic money recomputation; D25 binds their preserved content to immutable signed receipts. |
 | `location_pings` | Individual GPS points per trip/batch; **monthly range-partitioned by `recorded_at`** with composite PK `(id, recorded_at)` (S4, migration `0014`, §24.2.2) |
 
 Derived (analytics → money):
@@ -2028,6 +2031,11 @@ aggregates only, k-floor rules of §22.2 apply to any zone-level display.
   restart capture. Legacy ownership verification is tri-state: only exact
   `404/TRIP_NOT_FOUND` proves non-ownership; auth, profile, provider, protocol
   and other failures keep migration in `binding` and the queue unavailable.
+  **[BUILT — D25 v2 evidence authority]:** Start negotiates protocol v2; every
+  cut batch stores its canonical hash and server-signed receipt in the same
+  encrypted driver-scoped queue. End commits the exact ordered manifest, and
+  an interrupted ended trip drains only those precommitted descriptors before
+  the explicit reconcile call. Counts and grace cannot substitute for content.
   This completes automated/synthetic build behavior only; the D23 physical
   device, route, battery, measured SLO, staging and pilot gates remain unrun.
   W4 must prove standalone
@@ -2426,8 +2434,8 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 | Payout engine v2 history + `payout_v3` target | §16.1 | `services/payouts.py` + `services/payout_eligibility.py` + `jobs/` (trip pipeline, §14.2) | payout_rules, payout_calculations, ledger | v1/v2 history rows | v2 [BUILT] S1; v3 D18/MNY-06B |
 | Payout recompute-day true-up | §16.1 | `services/payouts.py` + `api/v1/payouts.py` | ledger (append-only adjustment/reversal) | calculation edits, v1 days | [BUILT] S1 |
 | Driver trip earnings breakdown | §16.1 | `api/v1/payouts.py` + driver PWA `(portal)/earnings/trips/` | — | trip_analytics as driver-facing verified time | [BUILT] S1 |
-| Trip seal protocol + post-seal quarantine | §14.2/§35 RM3 | `services/trips.py` + `services/trip_processing.py` (seal sweep) + `api/v1/trips.py` (admin quarantine review) | trip_sessions (seal fields), quarantined_ping_batches | payout recompute (apply never recomputes money) | [BUILT] 9 Aug 2026 (D15) |
-| Durable client ping queue | §35 RM4/RM5 | `frontend/src/lib/trips/ping-queue.ts` + `(portal)/track/trip-tracker.tsx` | IndexedDB stores | server contract beyond §9 baselines | [BUILT] 9 Aug 2026 (D15) |
+| Trip evidence manifest, seal protocol + post-seal quarantine | §14.2/§35 RM3 | `services/trip_evidence.py`, `services/trips.py`, `services/trip_processing.py`, `api/v1/trips.py` | trip_sessions evidence fields, trip_evidence_manifest_entries, signed live/quarantine receipts | payout recompute (apply never recomputes money) | [BUILT] D15 lifecycle; D25 exact v2 authority (`0074`) |
+| Durable client ping queue | §35 RM4/RM5 | `frontend/src/lib/trips/ping-queue.ts`, `trip-evidence.ts` + `(portal)/track/trip-tracker.tsx` | encrypted IndexedDB batch/receipt records | server contract beyond synchronized §9 baselines | [BUILT] D15 queue; D25 v2 descriptors/receipts |
 | Release scheduling | §16.2 | `jobs/` + `services/payouts.py` | ledger statuses | ledger edits (append-only) | Q22 confirmed; RM8 before release |
 | Automated disbursement | §16.3 | `adapters/disbursement/`, `services/payouts.py` | payout_batches (new) | direct vendor calls from services | Q27 confirmed; RM10/RM11; `EXT-DISBURSEMENT-PROVIDER` for live submission |
 | Fraud review workflow | §17 | `services/` + `api/v1/` fraud modules | fraud_flags lifecycle | detection engine internals | Q21 confirmed; RM8 |
@@ -2583,6 +2591,16 @@ the reviewer described.
 | **RM6** ✅ **[FIXED 20 Aug 2026; HARDENED 21 Aug 2026]** | G1 | RESOLVED — PKG-01 MNY-06A/B/C + PKG02-C1 | **Former defect:** one admin could mutate a rule and recompute historical earnings without immutable terms, a separate approver or value-complete evidence. | **Done.** Migrations `0018`–`0021` add append-only effective-dated revisions, acceptance-time bindings with frozen rates/cap/resolved eligibility and premium/exclusion geometries, and maker-checker correction orders. PKG02-C1 adds one DB clock/shared acceptance-publication lock, freezes nullable accepted campaign windows in `0026`, makes populated financial downgrades fail closed and serializes adjacent-day cross-midnight corrections through stable trip locks. Direct recompute is retired; creator self-approval is rejected below the API, stale projections re-review, positive deltas require their own release time, execution is idempotent, and driver/admin explanations use persisted tier components that reconcile to the authoritative ledger amount. | ~~Before pilot launch~~ Closed |
 | **RM7** ✅ **[FIXED 16 Aug 2026]** | H2 (partial) | RESOLVED — PKG-01 FND-07 | **Exclusivity races surface as 500s.** The four exclusivity indexes exist and hold (see D13 rejected list), but their names were absent from `EXPECTED_UNIQUE_CONSTRAINTS` (`db/integrity.py`), so a lost race raised an unhandled `IntegrityError` instead of a clean 409. | **Done.** The four constraint names are registered in the integrity classifier (Postgres constraint-name and SQLite column-tuple paths) and the exact write sites that can enter an exclusivity index domain translate a lost race to the same stable 409 code as its guarding pre-check: assignment create → `DUPLICATE_CAMPAIGN_VEHICLE_ASSIGNMENT`, assignment activate → `ACTIVE_ASSIGNMENT_EXISTS_FOR_VEHICLE`, trip start → `ACTIVE_TRIP_EXISTS_FOR_DRIVER`/`ACTIVE_TRIP_EXISTS_FOR_VEHICLE` (accept/deactivate/cancel cannot enter a new index domain). Any other integrity failure re-raises untouched. Evidence: `tests/test_integrity.py` classifier coverage plus `tests/test_exclusivity_conflicts.py` — pre-check-defeated API lost-race envelopes and PostGIS two-transaction `asyncio.gather` races (one winner, coded 409 loser); no contract change (regenerated `openapi.json` byte-identical). | ~~Before pilot launch~~ Closed |
 
+**D25/R34 hardening (1 Sep 2026) supersedes the RM3–RM5 count/grace details
+above for protocol-v2 trips.** Migration `0074` makes the immutable ordered
+content manifest and signed receipts authoritative. Only exact reconcile may
+seal and unlock money; grace only records an audited marker. Ended uploads must
+match precommitted descriptors, including after assignment deactivation. The
+encrypted client queue retains signed receipts and reconstructs the same
+canonical manifest. Existing v1 history remains readable but cannot originate
+new money. D15/D16 lifecycle, quarantine, retention, locking and corrective
+money rules remain in force where D25 does not replace them.
+
 ### 35.2 Specification requirements for unbuilt domains (fix in the owning slice)
 
 | ID | Origin | Status | Requirement | Owning section / slice |
@@ -2623,6 +2641,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.76 | 2026-09-01 | **R34/OFF-001 replaces count/grace trip completeness with D25's signed content-bound v2 manifest.** Migration `0074` adds immutable manifest headers/entries, conserved batch facts, signed live/quarantine/manifest receipts, key-version provenance, raw-SQL guards and guarded downgrade while preserving v1 reads and fencing new v1 money. Canonical Python/TypeScript encoding and shared golden vectors bind exact descriptors; the encrypted queue stores receipts, End commits the ordered manifest and reconcile alone seals complete evidence. Undeclared/mutated/reordered/duplicate/under/over-count evidence and grace expiry cannot seal or create money. Dedicated signing readiness fails closed. No physical-device, live-route, deployment or pilot evidence is claimed. |
 | v1.75 | 2026-09-01 | **R10 strict bearer claim contract delivered without changing session policy.** Protected bearer routes now share one immutable validated claim shape requiring canonical UUID `sub`, exact integer `exp`/`iat`/`auth_time`/positive `sv`, representable epochs, existing current-time boundaries and `auth_time <= iat < exp`. Missing, null, coercible, malformed, noncanonical, expired, future or misordered claims fail through the existing 401 `INVALID_TOKEN` envelope, including refresh when its second decode crosses expiry. The live FastAPI dependency graph proves every bearer route reaches the central validator; current issuance, 60-minute token lifetime, 12-hour absolute cap, database status/version checks, refresh success, public routes and authorization remain unchanged. |
 | v1.74 | 2026-08-28 | **W4-03A provider-neutral release preparation delivered; live gate remains.** Digest-pinned base images plus exact-version/hash-locked Python and npm dependency graphs remove release-host dependency drift. Standalone immutable-image production Compose exposes only the TLS edge and keeps API/frontend/PostGIS/Redis/worker private while preserving Package 1–8 controls; preflight rejects missing/placeholder/weak secrets, unsafe origin/CORS/test/proxy settings, mutable images and revision-label mismatch. Durable ordered release state binds revision/images/config/previous release; first-release bootstrap, authenticated backup retry, forward migration, layered readiness, compatibility canary, smoke and failure-closed traffic are explicit. Writer-quiesced PostGIS plus versioned private objects are authenticated, encrypted and atomically completed; isolated restore verifies completion marker, embedded state, database/object agreement and a known compatible migration revision. Edge/API/worker JSON correlation scrubs structured arguments and private facts. A disposable exact-image PostGIS/Redis/MinIO rehearsal passed migration 0001→0071, first-release retry, readiness, 100-request load, encrypted backup, repeated isolated restore and authenticated recovery through a distinct pre-0071 image while retaining the forward schema. No API/schema/model or §9 baseline moved. `EXT-RELEASE-ENV`, `EXT-STAGING-APPROVAL`, `DV-STAGING-LIVE`, provider alerts/off-host scheduling and previous-release live compatibility remain unrun external gates; W4-03A is not claimed complete. |
 | v1.73 | 2026-08-28 | **W4-02B bounded CSV/PDF issuance delivered without opening live or segment export.** Migration `0071` adds durable report jobs, append-only version lineage and immutable artifact links through generated private stored files. Frozen W4-02A performance/conditional-financial/disclosure provenance drives deterministic bounded renderers; replay/concurrency, lease recovery, pair publication, no-overwrite object storage, tamper checks and request/publication/status/download authorization fail closed. Report exports are unreachable through generic file routes, and linked stored-file evidence cannot mutate or delete. Advertiser request/status/download/reissue UI uses same-origin typed contracts and retries a lost response with the exact persisted request identity. Focused PostgreSQL, migration/autogenerate, worker/storage/OpenAPI, real MinIO conditional-write race, 14 report UI/BFF, 99 preserved R14-B, type/lint/format/build, byte-stable §9 regeneration and Poppler-rendered PDF evidence pass. Performance-only artifacts contain no ROI wording; qualified ROI stays synthetic test-only. W4-02A and W4-01 remain unchanged; `EXT-REPORT-METHOD` and `EXT-LEGAL-PRIVACY` still gate live issuance and Q31 segment export remains disabled. |

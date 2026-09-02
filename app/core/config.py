@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     invoice_issuer_external_input_reference: str = ""
     payout_crypto_keyring_b64: SecretStr
     payout_crypto_key_version: int = 1
+    trip_evidence_signing_keyring_b64: OptionalSecret = None
+    trip_evidence_signing_key_version: int = 1
     object_storage_endpoint_url: str = ""
     object_storage_public_endpoint_url: str = ""
     object_storage_region: str = "us-east-1"
@@ -720,9 +722,60 @@ class Settings(BaseSettings):
             raise ValueError("PAYOUT_CRYPTO_KEY_VERSION must be positive")
         return value
 
+    @field_validator("trip_evidence_signing_keyring_b64")
+    @classmethod
+    def validate_trip_evidence_signing_keyring(
+        cls, value: SecretStr | None
+    ) -> SecretStr | None:
+        if value is None:
+            return None
+        try:
+            raw = json.loads(value.get_secret_value())
+            if not isinstance(raw, dict) or not raw:
+                raise ValueError
+            for version, encoded in raw.items():
+                if (
+                    not isinstance(version, str)
+                    or not version.isascii()
+                    or not version.isdecimal()
+                    or int(version) < 1
+                    or version != str(int(version))
+                ):
+                    raise ValueError
+                if (
+                    not isinstance(encoded, str)
+                    or len(base64.b64decode(encoded, validate=True)) != 32
+                ):
+                    raise ValueError
+        except (binascii.Error, json.JSONDecodeError, ValueError) as exc:
+            raise ValueError(
+                "TRIP_EVIDENCE_SIGNING_KEYRING_B64 must be a JSON object of positive "
+                "versions to base64-encoded 32-byte keys"
+            ) from exc
+        return value
+
+    @field_validator("trip_evidence_signing_key_version")
+    @classmethod
+    def validate_trip_evidence_signing_key_version(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("TRIP_EVIDENCE_SIGNING_KEY_VERSION must be positive")
+        return value
+
     @property
     def payout_crypto_keys(self) -> dict[int, bytes]:
         raw = json.loads(self.payout_crypto_keyring_b64.get_secret_value())
+        return {
+            int(version): base64.b64decode(encoded, validate=True)
+            for version, encoded in raw.items()
+        }
+
+    @property
+    def trip_evidence_signing_keys(self) -> dict[int, bytes]:
+        if self.trip_evidence_signing_keyring_b64 is None:
+            if self.environment.lower() in LOCAL_ENVIRONMENTS:
+                return {1: bytes(range(32))}
+            return {}
+        raw = json.loads(self.trip_evidence_signing_keyring_b64.get_secret_value())
         return {
             int(version): base64.b64decode(encoded, validate=True)
             for version, encoded in raw.items()
@@ -742,6 +795,14 @@ class Settings(BaseSettings):
     def validate_impression_confidence_bounds(self) -> "Settings":
         if self.payout_crypto_key_version not in self.payout_crypto_keys:
             raise ValueError("PAYOUT_CRYPTO_KEY_VERSION must exist in PAYOUT_CRYPTO_KEYRING_B64")
+        if (
+            self.trip_evidence_signing_keys
+            and self.trip_evidence_signing_key_version not in self.trip_evidence_signing_keys
+        ):
+            raise ValueError(
+                "TRIP_EVIDENCE_SIGNING_KEY_VERSION must exist in "
+                "TRIP_EVIDENCE_SIGNING_KEYRING_B64"
+            )
         if self.impression_min_confidence > self.impression_max_confidence:
             raise ValueError("IMPRESSION_MIN_CONFIDENCE must not exceed IMPRESSION_MAX_CONFIDENCE")
         if self.privacy_disclosure_synthetic_test_mode and self.environment.lower() != "test":

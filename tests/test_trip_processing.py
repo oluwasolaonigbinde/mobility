@@ -27,6 +27,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.campaign import CampaignStatus
 from app.models.campaign_assignment import CampaignAssignmentStatus
@@ -42,6 +43,7 @@ from app.models.vehicle import VehicleStatus
 from app.services import fraud_assessments, route_replay, trip_processing
 from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
 from app.services.payouts import calculate_trip_payout
+from app.services.trip_evidence import sign_manifest_receipt
 from app.services.trip_processing import (
     AUDIT_ACTION_TRIP_PROCESSING,
     TripProcessingResult,
@@ -122,6 +124,23 @@ def build_graph(
         started_at=started_at,
         ended_at=ended_at,
     )
+
+    async def bind_v2_evidence_authority() -> None:
+        async with db_sessionmaker() as session:
+            stored = await session.get(type(trip), trip.id)
+            stored.evidence_protocol_version = 2
+            if trip_status == TripSessionStatus.SEALED:
+                stored.evidence_manifest_version = 2
+                stored.evidence_manifest_root_sha256 = "0" * 64
+                stored.evidence_manifest_batch_count = 0
+                stored.evidence_manifest_ping_count = 0
+                stored.evidence_manifest_committed_at = ended_at
+                stored.evidence_manifest_complete = True
+                stored.evidence_manifest_verified_at = ended_at
+                sign_manifest_receipt(stored, Settings(environment="test"))
+            await session.commit()
+
+    asyncio.run(bind_v2_evidence_authority())
     return SimpleNamespace(
         admin=admin,
         driver=driver,
@@ -1834,7 +1853,7 @@ def test_due_work_orders_by_ended_at_and_respects_limit(db_sessionmaker, setting
     graph = build_graph(db_sessionmaker, "due5")
 
     def extra_trip(ended_at: datetime):
-        return create_test_trip_session(
+        trip = create_test_trip_session(
             db_sessionmaker,
             assignment_id=graph.assignment.id,
             campaign_id=graph.campaign.id,
@@ -1845,6 +1864,24 @@ def test_due_work_orders_by_ended_at_and_respects_limit(db_sessionmaker, setting
             started_at=BASE_TIME,
             ended_at=ended_at,
         )
+        async def bind_evidence() -> None:
+            async with db_sessionmaker() as session:
+                stored = await session.get(type(trip), trip.id)
+                stored.evidence_protocol_version = 2
+                stored.evidence_manifest_version = 2
+                stored.evidence_manifest_root_sha256 = "0" * 64
+                stored.evidence_manifest_batch_count = 0
+                stored.evidence_manifest_ping_count = 0
+                stored.evidence_manifest_committed_at = ended_at
+                stored.evidence_manifest_complete = True
+                stored.evidence_manifest_verified_at = ended_at
+                stored.evidence_manifest_receipt_format_version = 2
+                stored.evidence_manifest_receipt_key_version = 1
+                stored.evidence_manifest_receipt_signature = "test-v2-manifest-receipt"
+                await session.commit()
+
+        asyncio.run(bind_evidence())
+        return trip
 
     # Inserted out of ended_at order to prove ordering is not insertion order.
     trip_late = extra_trip(BASE_TIME + timedelta(minutes=50))

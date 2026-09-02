@@ -13,6 +13,7 @@ impossible to add silently.
 
 import asyncio
 from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
 from starlette import status as http_status
@@ -25,7 +26,9 @@ from test_trips import (
 
 from app.main import create_app
 from app.models.audit import AuditEvent
+from app.schemas.trips import TripEvidenceManifestEntryCreate
 from app.services.audit import create_audit_event
+from app.services.trip_evidence import manifest_root
 
 AUDITED = {
     ("POST", "/api/v1/auth/login"): "auth.login.*",
@@ -237,6 +240,7 @@ AUDITED = {
     # S4 backfill (§6.4.9):
     ("POST", "/api/v1/driver/trips/start"): "driver.trip.started",
     ("POST", "/api/v1/driver/trips/{trip_id}/end"): "driver.trip.ended",
+    ("POST", "/api/v1/driver/trips/{trip_id}/evidence/reconcile"): "trip.sealed",
     (
         "POST",
         "/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply",
@@ -384,6 +388,46 @@ AUDITED = {
         "privacy.dsr.location_assessed"
     ),
     ("POST", "/api/v1/admin/privacy/dsr-requests/{request_id}/complete"): ("privacy.dsr.completed"),
+    # W3-04B/C driver-application onboarding and review (public applicant
+    # capability token in the request body; each router commits once):
+    ("POST", "/api/v1/auth/driver-onboarding/files/uploads"): ("stored_file.upload_requested"),
+    (
+        "POST",
+        "/api/v1/auth/driver-onboarding/files/uploads/{upload_id}/confirm",
+    ): "stored_file.confirmed",
+    ("POST", "/api/v1/auth/driver-onboarding/person-payee"): (
+        "driver_application.payee.created|driver_application.bank_account.captured"
+        "|driver.kyc.submitted|driver_application.bank_account.retry_read"
+        "|driver.kyc.retry_read"
+    ),
+    ("POST", "/api/v1/auth/driver-onboarding/vehicle"): ("driver.vehicle_profile.submitted"),
+    (
+        "POST",
+        "/api/v1/admin/driver-applications/{application_id}/person-payee-decision",
+    ): "admin.driver_person_payee.*",
+    (
+        "POST",
+        "/api/v1/admin/driver-applications/{application_id}/vehicles/{vehicle_id}"
+        "/submissions/{submission_id}/decision",
+    ): "admin.driver_vehicle.*|admin.driver_application.approved",
+    ("POST", "/api/v1/admin/payees/bank-account-versions/{version_id}/payout-verification"): (
+        "admin.bank_account.payout_verified"
+    ),
+    # Report issuance request/download (advertiser and admin share one service):
+    ("POST", "/api/v1/advertiser/measurement-runs/{run_id}/report-issuances"): (
+        "report_issuance.requested|report_issuance.replayed"
+    ),
+    ("POST", "/api/v1/admin/measurement-runs/{run_id}/report-issuances"): (
+        "report_issuance.requested|report_issuance.replayed"
+    ),
+    (
+        "POST",
+        "/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/{artifact_format}/download",
+    ): "stored_file.read|report_artifact.downloaded",
+    (
+        "POST",
+        "/api/v1/admin/report-issuances/{issuance_id}/artifacts/{artifact_format}/download",
+    ): "stored_file.read|report_artifact.downloaded",
 }
 
 EXEMPT = {
@@ -412,6 +456,15 @@ EXEMPT = {
         " evidence; its destruction is itself evidenced in"
         " data_purge_audit. Idempotent replays perform no mutation and"
         " create no audit event."
+    ),
+    ("POST", "/api/v1/auth/driver-onboarding/files/{file_id}/status"): (
+        "Read-only scan-status probe: the applicant's capability token is a"
+        " secret and must travel in the request body rather than the URL, so"
+        " the read is POST-shaped. `get_application_driver_file` issues only"
+        " SELECTs, the route never commits, and it returns the applicant's own"
+        " file id and scan status without decrypting or presigning anything."
+        " There is no authority mutation and no privileged disclosure to"
+        " audit; the paired upload/confirm routes above carry the evidence."
     ),
 }
 
@@ -505,7 +558,10 @@ def test_trip_start_and_end_write_audit_events_and_pings_stay_exempt(
     headers = driver_headers(db_client)
 
     trip_id = start_trip(db_client, assignment.id).json()["id"]
-    payload = ping_payload()
+    recorded_at = datetime.now(UTC)
+    recorded_at = recorded_at.replace(microsecond=recorded_at.microsecond // 1000 * 1000)
+    payload = ping_payload(recorded_at)
+    payload["batch_sequence"] = 0
     first = db_client.post(
         f"/api/v1/driver/trips/{trip_id}/pings", headers=headers, json=payload
     )
@@ -516,10 +572,30 @@ def test_trip_start_and_end_write_audit_events_and_pings_stay_exempt(
     )
     assert replay.status_code == http_status.HTTP_200_OK
     assert replay.json()["duplicate"] is True
+    batch = first.json()
+    entry = TripEvidenceManifestEntryCreate(
+        batch_sequence=batch["batch_sequence"],
+        idempotency_key=payload["idempotency_key"],
+        payload_hash_version=batch["payload_hash_version"],
+        payload_hash=batch["payload_hash"],
+        submitted_count=batch["submitted_count"],
+    )
     end = db_client.post(
         f"/api/v1/driver/trips/{trip_id}/end",
         headers=headers,
-        json={"end_reason": "driver_ended", "metadata": {}},
+        json={
+            "end_reason": "driver_ended",
+            "metadata": {},
+            "evidence_manifest": {
+                "version": 2,
+                "root_sha256": manifest_root(
+                    trip_id=UUID(trip_id), entries=[entry], ping_count=1
+                ),
+                "ping_count": 1,
+                "complete": True,
+                "entries": [entry.model_dump()],
+            },
+        },
     )
     assert end.status_code == http_status.HTTP_200_OK
 
@@ -646,3 +722,56 @@ def test_traffic_density_profile_mutations_write_audit_events(
     actions = audit_actions(db_sessionmaker)
     assert "admin.traffic_density_profile.created" in actions
     assert "admin.traffic_density_profile.updated" in actions
+
+
+def test_applicant_file_status_probe_stays_exempt(db_client, db_sessionmaker, settings) -> None:
+    from test_driver_person_payee_onboarding import _register
+    from test_stored_files import FakeStorageProvider
+
+    from app.adapters.storage import ObjectMetadata
+    from app.api.v1.dependencies import get_storage_provider
+
+    access_token, _ = _register(db_client, db_sessionmaker, settings, suffix="audit-status")
+    storage = FakeStorageProvider()
+    db_client.app.dependency_overrides[get_storage_provider] = lambda: storage
+    created = db_client.post(
+        "/api/v1/auth/driver-onboarding/files/uploads",
+        json={
+            "application_access_token": access_token,
+            "upload": {
+                "client_request_id": str(uuid4()),
+                "purpose": "driver_kyc",
+                "filename": "licence.png",
+                "content_type": "image/png",
+                "size_bytes": 68,
+                "sha256": "a" * 64,
+            },
+        },
+    )
+    assert created.status_code == http_status.HTTP_201_CREATED, created.text
+    key = created.json()["upload"]["fields"]["key"]
+    storage.objects[key] = ObjectMetadata(
+        object_key=key,
+        size_bytes=68,
+        content_type="image/png",
+        checksum_sha256="a" * 64,
+    )
+    confirmed = db_client.post(
+        f"/api/v1/auth/driver-onboarding/files/uploads/{created.json()['upload_id']}/confirm",
+        json={"application_access_token": access_token},
+    )
+    assert confirmed.status_code == http_status.HTTP_201_CREATED, confirmed.text
+
+    before = audit_actions(db_sessionmaker)
+    assert before.count("stored_file.upload_requested") == 1
+    assert before.count("stored_file.confirmed") == 1
+
+    probe = db_client.post(
+        f"/api/v1/auth/driver-onboarding/files/{confirmed.json()['id']}/status",
+        json={"application_access_token": access_token},
+    )
+    assert probe.status_code == http_status.HTTP_200_OK, probe.text
+    assert set(probe.json()) == {"id", "scan_status"}
+    # Approved exemption: the read-only status probe mutates nothing and
+    # writes no audit event.
+    assert audit_actions(db_sessionmaker) == before

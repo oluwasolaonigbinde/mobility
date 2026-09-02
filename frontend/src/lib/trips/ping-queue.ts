@@ -9,6 +9,13 @@
  * verifies the current driver owns each trip.
  */
 
+import {
+  batchPayloadHash,
+  buildEvidenceManifest,
+  type EvidenceManifest,
+  type EvidenceManifestEntry,
+} from "@/lib/trips/trip-evidence";
+
 export interface QueuedPing {
   recorded_at: string;
   lat: number;
@@ -25,7 +32,20 @@ export interface QueuedBatch {
   cutSeq: number;
   cutAt: number;
   attempts: number;
+  payloadHashVersion: 2;
+  payloadHash: string;
   pings: QueuedPing[];
+}
+
+export interface EvidenceReceipt extends EvidenceManifestEntry {
+  tripId: string;
+  batchId: string;
+  acceptedCount: number;
+  rejectedCount: number;
+  outcome: string;
+  receiptFormatVersion: number;
+  receiptKeyVersion: number;
+  receiptSignature: string;
 }
 
 export interface TripMeta {
@@ -51,7 +71,7 @@ export interface OpenPingQueueOptions {
   requireMigrationLock?: boolean;
 }
 
-type RecordKind = "pending" | "batch" | "meta";
+type RecordKind = "pending" | "batch" | "meta" | "receipt";
 type EncryptedRecord = {
   storageKey: string;
   ownerDriverId: string | null;
@@ -436,12 +456,15 @@ export class PingQueue {
     );
     pings.sort((a, b) => a.sequence_number - b.sequence_number);
     const meta = await this.metaOrDefault(tripId);
+    const payloadHash = await batchPayloadHash(pings);
     const batch: QueuedBatch = {
       key: crypto.randomUUID(),
       tripId,
       cutSeq: meta.batchesCut,
       cutAt: Date.now(),
       attempts: 0,
+      payloadHashVersion: 2,
+      payloadHash,
       pings,
     };
     const nextMeta = { ...meta, batchesCut: meta.batchesCut + 1 };
@@ -478,10 +501,70 @@ export class PingQueue {
     );
   }
 
-  async ackBatch(key: string): Promise<void> {
+  async acknowledgeLegacyBatch(key: string): Promise<void> {
     const tx = this.db.transaction(RECORDS, "readwrite");
     tx.objectStore(RECORDS).delete(recordKey(this.driverId, "batch", key));
     await transactionDone(tx);
+  }
+
+  async acknowledgeBatch(batch: QueuedBatch, receipt: EvidenceReceipt): Promise<void> {
+    if (
+      receipt.idempotency_key !== batch.key ||
+      receipt.batch_sequence !== batch.cutSeq ||
+      receipt.payload_hash !== batch.payloadHash ||
+      receipt.submitted_count !== batch.pings.length
+    )
+      throw new Error("server evidence receipt does not match the queued batch");
+    const storageKey = recordKey(this.driverId, "receipt", batch.key);
+    const encrypted = await encryptPayload(
+      this.key,
+      { storageKey, ownerDriverId: this.driverId, tripId: batch.tripId, kind: "receipt" },
+      receipt,
+    );
+    const tx = this.db.transaction(RECORDS, "readwrite");
+    const store = tx.objectStore(RECORDS);
+    store.put(encrypted);
+    store.delete(recordKey(this.driverId, "batch", batch.key));
+    await transactionDone(tx);
+  }
+
+  async listReceipts(tripId: string): Promise<EvidenceReceipt[]> {
+    const rows = await this.records("receipt", tripId);
+    const receipts = await Promise.all(
+      rows.map((record) => decryptPayload<EvidenceReceipt>(this.key, record)),
+    );
+    return receipts.sort((left, right) => left.batch_sequence - right.batch_sequence);
+  }
+
+  async evidenceManifest(tripId: string, complete: boolean): Promise<EvidenceManifest> {
+    const [batches, receipts, deadLetters] = await Promise.all([
+      this.listBatches(tripId),
+      this.listReceipts(tripId),
+      this.listDeadLetters(tripId),
+    ]);
+    const entries = new Map<number, EvidenceManifestEntry>();
+    for (const receipt of receipts)
+      entries.set(receipt.batch_sequence, {
+        batch_sequence: receipt.batch_sequence,
+        idempotency_key: receipt.idempotency_key,
+        payload_hash_version: receipt.payload_hash_version,
+        payload_hash: receipt.payload_hash,
+        submitted_count: receipt.submitted_count,
+      });
+    for (const batch of [...batches, ...deadLetters]) {
+      const entry: EvidenceManifestEntry = {
+        batch_sequence: batch.cutSeq,
+        idempotency_key: batch.key,
+        payload_hash_version: batch.payloadHashVersion,
+        payload_hash: batch.payloadHash,
+        submitted_count: batch.pings.length,
+      };
+      const existing = entries.get(entry.batch_sequence);
+      if (existing && JSON.stringify(existing) !== JSON.stringify(entry))
+        throw new Error("conflicting evidence descriptor for batch sequence");
+      entries.set(entry.batch_sequence, entry);
+    }
+    return buildEvidenceManifest(tripId, [...entries.values()], complete);
   }
 
   async dropBatch(key: string, diagnostic: { status?: number; code?: string } = {}): Promise<void> {
@@ -559,7 +642,13 @@ export class PingQueue {
 
   async tripsWithLeftovers(): Promise<string[]> {
     const rows = await this.records();
-    return [...new Set(rows.filter((row) => row.kind !== "meta").map((row) => row.tripId))];
+    return [
+      ...new Set(
+        rows
+          .filter((row) => row.kind === "pending" || row.kind === "batch" || row.kind === "receipt")
+          .map((row) => row.tripId),
+      ),
+    ];
   }
 
   async forgetTrip(tripId: string): Promise<void> {

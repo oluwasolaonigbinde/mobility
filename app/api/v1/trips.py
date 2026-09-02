@@ -18,6 +18,7 @@ from app.schemas.trips import (
     QuarantinedPingBatchRead,
     QuarantineResolveRequest,
     TripEndRequest,
+    TripEvidenceReconcileResponse,
     TripRead,
     TripStartRequest,
 )
@@ -31,6 +32,7 @@ from app.services.trips import (
     get_driver_trip,
     ingest_location_ping_batch,
     list_quarantined_ping_batches,
+    reconcile_trip_evidence,
     start_driver_trip,
     summarize_trip,
 )
@@ -52,6 +54,10 @@ def trip_response(summary: TripSummary) -> TripRead:
         started_at=trip.started_at,
         ended_at=trip.ended_at,
         end_reason=trip.end_reason,
+        evidence_protocol_version=trip.evidence_protocol_version,
+        evidence_manifest_root_sha256=trip.evidence_manifest_root_sha256,
+        evidence_manifest_complete=trip.evidence_manifest_complete,
+        evidence_manifest_verified_at=trip.evidence_manifest_verified_at,
         sealed_at=trip.sealed_at,
         seal_reason=trip.seal_reason,
         ping_count=summary.ping_count,
@@ -145,17 +151,37 @@ async def driver_ingest_location_pings(
         # Fail-open latency optimization; the sweep is the guaranteed path (§14.3.2).
         await enqueuer.enqueue_trip_processing(trip_id)
     if result.quarantine is not None:
+        row = result.quarantine
         return LocationPingBatchResponse(
-            batch_id=result.quarantine.id,
-            trip_id=result.quarantine.trip_session_id,
+            batch_id=row.id,
+            trip_id=row.trip_session_id,
             accepted_count=0,
+            submitted_count=row.pings_submitted,
+            rejected_count=row.pings_rejected,
+            batch_sequence=row.batch_sequence,
+            payload_hash_version=row.payload_hash_version,
+            payload_hash=row.payload_hash,
+            outcome=row.receipt_outcome,
+            receipt_format_version=row.receipt_format_version,
+            receipt_key_version=row.receipt_key_version,
+            receipt_signature=row.receipt_signature,
             duplicate=result.duplicate,
             quarantined=True,
         )
+    row = result.batch
     return LocationPingBatchResponse(
-        batch_id=result.batch.id,
-        trip_id=result.batch.trip_session_id,
-        accepted_count=result.batch.pings_accepted,
+        batch_id=row.id,
+        trip_id=row.trip_session_id,
+        accepted_count=row.pings_accepted,
+        submitted_count=row.pings_submitted,
+        rejected_count=row.pings_rejected,
+        batch_sequence=row.batch_sequence,
+        payload_hash_version=row.payload_hash_version,
+        payload_hash=row.payload_hash,
+        outcome=row.receipt_outcome,
+        receipt_format_version=row.receipt_format_version,
+        receipt_key_version=row.receipt_key_version,
+        receipt_signature=row.receipt_signature,
         duplicate=result.duplicate,
     )
 
@@ -170,6 +196,7 @@ async def driver_end_trip(
     payload: TripEndRequest,
     current_user: DriverUserDependency,
     session: SessionDependency,
+    settings: SettingsDependency,
     enqueuer: TripEnqueuerDependency,
 ) -> TripRead:
     result = await end_driver_trip(
@@ -177,6 +204,7 @@ async def driver_end_trip(
         user_id=current_user.id,
         trip_id=trip_id,
         payload=payload,
+        settings=settings,
     )
     trip = result.trip
     await create_audit_event(
@@ -196,10 +224,45 @@ async def driver_end_trip(
     await session.commit()
     if result.sealed_now:
         # Fail-open latency optimization; the sweep is the guaranteed path
-        # (§14.3.2). Unsealed ends wait for late data or the grace sweep —
-        # the money chain must never see an unsealed trip (RM3).
+        # (§14.3.2). Unsealed v2 ends wait for exact late data and reconcile;
+        # grace records an audit marker but never opens the money chain (D25).
         await enqueuer.enqueue_trip_processing(trip.id)
     return trip_response(await summarize_trip(session, trip))
+
+
+@router.post(
+    "/{trip_id}/evidence/reconcile",
+    response_model=TripEvidenceReconcileResponse,
+    summary="Reconcile and seal exact trip evidence",
+)
+async def driver_reconcile_trip_evidence(
+    trip_id: UUID,
+    current_user: DriverUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+    enqueuer: TripEnqueuerDependency,
+) -> TripEvidenceReconcileResponse:
+    result = await reconcile_trip_evidence(
+        session,
+        user_id=current_user.id,
+        trip_id=trip_id,
+        settings=settings,
+    )
+    await session.commit()
+    if not result.duplicate:
+        await enqueuer.enqueue_trip_processing(trip_id)
+    trip = result.trip
+    return TripEvidenceReconcileResponse(
+        trip_id=trip.id,
+        status=trip.status,
+        manifest_root_sha256=trip.evidence_manifest_root_sha256,
+        manifest_complete=trip.evidence_manifest_complete,
+        manifest_verified_at=trip.evidence_manifest_verified_at,
+        receipt_format_version=trip.evidence_manifest_receipt_format_version,
+        receipt_key_version=trip.evidence_manifest_receipt_key_version,
+        receipt_signature=trip.evidence_manifest_receipt_signature,
+        duplicate=result.duplicate,
+    )
 
 
 @router.get(

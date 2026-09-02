@@ -3808,6 +3808,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/driver/trips/{trip_id}/evidence/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reconcile and seal exact trip evidence */
+        post: operations["driver_reconcile_trip_evidence_api_v1_driver_trips__trip_id__evidence_reconcile_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/driver/trips/{trip_id}/pings": {
         parameters: {
             query?: never;
@@ -9008,6 +9025,8 @@ export interface components {
         KycSubmissionStatus: "pending_review" | "approved" | "rejected" | "expired";
         /** LocationPingBatchCreate */
         LocationPingBatchCreate: {
+            /** Batch Sequence */
+            batch_sequence?: number | null;
             /** Idempotency Key */
             idempotency_key: string;
             /** Metadata */
@@ -9026,13 +9045,34 @@ export interface components {
              * Format: uuid
              */
             batch_id: string;
+            /** Batch Sequence */
+            batch_sequence?: number | null;
             /** Duplicate */
             duplicate: boolean;
+            /** Outcome */
+            outcome?: string | null;
+            /** Payload Hash */
+            payload_hash: string;
+            /** Payload Hash Version */
+            payload_hash_version: number;
             /**
              * Quarantined
              * @default false
              */
             quarantined: boolean;
+            /** Receipt Format Version */
+            receipt_format_version?: number | null;
+            /** Receipt Key Version */
+            receipt_key_version?: number | null;
+            /** Receipt Signature */
+            receipt_signature?: string | null;
+            /**
+             * Rejected Count
+             * @default 0
+             */
+            rejected_count: number;
+            /** Submitted Count */
+            submitted_count: number;
             /**
              * Trip Id
              * Format: uuid
@@ -11526,10 +11566,71 @@ export interface components {
             client_ping_count?: number | null;
             /** End Reason */
             end_reason?: string | null;
+            evidence_manifest?: components["schemas"]["TripEvidenceManifestCreate"] | null;
             /** Metadata */
             metadata?: {
                 [key: string]: unknown;
             };
+        };
+        /** TripEvidenceManifestCreate */
+        TripEvidenceManifestCreate: {
+            /** Complete */
+            complete: boolean;
+            /** Entries */
+            entries: components["schemas"]["TripEvidenceManifestEntryCreate"][];
+            /** Ping Count */
+            ping_count: number;
+            /** Root Sha256 */
+            root_sha256: string;
+            /**
+             * Version
+             * @default 2
+             * @constant
+             */
+            version: 2;
+        };
+        /** TripEvidenceManifestEntryCreate */
+        TripEvidenceManifestEntryCreate: {
+            /** Batch Sequence */
+            batch_sequence: number;
+            /** Idempotency Key */
+            idempotency_key: string;
+            /** Payload Hash */
+            payload_hash: string;
+            /**
+             * Payload Hash Version
+             * @default 2
+             * @constant
+             */
+            payload_hash_version: 2;
+            /** Submitted Count */
+            submitted_count: number;
+        };
+        /** TripEvidenceReconcileResponse */
+        TripEvidenceReconcileResponse: {
+            /** Duplicate */
+            duplicate: boolean;
+            /** Manifest Complete */
+            manifest_complete: boolean;
+            /** Manifest Root Sha256 */
+            manifest_root_sha256: string;
+            /**
+             * Manifest Verified At
+             * Format: date-time
+             */
+            manifest_verified_at: string;
+            /** Receipt Format Version */
+            receipt_format_version: number;
+            /** Receipt Key Version */
+            receipt_key_version: number;
+            /** Receipt Signature */
+            receipt_signature: string;
+            status: components["schemas"]["TripSessionStatus"];
+            /**
+             * Trip Id
+             * Format: uuid
+             */
+            trip_id: string;
         };
         /** TripFraudFlagCounts */
         TripFraudFlagCounts: {
@@ -11590,6 +11691,17 @@ export interface components {
             end_reason?: string | null;
             /** Ended At */
             ended_at: string | null;
+            /**
+             * Evidence Manifest Complete
+             * @default false
+             */
+            evidence_manifest_complete: boolean;
+            /** Evidence Manifest Root Sha256 */
+            evidence_manifest_root_sha256?: string | null;
+            /** Evidence Manifest Verified At */
+            evidence_manifest_verified_at?: string | null;
+            /** Evidence Protocol Version */
+            evidence_protocol_version: number;
             /** First Ping At */
             first_ping_at: string | null;
             /**
@@ -11638,6 +11750,8 @@ export interface components {
              * Format: uuid
              */
             assignment_id: string;
+            /** Evidence Protocol Version */
+            evidence_protocol_version?: number | null;
             /** Metadata */
             metadata?: {
                 [key: string]: unknown;
@@ -20315,6 +20429,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TripRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    driver_reconcile_trip_evidence_api_v1_driver_trips__trip_id__evidence_reconcile_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripEvidenceReconcileResponse"];
                 };
             };
             /** @description Validation Error */

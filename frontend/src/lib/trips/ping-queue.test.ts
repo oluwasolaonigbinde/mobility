@@ -153,10 +153,10 @@ describe("cutBatch", () => {
 });
 
 describe("ACK semantics", () => {
-  it("ackBatch deletes (server holds the data: accepted, duplicate, or quarantined)", async () => {
+  it("keeps the bounded legacy acknowledgement path for active v1 recovery", async () => {
     await queue.addPing(TRIP, ping(0));
     const batch = await queue.cutBatch(TRIP);
-    await queue.ackBatch(batch!.key);
+    await queue.acknowledgeLegacyBatch(batch!.key);
     expect(await queue.listBatches(TRIP)).toHaveLength(0);
     expect(await queue.unsyncedCount(TRIP)).toBe(0);
     // Cumulative counters survive the ACK — they back the end watermark.
@@ -180,6 +180,48 @@ describe("ACK semantics", () => {
         pings: dead!.pings,
       }),
     ]);
+  });
+
+  it("persists the signed receipt and rebuilds the exact manifest after reload", async () => {
+    await queue.addPing(TRIP, ping(0));
+    const batch = (await queue.cutBatch(TRIP))!;
+    const receipt = {
+      tripId: TRIP,
+      batchId: "34000000-0000-0000-0000-000000000011",
+      batch_sequence: batch.cutSeq,
+      idempotency_key: batch.key,
+      payload_hash_version: batch.payloadHashVersion,
+      payload_hash: batch.payloadHash,
+      submitted_count: batch.pings.length,
+      acceptedCount: batch.pings.length,
+      rejectedCount: 0,
+      outcome: "accepted",
+      receiptFormatVersion: 2,
+      receiptKeyVersion: 1,
+      receiptSignature: "signed-receipt",
+    };
+
+    await queue.acknowledgeBatch(batch, receipt);
+    expect(await queue.listBatches(TRIP)).toEqual([]);
+    queue.close();
+
+    const reopened = await openPingQueue(dbName);
+    expect(await reopened.listReceipts(TRIP)).toEqual([receipt]);
+    expect(await reopened.tripsWithLeftovers()).toEqual([TRIP]);
+    expect(await reopened.evidenceManifest(TRIP, true)).toMatchObject({
+      complete: true,
+      ping_count: 1,
+      entries: [
+        {
+          batch_sequence: batch.cutSeq,
+          idempotency_key: batch.key,
+          payload_hash_version: 2,
+          payload_hash: batch.payloadHash,
+          submitted_count: 1,
+        },
+      ],
+    });
+    reopened.close();
   });
 });
 

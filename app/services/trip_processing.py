@@ -27,7 +27,7 @@ from app.models.route_replay import (
     RouteReplaySignature,
     RouteReplayStatus,
 )
-from app.models.trip import TripSealReason, TripSession, TripSessionStatus
+from app.models.trip import TripSession, TripSessionStatus
 from app.models.trip_analytics import (
     FraudFlag,
     FraudFlagSeverity,
@@ -58,7 +58,8 @@ from app.services.trip_analytics import (
     load_ordered_pings,
     recompute_trip_analytics,
 )
-from app.services.trips import trip_not_found, try_seal_trip
+from app.services.trip_evidence import verify_manifest_receipt
+from app.services.trips import trip_not_found
 
 WORKER_METADATA = {"source": "worker"}
 AUDIT_ACTION_TRIP_PROCESSING = "worker.trip_processing.completed"
@@ -147,6 +148,43 @@ async def process_ended_trip(
             overall="blocked",
             stages=[StageResult(stage="trip", outcome="blocked", reason="trip_not_sealed")],
         )
+    if trip.evidence_protocol_version == 2:
+        if trip.evidence_manifest_verified_at is None or not verify_manifest_receipt(
+            trip, settings
+        ):
+            return TripProcessingResult(
+                trip_id=trip_id,
+                overall="blocked",
+                stages=[
+                    StageResult(
+                        stage="trip",
+                        outcome="blocked",
+                        reason="manifest_not_authenticated",
+                    )
+                ],
+            )
+    if trip.evidence_protocol_version == 1:
+        existing_money = await session.scalar(
+            select(PayoutCalculation.id)
+            .where(PayoutCalculation.trip_session_id == trip.id)
+            .limit(1)
+        ) or await session.scalar(
+            select(EarningsLedgerEntry.id)
+            .where(EarningsLedgerEntry.trip_session_id == trip.id)
+            .limit(1)
+        )
+        if existing_money is None:
+            return TripProcessingResult(
+                trip_id=trip_id,
+                overall="blocked",
+                stages=[
+                    StageResult(
+                        stage="trip",
+                        outcome="blocked",
+                        reason="legacy_money_origination_prohibited",
+                    )
+                ],
+            )
 
     # Campaign authority precedes fraud/trip scopes so cancellation and the
     # complete analytics-to-payout chain have one deterministic order.
@@ -751,6 +789,16 @@ async def find_unprocessed_trip_page(
         TripSession.status == TripSessionStatus.SEALED.value,
         TripSession.ended_at.is_not(None),
         or_(
+            and_(
+                TripSession.evidence_protocol_version == 2,
+                TripSession.evidence_manifest_verified_at.is_not(None),
+            ),
+            and_(
+                TripSession.evidence_protocol_version == 1,
+                or_(any_payout_calculation_exists, trip_payout_entry_exists),
+            ),
+        ),
+        or_(
             ~analytics_exists,
             and_(current_analytics_exists, ~current_assessment_exists),
             and_(current_analytics_exists, ~current_estimate_exists),
@@ -814,14 +862,7 @@ async def seal_due_trips(
     now: datetime | None = None,
     limit: int | None = None,
 ) -> list[UUID]:
-    """Force-seal ended trips whose recovery grace has expired (RM3).
-
-    The guaranteed path for incomplete/legacy ends: after
-    ``trip_seal_grace_seconds`` the trip seals with reason ``grace_expired``
-    even if the client watermark was never satisfied — late data past this
-    point goes to quarantine. Each seal is a guarded transition (winner-only),
-    so a concurrent late-batch seal or duplicate cron fire cannot double-seal.
-    """
+    """Mark expired recovery windows without sealing or creating money."""
     processing_now = now or await database_now(session)
     cutoff = processing_now - timedelta(seconds=settings.trip_seal_grace_seconds)
     result = await session.execute(
@@ -830,17 +871,22 @@ async def seal_due_trips(
             TripSession.status == TripSessionStatus.ENDED.value,
             TripSession.ended_at.is_not(None),
             TripSession.ended_at <= cutoff,
+            TripSession.grace_expired_at.is_(None),
         )
         .order_by(TripSession.ended_at.asc(), TripSession.id.asc())
         .limit(limit or settings.worker_sweep_batch_size)
+        .with_for_update(skip_locked=True)
     )
-    sealed_ids: list[UUID] = []
+    marked_ids: list[UUID] = []
     for trip in result.scalars().all():
-        if await try_seal_trip(
+        trip.grace_expired_at = processing_now
+        await create_audit_event(
             session,
-            trip,
-            reason=TripSealReason.GRACE_EXPIRED,
-            now=processing_now,
-        ):
-            sealed_ids.append(trip.id)
-    return sealed_ids
+            actor_user_id=None,
+            action="trip.evidence_grace_expired",
+            entity_type="trip_session",
+            entity_id=str(trip.id),
+            metadata={"evidence_protocol_version": trip.evidence_protocol_version},
+        )
+        marked_ids.append(trip.id)
+    return marked_ids

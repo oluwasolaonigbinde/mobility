@@ -7,11 +7,13 @@ recorded_at bound, and the ended-window assignment-gate skip.
 """
 
 import asyncio
+import copy
+import re
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from conftest import create_test_payout_rule, create_test_trip_analytics
-from sqlalchemy import select
+from sqlalchemy import select, update
 from starlette import status as http_status
 from test_trips import (
     create_trip_ready_graph,
@@ -32,7 +34,9 @@ from app.models.trip import (
     TripSessionStatus,
 )
 from app.models.trip_analytics import TripAnalytics
+from app.schemas.trips import LocationPingBatchCreate, TripEvidenceManifestEntryCreate
 from app.services.trip_analytics import recompute_trip_analytics
+from app.services.trip_evidence import batch_payload_hash, manifest_root
 from app.services.trip_processing import (
     find_unprocessed_trips,
     process_ended_trip,
@@ -40,6 +44,7 @@ from app.services.trip_processing import (
 )
 
 PASSWORD = "long-secure-password"
+BATCH_DESCRIPTORS: dict[str, dict[str, TripEvidenceManifestEntryCreate]] = {}
 
 
 def admin_headers(db_client, email: str = "admin@example.com"):
@@ -50,8 +55,21 @@ def admin_headers(db_client, email: str = "admin@example.com"):
 
 def end_trip(db_client, trip_id, *, watermark: dict | None = None, email=None):
     body = {"end_reason": "driver_ended", "metadata": {}}
-    if watermark is not None:
-        body.update(watermark)
+    descriptors = sorted(
+        BATCH_DESCRIPTORS.get(str(trip_id), {}).values(),
+        key=lambda entry: entry.batch_sequence,
+    )
+    complete = bool((watermark or {}).get("client_complete", False))
+    ping_count = sum(entry.submitted_count for entry in descriptors)
+    body["evidence_manifest"] = {
+        "version": 2,
+        "root_sha256": manifest_root(
+            trip_id=UUID(str(trip_id)), entries=descriptors, ping_count=ping_count
+        ),
+        "ping_count": ping_count,
+        "complete": complete,
+        "entries": [entry.model_dump() for entry in descriptors],
+    }
     return db_client.post(
         f"/api/v1/driver/trips/{trip_id}/end",
         headers=driver_headers(db_client, email or "driver@example.com"),
@@ -59,9 +77,49 @@ def end_trip(db_client, trip_id, *, watermark: dict | None = None, email=None):
     )
 
 
-def send_batch(db_client, trip_id, key, *, recorded_at=None, email=None, lat=6.45):
+def batch_descriptor(payload: dict) -> TripEvidenceManifestEntryCreate:
+    parsed = LocationPingBatchCreate.model_validate(payload)
+    return TripEvidenceManifestEntryCreate(
+        batch_sequence=parsed.batch_sequence,
+        idempotency_key=parsed.idempotency_key,
+        payload_hash_version=2,
+        payload_hash=batch_payload_hash(parsed),
+        submitted_count=len(parsed.pings),
+    )
+
+
+def make_batch_payload(key, *, recorded_at=None, lat=6.45, batch_sequence=None):
     payload = ping_payload(recorded_at=recorded_at, idempotency_key=key)
     payload["pings"][0]["lat"] = lat
+    timestamp = datetime.fromisoformat(payload["pings"][0]["recorded_at"])
+    timestamp = timestamp.replace(microsecond=(timestamp.microsecond // 1000) * 1000)
+    payload["pings"][0]["recorded_at"] = timestamp.isoformat()
+    if batch_sequence is None:
+        match = re.search(r"(\d+)$", key)
+        batch_sequence = max(0, int(match.group(1)) - 1) if match else 0
+    payload["batch_sequence"] = batch_sequence
+    return payload
+
+
+def remember_batch(trip_id, payload) -> None:
+    descriptor = batch_descriptor(payload)
+    BATCH_DESCRIPTORS.setdefault(str(trip_id), {})[descriptor.idempotency_key] = descriptor
+
+
+def send_batch(
+    db_client,
+    trip_id,
+    key,
+    *,
+    recorded_at=None,
+    email=None,
+    lat=6.45,
+    batch_sequence=None,
+):
+    payload = make_batch_payload(
+        key, recorded_at=recorded_at, lat=lat, batch_sequence=batch_sequence
+    )
+    remember_batch(trip_id, payload)
     return db_client.post(
         f"/api/v1/driver/trips/{trip_id}/pings",
         headers=driver_headers(db_client, email or "driver@example.com"),
@@ -89,7 +147,7 @@ def audit_actions(db_sessionmaker) -> list[str]:
     return [event.action for event in fetch_all(db_sessionmaker, AuditEvent)]
 
 
-def test_end_with_satisfied_watermark_fast_seals(db_client, db_sessionmaker) -> None:
+def test_exact_complete_manifest_fast_seals(db_client, db_sessionmaker) -> None:
     _, _, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
     trip_id = start_trip(db_client, assignment.id).json()["id"]
     assert send_batch(db_client, trip_id, "b1").status_code == http_status.HTTP_200_OK
@@ -116,12 +174,14 @@ def test_end_with_satisfied_watermark_fast_seals(db_client, db_sessionmaker) -> 
     assert fetch_trip(db_sessionmaker, trip_id).status == TripSessionStatus.SEALED.value
 
 
-def test_incomplete_end_stays_ended_then_late_batch_seals(db_client, db_sessionmaker) -> None:
+def test_incomplete_end_requires_late_batch_and_reconcile(db_client, db_sessionmaker) -> None:
     _, _, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
     trip_id = start_trip(db_client, assignment.id).json()["id"]
 
-    # Client cut 2 batches but only delivered 1 before ending.
+    # The client commits both cut descriptors but has delivered only the first.
     assert send_batch(db_client, trip_id, "b1").status_code == http_status.HTTP_200_OK
+    b2_payload = make_batch_payload("b2", batch_sequence=1)
+    remember_batch(trip_id, b2_payload)
     response = end_trip(
         db_client,
         trip_id,
@@ -130,17 +190,25 @@ def test_incomplete_end_stays_ended_then_late_batch_seals(db_client, db_sessionm
     assert response.json()["status"] == "ended"
     assert response.json()["sealed_at"] is None
 
-    # The missing batch arrives inside the recovery window: accepted as live
-    # evidence AND completes the watermark -> seal without waiting for grace.
-    late = send_batch(db_client, trip_id, "b2")
+    late = db_client.post(
+        f"/api/v1/driver/trips/{trip_id}/pings",
+        headers=driver_headers(db_client),
+        json=b2_payload,
+    )
     assert late.status_code == http_status.HTTP_200_OK
     assert late.json()["quarantined"] is False
+    assert fetch_trip(db_sessionmaker, trip_id).status == TripSessionStatus.ENDED.value
+    reconcile = db_client.post(
+        f"/api/v1/driver/trips/{trip_id}/evidence/reconcile",
+        headers=driver_headers(db_client),
+    )
+    assert reconcile.status_code == http_status.HTTP_200_OK
     trip = fetch_trip(db_sessionmaker, trip_id)
     assert trip.status == TripSessionStatus.SEALED.value
     assert trip.seal_reason == TripSealReason.LATE_DATA_COMPLETE.value
 
 
-def test_no_watermark_end_waits_for_grace_sweep(db_client, db_sessionmaker, settings) -> None:
+def test_grace_expiry_marks_but_never_seals(db_client, db_sessionmaker, settings) -> None:
     _, _, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
     trip_id = start_trip(db_client, assignment.id).json()["id"]
     assert end_trip(db_client, trip_id).json()["status"] == "ended"
@@ -161,14 +229,14 @@ def test_no_watermark_end_waits_for_grace_sweep(db_client, db_sessionmaker, sett
 
     assert asyncio.run(run_sweep(before_cutoff)) == []
     assert fetch_trip(db_sessionmaker, trip_id).status == TripSessionStatus.ENDED.value
-    sealed_ids = asyncio.run(run_sweep(after_cutoff))
-    assert [str(sealed_id) for sealed_id in sealed_ids] == [trip_id]
+    marked_ids = asyncio.run(run_sweep(after_cutoff))
+    assert [str(marked_id) for marked_id in marked_ids] == [trip_id]
     trip = fetch_trip(db_sessionmaker, trip_id)
-    assert trip.status == TripSessionStatus.SEALED.value
-    assert trip.seal_reason == TripSealReason.GRACE_EXPIRED.value
-    # Idempotent: a second sweep run never re-seals or re-audits.
+    assert trip.status == TripSessionStatus.ENDED.value
+    assert trip.sealed_at is None
+    assert trip.grace_expired_at is not None
     assert asyncio.run(run_sweep(after_cutoff)) == []
-    assert audit_actions(db_sessionmaker).count("trip.sealed") == 1
+    assert audit_actions(db_sessionmaker).count("trip.evidence_grace_expired") == 1
 
 
 def test_money_chain_blocks_until_sealed_and_sweep_selects_sealed_only(
@@ -313,6 +381,29 @@ def test_admin_applies_quarantined_batch_with_audit_and_lagos_days(
     assert asyncio.run(process()).overall in {"completed", "partial"}
 
     pings_before = len(fetch_all(db_sessionmaker, LocationPing))
+    original_payload = fetch_all(db_sessionmaker, QuarantinedPingBatch)[0].payload
+    tampered_payload = copy.deepcopy(original_payload)
+    tampered_payload["pings"][0]["lat"] = 7.1
+
+    async def replace_payload(payload: dict) -> None:
+        async with db_sessionmaker() as session:
+            await session.execute(
+                update(QuarantinedPingBatch)
+                .where(QuarantinedPingBatch.id == UUID(quarantine_id))
+                .values(payload=payload)
+            )
+            await session.commit()
+
+    asyncio.run(replace_payload(tampered_payload))
+    tampered = db_client.post(
+        f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply",
+        headers=admin_headers(db_client),
+        json={"note": "tampered payload must fail"},
+    )
+    assert tampered.status_code == http_status.HTTP_409_CONFLICT
+    assert tampered.json()["error"]["code"] == "TRIP_EVIDENCE_RECEIPT_INVALID"
+    asyncio.run(replace_payload(original_payload))
+
     applied = db_client.post(
         f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply",
         headers=admin_headers(db_client),
@@ -360,20 +451,30 @@ def test_post_end_recorded_at_bound_rejects_points_after_trip(
 ) -> None:
     _, _, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
     trip_id = start_trip(db_client, assignment.id).json()["id"]
-    end_trip(db_client, trip_id)  # ended, recovery window open
-
-    trip = fetch_trip(db_sessionmaker, trip_id)
-    too_late = trip.ended_at.replace(tzinfo=UTC) + timedelta(
+    too_late = datetime.now(UTC) + timedelta(
         seconds=settings.location_ping_end_skew_seconds + 30
     )
-    rejected = send_batch(db_client, trip_id, "after-end", recorded_at=too_late)
+    after_payload = make_batch_payload("after-end", recorded_at=too_late, batch_sequence=0)
+    within = datetime.now(UTC) + timedelta(
+        seconds=settings.location_ping_end_skew_seconds - 30
+    )
+    within_payload = make_batch_payload("within-skew", recorded_at=within, batch_sequence=1)
+    remember_batch(trip_id, after_payload)
+    remember_batch(trip_id, within_payload)
+    end_trip(db_client, trip_id)
+    rejected = db_client.post(
+        f"/api/v1/driver/trips/{trip_id}/pings",
+        headers=driver_headers(db_client),
+        json=after_payload,
+    )
     assert rejected.status_code == http_status.HTTP_400_BAD_REQUEST
     assert rejected.json()["error"]["code"] == "INVALID_RECORDED_AT"
 
-    within = trip.ended_at.replace(tzinfo=UTC) + timedelta(
-        seconds=settings.location_ping_end_skew_seconds - 30
+    accepted = db_client.post(
+        f"/api/v1/driver/trips/{trip_id}/pings",
+        headers=driver_headers(db_client),
+        json=within_payload,
     )
-    accepted = send_batch(db_client, trip_id, "within-skew", recorded_at=within)
     assert accepted.status_code == http_status.HTTP_200_OK
 
 
@@ -382,12 +483,18 @@ def test_ended_window_ingest_skips_assignment_active_gate(db_client, db_sessionm
     # assignment is deactivated right after the trip ends (RM3 review point 4).
     _, _, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
     trip_id = start_trip(db_client, assignment.id).json()["id"]
+    payload = make_batch_payload("post-deactivation")
+    remember_batch(trip_id, payload)
     end_trip(db_client, trip_id)
     update_assignment_status(
         db_sessionmaker, assignment.id, CampaignAssignmentStatus.DEACTIVATED
     )
 
-    late = send_batch(db_client, trip_id, "post-deactivation")
+    late = db_client.post(
+        f"/api/v1/driver/trips/{trip_id}/pings",
+        headers=driver_headers(db_client),
+        json=payload,
+    )
     assert late.status_code == http_status.HTTP_200_OK
     assert late.json()["quarantined"] is False
 
@@ -410,7 +517,9 @@ def test_preseal_analytics_is_recomputed_before_money(
     assert (
         send_batch(postgis_db_client, trip_id, "b1", recorded_at=recorded).status_code == 200
     )
-    # Incomplete end: 2 batches announced, 1 delivered -> stays `ended`.
+    b2_payload = make_batch_payload("b2", recorded_at=recorded, batch_sequence=1)
+    remember_batch(trip_id, b2_payload)
+    # The exact manifest commits b1+b2 while only b1 is delivered.
     end_trip(
         postgis_db_client,
         trip_id,
@@ -431,9 +540,20 @@ def test_preseal_analytics_is_recomputed_before_money(
 
     preseal_computed_at = asyncio.run(compute_preseal())
 
-    # The missing batch arrives and completes the watermark -> seal.
-    late = send_batch(postgis_db_client, trip_id, "b2", recorded_at=recorded)
+    # The missing exact descriptor arrives, then explicit reconcile seals.
+    late = postgis_db_client.post(
+        f"/api/v1/driver/trips/{trip_id}/pings",
+        headers=driver_headers(postgis_db_client),
+        json=b2_payload,
+    )
+    assert late.status_code == http_status.HTTP_200_OK
     assert late.json()["quarantined"] is False
+    assert fetch_trip(postgis_db_sessionmaker, trip_id).status == TripSessionStatus.ENDED.value
+    reconciled = postgis_db_client.post(
+        f"/api/v1/driver/trips/{trip_id}/evidence/reconcile",
+        headers=driver_headers(postgis_db_client),
+    )
+    assert reconciled.status_code == http_status.HTTP_200_OK
     trip = fetch_trip(postgis_db_sessionmaker, trip_id)
     assert trip.status == TripSessionStatus.SEALED.value
     assert preseal_computed_at.replace(tzinfo=UTC) < trip.sealed_at.replace(tzinfo=UTC)

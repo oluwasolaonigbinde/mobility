@@ -75,6 +75,7 @@ from app.services.trip_analytics import (
     ensure_current_analytics_formula,
     ensure_postgis,
 )
+from app.services.trip_evidence import verify_manifest_receipt
 from app.services.trips import trip_not_found
 
 logger = logging.getLogger(__name__)
@@ -823,7 +824,9 @@ async def list_payout_rule_revisions(
     return list(result.scalars().all()), int(total or 0)
 
 
-async def get_trip_for_payout(session: AsyncSession, trip_id: UUID) -> TripSession:
+async def get_trip_for_payout(
+    session: AsyncSession, trip_id: UUID, settings: Settings
+) -> TripSession:
     trip = await session.get(TripSession, trip_id)
     if trip is None:
         raise trip_not_found()
@@ -837,6 +840,31 @@ async def get_trip_for_payout(session: AsyncSession, trip_id: UUID) -> TripSessi
             "Payout can only be calculated for sealed trips",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+    if trip.evidence_protocol_version == 2:
+        if trip.evidence_manifest_verified_at is None or not verify_manifest_receipt(
+            trip, settings
+        ):
+            raise AppError(
+                "TRIP_EVIDENCE_NOT_VERIFIED",
+                "Payout requires an authenticated v2 trip evidence manifest",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+    if trip.evidence_protocol_version == 1:
+        existing_money = await session.scalar(
+            select(PayoutCalculation.id)
+            .where(PayoutCalculation.trip_session_id == trip.id)
+            .limit(1)
+        ) or await session.scalar(
+            select(EarningsLedgerEntry.id)
+            .where(EarningsLedgerEntry.trip_session_id == trip.id)
+            .limit(1)
+        )
+        if existing_money is None:
+            raise AppError(
+                "LEGACY_TRIP_MONEY_ORIGINATION_PROHIBITED",
+                "Legacy trip evidence cannot originate new money",
+                status_code=status.HTTP_409_CONFLICT,
+            )
     return trip
 
 
@@ -2584,7 +2612,7 @@ async def calculate_trip_payout(
     input drift raises PAYOUT_CALCULATION_STALE to flag it; the worker passes
     strict_staleness=False and reuses (recompute-day is the corrective tool).
     """
-    trip = await get_trip_for_payout(session, trip_id)
+    trip = await get_trip_for_payout(session, trip_id, settings)
     # Serialize the whole money read/write chain with the immutable
     # cancellation cutoff, not only the final cutoff lookup.
     await acquire_campaign_terms_lock(session, trip.campaign_id)

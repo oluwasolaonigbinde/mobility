@@ -6,6 +6,7 @@ import { openPingQueue } from "@/lib/trips/ping-queue";
 import {
   endTripAction,
   getCurrentTripAction,
+  reconcileTripEvidenceAction,
   sendPingBatchAction,
   startTripAction,
   verifyDriverTripOwnershipAction,
@@ -20,6 +21,24 @@ vi.mock("@/lib/api/client", () => ({
 
 const TRIP_ID = "11111111-1111-4111-8111-111111111111";
 const ASSIGNMENT_ID = "22222222-2222-4222-8222-222222222222";
+const EMPTY_MANIFEST = {
+  version: 2 as const,
+  root_sha256: "a".repeat(64),
+  ping_count: 0,
+  complete: true,
+  entries: [],
+};
+const ACK_FIELDS = {
+  submitted_count: 1,
+  rejected_count: 0,
+  batch_sequence: 0,
+  payload_hash_version: 2,
+  payload_hash: "b".repeat(64),
+  outcome: "accepted",
+  receipt_format_version: 2,
+  receipt_key_version: 1,
+  receipt_signature: "signed-receipt",
+};
 
 function rawOpen(name: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -96,7 +115,9 @@ describe("driver trip BFF actions", () => {
   });
 
   it("uses current-trip authority to prove a missing or recovered Start", async () => {
-    mocks.get.mockResolvedValueOnce({ data: { trip: { id: TRIP_ID } } });
+    mocks.get.mockResolvedValueOnce({
+      data: { trip: { id: TRIP_ID, evidence_protocol_version: 2 } },
+    });
     await expect(getCurrentTripAction()).resolves.toMatchObject({
       outcome: "started",
       trip: { id: TRIP_ID },
@@ -110,29 +131,33 @@ describe("driver trip BFF actions", () => {
     const rawTrip = {
       id: TRIP_ID,
       status: "active",
+      evidence_protocol_version: 2,
       metadata: { internal: "must-not-cross" },
       driver_profile_id: "33333333-3333-4333-8333-333333333333",
     };
     mocks.post.mockResolvedValueOnce({ data: rawTrip });
     await expect(startTripAction(ASSIGNMENT_ID)).resolves.toEqual({
-      trip: { id: TRIP_ID },
+      trip: { id: TRIP_ID, evidenceProtocolVersion: 2 },
       outcome: "started",
     });
 
     mocks.get.mockResolvedValueOnce({ data: { trip: rawTrip } });
     await expect(getCurrentTripAction()).resolves.toEqual({
-      trip: { id: TRIP_ID },
+      trip: { id: TRIP_ID, evidenceProtocolVersion: 2 },
       outcome: "started",
     });
 
     mocks.post.mockResolvedValueOnce({ data: { ...rawTrip, status: "ended" } });
-    await expect(
-      endTripAction(TRIP_ID, {
-        clientBatchCount: 0,
-        clientPingCount: 0,
-        clientComplete: true,
-      }),
-    ).resolves.toEqual({ outcome: "ended" });
+    await expect(endTripAction(TRIP_ID, EMPTY_MANIFEST)).resolves.toEqual({
+      outcome: "ended",
+      status: "ended",
+    });
+
+    mocks.post.mockResolvedValueOnce({ data: { ...rawTrip, status: "sealed" } });
+    await expect(endTripAction(TRIP_ID, EMPTY_MANIFEST)).resolves.toEqual({
+      outcome: "ended",
+      status: "sealed",
+    });
   });
 
   it("returns terminal status/code so the exact encrypted batch can be dead-lettered", async () => {
@@ -142,7 +167,9 @@ describe("driver trip BFF actions", () => {
     await expect(
       sendPingBatchAction({
         tripId: TRIP_ID,
+        evidenceProtocolVersion: 2,
         idempotencyKey: "stable-retry-key",
+        batchSequence: 0,
         pings: [
           {
             recorded_at: "2026-08-25T00:00:00.000Z",
@@ -165,7 +192,9 @@ describe("driver trip BFF actions", () => {
   it("marks only a complete ping response as an explicit ACK", async () => {
     const input = {
       tripId: TRIP_ID,
+      evidenceProtocolVersion: 2 as const,
       idempotencyKey: "stable-retry-key",
+      batchSequence: 0,
       pings: [
         {
           recorded_at: "2026-08-25T00:00:00.000Z",
@@ -183,6 +212,7 @@ describe("driver trip BFF actions", () => {
         batch_id: "44444444-4444-4444-8444-444444444444",
         trip_id: TRIP_ID,
         accepted_count: 1,
+        ...ACK_FIELDS,
         duplicate: false,
         quarantined: false,
       },
@@ -210,16 +240,103 @@ describe("driver trip BFF actions", () => {
     });
   });
 
+  it("retains legacy evidence until a complete positive acknowledgement arrives", async () => {
+    const input = {
+      tripId: TRIP_ID,
+      evidenceProtocolVersion: 1 as const,
+      idempotencyKey: "stable-retry-key",
+      batchSequence: 0,
+      pings: [
+        {
+          recorded_at: "2026-08-25T00:00:00.000Z",
+          lat: 6.45,
+          lon: 3.39,
+          accuracy_m: 10,
+          speed_mps: 5,
+          heading_degrees: 90,
+          sequence_number: 0,
+        },
+      ],
+    };
+    for (const data of [
+      { trip_id: TRIP_ID },
+      {
+        batch_id: "44444444-4444-4444-8444-444444444444",
+        trip_id: TRIP_ID,
+        submitted_count: 1,
+        accepted_count: 0,
+        rejected_count: 1,
+        duplicate: false,
+        quarantined: false,
+      },
+    ]) {
+      mocks.post.mockResolvedValueOnce({ data });
+      await expect(sendPingBatchAction(input)).resolves.toMatchObject({
+        acknowledged: false,
+        retryable: true,
+      });
+    }
+
+    for (const data of [
+      {
+        batch_id: "44444444-4444-4444-8444-444444444444",
+        trip_id: TRIP_ID,
+        submitted_count: 1,
+        accepted_count: 1,
+        rejected_count: 0,
+        duplicate: false,
+        quarantined: false,
+      },
+      {
+        batch_id: "44444444-4444-4444-8444-444444444444",
+        trip_id: TRIP_ID,
+        submitted_count: 1,
+        accepted_count: 0,
+        rejected_count: 0,
+        duplicate: true,
+        quarantined: false,
+      },
+      {
+        batch_id: "44444444-4444-4444-8444-444444444444",
+        trip_id: TRIP_ID,
+        submitted_count: 1,
+        accepted_count: 0,
+        rejected_count: 1,
+        duplicate: false,
+        quarantined: true,
+      },
+    ]) {
+      mocks.post.mockResolvedValueOnce({ data });
+      await expect(sendPingBatchAction(input)).resolves.toMatchObject({ acknowledged: true });
+    }
+  });
+
+  it("classifies evidence reconciliation from the sealed authority response", async () => {
+    mocks.post.mockResolvedValueOnce({ data: { status: "sealed" } });
+    await expect(reconcileTripEvidenceAction(TRIP_ID)).resolves.toEqual({
+      outcome: "ended",
+      status: "sealed",
+    });
+
+    mocks.post.mockResolvedValueOnce({ data: { status: "ended" } });
+    await expect(reconcileTripEvidenceAction(TRIP_ID)).resolves.toMatchObject({
+      outcome: "unknown",
+    });
+
+    mocks.post.mockRejectedValueOnce(
+      new ApiError(409, { code: "TRIP_EVIDENCE_INCOMPLETE", message: "incomplete" }),
+    );
+    await expect(reconcileTripEvidenceAction(TRIP_ID)).resolves.toMatchObject({
+      outcome: "failed",
+    });
+  });
+
   it("classifies an unconfirmed End response as unknown", async () => {
     mocks.post.mockResolvedValueOnce({ data: undefined });
 
-    await expect(
-      endTripAction(TRIP_ID, {
-        clientBatchCount: 2,
-        clientPingCount: 3,
-        clientComplete: true,
-      }),
-    ).resolves.toMatchObject({ outcome: "unknown" });
+    await expect(endTripAction(TRIP_ID, EMPTY_MANIFEST)).resolves.toMatchObject({
+      outcome: "unknown",
+    });
   });
 
   it.each([
@@ -231,6 +348,7 @@ describe("driver trip BFF actions", () => {
       data: {
         batch_id: "44444444-4444-4444-8444-444444444444",
         trip_id: TRIP_ID,
+        ...ACK_FIELDS,
         ...response,
       },
     });
@@ -238,7 +356,9 @@ describe("driver trip BFF actions", () => {
     await expect(
       sendPingBatchAction({
         tripId: TRIP_ID,
+        evidenceProtocolVersion: 2,
         idempotencyKey: "stable-retry-key",
+        batchSequence: 0,
         pings: [
           {
             recorded_at: "2026-08-25T00:00:00.000Z",

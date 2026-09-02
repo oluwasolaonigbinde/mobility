@@ -27,8 +27,8 @@ from app.db.base import Base, PostGISGeometry
 class TripSessionStatus(StrEnum):
     ACTIVE = "active"
     ENDED = "ended"
-    # Sealed = "all intended data received (or grace expired)"; the ONLY
-    # status the money chain may process (RM3). ended -> sealed is one-way.
+    # Sealed = exact evidence authority verified; the ONLY status the money
+    # chain may process. Grace expiry never seals protocol-v2 trips (D25).
     SEALED = "sealed"
 
 
@@ -53,6 +53,47 @@ class TripSession(Base):
             "seal_reason IS NULL OR seal_reason IN "
             "('client_complete', 'late_data_complete', 'grace_expired', 'migration_backfill')",
             name="ck_trip_sessions_seal_reason",
+        ),
+        CheckConstraint(
+            "evidence_protocol_version IN (1, 2)",
+            name="ck_trip_sessions_evidence_protocol_version",
+        ),
+        CheckConstraint(
+            "evidence_manifest_batch_count IS NULL OR evidence_manifest_batch_count >= 0",
+            name="ck_trip_sessions_manifest_batch_count_non_negative",
+        ),
+        CheckConstraint(
+            "evidence_manifest_ping_count IS NULL OR evidence_manifest_ping_count >= 0",
+            name="ck_trip_sessions_manifest_ping_count_non_negative",
+        ),
+        CheckConstraint(
+            "(evidence_manifest_version IS NULL AND "
+            "evidence_manifest_root_sha256 IS NULL AND "
+            "evidence_manifest_batch_count IS NULL AND "
+            "evidence_manifest_ping_count IS NULL AND "
+            "evidence_manifest_committed_at IS NULL) OR "
+            "(evidence_manifest_version = 2 AND "
+            "evidence_manifest_root_sha256 IS NOT NULL AND "
+            "evidence_manifest_batch_count IS NOT NULL AND "
+            "evidence_manifest_ping_count IS NOT NULL AND "
+            "evidence_manifest_committed_at IS NOT NULL)",
+            name="ck_trip_sessions_manifest_header_cluster",
+        ),
+        CheckConstraint(
+            "(evidence_manifest_verified_at IS NULL AND "
+            "evidence_manifest_receipt_format_version IS NULL AND "
+            "evidence_manifest_receipt_key_version IS NULL AND "
+            "evidence_manifest_receipt_signature IS NULL) OR "
+            "(evidence_manifest_complete AND evidence_manifest_verified_at IS NOT NULL AND "
+            "evidence_manifest_receipt_format_version = 2 AND "
+            "evidence_manifest_receipt_key_version IS NOT NULL AND "
+            "evidence_manifest_receipt_signature IS NOT NULL)",
+            name="ck_trip_sessions_manifest_receipt_cluster",
+        ),
+        CheckConstraint(
+            "evidence_protocol_version = 1 OR status != 'sealed' "
+            "OR evidence_manifest_verified_at IS NOT NULL",
+            name="ck_trip_sessions_v2_sealed_manifest_verified",
         ),
         Index("ix_trip_sessions_assignment_id", "assignment_id"),
         Index("ix_trip_sessions_campaign_id", "campaign_id"),
@@ -107,12 +148,31 @@ class TripSession(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     end_reason: Mapped[str | None] = mapped_column(Text)
-    # Client finalization watermark, reported on /end (RM3). batch count is
-    # the seal predicate input; ping count and the completeness claim are
-    # diagnostic evidence only.
+    evidence_protocol_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("2")
+    )
+    # Legacy v1 finalization watermark retained for readable history. New v2
+    # trips use the immutable manifest fields below as their seal authority.
     client_batch_count: Mapped[int | None] = mapped_column(Integer)
     client_ping_count: Mapped[int | None] = mapped_column(Integer)
     client_complete: Mapped[bool | None] = mapped_column(Boolean)
+    evidence_manifest_version: Mapped[int | None] = mapped_column(Integer)
+    evidence_manifest_root_sha256: Mapped[str | None] = mapped_column(String(64))
+    evidence_manifest_batch_count: Mapped[int | None] = mapped_column(Integer)
+    evidence_manifest_ping_count: Mapped[int | None] = mapped_column(Integer)
+    evidence_manifest_committed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    evidence_manifest_complete: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    evidence_manifest_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    evidence_manifest_receipt_format_version: Mapped[int | None] = mapped_column(Integer)
+    evidence_manifest_receipt_key_version: Mapped[int | None] = mapped_column(Integer)
+    evidence_manifest_receipt_signature: Mapped[str | None] = mapped_column(Text)
+    grace_expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sealed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     seal_reason: Mapped[str | None] = mapped_column(Text)
     trip_metadata: Mapped[dict[str, Any]] = mapped_column(
@@ -142,6 +202,22 @@ class LocationPingBatch(Base):
             "pings_accepted >= 0",
             name="ck_location_ping_batches_pings_accepted_non_negative",
         ),
+        CheckConstraint(
+            "pings_submitted >= 0 AND pings_rejected >= 0 "
+            "AND pings_submitted = pings_accepted + pings_rejected",
+            name="ck_location_ping_batches_ping_conservation",
+        ),
+        CheckConstraint(
+            "evidence_scope IN ('legacy', 'manifest', 'postseal_applied')",
+            name="ck_location_ping_batches_evidence_scope",
+        ),
+        CheckConstraint(
+            "(receipt_format_version IS NULL AND receipt_key_version IS NULL AND "
+            "receipt_signature IS NULL AND receipt_outcome IS NULL) OR "
+            "(receipt_format_version = 2 AND receipt_key_version IS NOT NULL AND "
+            "receipt_signature IS NOT NULL AND receipt_outcome IS NOT NULL)",
+            name="ck_location_ping_batches_receipt_cluster",
+        ),
         UniqueConstraint(
             "trip_session_id",
             "idempotency_key",
@@ -149,11 +225,24 @@ class LocationPingBatch(Base):
         ),
         Index("ix_location_ping_batches_trip_session_id", "trip_session_id"),
         Index(
+            "uq_location_ping_batches_trip_sequence_manifest",
+            "trip_session_id",
+            "batch_sequence",
+            unique=True,
+            sqlite_where=text("evidence_scope = 'manifest'"),
+            postgresql_where=text("evidence_scope = 'manifest'"),
+        ),
+        Index(
             "ix_location_ping_batches_trip_received_at",
             "trip_session_id",
             "received_at",
         ),
     )
+
+    def __init__(self, **kwargs: Any) -> None:
+        if "pings_submitted" not in kwargs and "pings_accepted" in kwargs:
+            kwargs["pings_submitted"] = kwargs["pings_accepted"]
+        super().__init__(**kwargs)
 
     id: Mapped[UUID] = mapped_column(
         primary_key=True,
@@ -165,8 +254,23 @@ class LocationPingBatch(Base):
         nullable=False,
     )
     idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
+    batch_sequence: Mapped[int | None] = mapped_column(Integer)
+    payload_hash_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
     payload_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    pings_submitted: Mapped[int] = mapped_column(Integer, nullable=False)
     pings_accepted: Mapped[int] = mapped_column(Integer, nullable=False)
+    pings_rejected: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    evidence_scope: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="legacy", server_default=text("'legacy'")
+    )
+    receipt_format_version: Mapped[int | None] = mapped_column(Integer)
+    receipt_key_version: Mapped[int | None] = mapped_column(Integer)
+    receipt_signature: Mapped[str | None] = mapped_column(Text)
+    receipt_outcome: Mapped[str | None] = mapped_column(String(32))
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     batch_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
@@ -217,6 +321,17 @@ class QuarantinedPingBatch(Base):
             "applied_batch_id IS NULL OR status = 'applied'",
             name="ck_quarantined_ping_batches_applied_batch",
         ),
+        CheckConstraint(
+            "pings_submitted >= 0 AND pings_rejected >= 0",
+            name="ck_quarantined_ping_batches_ping_counts",
+        ),
+        CheckConstraint(
+            "(receipt_format_version IS NULL AND receipt_key_version IS NULL AND "
+            "receipt_signature IS NULL AND receipt_outcome IS NULL) OR "
+            "(receipt_format_version = 2 AND receipt_key_version IS NOT NULL AND "
+            "receipt_signature IS NOT NULL AND receipt_outcome IS NOT NULL)",
+            name="ck_quarantined_ping_batches_receipt_cluster",
+        ),
         UniqueConstraint(
             "trip_session_id",
             "idempotency_key",
@@ -225,6 +340,11 @@ class QuarantinedPingBatch(Base):
         Index("ix_quarantined_ping_batches_trip_session_id", "trip_session_id"),
         Index("ix_quarantined_ping_batches_status", "status"),
     )
+
+    def __init__(self, **kwargs: Any) -> None:
+        if "pings_submitted" not in kwargs and "ping_count" in kwargs:
+            kwargs["pings_submitted"] = kwargs["ping_count"]
+        super().__init__(**kwargs)
 
     id: Mapped[UUID] = mapped_column(
         primary_key=True,
@@ -236,9 +356,21 @@ class QuarantinedPingBatch(Base):
         nullable=False,
     )
     idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
+    batch_sequence: Mapped[int | None] = mapped_column(Integer)
+    payload_hash_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
     payload_hash: Mapped[str] = mapped_column(Text, nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     ping_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    pings_submitted: Mapped[int] = mapped_column(Integer, nullable=False)
+    pings_rejected: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    receipt_format_version: Mapped[int | None] = mapped_column(Integer)
+    receipt_key_version: Mapped[int | None] = mapped_column(Integer)
+    receipt_signature: Mapped[str | None] = mapped_column(Text)
+    receipt_outcome: Mapped[str | None] = mapped_column(String(32))
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(
         String(32),
@@ -256,6 +388,43 @@ class QuarantinedPingBatch(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
+    )
+
+
+class TripEvidenceManifestEntry(Base):
+    __tablename__ = "trip_evidence_manifest_entries"
+    __table_args__ = (
+        CheckConstraint("batch_sequence >= 0", name="ck_trip_manifest_entries_sequence"),
+        CheckConstraint("payload_hash_version = 2", name="ck_trip_manifest_entries_hash_version"),
+        CheckConstraint("submitted_count >= 0", name="ck_trip_manifest_entries_submitted_count"),
+        UniqueConstraint(
+            "trip_session_id",
+            "batch_sequence",
+            name="uq_trip_manifest_entries_trip_sequence",
+        ),
+        UniqueConstraint(
+            "trip_session_id",
+            "idempotency_key",
+            name="uq_trip_manifest_entries_trip_idempotency_key",
+        ),
+        Index("ix_trip_manifest_entries_trip_session_id", "trip_session_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        default=uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    trip_session_id: Mapped[UUID] = mapped_column(
+        ForeignKey("trip_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    batch_sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
+    payload_hash_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    submitted_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
 

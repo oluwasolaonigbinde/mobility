@@ -16,6 +16,9 @@ const actions = vi.hoisted(() => ({
   startTripAction: vi.fn(),
   getCurrentTripAction: vi.fn(),
   endTripAction: vi.fn(),
+  endLegacyTripAction: vi.fn(),
+  getTripEvidenceAuthorityAction: vi.fn(),
+  reconcileTripEvidenceAction: vi.fn(),
   sendPingBatchAction: vi.fn(),
   verifyDriverTripOwnershipAction: vi.fn(),
 }));
@@ -29,6 +32,7 @@ const DRIVER_ID = "33333333-3333-4333-8333-333333333333";
 const TRIP = {
   id: TRIP_ID,
   status: "active",
+  evidenceProtocolVersion: 2,
   started_at: new Date().toISOString(),
 } as never;
 
@@ -44,6 +48,8 @@ const BATCH = {
   cutSeq: 0,
   cutAt: 1_700_000_000_000,
   attempts: 0,
+  payloadHashVersion: 2,
+  payloadHash: "b".repeat(64),
   pings: [
     {
       recorded_at: "2026-08-25T00:00:00.000Z",
@@ -56,6 +62,21 @@ const BATCH = {
     },
   ],
 };
+const RECEIPT = {
+  tripId: TRIP_ID,
+  batchId: "44444444-4444-4444-8444-444444444444",
+  batch_sequence: 0,
+  idempotency_key: BATCH.key,
+  payload_hash_version: 2 as const,
+  payload_hash: BATCH.payloadHash,
+  submitted_count: 1,
+  acceptedCount: 1,
+  rejectedCount: 0,
+  outcome: "accepted",
+  receiptFormatVersion: 2,
+  receiptKeyVersion: 1,
+  receiptSignature: "signature",
+};
 
 function fakeQueue(overrides: Record<string, unknown> = {}) {
   return {
@@ -64,7 +85,18 @@ function fakeQueue(overrides: Record<string, unknown> = {}) {
     listBatches: vi.fn().mockResolvedValue([]),
     listDeadLetters: vi.fn().mockResolvedValue([]),
     deadLetterCount: vi.fn().mockResolvedValue(0),
-    ackBatch: vi.fn().mockResolvedValue(undefined),
+    acknowledgeLegacyBatch: vi.fn().mockResolvedValue(undefined),
+    acknowledgeBatch: vi.fn().mockResolvedValue(undefined),
+    listReceipts: vi.fn().mockResolvedValue([]),
+    evidenceManifest: vi.fn().mockImplementation((_tripId: string, complete: boolean) =>
+      Promise.resolve({
+        version: 2,
+        root_sha256: "a".repeat(64),
+        ping_count: 3,
+        complete,
+        entries: [],
+      }),
+    ),
     dropBatch: vi.fn().mockResolvedValue(undefined),
     recordAttempt: vi.fn().mockResolvedValue(undefined),
     pendingCount: vi.fn().mockResolvedValue(0),
@@ -141,10 +173,20 @@ beforeEach(() => {
   vi.restoreAllMocks();
   for (const mock of Object.values(actions)) mock.mockReset();
   pingQueue.openPingQueue.mockReset();
-  actions.endTripAction.mockResolvedValue({ trip: undefined, outcome: "ended" });
+  actions.endTripAction.mockResolvedValue({ outcome: "ended", status: "sealed" });
+  actions.endLegacyTripAction.mockResolvedValue({ outcome: "ended", status: "sealed" });
+  actions.getTripEvidenceAuthorityAction.mockResolvedValue({
+    protocolVersion: 2,
+    status: "active",
+  });
+  actions.reconcileTripEvidenceAction.mockResolvedValue({ outcome: "ended", status: "sealed" });
   actions.startTripAction.mockResolvedValue({ trip: TRIP, outcome: "started" });
   actions.getCurrentTripAction.mockResolvedValue({ trip: TRIP, outcome: "started" });
-  actions.sendPingBatchAction.mockResolvedValue({ acknowledged: true, acceptedCount: 0 });
+  actions.sendPingBatchAction.mockResolvedValue({
+    acknowledged: true,
+    acceptedCount: 1,
+    receipt: RECEIPT,
+  });
   vi.spyOn(window, "confirm").mockReturnValue(true);
 });
 
@@ -430,6 +472,44 @@ describe("live runtime truth", () => {
 });
 
 describe("end watermark honesty (finding 5)", () => {
+  it("retains complete receipts and attempts reconciliation when End is only ended", async () => {
+    const queue = fakeQueue();
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    grantWebLock();
+    actions.getCurrentTripAction
+      .mockResolvedValueOnce({ trip: TRIP, outcome: "started" })
+      .mockResolvedValueOnce({ outcome: "failed" });
+    actions.endTripAction.mockResolvedValue({ outcome: "ended", status: "ended" });
+    actions.reconcileTripEvidenceAction.mockResolvedValue({
+      error: "Trip evidence is not sealed.",
+      outcome: "unknown",
+    });
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+
+    const endButton = screen.getByRole("button", { name: /End trip/ });
+    await waitFor(() => expect(endButton).toBeEnabled());
+    await userEvent.click(endButton);
+
+    await waitFor(() => expect(actions.reconcileTripEvidenceAction).toHaveBeenCalledWith(TRIP_ID));
+    expect(queue.forgetTrip).not.toHaveBeenCalled();
+    expect(await screen.findByRole("button", { name: /Reconcile trip/ })).toBeEnabled();
+  });
+
+  it("forgets complete receipts when End authoritatively returns sealed", async () => {
+    const queue = fakeQueue();
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    grantWebLock();
+    actions.endTripAction.mockResolvedValue({ outcome: "ended", status: "sealed" });
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+
+    const endButton = screen.getByRole("button", { name: /End trip/ });
+    await waitFor(() => expect(endButton).toBeEnabled());
+    await userEvent.click(endButton);
+
+    await waitFor(() => expect(queue.forgetTrip).toHaveBeenCalledWith(TRIP_ID));
+    expect(actions.reconcileTripEvidenceAction).not.toHaveBeenCalled();
+  });
+
   it("reports complete only when the queue is drained", async () => {
     pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
     grantWebLock();
@@ -440,11 +520,10 @@ describe("end watermark honesty (finding 5)", () => {
     await userEvent.click(endButton);
 
     await waitFor(() => expect(actions.endTripAction).toHaveBeenCalledTimes(1));
-    expect(actions.endTripAction).toHaveBeenCalledWith(TRIP_ID, {
-      clientBatchCount: 2,
-      clientPingCount: 3,
-      clientComplete: true,
-    });
+    expect(actions.endTripAction).toHaveBeenCalledWith(
+      TRIP_ID,
+      expect.objectContaining({ complete: true }),
+    );
   });
 
   it("reports incomplete when unsynced data remains after the final drain", async () => {
@@ -459,11 +538,10 @@ describe("end watermark honesty (finding 5)", () => {
     await userEvent.click(endButton);
 
     await waitFor(() => expect(actions.endTripAction).toHaveBeenCalledTimes(1));
-    expect(actions.endTripAction).toHaveBeenCalledWith(TRIP_ID, {
-      clientBatchCount: 2,
-      clientPingCount: 3,
-      clientComplete: false,
-    });
+    expect(actions.endTripAction).toHaveBeenCalledWith(
+      TRIP_ID,
+      expect.objectContaining({ complete: false }),
+    );
     expect(window.confirm).toHaveBeenCalledWith(expect.stringMatching(/unsynced/));
   });
 
@@ -483,15 +561,23 @@ describe("end watermark honesty (finding 5)", () => {
     await waitFor(() => expect(actions.endTripAction).toHaveBeenCalledTimes(1));
     expect(actions.endTripAction).toHaveBeenCalledWith(
       TRIP_ID,
-      expect.objectContaining({ clientComplete: false }),
+      expect.objectContaining({ complete: false }),
     );
   });
 
   it("joins an already-running ordered drain before computing the End watermark", async () => {
     vi.useFakeTimers();
     try {
-      let resolveUpload!: (value: { acknowledged: boolean; acceptedCount: number }) => void;
-      const upload = new Promise<{ acknowledged: boolean; acceptedCount: number }>((resolve) => {
+      let resolveUpload!: (value: {
+        acknowledged: boolean;
+        acceptedCount: number;
+        receipt: typeof RECEIPT;
+      }) => void;
+      const upload = new Promise<{
+        acknowledged: boolean;
+        acceptedCount: number;
+        receipt: typeof RECEIPT;
+      }>((resolve) => {
         resolveUpload = resolve;
       });
       const queue = fakeQueue({
@@ -511,9 +597,9 @@ describe("end watermark honesty (finding 5)", () => {
       await act(async () => undefined);
 
       expect(actions.endTripAction).not.toHaveBeenCalled();
-      resolveUpload({ acknowledged: true, acceptedCount: 1 });
+      resolveUpload({ acknowledged: true, acceptedCount: 1, receipt: RECEIPT });
       await vi.waitFor(() => expect(actions.endTripAction).toHaveBeenCalledTimes(1));
-      expect(queue.ackBatch).toHaveBeenCalledWith(BATCH.key);
+      expect(queue.acknowledgeBatch).toHaveBeenCalledWith(BATCH, RECEIPT);
     } finally {
       vi.useRealTimers();
     }
@@ -534,10 +620,10 @@ describe("end watermark honesty (finding 5)", () => {
     await userEvent.click(endButton);
     await waitFor(() => expect(actions.endTripAction).toHaveBeenCalledTimes(1));
 
-    expect(queue.ackBatch).not.toHaveBeenCalled();
+    expect(queue.acknowledgeBatch).not.toHaveBeenCalled();
     expect(actions.endTripAction).toHaveBeenCalledWith(
       TRIP_ID,
-      expect.objectContaining({ clientComplete: false }),
+      expect.objectContaining({ complete: false }),
     );
   });
 
@@ -557,7 +643,7 @@ describe("end watermark honesty (finding 5)", () => {
         terminalStatus: 409,
         terminalCode: "IDEMPOTENCY_CONFLICT",
       })
-      .mockResolvedValueOnce({ acknowledged: true, acceptedCount: 1 });
+      .mockResolvedValueOnce({ acknowledged: true, acceptedCount: 1, receipt: RECEIPT });
     render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
 
     const endButton = screen.getByRole("button", { name: /End trip/ });
@@ -569,10 +655,10 @@ describe("end watermark honesty (finding 5)", () => {
       status: 409,
       code: "IDEMPOTENCY_CONFLICT",
     });
-    expect(queue.ackBatch).toHaveBeenCalledWith(laterBatch.key);
+    expect(queue.acknowledgeBatch).toHaveBeenCalledWith(laterBatch, RECEIPT);
     expect(actions.endTripAction).toHaveBeenCalledWith(
       TRIP_ID,
-      expect.objectContaining({ clientComplete: false }),
+      expect.objectContaining({ complete: false }),
     );
   });
 
@@ -678,6 +764,56 @@ describe("end watermark honesty (finding 5)", () => {
 });
 
 describe("stranded-data recovery (finding 7)", () => {
+  it("reconciles and forgets a receipt-only v2 trip discovered after reload", async () => {
+    grantWebLock();
+    const queue = fakeQueue({
+      tripsWithLeftovers: vi.fn().mockResolvedValue([TRIP_ID]),
+      listBatches: vi.fn().mockResolvedValue([]),
+      unsyncedCount: vi.fn().mockResolvedValue(0),
+    });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    actions.getTripEvidenceAuthorityAction.mockResolvedValue({
+      protocolVersion: 2,
+      status: "ended",
+    });
+    actions.reconcileTripEvidenceAction.mockResolvedValue({ outcome: "ended" });
+
+    render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
+
+    await waitFor(() =>
+      expect(actions.getTripEvidenceAuthorityAction).toHaveBeenCalledWith(TRIP_ID),
+    );
+    await waitFor(() => expect(actions.reconcileTripEvidenceAction).toHaveBeenCalledWith(TRIP_ID));
+    await waitFor(() => expect(queue.forgetTrip).toHaveBeenCalledWith(TRIP_ID));
+  });
+
+  it("drains an active legacy-v1 encrypted batch without requiring a v2 receipt", async () => {
+    grantWebLock();
+    const queue = fakeQueue({
+      tripsWithLeftovers: vi.fn().mockResolvedValue([TRIP_ID]),
+      listBatches: vi.fn().mockResolvedValueOnce([BATCH]).mockResolvedValue([]),
+      unsyncedCount: vi.fn().mockResolvedValue(0),
+    });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    actions.getTripEvidenceAuthorityAction.mockResolvedValue({
+      protocolVersion: 1,
+      status: "active",
+    });
+    actions.sendPingBatchAction.mockResolvedValue({
+      acknowledged: true,
+      acceptedCount: 1,
+    });
+
+    render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
+
+    await waitFor(() => expect(queue.acknowledgeLegacyBatch).toHaveBeenCalledWith(BATCH.key));
+    expect(actions.sendPingBatchAction).toHaveBeenCalledWith(
+      expect.objectContaining({ tripId: TRIP_ID, evidenceProtocolVersion: 1 }),
+    );
+    expect(queue.acknowledgeBatch).not.toHaveBeenCalled();
+    expect(actions.reconcileTripEvidenceAction).not.toHaveBeenCalled();
+  });
+
   it("drains leftover trips on mount, on a timer, and on reconnect", async () => {
     vi.useFakeTimers();
     try {

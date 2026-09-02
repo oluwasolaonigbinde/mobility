@@ -13118,6 +13118,18 @@
       "LocationPingBatchCreate": {
         "additionalProperties": false,
         "properties": {
+          "batch_sequence": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Sequence"
+          },
           "idempotency_key": {
             "minLength": 1,
             "title": "Idempotency Key",
@@ -13155,14 +13167,86 @@
             "title": "Batch Id",
             "type": "string"
           },
+          "batch_sequence": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Sequence"
+          },
           "duplicate": {
             "title": "Duplicate",
             "type": "boolean"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "payload_hash": {
+            "title": "Payload Hash",
+            "type": "string"
+          },
+          "payload_hash_version": {
+            "title": "Payload Hash Version",
+            "type": "integer"
           },
           "quarantined": {
             "default": false,
             "title": "Quarantined",
             "type": "boolean"
+          },
+          "receipt_format_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Format Version"
+          },
+          "receipt_key_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Key Version"
+          },
+          "receipt_signature": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Signature"
+          },
+          "rejected_count": {
+            "default": 0,
+            "title": "Rejected Count",
+            "type": "integer"
+          },
+          "submitted_count": {
+            "title": "Submitted Count",
+            "type": "integer"
           },
           "trip_id": {
             "format": "uuid",
@@ -13174,6 +13258,9 @@
           "batch_id",
           "trip_id",
           "accepted_count",
+          "submitted_count",
+          "payload_hash_version",
+          "payload_hash",
           "duplicate"
         ],
         "title": "LocationPingBatchResponse",
@@ -19420,6 +19507,16 @@
             ],
             "title": "End Reason"
           },
+          "evidence_manifest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TripEvidenceManifestCreate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "metadata": {
             "additionalProperties": true,
             "title": "Metadata",
@@ -19427,6 +19524,139 @@
           }
         },
         "title": "TripEndRequest",
+        "type": "object"
+      },
+      "TripEvidenceManifestCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/TripEvidenceManifestEntryCreate"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "ping_count": {
+            "minimum": 0.0,
+            "title": "Ping Count",
+            "type": "integer"
+          },
+          "root_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Root Sha256",
+            "type": "string"
+          },
+          "version": {
+            "const": 2,
+            "default": 2,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "root_sha256",
+          "ping_count",
+          "complete",
+          "entries"
+        ],
+        "title": "TripEvidenceManifestCreate",
+        "type": "object"
+      },
+      "TripEvidenceManifestEntryCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_sequence": {
+            "minimum": 0.0,
+            "title": "Batch Sequence",
+            "type": "integer"
+          },
+          "idempotency_key": {
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "payload_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Payload Hash",
+            "type": "string"
+          },
+          "payload_hash_version": {
+            "const": 2,
+            "default": 2,
+            "title": "Payload Hash Version",
+            "type": "integer"
+          },
+          "submitted_count": {
+            "minimum": 0.0,
+            "title": "Submitted Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "batch_sequence",
+          "idempotency_key",
+          "payload_hash",
+          "submitted_count"
+        ],
+        "title": "TripEvidenceManifestEntryCreate",
+        "type": "object"
+      },
+      "TripEvidenceReconcileResponse": {
+        "properties": {
+          "duplicate": {
+            "title": "Duplicate",
+            "type": "boolean"
+          },
+          "manifest_complete": {
+            "title": "Manifest Complete",
+            "type": "boolean"
+          },
+          "manifest_root_sha256": {
+            "title": "Manifest Root Sha256",
+            "type": "string"
+          },
+          "manifest_verified_at": {
+            "format": "date-time",
+            "title": "Manifest Verified At",
+            "type": "string"
+          },
+          "receipt_format_version": {
+            "title": "Receipt Format Version",
+            "type": "integer"
+          },
+          "receipt_key_version": {
+            "title": "Receipt Key Version",
+            "type": "integer"
+          },
+          "receipt_signature": {
+            "title": "Receipt Signature",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TripSessionStatus"
+          },
+          "trip_id": {
+            "format": "uuid",
+            "title": "Trip Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trip_id",
+          "status",
+          "manifest_root_sha256",
+          "manifest_complete",
+          "manifest_verified_at",
+          "receipt_format_version",
+          "receipt_key_version",
+          "receipt_signature",
+          "duplicate"
+        ],
+        "title": "TripEvidenceReconcileResponse",
         "type": "object"
       },
       "TripFraudFlagCounts": {
@@ -19548,6 +19778,38 @@
             ],
             "title": "Ended At"
           },
+          "evidence_manifest_complete": {
+            "default": false,
+            "title": "Evidence Manifest Complete",
+            "type": "boolean"
+          },
+          "evidence_manifest_root_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Manifest Root Sha256"
+          },
+          "evidence_manifest_verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Manifest Verified At"
+          },
+          "evidence_protocol_version": {
+            "title": "Evidence Protocol Version",
+            "type": "integer"
+          },
           "first_ping_at": {
             "anyOf": [
               {
@@ -19638,6 +19900,7 @@
           "status",
           "started_at",
           "ended_at",
+          "evidence_protocol_version",
           "ping_count",
           "first_ping_at",
           "last_ping_at",
@@ -19663,6 +19926,17 @@
             "format": "uuid",
             "title": "Assignment Id",
             "type": "string"
+          },
+          "evidence_protocol_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Protocol Version"
           },
           "metadata": {
             "additionalProperties": true,
@@ -35799,6 +36073,54 @@
           }
         ],
         "summary": "End a driver trip",
+        "tags": [
+          "Trips"
+        ]
+      }
+    },
+    "/api/v1/driver/trips/{trip_id}/evidence/reconcile": {
+      "post": {
+        "operationId": "driver_reconcile_trip_evidence_api_v1_driver_trips__trip_id__evidence_reconcile_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "trip_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Trip Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripEvidenceReconcileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Reconcile and seal exact trip evidence",
         "tags": [
           "Trips"
         ]

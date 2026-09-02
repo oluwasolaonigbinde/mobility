@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from uuid import UUID
 
 import pytest
 from conftest import (
@@ -35,6 +36,7 @@ from app.models.payout import AssignmentRuleBinding
 from app.models.trip import TripSessionStatus
 from app.models.user import UserRole
 from app.models.vehicle import Vehicle, VehicleStatus
+from app.schemas.trips import LocationPingBatchCreate, TripEvidenceManifestEntryCreate
 from app.services.billing import (
     accept_quotation_revision,
     record_approved_credit_authorization,
@@ -43,6 +45,7 @@ from app.services.billing import (
     request_custom_quote,
     reserve_assignment_liability,
 )
+from app.services.trip_evidence import batch_payload_hash, manifest_root
 
 PASSWORD = "long-secure-password"
 PAST = datetime(2020, 1, 1, tzinfo=UTC)
@@ -226,11 +229,16 @@ def driver_headers(db_client, email: str = "driver@example.com"):
 
 
 def ping_payload(recorded_at: datetime | None = None, **overrides):
+    canonical_recorded_at = recorded_at or datetime.now(UTC)
+    canonical_recorded_at = canonical_recorded_at.replace(
+        microsecond=canonical_recorded_at.microsecond // 1000 * 1000
+    )
     payload = {
         "idempotency_key": "batch-1",
+        "batch_sequence": 0,
         "pings": [
             {
-                "recorded_at": (recorded_at or datetime.now(UTC)).isoformat(),
+                "recorded_at": canonical_recorded_at.isoformat(),
                 "lat": 6.45,
                 "lon": 3.39,
                 "accuracy_m": 12.5,
@@ -307,8 +315,34 @@ def start_trip(db_client, assignment_id, email: str = "driver@example.com"):
     return db_client.post(
         "/api/v1/driver/trips/start",
         headers=driver_headers(db_client, email),
-        json={"assignment_id": str(assignment_id), "metadata": {"shift": "morning"}},
+        json={
+            "assignment_id": str(assignment_id),
+            "evidence_protocol_version": 2,
+            "metadata": {"shift": "morning"},
+        },
     )
+
+
+@pytest.mark.parametrize("protocol_version", [None, 1, 3])
+def test_trip_start_requires_supported_evidence_protocol_before_writing(
+    db_client,
+    db_sessionmaker,
+    protocol_version,
+) -> None:
+    _, _, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
+    payload = {"assignment_id": str(assignment.id), "metadata": {}}
+    if protocol_version is not None:
+        payload["evidence_protocol_version"] = protocol_version
+
+    response = db_client.post(
+        "/api/v1/driver/trips/start",
+        headers=driver_headers(db_client),
+        json=payload,
+    )
+
+    assert response.status_code == http_status.HTTP_409_CONFLICT
+    assert response.json()["error"]["code"] == "TRIP_EVIDENCE_PROTOCOL_UPGRADE_REQUIRED"
+    assert fetch_trip_sessions(db_sessionmaker) == []
 
 
 def test_driver_can_start_get_current_read_and_end_trip(db_client, db_sessionmaker) -> None:
@@ -684,7 +718,15 @@ def test_pings_require_active_owned_trip_and_active_assignment(db_client, db_ses
         onboarding_status=DriverOnboardingStatus.ACTIVE,
     )
     trip_id = start_trip(db_client, assignment.id).json()["id"]
-    payload = ping_payload()
+    payload = ping_payload(idempotency_key="ended", batch_sequence=0)
+    parsed = LocationPingBatchCreate.model_validate(payload)
+    descriptor = TripEvidenceManifestEntryCreate(
+        batch_sequence=0,
+        idempotency_key=parsed.idempotency_key,
+        payload_hash_version=2,
+        payload_hash=batch_payload_hash(parsed),
+        submitted_count=len(parsed.pings),
+    )
 
     other = db_client.post(
         f"/api/v1/driver/trips/{trip_id}/pings",
@@ -694,12 +736,23 @@ def test_pings_require_active_owned_trip_and_active_assignment(db_client, db_ses
     db_client.post(
         f"/api/v1/driver/trips/{trip_id}/end",
         headers=driver_headers(db_client),
-        json={"metadata": {}},
+        json={
+            "metadata": {},
+            "evidence_manifest": {
+                "version": 2,
+                "root_sha256": manifest_root(
+                    trip_id=UUID(trip_id), entries=[descriptor], ping_count=1
+                ),
+                "ping_count": 1,
+                "complete": False,
+                "entries": [descriptor.model_dump()],
+            },
+        },
     )
     ended = db_client.post(
         f"/api/v1/driver/trips/{trip_id}/pings",
         headers=driver_headers(db_client),
-        json=ping_payload(idempotency_key="ended"),
+        json=payload,
     )
 
     _, _, _, _, _, second_assignment = create_trip_ready_graph(
@@ -727,8 +780,7 @@ def test_pings_require_active_owned_trip_and_active_assignment(db_client, db_ses
 
     assert other.status_code == http_status.HTTP_404_NOT_FOUND
     assert other.json()["error"]["code"] == "TRIP_NOT_FOUND"
-    # RM3: an ended (not yet sealed) trip is inside its recovery window —
-    # late batches are accepted as live evidence, no longer rejected 400.
+    # D25: ended recovery accepts only an exact precommitted descriptor.
     assert ended.status_code == http_status.HTTP_200_OK
     assert ended.json()["accepted_count"] == 1
     assert ended.json()["quarantined"] is False

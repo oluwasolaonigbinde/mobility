@@ -24,19 +24,21 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status as http_status
 
+from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.campaign import CampaignStatus
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
 from app.models.impression import ImpressionEstimate
 from app.models.payout import CampaignPayoutRule
-from app.models.trip import TripSessionStatus
+from app.models.trip import TripSession, TripSessionStatus
 from app.models.trip_analytics import FraudFlag, FraudFlagStatus, TripAnalytics
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
 from app.schemas.payouts import CampaignPayoutRuleUpdate
 from app.services.fraud_holds import fraud_hold_active_clause
 from app.services.payouts import update_campaign_payout_rule
+from app.services.trip_evidence import sign_manifest_receipt
 
 PASSWORD = "long-secure-password"
 BASE_TIME = datetime(2026, 5, 31, 12, 0, tzinfo=UTC)
@@ -150,6 +152,23 @@ def create_payout_graph(
         started_at=BASE_TIME,
         ended_at=ended_at,
     )
+
+    async def bind_v2_evidence_authority() -> None:
+        async with db_sessionmaker() as session:
+            stored = await session.get(type(trip), trip.id)
+            stored.evidence_protocol_version = 2
+            if trip_status == TripSessionStatus.SEALED:
+                stored.evidence_manifest_version = 2
+                stored.evidence_manifest_root_sha256 = "0" * 64
+                stored.evidence_manifest_batch_count = 0
+                stored.evidence_manifest_ping_count = 0
+                stored.evidence_manifest_committed_at = ended_at
+                stored.evidence_manifest_complete = True
+                stored.evidence_manifest_verified_at = ended_at
+                sign_manifest_receipt(stored, Settings(environment="test"))
+            await session.commit()
+
+    asyncio.run(bind_v2_evidence_authority())
     analytics = create_test_trip_analytics(
         db_sessionmaker,
         trip_session_id=trip.id,
@@ -552,6 +571,38 @@ def test_payout_rule_validation_and_role_boundaries(db_client, db_sessionmaker) 
         ).status_code
         == http_status.HTTP_401_UNAUTHORIZED
     )
+
+
+def test_tampered_manifest_receipt_cannot_originate_money(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    admin = create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
+    _, _, _, _, _, _, trip, _, _ = create_payout_graph(
+        db_sessionmaker,
+        admin=admin,
+        advertiser_email="adv-tampered-manifest@example.com",
+        driver_email="driver-tampered-manifest@example.com",
+        plate_number="TMR-001",
+    )
+
+    async def tamper() -> None:
+        async with db_sessionmaker() as session:
+            await session.execute(
+                update(TripSession)
+                .where(TripSession.id == trip.id)
+                .values(evidence_manifest_receipt_signature="tampered")
+            )
+            await session.commit()
+
+    asyncio.run(tamper())
+    response = db_client.post(
+        f"/api/v1/admin/trips/{trip.id}/calculate-payout",
+        headers=admin_headers(db_client),
+        json={},
+    )
+    assert response.status_code == http_status.HTTP_409_CONFLICT
+    assert response.json()["error"]["code"] == "TRIP_EVIDENCE_NOT_VERIFIED"
 
 
 def test_admin_calculate_payout_formula_is_idempotent_and_creates_one_ledger_entry(

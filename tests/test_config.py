@@ -1,3 +1,6 @@
+import base64
+import json
+
 import pytest
 from pydantic import ValidationError
 
@@ -86,6 +89,50 @@ def test_payout_crypto_key_version_must_be_positive() -> None:
 def test_payout_crypto_active_key_version_must_exist() -> None:
     with pytest.raises(ValidationError):
         Settings(payout_crypto_key_version=2)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["not-json", "{}", '{"1":"c2hvcnQ="}', '{"zero":"c2hvcnQ="}'],
+)
+def test_trip_evidence_signing_keyring_requires_versioned_hmac_keys(value: str) -> None:
+    with pytest.raises(ValidationError):
+        Settings(trip_evidence_signing_keyring_b64=value)
+
+
+def test_trip_evidence_signing_key_rotation_retains_verification_keys() -> None:
+    encoded = {
+        "1": base64.b64encode(b"a" * 32).decode(),
+        "2": base64.b64encode(b"b" * 32).decode(),
+    }
+    settings = Settings(
+        trip_evidence_signing_keyring_b64=json.dumps(encoded),
+        trip_evidence_signing_key_version=2,
+    )
+
+    assert settings.trip_evidence_signing_keys == {1: b"a" * 32, 2: b"b" * 32}
+
+
+@pytest.mark.parametrize("versions", [("1", "01"), ("01", "1")])
+def test_trip_evidence_signing_key_versions_reject_decimal_aliases(
+    versions: tuple[str, str],
+) -> None:
+    encoded = {
+        versions[0]: base64.b64encode(b"a" * 32).decode(),
+        versions[1]: base64.b64encode(b"b" * 32).decode(),
+    }
+
+    with pytest.raises(ValidationError):
+        Settings(trip_evidence_signing_keyring_b64=json.dumps(encoded))
+
+
+def test_trip_evidence_active_signing_key_version_must_exist() -> None:
+    encoded = base64.b64encode(b"a" * 32).decode()
+    with pytest.raises(ValidationError, match="must exist"):
+        Settings(
+            trip_evidence_signing_keyring_b64=json.dumps({"1": encoded}),
+            trip_evidence_signing_key_version=2,
+        )
 
 
 def test_cors_origin_string_parses_as_list() -> None:

@@ -100,9 +100,8 @@ class WorkerSettings:
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
             unique=True,
         ),
-        # Seal sweep (RM3): force-seals ended trips past the recovery grace so
-        # the money chain (sealed-only) can pick them up. Same cadence as the
-        # processing sweep.
+        # Evidence-grace sweep records expiry for operations; exact manifest
+        # reconciliation remains the only v2 sealing authority.
         cron(
             seal_ended_trips_job,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),

@@ -1,28 +1,28 @@
-export const R14A_CONTRACT_VERSION = "r14-a-v1" as const;
+export const R14A_CONTRACT_VERSION = "r14-a-v2" as const;
 export const R14A_SESSION_PROBE_PATH = "/driver/capabilities?session-probe=1" as const;
 
 export const D15_D16_PROTOCOL = {
-  version: "d15-d16-v1",
+  version: "d25-trip-evidence-v2",
   auth: { boundary: "next-bff-http-only-cookie", browserBearerToken: false },
   queue: {
     storage: "indexeddb",
     singleWriter: "web-locks-exclusive",
     idempotencyKey: "mint-once-at-batch-cut",
     retry: "reuse-identical-key-and-payload",
-    ackDeletes: ["accepted", "duplicate", "quarantined"],
+    ackDeletes: ["signed-accepted", "signed-duplicate", "signed-quarantined"],
     terminalHttpStatuses: [400, 409, 422],
     terminalAction: "dead-letter-without-rekey",
   },
   watermark: {
-    sealPredicate: "server-batch-count-gte-client-batch-count",
-    clientPingCount: "diagnostic-only",
-    clientComplete: "diagnostic-queue-health-only",
+    sealPredicate: "exact-signed-content-manifest-verified",
+    clientPingCount: "manifest-content-bound",
+    clientComplete: "claim-requires-exact-reconciliation",
   },
   lifecycle: ["active", "ended", "sealed"],
   lateData: {
     endedTrip: "accept-with-end-skew-bound",
     assignmentActiveGate: "not-required-for-ended-delivery",
-    graceSeal: true,
+    graceSeal: false,
   },
   quarantine: {
     postSealBatches: "preserve-never-reject",
