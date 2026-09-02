@@ -1,10 +1,20 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
+from test_migration_0014_partitioning import (
+    configured_postgres_url,
+    create_database_from_url,
+    drop_database,
+    upgrade_to,
+)
 
 from app.core.config import Settings
 from app.core.errors import AppError
@@ -17,10 +27,20 @@ from app.models.driver import DriverProfile
 from app.models.impression import ImpressionEstimate
 from app.models.organization import AdvertiserOrganization, OrganizationMembership
 from app.models.payout import EarningsLedgerEntry, PayoutCalculation
-from app.models.trip import LocationPing, LocationPingBatch, TripSession
+from app.models.trip import (
+    LocationPing,
+    LocationPingBatch,
+    TripEvidenceManifestEntry,
+    TripSession,
+)
 from app.models.trip_analytics import FraudFlag, TripAnalytics
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.schemas.trips import (
+    LocationPingBatchCreate,
+    LocationPingCreate,
+    TripEvidenceManifestEntryCreate,
+)
 from app.seeds.demo import (
     DEMO_BBOX,
     DEMO_PASSWORDS,
@@ -28,8 +48,16 @@ from app.seeds.demo import (
     build_demo_graph,
     ensure_seed_allowed,
     required_migration_head,
+    upsert_trips_and_pings,
 )
 from app.seeds.rich import F7_DRIVER_PASSWORDS, F7_SEED_VERSION
+from app.services.payouts import get_trip_for_payout
+from app.services.trip_evidence import (
+    batch_payload_hash,
+    manifest_root,
+    verify_batch_receipt,
+    verify_manifest_receipt,
+)
 
 
 def test_demo_seed_refuses_production_even_with_override() -> None:
@@ -89,7 +117,11 @@ def test_no_seed_or_demo_migrations() -> None:
 
 
 def test_demo_seed_requires_the_code_migration_head() -> None:
-    assert required_migration_head() == "0059_campaign_cancellations"
+    config = Config("alembic.ini")
+    config.set_main_option("script_location", "alembic")
+    heads = ScriptDirectory.from_config(config).get_heads()
+    assert len(heads) == 1
+    assert required_migration_head() == heads[0]
 
 
 def test_readme_documents_demo_seed_workflow() -> None:
@@ -743,6 +775,183 @@ def fetch_palmpay_market_snapshot(
     return asyncio.run(fetch())
 
 
+def fetch_seed_evidence_snapshot(
+    sessionmaker: async_sessionmaker[AsyncSession],
+    settings: Settings,
+) -> tuple[tuple[object, ...], ...]:
+    async def fetch() -> tuple[tuple[object, ...], ...]:
+        async with sessionmaker() as session:
+            trips = list(
+                (
+                    await session.scalars(
+                        select(TripSession).where(
+                            TripSession.trip_metadata["seed_version"]
+                            .as_string()
+                            .in_([SEED_VERSION, F7_SEED_VERSION])
+                        )
+                    )
+                ).all()
+            )
+            trip_ids = [trip.id for trip in trips]
+            batches = list(
+                (
+                    await session.scalars(
+                        select(LocationPingBatch).where(
+                            LocationPingBatch.trip_session_id.in_(trip_ids)
+                        )
+                    )
+                ).all()
+            )
+            entries = list(
+                (
+                    await session.scalars(
+                        select(TripEvidenceManifestEntry).where(
+                            TripEvidenceManifestEntry.trip_session_id.in_(trip_ids)
+                        )
+                    )
+                ).all()
+            )
+            batch_ids = [batch.id for batch in batches]
+            pings = list(
+                (
+                    await session.scalars(
+                        select(LocationPing)
+                        .where(LocationPing.batch_id.in_(batch_ids))
+                        .order_by(LocationPing.batch_id, LocationPing.sequence_number)
+                    )
+                ).all()
+            )
+            payout_trip_ids = set(
+                (
+                    await session.scalars(
+                        select(PayoutCalculation.trip_session_id).where(
+                            PayoutCalculation.trip_session_id.in_(trip_ids)
+                        )
+                    )
+                ).all()
+            )
+            batches_by_trip = {batch.trip_session_id: batch for batch in batches}
+            entries_by_trip = {entry.trip_session_id: entry for entry in entries}
+            pings_by_batch: dict[object, list[LocationPing]] = {}
+            for ping in pings:
+                pings_by_batch.setdefault(ping.batch_id, []).append(ping)
+
+            assert len(batches_by_trip) == len(trips)
+            assert len(entries_by_trip) == len(trips)
+            assert payout_trip_ids == set(trip_ids)
+            families: set[str] = set()
+            snapshot: list[tuple[object, ...]] = []
+            for trip in trips:
+                trip_key = str(trip.trip_metadata["seed_trip_key"])
+                if trip_key.startswith("f7:"):
+                    families.add("f7")
+                elif trip_key.startswith("demo-trip-"):
+                    families.add("main")
+                elif trip_key.startswith("demo-story-"):
+                    families.add("story")
+                elif trip_key.startswith("palmpay-wuse-trip-"):
+                    families.add("palmpay")
+
+                batch = batches_by_trip[trip.id]
+                entry = entries_by_trip[trip.id]
+                stored_pings = pings_by_batch[batch.id]
+                payload = LocationPingBatchCreate(
+                    idempotency_key=batch.idempotency_key,
+                    batch_sequence=batch.batch_sequence,
+                    pings=[
+                        LocationPingCreate(
+                            recorded_at=ping.recorded_at,
+                            lat=ping.latitude,
+                            lon=ping.longitude,
+                            accuracy_m=ping.accuracy_m,
+                            speed_mps=ping.speed_mps,
+                            heading_degrees=ping.heading_degrees,
+                            altitude_m=ping.altitude_m,
+                            sequence_number=ping.sequence_number,
+                            metadata=ping.ping_metadata,
+                        )
+                        for ping in stored_pings
+                    ],
+                    metadata=batch.batch_metadata,
+                )
+                entry_payload = TripEvidenceManifestEntryCreate(
+                    batch_sequence=entry.batch_sequence,
+                    idempotency_key=entry.idempotency_key,
+                    payload_hash_version=entry.payload_hash_version,
+                    payload_hash=entry.payload_hash,
+                    submitted_count=entry.submitted_count,
+                )
+
+                assert trip.evidence_protocol_version == 2
+                assert trip.status == "sealed"
+                assert trip.evidence_manifest_version == 2
+                assert trip.evidence_manifest_batch_count == 1
+                assert trip.evidence_manifest_ping_count == len(stored_pings)
+                assert trip.evidence_manifest_complete is True
+                assert trip.evidence_manifest_verified_at is not None
+                assert verify_manifest_receipt(trip, settings)
+                assert batch.batch_sequence == 0
+                assert batch.payload_hash_version == 2
+                assert batch.evidence_scope == "manifest"
+                assert batch.pings_submitted == len(stored_pings)
+                assert batch.pings_accepted == len(stored_pings)
+                assert batch.pings_rejected == 0
+                assert batch_payload_hash(payload) == batch.payload_hash
+                assert verify_batch_receipt(batch, settings)
+                assert entry_payload.idempotency_key == batch.idempotency_key
+                assert entry_payload.payload_hash == batch.payload_hash
+                assert entry_payload.submitted_count == len(stored_pings)
+                assert (
+                    manifest_root(
+                        trip_id=trip.id,
+                        entries=[entry_payload],
+                        ping_count=len(stored_pings),
+                    )
+                    == trip.evidence_manifest_root_sha256
+                )
+                snapshot.append(
+                    (
+                        str(trip.id),
+                        trip_key,
+                        trip.evidence_manifest_root_sha256,
+                        trip.evidence_manifest_receipt_signature,
+                        batch.payload_hash,
+                        batch.receipt_signature,
+                    )
+                )
+
+            assert families == {"main", "story", "palmpay", "f7"}
+            return tuple(sorted(snapshot))
+
+    return asyncio.run(fetch())
+
+
+def test_demo_seed_runs_with_immutable_guards_from_alembic_head(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
+    engine = None
+    try:
+        upgrade_to(migration_url, "head", monkeypatch)
+        migrated_settings = settings.model_copy(update={"database_url": migration_url})
+        engine = create_async_engine(migration_url, poolclass=NullPool)
+        sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+        monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
+
+        async def seed() -> None:
+            async with sessionmaker() as session:
+                await build_demo_graph(session, migrated_settings)
+                await session.commit()
+
+        asyncio.run(seed())
+        assert fetch_seed_evidence_snapshot(sessionmaker, migrated_settings)
+    finally:
+        if engine is not None:
+            asyncio.run(engine.dispose())
+        asyncio.run(drop_database(migration_url))
+
+
 def test_demo_seed_is_idempotent_with_postgis(
     postgis_db_sessionmaker,
     settings: Settings,
@@ -754,11 +963,13 @@ def test_demo_seed_is_idempotent_with_postgis(
     first_rich = fetch_rich_snapshot(postgis_db_sessionmaker)
     first_legacy = fetch_legacy_derived_snapshot(postgis_db_sessionmaker)
     first_palmpay_market = fetch_palmpay_market_snapshot(postgis_db_sessionmaker)
+    first_evidence = fetch_seed_evidence_snapshot(postgis_db_sessionmaker, settings)
     seed_demo_graph(postgis_db_sessionmaker, settings)
     second_counts = fetch_seed_counts(postgis_db_sessionmaker)
     second_rich = fetch_rich_snapshot(postgis_db_sessionmaker)
     second_legacy = fetch_legacy_derived_snapshot(postgis_db_sessionmaker)
     second_palmpay_market = fetch_palmpay_market_snapshot(postgis_db_sessionmaker)
+    second_evidence = fetch_seed_evidence_snapshot(postgis_db_sessionmaker, settings)
 
     assert first_counts == second_counts
     assert second_counts == {
@@ -783,6 +994,7 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert first_rich == second_rich
     assert first_legacy == second_legacy
     assert first_palmpay_market == second_palmpay_market
+    assert first_evidence == second_evidence
     assert second_palmpay_market["assignment_status"] == "completed"
     assert second_palmpay_market["creatives"] == 1
     assert second_palmpay_market["zones"] == 2
@@ -882,6 +1094,110 @@ def test_demo_seed_preserves_existing_payout_metadata(
             )
 
     asyncio.run(verify())
+
+
+def test_demo_seed_preserves_legacy_v1_evidence_and_money_fence(
+    postgis_db_sessionmaker,
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "0")
+
+    async def exercise() -> None:
+        async with postgis_db_sessionmaker() as session:
+            graph = await build_demo_graph(session, settings)
+            started_at = datetime(2025, 1, 2, 9, tzinfo=UTC)
+            ended_at = started_at + timedelta(minutes=42)
+            legacy_trip = TripSession(
+                assignment_id=graph.assignment.id,
+                campaign_id=graph.campaign.id,
+                driver_profile_id=graph.driver_profile.id,
+                vehicle_id=graph.vehicle.id,
+                started_by_user_id=graph.driver.id,
+                status="sealed",
+                started_at=started_at,
+                ended_at=ended_at,
+                sealed_at=ended_at,
+                seal_reason="client_complete",
+                end_reason="legacy_demo_completed",
+                evidence_protocol_version=1,
+                trip_metadata={
+                    "demo": True,
+                    "seed_version": SEED_VERSION,
+                    "seed_trip_key": "legacy-demo-trip",
+                },
+            )
+            session.add(legacy_trip)
+            await session.flush()
+            original = (
+                legacy_trip.status,
+                legacy_trip.ended_at,
+                legacy_trip.sealed_at,
+                legacy_trip.seal_reason,
+                legacy_trip.trip_metadata,
+            )
+
+            returned = await upsert_trips_and_pings(
+                session,
+                assignment=graph.assignment,
+                campaign=graph.campaign,
+                profile=graph.driver_profile,
+                vehicle=graph.vehicle,
+                driver=graph.driver,
+                settings=settings,
+                specs=[("legacy-demo-trip", started_at, [(6.5, 3.4)])],
+            )
+            await session.refresh(legacy_trip)
+
+            assert returned == [legacy_trip]
+            assert legacy_trip.evidence_protocol_version == 1
+            assert (
+                legacy_trip.status,
+                legacy_trip.ended_at,
+                legacy_trip.sealed_at,
+                legacy_trip.seal_reason,
+                legacy_trip.trip_metadata,
+            ) == original
+            assert (
+                await session.scalar(
+                    select(func.count(LocationPingBatch.id)).where(
+                        LocationPingBatch.trip_session_id == legacy_trip.id
+                    )
+                )
+                == 0
+            )
+            assert (
+                await session.scalar(
+                    select(func.count(TripEvidenceManifestEntry.id)).where(
+                        TripEvidenceManifestEntry.trip_session_id == legacy_trip.id
+                    )
+                )
+                == 0
+            )
+            with pytest.raises(AppError) as raised:
+                await get_trip_for_payout(session, legacy_trip.id, settings)
+            assert raised.value.code == "LEGACY_TRIP_MONEY_ORIGINATION_PROHIBITED"
+
+            session.add(
+                EarningsLedgerEntry(
+                    driver_profile_id=graph.driver_profile.id,
+                    driver_user_id=graph.driver.id,
+                    campaign_id=graph.campaign.id,
+                    trip_session_id=legacy_trip.id,
+                    vehicle_id=graph.vehicle.id,
+                    entry_type="trip_payout",
+                    status="available",
+                    amount=Decimal("1.00"),
+                    currency="NGN",
+                    description="Existing legacy demo payout",
+                    occurred_at=ended_at,
+                    ledger_metadata={"legacy_demo": True},
+                )
+            )
+            await session.flush()
+            assert await get_trip_for_payout(session, legacy_trip.id, settings) is legacy_trip
+
+    asyncio.run(exercise())
 
 
 def test_rich_seed_later_rerun_only_appends_valid_rolling_trips(

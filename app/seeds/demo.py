@@ -10,7 +10,7 @@ from uuid import UUID
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import delete, func, select, text, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status
 
@@ -56,6 +56,7 @@ from app.models.payout import (
 from app.models.trip import (
     LocationPing,
     LocationPingBatch,
+    TripEvidenceManifestEntry,
     TripSealReason,
     TripSession,
     TripSessionStatus,
@@ -64,13 +65,23 @@ from app.models.trip_analytics import TripAnalytics
 from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle, VehicleStatus, VehicleType
 from app.schemas.impressions import TrafficDensityProfileCreate
-from app.schemas.trips import LocationPingBatchCreate, LocationPingCreate
+from app.schemas.trips import (
+    LocationPingBatchCreate,
+    LocationPingCreate,
+    TripEvidenceManifestEntryCreate,
+)
 from app.seeds.rich import F7_DRIVER_PASSWORDS, F7_SEED_VERSION, RichSeedResult, build_rich_seed
 from app.services.campaign_zones import geometry_expression, validate_geometry_with_postgis
 from app.services.impressions import create_traffic_density_profile, estimate_trip_impressions
 from app.services.payouts import calculate_trip_payout
 from app.services.trip_analytics import recompute_trip_analytics
-from app.services.trips import payload_hash, point_value
+from app.services.trip_evidence import (
+    batch_payload_hash,
+    manifest_root,
+    sign_batch_receipt,
+    sign_manifest_receipt,
+)
+from app.services.trips import point_value
 from app.services.users import normalize_email, validate_password_length
 from app.services.vehicles import normalize_plate_number
 
@@ -792,6 +803,7 @@ async def upsert_trips_and_pings(
     profile: DriverProfile,
     vehicle: Vehicle,
     driver: User,
+    settings: Settings,
     specs: list[tuple[str, datetime, list[tuple[float, float]]]] | None = None,
 ) -> list[TripSession]:
     trips = []
@@ -805,37 +817,28 @@ async def upsert_trips_and_pings(
                 driver_profile_id=profile.id,
                 vehicle_id=vehicle.id,
                 started_by_user_id=driver.id,
-                status=TripSessionStatus.SEALED.value,
+                status=TripSessionStatus.ENDED.value,
                 started_at=started_at,
                 ended_at=ended_at,
-                sealed_at=ended_at,
-                seal_reason=TripSealReason.CLIENT_COMPLETE.value,
                 end_reason="demo_completed",
+                evidence_protocol_version=2,
                 trip_metadata=demo_metadata(seed_trip_key=trip_key),
             )
             session.add(trip)
             await session.flush()
         else:
+            if trip.evidence_protocol_version == 1:
+                trips.append(trip)
+                continue
             started_at = trip.started_at
             ended_at = trip.ended_at or started_at + timedelta(minutes=42)
-            trip.campaign_id = campaign.id
-            trip.driver_profile_id = profile.id
-            trip.vehicle_id = vehicle.id
-            trip.started_by_user_id = driver.id
-            trip.status = TripSessionStatus.SEALED.value
-            trip.started_at = started_at
-            trip.ended_at = ended_at
-            trip.sealed_at = ended_at
-            trip.seal_reason = TripSealReason.CLIENT_COMPLETE.value
-            trip.end_reason = "demo_completed"
-            trip.trip_metadata = demo_metadata(seed_trip_key=trip_key)
-            await session.flush()
         await ensure_ping_batch(
             session,
             trip=trip,
             coordinates=coordinates,
             started_at=started_at,
             trip_key=trip_key,
+            settings=settings,
         )
         await session.refresh(trip)
         trips.append(trip)
@@ -1028,6 +1031,7 @@ async def upsert_driver_story_campaigns(
             profile=profile,
             vehicle=vehicle,
             driver=driver,
+            settings=settings,
             specs=story_trip_specs,
         )
         await upsert_payout_rule(session, campaign=campaign, admin=admin)
@@ -1078,6 +1082,7 @@ async def ensure_ping_batch(
     coordinates: list[tuple[float, float]],
     started_at: datetime,
     trip_key: str,
+    settings: Settings,
 ) -> None:
     pings = [
         LocationPingCreate(
@@ -1095,10 +1100,11 @@ async def ensure_ping_batch(
     ]
     payload = LocationPingBatchCreate(
         idempotency_key=f"{SEED_VERSION}:{trip_key}:pings",
+        batch_sequence=0,
         pings=pings,
         metadata=demo_metadata(seed_trip_key=trip_key),
     )
-    digest = payload_hash(payload)
+    digest = batch_payload_hash(payload)
     existing = await session.scalar(
         select(LocationPingBatch).where(
             LocationPingBatch.trip_session_id == trip.id,
@@ -1109,17 +1115,33 @@ async def ensure_ping_batch(
         ping_count = await session.scalar(
             select(func.count(LocationPing.id)).where(LocationPing.batch_id == existing.id)
         )
-        if existing.payload_hash == digest and int(ping_count or 0) == len(pings):
+        if (
+            existing.batch_sequence == 0
+            and existing.payload_hash_version == 2
+            and existing.payload_hash == digest
+            and existing.pings_submitted == len(pings)
+            and existing.pings_accepted == len(pings)
+            and existing.pings_rejected == 0
+            and existing.evidence_scope == "manifest"
+            and int(ping_count or 0) == len(pings)
+        ):
             return
-        await session.execute(delete(LocationPing).where(LocationPing.batch_id == existing.id))
-        await session.execute(delete(LocationPingBatch).where(LocationPingBatch.id == existing.id))
-        await session.flush()
+        raise AppError(
+            "DEMO_SEED_EVIDENCE_CONFLICT",
+            "Existing demo trip evidence does not match the canonical v2 seed payload.",
+            status_code=status.HTTP_409_CONFLICT,
+        )
 
     batch = LocationPingBatch(
         trip_session_id=trip.id,
         idempotency_key=payload.idempotency_key,
+        batch_sequence=0,
+        payload_hash_version=2,
         payload_hash=digest,
+        pings_submitted=len(pings),
         pings_accepted=len(pings),
+        pings_rejected=0,
+        evidence_scope="manifest",
         received_at=trip.ended_at or started_at,
         batch_metadata=payload.metadata,
     )
@@ -1143,6 +1165,41 @@ async def ensure_ping_batch(
                 ping_metadata=ping.metadata,
             )
         )
+    await session.flush()
+    sign_batch_receipt(batch, settings)
+    await session.flush()
+
+    entry_payload = TripEvidenceManifestEntryCreate(
+        batch_sequence=0,
+        idempotency_key=payload.idempotency_key,
+        payload_hash_version=2,
+        payload_hash=digest,
+        submitted_count=len(pings),
+    )
+    session.add(
+        TripEvidenceManifestEntry(
+            trip_session_id=trip.id,
+            **entry_payload.model_dump(),
+        )
+    )
+    await session.flush()
+
+    verified_at = trip.ended_at or started_at
+    trip.evidence_manifest_version = 2
+    trip.evidence_manifest_root_sha256 = manifest_root(
+        trip_id=trip.id,
+        entries=[entry_payload],
+        ping_count=len(pings),
+    )
+    trip.evidence_manifest_batch_count = 1
+    trip.evidence_manifest_ping_count = len(pings)
+    trip.evidence_manifest_committed_at = verified_at
+    trip.evidence_manifest_complete = True
+    trip.evidence_manifest_verified_at = verified_at
+    sign_manifest_receipt(trip, settings)
+    trip.status = TripSessionStatus.SEALED.value
+    trip.sealed_at = verified_at
+    trip.seal_reason = TripSealReason.CLIENT_COMPLETE.value
     await session.flush()
 
 
@@ -1445,6 +1502,7 @@ async def upsert_palmpay_graph(
         profile=profile,
         vehicle=vehicle,
         driver=driver,
+        settings=settings,
         specs=palmpay_trip_specs(now),
     )
     await upsert_payout_rule(session, campaign=campaign, admin=admin)
@@ -1542,6 +1600,7 @@ async def build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGra
         profile=driver_profile,
         vehicle=vehicle,
         driver=driver,
+        settings=settings,
     )
     traffic_profile = await upsert_traffic_profile(session)
     await upsert_payout_rule(session, campaign=campaign, admin=admin)

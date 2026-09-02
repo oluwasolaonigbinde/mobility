@@ -38,18 +38,29 @@ from app.models.payout import CampaignPayoutRule, CampaignPayoutRuleStatus
 from app.models.trip import (
     LocationPing,
     LocationPingBatch,
+    TripEvidenceManifestEntry,
     TripSealReason,
     TripSession,
     TripSessionStatus,
 )
 from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle, VehicleStatus, VehicleType
-from app.schemas.trips import LocationPingBatchCreate, LocationPingCreate
+from app.schemas.trips import (
+    LocationPingBatchCreate,
+    LocationPingCreate,
+    TripEvidenceManifestEntryCreate,
+)
 from app.services.campaign_zones import geometry_expression, validate_geometry_with_postgis
 from app.services.impressions import estimate_trip_impressions
 from app.services.payouts import calculate_trip_payout
 from app.services.trip_analytics import recompute_trip_analytics
-from app.services.trips import payload_hash, point_value
+from app.services.trip_evidence import (
+    batch_payload_hash,
+    manifest_root,
+    sign_batch_receipt,
+    sign_manifest_receipt,
+)
+from app.services.trips import point_value
 from app.services.users import normalize_email, validate_password_length
 from app.services.vehicles import normalize_plate_number
 
@@ -578,6 +589,7 @@ async def _create_trip(
     day_offset: int,
     trip_index: int,
     existing_keys: set[str],
+    settings: Settings,
 ) -> TripSession | None:
     trip_key = f"f7:{asset.index}:{trip_day.isoformat()}:{trip_index}"
     if trip_key in existing_keys:
@@ -600,12 +612,11 @@ async def _create_trip(
         driver_profile_id=asset.profile.id,
         vehicle_id=asset.vehicle.id,
         started_by_user_id=asset.user.id,
-        status=TripSessionStatus.SEALED.value,
+        status=TripSessionStatus.ENDED.value,
         started_at=started_at,
         ended_at=ended_at,
-        sealed_at=ended_at,
-        seal_reason=TripSealReason.CLIENT_COMPLETE.value,
         end_reason="f7_demo_completed",
+        evidence_protocol_version=2,
         trip_metadata=f7_metadata(seed_trip_key=trip_key, anomaly=anomaly),
     )
     _assert_trip_lifecycle(trip, campaign, assignment, kind)
@@ -628,14 +639,21 @@ async def _create_trip(
     ]
     payload = LocationPingBatchCreate(
         idempotency_key=f"{F7_SEED_VERSION}:{trip_key}:pings",
+        batch_sequence=0,
         pings=pings,
         metadata=f7_metadata(seed_trip_key=trip_key),
     )
+    digest = batch_payload_hash(payload)
     batch = LocationPingBatch(
         trip_session_id=trip.id,
         idempotency_key=payload.idempotency_key,
-        payload_hash=payload_hash(payload),
+        batch_sequence=0,
+        payload_hash_version=2,
+        payload_hash=digest,
+        pings_submitted=len(pings),
         pings_accepted=len(pings),
+        pings_rejected=0,
+        evidence_scope="manifest",
         received_at=ended_at,
         batch_metadata=payload.metadata,
     )
@@ -659,6 +677,39 @@ async def _create_trip(
                 ping_metadata=ping.metadata,
             )
         )
+    await session.flush()
+    sign_batch_receipt(batch, settings)
+    await session.flush()
+
+    entry_payload = TripEvidenceManifestEntryCreate(
+        batch_sequence=0,
+        idempotency_key=payload.idempotency_key,
+        payload_hash_version=2,
+        payload_hash=digest,
+        submitted_count=len(pings),
+    )
+    session.add(
+        TripEvidenceManifestEntry(
+            trip_session_id=trip.id,
+            **entry_payload.model_dump(),
+        )
+    )
+    await session.flush()
+    trip.evidence_manifest_version = 2
+    trip.evidence_manifest_root_sha256 = manifest_root(
+        trip_id=trip.id,
+        entries=[entry_payload],
+        ping_count=len(pings),
+    )
+    trip.evidence_manifest_batch_count = 1
+    trip.evidence_manifest_ping_count = len(pings)
+    trip.evidence_manifest_committed_at = ended_at
+    trip.evidence_manifest_complete = True
+    trip.evidence_manifest_verified_at = ended_at
+    sign_manifest_receipt(trip, settings)
+    trip.status = TripSessionStatus.SEALED.value
+    trip.sealed_at = ended_at
+    trip.seal_reason = TripSealReason.CLIENT_COMPLETE.value
     await session.flush()
     existing_keys.add(trip_key)
     return trip
@@ -789,6 +840,7 @@ async def build_rich_seed(
                     day_offset=day_offset,
                     trip_index=trip_index,
                     existing_keys=existing_keys,
+                    settings=settings,
                 )
                 if trip is None:
                     continue

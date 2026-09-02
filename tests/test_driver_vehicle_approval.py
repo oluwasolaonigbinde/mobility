@@ -655,7 +655,11 @@ def test_vehicle_eligibility_opens_and_expiry_closes_assignment_and_trip(
                 await start_driver_trip(
                     session,
                     user_id=application.user_id,
-                    payload=TripStartRequest(assignment_id=assignment.id, metadata={}),
+                    payload=TripStartRequest(
+                        assignment_id=assignment.id,
+                        evidence_protocol_version=2,
+                        metadata={},
+                    ),
                     settings=settings,
                 )
             assert raised.value.code == "DRIVER_PROFILE_NOT_ACTIVE"
@@ -1021,7 +1025,11 @@ def test_postgres_nin_rewrap_and_trip_share_eligibility_before_profile_order(
                     await start_driver_trip(
                         session,
                         user_id=application.user_id,
-                        payload=TripStartRequest(assignment_id=assignment.id, metadata={}),
+                        payload=TripStartRequest(
+                            assignment_id=assignment.id,
+                            evidence_protocol_version=2,
+                            metadata={},
+                        ),
                         settings=settings,
                     )
                     await session.commit()
