@@ -31,6 +31,7 @@ from starlette import status as http_status
 import app.services.campaign_assignments as assignments_service
 from app.api.v1 import campaign_assignments as assignments_api
 from app.core.errors import AppError
+from app.models.audit import AuditEvent
 from app.models.billing import (
     AcceptanceMethod,
     CampaignLiabilityReservation,
@@ -40,7 +41,6 @@ from app.models.billing import (
 from app.models.campaign import (
     Campaign,
     CampaignCreative,
-    CampaignReviewEvent,
     CampaignStatus,
     CreativeStatus,
 )
@@ -546,7 +546,10 @@ def test_offer_creation_rejects_legacy_ready_creative(
     db_client,
     db_sessionmaker,
 ) -> None:
-    _, campaign, _, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
+    _, campaign, _, profile, vehicle = create_assignment_ready_graph(
+        db_sessionmaker,
+        campaign_status=CampaignStatus.APPROVED,
+    )
     creative_id = UUID(campaign.campaign_metadata["_test_creative_id"])
     update_creative_status(db_sessionmaker, creative_id, CreativeStatus.READY)
 
@@ -554,6 +557,24 @@ def test_offer_creation_rejects_legacy_ready_creative(
 
     assert response.status_code == http_status.HTTP_409_CONFLICT
     assert response.json()["error"]["code"] == "APPROVED_CAMPAIGN_CREATIVE_REQUIRED"
+
+    async def unchanged() -> tuple[str, list[str]]:
+        async with db_sessionmaker() as session:
+            current = await session.get(Campaign, campaign.id)
+            assert current is not None
+            actions = list(
+                await session.scalars(
+                    select(AuditEvent.action).where(
+                        AuditEvent.entity_type == "campaign",
+                        AuditEvent.entity_id == str(campaign.id),
+                    )
+                )
+            )
+            return current.status, actions
+
+    current_status, actions = asyncio.run(unchanged())
+    assert current_status == CampaignStatus.APPROVED.value
+    assert "admin.campaign.scheduled" not in actions
 
 
 def fetch_bindings_for_assignment(db_sessionmaker, assignment_id):
@@ -2123,8 +2144,8 @@ def test_admin_activation_checks_campaign_and_driver_gates(
 
     assert offered_activate.status_code == http_status.HTTP_400_BAD_REQUEST
     assert offered_activate.json()["error"]["code"] == "INVALID_ASSIGNMENT_TRANSITION"
-    assert scheduled_activate.status_code == http_status.HTTP_400_BAD_REQUEST
-    assert scheduled_activate.json()["error"]["code"] == "CAMPAIGN_NOT_ACTIVE"
+    assert scheduled_activate.status_code == http_status.HTTP_409_CONFLICT
+    assert scheduled_activate.json()["error"]["code"] == "CAMPAIGN_REVIEW_APPROVAL_REQUIRED"
     assert paused_activate.status_code == http_status.HTTP_400_BAD_REQUEST
     assert paused_activate.json()["error"]["code"] == "CAMPAIGN_NOT_ACTIVE"
     assert future_activate.status_code == http_status.HTTP_400_BAD_REQUEST
@@ -2156,7 +2177,7 @@ def test_admin_activation_rejects_each_built_and_unavailable_gate(
     suffix = gate.replace("_", "-")
     admin, campaign, _, profile, vehicle = create_assignment_ready_graph(
         db_sessionmaker,
-        campaign_status=CampaignStatus.ACTIVE,
+        campaign_status=CampaignStatus.SCHEDULED,
         start_at=PAST,
         end_at=FUTURE,
         admin_email=f"gate-admin-{suffix}@example.com",
@@ -2250,6 +2271,17 @@ def test_admin_activation_rejects_each_built_and_unavailable_gate(
     assert response.status_code == http_status.HTTP_409_CONFLICT
     assert response.json()["error"]["code"] == expected_code
     assert fetch_assignments(db_sessionmaker)[0].status == CampaignAssignmentStatus.ACCEPTED.value
+
+    async def unchanged_campaign() -> str:
+        async with db_sessionmaker() as session:
+            current = await session.get(Campaign, campaign.id)
+            assert current is not None
+            return current.status
+
+    assert asyncio.run(unchanged_campaign()) == CampaignStatus.SCHEDULED.value
+    assert "admin.campaign.activated" not in [
+        event.action for event in fetch_audit_events(db_sessionmaker)
+    ]
 
 
 def test_admin_activation_commits_one_immutable_snapshot_and_replay_converges(
@@ -2356,9 +2388,9 @@ def test_admin_activation_then_driver_trip_uses_real_synthetic_authorities(
     db_sessionmaker,
 ) -> None:
     now = datetime.now(UTC)
-    admin, campaign, driver, profile, vehicle = create_assignment_ready_graph(
+    admin, _seeded_campaign, driver, profile, vehicle = create_assignment_ready_graph(
         db_sessionmaker,
-        campaign_status=CampaignStatus.ACTIVE,
+        campaign_status=CampaignStatus.DRAFT,
         start_at=now - timedelta(hours=1),
         end_at=now + timedelta(hours=1),
         admin_email="activation-e2e-admin@example.com",
@@ -2370,6 +2402,61 @@ def test_admin_activation_then_driver_trip_uses_real_synthetic_authorities(
         db_sessionmaker, "activation-e2e-advertiser@example.com"
     )
     assert advertiser is not None
+    created_campaign = db_client.post(
+        "/api/v1/advertiser/campaigns",
+        headers=auth_headers(db_client, advertiser.email, PASSWORD),
+        json={
+            "name": "API lifecycle campaign",
+            "status": "draft",
+            "start_at": (now - timedelta(hours=1)).isoformat(),
+            "end_at": (now + timedelta(hours=1)).isoformat(),
+            "budget_amount": "1000000.00",
+            "daily_budget_amount": "100000.00",
+        },
+    )
+    assert created_campaign.status_code == http_status.HTTP_201_CREATED
+    campaign_id = UUID(created_campaign.json()["id"])
+    creative = create_test_campaign_creative(
+        db_sessionmaker,
+        campaign_id=campaign_id,
+        creative_status=CreativeStatus.APPROVED,
+    )
+    create_test_campaign_payout_revision(
+        db_sessionmaker,
+        campaign_id=campaign_id,
+        created_by_user_id=admin.id,
+        effective_from=now - timedelta(hours=2),
+    )
+    create_test_campaign_zone(
+        db_sessionmaker,
+        campaign_id=campaign_id,
+        created_by_user_id=admin.id,
+    )
+
+    async def configure_api_campaign() -> Campaign:
+        async with db_sessionmaker() as session:
+            campaign = await session.get(Campaign, campaign_id)
+            assert campaign is not None
+            campaign.campaign_metadata = {
+                **campaign.campaign_metadata,
+                "_test_creative_id": str(creative.id),
+            }
+            await session.commit()
+            await session.refresh(campaign)
+            return campaign
+
+    campaign = asyncio.run(configure_api_campaign())
+    submitted = db_client.post(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/submit",
+        headers=auth_headers(db_client, advertiser.email, PASSWORD),
+    )
+    approved = db_client.post(
+        f"/api/v1/admin/campaigns/{campaign.id}/approve",
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+    )
+    assert submitted.status_code == http_status.HTTP_200_OK
+    assert approved.status_code == http_status.HTTP_200_OK
+    assert approved.json()["status"] == CampaignStatus.APPROVED.value
     created = db_client.post(
         "/api/v1/admin/campaign-assignments",
         headers=auth_headers(db_client, admin.email, PASSWORD),
@@ -2382,6 +2469,17 @@ def test_admin_activation_then_driver_trip_uses_real_synthetic_authorities(
     )
     assert created.status_code == http_status.HTTP_201_CREATED
     assignment_id = UUID(created.json()["id"])
+
+    async def current_campaign_status() -> str:
+        async with db_sessionmaker() as session:
+            current = await session.get(Campaign, campaign.id)
+            assert current is not None
+            return current.status
+
+    assert asyncio.run(current_campaign_status()) == CampaignStatus.SCHEDULED.value
+    audit_actions = [event.action for event in fetch_audit_events(db_sessionmaker)]
+    assert audit_actions.count("admin.campaign.scheduled") == 1
+    assert audit_actions.count("admin.campaign.activated") == 0
     accepted = db_client.post(
         f"/api/v1/driver/campaign-assignments/{assignment_id}/accept",
         headers=auth_headers(db_client, driver.email, PASSWORD),
@@ -2394,36 +2492,8 @@ def test_admin_activation_then_driver_trip_uses_real_synthetic_authorities(
         reviewed_by_user_id=admin.id,
     )
 
-    async def install_previous_authorities() -> None:
+    async def install_activation_authorities() -> None:
         async with db_sessionmaker() as session:
-            reviewed_snapshot = {"campaign_id": str(campaign.id), "synthetic_test": True}
-            reviewed_digest = hashlib.sha256(
-                json.dumps(
-                    reviewed_snapshot,
-                    sort_keys=True,
-                    separators=(",", ":"),
-                    ensure_ascii=True,
-                ).encode("utf-8")
-            ).hexdigest()
-            submission = CampaignReviewEvent(
-                campaign_id=campaign.id,
-                actor_user_id=advertiser.id,
-                prior_status=CampaignStatus.DRAFT.value,
-                new_status=CampaignStatus.PENDING_REVIEW.value,
-                reviewed_snapshot=reviewed_snapshot,
-                reviewed_snapshot_sha256=reviewed_digest,
-            )
-            session.add(submission)
-            await session.flush()
-            session.add(
-                CampaignReviewEvent(
-                    campaign_id=campaign.id,
-                    actor_user_id=admin.id,
-                    prior_status=CampaignStatus.PENDING_REVIEW.value,
-                    new_status=CampaignStatus.APPROVED.value,
-                    submission_event_id=submission.id,
-                )
-            )
             quote = await request_custom_quote(
                 session,
                 campaign_id=campaign.id,
@@ -2479,7 +2549,7 @@ def test_admin_activation_then_driver_trip_uses_real_synthetic_authorities(
             )
             await session.commit()
 
-    asyncio.run(install_previous_authorities())
+    asyncio.run(install_activation_authorities())
     activated = db_client.post(
         f"/api/v1/admin/campaign-assignments/{assignment_id}/activate",
         headers=auth_headers(db_client, admin.email, PASSWORD),
@@ -2487,6 +2557,19 @@ def test_admin_activation_then_driver_trip_uses_real_synthetic_authorities(
     )
     assert activated.status_code == http_status.HTTP_200_OK, activated.text
     assert activated.json()["status"] == CampaignAssignmentStatus.ACTIVE.value
+    replay = db_client.post(
+        f"/api/v1/admin/campaign-assignments/{assignment_id}/activate",
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+        json={"metadata": {"ticket": "ACTIVATION-E2E"}},
+    )
+    assert replay.status_code == http_status.HTTP_200_OK
+    assert replay.json()["activated_at"] == activated.json()["activated_at"]
+    audit_actions = [event.action for event in fetch_audit_events(db_sessionmaker)]
+    assert audit_actions.count("admin.campaign.scheduled") == 1
+    assert audit_actions.count("admin.campaign.activated") == 1
+    assert audit_actions.count("admin.campaign_assignment.activated") == 1
+
+    assert asyncio.run(current_campaign_status()) == CampaignStatus.ACTIVE.value
 
     trip = db_client.post(
         "/api/v1/driver/trips/start",

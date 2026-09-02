@@ -352,7 +352,7 @@ async def activation_production_start(
 
 
 def ensure_campaign_activatable(campaign: Campaign, now: datetime) -> None:
-    if campaign.status != CampaignStatus.ACTIVE.value:
+    if campaign.status not in {CampaignStatus.SCHEDULED.value, CampaignStatus.ACTIVE.value}:
         raise AppError(
             "CAMPAIGN_NOT_ACTIVE",
             "Campaign must be active before activation",
@@ -482,7 +482,9 @@ async def create_campaign_assignment(
             "Vehicle was not found",
             status_code=status.HTTP_404_NOT_FOUND,
         )
-    ensure_campaign_assignable(campaign, now)
+    schedule_campaign = campaign.status == CampaignStatus.APPROVED.value
+    if not schedule_campaign:
+        ensure_campaign_assignable(campaign, now)
     if campaign.start_at is None or campaign.end_at is None:
         raise AppError(
             "COMPLETE_CAMPAIGN_WINDOW_REQUIRED",
@@ -535,6 +537,20 @@ async def create_campaign_assignment(
     )
     session.add(assignment)
     await flush_translating_exclusivity_conflict(session)
+    if schedule_campaign:
+        campaign.status = CampaignStatus.SCHEDULED.value
+        await create_audit_event(
+            session,
+            actor_user_id=admin_user_id,
+            action="admin.campaign.scheduled",
+            entity_type="campaign",
+            entity_id=str(campaign.id),
+            metadata={
+                "status_before": CampaignStatus.APPROVED.value,
+                "status_after": campaign.status,
+                "assignment_id": str(assignment.id),
+            },
+        )
     await create_activation_event(
         session,
         assignment=assignment,
@@ -1954,8 +1970,11 @@ async def activate_admin_assignment(
         campaign_id=campaign.id,
     )
     previous_status = assignment.status
+    activate_campaign = campaign.status == CampaignStatus.SCHEDULED.value
     assignment.status = CampaignAssignmentStatus.ACTIVE.value
     assignment.activated_at = now
+    if activate_campaign:
+        campaign.status = CampaignStatus.ACTIVE.value
     snapshot: dict[str, object] = {
         "version": ACTIVATION_SNAPSHOT_VERSION,
         "assignment_id": str(assignment.id),
@@ -2006,6 +2025,20 @@ async def activate_admin_assignment(
             "activation_snapshot_sha256": event_metadata["activation_snapshot_sha256"],
         },
     )
+    if activate_campaign:
+        await create_audit_event(
+            session,
+            actor_user_id=admin_user_id,
+            action="admin.campaign.activated",
+            entity_type="campaign",
+            entity_id=str(campaign.id),
+            metadata={
+                "status_before": CampaignStatus.SCHEDULED.value,
+                "status_after": campaign.status,
+                "assignment_id": str(assignment.id),
+                "activation_snapshot_sha256": event_metadata["activation_snapshot_sha256"],
+            },
+        )
     await session.refresh(assignment)
     return assignment
 
