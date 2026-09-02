@@ -47,7 +47,7 @@ the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `6`
 **Current capacity assignment:** `R02`
-**Current capacity justification:** Authentication/readiness, privacy/audience, historical migration tests, signed-v2 payout fixtures, money/reversal concurrency and trip-enqueue tests have enumerated disjoint paths. R02 is frozen and performs no writes. The privacy owner retains its existing dirty migration/generated-contract lease; none of the four new correction packets may touch those files. V13 exclusively owns its three product services, while V12 and V14 remain test-only. Each owner must stop before any file or mutation-domain overlap.
+**Current capacity justification:** Six implementation owners have enumerated disjoint paths: authentication/readiness; the cohesive privacy/audience continuation; historical migration tests; signed-v2 payout fixtures; money/reversal concurrency; and trip-enqueue tests. R02 is frozen and performs no writes. The new privacy continuation exclusively owns the released migration/generated-contract lane and must reconcile the inherited R39–R44 dirty bytes before further mutation. V13 exclusively owns its three product services, while V11, V12 and V14 remain test-only. Each owner must stop before any file or mutation-domain overlap.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -83,15 +83,17 @@ policy, external inputs and evidence-triggered observations are parked in
 real-service aggregate passed 1722 tests with zero skips and collected the full
 remaining blocker set: 47 out-of-packet repository failures plus five disposable
 runner environment failures. The 28-test control cascade is already reduced to
-and fixed as one controller formatting error. Three disjoint packets now own the
-remaining repository groups: historical migration fixtures; signed-v2 payout
-fixtures; two genuine reversal deadlocks; and trip-end/enqueue lifecycle
-expectations. Four disjoint visible tasks now own those groups. R02 stays frozen until those groups are admitted; its next broad
+and fixed as one controller formatting error. Four disjoint visible tasks own
+the remaining repository groups: historical migration fixtures; signed-v2
+payout fixtures; two genuine reversal deadlocks; and trip-end/enqueue lifecycle
+expectations. R02 stays frozen until those groups are admitted; its next broad
 run must also provide GPG, Node and a host-visible nested-Docker mount. R03
-remains held until R02 passes and the privacy chain releases generated contracts.
-In parallel, R11→R12→R14 and the serialized R39→R44 privacy/audit lane retain
-their existing leases. R17 remains parked in `to-do.md`; R36 waits for the
-serialized lane.
+remains held until R02 passes and generated contracts stabilize. In parallel,
+R11→R12→R14 remains active. The prior privacy owner terminalized partially:
+R39, R40 and R44 are frozen complete; R41 and D30 need bounded correction; and
+R42–R43 were unstarted. A fresh cohesive Sol/medium task now owns that exact
+R41/D30→R42→R43 continuation and the serialized migration/generated-contract
+lane. R17 remains parked in `to-do.md`; R29 and R36 wait for that lane.
 
 ## Direct owner requests outside the package queue
 
