@@ -307,16 +307,16 @@ trigger and a newly reviewed authority amendment.
 | Candidate | State | Required authority |
 | --- | --- | --- |
 | AUD-006 | OWNER DECISION | allowed campaign lifecycle states for planning-source links |
-| AUT-006 | OWNER DECISION | privilege-elevation session/reauthentication policy |
+| AUT-006 | DECIDED — REVIEW FOR EXECUTION | D27: password reauthentication plus global session revocation before elevation |
 | AUT-007 | OWNER DECISION | explicit tenant selection or one-membership policy |
 | COM-008 | OWNER DECISION — OPEN | corporate-credit facility ceiling and recorder/approver policy, including legacy, retry, concurrency, and immutable audit |
-| OFF-008 | OWNER DECISION | ambiguous-End capture/resend and sequence-gap policy |
+| OFF-008 | DECIDED — REVIEW FOR EXECUTION | D27: stop capture, retain evidence and retry the identical End until authoritative confirmation |
 | ONB-003 | OWNER DECISION | duplicate NIN/phone/bank-account policy |
 | ONB-004 | OWNER DECISION | maximum vehicle-approval horizon and renewal relation |
 | ONB-005 | OWNER DECISION | maker-checker separation for onboarding approvals |
-| ONB-008 | OWNER DECISION | global registration abuse/availability policy |
+| ONB-008 | DECIDED — REVIEW FOR EXECUTION | D27: per-IP and normalized-identity limits, non-revealing responses and alerts; no global switch |
 | ONB-009 | OWNER DECISION | account activation and initial credential/session policy |
-| REL-007 | OWNER DECISION | bundled-only or managed DB/Redis topology |
+| REL-007 | DECIDED — REVIEW FOR EXECUTION | D27: bundled or managed; production requires TLS, authentication, explicit hostnames and supplied secrets |
 | REP-007 | OWNER DECISION | lawful report retention/withdrawal/link policy |
 
 ### External inputs
@@ -785,3 +785,5 @@ verification is complete.
 | 330 | 200 | 1 | PRODUCT_CORRECTION_ACCEPTED | V07's current zone-name fingerprint correction and field-scoped suppression regression were accepted after exact hash reconciliation and controller PostgreSQL verification. | product commit `06b8a50`; controller exact test 1 passed plus Ruff/diff checks; independent M/PRV+SEC/CP-PRIVACY PASS; V07 lane released |
 | 331 | 201 | 1 | PACKET_STARTED | The released V07 owner began the cohesive R39→R44 privacy/audit chain on the serialized migration/generated-contract lane, using separate internal slice checkpoints and one terminal callback. | task `01a05ef6-92fc-7df1-bd39-50e8c2fee530`; GPT-5.6 Sol/high — privacy, audit, migration and deletion authority; exact disjointness from S04/S07/V06/R02 recorded |
 | 332 | 202 | 1 | MODEL_AND_DECISION_POLICY_AMENDED | Future remediation sessions default to Sol/medium; Sol/high/xhigh requires a concrete unusually critical justification, and developer-answerable choices must be surfaced directly rather than left in the client/external parking list. | direct owner/developer instruction; already-running packets retain current models; next decision batch covers AUT-006, OFF-008 and ONB-008 before later REL-007/R17 questions |
+| 333 | 203 | 1 | INTEGRATION_CORRECTION_ACCEPTED | V06's fresh demo/rich seed paths now construct signed canonical v2 evidence before demo-only payout, while existing v1 rows remain immutable and missing legacy money remains prohibited. | product commit `9e1c0d7`; exact four-file digest `d3932dfe...`; controller 4 critical PostgreSQL/PostGIS passes; independent M/MNY/SEC PASS; V06 lane released |
+| 334 | 204 | 1 | OWNER_DECISIONS_RECORDED | D27 adopts every recommended developer option: reauthenticate plus global revocation for elevation, exact End retry without continued capture, scoped registration-abuse controls, flexible bundled/managed topology with production transport/auth requirements, and delayed coverage policy. | AUT-006/OFF-008/ONB-008/REL-007 move to current-source review eligibility; R17 remains parked; no external value invented |

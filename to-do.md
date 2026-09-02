@@ -25,24 +25,12 @@ below is claimed complete, waived, or supplied.
 - `REP-007` — approve lawful report retention, withdrawal/tombstone, backup,
   and presigned-link expiry/revocation rules.
 
-## Developer or technical policy awaiting your answer
+## Developer or technical policy intentionally parked
 
-These are not client-only questions. The controller must bring them to the
-project owner/developer in small decision batches and record the answers; they
-must not remain parked indefinitely merely because the original audit called
-them owner decisions.
-
-- `AUT-006` — choose reauthentication/session-rotation behavior for privilege
-  elevation.
-- `OFF-008` — choose ambiguous-End resend versus continued capture behavior and
-  sequence-gap representation.
-- `ONB-008` — set registration-abuse thresholds, availability trade-offs, and
-  alerting policy.
-- `REL-007` — choose bundled versus managed PostgreSQL/Redis topology and its
-  TLS/authentication/hostname rules.
 - `R17 / TST-007` — define exact backend/frontend coverage paths, metrics,
   floors, changed-code base selection, and ratchet policy. This is CI policy,
-  not a currently demonstrated product-runtime defect.
+  not a currently demonstrated product-runtime defect; D27 deliberately parks
+  it until current runtime product and engineering defects are complete.
 
 ## External systems, facts, or evidence still required
 
@@ -92,3 +80,12 @@ them owner decisions.
 - `R36 / OFF-005` — engineering may use the already reviewed durable
   migration/model/signing design for replay-stable per-sample dispositions;
   this is integrity implementation, not a client product decision.
+- `AUT-006` — privilege elevation requires password reauthentication and global
+  session revocation before elevated authority is usable.
+- `OFF-008` — an ambiguous End stops capture and retries the identical durable
+  End request until authoritative confirmation.
+- `ONB-008` — registration abuse uses per-IP and normalized-identity limits,
+  non-revealing responses, and operational alerts rather than a global switch.
+- `REL-007` — bundled and managed PostgreSQL/Redis are both supported, while
+  production requires TLS, authentication, explicit hostnames, and supplied
+  secrets.
