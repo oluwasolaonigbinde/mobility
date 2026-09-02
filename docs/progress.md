@@ -45,9 +45,9 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R02`
-**Current capacity justification:** R02's focused CI runner correction is accepted and its next full-service run is held. Inside the single active R02 slice, fresh Opus 5 High packet R02-A owns only stale migration/control test fixtures and fresh Opus 5 High packet R02-B owns only stale seed/trip-processing test fixtures. Their four test paths are disjoint and occupy the two justified writer slots. R46 returns to the ready queue until either correction packet releases a slot. Read-only Claude Opus product/UX audits remain outside the repository mutation pool.
+**Current justified remediation writer capacity:** `3`
+**Current capacity assignment:** `R02, R46`
+**Current capacity justification:** R02's final aggregate remains held. Inside R02, fresh Opus 5 High packet R02-A owns only stale migration/control test fixtures and R02-B owns only stale seed/trip-processing test fixtures. R46 runs in a fresh Sol/medium local session and owns only the new cohort selector plus measurement/report services and their two focused tests. The seven paths are disjoint; no migration, generated-contract, frontend, shared-fixture or controller-document writer overlaps, which justifies the temporary third writer. Read-only Claude Opus product/UX audits remain outside this mutation pool.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -90,8 +90,8 @@ chain with migrations 0075–0077. R29→R30 is accepted at `32d617f` and R45 at
 provisions the application Redis URL, `jq`, lockfile-pinned frontend dependencies and
 Playwright Chromium; focused checks and an immutable frontend-image build are green.
 Its final aggregate is held while fresh Opus packets R02-A and R02-B reconcile
-the remaining repository failures. R46 remains ready and is dispatched when either
-test-only correction releases a writer slot. R17 remains parked in
+the remaining repository failures. R46 is active in a third, explicitly disjoint
+Sol/medium lane. R17 remains parked in
 `to-do.md`.
 
 ## Direct owner requests outside the package queue
@@ -1594,7 +1594,7 @@ durable ledger before changing a row.
 | R43 | PRV-007 | R42 | COMPLETE | PASS — R43-P | PASS — R43-M | CP-PRIVACY PASS — R43-CP-PRIVACY |
 | R44 | AUD-005 | R16, R40 | COMPLETE | PASS — R44-P | PASS — R44-M | CP-PRIVACY PASS — R44-CP-PRIVACY |
 | R45 | MET-003 | R04, R41 | COMPLETE | PASS — R45-P | PASS — R45-M | CP-REPORTING PASS — R45-CP-REPORTING |
-| R46 | REP-001 | R45 | QUEUED | PASS — R46-P | PENDING | CP-REPORTING PENDING |
+| R46 | REP-001 | R45 | ACTIVE | PASS — R46-P | PENDING | CP-REPORTING PENDING |
 | R47 | MET-001, MET-002, MET-004, REP-002 | R41, R46 | QUEUED | PASS — R47-P | PENDING | CP-REPORTING PENDING |
 | R48 | REP-003 | R47 | QUEUED | PASS — R48-P | PENDING | CP-REPORTING PENDING |
 | R49 | REP-004 | R47, R48 | QUEUED | PASS — R49-P | PENDING | CP-REPORTING PENDING |
