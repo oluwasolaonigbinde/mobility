@@ -45,9 +45,9 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `6`
+**Current justified remediation writer capacity:** `1`
 **Current capacity assignment:** `R02`
-**Current capacity justification:** Six implementation owners have enumerated disjoint paths: R54 release templates/preflight; the cohesive privacy/audience continuation; historical migration tests; signed-v2 payout fixtures; AUT-006 admin-elevation security; and trip-enqueue tests. R02 is frozen and performs no writes. The privacy continuation exclusively owns the migration/generated-contract lane and must reconcile the inherited R39–R44 dirty bytes before further mutation. V11, V12 and V14 remain test-only. R54 owns the configuration/template lane, while AUT-006 owns only user-mutation elevation and focused auth tests. Each owner must stop before any file or mutation-domain overlap.
+**Current capacity justification:** AUT-006 is the only active repository writer and owns the admin-user API/schema plus generated-contract surface. R29→R30, R36→R37 and R45→R52 all require the same serialized migration or generated-contract lane; R56 requires the audit-route fixture already leased to AUT-006. R02's expensive complete-suite gate waits for the accepted AUT-006 base so it is not run twice. Four read-only Claude Opus product/UX audits are being launched outside the repository mutation pool; they do not block remediation. Refill AUT-006's released lane immediately with the longest ready cohesive chain, then run R02 and the disjoint R56 matrix in parallel where their final surfaces no longer overlap.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -79,22 +79,16 @@ authority. The active queue now prioritizes locally executable product and
 engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
-**Current checkpoint:** `PKG-10 / R02` — R02's single complete faithful
-real-service aggregate passed 1722 tests with zero skips and collected the full
-remaining blocker set: 47 out-of-packet repository failures plus five disposable
-runner environment failures. The 28-test control cascade is already reduced to
-and fixed as one controller formatting error. Four disjoint visible tasks own
-the remaining repository groups: historical migration fixtures; signed-v2
-payout fixtures; two genuine reversal deadlocks; and trip-end/enqueue lifecycle
-expectations. R02 stays frozen until those groups are admitted; its next broad
-run must also provide GPG, Node and a host-visible nested-Docker mount. R03
-remains held until R02 passes and generated contracts stabilize. R11→R12→R14
-is accepted and its released configuration/template lane is now assigned to
-R54. The prior privacy owner terminalized partially:
-R39, R40 and R44 are frozen complete; R41 and D30 need bounded correction; and
-R42–R43 were unstarted. A fresh cohesive Sol/medium task now owns that exact
-R41/D30→R42→R43 continuation and the serialized migration/generated-contract
-lane. R17 remains parked in `to-do.md`; R29 and R36 wait for that lane.
+**Current checkpoint:** `PKG-10 / R02` — every repository failure group
+discovered by R02's complete 1,772-test authority run is now accepted: V11
+historical migration fixtures, V12 signed-v2 payout fixtures, V13 reversal
+deadlocks, V14 trip-end/enqueue lifecycle and the controller-state correction.
+R54 is accepted. R39→R44 plus D30 are accepted as one integrated privacy/audit
+chain with migrations 0075–0077. AUT-006 is the sole active writer because its
+admin-user schema/API change temporarily owns generated contracts and the
+audit-route fixture. Once accepted, immediately refill with the longest ready
+serialized chain and start R02's one final immutable full-service run with GPG,
+Node and a host-visible nested-Docker path. R17 remains parked in `to-do.md`.
 
 ## Direct owner requests outside the package queue
 
@@ -1588,12 +1582,12 @@ durable ledger before changing a row.
 | R36 | OFF-005 | R35 | QUEUED | PASS — R36-P | PENDING | CP-OFFLINE PENDING |
 | R37 | OFF-006 | R36 | QUEUED | PASS — R37-P | PENDING | CP-OFFLINE PENDING |
 | R38 | PRV-001, PRV-002 | R13 | COMPLETE | PASS — R38-P | PASS — R38-M | CP-PRIVACY PASS — R38-CP-PRIVACY |
-| R39 | PRV-003 | R38 | QUEUED | PASS — R39-P | PENDING | CP-PRIVACY PENDING |
-| R40 | PRV-004, AUD-001, AUD-002 | R16, R39 | QUEUED | PASS — R40-P | PENDING | CP-PRIVACY PENDING |
-| R41 | PRV-009, AUD-004, TST-010 | R40 | QUEUED | PASS — R41-P | PENDING | CP-PRIVACY PENDING |
-| R42 | PRV-005, PRV-006 | R41 | QUEUED | PASS — R42-P | PENDING | CP-PRIVACY PENDING |
-| R43 | PRV-007 | R42 | QUEUED | PASS — R43-P | PENDING | CP-PRIVACY PENDING |
-| R44 | AUD-005 | R16, R40 | QUEUED | PASS — R44-P | PENDING | CP-PRIVACY PENDING |
+| R39 | PRV-003 | R38 | COMPLETE | PASS — R39-P | PASS — R39-M | CP-PRIVACY PASS — R39-CP-PRIVACY |
+| R40 | PRV-004, AUD-001, AUD-002 | R16, R39 | COMPLETE | PASS — R40-P | PASS — R40-M | CP-PRIVACY PASS — R40-CP-PRIVACY |
+| R41 | PRV-009, AUD-004, TST-010 | R40 | COMPLETE | PASS — R41-P | PASS — R41-M | CP-PRIVACY PASS — R41-CP-PRIVACY |
+| R42 | PRV-005, PRV-006 | R41 | COMPLETE | PASS — R42-P | PASS — R42-M | CP-PRIVACY PASS — R42-CP-PRIVACY |
+| R43 | PRV-007 | R42 | COMPLETE | PASS — R43-P | PASS — R43-M | CP-PRIVACY PASS — R43-CP-PRIVACY |
+| R44 | AUD-005 | R16, R40 | COMPLETE | PASS — R44-P | PASS — R44-M | CP-PRIVACY PASS — R44-CP-PRIVACY |
 | R45 | MET-003 | R04, R41 | QUEUED | PASS — R45-P | PENDING | CP-REPORTING PENDING |
 | R46 | REP-001 | R45 | QUEUED | PASS — R46-P | PENDING | CP-REPORTING PENDING |
 | R47 | MET-001, MET-002, MET-004, REP-002 | R41, R46 | QUEUED | PASS — R47-P | PENDING | CP-REPORTING PENDING |
@@ -1603,7 +1597,7 @@ durable ledger before changing a row.
 | R51 | REP-006 | R43, R49, R50 | QUEUED | PASS — R51-P | PENDING | CP-REPORTING PENDING |
 | R52 | MET-006 | R51 | QUEUED | PASS — R52-P | PENDING | CP-REPORTING PENDING |
 | R53 | REL-005 | none | COMPLETE | PASS — R53-P | PASS — R53-M | CP-RELEASE PASS — R53-CP-RELEASE |
-| R54 | REL-006 | R12, R16, R53 | QUEUED | PASS — R54-P | PENDING | CP-RELEASE PENDING |
+| R54 | REL-006 | R12, R16, R53 | COMPLETE | PASS — R54-P | PASS — R54-M | CP-RELEASE PASS — R54-CP-RELEASE |
 | R55 | REL-004 | R03, R18, R48, R51, R54 | QUEUED | PASS — R55-P | PENDING | CP-RELEASE PENDING |
 | R56 | TST-005 | R09, R11, R14, R40 | QUEUED | PASS — R56-P | PENDING | CP-SECURITY PENDING |
 | R57 | TST-008 | R19, R27, R49, R55 | QUEUED | PASS — R57-P | PENDING | CP-RELEASE PENDING |
