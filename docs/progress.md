@@ -45,9 +45,9 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `1`
-**Current capacity assignment:** `R02`
-**Current capacity justification:** AUT-006 is the only active repository writer and owns the admin-user API/schema plus generated-contract surface. R29→R30, R36→R37 and R45→R52 all require the same serialized migration or generated-contract lane; R56 requires the audit-route fixture already leased to AUT-006. R02's expensive complete-suite gate waits for the accepted AUT-006 base so it is not run twice. Three read-only Claude Opus product/UX audits are running outside the repository mutation pool; they do not block remediation. Refill AUT-006's released lane immediately with the longest ready cohesive chain, then run R02 and the disjoint R56 matrix in parallel where their final surfaces no longer overlap.
+**Current justified remediation writer capacity:** `2`
+**Current capacity assignment:** `R29, R56`
+**Current capacity justification:** AUT-006 is accepted and its generated-contract/audit-route lease is released. Two fresh, disjoint writers now run: the cohesive R29→R30 campaign assignment/challenge chain owns campaign, evidence-verification and migration 0078 surfaces; R56 owns only the authorization-matrix and audit-route test surfaces. R36→R37 and R45→R52 remain serialized behind R29's migration lane. R02's expensive complete-suite gate waits for R56's accepted registry/matrix base so it is run once. Three read-only Claude Opus product/UX audits continue outside the repository mutation pool.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -79,7 +79,8 @@ authority. The active queue now prioritizes locally executable product and
 engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
-**Current checkpoint:** `PKG-10 / R02` — every repository failure group
+**Current checkpoint:** `PKG-10 / R02` — AUT-006 is accepted at `a4c9de2`.
+Every repository failure group
 discovered by R02's complete 1,772-test authority run is now accepted: V11
 historical migration fixtures, V12 signed-v2 payout fixtures, V13 reversal
 deadlocks, V14 trip-end/enqueue lifecycle and the controller-state correction.
@@ -88,7 +89,9 @@ chain with migrations 0075–0077. AUT-006 is the sole active writer because its
 admin-user schema/API change temporarily owns generated contracts and the
 audit-route fixture. Once accepted, immediately refill with the longest ready
 serialized chain and start R02's one final immutable full-service run with GPG,
-Node and a host-visible nested-Docker path. R17 remains parked in `to-do.md`.
+Node and a host-visible nested-Docker path. R29→R30 and R56 are the current
+disjoint writers; R02 resumes after R56 is accepted. R17 remains parked in
+`to-do.md`.
 
 ## Direct owner requests outside the package queue
 
@@ -1546,7 +1549,7 @@ durable ledger before changing a row.
 | Slice | Candidate IDs | Dependencies | State | Plan review | Diff review | Domain checkpoint |
 | --- | --- | --- | --- | --- | --- | --- |
 | R01 | GOV-001 | none | COMPLETE | PASS — R01-P | PASS — R01-M | CP-CONTROL PASS — R01-CP-CONTROL |
-| R02 | GOV-003, TST-001, DB-005 | R01, R04 | ACTIVE | PASS — R02-P | PENDING | CP-CONTROL PENDING |
+| R02 | GOV-003, TST-001, DB-005 | R01, R04 | QUEUED | PASS — R02-P | PENDING | CP-CONTROL PENDING |
 | R03 | GOV-004 | R02 | QUEUED | PASS — R03-P | PENDING | CP-CONTROL PENDING |
 | R04 | DB-004 | none | COMPLETE | PASS — R04-P | PASS — R04-M | CP-DB PASS — R04-CP-DB |
 | R05 | DB-001, TST-012, ONB-010 | R02, R04 | QUEUED | PASS — R05-P | PENDING | CP-DB PENDING |
@@ -1573,7 +1576,7 @@ durable ledger before changing a row.
 | R26 | COM-006 | R08, R25 | COMPLETE | PASS — R26-P | PASS — R26-M | CP-COMMERCIAL PASS — R26-CP-COMMERCIAL |
 | R27 | COM-007 | R08, R26 | COMPLETE | PASS — R27-P | PASS — R27-M | CP-COMMERCIAL PASS — R27-CP-COMMERCIAL |
 | R28 | CAM-001 | none | COMPLETE | PASS — R28-P | PASS — R28-M | CP-CAMPAIGN PASS — R28-CP-CAMPAIGN |
-| R29 | CAM-002 | R04, R08, R28 | QUEUED | PASS — R29-P | PENDING | CP-CAMPAIGN PENDING |
+| R29 | CAM-002 | R04, R08, R28 | ACTIVE | PASS — R29-P | PENDING | CP-CAMPAIGN PENDING |
 | R30 | CAM-003 | R29 | QUEUED | PASS — R30-P | PENDING | CP-CAMPAIGN PENDING |
 | R31 | CAM-004 | R18, R19, R30 | QUEUED | PASS — R31-P | PENDING | CP-CAMPAIGN PENDING |
 | R32 | ONB-002 | none | COMPLETE | PASS — R32-P | PASS — R32-M | CP-ONBOARDING PASS — R32-CP-ONBOARDING |
@@ -1600,7 +1603,7 @@ durable ledger before changing a row.
 | R53 | REL-005 | none | COMPLETE | PASS — R53-P | PASS — R53-M | CP-RELEASE PASS — R53-CP-RELEASE |
 | R54 | REL-006 | R12, R16, R53 | COMPLETE | PASS — R54-P | PASS — R54-M | CP-RELEASE PASS — R54-CP-RELEASE |
 | R55 | REL-004 | R03, R18, R48, R51, R54 | QUEUED | PASS — R55-P | PENDING | CP-RELEASE PENDING |
-| R56 | TST-005 | R09, R11, R14, R40 | QUEUED | PASS — R56-P | PENDING | CP-SECURITY PENDING |
+| R56 | TST-005 | R09, R11, R14, R40 | ACTIVE | PASS — R56-P | PENDING | CP-SECURITY PENDING |
 | R57 | TST-008 | R19, R27, R49, R55 | QUEUED | PASS — R57-P | PENDING | CP-RELEASE PENDING |
 | R58 | TST-011 | R15, R20, R21, R43, R49, R51 | QUEUED | PASS — R58-P | PENDING | CP-WORKERS PENDING |
 | R59 | TST-002 | R22, R31, R33, R37, R41, R44, R48, R50, R51, R56, R57, R58 | QUEUED | PENDING | PENDING | CP-RELEASE PENDING |
