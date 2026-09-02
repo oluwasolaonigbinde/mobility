@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 158
+plan_revision: 160
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 282
+last_event_sequence: 284
 ---
 
 # Cardvert audit remediation programme
@@ -223,7 +223,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | Slice | Candidate IDs | State | Dependencies / lane | Accepted evidence | Next action |
 | --- | --- | --- | --- | --- | --- |
 | R01 | GOV-001 | ACCEPTED | control opener | R01-P; R01-M; R01-CP-CONTROL; red/green validator evidence | complete |
-| R02 | GOV-003, TST-001, DB-005 | READY | R01, R04; control | R02-P; GRAPH-CP-CONTROL | wait for a serialized central-config writer lane |
+| R02 | GOV-003, TST-001, DB-005 | BLOCKED-OWNER | R01, R04; control/branch authority | R02-P; GRAPH-CP-CONTROL; exact preserved `a3e8129f...` packet | owner must choose every-branch push (expand validator lease) or master-only push+PR (narrow architecture/GOV-003 and repeat plan/graph review); R03/R17 remain held |
 | R03 | GOV-004 | WAITING | R02; control/contracts | R03-P; reviewed runtime/snapshot/TypeScript authority contract | wait for accepted R02 and released generated-contract lane |
 | R04 | DB-004 | ACCEPTED | database opener | R04-P; R04-M; R04-CP-DB; exact PostgreSQL/PostGIS catalog and constraint-timing red/green | complete |
 | R05 | DB-001, TST-012, ONB-010 | WAITING | R02, R04 | R05-P; reviewed savepoint/conflict contract | wait for accepted R02, R23 disbursement recheck and exact lease |
@@ -255,7 +255,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R31 | CAM-004 | WAITING | R18, R19, R30 | R31-P; reviewed frozen assignment-window contract | wait for predecessors and trip lease |
 | R32 | ONB-002 | ACCEPTED | onboarding opener | R32-P/M/SEC/DB/CP-ONBOARDING; PostgreSQL and contract evidence | complete |
 | R33 | ONB-006 | WAITING | R05, R32 | R33-P; current 50k-row exact-index experiment | wait for accepted R05; revalidate exact-index plan |
-| R34 | OFF-001 | ACTIVE | R04; offline opener | R34-P; frozen 38-file implementation `f25bd28f...`; registry correction returned | fix order-dependent v2 batch fixture, then repeat mandatory aggregate/full gates and admission review |
+| R34 | OFF-001 | COMPLETE | R04; offline opener | R34-P/M; DB/PRV/SEC/MNY; CP-OFFLINE; accepted product commit `a95a7ca` | complete; released R35 and central migration/contract/config lanes |
 | R35 | OFF-002, OFF-003 | COMPLETE | R34 | R35-P/M; OFF+SEC; CP-OFFLINE; exact `e232ab7d...` freeze; 65 focused frontend passes plus typecheck/lint/format | accepted exactly once; offline frontend lease released |
 | R36 | OFF-005 | ACTIVE | R35 | R36-P; reviewed partial-acceptance contract | exact lease: `app/services/trips.py`, `app/schemas/trips.py`, `app/api/v1/trips.py`, `tests/test_trips.py`, `tests/test_trip_evidence_r34.py`, `frontend/src/app/driver/actions.ts`, driver trip tracker and test, ping queue and test, `openapi.json`, `docs/api/openapi.snapshot.json`, `frontend/src/lib/api/schema.d.ts`; migrations and all other paths excluded |
 | R37 | OFF-006 | WAITING | R36 | R37-P; reviewed deactivation-drain contract; durable break case: terminal deadletter-only retained evidence needs server-side final adjudication/sealing authority without client deletion | wait for accepted R36; reconcile the R35 evidence pointer during R37 implementation/review |
@@ -735,3 +735,5 @@ verification is complete.
 | 280 | 156 | 1 | DISPATCH_RESERVED | R36/OFF-005 reserved an exact cross-stack trip-ingest/partial-ACK/queue/contract lease after accepted R35 released the offline frontend surfaces. | GPT-5.6 Sol/high — database and offline evidence partial-completion semantics; disjoint from R02; no migration authority |
 | 281 | 157 | 1 | DISPATCH_STARTED | Existing visible S01 resumed R02 from its exact preserved three-path checkpoint and inherited evidence, with no replay of accepted R02-P/GRAPH-CP-CONTROL. | task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d`; GPT-5.6 Sol/high; stop for the out-of-lease every-branch vs master-only authority conflict if contribution-blocking |
 | 282 | 158 | 1 | DISPATCH_STARTED | Existing visible S12 began R36/OFF-005 implementation on the exact disjoint trip-ingest/client-queue/generated-contract lease. | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879`; GPT-5.6 Sol/high; no migration/model authority; R37 obligation remains held |
+| 283 | 159 | 1 | IMPLEMENTATION_BLOCKED_OWNER | R02's exact preserved packet cannot be admitted because accepted GOV-003/architecture require every-branch push while the current workflow and progress validator require master-only push plus PR. | task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d`; exact `a3e8129f...`; no writes during resume; owner choice A/B required; R03/R17 held |
+| 284 | 160 | 1 | CAPACITY_AUDITED | R36 is the only safe active writer: R25 conflicts on generated contracts, R38 conflicts on trip surfaces, and every other unaccepted slice is dependency- or owner-blocked. | writer capacity one until R36 releases its lease or R02 authority is resolved; no idle safe executable lane exists |

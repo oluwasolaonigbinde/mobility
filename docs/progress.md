@@ -45,9 +45,9 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R02, R36`
-**Current capacity justification:** R02 resumes only its preserved workflow/fixture/CI-authority checkpoint. R36 owns the disjoint trip-ingest, queue-response, focused tests and synchronized generated-contract surfaces listed in the remediation ledger. Neither packet may edit the other's paths; migrations, shared controller files and every other service remain unleased.
+**Current justified remediation writer capacity:** `1`
+**Current capacity assignment:** `R36`
+**Current capacity justification:** R02 is frozen BLOCKED-OWNER on the every-branch versus master-only CI authority decision. R36 remains the sole active owner on trip-ingest, queue-response and synchronized generated-contract surfaces. R25 cannot overlap R36's contract lane, R38 cannot overlap its trip surfaces, and all other unaccepted slices are dependency- or owner-blocked, so no additional safe writer exists until R36 returns or the owner resolves R02.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -78,12 +78,13 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 resumed from the exact safe pause snapshot without changing any accepted slice
 or any of the 29 non-executable dispositions.
-**Current checkpoint:** `PKG-10 / R02-R36` — R09 and R35 are accepted after
-exact-byte admission. R02 is reserved against its preserved three-path digest;
-R36 is reserved for mixed-validity ping partial acceptance on an exact disjoint
-backend/frontend/contract lease. R35's disclosed false red-evidence claims are
-excluded from closure evidence; its server-side deadletter-only final-sealing
-gap is a durable R37 break case, not a client-side R35 deletion authority.
+**Current checkpoint:** `PKG-10 / R36` — R36 is implementing mixed-validity
+ping partial acceptance on its exact backend/frontend/contract lease. R02 is
+frozen BLOCKED-OWNER at digest `a3e8129f...`: the owner must choose every-branch
+push authority or master-only push plus PR authority before its lease, accepted
+contract and verification can be reconciled. R35's disclosed false red-evidence
+claims are excluded from closure evidence; its server-side deadletter-only
+final-sealing gap remains a durable R37 break case.
 
 ## Direct owner requests outside the package queue
 
@@ -1527,14 +1528,14 @@ durable ledger before changing a row.
 | Slice | Candidate IDs | Dependencies | State | Plan review | Diff review | Domain checkpoint |
 | --- | --- | --- | --- | --- | --- | --- |
 | R01 | GOV-001 | none | COMPLETE | PASS — R01-P | PASS — R01-M | CP-CONTROL PASS — R01-CP-CONTROL |
-| R02 | GOV-003, TST-001, DB-005 | R01, R04 | ACTIVE | PASS — R02-P | PENDING | CP-CONTROL PENDING |
+| R02 | GOV-003, TST-001, DB-005 | R01, R04 | QUEUED | PASS — R02-P | PENDING | CP-CONTROL PENDING |
 | R03 | GOV-004 | R02 | QUEUED | PASS — R03-P | PENDING | CP-CONTROL PENDING |
 | R04 | DB-004 | none | COMPLETE | PASS — R04-P | PASS — R04-M | CP-DB PASS — R04-CP-DB |
 | R05 | DB-001, TST-012, ONB-010 | R02, R04 | QUEUED | PASS — R05-P | PENDING | CP-DB PENDING |
 | R06 | DB-002 | R02, R04, R05 | QUEUED | PENDING | PENDING | CP-DB PENDING |
 | R07 | DB-003 | R02, R04, R06 | QUEUED | PASS — R07-P | PENDING | CP-DB PENDING |
 | R08 | GOV-005 | none | COMPLETE | PASS — R08-P | PASS — R08-M | CP-SECURITY PASS — R08-CP-SECURITY |
-| R09 | GOV-007, AUT-001, AUT-002 | R10 | COMPLETE | PASS — R09-P | PASS — R09-M | CP-SECURITY PASS |
+| R09 | GOV-007, AUT-001, AUT-002 | R10 | COMPLETE | PASS — R09-P | PASS — R09-M | CP-SECURITY PASS — R09-CP-SECURITY |
 | R10 | AUT-005 | R08 | COMPLETE | PASS — R10-P | PASS — R10-M | CP-SECURITY PASS — R10-CP-SECURITY |
 | R11 | AUT-004 | R09 | QUEUED | PENDING | PENDING | CP-SECURITY PENDING |
 | R12 | AUT-003, REL-003 | R11 | QUEUED | PASS — R12-P | PENDING | CP-SECURITY PENDING |
@@ -1560,7 +1561,7 @@ durable ledger before changing a row.
 | R32 | ONB-002 | none | COMPLETE | PASS — R32-P | PASS — R32-M | CP-ONBOARDING PASS — R32-CP-ONBOARDING |
 | R33 | ONB-006 | R05, R32 | QUEUED | PASS — R33-P | PENDING | CP-ONBOARDING PENDING |
 | R34 | OFF-001 | R04 | COMPLETE | PASS — R34-P | PASS — R34-M | CP-OFFLINE PASS — R34-CP-OFFLINE |
-| R35 | OFF-002, OFF-003 | R34 | COMPLETE | PASS — R35-P | PASS — R35-M | CP-OFFLINE PASS |
+| R35 | OFF-002, OFF-003 | R34 | COMPLETE | PASS — R35-P | PASS — R35-M | CP-OFFLINE PASS — R35-CP-OFFLINE |
 | R36 | OFF-005 | R35 | ACTIVE | PASS — R36-P | PENDING | CP-OFFLINE PENDING |
 | R37 | OFF-006 | R36 | QUEUED | PASS — R37-P | PENDING | CP-OFFLINE PENDING |
 | R38 | PRV-001, PRV-002 | R13 | QUEUED | PASS — R38-P | PENDING | CP-PRIVACY PENDING |
