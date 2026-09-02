@@ -80,18 +80,17 @@ engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
 **Current checkpoint:** `PKG-10 / R02` — V06's signed-v2 demo-seed correction is
-accepted at `9e1c0d7`. R02's exact CI patch is frozen after its immutable real-
-service run reached 634 passes and zero skips before an unrelated R13 test's
-absolute three-second wall-clock assertion failed on otherwise correct bounded
-output and memory behavior. V08 owns only that disproportional test gate using
-Terra/high; R02 will resume unchanged after its acceptance. R03 remains held
+accepted at `9e1c0d7`. V08 removed the unrelated R13 test's hardware-sensitive
+three-second timer at accepted commit `d6359f9` while preserving its exact
+redaction, adversarial input, component-bound and peak-memory assertions. R02
+is resuming its unchanged immutable real-service gate using Sol/medium. R03 remains held
 until R02 passes and the privacy chain releases generated contracts. In parallel,
 the disjoint R11→R12→R14 security/readiness session and R28 administrator
 campaign-activation session are active. The accepted V07 owner now holds the
 serialized R39→R44 privacy/audit migration and generated-contract lane. Four
-temporary writer lanes are safe: auth/config/edge, campaign lifecycle, the
-privacy/audit chain, and the one-file V08 test correction share no files or
-mutation domains; R02 is frozen and non-writing. R17 remains parked in `to-do.md`; R36 waits for
+temporary writer lanes are safe: auth/config/edge, campaign lifecycle and the
+privacy/audit chain share no files or mutation domains; R02 is verification-only.
+R17 remains parked in `to-do.md`; R36 waits for
 the serialized lane. No production legacy-money rule is weakened.
 
 ## Direct owner requests outside the package queue
