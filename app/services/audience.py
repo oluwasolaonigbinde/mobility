@@ -503,6 +503,7 @@ def _zone_fingerprint(zone: CampaignZone) -> str:
         {
             "id": str(zone.id),
             "campaign_id": str(zone.campaign_id),
+            "name": zone.name,
             "zone_type": zone.zone_type,
             "updated_at": _iso_utc(zone.updated_at),
         }

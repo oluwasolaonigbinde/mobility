@@ -173,9 +173,10 @@ def test_zone_insights_are_governed_authorized_and_frozen_into_segment_history(
     )
     assert suppressed["state"] == "suppressed"
     assert suppressed["items"] == []
+    assert suppressed["campaign_exposure_score"] is None
     assert suppressed["provenance"] is None
+    assert suppressed["uncertainty"] is None
     assert "zone_name" not in str(suppressed)
-    assert "120" not in str(suppressed)
 
     async def make_parent_stale() -> dict:
         async with db_sessionmaker() as session:
@@ -198,6 +199,7 @@ def test_zone_insights_are_governed_authorized_and_frozen_into_segment_history(
     assert stale["state"] == "stale"
     assert stale["items"] == []
     assert stale["provenance"] is None
+    assert "Changed after issuance" not in str(stale)
 
 
 def test_zone_insight_live_disclosure_gate_runs_before_authority_reads(
