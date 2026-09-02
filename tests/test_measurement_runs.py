@@ -10,21 +10,26 @@ from conftest import (
     create_test_campaign_creative,
     create_test_display_proof,
     create_test_organization,
+    create_test_payout_rule,
     create_test_user,
 )
-from sqlalchemy import func, select
-from test_advertiser_reports import DAY_1, PASSWORD, create_report_graph
+from sqlalchemy import delete, func, select
+from test_advertiser_reports import DAY_1, PASSWORD, add_payout_calculation, create_report_graph
 
 from app.core.config import get_settings
 from app.models.campaign import CampaignStatus, CreativeStatus
 from app.models.campaign_assignment import CampaignActivationEvent
+from app.models.impression import ImpressionEstimate
 from app.models.installation_evidence import InstallationEvidenceSubmission
 from app.models.measurement import MeasurementRun
-from app.models.payout import PayoutCalculation
+from app.models.payout import EarningsLedgerEntry, PayoutCalculation
+from app.models.trip import TripSession
+from app.models.trip_analytics import TripAnalytics
 from app.models.user import UserRole
 from app.schemas.measurement import MeasurementRunCreate
 from app.services.campaign_assignments import activation_snapshot_digest
 from app.services.measurement import issue_measurement_run
+from app.services.report_cohorts import select_report_cohort
 
 
 def create_measurement_graph(
@@ -232,6 +237,66 @@ def test_measurement_run_replays_reproduces_reissues_and_drives_report(
     assert asyncio.run(count_runs()) == 2
 
 
+def test_measurement_and_screen_share_trip_start_cohort_when_sources_arrive_late(
+    db_client, db_sessionmaker
+) -> None:
+    admin, advertiser, campaign = create_measurement_graph(
+        db_sessionmaker, identity_tag="measurement-late-sources"
+    )
+
+    async def delay_derivative_sources() -> None:
+        async with db_sessionmaker() as session:
+            estimate = await session.scalar(
+                select(ImpressionEstimate).where(ImpressionEstimate.campaign_id == campaign.id)
+            )
+            payout = await session.scalar(
+                select(PayoutCalculation).where(PayoutCalculation.campaign_id == campaign.id)
+            )
+            assert estimate is not None and payout is not None
+            estimate.estimated_at = estimate.estimated_at + timedelta(days=3)
+            payout.calculated_at = DAY_1 + timedelta(days=4)
+            await session.commit()
+
+    asyncio.run(delay_derivative_sources())
+    response = db_client.post(
+        "/api/v1/admin/measurement-runs",
+        json=issue_payload(campaign.id),
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+    )
+
+    assert response.status_code == 201, response.text
+    run = response.json()
+    assert len(run["input_manifest"]["sources"]["impression_estimates"]) == 1, run["input_manifest"]
+    metrics = {row["id"]: row for row in run["result_manifest"]["metrics"]}
+    assert metrics["modelled_potential_contacts"]["value"] == "500.00"
+    assert metrics["driver_campaign_cost"]["totals_by_currency"] == [
+        {"currency": "NGN", "value": "1200.00"}
+    ]
+    report = db_client.get(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/report",
+        params={
+            "start_at": DAY_1.isoformat(),
+            "end_at": (DAY_1 + timedelta(days=1)).isoformat(),
+        },
+        headers=auth_headers(db_client, advertiser.email, PASSWORD),
+    ).json()
+    assert report["impression_summary"]["estimated_impressions"] == "500.00"
+    assert report["cost_summary"]["totals_by_currency"][0]["final_payout_total"] == "1200.00"
+    assert len(run["input_manifest"]["cohort"]) == 1
+    assert run["input_manifest"]["cohort"][0]["trip_fingerprint"]
+    for source_rows in run["input_manifest"]["sources"].values():
+        assert all(row["source_fingerprint"] for row in source_rows)
+
+    repeated = db_client.post(
+        "/api/v1/admin/measurement-runs",
+        json=issue_payload(campaign.id),
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+    ).json()
+    assert repeated["input_manifest_sha256"] == run["input_manifest_sha256"]
+    assert repeated["result_manifest_sha256"] == run["result_manifest_sha256"]
+    assert repeated["report_snapshot_sha256"] == run["report_snapshot_sha256"]
+
+
 def test_profile_revision_reissues_current_measurement_without_rewriting_frozen_run(
     db_client, db_sessionmaker
 ) -> None:
@@ -407,6 +472,86 @@ def test_measurement_result_manifest_is_canonical_json() -> None:
         "roi": None,
     }
     json.dumps(calculate_measurement_result(manifest), sort_keys=True)
+
+
+def test_postgres_cohort_orders_trips_and_selects_one_replacement_payout(
+    postgis_db_sessionmaker, settings
+) -> None:
+    admin, advertiser, campaign = create_measurement_graph(
+        postgis_db_sessionmaker, identity_tag="measurement-pg-cohort"
+    )
+    create_report_graph(
+        postgis_db_sessionmaker,
+        admin=admin,
+        advertiser=advertiser,
+        campaign=campaign,
+        driver_email="measurement-pg-cohort-second@example.com",
+        plate_number="PG-COHORT-2",
+        started_at=DAY_1 + timedelta(hours=1),
+    )
+
+    async def original_sources():
+        async with postgis_db_sessionmaker() as session:
+            trip = await session.scalar(
+                select(TripSession)
+                .where(TripSession.campaign_id == campaign.id)
+                .order_by(TripSession.started_at)
+            )
+            assert trip is not None
+            analytics = await session.scalar(
+                select(TripAnalytics).where(TripAnalytics.trip_session_id == trip.id)
+            )
+            estimate = await session.scalar(
+                select(ImpressionEstimate).where(ImpressionEstimate.trip_session_id == trip.id)
+            )
+            ledger = await session.scalar(
+                select(EarningsLedgerEntry).where(EarningsLedgerEntry.trip_session_id == trip.id)
+            )
+            assert analytics is not None and estimate is not None and ledger is not None
+            await session.execute(
+                delete(EarningsLedgerEntry).where(EarningsLedgerEntry.trip_session_id == trip.id)
+            )
+            await session.commit()
+            return trip, analytics, estimate, ledger.driver_user_id
+
+    trip, analytics, estimate, driver_user_id = asyncio.run(original_sources())
+    replacement_rule = create_test_payout_rule(
+        postgis_db_sessionmaker,
+        campaign_id=campaign.id,
+        created_by_user_id=admin.id,
+        currency=campaign.currency,
+        status="inactive",
+    )
+    add_payout_calculation(
+        postgis_db_sessionmaker,
+        trip=trip,
+        analytics=analytics,
+        estimate=estimate,
+        payout_rule_id=replacement_rule.id,
+        driver_user_id=driver_user_id,
+        status="calculated",
+        final_payout=Decimal("700.00"),
+        gross_payout=Decimal("800.00"),
+        calculated_at=DAY_1 + timedelta(days=3),
+    )
+
+    async def selected():
+        async with postgis_db_sessionmaker() as session:
+            return await select_report_cohort(
+                session,
+                campaign_id=campaign.id,
+                start_at=DAY_1,
+                end_at=DAY_1 + timedelta(days=1),
+                settings=settings,
+            )
+
+    cohort = asyncio.run(selected())
+    assert [row.started_at for row in cohort.trips] == sorted(
+        row.started_at for row in cohort.trips
+    )
+    first_trip_payouts = [row for row in cohort.payouts if row.trip_session_id == trip.id]
+    assert len(first_trip_payouts) == 1
+    assert first_trip_payouts[0].final_payout == Decimal("700.00")
 
 
 def test_concurrent_same_request_converges_on_postgres(postgis_db_sessionmaker, settings) -> None:

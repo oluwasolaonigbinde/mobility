@@ -19,6 +19,7 @@ from conftest import (
     fetch_impression_estimates,
     fetch_payout_calculations,
 )
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status as http_status
 
@@ -490,6 +491,97 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(db_clien
     assert report_data["summary"]["id"] == str(campaign.id)
     assert len(report_data["daily_metrics"]) == 2
     assert report_data["creative_summary"]["total"] == 2
+
+
+def test_campaign_report_uses_half_open_trip_cohort_and_latest_payout_once(
+    db_client, db_sessionmaker
+) -> None:
+    admin = create_test_user(db_sessionmaker, email="admin-cohort@example.com", password=PASSWORD)
+    advertiser = create_test_user(
+        db_sessionmaker,
+        email="adv-cohort@example.com",
+        password=PASSWORD,
+        role=UserRole.ADVERTISER,
+    )
+    organization, _ = create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
+    campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=advertiser.id,
+        campaign_status=CampaignStatus.ACTIVE,
+        start_at=DAY_1,
+        end_at=DAY_2 + timedelta(days=2),
+    )
+    driver, _, _, _, trip, analytics, estimate = create_report_graph(
+        db_sessionmaker,
+        admin=admin,
+        advertiser=advertiser,
+        campaign=campaign,
+        driver_email="driver-cohort@example.com",
+        plate_number="COHORT-1",
+        started_at=DAY_1,
+    )
+    create_report_graph(
+        db_sessionmaker,
+        admin=admin,
+        advertiser=advertiser,
+        campaign=campaign,
+        driver_email="driver-cohort-end@example.com",
+        plate_number="COHORT-END",
+        started_at=DAY_2,
+        estimated_impressions=Decimal("9000.00"),
+        final_payout=Decimal("9000.00"),
+        gross_payout=Decimal("9000.00"),
+    )
+
+    async def delay_sources() -> None:
+        async with db_sessionmaker() as session:
+            stored_estimate = await session.get(ImpressionEstimate, estimate.id)
+            payout = await session.scalar(
+                select(PayoutCalculation).where(PayoutCalculation.trip_session_id == trip.id)
+            )
+            assert stored_estimate is not None and payout is not None
+            stored_estimate.estimated_at = stored_estimate.estimated_at + timedelta(days=3)
+            payout.calculated_at = DAY_2 + timedelta(days=2)
+            await session.execute(
+                delete(EarningsLedgerEntry).where(EarningsLedgerEntry.trip_session_id == trip.id)
+            )
+            await session.commit()
+
+    asyncio.run(delay_sources())
+    replacement_rule = create_test_payout_rule(
+        db_sessionmaker,
+        campaign_id=campaign.id,
+        created_by_user_id=admin.id,
+        currency=campaign.currency,
+        status="inactive",
+    )
+    add_payout_calculation(
+        db_sessionmaker,
+        trip=trip,
+        analytics=analytics,
+        estimate=estimate,
+        payout_rule_id=replacement_rule.id,
+        driver_user_id=driver.id,
+        status="calculated",
+        final_payout=Decimal("700.00"),
+        gross_payout=Decimal("800.00"),
+        calculated_at=DAY_2 + timedelta(days=4),
+    )
+
+    response = db_client.get(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/report",
+        params={"start_at": DAY_1.isoformat(), "end_at": DAY_2.isoformat()},
+        headers=auth_headers(db_client, advertiser.email, PASSWORD),
+    )
+
+    assert response.status_code == http_status.HTTP_200_OK, response.text
+    report = response.json()
+    assert report["trip_summary"]["total"] == 1
+    assert report["impression_summary"]["estimated_impressions"] == "500.00"
+    assert report["cost_summary"]["totals_by_currency"][0]["final_payout_total"] == "700.00"
+    assert report["cost_summary"]["totals_by_currency"][0]["calculated_trip_count"] == 1
+    assert len(report["daily_metrics"]) == 1
 
 
 def test_campaign_trip_report_is_aggregate_only_and_rbac_protected(

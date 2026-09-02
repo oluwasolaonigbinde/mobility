@@ -55,6 +55,7 @@ from app.services.disclosure import (
 )
 from app.services.impressions import current_authoritative_estimates
 from app.services.payouts import latest_payout_calculation_ids
+from app.services.report_cohorts import ReportCohort, select_report_cohort
 
 ZERO_2 = Decimal("0.00")
 ZERO_4 = Decimal("0.0000")
@@ -430,6 +431,76 @@ async def campaign_cost_summary(
     return CampaignCostSummary(totals_by_currency=totals)
 
 
+async def campaign_cost_summary_from_cohort(
+    session: AsyncSession,
+    cohort: ReportCohort,
+    *,
+    default_currency: str,
+) -> CampaignCostSummary:
+    ledger_counts: dict[UUID, int] = {}
+    payout_ids = [row.id for row in cohort.payouts]
+    if payout_ids:
+        ledger_counts = {
+            payout_id: int(count or 0)
+            for payout_id, count in (
+                await session.execute(
+                    select(
+                        EarningsLedgerEntry.payout_calculation_id,
+                        func.count(EarningsLedgerEntry.id),
+                    )
+                    .where(EarningsLedgerEntry.payout_calculation_id.in_(payout_ids))
+                    .group_by(EarningsLedgerEntry.payout_calculation_id)
+                )
+            ).all()
+        }
+    totals: dict[str, dict[str, object]] = defaultdict(
+        lambda: {
+            "final": ZERO_2,
+            "gross": ZERO_2,
+            "calculated": 0,
+            "blocked": 0,
+            "insufficient": 0,
+            "ledger": 0,
+        }
+    )
+    for payout in cohort.payouts:
+        values = totals[payout.currency]
+        values["final"] = decimal_2(values["final"]) + decimal_2(payout.final_payout)
+        values["gross"] = decimal_2(values["gross"]) + decimal_2(payout.gross_payout)
+        if payout.status == PayoutCalculationStatus.CALCULATED.value:
+            values["calculated"] = int(values["calculated"]) + 1
+        elif payout.status == PayoutCalculationStatus.BLOCKED.value:
+            values["blocked"] = int(values["blocked"]) + 1
+        elif payout.status == PayoutCalculationStatus.INSUFFICIENT_DATA.value:
+            values["insufficient"] = int(values["insufficient"]) + 1
+        values["ledger"] = int(values["ledger"]) + ledger_counts.get(payout.id, 0)
+    rows = [
+        CampaignCostCurrencySummary(
+            currency=currency,
+            final_payout_total=decimal_2(values["final"]),
+            gross_payout_total=decimal_2(values["gross"]),
+            calculated_trip_count=int(values["calculated"]),
+            blocked_trip_count=int(values["blocked"]),
+            insufficient_data_trip_count=int(values["insufficient"]),
+            ledger_entry_count=int(values["ledger"]),
+        )
+        for currency, values in sorted(totals.items())
+    ]
+    if not rows:
+        rows.append(
+            CampaignCostCurrencySummary(
+                currency=default_currency,
+                final_payout_total=ZERO_2,
+                gross_payout_total=ZERO_2,
+                calculated_trip_count=0,
+                blocked_trip_count=0,
+                insufficient_data_trip_count=0,
+                ledger_entry_count=0,
+            )
+        )
+    return CampaignCostSummary(totals_by_currency=rows)
+
+
 async def fraud_counts_for_org(
     session: AsyncSession,
     organization_id: UUID,
@@ -514,6 +585,89 @@ async def route_analytics_summary(
         exclusion_zone_distance_m=decimal_2(row[4]),
         average_quality_score=decimal_4(row[5]),
     )
+
+
+def trip_counts_from_cohort(cohort: ReportCohort) -> TripStatusCounts:
+    rows: dict[str, int] = defaultdict(int)
+    for trip in cohort.trips:
+        rows[str(trip.status)] += 1
+    return TripStatusCounts(
+        **status_counts(fold_sealed_into_ended(list(rows.items())), TRIP_STATUSES)
+    )
+
+
+def route_analytics_from_cohort(cohort: ReportCohort) -> RouteAnalyticsSummary:
+    rows = cohort.analytics
+    return RouteAnalyticsSummary(
+        analyzed_trip_count=len(rows),
+        total_distance_m=decimal_2(sum((row.distance_m for row in rows), Decimal(0))),
+        target_zone_distance_m=decimal_2(
+            sum((row.target_zone_distance_m for row in rows), Decimal(0))
+        ),
+        bonus_zone_distance_m=decimal_2(
+            sum((row.bonus_zone_distance_m for row in rows), Decimal(0))
+        ),
+        exclusion_zone_distance_m=decimal_2(
+            sum((row.exclusion_zone_distance_m for row in rows), Decimal(0))
+        ),
+        average_quality_score=decimal_4(
+            sum((row.quality_score for row in rows), Decimal(0)) / len(rows) if rows else Decimal(0)
+        ),
+    )
+
+
+def impression_summary_from_cohort(cohort: ReportCohort) -> ImpressionSummary:
+    rows = cohort.impressions
+    return ImpressionSummary(
+        estimated_impressions=decimal_2(
+            sum((row.estimated_impressions for row in rows), Decimal(0))
+        ),
+        estimated_trip_count=sum(
+            row.status == ImpressionEstimateStatus.ESTIMATED.value for row in rows
+        ),
+        insufficient_data_trip_count=sum(
+            row.status == ImpressionEstimateStatus.INSUFFICIENT_DATA.value for row in rows
+        ),
+        excluded_trip_count=sum(
+            row.status == ImpressionEstimateStatus.EXCLUDED.value for row in rows
+        ),
+        average_confidence_score=decimal_4(
+            sum((row.confidence_score for row in rows), Decimal(0)) / len(rows)
+            if rows
+            else Decimal(0)
+        ),
+    )
+
+
+async def fraud_counts_from_cohort(session: AsyncSession, cohort: ReportCohort) -> FraudFlagCounts:
+    values = {status_value: 0 for status_value in FRAUD_STATUSES}
+    severities = {severity: 0 for severity in FRAUD_SEVERITIES}
+    if cohort.trip_ids:
+        values.update(
+            {
+                str(status_value): int(count or 0)
+                for status_value, count in (
+                    await session.execute(
+                        select(FraudFlag.status, func.count(FraudFlag.id))
+                        .where(FraudFlag.trip_session_id.in_(cohort.trip_ids))
+                        .group_by(FraudFlag.status)
+                    )
+                ).all()
+            }
+        )
+        severities.update(
+            {
+                str(severity): int(count or 0)
+                for severity, count in (
+                    await session.execute(
+                        select(FraudFlag.severity, func.count(FraudFlag.id))
+                        .where(FraudFlag.trip_session_id.in_(cohort.trip_ids))
+                        .group_by(FraudFlag.severity)
+                    )
+                ).all()
+            }
+        )
+    return FraudFlagCounts(**values, **severities)
 
 
 async def quality_summary_for_org(
@@ -624,6 +778,7 @@ async def advertiser_campaign_summary(
     start_at: datetime | None,
     end_at: datetime | None,
     settings: Settings,
+    cohort: ReportCohort | None = None,
 ) -> CampaignSummary:
     organization_id = await require_governed_advertiser_output(
         session,
@@ -645,38 +800,51 @@ async def advertiser_campaign_summary(
         creatives=await creative_status_counts(session, campaign.id),
         zones=await zone_type_counts(session, campaign.id),
         assignments=await assignment_counts_for_campaign(session, campaign.id),
-        trips=await trip_counts_for_campaign(
-            session,
-            campaign.id,
-            start_at=start_at,
-            end_at=end_at,
+        trips=(
+            trip_counts_from_cohort(cohort)
+            if cohort is not None
+            else await trip_counts_for_campaign(
+                session, campaign.id, start_at=start_at, end_at=end_at
+            )
         ),
-        route_analytics=await route_analytics_summary(
-            session,
-            campaign.id,
-            start_at=start_at,
-            end_at=end_at,
+        route_analytics=(
+            route_analytics_from_cohort(cohort)
+            if cohort is not None
+            else await route_analytics_summary(
+                session, campaign.id, start_at=start_at, end_at=end_at
+            )
         ),
-        impressions=await impression_summary_for_campaign(
-            session,
-            campaign.id,
-            start_at=start_at,
-            end_at=end_at,
-            settings=settings,
+        impressions=(
+            impression_summary_from_cohort(cohort)
+            if cohort is not None
+            else await impression_summary_for_campaign(
+                session,
+                campaign.id,
+                start_at=start_at,
+                end_at=end_at,
+                settings=settings,
+            )
         ),
-        costs=await campaign_cost_summary(
-            session,
-            campaign.id,
-            start_at=start_at,
-            end_at=end_at,
-            default_currency=campaign.currency,
-            settings=settings,
+        costs=(
+            await campaign_cost_summary_from_cohort(
+                session, cohort, default_currency=campaign.currency
+            )
+            if cohort is not None
+            else await campaign_cost_summary(
+                session,
+                campaign.id,
+                start_at=start_at,
+                end_at=end_at,
+                default_currency=campaign.currency,
+                settings=settings,
+            )
         ),
-        fraud_flags=await fraud_counts_for_campaign(
-            session,
-            campaign.id,
-            start_at=start_at,
-            end_at=end_at,
+        fraud_flags=(
+            await fraud_counts_from_cohort(session, cohort)
+            if cohort is not None
+            else await fraud_counts_for_campaign(
+                session, campaign.id, start_at=start_at, end_at=end_at
+            )
         ),
     )
     await record_governed_trip_output(
@@ -704,6 +872,7 @@ async def daily_metrics_for_campaign(
     limit: int,
     offset: int,
     settings: Settings,
+    cohort: ReportCohort | None = None,
 ) -> DailyMetricsResponse:
     organization_id = await require_governed_advertiser_output(
         session,
@@ -734,11 +903,16 @@ async def daily_metrics_for_campaign(
         }
     )
 
-    trip_filters = [TripSession.campaign_id == campaign.id]
-    apply_range(trip_filters, TripSession.started_at, start_at, end_at)
-    trip_rows = (
-        await session.execute(select(TripSession.id, TripSession.started_at).where(*trip_filters))
-    ).all()
+    if cohort is None:
+        trip_filters = [TripSession.campaign_id == campaign.id]
+        apply_range(trip_filters, TripSession.started_at, start_at, end_at)
+        trip_rows = (
+            await session.execute(
+                select(TripSession.id, TripSession.started_at).where(*trip_filters)
+            )
+        ).all()
+    else:
+        trip_rows = [(trip.id, trip.started_at) for trip in cohort.trips]
     trip_days = {trip_id: utc_day(started_at) for trip_id, started_at in trip_rows}
     for day in trip_days.values():
         by_day[day]["trip_count"] = int(by_day[day]["trip_count"]) + 1
@@ -746,14 +920,18 @@ async def daily_metrics_for_campaign(
     if trip_days:
         trip_ids = list(trip_days)
         analytics_rows = (
-            await session.execute(
-                select(
-                    TripAnalytics.trip_session_id,
-                    TripAnalytics.distance_m,
-                    TripAnalytics.quality_score,
-                ).where(TripAnalytics.trip_session_id.in_(trip_ids))
-            )
-        ).all()
+            [(row.trip_session_id, row.distance_m, row.quality_score) for row in cohort.analytics]
+            if cohort is not None
+            else (
+                await session.execute(
+                    select(
+                        TripAnalytics.trip_session_id,
+                        TripAnalytics.distance_m,
+                        TripAnalytics.quality_score,
+                    ).where(TripAnalytics.trip_session_id.in_(trip_ids))
+                )
+            ).all()
+        )
         for trip_id, distance_m, quality_score in analytics_rows:
             day = trip_days[trip_id]
             by_day[day]["analyzed_trip_count"] = int(by_day[day]["analyzed_trip_count"]) + 1
@@ -763,20 +941,25 @@ async def daily_metrics_for_campaign(
             )
             by_day[day]["quality_count"] = int(by_day[day]["quality_count"]) + 1
 
-        estimate_rows = list(
-            (
-                await session.scalars(
-                    select(ImpressionEstimate).where(
-                        ImpressionEstimate.trip_session_id.in_(trip_ids),
-                        ImpressionEstimate.formula_version == settings.impression_formula_version,
-                        ImpressionEstimate.is_authoritative.is_(True),
+        if cohort is None:
+            estimate_rows = list(
+                (
+                    await session.scalars(
+                        select(ImpressionEstimate).where(
+                            ImpressionEstimate.trip_session_id.in_(trip_ids),
+                            ImpressionEstimate.formula_version
+                            == settings.impression_formula_version,
+                            ImpressionEstimate.is_authoritative.is_(True),
+                        )
                     )
-                )
-            ).all()
-        )
-        for estimate in await current_authoritative_estimates(
-            session, estimate_rows, settings=settings
-        ):
+                ).all()
+            )
+            estimate_rows = await current_authoritative_estimates(
+                session, estimate_rows, settings=settings
+            )
+        else:
+            estimate_rows = list(cohort.impressions)
+        for estimate in estimate_rows:
             day = trip_days[estimate.trip_session_id]
             by_day[day]["estimated_impressions"] = decimal_2(
                 by_day[day]["estimated_impressions"]
@@ -787,17 +970,21 @@ async def daily_metrics_for_campaign(
             by_day[day]["confidence_count"] = int(by_day[day]["confidence_count"]) + 1
 
         payout_rows = (
-            await session.execute(
-                select(
-                    PayoutCalculation.trip_session_id,
-                    PayoutCalculation.final_payout,
-                    PayoutCalculation.gross_payout,
-                ).where(
-                    PayoutCalculation.trip_session_id.in_(trip_ids),
-                    PayoutCalculation.id.in_(latest_payout_calculation_ids(trip_ids=trip_ids)),
+            [(row.trip_session_id, row.final_payout, row.gross_payout) for row in cohort.payouts]
+            if cohort is not None
+            else (
+                await session.execute(
+                    select(
+                        PayoutCalculation.trip_session_id,
+                        PayoutCalculation.final_payout,
+                        PayoutCalculation.gross_payout,
+                    ).where(
+                        PayoutCalculation.trip_session_id.in_(trip_ids),
+                        PayoutCalculation.id.in_(latest_payout_calculation_ids(trip_ids=trip_ids)),
+                    )
                 )
-            )
-        ).all()
+            ).all()
+        )
         for trip_id, final_payout, gross_payout in payout_rows:
             day = trip_days[trip_id]
             by_day[day]["final_payout_total"] = decimal_2(
@@ -1103,13 +1290,32 @@ async def build_dynamic_campaign_report(
     start_at: datetime | None,
     end_at: datetime | None,
     settings: Settings,
+    cohort: ReportCohort | None = None,
 ) -> CampaignReportResponse:
-    await require_governed_advertiser_output(
+    organization_id = await require_governed_advertiser_output(
         session,
         settings=settings,
         route_id="advertiser.campaign.report",
         user_id=user_id,
     )
+    campaign = await get_advertiser_campaign(
+        session,
+        user_id=user_id,
+        campaign_id=campaign_id,
+    )
+    await lock_trip_disclosure_snapshot(
+        session,
+        tenant_id=organization_id,
+        campaign_id=campaign.id,
+    )
+    if cohort is None:
+        cohort = await select_report_cohort(
+            session,
+            campaign_id=campaign.id,
+            start_at=start_at,
+            end_at=end_at,
+            settings=settings,
+        )
     summary = await advertiser_campaign_summary(
         session,
         user_id=user_id,
@@ -1117,6 +1323,7 @@ async def build_dynamic_campaign_report(
         start_at=start_at,
         end_at=end_at,
         settings=settings,
+        cohort=cohort,
     )
     daily_metrics = await daily_metrics_for_campaign(
         session,
@@ -1127,6 +1334,7 @@ async def build_dynamic_campaign_report(
         limit=366,
         offset=0,
         settings=settings,
+        cohort=cohort,
     )
     return CampaignReportResponse(
         campaign_id=summary.campaign.id,

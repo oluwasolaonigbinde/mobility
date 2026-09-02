@@ -21,13 +21,9 @@ from app.models.campaign_assignment import (
 )
 from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.exposure_score import ExposureScore
-from app.models.impression import ImpressionEstimate
 from app.models.installation_evidence import InstallationEvidenceSubmission
 from app.models.measurement import MeasurementRun, MeasurementRunProofBinding
 from app.models.organization import OrganizationMembership
-from app.models.payout import PayoutCalculation
-from app.models.trip import TripSession
-from app.models.trip_analytics import TripAnalytics
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.measurement import MeasurementRunCreate, MeasurementRunRead
 from app.services.admin_authorization import require_active_admin
@@ -42,7 +38,7 @@ from app.services.heatmaps import (
     AUTHORITATIVE_AUDIENCE_CELL_FORMULA_VERSION,
     authoritative_audience_trip_cell_counts,
 )
-from app.services.impressions import current_authoritative_estimates
+from app.services.report_cohorts import select_report_cohort
 from app.services.reports import build_dynamic_campaign_report
 
 MEASUREMENT_FORMULA_VERSION = "measurement-result-v1"
@@ -407,54 +403,16 @@ async def issue_measurement_run(
         tenant_id=campaign.organization_id,
         campaign_id=campaign.id,
     )
-    analytics_rows = list(
-        (
-            await session.scalars(
-                select(TripAnalytics)
-                .join(TripSession, TripSession.id == TripAnalytics.trip_session_id)
-                .where(
-                    TripAnalytics.campaign_id == campaign.id,
-                    TripSession.started_at >= payload.period_start_at,
-                    TripSession.started_at < payload.period_end_at,
-                )
-                .order_by(TripAnalytics.id)
-            )
-        ).all()
-    )
-    impression_rows = list(
-        (
-            await session.scalars(
-                select(ImpressionEstimate)
-                .join(TripSession, TripSession.id == ImpressionEstimate.trip_session_id)
-                .where(
-                    ImpressionEstimate.campaign_id == campaign.id,
-                    ImpressionEstimate.is_authoritative.is_(True),
-                    TripSession.started_at >= payload.period_start_at,
-                    TripSession.started_at < payload.period_end_at,
-                )
-                .order_by(ImpressionEstimate.id)
-            )
-        ).all()
-    )
-    impression_rows = await current_authoritative_estimates(
+    cohort = await select_report_cohort(
         session,
-        impression_rows,
+        campaign_id=campaign.id,
+        start_at=payload.period_start_at,
+        end_at=payload.period_end_at,
         settings=settings,
     )
-    payout_rows = list(
-        (
-            await session.scalars(
-                select(PayoutCalculation)
-                .join(TripSession, TripSession.id == PayoutCalculation.trip_session_id)
-                .where(
-                    PayoutCalculation.campaign_id == campaign.id,
-                    TripSession.started_at >= payload.period_start_at,
-                    TripSession.started_at < payload.period_end_at,
-                )
-                .order_by(PayoutCalculation.id)
-            )
-        ).all()
-    )
+    analytics_rows = list(cohort.analytics)
+    impression_rows = list(cohort.impressions)
+    payout_rows = list(cohort.payouts)
     assignment_ids = {
         row.assignment_id for row in [*analytics_rows, *impression_rows, *payout_rows]
     }
@@ -483,6 +441,106 @@ async def issue_measurement_run(
         window_start_at=payload.period_start_at,
         window_end_at=payload.period_end_at,
     )
+
+    def frozen_source(values: dict[str, Any]) -> dict[str, Any]:
+        frozen = _json_value(values)
+        frozen["source_fingerprint"] = canonical_sha256(frozen)
+        return frozen
+
+    def frozen_trip(values: dict[str, Any]) -> dict[str, Any]:
+        frozen = _json_value(values)
+        frozen["trip_fingerprint"] = canonical_sha256(frozen)
+        return frozen
+
+    analytics_sources = [
+        frozen_source(
+            {
+                "id": row.id,
+                "trip_session_id": row.trip_session_id,
+                "assignment_id": row.assignment_id,
+                "vehicle_id": row.vehicle_id,
+                "status": row.status,
+                "formula_version": row.formula_version,
+                "started_at": row.started_at,
+                "ended_at": row.ended_at,
+                "distance_m": row.distance_m,
+                "target_zone_distance_m": row.target_zone_distance_m,
+                "bonus_zone_distance_m": row.bonus_zone_distance_m,
+                "exclusion_zone_distance_m": row.exclusion_zone_distance_m,
+                "active_tracking_seconds": row.active_tracking_seconds,
+                "quality_score": row.quality_score,
+                "computed_at": row.computed_at,
+                "provenance": row.analytics_metadata,
+            }
+        )
+        for row in analytics_rows
+    ]
+    impression_sources = [
+        frozen_source(
+            {
+                "id": row.id,
+                "trip_session_id": row.trip_session_id,
+                "assignment_id": row.assignment_id,
+                "vehicle_id": row.vehicle_id,
+                "status": row.status,
+                "formula_version": row.formula_version,
+                "traffic_density_profile_id": row.traffic_density_profile_id,
+                "estimated_impressions": row.estimated_impressions,
+                "confidence_score": row.confidence_score,
+                "estimated_at": row.estimated_at,
+                "is_authoritative": row.is_authoritative,
+                "provenance": row.estimate_metadata,
+            }
+        )
+        for row in impression_rows
+    ]
+    payout_sources = [
+        frozen_source(
+            {
+                "id": row.id,
+                "trip_session_id": row.trip_session_id,
+                "assignment_id": row.assignment_id,
+                "vehicle_id": row.vehicle_id,
+                "status": row.status,
+                "formula_version": row.formula_version,
+                "payout_rule_id": row.payout_rule_id,
+                "currency": row.currency,
+                "final_payout": row.final_payout,
+                "gross_payout": row.gross_payout,
+                "calculated_at": row.calculated_at,
+                "inputs_fingerprint": row.inputs_fingerprint,
+                "provenance": row.payout_metadata,
+            }
+        )
+        for row in payout_rows
+    ]
+    sources_by_trip: dict[str, dict[str, list[dict[str, str]]]] = {
+        str(trip.id): {
+            "trip_analytics": [],
+            "impression_estimates": [],
+            "payout_calculations": [],
+        }
+        for trip in cohort.trips
+    }
+    for source_name, rows in (
+        ("trip_analytics", analytics_sources),
+        ("impression_estimates", impression_sources),
+        ("payout_calculations", payout_sources),
+    ):
+        for row in rows:
+            sources_by_trip[row["trip_session_id"]][source_name].append(
+                {"id": row["id"], "fingerprint": row["source_fingerprint"]}
+            )
+    cohort_manifest = [
+        frozen_trip(
+            {
+                "trip_session_id": trip.id,
+                "started_at": trip.started_at,
+                "sources": sources_by_trip[str(trip.id)],
+            }
+        )
+        for trip in cohort.trips
+    ]
     input_manifest: dict[str, Any] = {
         "schema_version": "measurement-input-manifest-v1",
         "campaign_id": str(campaign.id),
@@ -497,69 +555,11 @@ async def issue_measurement_run(
         },
         "proof_manifest_sha256": proof_sha,
         "audience_exposure_authority": audience_exposure_authority,
+        "cohort": cohort_manifest,
         "sources": {
-            "trip_analytics": [
-                _json_value(
-                    {
-                        "id": row.id,
-                        "trip_session_id": row.trip_session_id,
-                        "assignment_id": row.assignment_id,
-                        "vehicle_id": row.vehicle_id,
-                        "status": row.status,
-                        "formula_version": row.formula_version,
-                        "started_at": row.started_at,
-                        "ended_at": row.ended_at,
-                        "distance_m": row.distance_m,
-                        "target_zone_distance_m": row.target_zone_distance_m,
-                        "bonus_zone_distance_m": row.bonus_zone_distance_m,
-                        "exclusion_zone_distance_m": row.exclusion_zone_distance_m,
-                        "active_tracking_seconds": row.active_tracking_seconds,
-                        "quality_score": row.quality_score,
-                        "computed_at": row.computed_at,
-                        "provenance": row.analytics_metadata,
-                    }
-                )
-                for row in analytics_rows
-            ],
-            "impression_estimates": [
-                _json_value(
-                    {
-                        "id": row.id,
-                        "trip_session_id": row.trip_session_id,
-                        "assignment_id": row.assignment_id,
-                        "vehicle_id": row.vehicle_id,
-                        "status": row.status,
-                        "formula_version": row.formula_version,
-                        "traffic_density_profile_id": row.traffic_density_profile_id,
-                        "estimated_impressions": row.estimated_impressions,
-                        "confidence_score": row.confidence_score,
-                        "estimated_at": row.estimated_at,
-                        "is_authoritative": row.is_authoritative,
-                        "provenance": row.estimate_metadata,
-                    }
-                )
-                for row in impression_rows
-            ],
-            "payout_calculations": [
-                _json_value(
-                    {
-                        "id": row.id,
-                        "trip_session_id": row.trip_session_id,
-                        "assignment_id": row.assignment_id,
-                        "vehicle_id": row.vehicle_id,
-                        "status": row.status,
-                        "formula_version": row.formula_version,
-                        "payout_rule_id": row.payout_rule_id,
-                        "currency": row.currency,
-                        "final_payout": row.final_payout,
-                        "gross_payout": row.gross_payout,
-                        "calculated_at": row.calculated_at,
-                        "inputs_fingerprint": row.inputs_fingerprint,
-                        "provenance": row.payout_metadata,
-                    }
-                )
-                for row in payout_rows
-            ],
+            "trip_analytics": analytics_sources,
+            "impression_estimates": impression_sources,
+            "payout_calculations": payout_sources,
         },
         "roi": _json_value(payload.roi.model_dump()) if payload.roi is not None else None,
     }
@@ -589,6 +589,7 @@ async def issue_measurement_run(
         start_at=payload.period_start_at,
         end_at=payload.period_end_at,
         settings=settings.model_copy(update={"privacy_disclosure_synthetic_test_mode": True}),
+        cohort=cohort,
     )
     report_snapshot = report.model_dump(
         mode="json",
