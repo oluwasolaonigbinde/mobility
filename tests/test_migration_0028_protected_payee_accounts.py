@@ -27,7 +27,7 @@ TABLES = (
 def test_protected_payee_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0028_protected_payee_accounts", monkeypatch)
         tables = asyncio.run(
             fetch_all(
                 migration_url,
@@ -36,6 +36,17 @@ def test_protected_payee_empty_down_up_cycle(monkeypatch) -> None:
             )
         )
         assert tables == [(table,) for table in TABLES]
+        upgrade_to(migration_url, "head", monkeypatch)
+        current_tables = asyncio.run(
+            fetch_all(
+                migration_url,
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_name IN "
+                "('payee_bank_account_versions', 'payee_bank_accounts', "
+                "'payee_versions', 'payees') ORDER BY table_name",
+            )
+        )
+        assert current_tables == [(table,) for table in TABLES]
         downgrade_to(migration_url, PRE_PAYEE_REVISION, monkeypatch)
         assert (
             asyncio.run(

@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `S04 (R11→R12→R14)`, `S15–S19 (R39→R44)`, `V10 historical-migration test sweep`; `R02` is frozen and verification-only.
-**Current capacity justification:** Authentication/readiness, the serialized privacy/audit migration-and-contract lane, and V10's historical test-only files are disjoint. R02 performs no writes while V10 removes a cohesive class of stale current-head/historical-revision assertions. Each owner must stop before any file or mutation-domain overlap.
+**Current capacity assignment:** `S04 (R11→R12→R14)`, `S15–S19 (R39→R44)`, and `R02` verification.
+**Current capacity justification:** Authentication/readiness and the serialized privacy/audit migration-and-contract lane are disjoint; R02 runs an immutable candidate snapshot and performs no shared-checkout writes. V10 is accepted and its test lease is released. Each owner must stop before any file or mutation-domain overlap.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -79,18 +79,17 @@ authority. The active queue now prioritizes locally executable product and
 engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
-**Current checkpoint:** `PKG-10 / R02` — R02's unchanged immutable candidate
-passed 836 tests with zero skips before a stale migration-0028 assertion treated
-the current Alembic head as if it contained only revision-0028 payee tables.
-R02 is frozen while V10 audits and corrects the cohesive class of historical
-migration tests that compare current `head` with exact old-revision inventories;
-the next expensive complete-suite run occurs only after that sweep, not after
-each individual fixture. R03 remains held until R02 passes and the privacy chain
-releases generated contracts. In parallel, the disjoint R11→R12→R14
+**Current checkpoint:** `PKG-10 / R02` — V10 audited the cohesive class of
+historical current-head inventory assertions and corrected the sole demonstrated
+stale case: migration 0028 now proves its exact four-table boundary at revision
+0028, then separately proves those required tables survive at current head.
+R02 may make one fresh immutable complete-suite attempt from that accepted base.
+R03 remains held until R02 passes and the privacy chain releases generated
+contracts. In parallel, the disjoint R11→R12→R14
 security/readiness session and serialized R39→R44 privacy/audit migration and
 generated-contract lane remain active. R28 and V09 are accepted at `a9c417a`
 and `f44068f`. R17 remains parked in `to-do.md`; R36 waits for the serialized
-lane. No product behavior or migration is changed by V10.
+lane. V10 changed no product behavior or migration.
 
 ## Direct owner requests outside the package queue
 
