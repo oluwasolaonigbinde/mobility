@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 177
+plan_revision: 178
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 302
+last_event_sequence: 304
 ---
 
 # Cardvert audit remediation programme
@@ -755,3 +755,5 @@ verification is complete.
 | 300 | 175 | 1 | DISPATCH_STARTED | Existing visible S09 began R26/COM-006 on the exact accepted-R25 billing service and invoice concurrency-test lease with proactive terminal callback. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; GPT-5.6 Sol/high; no model/migration/API/generated-contract authority; R02 and R38 remain disjoint active owners |
 | 301 | 176 | 1 | INTEGRATION_CORRECTION_RESERVED | V04 reserved one assertion-only correction for the invited-manager campaign test exposed by R02's real-service gate: accepted privacy authority treats an invited membership as absent from active advertiser tenant context, so the stale 403 assertion must expect the established 404 organization-not-found response. | `tests/test_campaigns.py` only; GPT-5.6 Terra/high — ordinary test integration with security-sensitive authorization semantics; no product/helper/contract authority; R02 frozen and non-writing; disjoint from R26/R38 |
 | 302 | 177 | 1 | LEASE_TRANSFERRED | Frozen R02 released one line in `tests/conftest.py` to R38 so the collection synthetic authority can default independently to false while the shared test fixture enables it explicitly; R02 retains its other CI authority bytes and will absorb the accepted fixture baseline before its final stable run. | R38 exact expansion: `tests/conftest.py` fixture argument only; existing owned `app/core/config.py` and `tests/test_driver_applications.py` cover the default regression; no disclosure-authority coupling or broader R02 mutation; actual writers V04/R26/R38 remain disjoint |
+| 303 | 178 | 1 | CORRECTION_RESUMED | Existing visible S15 resumed only the bounded R38 default/fixture correction on its reconciled implementation bytes. | task `01a05ef6-92fc-7df1-bd39-50e8c2fee530`; GPT-5.6 Sol/high — privacy collection authority; repeat R38-M only; proactive terminal callback required |
+| 304 | 178 | 1 | INTEGRATION_CORRECTION_STARTED | Existing visible S12 began V04's one-file invited-membership assertion correction while R36 remains owner-blocked and unwritten. | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879`; GPT-5.6 Terra/high; exact `tests/test_campaigns.py` assertion lease; no product authority; proactive terminal callback required |
