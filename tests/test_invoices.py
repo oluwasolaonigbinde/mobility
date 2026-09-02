@@ -10,6 +10,7 @@ from app.core.errors import AppError
 from app.models.billing import IssuerVerificationStatus, ReceiptMethod
 from app.models.organization import AdvertiserOrganization
 from app.models.user import UserRole
+from app.services import billing as billing_service
 from app.services.billing import (
     allocate_payment_receipt,
     confirm_payment_receipt,
@@ -34,7 +35,9 @@ def _fixture(db_sessionmaker):
     return admin, owner, organization, campaign
 
 
-async def _issuer(session, admin, verification_status, reference, settings):
+async def _issuer(
+    session, admin, verification_status, reference, settings, *, numbering_prefix="CV"
+):
     return await record_invoice_issuer_profile(
         session,
         actor_user_id=admin.id,
@@ -43,7 +46,7 @@ async def _issuer(session, admin, verification_status, reference, settings):
         registered_address="Test fixture address, Abuja",
         country_code="NG",
         invoice_wording="VAT-inclusive test fixture invoice",
-        numbering_prefix="CV",
+        numbering_prefix=numbering_prefix,
         verification_status=verification_status,
         external_input_reference=reference,
         settings=settings,
@@ -113,12 +116,139 @@ def test_vat_invoice_issues_from_frozen_terms_and_verified_issuer_facts(
             )
             await session.commit()
             assert issued.invoice_number is not None
-            assert issued.invoice_number.startswith(f"TEST-CV-{issued.issued_at.year}-000001")
+            issued_at = issued.issued_at
+            if issued_at.tzinfo is None:
+                issued_at = issued_at.replace(tzinfo=UTC)
+            assert issued.invoice_number.startswith(
+                f"TEST-CV-{issued_at.astimezone(billing_service.LAGOS_TZ).year}-000001"
+            )
             assert issued.issuer_snapshot["legal_name"] == "Terrax Media"
             assert issued.issuer_snapshot["synthetic_test_authority"] is True
             assert issued.customer_snapshot["name"] == "Current bill-to name"
             assert issued.line_items == terms.line_items
             assert await invoice_payment_status(session, issued) == ("unpaid", Decimal("0"))
+
+    asyncio.run(scenario())
+
+
+def test_invoice_sequence_year_uses_lagos_civil_time_and_preserves_retry(
+    db_sessionmaker, settings, monkeypatch
+) -> None:
+    admin, owner, organization, before_boundary_campaign = _fixture(db_sessionmaker)
+    at_boundary_campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=admin.id,
+        name="Lagos new-year boundary campaign",
+    )
+    ordinary_date_campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=admin.id,
+        name="Ordinary Lagos date campaign",
+    )
+    alternate_prefix_campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=admin.id,
+        name="Alternate invoice prefix campaign",
+    )
+    clock = {"now": datetime(2026, 12, 31, 22, 59, 59, tzinfo=UTC)}
+
+    async def frozen_database_clock(_session):
+        return clock["now"]
+
+    monkeypatch.setattr(billing_service, "database_clock", frozen_database_clock)
+
+    async def issue_at(session, *, campaign, reference, issuer, at):
+        clock["now"] = at
+        terms = await _accepted_terms(
+            session,
+            campaign=campaign,
+            admin=admin,
+            owner=owner,
+            reference=reference,
+            amount="100.00",
+        )
+        draft = await create_invoice_draft(
+            session, commercial_terms_id=terms.id, actor_user_id=admin.id
+        )
+        return await issue_invoice(
+            session,
+            invoice_id=draft.id,
+            issuer_profile_id=issuer.id,
+            actor_user_id=admin.id,
+            settings=settings,
+        )
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            cv_issuer = await _issuer(
+                session,
+                admin,
+                IssuerVerificationStatus.SYNTHETIC,
+                "SYNTHETIC-R27-CV",
+                settings,
+            )
+            alt_issuer = await _issuer(
+                session,
+                admin,
+                IssuerVerificationStatus.SYNTHETIC,
+                "SYNTHETIC-R27-ALT",
+                settings,
+                numbering_prefix="ALT",
+            )
+            before_boundary = await issue_at(
+                session,
+                campaign=before_boundary_campaign,
+                reference="INV-R27-BEFORE",
+                issuer=cv_issuer,
+                at=datetime(2026, 12, 31, 22, 59, 59, tzinfo=UTC),
+            )
+            at_boundary = await issue_at(
+                session,
+                campaign=at_boundary_campaign,
+                reference="INV-R27-BOUNDARY",
+                issuer=cv_issuer,
+                at=datetime(2026, 12, 31, 23, 0, tzinfo=UTC),
+            )
+            ordinary_date = await issue_at(
+                session,
+                campaign=ordinary_date_campaign,
+                reference="INV-R27-ORDINARY",
+                issuer=cv_issuer,
+                at=datetime(2027, 6, 1, 12, 0, tzinfo=UTC),
+            )
+            alternate_prefix = await issue_at(
+                session,
+                campaign=alternate_prefix_campaign,
+                reference="INV-R27-ALT",
+                issuer=alt_issuer,
+                at=datetime(2027, 6, 1, 12, 0, tzinfo=UTC),
+            )
+            at_boundary_id = at_boundary.id
+            at_boundary_number = at_boundary.invoice_number
+            at_boundary_issued_at = at_boundary.issued_at
+            assert before_boundary.invoice_number == "TEST-CV-2026-000001"
+            assert at_boundary_number == "TEST-CV-2027-000001"
+            assert ordinary_date.invoice_number == "TEST-CV-2027-000002"
+            assert alternate_prefix.invoice_number == "TEST-ALT-2027-000001"
+            await session.commit()
+
+        clock["now"] = datetime(2028, 1, 1, tzinfo=UTC)
+        async with db_sessionmaker() as retry_session:
+            retried = await issue_invoice(
+                retry_session,
+                invoice_id=at_boundary_id,
+                issuer_profile_id=cv_issuer.id,
+                actor_user_id=admin.id,
+                settings=settings,
+            )
+            assert retried.invoice_number == at_boundary_number
+            persisted_issued_at = retried.issued_at
+            if persisted_issued_at.tzinfo is None:
+                persisted_issued_at = persisted_issued_at.replace(tzinfo=UTC)
+            assert persisted_issued_at.astimezone(UTC) == at_boundary_issued_at
 
     asyncio.run(scenario())
 

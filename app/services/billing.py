@@ -1284,7 +1284,7 @@ async def issue_invoice(
     organization = await session.get(AdvertiserOrganization, invoice.organization_id)
     if organization is None:
         raise AppError("ORGANIZATION_NOT_FOUND", "Organization was not found", status_code=404)
-    year = now.year
+    year = now.astimezone(LAGOS_TZ).year
     number_prefix = (
         f"TEST-{issuer.numbering_prefix}" if synthetic_test_authority else issuer.numbering_prefix
     )

@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 183
+plan_revision: 184
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 311
+last_event_sequence: 312
 ---
 
 # Cardvert audit remediation programme
@@ -248,7 +248,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R24 | COM-002 | ACCEPTED | R08, R23 | R24-P/M/MNY/CP-COMMERCIAL; causal epoch and PostgreSQL race evidence | complete at `36df828` |
 | R25 | COM-003, COM-005 | COMPLETE | R08, R24 | R25-P/M; MNY+CONTRACT; CP-COMMERCIAL | accepted exactly once at binary diff `b3086d10...`; controller 6-test PostgreSQL/API/OpenAPI check passed |
 | R26 | COM-006 | COMPLETE | R08, R25 | R26-P/M; DB+MNY; CP-COMMERCIAL | accepted exactly once at binary diff `1215074a...`; controller focused PostgreSQL gate passed |
-| R27 | COM-007 | ACTIVE | R08, R26 | R27-P; reviewed Lagos-year contract | same cohesive S09 session continues on billing invoice sequencing after verified R26 checkpoint |
+| R27 | COM-007 | COMPLETE | R08, R26 | R27-P/M; MNY; CP-COMMERCIAL | accepted exactly once at binary diff `d9cedaaf...`; Lagos boundary and PostgreSQL numbering evidence green |
 | R28 | CAM-001 | BLOCKED-OWNER | campaign opener | current-source finding confirmed; R28-P blocked | owner must define scheduled→active actor/API/idempotency, readiness coupling, and lifecycle-evidence authority |
 | R29 | CAM-002 | WAITING | R04, R08, R28 | R29-P; reviewed active-driver uniqueness contract | wait for R28 owner decision and migration lane |
 | R30 | CAM-003 | WAITING | R29 | R30-P; reviewed due-challenge finality contract | wait for R29 |
@@ -366,7 +366,7 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e60-6ce7-7cb2-ac20-300ac5275d05` | S03 / R09-R11 planning after accepted R10 | GPT-5.6 Sol/medium for planning | no mutation lease; R09 plan PASS, R11 plan BLOCKED-OWNER | PLAN-RETURNED |
 | `/root/r10_diff_review` | S03 / R10 M, SEC and CP-SECURITY review | GPT-5.6 Sol/xhigh — strict bearer claims, refresh and route authority | released accepted R10 diff `de0c8d60...` | PASS |
 | task `01a05e7a-2699-79b2-9b63-e911dfe302ef` | S06 / R16 implementation | GPT-5.6 Sol/medium — bounded provider-port composition refactor | released accepted seven-file boundary diff | ACCEPTED |
-| task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R26→R27 commercial money packet | GPT-5.6 Sol/high — bounded money and PostgreSQL concurrency authority | R26 accepted; continue directly into R27 Lagos-year invoice sequencing with separate receipt | ACTIVE |
+| task `01a05e73-3a0d-77f3-be25-54ede644cfb1` | S09 / R26→R27 commercial money packet | GPT-5.6 Sol/high — bounded money and PostgreSQL concurrency authority | both slices integrated with separate receipts; full R23→R27 lane complete | ACCEPTED |
 | `/root/r24_review` | S09 / R24 attempt-2 M, MNY and CP-COMMERCIAL review | GPT-5.6 Sol/high — bounded money/idempotency admission | released reviewed exact `d4cbf20c...` diff | PASS |
 | `/root/r24_review` | S09 / R24 M, MNY and CP-COMMERCIAL review | GPT-5.6 Sol/high — bounded money/idempotency admission | released reviewed exact `0a6333b5...` diff | FIX |
 | `/root/r13_attempt3_review` | S05 / R13 repeat M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded parser and identifier-preservation boundary | released reviewed R13 diff `506dc438...` | FIX |
@@ -764,3 +764,4 @@ verification is complete.
 | 309 | 182 | 1 | SLICE_ACCEPTED | R38/PRV-001,PRV-002 accepted exactly once after full-file hash reconciliation, diff inspection and focused controller collection-denial/default verification. | manifest `8ac0685d...`; R38-P/M, PRV+SEC and CP-PRIVACY PASS; controller combined gate 5 passed; exact 12-file scope including only one transferred conftest fixture line |
 | 310 | 182 | 1 | PACKET_RESERVED | The cohesive S01 owner may resume the frozen R02 exact CI packet on the accepted R38 fixture baseline and, after a verified internal R02 checkpoint, continue directly into R03 before one terminal callback. | task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d`; GPT-5.6 Sol/high for cross-package CI authority, then Terra/high-equivalent contract work retained under the harder packet gate; R39 waits for the shared generated-contract lane |
 | 311 | 183 | 1 | PACKET_STARTED | Existing visible S01 resumed as the cohesive R02→R03 packet using an immutable disposable candidate snapshot so concurrent disjoint R27 working-tree edits cannot invalidate the long real-service gate. | task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d`; base `e2bd059`; GPT-5.6 Sol/high; separate slice receipts; proactive full-packet terminal callback only |
+| 312 | 184 | 1 | SLICE_ACCEPTED | R27/COM-007 and the terminal R26→R27 packet were accepted after exact-digest reconciliation, diff inspection and controller Lagos-boundary/invoice verification. | binary diff `d9cedaaf...`; R27-P/M, MNY and CP-COMMERCIAL PASS; controller 2 passed; exact two-file scope; R23→R27 commercial lane complete |

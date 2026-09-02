@@ -45,9 +45,9 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R02, R27`
-**Current capacity justification:** R38 and its transferred collection-authority fixture line are accepted, so the cohesive S01 control packet may resume R02 and continue into R03 on the serialized CI/generated-contract lane. The cohesive S09 commercial packet continues R27 on billing invoice sequencing. These domains are disjoint. R39 is dependency-ready but shares generated-contract baselines with R03; it remains queued until that central lane releases, while every other unfinished front is dependency- or owner-blocked.
+**Current justified remediation writer capacity:** `1`
+**Current capacity assignment:** `R02`
+**Current capacity justification:** The cohesive R23→R27 commercial lane is complete. S01 owns the serialized R02→R03 CI/generated-contract packet. R39 is dependency-ready but shares those generated-contract baselines and remains queued until R03 releases them; R05 depends on accepted R02, while every other unfinished front is dependency- or owner-blocked. No additional safe writer exists at this checkpoint.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -80,9 +80,9 @@ resumed from the exact safe pause snapshot without changing any accepted slice
 or any of the 29 non-executable dispositions.
 **Current checkpoint:** `PKG-10 / R02` — R02 is resuming under the
 owner-selected every-branch authority and may continue directly into R03 after
-its verified internal checkpoint; R27 implements Lagos-year invoice numbering
-on the accepted R26 base. R38's collection-time GPS/KYC privacy denial is
-accepted; R39 waits for R03 to release the generated-contract lane.
+its verified internal checkpoint. The R23→R27 commercial chain and R38
+collection-time privacy gate are accepted; R39 waits for R03 to release the
+generated-contract lane.
 R36 remains frozen before first write pending the owner's migration/signing
 scope choice, with no active lease. R35's disclosed false red-evidence claims
 remain excluded from closure evidence and its final-sealing gap remains R37's.
@@ -1556,7 +1556,7 @@ durable ledger before changing a row.
 | R24 | COM-002 | R08, R23 | COMPLETE | PASS — R24-P | PASS — R24-M | CP-COMMERCIAL PASS — R24-CP-COMMERCIAL |
 | R25 | COM-003, COM-005 | R08, R24 | COMPLETE | PASS — R25-P | PASS — R25-M | CP-COMMERCIAL PASS — R25-CP-COMMERCIAL |
 | R26 | COM-006 | R08, R25 | COMPLETE | PASS — R26-P | PASS — R26-M | CP-COMMERCIAL PASS — R26-CP-COMMERCIAL |
-| R27 | COM-007 | R08, R26 | ACTIVE | PASS — R27-P | PENDING | CP-COMMERCIAL PENDING |
+| R27 | COM-007 | R08, R26 | COMPLETE | PASS — R27-P | PASS — R27-M | CP-COMMERCIAL PASS — R27-CP-COMMERCIAL |
 | R28 | CAM-001 | none | QUEUED | PENDING | PENDING | CP-CAMPAIGN PENDING |
 | R29 | CAM-002 | R04, R08, R28 | QUEUED | PASS — R29-P | PENDING | CP-CAMPAIGN PENDING |
 | R30 | CAM-003 | R29 | QUEUED | PASS — R30-P | PENDING | CP-CAMPAIGN PENDING |
