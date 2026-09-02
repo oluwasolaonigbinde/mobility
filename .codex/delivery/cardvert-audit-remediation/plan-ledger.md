@@ -1,8 +1,8 @@
 ---
 schema_version: 1
 program_id: cardvert-audit-remediation
-program_status: EXECUTING
-plan_revision: 139
+program_status: PAUSED
+plan_revision: 144
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,10 +12,45 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 263
+last_event_sequence: 268
 ---
 
 # Cardvert audit remediation programme
+
+## Owner scope pause — 2 Sep 2026
+
+The owner paused remediation dispatch and admission while reconsidering which
+of the 86 admitted FIX candidates remain proportionate current-product work.
+No new slice, correction, review, lease, owner session, or rolling-scheduler
+refill is authorized until a narrowed approved inventory is recorded.
+
+- Accepted slices remain exactly R01, R04, R08, R10, R13, R15, R16, R23,
+  R24, R32, R34, and R53. The latest accepted product commit is `a95a7ca`;
+  later HEAD `ab0c449` contains controller bookkeeping only.
+- R02 is preserved unadmitted on `.github/workflows/ci.yml`,
+  `tests/conftest.py`, and `tests/test_ci_integration_authority_r02.py` with
+  binary patch digest `a3e8129f0c3be26d64c423cdddb51253ba50744ac7521fe120a344b558af776d`.
+  Its stop instruction is delivered; only the non-destructive reviews already
+  in flight at the pause boundary may return a frozen receipt.
+- R09 is frozen unadmitted on `app/api/v1/admin.py`, `app/api/v1/auth.py`,
+  `app/services/account_recovery.py`, `app/services/auth.py`,
+  `app/services/users.py`, `docs/architecture.md`, `tests/test_auth.py`, and
+  `tests/test_auth_command_races_r09.py` with binary patch digest
+  `5b0a3f68cb2506b286a4c1d9cbbb3516d8ab43b40e59e84d0705fab8dd87e6f1`.
+- R35 is frozen unadmitted on
+  `frontend/src/app/driver/(portal)/track/trip-tracker.test.tsx`,
+  `frontend/src/app/driver/(portal)/track/trip-tracker.tsx`,
+  `frontend/src/lib/trips/ping-queue.test.ts`, and
+  `frontend/src/lib/trips/ping-queue.ts` with binary patch digest
+  `e232ab7d6ad1c956a545d733e6a6d98031b7bfd482d0d7ede32f5166e9fa0f99`.
+- Generated R35 browser evidence remains unadmitted at
+  `frontend/test-results/.last-run.json` and
+  `frontend/test-results/w403b-synthetic-pilot-jour-85253-etic-screen-on-GPS-evidence-mobile-chrome/error-context.md`.
+- No files are staged and no product test/build command remains active. A stale
+  R09 wait loop was stopped without altering evidence. Pre-existing untracked
+  audit archives, `issues/**`, `.codex/delivery/cardvert-audit-reconciliation/**`,
+  and `tests/test_audit_route_coverage.py.orig` remain outside controller-owned
+  product work and are preserved unchanged.
 
 ## Reviewed baseline and authority
 
@@ -677,3 +712,8 @@ verification is complete.
 | 261 | 137 | 1 | DIFF_REVIEW_STARTED | Frozen R35 entered independent Sol/high offline/security/minimal-change and CP-OFFLINE review so quota reset is not required for admission or correction steering. | `/root/r35_final_review`; exact four-file scope; R02 remains sole active writer |
 | 262 | 138 | 1 | REVIEW_AUTHORITY_WITHDRAWN | The owner directed the Sol/high Codex R35 offline/security review to stop now that Opus capacity returned; its just-completed PASS receipt is retained as non-admission evidence and will not be used for controller acceptance. | direct owner instruction; `/root/r35_final_review` discontinued; no product bytes changed |
 | 263 | 139 | 1 | DIFF_REVIEW_RESUMED | The existing visible R35 Opus 5 / High session resumed its frozen-byte R35-M, security and CP-OFFLINE reviews after quota reset. | session `Cardvert R35 offline queue recovery`; v3 bytes reconciled; no new mutation lease or scope expansion |
+| 264 | 140 | 1 | OWNER_SCOPE_PAUSE_REQUESTED | The owner paused all remediation dispatch and admission pending a narrowed inventory of proportionate current-product fixes. | direct owner instruction from source controller task; Sol/high authority reconciliation; no product mutation |
+| 265 | 141 | 1 | IMPLEMENTATION_FROZEN | R09 stopped at a safe unadmitted eight-file checkpoint with no staged bytes or commit. | Opus 5 / High session; exact binary patch `5b0a3f68...`; resume requires hash and lease revalidation |
+| 266 | 142 | 1 | IMPLEMENTATION_FROZEN | R35 remains an unadmitted four-file packet; its withdrawn Codex review and later Opus activity confer no admission. | exact binary patch `e232ab7d...`; generated browser evidence preserved separately |
+| 267 | 143 | 1 | PAUSE_DELIVERED | R02 received the owner stop instruction while three non-destructive read-only reviews were already in flight; no further mutation, correction, or dispatch is authorized. | exact three-path binary patch `a3e8129f...`; frozen receipt may return, but cannot be admitted during pause |
+| 268 | 144 | 1 | SCHEDULER_PAUSED | Rolling capacity is zero and no new dispatch remains; all accepted commits and unadmitted working-tree bytes are preserved for owner scope reconciliation. | accepted product head `a95a7ca`; control snapshot `ab0c449`; no staged files or active product command |
