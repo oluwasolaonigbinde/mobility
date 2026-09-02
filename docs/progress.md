@@ -84,11 +84,12 @@ fixture correction is accepted, so R02 resumes its exact immutable
 real-service gate and may continue directly into R03 after its verified
 checkpoint. The R23→R27 commercial chain and R38 collection-time privacy gate
 are accepted; R39 waits for R03 to release the generated-contract lane.
-R11 is unblocked by D26's all-device logout decision. R06 and R36 may use their
-already reviewed technical safety designs, while R28 must derive administrator
-activation from D18/Q15. R17's undetermined coverage policy is parked in
-`to-do.md`. R35's disclosed false red-evidence claims remain excluded from
-closure evidence and its final-sealing gap remains R37's.
+The disjoint R11→R12→R14 security/readiness session and R28 administrator
+campaign-activation session are active. R06 and R36 may use their already
+reviewed technical safety designs; R17's undetermined coverage policy is parked
+in `to-do.md`. R39 and R36 wait only for the current serialized generated-
+contract/migration lane. R35's disclosed false red-evidence claims remain
+excluded from closure evidence and its final-sealing gap remains R37's.
 
 ## Direct owner requests outside the package queue
 
