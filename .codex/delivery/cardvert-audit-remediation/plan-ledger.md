@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 187
+plan_revision: 188
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 316
+last_event_sequence: 318
 ---
 
 # Cardvert audit remediation programme
@@ -352,7 +352,7 @@ trigger and a newly reviewed authority amendment.
 | task `01a05e49-0107-7611-8ee8-515273881aa8` | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | released exact R15 diff | ACCEPTED |
 | task `01a05e49-48d5-7823-9388-537d0800e87b` | S07 / R28 plan and independent review | GPT-5.6 Terra/high — ordinary bounded campaign lifecycle planning | read-only; no mutation lease | BLOCKED-OWNER |
 | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32 implementation, R33 held | GPT-5.6 Sol/high — onboarding security, migration and contract authority | released accepted R32 diff; R33 remains dependency-held | ACCEPTED |
-| task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | V05 / migration-0013 ping seed correction | GPT-5.6 Terra/high — bounded historical-schema test integration | `tests/test_migration_0014_partitioning.py` seed helper only; R36 remains separately BLOCKED-OWNER | ACTIVE |
+| task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | V05 / migration-0013 ping seed correction | GPT-5.6 Terra/high — bounded historical-schema test integration | exact two-test-file correction integrated; R36 remains separately BLOCKED-OWNER | ACCEPTED |
 | Claude session `Cardvert audit-route integration correction` | R34 inherited audit-registry integration | Claude Opus 5 / High — owner-selected bounded audit/security evidence correction | exact `tests/test_audit_route_coverage.py` correction `34b7d55b...`; 7 controller PostgreSQL passes | COMPLETE-RETURNED |
 | Claude session `Cardvert R09 authentication remediation` | R09 auth command/status/reset implementation | Claude Opus 5 / High — owner-selected authentication and PostgreSQL race boundary | exact eight-path `5b0a3f68...` freeze released after controller verification | ACCEPTED |
 | task `01a05ef6-632c-79b1-bdf3-16c6e95aafd4` | S10/S11/S13/S14 aggregate R18-R22 and R29-R31 planning | GPT-5.6 Sol/high — money/migration/concurrency planning | read-only; R18-P through R22-P and R29-P through R31-P accepted | PLAN-PASS |
@@ -769,3 +769,5 @@ verification is complete.
 | 314 | 185 | 1 | INTEGRATION_CORRECTION_RESERVED | V05 reserved the one historical seed helper so all revision-0013 ping graphs use schema-era raw SQL rather than current ORM columns before upgrading to head. | `tests/test_migration_0014_partitioning.py` only; GPT-5.6 Terra/high; test-only migration integration, no product/model/migration authority; R02 frozen and non-writing |
 | 315 | 186 | 1 | INTEGRATION_CORRECTION_STARTED | Existing visible S12 began V05 on the one revision-0013 ping seed helper with a full-consumer PostgreSQL verification contract. | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879`; GPT-5.6 Terra/high; proactive terminal callback only; no product or migration writes |
 | 316 | 187 | 1 | LEASE_EXPANDED | V05 may also correct the three post-head raw batch/quarantine inserts in `tests/test_data_lifecycle_jobs.py` to supply R34's required submitted/rejected conservation columns before rerunning every seed consumer. | exact consumer-file expansion only; live empty batch remains 0/0/0 and quarantines retain submitted=ping_count, rejected=0; no model/migration/service semantics or other fixture change |
+| 317 | 188 | 1 | INTEGRATION_CORRECTION_ACCEPTED | V05's migration-0013 seed and current-head retention-fixture corrections were admitted after exact digest/hash reconciliation, diff inspection and controller PostgreSQL verification. | binary diff `11b19401...`; independent minimal-change/migration-fixture PASS; controller 2 passed; exact two test files; no product/migration behavior changed |
+| 318 | 188 | 1 | PACKET_RESUMED | The cohesive S01 R02→R03 packet may resume from the accepted V05 base, rerun the immutable full real-service authority suite, and continue to R03 only after the R02 checkpoint is fully green. | task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d`; GPT-5.6 Sol/high; separate slice receipts; full-packet terminal callback only |

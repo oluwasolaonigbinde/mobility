@@ -311,8 +311,9 @@ def test_retention_purges_expired_partitions_with_evidence(monkeypatch) -> None:
                     """
                     INSERT INTO location_ping_batches
                         (trip_session_id, idempotency_key, payload_hash,
-                         pings_accepted, received_at, metadata)
-                    VALUES (:trip_id, 'recent-empty', 'hash-recent-empty', 0,
+                         pings_submitted, pings_accepted, pings_rejected,
+                         received_at, metadata)
+                    VALUES (:trip_id, 'recent-empty', 'hash-recent-empty', 0, 0, 0,
                             :received_at, '{}'::jsonb)
                     """
                 ),
@@ -333,12 +334,12 @@ def test_retention_purges_expired_partitions_with_evidence(monkeypatch) -> None:
                     """
                     INSERT INTO quarantined_ping_batches
                         (trip_session_id, idempotency_key, payload_hash, payload,
-                         ping_count, received_at, status)
+                         ping_count, pings_submitted, pings_rejected, received_at, status)
                     VALUES
                         (:trip_id, 'quarantine-old', 'hash-q-old', '{"pings": []}'::jsonb,
-                         1, :old_received, 'quarantined'),
+                         1, 1, 0, :old_received, 'quarantined'),
                         (:trip_id, 'quarantine-recent', 'hash-q-new', '{"pings": []}'::jsonb,
-                         1, :recent_received, 'quarantined')
+                         1, 1, 0, :recent_received, 'quarantined')
                     """
                 ),
                 {
@@ -684,8 +685,8 @@ def test_non_expired_pending_detach_is_refused_and_left_untouched(monkeypatch) -
             migration_url,
             "INSERT INTO quarantined_ping_batches"
             " (trip_session_id, idempotency_key, payload_hash, payload, ping_count,"
-            "  received_at, status)"
-            " SELECT id, 'quarantine-blocked', 'hash-qb', '{\"pings\": []}'::jsonb, 1,"
+            "  pings_submitted, pings_rejected, received_at, status)"
+            " SELECT id, 'quarantine-blocked', 'hash-qb', '{\"pings\": []}'::jsonb, 1, 1, 0,"
             "        now() - interval '20 months', 'quarantined'"
             " FROM trip_sessions LIMIT 1",
         )

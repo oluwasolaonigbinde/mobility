@@ -10,7 +10,6 @@ import os
 import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -33,10 +32,8 @@ from sqlalchemy.pool import NullPool
 from alembic import command
 from app.core.config import get_settings
 from app.db.base import Base, PostGISGeometry
-from app.models.trip import LocationPing, LocationPingBatch
 from app.models.user import UserRole
 from app.services.data_lifecycle import add_months, month_start
-from app.services.trips import point_value
 
 REVISION_0014 = "0014_location_pings_partitioning"
 REVISION_0013 = "0013_payout_v2_hourly_caps"
@@ -584,39 +581,51 @@ def seed_ping_graph(migration_url: str) -> dict:
             await session.commit()
 
     asyncio.run(add_trip())
-    trip = SimpleNamespace(id=trip_id)
 
     async def add_batch(key: str, recorded_ats: list[datetime]) -> tuple[str, list[str]]:
+        batch_id = uuid4()
+        ping_ids = [uuid4() for _ in recorded_ats]
         async with sessionmaker() as session:
-            batch = LocationPingBatch(
-                trip_session_id=trip.id,
-                idempotency_key=key,
-                payload_hash=f"hash-{key}",
-                pings_accepted=len(recorded_ats),
-                received_at=recorded_ats[0],
-                batch_metadata={},
+            await session.execute(
+                text(
+                    "INSERT INTO location_ping_batches"
+                    " (id, trip_session_id, idempotency_key, payload_hash,"
+                    "  pings_accepted, received_at, metadata)"
+                    " VALUES (:id, :trip_session_id, :idempotency_key, :payload_hash,"
+                    "         :pings_accepted, :received_at, '{}'::jsonb)"
+                ),
+                {
+                    "id": batch_id,
+                    "trip_session_id": trip_id,
+                    "idempotency_key": key,
+                    "payload_hash": f"hash-{key}",
+                    "pings_accepted": len(recorded_ats),
+                    "received_at": recorded_ats[0],
+                },
             )
-            session.add(batch)
-            await session.flush()
-            ping_ids = []
-            for sequence, recorded_at in enumerate(recorded_ats):
-                ping = LocationPing(
-                    trip_session_id=trip.id,
-                    batch_id=batch.id,
-                    recorded_at=recorded_at,
-                    received_at=recorded_at,
-                    sequence_number=sequence,
-                    latitude=6.45,
-                    longitude=3.39,
-                    accuracy_m=10,
-                    geom=point_value(session, lon=3.39, lat=6.45),
-                    ping_metadata={},
+            for ping_id, (sequence, recorded_at) in zip(
+                ping_ids, enumerate(recorded_ats), strict=True
+            ):
+                await session.execute(
+                    text(
+                        "INSERT INTO location_pings"
+                        " (id, trip_session_id, batch_id, recorded_at, received_at,"
+                        "  sequence_number, latitude, longitude, accuracy_m, geom, metadata)"
+                        " VALUES (:id, :trip_session_id, :batch_id, :recorded_at, :received_at,"
+                        "         :sequence_number, 6.45, 3.39, 10,"
+                        "         ST_SetSRID(ST_MakePoint(3.39, 6.45), 4326), '{}'::jsonb)"
+                    ),
+                    {
+                        "id": ping_id,
+                        "trip_session_id": trip_id,
+                        "batch_id": batch_id,
+                        "recorded_at": recorded_at,
+                        "received_at": recorded_at,
+                        "sequence_number": sequence,
+                    },
                 )
-                session.add(ping)
-                await session.flush()
-                ping_ids.append(str(ping.id))
             await session.commit()
-            return str(batch.id), ping_ids
+            return str(batch_id), [str(ping_id) for ping_id in ping_ids]
 
     batches = {}
     batches["oldest"] = asyncio.run(
@@ -633,7 +642,7 @@ def seed_ping_graph(migration_url: str) -> dict:
         )
     )
     asyncio.run(engine.dispose())
-    return {"trip_id": str(trip.id), "batches": batches, "months": months}
+    return {"trip_id": str(trip_id), "batches": batches, "months": months}
 
 
 def test_seeded_conversion_preserves_rows_and_routes_inserts(monkeypatch) -> None:
