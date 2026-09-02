@@ -1,9 +1,15 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Request, status
 
-from app.api.v1.dependencies import AdminUserDependency, SessionDependency, SettingsDependency
+from app.api.v1.dependencies import (
+    AdminUserDependency,
+    RateLimiterDependency,
+    SessionDependency,
+    SettingsDependency,
+)
+from app.core.rate_limit import login_client_ip
 from app.models.user import UserRole, UserStatus
 from app.schemas.driver_applications import (
     DriverApplicationAdminListResponse,
@@ -221,8 +227,19 @@ async def admin_update_user(
     payload: UserUpdate,
     current_user: AdminUserDependency,
     session: SessionDependency,
+    settings: SettingsDependency,
+    request: Request,
+    rate_limiter: RateLimiterDependency,
 ) -> UserRead:
-    result = await update_user(session, user_id, payload)
+    result = await update_user(
+        session,
+        user_id,
+        payload,
+        actor_user_id=current_user.id,
+        actor_session_version=current_user.session_version,
+        rate_limiter=rate_limiter,
+        client_ip=login_client_ip(request, settings),
+    )
     await create_audit_event(
         session,
         actor_user_id=current_user.id,

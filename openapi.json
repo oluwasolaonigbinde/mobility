@@ -20125,6 +20125,19 @@
       "UserUpdate": {
         "additionalProperties": false,
         "properties": {
+          "current_password": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Password",
+            "writeOnly": true
+          },
           "full_name": {
             "anyOf": [
               {

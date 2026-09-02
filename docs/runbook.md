@@ -244,6 +244,17 @@ Apply migrations before starting newly deployed application code. A migration ro
   broadcast to other tabs.
 - A password change increments the user's `session_version`; every other token for that user is rejected immediately. The fresh token returned by the change-password flow remains valid.
 - Admin-created users have `must_change_password=true` and are sent to the role-appropriate password-change screen on first login.
+- Elevating an active advertiser or driver to administrator requires the acting
+  administrator's current password in the user-update request. On success the
+  target's durable `session_version` rotates once, so the target must log in
+  again and any earlier password-reset link is unusable. A missing or incorrect
+  password, stale administrator session, contained administrator, or target
+  disabled before the update resolves leaves the target unchanged. Do not retry
+  by removing the password field; inspect the stable error and reauthenticate
+  the acting administrator where required. Elevation password guesses consume
+  the normal login failure buckets; `RATE_LIMITED` requires waiting for the
+  returned retry interval, while `RATE_LIMIT_UNAVAILABLE` means verification
+  stopped safely and should be retried after Redis authority recovers.
 - Rotating `JWT_SECRET_KEY` invalidates every current session immediately.
 
 ### Forgotten-password break glass

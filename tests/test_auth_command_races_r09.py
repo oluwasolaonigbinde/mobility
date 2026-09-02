@@ -21,6 +21,7 @@ from conftest import create_test_organization, create_test_user
 from sqlalchemy import select
 
 from app.core.errors import AppError
+from app.core.rate_limit import NoopLoginRateLimiter
 from app.core.security import create_access_token, verify_password
 from app.models.audit import AuditEvent
 from app.models.contact import PasswordResetToken
@@ -41,6 +42,7 @@ from app.services.auth import (
 PASSWORD = "long-secure-password"
 RESET_PASSWORD = "victim-recovered-password-1"
 ATTACKER_PASSWORD = "attacker-chosen-password-1"
+NOOP_LOGIN_LIMITER = NoopLoginRateLimiter()
 
 
 def _issue_reset(sessionmaker, settings, user_id) -> str:
@@ -625,6 +627,286 @@ def test_containment_revokes_the_live_bearer_and_reactivation_does_not_restore_i
         ).status_code
         == 200
     )
+
+
+# --- AUT-006: administrator elevation reauthenticates and revokes globally -----
+
+
+def test_admin_elevation_kills_old_bearer_refresh_and_reset_capabilities(
+    postgis_db_client, postgis_db_sessionmaker, settings
+) -> None:
+    admin = create_test_user(
+        postgis_db_sessionmaker,
+        email="aut006-admin@example.com",
+        password=PASSWORD,
+        role=UserRole.ADMIN,
+    )
+    target = _recoverable_user(postgis_db_sessionmaker)
+    reset_token = _issue_reset(postgis_db_sessionmaker, settings, target.id)
+    login = postgis_db_client.post(
+        "/api/v1/auth/login",
+        json={"email": target.email, "password": PASSWORD},
+    )
+    assert login.status_code == 200
+    old_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    admin_login = postgis_db_client.post(
+        "/api/v1/auth/login",
+        json={"email": admin.email, "password": PASSWORD},
+    )
+    assert admin_login.status_code == 200
+
+    elevated = postgis_db_client.patch(
+        f"/api/v1/admin/users/{target.id}",
+        headers={"Authorization": f"Bearer {admin_login.json()['access_token']}"},
+        json={"role": "admin", "current_password": PASSWORD},
+    )
+
+    assert elevated.status_code == 200
+    assert elevated.json()["role"] == "admin"
+    for method, path in (
+        (postgis_db_client.get, "/api/v1/me"),
+        (postgis_db_client.post, "/api/v1/auth/refresh"),
+    ):
+        denied = method(path, headers=old_headers)
+        assert denied.status_code == 401
+        assert denied.json()["error"]["code"] == "SESSION_REVOKED"
+    assert (
+        asyncio.run(_complete_reset(postgis_db_sessionmaker, reset_token, settings))
+        == "PASSWORD_RESET_INVALID"
+    )
+
+
+@pytest.mark.parametrize("actor_update_first", [True, False])
+def test_admin_elevation_and_actor_containment_serialize_in_both_orders(
+    postgis_db_sessionmaker, actor_update_first: bool
+) -> None:
+    from app.schemas.users import UserUpdate
+    from app.services.users import update_user
+
+    admin = create_test_user(
+        postgis_db_sessionmaker,
+        email="aut006-race-admin@example.com",
+        password=PASSWORD,
+        role=UserRole.ADMIN,
+    )
+    target = create_test_user(
+        postgis_db_sessionmaker,
+        email="aut006-race-target@example.com",
+        password=PASSWORD,
+        role=UserRole.DRIVER,
+    )
+    start_target_version = target.session_version
+
+    async def elevate() -> str:
+        async with postgis_db_sessionmaker() as session:
+            try:
+                await update_user(
+                    session,
+                    target.id,
+                    UserUpdate(role=UserRole.ADMIN, current_password=PASSWORD),
+                    actor_user_id=admin.id,
+                    actor_session_version=admin.session_version,
+                    rate_limiter=NOOP_LOGIN_LIMITER,
+                    client_ip="203.0.113.20",
+                )
+                await session.commit()
+                return "elevated"
+            except AppError as exc:
+                await session.rollback()
+                return exc.code
+
+    async def scenario() -> None:
+        async with postgis_db_sessionmaker() as first_session:
+            if actor_update_first:
+                actor = await first_session.scalar(
+                    select(User).where(User.id == admin.id).with_for_update()
+                )
+                assert actor is not None
+                actor.status = UserStatus.SUSPENDED.value
+                actor.session_version += 1
+                contender = asyncio.create_task(elevate())
+                await asyncio.sleep(0.1)
+                assert not contender.done()
+                await first_session.commit()
+                assert await contender == "USER_NOT_ACTIVE"
+            else:
+                await update_user(
+                    first_session,
+                    target.id,
+                    UserUpdate(role=UserRole.ADMIN, current_password=PASSWORD),
+                    actor_user_id=admin.id,
+                    actor_session_version=admin.session_version,
+                    rate_limiter=NOOP_LOGIN_LIMITER,
+                    client_ip="203.0.113.20",
+                )
+
+                async def contain_actor() -> None:
+                    async with postgis_db_sessionmaker() as session:
+                        await update_user(
+                            session,
+                            admin.id,
+                            UserUpdate(status=UserStatus.SUSPENDED),
+                        )
+                        await session.commit()
+
+                contender = asyncio.create_task(contain_actor())
+                await asyncio.sleep(0.1)
+                assert not contender.done()
+                await first_session.commit()
+                await contender
+
+        async with postgis_db_sessionmaker() as session:
+            stored_admin = await session.get(User, admin.id)
+            stored_target = await session.get(User, target.id)
+            assert stored_admin is not None and stored_target is not None
+            assert stored_admin.status == UserStatus.SUSPENDED.value
+            if actor_update_first:
+                assert stored_target.role == UserRole.DRIVER.value
+                assert stored_target.session_version == start_target_version
+            else:
+                assert stored_target.role == UserRole.ADMIN.value
+                assert stored_target.session_version == start_target_version + 1
+
+    asyncio.run(scenario())
+
+
+def test_admin_elevation_refuses_stale_actor_session_authority(
+    postgis_db_sessionmaker,
+) -> None:
+    from app.schemas.users import UserUpdate
+    from app.services.users import update_user
+
+    admin = create_test_user(
+        postgis_db_sessionmaker,
+        email="aut006-stale-admin@example.com",
+        password=PASSWORD,
+        role=UserRole.ADMIN,
+    )
+    target = create_test_user(
+        postgis_db_sessionmaker,
+        email="aut006-stale-target@example.com",
+        password=PASSWORD,
+        role=UserRole.DRIVER,
+    )
+
+    async def scenario() -> None:
+        async with postgis_db_sessionmaker() as session:
+            actor = await session.get(User, admin.id)
+            assert actor is not None
+            actor.session_version += 1
+            await session.commit()
+
+        async with postgis_db_sessionmaker() as session:
+            with pytest.raises(AppError) as stale:
+                await update_user(
+                    session,
+                    target.id,
+                    UserUpdate(role=UserRole.ADMIN, current_password=PASSWORD),
+                    actor_user_id=admin.id,
+                    actor_session_version=admin.session_version,
+                    rate_limiter=NOOP_LOGIN_LIMITER,
+                    client_ip="203.0.113.20",
+                )
+            assert stale.value.code == "SESSION_REVOKED"
+            await session.rollback()
+
+        async with postgis_db_sessionmaker() as session:
+            stored = await session.get(User, target.id)
+            assert stored is not None
+            assert stored.role == UserRole.DRIVER.value
+            assert stored.session_version == target.session_version
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("target_update_first", [True, False])
+def test_admin_elevation_and_target_disable_serialize_in_both_orders(
+    postgis_db_sessionmaker, target_update_first: bool
+) -> None:
+    from app.schemas.users import UserUpdate
+    from app.services.users import update_user
+
+    admin = create_test_user(
+        postgis_db_sessionmaker,
+        email="aut006-target-race-admin@example.com",
+        password=PASSWORD,
+        role=UserRole.ADMIN,
+    )
+    target = create_test_user(
+        postgis_db_sessionmaker,
+        email="aut006-target-race-user@example.com",
+        password=PASSWORD,
+        role=UserRole.DRIVER,
+    )
+    start_version = target.session_version
+
+    async def elevate() -> str:
+        async with postgis_db_sessionmaker() as session:
+            try:
+                await update_user(
+                    session,
+                    target.id,
+                    UserUpdate(role=UserRole.ADMIN, current_password=PASSWORD),
+                    actor_user_id=admin.id,
+                    actor_session_version=admin.session_version,
+                    rate_limiter=NOOP_LOGIN_LIMITER,
+                    client_ip="203.0.113.20",
+                )
+                await session.commit()
+                return "elevated"
+            except AppError as exc:
+                await session.rollback()
+                return exc.code
+
+    async def disable() -> None:
+        async with postgis_db_sessionmaker() as session:
+            await update_user(
+                session,
+                target.id,
+                UserUpdate(status=UserStatus.DISABLED),
+            )
+            await session.commit()
+
+    async def scenario() -> None:
+        async with postgis_db_sessionmaker() as first_session:
+            if target_update_first:
+                locked = await first_session.scalar(
+                    select(User).where(User.id == target.id).with_for_update()
+                )
+                assert locked is not None
+                locked.status = UserStatus.DISABLED.value
+                locked.session_version += 1
+                contender = asyncio.create_task(elevate())
+            else:
+                await update_user(
+                    first_session,
+                    target.id,
+                    UserUpdate(role=UserRole.ADMIN, current_password=PASSWORD),
+                    actor_user_id=admin.id,
+                    actor_session_version=admin.session_version,
+                    rate_limiter=NOOP_LOGIN_LIMITER,
+                    client_ip="203.0.113.20",
+                )
+                contender = asyncio.create_task(disable())
+            await asyncio.sleep(0.1)
+            assert not contender.done()
+            await first_session.commit()
+            outcome = await contender
+            if target_update_first:
+                assert outcome == "USER_NOT_ACTIVE"
+
+        async with postgis_db_sessionmaker() as session:
+            stored = await session.get(User, target.id)
+            assert stored is not None
+            assert stored.status == UserStatus.DISABLED.value
+            if target_update_first:
+                assert stored.role == UserRole.DRIVER.value
+                assert stored.session_version == start_version + 1
+            else:
+                assert stored.role == UserRole.ADMIN.value
+                assert stored.session_version == start_version + 2
+
+    asyncio.run(scenario())
 
 
 # --- GOV-007: refresh and token issuance are commands, not router policy -------

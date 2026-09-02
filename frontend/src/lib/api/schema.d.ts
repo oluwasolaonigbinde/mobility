@@ -11875,6 +11875,8 @@ export interface components {
         UserStatus: "active" | "invited" | "suspended" | "disabled";
         /** UserUpdate */
         UserUpdate: {
+            /** Current Password */
+            current_password?: string | null;
             /** Full Name */
             full_name?: string | null;
             /** Phone */

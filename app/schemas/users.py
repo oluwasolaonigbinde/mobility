@@ -23,6 +23,11 @@ class UserUpdate(BaseModel):
     phone: str | None = Field(default=None, max_length=32)
     role: UserRole | None = None
     status: UserStatus | None = None
+    current_password: str | None = Field(
+        default=None,
+        min_length=1,
+        json_schema_extra={"writeOnly": True},
+    )
 
 
 class UserRead(BaseModel):
