@@ -26,7 +26,6 @@ from conftest import (
     create_test_campaign_zone,
     create_test_driver_profile,
     create_test_organization,
-    create_test_trip_session,
     create_test_user,
     create_test_vehicle,
     fetch_activation_events,
@@ -39,6 +38,7 @@ from test_payouts_v2 import (
     TRIP_START,
     build_v2_graph,
     calculate,
+    create_signed_v2_test_trip_session,
     create_v2_rule,
     moving_points,
     pipeline_to_v2,
@@ -59,7 +59,6 @@ from app.models.payout import (
     PayoutCalculation,
     PayoutCalculationStatus,
 )
-from app.models.trip import TripSessionStatus
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
 from app.schemas.campaign_assignments import CampaignAssignmentCreate, CampaignAssignmentTransition
@@ -1273,14 +1272,14 @@ def build_mixed_engine_day(postgis_db_sessionmaker, settings, tag: str, *, cap: 
         revision=revision,
     )
     trip2_start = TRIP_START + timedelta(hours=1)
-    trip2 = create_test_trip_session(
+    trip2 = create_signed_v2_test_trip_session(
         postgis_db_sessionmaker,
+        settings,
         assignment_id=assignment2.id,
         campaign_id=graph.campaign.id,
         driver_profile_id=graph.profile.id,
         vehicle_id=vehicle2.id,
         started_by_user_id=graph.driver.id,
-        trip_status=TripSessionStatus.SEALED,
         started_at=trip2_start,
         ended_at=trip2_start + timedelta(minutes=30),
     )

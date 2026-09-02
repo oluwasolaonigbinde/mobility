@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from conftest import (
     auth_headers,
     create_test_payout_rule,
+    create_test_trip_session,
     fetch_audit_events,
     fetch_earnings_ledger_entries,
     fetch_payout_calculations,
@@ -21,6 +22,7 @@ from app.models.payout import (
     EarningsLedgerEntryStatus,
     EarningsLedgerEntryType,
 )
+from app.models.trip import TripSession, TripSessionStatus
 from app.services.campaign_zones import geometry_expression
 from app.services.payout_eligibility import EligibilityParams
 from app.services.payouts import (
@@ -40,6 +42,7 @@ from app.services.payouts import (
     v2_inputs_fingerprint,
 )
 from app.services.provenance import stable_source_fingerprint
+from app.services.trip_evidence import sign_manifest_receipt
 from app.services.trip_processing import find_unprocessed_trips
 
 # Trips start at 09:00 Lagos (08:00 UTC) so the whole session sits inside one
@@ -339,7 +342,7 @@ def test_cap_truncates_before_pricing_across_same_day_trips(
 
     second_start = TRIP_END + timedelta(minutes=10)
     second_trip = _add_second_trip(
-        postgis_db_sessionmaker, graph, started_at=second_start
+        postgis_db_sessionmaker, settings, graph, started_at=second_start
     )
     add_pings(
         postgis_db_sessionmaker,
@@ -368,19 +371,68 @@ def test_cap_truncates_before_pricing_across_same_day_trips(
     ) <= 900
 
 
-def _add_second_trip(db_sessionmaker, graph, *, started_at, minutes: int = 30):
-    from conftest import create_test_trip_session
-
-    from app.models.trip import TripSessionStatus
-
-    return create_test_trip_session(
+def create_signed_v2_test_trip_session(
+    db_sessionmaker,
+    settings,
+    *,
+    assignment_id,
+    campaign_id,
+    driver_profile_id,
+    vehicle_id,
+    started_by_user_id,
+    started_at,
+    ended_at,
+):
+    """Create the same accepted signed-v2 authority as build_graph's trip fixture."""
+    trip = create_test_trip_session(
         db_sessionmaker,
+        assignment_id=assignment_id,
+        campaign_id=campaign_id,
+        driver_profile_id=driver_profile_id,
+        vehicle_id=vehicle_id,
+        started_by_user_id=started_by_user_id,
+        trip_status=TripSessionStatus.SEALED,
+        started_at=started_at,
+        ended_at=ended_at,
+    )
+
+    async def bind_v2_evidence_authority() -> None:
+        async with db_sessionmaker() as session:
+            stored = await session.get(TripSession, trip.id)
+            stored.evidence_protocol_version = 2
+            stored.evidence_manifest_version = 2
+            stored.evidence_manifest_root_sha256 = "0" * 64
+            stored.evidence_manifest_batch_count = 0
+            stored.evidence_manifest_ping_count = 0
+            stored.evidence_manifest_committed_at = ended_at
+            stored.evidence_manifest_complete = True
+            stored.evidence_manifest_verified_at = ended_at
+            sign_manifest_receipt(stored, settings)
+            await session.commit()
+
+    asyncio.run(bind_v2_evidence_authority())
+    return trip
+
+
+def resign_signed_v2_manifest_receipt(db_sessionmaker, settings, trip_id) -> None:
+    async def resign() -> None:
+        async with db_sessionmaker() as session:
+            trip = await session.get(TripSession, trip_id)
+            sign_manifest_receipt(trip, settings)
+            await session.commit()
+
+    asyncio.run(resign())
+
+
+def _add_second_trip(db_sessionmaker, settings, graph, *, started_at, minutes: int = 30):
+    return create_signed_v2_test_trip_session(
+        db_sessionmaker,
+        settings,
         assignment_id=graph.assignment.id,
         campaign_id=graph.campaign.id,
         driver_profile_id=graph.profile.id,
         vehicle_id=graph.vehicle.id,
         started_by_user_id=graph.driver.id,
-        trip_status=TripSessionStatus.SEALED,
         started_at=started_at,
         ended_at=started_at + timedelta(minutes=minutes),
     )
@@ -400,7 +452,7 @@ def test_concurrent_same_day_trips_never_jointly_exceed_the_cap(
     )
     second_start = TRIP_END + timedelta(minutes=10)
     second_trip = _add_second_trip(
-        postgis_db_sessionmaker, graph, started_at=second_start
+        postgis_db_sessionmaker, settings, graph, started_at=second_start
     )
     add_pings(
         postgis_db_sessionmaker,
@@ -695,7 +747,9 @@ def test_recompute_day_gives_voided_trips_nothing_and_frees_their_cap(
     graph = build_v2_graph(postgis_db_sessionmaker, "rc-void", daily_cap_hours="0.25")
     pipeline_to_v2(postgis_db_sessionmaker, settings, graph, idempotency_key="void-1")
     second_start = TRIP_END + timedelta(minutes=10)
-    second_trip = _add_second_trip(postgis_db_sessionmaker, graph, started_at=second_start)
+    second_trip = _add_second_trip(
+        postgis_db_sessionmaker, settings, graph, started_at=second_start
+    )
     add_pings(
         postgis_db_sessionmaker,
         trip_id=second_trip.id,
@@ -1184,7 +1238,9 @@ def test_recompute_reallocation_governs_later_same_day_cap_accounting(
     graph = build_v2_graph(postgis_db_sessionmaker, "rc-cap", daily_cap_hours="0.25")
     pipeline_to_v2(postgis_db_sessionmaker, settings, graph, idempotency_key="rccap-1")
     second_start = TRIP_END + timedelta(minutes=10)
-    second_trip = _add_second_trip(postgis_db_sessionmaker, graph, started_at=second_start)
+    second_trip = _add_second_trip(
+        postgis_db_sessionmaker, settings, graph, started_at=second_start
+    )
     add_pings(
         postgis_db_sessionmaker,
         trip_id=second_trip.id,
@@ -1211,7 +1267,7 @@ def test_recompute_reallocation_governs_later_same_day_cap_accounting(
 
     # A third trip on the same Lagos day must find the cap fully consumed.
     third_start = second_start + timedelta(minutes=40)
-    third_trip = _add_second_trip(postgis_db_sessionmaker, graph, started_at=third_start)
+    third_trip = _add_second_trip(postgis_db_sessionmaker, settings, graph, started_at=third_start)
     add_pings(
         postgis_db_sessionmaker,
         trip_id=third_trip.id,
@@ -1373,7 +1429,7 @@ def test_cross_midnight_trip_consumes_the_following_days_cap(
     # A second trip later on 21 Jul Lagos: that day's cap is already spent.
     second_start = datetime(2026, 7, 21, 8, 0, tzinfo=UTC)
     second_trip = _add_second_trip(
-        postgis_db_sessionmaker, graph, started_at=second_start
+        postgis_db_sessionmaker, settings, graph, started_at=second_start
     )
     add_pings(
         postgis_db_sessionmaker,

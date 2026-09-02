@@ -5,11 +5,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
-from conftest import (
-    create_test_trip_session,
-    create_test_user,
-    fetch_earnings_ledger_entries,
-)
+from conftest import create_test_user, fetch_earnings_ledger_entries
 from sqlalchemy import update
 from test_payout_corrections import (
     RELEASE_AT,
@@ -19,11 +15,18 @@ from test_payout_corrections import (
     service,
     submit,
 )
-from test_payouts_v2 import BASE_LAT, BASE_LON, build_v2_graph, pipeline_to_v2
+from test_payouts_v2 import (
+    BASE_LAT,
+    BASE_LON,
+    build_v2_graph,
+    create_signed_v2_test_trip_session,
+    pipeline_to_v2,
+    resign_signed_v2_manifest_receipt,
+)
 from test_trip_processing import add_pings, run_pipeline
 
 from app.core.errors import AppError
-from app.models.trip import TripSession, TripSessionStatus
+from app.models.trip import TripSession
 from app.services.payout_corrections import (
     create_correction_order,
     execute_correction_order,
@@ -147,14 +150,14 @@ def test_uuid_lock_order_preserves_chronological_cap_order_across_adjacent_days(
         ended_at=end_at,
         daily_cap_hours="0.01",  # 36 seconds per Lagos day
     )
-    second_trip = create_test_trip_session(
+    second_trip = create_signed_v2_test_trip_session(
         postgis_db_sessionmaker,
+        settings,
         assignment_id=graph.assignment.id,
         campaign_id=graph.campaign.id,
         driver_profile_id=graph.profile.id,
         vehicle_id=graph.vehicle.id,
         started_by_user_id=graph.driver.id,
-        trip_status=TripSessionStatus.SEALED,
         started_at=second_start,
         ended_at=end_at,
     )
@@ -181,6 +184,8 @@ def test_uuid_lock_order_preserves_chronological_cap_order_across_adjacent_days(
     asyncio.run(rekey_trips())
     graph.trip.id = earlier_high_id
     second_trip.id = later_low_id
+    resign_signed_v2_manifest_receipt(postgis_db_sessionmaker, settings, earlier_high_id)
+    resign_signed_v2_manifest_receipt(postgis_db_sessionmaker, settings, later_low_id)
 
     def points(start_at: datetime, duration: int):
         return [
