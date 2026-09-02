@@ -45,9 +45,9 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `5`
+**Current justified remediation writer capacity:** `6`
 **Current capacity assignment:** `R02`
-**Current capacity justification:** Authentication/readiness, privacy/audience, historical migration tests, money/concurrency tests and trip-enqueue tests have enumerated disjoint paths. R02 is frozen and performs no writes. The privacy owner retains its existing dirty migration/generated-contract lease; none of the three new correction packets may touch those files. Each owner must stop before any file or mutation-domain overlap.
+**Current capacity justification:** Authentication/readiness, privacy/audience, historical migration tests, signed-v2 payout fixtures, money/reversal concurrency and trip-enqueue tests have enumerated disjoint paths. R02 is frozen and performs no writes. The privacy owner retains its existing dirty migration/generated-contract lease; none of the four new correction packets may touch those files. V13 exclusively owns its three product services, while V12 and V14 remain test-only. Each owner must stop before any file or mutation-domain overlap.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -85,8 +85,8 @@ remaining blocker set: 47 out-of-packet repository failures plus five disposable
 runner environment failures. The 28-test control cascade is already reduced to
 and fixed as one controller formatting error. Three disjoint packets now own the
 remaining repository groups: historical migration fixtures; signed-v2 payout
-fixtures plus two genuine reversal deadlocks; and trip-end/enqueue lifecycle
-expectations. R02 stays frozen until those groups are admitted; its next broad
+fixtures; two genuine reversal deadlocks; and trip-end/enqueue lifecycle
+expectations. Four disjoint visible tasks now own those groups. R02 stays frozen until those groups are admitted; its next broad
 run must also provide GPG, Node and a host-visible nested-Docker mount. R03
 remains held until R02 passes and the privacy chain releases generated contracts.
 In parallel, R11→R12→R14 and the serialized R39→R44 privacy/audit lane retain
@@ -97,6 +97,7 @@ serialized lane.
 
 | Date | Item | Authority | Scope boundary | Queue effect |
 | --- | --- | --- | --- | --- |
+| 2 Sep 2026 | **Do not reuse an old task with a different model for new work.** | Direct project-owner instruction in the active remediation controller, 2 Sep 2026 | A visible task retains the model family selected when it was created. Related continuation may reuse it only without cross-model reassignment. When new work requires another model, create a fresh visible task with that model selected before dispatch, preserving cache efficiency and clear evidence provenance. | Applies to every future remediation and side-programme dispatch. The four V11–V14 correction packets were already created as new tasks directly on their chosen Terra/high or Sol/high models. |
 | 2 Sep 2026 | **Launch the paused UI/product-review suite with 3–5 Claude Opus 5 High sessions as soon as the moving UI surfaces stabilize.** | Direct project-owner instruction in the active remediation controller, 2 Sep 2026 | Trigger only after R11→R14 and R39→R44 are accepted and no overlapping auth, advertiser-planning, reporting, privacy-state, frontend, or generated-contract bytes remain unadmitted. First wave runs preserved prompts 2–6 from `issues/prompts/future-ui-product-review-prompts.md` independently against one accepted snapshot, with at most five parallel Claude Opus 5 High sessions. They remain read-only and use terminal-only callbacks. | Durable side obligation; it does not interrupt or overlap the active remediation writers. The controller must launch the first wave immediately when the trigger is satisfied, then retain prompts 1 and 7–11 in their documented dependency order. |
 | 2 Sep 2026 | **Use terminal callbacks instead of routine progress narration.** | Direct project-owner instruction in the active remediation controller, 2 Sep 2026 | Future sessions send one brief start acknowledgement, communicate only a genuine authority/scope blocker, and send one terminal completion callback. The controller does not poll or consume routine progress prose; admission remains based on the terminal receipt plus direct inspection of repository bytes, tests, reviews, and integration state. Current sessions were already instructed directly by the owner and are not messaged again. | Reduces token and attention overhead without weakening verification, callback responsibility, or controller admission. |
 | 2 Sep 2026 | **Optimize remediation for parallel throughput and token efficiency.** | Direct project-owner instruction in the active remediation controller, 2 Sep 2026 | Cohesive sessions continue across compatible slices without routine controller returns; focused checks run during development and expensive aggregates run once after bytes stabilize; valid reviews are reused; concrete findings and lease conflicts are consolidated; unrelated or environment-sensitive failures are attributed rather than allowed to create correction loops. Safety, required evidence, exact leases, and dependency serialization remain unchanged. | R02 must collect the complete failure set in one faithful aggregate rather than repeatedly stop at the first unrelated failure. The controller refills every released disjoint lane immediately but does not manufacture unsafe concurrency on the shared migration/generated-contract lane. |
