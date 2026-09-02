@@ -1889,6 +1889,10 @@ def test_due_work_ruleless_trip_becomes_due_when_rule_appears(db_sessionmaker, s
         driver_profile_id=graph.profile.id,
         vehicle_id=graph.vehicle.id,
         traffic_density_profile_id=profile.id,
+        metadata={
+            "fraud_flag_counts": {"low": 0, "medium": 0, "high": 0},
+            "traffic_density_profile_fingerprint": profile.value_fingerprint,
+        },
     )
 
     # The missing assessment is due even without a payout rule. Once assessed,

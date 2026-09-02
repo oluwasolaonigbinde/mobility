@@ -146,7 +146,7 @@ def test_demo_seed_frontend_smoke_paths(
         headers=advertiser_headers,
     )
     assert trips_response.status_code == 200
-    assert trips_response.json()["total"] == 4
+    assert trips_response.json()["trips"]["total"] == 4
 
     report_response = postgis_db_client.get(
         f"/api/v1/advertiser/campaigns/{campaign_id}/report",
