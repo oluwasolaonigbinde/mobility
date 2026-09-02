@@ -688,14 +688,14 @@ def test_valid_pause_requires_no_runnable_work_and_real_blocker() -> None:
     assert any("paused controller external id does not block" in error for error in _errors(stale))
 
 
-def test_ci_avoids_duplicate_feature_branch_runs() -> None:
+def test_ci_runs_for_every_direct_branch_push_and_pull_request() -> None:
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
     push_block = workflow.split("  push:\n", 1)[1].split("  pull_request:\n", 1)[0]
     pull_request_block = workflow.split("  pull_request:\n", 1)[1].split(
         "\nconcurrency:\n", 1
     )[0]
 
-    assert "branches:\n      - master" in push_block
+    assert "branches:" not in push_block
     assert "branches:" not in pull_request_block
     assert "github.event.pull_request.number || github.ref" in workflow
     assert "cancel-in-progress: true" in workflow

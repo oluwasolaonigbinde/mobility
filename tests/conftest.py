@@ -109,6 +109,75 @@ def settings() -> Settings:
     )
 
 
+# --- R02 / TST-001, DB-005: real-integration authority -----------------------
+#
+# The default `db_sessionmaker` below is SQLite + `create_all`. It is deliberately
+# kept: it makes the ordinary suite fast to run locally. It is *not* release
+# evidence, because it cannot show PostgreSQL-only behaviour or migration truth.
+#
+# Release evidence is a run with REQUIRE_REAL_INTEGRATIONS=1, where real
+# PostgreSQL/PostGIS, Redis, MinIO and ClamAV are present. Under that flag a
+# service-gated test may not quietly excuse itself: the presence of an integration
+# test only proves something if it actually ran.
+
+REAL_INTEGRATION_AUTHORITY_ENV = "REQUIRE_REAL_INTEGRATIONS"
+
+_unexpected_skips: dict[str, str] = {}
+
+
+def real_integration_authority_required() -> bool:
+    return os.environ.get(REAL_INTEGRATION_AUTHORITY_ENV) == "1"
+
+
+def _configured_database_url() -> str | None:
+    return os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """DB-005: refuse to produce authoritative evidence from a SQLite-only run."""
+    if not real_integration_authority_required():
+        return
+
+    database_url = _configured_database_url()
+    if database_url is None or not database_url.startswith("postgresql+asyncpg://"):
+        raise pytest.UsageError(
+            f"{REAL_INTEGRATION_AUTHORITY_ENV}=1 requires TEST_DATABASE_URL (or "
+            f"DATABASE_URL) to be a real postgresql+asyncpg:// database; got "
+            f"{database_url!r}. SQLite create_all evidence is not authoritative."
+        )
+
+
+def pytest_runtest_logreport(report: pytest.TestReport) -> None:
+    """TST-001: account for every skip taken under integration authority."""
+    if not real_integration_authority_required():
+        return
+    if not report.skipped or hasattr(report, "wasxfail"):
+        return
+
+    # report.longrepr for a skip is (path, lineno, "Skipped: <reason>").
+    reason = report.longrepr[2] if isinstance(report.longrepr, tuple) else str(report.longrepr)
+    _unexpected_skips.setdefault(report.nodeid, reason)
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    if _unexpected_skips and session.exitstatus == 0:
+        session.exitstatus = 1
+
+
+def pytest_terminal_summary(terminalreporter) -> None:
+    if not _unexpected_skips:
+        return
+
+    terminalreporter.section("real-integration authority", red=True)
+    terminalreporter.write_line(
+        f"{len(_unexpected_skips)} test(s) skipped while "
+        f"{REAL_INTEGRATION_AUTHORITY_ENV}=1. Under integration authority a skip is a "
+        f"hole in the release evidence: provision the service or remove the test."
+    )
+    for nodeid, reason in sorted(_unexpected_skips.items()):
+        terminalreporter.write_line(f"  {nodeid}: {reason}")
+
+
 @pytest.fixture
 def client(settings: Settings) -> Generator[TestClient, None, None]:
     with TestClient(create_app(settings)) as test_client:
@@ -117,6 +186,7 @@ def client(settings: Settings) -> Generator[TestClient, None, None]:
 
 @pytest.fixture
 def db_sessionmaker(tmp_path: Path) -> Generator[async_sessionmaker[AsyncSession], None, None]:
+    """Fast local SQLite fixture. Non-authoritative: see the authority block above."""
     database_path = tmp_path / "test.db"
     engine = create_async_engine(f"sqlite+aiosqlite:///{database_path}")
 
@@ -137,8 +207,10 @@ def db_sessionmaker(tmp_path: Path) -> Generator[async_sessionmaker[AsyncSession
 
 @pytest.fixture
 def postgis_db_sessionmaker() -> Generator[async_sessionmaker[AsyncSession], None, None]:
-    database_url = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
+    database_url = _configured_database_url()
     if database_url is None or not database_url.startswith("postgresql+asyncpg://"):
+        if real_integration_authority_required():
+            pytest.fail("PostGIS test database is not configured under integration authority")
         pytest.skip("PostGIS test database is not configured")
 
     schema_name = f"test_{uuid4().hex}"
