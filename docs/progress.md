@@ -80,7 +80,7 @@ engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
 **Current checkpoint:** `PKG-10 / R02` — V06's signed-v2 demo-seed correction is
-accepted at `9e1c0d7`, so R02 may resume its immutable real-service gate using
+accepted at `9e1c0d7`, and R02 is running its immutable real-service gate using
 Sol/medium under the updated model policy. R03 remains held until R02 passes
 and the privacy chain releases generated contracts. In parallel,
 the disjoint R11→R12→R14 security/readiness session and R28 administrator
