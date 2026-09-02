@@ -25,7 +25,12 @@ below is claimed complete, waived, or supplied.
 - `REP-007` — approve lawful report retention, withdrawal/tombstone, backup,
   and presigned-link expiry/revocation rules.
 
-## Developer or technical policy to answer later
+## Developer or technical policy awaiting your answer
+
+These are not client-only questions. The controller must bring them to the
+project owner/developer in small decision batches and record the answers; they
+must not remain parked indefinitely merely because the original audit called
+them owner decisions.
 
 - `AUT-006` — choose reauthentication/session-rotation behavior for privilege
   elevation.
