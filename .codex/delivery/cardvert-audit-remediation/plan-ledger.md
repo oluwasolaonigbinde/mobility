@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 186
+plan_revision: 187
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 315
+last_event_sequence: 316
 ---
 
 # Cardvert audit remediation programme
@@ -768,3 +768,4 @@ verification is complete.
 | 313 | 185 | 1 | PACKET_BLOCKED | R02's immutable candidate/full real-service run reached 484 passed and zero skips before a deterministic out-of-packet historical migration fixture failure; R03 correctly remained not started. | R02 patch `8bc499f7...`; immutable manifest `1b807658...`; `seed_ping_graph` uses current `LocationPingBatch` ORM against revision 0013 lacking R34-era `batch_sequence`; no R02 diff defect indicated |
 | 314 | 185 | 1 | INTEGRATION_CORRECTION_RESERVED | V05 reserved the one historical seed helper so all revision-0013 ping graphs use schema-era raw SQL rather than current ORM columns before upgrading to head. | `tests/test_migration_0014_partitioning.py` only; GPT-5.6 Terra/high; test-only migration integration, no product/model/migration authority; R02 frozen and non-writing |
 | 315 | 186 | 1 | INTEGRATION_CORRECTION_STARTED | Existing visible S12 began V05 on the one revision-0013 ping seed helper with a full-consumer PostgreSQL verification contract. | task `01a05e4d-e9ca-7af1-b52a-d84eea62c879`; GPT-5.6 Terra/high; proactive terminal callback only; no product or migration writes |
+| 316 | 187 | 1 | LEASE_EXPANDED | V05 may also correct the three post-head raw batch/quarantine inserts in `tests/test_data_lifecycle_jobs.py` to supply R34's required submitted/rejected conservation columns before rerunning every seed consumer. | exact consumer-file expansion only; live empty batch remains 0/0/0 and quarantines retain submitted=ping_count, rejected=0; no model/migration/service semantics or other fixture change |
