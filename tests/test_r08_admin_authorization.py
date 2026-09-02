@@ -146,10 +146,10 @@ def test_named_admin_branches_authorize_before_protected_domain_access() -> None
     assert _first_call_line(
         functions["request_custom_quote"], {"require_active_admin"}
     ) < _first_call_line(functions["request_custom_quote"], {"_campaign"})
-    assert _first_call_line(
-        functions["accept_quotation_revision"], {"require_active_admin"}
-    ) < _first_call_line(
-        functions["accept_quotation_revision"], {"get", "acquire_campaign_terms_lock"}
+    assert (
+        _first_call_line(functions["accept_quotation_revision"], {"acquire_campaign_terms_lock"})
+        < _first_call_line(functions["accept_quotation_revision"], {"require_active_admin"})
+        < _first_call_line(functions["accept_quotation_revision"], {"get"})
     )
     assert _first_call_line(
         functions["record_approved_credit_authorization"], {"require_active_admin"}

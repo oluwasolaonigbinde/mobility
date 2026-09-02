@@ -403,13 +403,14 @@ async def decide_campaign_change(
     approve: bool,
     reason: str,
 ) -> CampaignChangeRequest:
-    await require_active_admin(session, actor_user_id)
     campaign_id = await session.scalar(
         select(CampaignChangeRequest.campaign_id).where(CampaignChangeRequest.id == request_id)
     )
+    if campaign_id is not None:
+        await acquire_campaign_terms_lock(session, campaign_id)
+    await require_active_admin(session, actor_user_id)
     if campaign_id is None:
         raise _error("CAMPAIGN_CHANGE_NOT_FOUND", "Campaign change was not found", 404)
-    await acquire_campaign_terms_lock(session, campaign_id)
     campaign = await _locked_campaign(session, campaign_id)
     request = await session.scalar(
         select(CampaignChangeRequest)

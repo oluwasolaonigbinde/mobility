@@ -378,7 +378,11 @@ def test_trip_start_commits_before_waiting_reversal_cutoff(
             trip = await start_driver_trip(
                 trip_session,
                 user_id=driver.id,
-                payload=TripStartRequest(assignment_id=assignment.id, metadata={}),
+                payload=TripStartRequest(
+                    assignment_id=assignment.id,
+                    evidence_protocol_version=2,
+                    metadata={},
+                ),
                 settings=settings,
             )
             await trip_session.commit()

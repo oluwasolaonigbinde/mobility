@@ -439,10 +439,10 @@ async def create_campaign_assignment(
     settings: Settings | None = None,
 ) -> CampaignAssignment:
     settings = settings or get_settings()
-    # Direct service callers must satisfy the same active-admin authority as
-    # the router before any campaign lock or privileged mutation is reached.
+    campaign_id = getattr(payload, "campaign_id", None)
+    if isinstance(campaign_id, UUID):
+        await acquire_campaign_terms_lock(session, campaign_id)
     await require_active_admin(session, admin_user_id)
-    await acquire_campaign_terms_lock(session, payload.campaign_id)
     await acquire_work_eligibility_lock(
         session,
         driver_profile_id=payload.driver_profile_id,
@@ -1770,13 +1770,14 @@ async def activate_admin_assignment(
     settings: Settings | None = None,
 ) -> CampaignAssignment:
     settings = settings or get_settings()
-    await require_active_admin(session, admin_user_id)
     campaign_id = await session.scalar(
         select(CampaignAssignment.campaign_id).where(CampaignAssignment.id == assignment_id)
     )
+    if campaign_id is not None:
+        await acquire_campaign_terms_lock(session, campaign_id)
+    await require_active_admin(session, admin_user_id)
     if campaign_id is None:
         raise assignment_not_found()
-    await acquire_campaign_terms_lock(session, campaign_id)
     eligibility_row = (
         await session.execute(
             select(
@@ -2124,13 +2125,14 @@ async def cancel_admin_assignment(
     assignment_id: UUID,
     payload: CampaignAssignmentCancel,
 ) -> CampaignAssignment:
-    await require_active_admin(session, admin_user_id)
     campaign_id = await session.scalar(
         select(CampaignAssignment.campaign_id).where(CampaignAssignment.id == assignment_id)
     )
+    if campaign_id is not None:
+        await acquire_campaign_terms_lock(session, campaign_id)
+    await require_active_admin(session, admin_user_id)
     if campaign_id is None:
         raise assignment_not_found()
-    await acquire_campaign_terms_lock(session, campaign_id)
     campaign = await session.scalar(
         select(Campaign).where(Campaign.id == campaign_id).with_for_update()
     )

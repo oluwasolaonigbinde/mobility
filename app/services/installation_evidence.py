@@ -131,19 +131,19 @@ async def submit_installation_evidence(
             "This role is not configured to submit installation evidence",
             status.HTTP_403_FORBIDDEN,
         )
-    if actor_role == "admin":
-        await require_active_admin(session, actor_user_id)
-
     campaign_id = await session.scalar(
         select(CampaignAssignment.campaign_id).where(CampaignAssignment.id == assignment_id)
     )
+    if campaign_id is not None:
+        await acquire_campaign_terms_lock(session, campaign_id)
+    if actor_role == "admin":
+        await require_active_admin(session, actor_user_id)
     if campaign_id is None:
         raise _error(
             "CAMPAIGN_ASSIGNMENT_NOT_FOUND",
             "Campaign assignment was not found",
             status.HTTP_404_NOT_FOUND,
         )
-    await acquire_campaign_terms_lock(session, campaign_id)
     assignment, profile, _vehicle = await _assignment_context(
         session, assignment_id=assignment_id, lock=True
     )
@@ -365,19 +365,20 @@ async def review_installation_evidence(
     settings: Settings,
 ) -> InstallationEvidenceSubmission:
     _views, validity_hours = _require_evidence_policy(settings)
-    await require_active_admin(session, actor_user_id)
     campaign_id = await session.scalar(
         select(InstallationEvidenceSubmission.campaign_id).where(
             InstallationEvidenceSubmission.id == submission_id
         )
     )
+    if campaign_id is not None:
+        await acquire_campaign_terms_lock(session, campaign_id)
+    await require_active_admin(session, actor_user_id)
     if campaign_id is None:
         raise _error(
             "INSTALLATION_EVIDENCE_NOT_FOUND",
             "Installation evidence was not found",
             status.HTTP_404_NOT_FOUND,
         )
-    await acquire_campaign_terms_lock(session, campaign_id)
     submission = await session.scalar(
         select(InstallationEvidenceSubmission)
         .where(InstallationEvidenceSubmission.id == submission_id)

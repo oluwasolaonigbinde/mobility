@@ -276,11 +276,18 @@ async def record_quotation_revision(
     payment_terms: dict,
     tax_rate: Decimal | str,
 ) -> CommercialQuotationRevision:
+    campaign_id = await session.scalar(
+        select(CommercialQuoteRequest.campaign_id).where(
+            CommercialQuoteRequest.id == quote_request_id
+        )
+    )
+    if campaign_id is not None:
+        await acquire_campaign_terms_lock(session, campaign_id)
     await require_active_admin(session, actor_user_id)
     quote_request = await session.get(CommercialQuoteRequest, quote_request_id)
     if quote_request is None:
         raise AppError("QUOTE_REQUEST_NOT_FOUND", "Quote request was not found", status_code=404)
-    await acquire_campaign_terms_lock(session, quote_request.campaign_id)
+    assert campaign_id == quote_request.campaign_id
     campaign = await _campaign(session, quote_request.campaign_id, lock=True)
     reference = quote_reference.strip()
     normalized_currency = currency.strip().upper()
@@ -365,12 +372,19 @@ async def accept_quotation_revision(
     external_accepted_at: datetime | None = None,
     external_acceptance_reference: str | None = None,
 ) -> CommercialTerms:
+    campaign_id = await session.scalar(
+        select(CommercialQuotationRevision.campaign_id).where(
+            CommercialQuotationRevision.id == quotation_revision_id
+        )
+    )
+    if campaign_id is not None:
+        await acquire_campaign_terms_lock(session, campaign_id)
     if acceptance_method != AcceptanceMethod.IN_PLATFORM:
         await require_active_admin(session, actor_user_id)
     revision = await session.get(CommercialQuotationRevision, quotation_revision_id)
     if revision is None:
         raise AppError("QUOTATION_NOT_FOUND", "Quotation revision was not found", status_code=404)
-    await acquire_campaign_terms_lock(session, revision.campaign_id)
+    assert campaign_id == revision.campaign_id
     revision = (
         await session.execute(
             select(CommercialQuotationRevision)
@@ -723,10 +737,10 @@ async def reconcile_payment_receipt(
     expected_amount: Decimal | str,
     expected_currency: str,
 ) -> ReceiptReconciliation:
-    await require_active_admin(session, actor_user_id)
     receipt = await session.scalar(
         select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
     )
+    await require_active_admin(session, actor_user_id)
     if receipt is None:
         raise AppError("RECEIPT_NOT_FOUND", "Receipt was not found", status_code=404)
     existing = await session.scalar(
@@ -786,10 +800,10 @@ async def reconcile_payment_receipt(
 async def confirm_payment_receipt(
     session: AsyncSession, *, receipt_id: UUID, actor_user_id: UUID
 ) -> PaymentReceipt:
-    await require_active_admin(session, actor_user_id)
     receipt = await session.scalar(
         select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
     )
+    await require_active_admin(session, actor_user_id)
     if receipt is None:
         raise AppError("RECEIPT_NOT_FOUND", "Receipt was not found", status_code=404)
     current = await _receipt_status(session, receipt.id)
@@ -845,21 +859,23 @@ async def allocate_payment_receipt(
                 "Manual and provider allocation authority cannot be combined",
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
-        await require_active_admin(session, actor_user_id)
+    receipt = await session.scalar(
+        select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
+    )
     campaign_id = await session.scalar(
         select(CommercialTerms.campaign_id).where(CommercialTerms.id == commercial_terms_id)
     )
+    if campaign_id is not None:
+        await acquire_campaign_terms_lock(session, campaign_id)
+    if actor_user_id is not None:
+        await require_active_admin(session, actor_user_id)
     if campaign_id is None:
         raise AppError(
             "BILLING_AUTHORITY_NOT_FOUND", "Billing authority was not found", status_code=404
         )
-    receipt = await session.scalar(
-        select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
-    )
     # Receipt-first ordering is shared with reversal. The campaign advisory,
     # campaign, terms and invoice order then matches correction and budget
     # transitions while serializing the obligation and its new funding fact.
-    await acquire_campaign_terms_lock(session, campaign_id)
     await _campaign(session, campaign_id, lock=True)
     terms = await session.scalar(
         select(CommercialTerms).where(CommercialTerms.id == commercial_terms_id).with_for_update()
@@ -999,10 +1015,25 @@ async def allocate_payment_receipt(
 async def reverse_payment_receipt(
     session: AsyncSession, *, receipt_id: UUID, actor_user_id: UUID, reason: str
 ) -> PaymentReceipt:
-    await require_active_admin(session, actor_user_id)
     receipt = await session.scalar(
         select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
     )
+    campaign_ids = sorted(
+        set(
+            await session.scalars(
+                select(CommercialTerms.campaign_id)
+                .join(
+                    ReceiptAllocation,
+                    ReceiptAllocation.commercial_terms_id == CommercialTerms.id,
+                )
+                .where(ReceiptAllocation.receipt_id == receipt_id)
+            )
+        ),
+        key=str,
+    )
+    for campaign_id in campaign_ids:
+        await acquire_campaign_terms_lock(session, campaign_id)
+    await require_active_admin(session, actor_user_id)
     if receipt is None:
         raise AppError("RECEIPT_NOT_FOUND", "Receipt was not found", status_code=404)
     current = await _receipt_status(session, receipt.id)
@@ -1021,21 +1052,6 @@ async def reverse_payment_receipt(
             "A reversal reason is required",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
-    campaign_ids = sorted(
-        set(
-            await session.scalars(
-                select(CommercialTerms.campaign_id)
-                .join(
-                    ReceiptAllocation,
-                    ReceiptAllocation.commercial_terms_id == CommercialTerms.id,
-                )
-                .where(ReceiptAllocation.receipt_id == receipt.id)
-            )
-        ),
-        key=str,
-    )
-    for campaign_id in campaign_ids:
-        await acquire_campaign_terms_lock(session, campaign_id)
     now = await database_clock(session)
     await _append_receipt_event(
         session,
@@ -1569,8 +1585,8 @@ async def _append_financial_authorization(
     credit_terms: dict | None = None,
     subsidy_reference: str | None = None,
 ) -> CampaignFinancialAuthorization:
-    await require_active_admin(session, actor_user_id)
     await acquire_campaign_terms_lock(session, campaign_id)
+    await require_active_admin(session, actor_user_id)
     campaign = await _campaign(session, campaign_id, lock=True)
     terms = await _commercial_terms_for_campaign(session, campaign_id)
     if terms is None:
@@ -1747,6 +1763,7 @@ async def record_approved_credit_authorization(
     credit_terms: dict,
     reason: str,
 ) -> CampaignFinancialAuthorization:
+    await acquire_campaign_terms_lock(session, campaign_id)
     for admin_user_id in sorted(
         {actor_user_id, approved_by_user_id}, key=lambda user_id: user_id.int
     ):
@@ -1878,9 +1895,7 @@ async def reserve_assignment_liability(
     actor_user_id: UUID,
     require_admin: bool = True,
 ) -> CampaignLiabilityReservation:
-    if require_admin:
-        await require_active_admin(session, actor_user_id)
-    else:
+    if not require_admin:
         actor = await session.get(User, actor_user_id)
         if actor is None or actor.status != UserStatus.ACTIVE:
             raise AppError(
@@ -1888,10 +1903,17 @@ async def reserve_assignment_liability(
                 "An active user is required to reserve assignment liability",
                 status_code=status.HTTP_403_FORBIDDEN,
             )
+    campaign_id = await session.scalar(
+        select(CampaignAssignment.campaign_id).where(CampaignAssignment.id == assignment_id)
+    )
+    if campaign_id is not None:
+        await acquire_campaign_terms_lock(session, campaign_id)
+    if require_admin:
+        await require_active_admin(session, actor_user_id)
     assignment = await session.get(CampaignAssignment, assignment_id)
     if assignment is None:
         raise AppError("ASSIGNMENT_NOT_FOUND", "Assignment was not found", status_code=404)
-    await acquire_campaign_terms_lock(session, assignment.campaign_id)
+    assert campaign_id == assignment.campaign_id
     await _campaign(session, assignment.campaign_id, lock=True)
     from app.models.campaign_cancellation import CampaignCancellation
 
@@ -2099,8 +2121,8 @@ async def record_production_start(
     actor_user_id: UUID,
     waiver_id: UUID | None = None,
 ) -> ProductionStart:
-    await require_active_admin(session, actor_user_id)
     await acquire_campaign_terms_lock(session, campaign_id)
+    await require_active_admin(session, actor_user_id)
     await _campaign(session, campaign_id, lock=True)
     from app.models.campaign_cancellation import CampaignCancellation
 
@@ -2646,11 +2668,12 @@ async def record_invoice_correction(
     tax_amount: Decimal | str,
     reason: str,
 ) -> InvoiceCorrection:
-    await require_active_admin(session, actor_user_id)
     campaign_id = await session.scalar(select(Invoice.campaign_id).where(Invoice.id == invoice_id))
+    if campaign_id is not None:
+        await acquire_campaign_terms_lock(session, campaign_id)
+    await require_active_admin(session, actor_user_id)
     if campaign_id is None:
         raise AppError("INVOICE_NOT_FOUND", "Invoice was not found", status_code=404)
-    await acquire_campaign_terms_lock(session, campaign_id)
     await _campaign(session, campaign_id, lock=True)
     invoice = await session.scalar(
         select(Invoice).where(Invoice.id == invoice_id).with_for_update()
@@ -2866,15 +2889,18 @@ async def record_refund_settlement(
     external_reference: str,
     reason: str,
 ) -> RefundSettlement:
-    await require_active_admin(session, actor_user_id)
     receipt = await session.scalar(
         select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
     )
-    terms = await session.get(CommercialTerms, commercial_terms_id)
-    if terms is None:
+    campaign_id = await session.scalar(
+        select(CommercialTerms.campaign_id).where(CommercialTerms.id == commercial_terms_id)
+    )
+    if campaign_id is not None:
+        await acquire_campaign_terms_lock(session, campaign_id)
+    await require_active_admin(session, actor_user_id)
+    if campaign_id is None:
         raise AppError("COMMERCIAL_TERMS_NOT_FOUND", "Commercial terms were not found", 404)
-    await acquire_campaign_terms_lock(session, terms.campaign_id)
-    await _campaign(session, terms.campaign_id, lock=True)
+    await _campaign(session, campaign_id, lock=True)
     terms = await session.scalar(
         select(CommercialTerms).where(CommercialTerms.id == commercial_terms_id).with_for_update()
     )
@@ -3108,11 +3134,15 @@ async def record_credit_contract_settlement(
     external_reference: str,
     reason: str,
 ) -> RefundSettlement:
+    campaign_id = await session.scalar(
+        select(CommercialTerms.campaign_id).where(CommercialTerms.id == commercial_terms_id)
+    )
+    if campaign_id is not None:
+        await acquire_campaign_terms_lock(session, campaign_id)
     await require_active_admin(session, actor_user_id)
-    terms = await session.get(CommercialTerms, commercial_terms_id)
-    if terms is not None:
-        await acquire_campaign_terms_lock(session, terms.campaign_id)
-        await _campaign(session, terms.campaign_id, lock=True)
+    terms = None
+    if campaign_id is not None:
+        await _campaign(session, campaign_id, lock=True)
         terms = await session.scalar(
             select(CommercialTerms)
             .where(CommercialTerms.id == commercial_terms_id)
@@ -3527,6 +3557,7 @@ async def resume_campaign_after_budget_pause(
     actor_user_id: UUID,
     reason: str,
 ) -> BudgetCampaignTransition:
+    await acquire_campaign_terms_lock(session, campaign_id)
     await require_active_admin(session, actor_user_id)
     normalized_reason = reason.strip()
     if not normalized_reason:
@@ -3535,7 +3566,6 @@ async def resume_campaign_after_budget_pause(
             "A budget-resume reason is required",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
-    await acquire_campaign_terms_lock(session, campaign_id)
     campaign = await _campaign(session, campaign_id, lock=True)
     evaluation = await session.scalar(
         select(BudgetPolicyEvaluation)
