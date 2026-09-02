@@ -7,15 +7,9 @@ below is claimed complete, waived, or supplied.
 
 ## Client, business, or legal decisions
 
-- `AUD-006` — decide which campaign lifecycle states may be linked to planning
-  sources, including historical analysis.
 - `COM-008` — supply the corporate-credit ceiling/facility and driver-liability
   policy, recorder/approver separation, and legacy/retry/concurrency/audit
   treatment.
-- `ONB-003` — decide how duplicate NIN, normalized phone, and bank-account
-  matches are handled.
-- `ONB-004` — set the maximum vehicle-approval horizon and renewal relationship
-  to document expiry.
 - `REP-007` — approve lawful report retention, withdrawal/tombstone, backup,
   and presigned-link expiry/revocation rules.
 
@@ -61,6 +55,14 @@ below is claimed complete, waived, or supplied.
   hardening is deliberately requested.
 
 ## Decisions removed from the parked list on 2 September 2026
+
+- `ONB-003` — duplicate NIN, normalized phone, or payout-bank-account matches
+  are hard conflicts; rejection must not disclose the matched driver's identity.
+- `AUD-006` — planning-source links remain editable through paused campaigns;
+  completed, cancelled, and rejected campaigns retain read-only history.
+- `ONB-004` — an authorised admin enters the vehicle approval end date after
+  reviewing submitted documents; it may exceed document expiry and has no
+  automatic 12-month cap. The decision and actor remain auditable.
 
 - `R11 / AUT-004` — the project owner decided that logout signs the user out on
   every device. Implementation must rotate durable session authority, clear the

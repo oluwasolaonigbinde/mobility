@@ -306,13 +306,13 @@ trigger and a newly reviewed authority amendment.
 
 | Candidate | State | Required authority |
 | --- | --- | --- |
-| AUD-006 | OWNER DECISION | allowed campaign lifecycle states for planning-source links |
+| AUD-006 | DECIDED — REVIEW FOR EXECUTION | D30: editable through paused; completed/cancelled/rejected are read-only history |
 | AUT-006 | DECIDED — REVIEW FOR EXECUTION | D27: password reauthentication plus global session revocation before elevation |
 | AUT-007 | DECIDED — REVIEW FOR EXECUTION | D29: exactly one active advertiser organization per advertiser login |
 | COM-008 | OWNER DECISION — OPEN | corporate-credit facility ceiling and recorder/approver policy, including legacy, retry, concurrency, and immutable audit |
 | OFF-008 | DECIDED — REVIEW FOR EXECUTION | D27: stop capture, retain evidence and retry the identical End until authoritative confirmation |
-| ONB-003 | OWNER DECISION | duplicate NIN/phone/bank-account policy |
-| ONB-004 | OWNER DECISION | maximum vehicle-approval horizon and renewal relation |
+| ONB-003 | DECIDED — REVIEW FOR EXECUTION | D30: duplicate NIN, normalized phone, or payout bank account is a hard conflict |
+| ONB-004 | DECIDED — REVIEW FOR EXECUTION | D31: administrator-entered approval end date may exceed document expiry; no automatic 12-month cap |
 | ONB-005 | DECIDED — VERIFY CURRENT BEHAVIOR | D29: one admin may complete all three checks; immutable actor evidence remains required |
 | ONB-008 | DECIDED — REVIEW FOR EXECUTION | D27: per-IP and normalized-identity limits, non-revealing responses and alerts; no global switch |
 | ONB-009 | DECIDED — REVIEW FOR EXECUTION | D28: administrator-authorised, driver-completed single-use setup link after full approval |
@@ -804,3 +804,5 @@ verification is complete.
 | 349 | 219 | 1 | PACKET_BLOCKED | R02's faithful immutable candidate reached 836 passed with zero skips before a historical migration-0028 test asserted that current `head` contained only the four payee tables introduced at 0028, omitting the accepted 0069 verification table. | exact R02 patch `8bc499f7...`; no R02 diff defect; stale test authority is outside the frozen R02 lease |
 | 350 | 220 | 1 | VERIFICATION_SWEEP_RESERVED | V10 will audit the cohesive class of migration tests that upgrade to current `head` and then assert an exact historical schema inventory, correct only demonstrated stale assertions in its enumerated old-migration test lease, and run the affected PostgreSQL modules before one further R02 complete-suite attempt. | GPT-5.6 Terra/high — ordinary migration-test authority, no product/model/migration writes; disjoint from active S04 and R39→R44; terminal callback only |
 | 351 | 221 | 1 | VERIFICATION_SWEEP_STARTED | Visible V10 began the bundled historical-migration assertion sweep and may correct only demonstrated stale assertions within its six enumerated old-migration test files; any additional affected paths must be returned once as a consolidated expansion request. | task `01a061d2-ed05-7102-b87e-37cd7eef98e8`; GPT-5.6 Terra/high; direct shared checkout; no product/model/migration/generated-contract authority; proactive terminal callback |
+| 352 | 222 | 1 | OWNER_DECISIONS_RECORDED | D30 hard-rejects duplicate driver NIN, normalized phone or payout bank account and permits planning-source link changes only through paused campaign states; terminal campaign history is read-only. | ONB-003 and AUD-006 move to current-source reviewed execution eligibility; ONB-004 remains open for the exact admin-entered document-expiry horizon |
+| 353 | 223 | 1 | OWNER_DECISION_RECORDED | D31 assigns vehicle-approval expiry to an explicit administrator-entered date after document review; it may exceed document expiry and has no automatic 12-month cap. | ONB-004 moves to current-source reviewed execution eligibility; selected date and actor remain auditable and expiry requires a new approval |
