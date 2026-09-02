@@ -47,7 +47,7 @@ the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `1`
 **Current capacity assignment:** `R02`
-**Current capacity justification:** AUT-006 is the only active repository writer and owns the admin-user API/schema plus generated-contract surface. R29→R30, R36→R37 and R45→R52 all require the same serialized migration or generated-contract lane; R56 requires the audit-route fixture already leased to AUT-006. R02's expensive complete-suite gate waits for the accepted AUT-006 base so it is not run twice. Four read-only Claude Opus product/UX audits are being launched outside the repository mutation pool; they do not block remediation. Refill AUT-006's released lane immediately with the longest ready cohesive chain, then run R02 and the disjoint R56 matrix in parallel where their final surfaces no longer overlap.
+**Current capacity justification:** AUT-006 is the only active repository writer and owns the admin-user API/schema plus generated-contract surface. R29→R30, R36→R37 and R45→R52 all require the same serialized migration or generated-contract lane; R56 requires the audit-route fixture already leased to AUT-006. R02's expensive complete-suite gate waits for the accepted AUT-006 base so it is not run twice. Three read-only Claude Opus product/UX audits are running outside the repository mutation pool; they do not block remediation. Refill AUT-006's released lane immediately with the longest ready cohesive chain, then run R02 and the disjoint R56 matrix in parallel where their final surfaces no longer overlap.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
