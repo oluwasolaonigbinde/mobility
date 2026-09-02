@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 175
+plan_revision: 177
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 300
+last_event_sequence: 302
 ---
 
 # Cardvert audit remediation programme
@@ -348,11 +348,11 @@ trigger and a newly reviewed authority amendment.
 | `/root/r13_attempt5_review` | S05 / R13 attempt-7 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `16f1b2b8...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-6 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `08d04f8c...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-5 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `6e171d42...` diff | FIX |
-| task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d` | S01 / R02 preserved-checkpoint implementation/admission | GPT-5.6 Sol/high — cross-package CI and real-service authority | exact three-path `a3e8129f...` lease; reconcile preserved reviews and branch-policy conflict | ACTIVE |
+| task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d` | S01 / R02 preserved-checkpoint implementation/admission | GPT-5.6 Sol/high — cross-package CI and real-service authority | exact four-path `03e3d683...` packet frozen; final stable exact-SHA run waits for V04 and accepted R38 fixture transfer | BLOCKED |
 | task `01a05e49-0107-7611-8ee8-515273881aa8` | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | released exact R15 diff | ACCEPTED |
 | task `01a05e49-48d5-7823-9388-537d0800e87b` | S07 / R28 plan and independent review | GPT-5.6 Terra/high — ordinary bounded campaign lifecycle planning | read-only; no mutation lease | BLOCKED-OWNER |
 | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32 implementation, R33 held | GPT-5.6 Sol/high — onboarding security, migration and contract authority | released accepted R32 diff; R33 remains dependency-held | ACCEPTED |
-| task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | S12 / R36 mixed-validity ping partial acceptance | GPT-5.6 Sol/high — database/offline partial-completion authority | exact trip ingest/client queue/generated-contract lease; R37 held | ACTIVE |
+| task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | V04 / accepted privacy-authority campaign assertion correction | GPT-5.6 Terra/high — ordinary test integration with authorization semantics | `tests/test_campaigns.py` assertion only; no product authority; R36 remains separately BLOCKED-OWNER | ACTIVE |
 | Claude session `Cardvert audit-route integration correction` | R34 inherited audit-registry integration | Claude Opus 5 / High — owner-selected bounded audit/security evidence correction | exact `tests/test_audit_route_coverage.py` correction `34b7d55b...`; 7 controller PostgreSQL passes | COMPLETE-RETURNED |
 | Claude session `Cardvert R09 authentication remediation` | R09 auth command/status/reset implementation | Claude Opus 5 / High — owner-selected authentication and PostgreSQL race boundary | exact eight-path `5b0a3f68...` freeze released after controller verification | ACCEPTED |
 | task `01a05ef6-632c-79b1-bdf3-16c6e95aafd4` | S10/S11/S13/S14 aggregate R18-R22 and R29-R31 planning | GPT-5.6 Sol/high — money/migration/concurrency planning | read-only; R18-P through R22-P and R29-P through R31-P accepted | PLAN-PASS |
@@ -753,3 +753,5 @@ verification is complete.
 | 298 | 174 | 1 | SLICE_ACCEPTED | R25/COM-003,COM-005 accepted exactly once after exact-digest reconciliation, diff inspection and focused controller PostgreSQL/API/OpenAPI verification. | binary diff `b3086d10...`; R25-P/M, MNY+CONTRACT and CP-COMMERCIAL PASS; controller 6 passed; exact 13-file scope |
 | 299 | 174 | 1 | DISPATCH_RESERVED | R26/COM-006 reserved the released accepted-R25 billing lane for invoice allocation/correction lock-order delivery. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; GPT-5.6 Sol/high — bounded money plus PostgreSQL concurrency; disjoint from active R02 CI and R38 privacy ingress leases; R27 held |
 | 300 | 175 | 1 | DISPATCH_STARTED | Existing visible S09 began R26/COM-006 on the exact accepted-R25 billing service and invoice concurrency-test lease with proactive terminal callback. | task `01a05e73-3a0d-77f3-be25-54ede644cfb1`; GPT-5.6 Sol/high; no model/migration/API/generated-contract authority; R02 and R38 remain disjoint active owners |
+| 301 | 176 | 1 | INTEGRATION_CORRECTION_RESERVED | V04 reserved one assertion-only correction for the invited-manager campaign test exposed by R02's real-service gate: accepted privacy authority treats an invited membership as absent from active advertiser tenant context, so the stale 403 assertion must expect the established 404 organization-not-found response. | `tests/test_campaigns.py` only; GPT-5.6 Terra/high — ordinary test integration with security-sensitive authorization semantics; no product/helper/contract authority; R02 frozen and non-writing; disjoint from R26/R38 |
+| 302 | 177 | 1 | LEASE_TRANSFERRED | Frozen R02 released one line in `tests/conftest.py` to R38 so the collection synthetic authority can default independently to false while the shared test fixture enables it explicitly; R02 retains its other CI authority bytes and will absorb the accepted fixture baseline before its final stable run. | R38 exact expansion: `tests/conftest.py` fixture argument only; existing owned `app/core/config.py` and `tests/test_driver_applications.py` cover the default regression; no disclosure-authority coupling or broader R02 mutation; actual writers V04/R26/R38 remain disjoint |
