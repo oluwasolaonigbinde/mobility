@@ -54,6 +54,27 @@ def _replace_external_row(
     )
 
 
+_CHECKLIST_BLOCKER_PATTERN = re.compile(
+    r"^(\| \d+ \| \*\*[^|]+\| PKG-\d{2} \| BLOCKED — )([^|]+?)( \|)",
+    re.MULTILINE,
+)
+
+
+def _clear_checklist_blocker(progress: str, external_id: str) -> str:
+    """Drop a now-PRESENT input from checklist-item blocker lists only.
+
+    A checklist item must name exactly its missing direct external inputs, so a
+    synthetic register flip to PRESENT has to be reflected in the item rows that
+    still name it. Package queue rows carry no blocker list and are untouched.
+    """
+
+    def _rewrite(match: re.Match[str]) -> str:
+        named = [candidate for candidate in match.group(2).split(", ") if candidate != external_id]
+        return f"{match.group(1)}{', '.join(named)}{match.group(3)}"
+
+    return _CHECKLIST_BLOCKER_PATTERN.sub(_rewrite, progress)
+
+
 def test_current_authority_has_exact_ordered_honest_blockers(
     authority_texts: tuple[str, str, str],
 ) -> None:
@@ -155,6 +176,7 @@ def test_measurement_runtime_claim_requires_method_and_privacy_authority(
         state="PRESENT",
         evidence="docs/decisions-log.md D18/Q31",
     )
+    progress = _clear_checklist_blocker(progress, "EXT-LEGAL-PRIVACY")
     trusted = {
         **evaluator.TRUSTED_PRESENT_EVIDENCE,
         "EXT-LEGAL-PRIVACY": evaluator.TrustedEvidence(
@@ -212,6 +234,7 @@ def test_newly_present_input_without_reviewed_evidence_rule_fails_closed(
         state="PRESENT",
         evidence="docs/decisions-log.md D20/Q30",
     )
+    progress = _clear_checklist_blocker(progress, "EXT-REPORT-METHOD")
 
     with pytest.raises(evaluator.AuthorityError) as raised:
         evaluator.parse_authority(progress, architecture, decisions)
