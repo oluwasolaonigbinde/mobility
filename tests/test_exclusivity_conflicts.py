@@ -166,6 +166,12 @@ def test_cancel_and_admin_activation_serialize_postgres(
     admin, campaigns, driver, profile, vehicle = build_graph(
         postgis_db_sessionmaker, "cancel-activate"
     )
+    activation_admin = create_test_user(
+        postgis_db_sessionmaker,
+        email="activation-admin-cancel-activate@example.com",
+        password=PASSWORD,
+        role=UserRole.ADMIN,
+    )
     assignment_id = create_offered_assignment(
         postgis_db_sessionmaker, settings, admin, campaigns[0], profile, vehicle
     )
@@ -208,7 +214,7 @@ def test_cancel_and_admin_activation_serialize_postgres(
             try:
                 await assignments_service.activate_admin_assignment(
                     session,
-                    admin_user_id=admin.id,
+                    admin_user_id=activation_admin.id,
                     assignment_id=assignment_id,
                     payload=CampaignAssignmentTransition(),
                 )
@@ -375,7 +381,11 @@ def test_cancel_and_trip_start_serialize_postgres(
                 await trips_service.start_driver_trip(
                     session,
                     user_id=driver.id,
-                    payload=TripStartRequest(assignment_id=assignment.id, metadata={}),
+                    payload=TripStartRequest(
+                        assignment_id=assignment.id,
+                        evidence_protocol_version=2,
+                        metadata={},
+                    ),
                     settings=settings,
                 )
                 await session.commit()
@@ -445,7 +455,11 @@ def test_deactivation_and_funded_trip_start_serialize_postgres(
                 await trips_service.start_driver_trip(
                     session,
                     user_id=driver.id,
-                    payload=TripStartRequest(assignment_id=assignment.id, metadata={}),
+                    payload=TripStartRequest(
+                        assignment_id=assignment.id,
+                        evidence_protocol_version=2,
+                        metadata={},
+                    ),
                     settings=settings,
                 )
                 await session.commit()
@@ -605,7 +619,11 @@ def test_lost_trip_start_race_returns_active_trip_envelope(
     response = db_client.post(
         "/api/v1/driver/trips/start",
         headers=auth_headers(db_client, driver.email, PASSWORD),
-        json={"assignment_id": str(assignment.id), "metadata": {}},
+        json={
+            "assignment_id": str(assignment.id),
+            "evidence_protocol_version": 2,
+            "metadata": {},
+        },
     )
 
     assert_conflict_envelope(response, expected_code)
@@ -639,7 +657,11 @@ def _start_trip_outcome(sessionmaker, *, user_id, assignment_id, settings):
                 await trips_service.start_driver_trip(
                     session,
                     user_id=user_id,
-                    payload=TripStartRequest(assignment_id=assignment_id, metadata={}),
+                    payload=TripStartRequest(
+                        assignment_id=assignment_id,
+                        evidence_protocol_version=2,
+                        metadata={},
+                    ),
                     settings=settings,
                 )
                 await session.commit()
