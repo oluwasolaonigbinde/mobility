@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 154
+plan_revision: 156
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 278
+last_event_sequence: 280
 ---
 
 # Cardvert audit remediation programme
@@ -257,7 +257,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R33 | ONB-006 | WAITING | R05, R32 | R33-P; current 50k-row exact-index experiment | wait for accepted R05; revalidate exact-index plan |
 | R34 | OFF-001 | ACTIVE | R04; offline opener | R34-P; frozen 38-file implementation `f25bd28f...`; registry correction returned | fix order-dependent v2 batch fixture, then repeat mandatory aggregate/full gates and admission review |
 | R35 | OFF-002, OFF-003 | COMPLETE | R34 | R35-P/M; OFF+SEC; CP-OFFLINE; exact `e232ab7d...` freeze; 65 focused frontend passes plus typecheck/lint/format | accepted exactly once; offline frontend lease released |
-| R36 | OFF-005 | READY | R35 | R36-P; reviewed partial-acceptance contract | activate an exact disjoint DB/offline lease after R35 integration |
+| R36 | OFF-005 | ACTIVE | R35 | R36-P; reviewed partial-acceptance contract | exact lease: `app/services/trips.py`, `app/schemas/trips.py`, `app/api/v1/trips.py`, `tests/test_trips.py`, `tests/test_trip_evidence_r34.py`, `frontend/src/app/driver/actions.ts`, driver trip tracker and test, ping queue and test, `openapi.json`, `docs/api/openapi.snapshot.json`, `frontend/src/lib/api/schema.d.ts`; migrations and all other paths excluded |
 | R37 | OFF-006 | WAITING | R36 | R37-P; reviewed deactivation-drain contract; durable break case: terminal deadletter-only retained evidence needs server-side final adjudication/sealing authority without client deletion | wait for accepted R36; reconcile the R35 evidence pointer during R37 implementation/review |
 | R38 | PRV-001, PRV-002 | WAITING | R13; privacy opener | R38-P; reviewed collection-time privacy-gate contract | wait for accepted R13 and release of R34 trip/config surfaces |
 | R39 | PRV-003 | WAITING | R38 | R39-P; reviewed aggregate-only campaign-trip contract | wait for accepted R38 and generated-contract lane |
@@ -731,3 +731,5 @@ verification is complete.
 | 276 | 152 | 1 | INTEGRATION_GATE_PASSED | The controller reproduced R35's exact four-file digest and reran its complete 65-test queue/tracker set plus typecheck, scoped lint, Prettier and diff checks. | exact `e232ab7d...`; all focused gates passed; unrelated Playwright artifacts excluded |
 | 277 | 153 | 1 | SLICE_ACCEPTED | R35/OFF-002,OFF-003 accepted exactly once: deadletter-only trips remain discoverable, retained unreadable evidence fails closed with truthful UI, and a GPS fix is acknowledged only after its encrypted write commits. | R35-P/M; OFF+SEC; CP-OFFLINE; exact four-file scope; two disclosed false red-evidence claims excluded from closure evidence |
 | 278 | 154 | 1 | DEFERRED_OBLIGATION_RECORDED | R35 correctly retains terminal deadletter-only evidence but cannot itself produce a final server seal; R37 must reconcile server-side final adjudication/sealing without granting client deletion or blind resend. | trigger: R37 implementation/review; evidence: R35 v4 callback and `trip.py` GRACE_EXPIRED observation; R36 remains separate partial-batch authority |
+| 279 | 155 | 1 | DISPATCH_RESERVED | R02's preserved exact three-path CI checkpoint is reserved for its existing visible S01 Codex task; the failed Claude task contributes frozen evidence only and will not be restarted. | GPT-5.6 Sol/high — cross-package CI and real-service authority; digest `a3e8129f...`; no path expansion |
+| 280 | 156 | 1 | DISPATCH_RESERVED | R36/OFF-005 reserved an exact cross-stack trip-ingest/partial-ACK/queue/contract lease after accepted R35 released the offline frontend surfaces. | GPT-5.6 Sol/high — database and offline evidence partial-completion semantics; disjoint from R02; no migration authority |
