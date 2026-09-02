@@ -9,8 +9,6 @@ below is claimed complete, waived, or supplied.
 
 - `AUD-006` — decide which campaign lifecycle states may be linked to planning
   sources, including historical analysis.
-- `AUT-007` — decide whether multi-tenant users explicitly select a tenant or
-  are limited to one active membership.
 - `COM-008` — supply the corporate-credit ceiling/facility and driver-liability
   policy, recorder/approver separation, and legacy/retry/concurrency/audit
   treatment.
@@ -18,8 +16,6 @@ below is claimed complete, waived, or supplied.
   matches are handled.
 - `ONB-004` — set the maximum vehicle-approval horizon and renewal relationship
   to document expiry.
-- `ONB-005` — decide maker-checker separation for payee, person, and vehicle
-  approvals.
 - `REP-007` — approve lawful report retention, withdrawal/tombstone, backup,
   and presigned-link expiry/revocation rules.
 
@@ -90,3 +86,8 @@ below is claimed complete, waived, or supplied.
 - `ONB-009` — an authorised Cardvert admin initiates activation only after the
   driver is fully approved; the driver completes a short-lived, single-use
   setup link to choose the password and atomically activate the account.
+- `AUT-007` — every advertiser login belongs to exactly one advertiser company;
+  multi-company agency access and silent company selection are not supported.
+- `ONB-005` — one Cardvert admin may verify the payout account and approve the
+  same driver's person/payee and vehicle evidence, with each action preserved
+  in immutable audit/evidence.

@@ -308,12 +308,12 @@ trigger and a newly reviewed authority amendment.
 | --- | --- | --- |
 | AUD-006 | OWNER DECISION | allowed campaign lifecycle states for planning-source links |
 | AUT-006 | DECIDED — REVIEW FOR EXECUTION | D27: password reauthentication plus global session revocation before elevation |
-| AUT-007 | OWNER DECISION | explicit tenant selection or one-membership policy |
+| AUT-007 | DECIDED — REVIEW FOR EXECUTION | D29: exactly one active advertiser organization per advertiser login |
 | COM-008 | OWNER DECISION — OPEN | corporate-credit facility ceiling and recorder/approver policy, including legacy, retry, concurrency, and immutable audit |
 | OFF-008 | DECIDED — REVIEW FOR EXECUTION | D27: stop capture, retain evidence and retry the identical End until authoritative confirmation |
 | ONB-003 | OWNER DECISION | duplicate NIN/phone/bank-account policy |
 | ONB-004 | OWNER DECISION | maximum vehicle-approval horizon and renewal relation |
-| ONB-005 | OWNER DECISION | maker-checker separation for onboarding approvals |
+| ONB-005 | DECIDED — VERIFY CURRENT BEHAVIOR | D29: one admin may complete all three checks; immutable actor evidence remains required |
 | ONB-008 | DECIDED — REVIEW FOR EXECUTION | D27: per-IP and normalized-identity limits, non-revealing responses and alerts; no global switch |
 | ONB-009 | DECIDED — REVIEW FOR EXECUTION | D28: administrator-authorised, driver-completed single-use setup link after full approval |
 | REL-007 | DECIDED — REVIEW FOR EXECUTION | D27: bundled or managed; production requires TLS, authentication, explicit hostnames and supplied secrets |
@@ -797,3 +797,4 @@ verification is complete.
 | 342 | 212 | 1 | SLICE_ACCEPTED | R28/CAM-001 accepted exactly once: the existing admin offer schedules an approved API-created campaign, and existing admin activation promotes it to active only after all established readiness gates. | product commit `a9c417a`; exact patch `d5674f93...`; controller 15 focused PostgreSQL passes plus Ruff/diff checks; R28-P/M and CP-CAMPAIGN PASS; no route/schema/migration/contract change |
 | 343 | 213 | 1 | OWNER_DECISION_RECORDED | D28 selects administrator-authorised, driver-completed account activation after full approval using a short-lived single-use setup link and driver-chosen password. | ONB-009 moves from parked client decision to current-source review eligibility; no live provider or credential invented; architecture synchronization is delegated to active S04 because it already owns the dirty architecture lease |
 | 344 | 214 | 1 | INTEGRATION_CORRECTION_STARTED | V09 returns R02's two campaign-concurrency blockers to the campaign lane: reconcile the stale v1 trip-start fixture and the adjacent activation/cancellation barrier against accepted R28 and R34 behavior. | existing R28 visible task; GPT-5.6 Terra/high — bounded test-only concurrency reconciliation; exact `tests/test_exclusivity_conflicts.py` lease; no product change without STOP |
+| 345 | 215 | 1 | OWNER_DECISIONS_RECORDED | D29 selects exactly one advertiser organization per advertiser login and permits one Cardvert admin to perform bank, person/payee and vehicle approval checks with immutable attribution. | AUT-007 moves to reviewed enforcement after central migration-lane release; ONB-005 moves to current-behavior verification rather than manufactured maker-checker work; architecture synchronization delegated to active S04 lease |
