@@ -45,9 +45,9 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `1`
+**Current justified remediation writer capacity:** `4`
 **Current capacity assignment:** `R02`
-**Current capacity justification:** The cohesive R23→R27 commercial lane is complete and V05's migration-fixture correction is accepted. S01 resumes the immutable R02 real-service gate and may continue directly into R03 on the same serialized CI/generated-contract lane. R39 remains queued behind R03's generated-contract files; R05 depends on accepted R02, while every other unfinished front is dependency- or owner-blocked.
+**Current capacity justification:** The four writers are disjoint: authentication/readiness, campaign lifecycle, the serialized privacy/audit migration-and-contract lane, and one test-only observability timing assertion. R02's exact CI patch is frozen while V08 removes its unrelated hardware-sensitive gate. Each owner must stop before any file or mutation-domain overlap.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -80,15 +80,18 @@ engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
 **Current checkpoint:** `PKG-10 / R02` — V06's signed-v2 demo-seed correction is
-accepted at `9e1c0d7`, and R02 is running its immutable real-service gate using
-Sol/medium under the updated model policy. R03 remains held until R02 passes
-and the privacy chain releases generated contracts. In parallel,
+accepted at `9e1c0d7`. R02's exact CI patch is frozen after its immutable real-
+service run reached 634 passes and zero skips before an unrelated R13 test's
+absolute three-second wall-clock assertion failed on otherwise correct bounded
+output and memory behavior. V08 owns only that disproportional test gate using
+Terra/high; R02 will resume unchanged after its acceptance. R03 remains held
+until R02 passes and the privacy chain releases generated contracts. In parallel,
 the disjoint R11→R12→R14 security/readiness session and R28 administrator
 campaign-activation session are active. The accepted V07 owner now holds the
 serialized R39→R44 privacy/audit migration and generated-contract lane. Four
-temporary writer lanes are safe: auth/config/edge, campaign lifecycle, seed-
-only demo compatibility, and privacy/audit share no files or mutation domains;
-R02 is frozen and non-writing. R17 remains parked in `to-do.md`; R36 waits for
+temporary writer lanes are safe: auth/config/edge, campaign lifecycle, the
+privacy/audit chain, and the one-file V08 test correction share no files or
+mutation domains; R02 is frozen and non-writing. R17 remains parked in `to-do.md`; R36 waits for
 the serialized lane. No production legacy-money rule is weakened.
 
 ## Direct owner requests outside the package queue
