@@ -46,8 +46,8 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R46, R56`
-**Current capacity justification:** R45 is accepted and releases its measurement/migration surfaces. Two write-disjoint lanes now run: R46 owns one frozen cohort/time-boundary authority across measurement/report projections; R56 owns the authorization matrix and its bounded resource-denial corrections. R02's expensive complete-suite gate waits for R56's accepted matrix base so it is run once. Read-only Claude Opus product/UX audits remain outside the repository mutation pool.
+**Current capacity assignment:** `R02, R46`
+**Current capacity justification:** R45 and R56 are accepted. R02 now owns only its frozen CI-authority paths plus one immutable full-service verification run from the accepted base; R46 owns one frozen cohort/time-boundary authority across measurement/report projections and is reserved for a fresh Opus 5 session. These surfaces are write-disjoint. Read-only Claude Opus product/UX audits remain outside the repository mutation pool.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -86,8 +86,8 @@ historical migration fixtures, V12 signed-v2 payout fixtures, V13 reversal
 deadlocks, V14 trip-end/enqueue lifecycle and the controller-state correction.
 R54 is accepted. R39→R44 plus D30 are accepted as one integrated privacy/audit
 chain with migrations 0075–0077. R29→R30 is accepted at `32d617f` and R45 at
-`7f7bd1c`; R46 and R56 are the current disjoint writers. R02 resumes after R56 is accepted with
-GPG, Node and a host-visible nested-Docker path. R17 remains parked in
+`7f7bd1c`; R56 is accepted at `751060c`. R02 and R46 are the current disjoint
+lanes. R02 uses GPG, Node and a host-visible nested-Docker path. R17 remains parked in
 `to-do.md`.
 
 ## Direct owner requests outside the package queue
@@ -1546,7 +1546,7 @@ durable ledger before changing a row.
 | Slice | Candidate IDs | Dependencies | State | Plan review | Diff review | Domain checkpoint |
 | --- | --- | --- | --- | --- | --- | --- |
 | R01 | GOV-001 | none | COMPLETE | PASS — R01-P | PASS — R01-M | CP-CONTROL PASS — R01-CP-CONTROL |
-| R02 | GOV-003, TST-001, DB-005 | R01, R04 | QUEUED | PASS — R02-P | PENDING | CP-CONTROL PENDING |
+| R02 | GOV-003, TST-001, DB-005 | R01, R04 | ACTIVE | PASS — R02-P | PENDING | CP-CONTROL PENDING |
 | R03 | GOV-004 | R02 | QUEUED | PASS — R03-P | PENDING | CP-CONTROL PENDING |
 | R04 | DB-004 | none | COMPLETE | PASS — R04-P | PASS — R04-M | CP-DB PASS — R04-CP-DB |
 | R05 | DB-001, TST-012, ONB-010 | R02, R04 | QUEUED | PASS — R05-P | PENDING | CP-DB PENDING |
@@ -1600,7 +1600,7 @@ durable ledger before changing a row.
 | R53 | REL-005 | none | COMPLETE | PASS — R53-P | PASS — R53-M | CP-RELEASE PASS — R53-CP-RELEASE |
 | R54 | REL-006 | R12, R16, R53 | COMPLETE | PASS — R54-P | PASS — R54-M | CP-RELEASE PASS — R54-CP-RELEASE |
 | R55 | REL-004 | R03, R18, R48, R51, R54 | QUEUED | PASS — R55-P | PENDING | CP-RELEASE PENDING |
-| R56 | TST-005 | R09, R11, R14, R40 | ACTIVE | PASS — R56-P | PENDING | CP-SECURITY PENDING |
+| R56 | TST-005 | R09, R11, R14, R40 | COMPLETE | PASS — R56-P | PASS — R56-M | CP-SECURITY PASS — R56-CP-SECURITY |
 | R57 | TST-008 | R19, R27, R49, R55 | QUEUED | PASS — R57-P | PENDING | CP-RELEASE PENDING |
 | R58 | TST-011 | R15, R20, R21, R43, R49, R51 | QUEUED | PASS — R58-P | PENDING | CP-WORKERS PENDING |
 | R59 | TST-002 | R22, R31, R33, R37, R41, R44, R48, R50, R51, R56, R57, R58 | QUEUED | PENDING | PENDING | CP-RELEASE PENDING |
