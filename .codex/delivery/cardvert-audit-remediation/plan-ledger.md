@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 184
+plan_revision: 185
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 312
+last_event_sequence: 314
 ---
 
 # Cardvert audit remediation programme
@@ -348,11 +348,11 @@ trigger and a newly reviewed authority amendment.
 | `/root/r13_attempt5_review` | S05 / R13 attempt-7 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `16f1b2b8...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-6 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `08d04f8c...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-5 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `6e171d42...` diff | FIX |
-| task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d` | S01 / R02→R03 control and contract packet | GPT-5.6 Sol/high — cross-package CI and real-service authority owns the packet's hardest boundary | R38/V04 accepted baseline; immutable R02 candidate snapshot, then exact R03 contract lane; separate receipts | ACTIVE |
+| task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d` | S01 / R02→R03 control and contract packet | GPT-5.6 Sol/high — cross-package CI and real-service authority owns the packet's hardest boundary | R02 exact packet frozen after 484 green/zero skips; V05 migration-seed correction required; R03 not started | BLOCKED |
 | task `01a05e49-0107-7611-8ee8-515273881aa8` | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | released exact R15 diff | ACCEPTED |
 | task `01a05e49-48d5-7823-9388-537d0800e87b` | S07 / R28 plan and independent review | GPT-5.6 Terra/high — ordinary bounded campaign lifecycle planning | read-only; no mutation lease | BLOCKED-OWNER |
 | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32 implementation, R33 held | GPT-5.6 Sol/high — onboarding security, migration and contract authority | released accepted R32 diff; R33 remains dependency-held | ACCEPTED |
-| task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | V04 / accepted privacy-authority campaign assertion correction | GPT-5.6 Terra/high — ordinary test integration with authorization semantics | exact one-file correction integrated; R36 remains separately BLOCKED-OWNER | ACCEPTED |
+| task `01a05e4d-e9ca-7af1-b52a-d84eea62c879` | V05 / migration-0013 ping seed correction | GPT-5.6 Terra/high — bounded historical-schema test integration | `tests/test_migration_0014_partitioning.py` seed helper only; R36 remains separately BLOCKED-OWNER | ACTIVE |
 | Claude session `Cardvert audit-route integration correction` | R34 inherited audit-registry integration | Claude Opus 5 / High — owner-selected bounded audit/security evidence correction | exact `tests/test_audit_route_coverage.py` correction `34b7d55b...`; 7 controller PostgreSQL passes | COMPLETE-RETURNED |
 | Claude session `Cardvert R09 authentication remediation` | R09 auth command/status/reset implementation | Claude Opus 5 / High — owner-selected authentication and PostgreSQL race boundary | exact eight-path `5b0a3f68...` freeze released after controller verification | ACCEPTED |
 | task `01a05ef6-632c-79b1-bdf3-16c6e95aafd4` | S10/S11/S13/S14 aggregate R18-R22 and R29-R31 planning | GPT-5.6 Sol/high — money/migration/concurrency planning | read-only; R18-P through R22-P and R29-P through R31-P accepted | PLAN-PASS |
@@ -765,3 +765,5 @@ verification is complete.
 | 310 | 182 | 1 | PACKET_RESERVED | The cohesive S01 owner may resume the frozen R02 exact CI packet on the accepted R38 fixture baseline and, after a verified internal R02 checkpoint, continue directly into R03 before one terminal callback. | task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d`; GPT-5.6 Sol/high for cross-package CI authority, then Terra/high-equivalent contract work retained under the harder packet gate; R39 waits for the shared generated-contract lane |
 | 311 | 183 | 1 | PACKET_STARTED | Existing visible S01 resumed as the cohesive R02→R03 packet using an immutable disposable candidate snapshot so concurrent disjoint R27 working-tree edits cannot invalidate the long real-service gate. | task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d`; base `e2bd059`; GPT-5.6 Sol/high; separate slice receipts; proactive full-packet terminal callback only |
 | 312 | 184 | 1 | SLICE_ACCEPTED | R27/COM-007 and the terminal R26→R27 packet were accepted after exact-digest reconciliation, diff inspection and controller Lagos-boundary/invoice verification. | binary diff `d9cedaaf...`; R27-P/M, MNY and CP-COMMERCIAL PASS; controller 2 passed; exact two-file scope; R23→R27 commercial lane complete |
+| 313 | 185 | 1 | PACKET_BLOCKED | R02's immutable candidate/full real-service run reached 484 passed and zero skips before a deterministic out-of-packet historical migration fixture failure; R03 correctly remained not started. | R02 patch `8bc499f7...`; immutable manifest `1b807658...`; `seed_ping_graph` uses current `LocationPingBatch` ORM against revision 0013 lacking R34-era `batch_sequence`; no R02 diff defect indicated |
+| 314 | 185 | 1 | INTEGRATION_CORRECTION_RESERVED | V05 reserved the one historical seed helper so all revision-0013 ping graphs use schema-era raw SQL rather than current ORM columns before upgrading to head. | `tests/test_migration_0014_partitioning.py` only; GPT-5.6 Terra/high; test-only migration integration, no product/model/migration authority; R02 frozen and non-writing |

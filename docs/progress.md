@@ -47,7 +47,7 @@ the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `1`
 **Current capacity assignment:** `R02`
-**Current capacity justification:** The cohesive R23→R27 commercial lane is complete. S01 owns the serialized R02→R03 CI/generated-contract packet. R39 is dependency-ready but shares those generated-contract baselines and remains queued until R03 releases them; R05 depends on accepted R02, while every other unfinished front is dependency- or owner-blocked. No additional safe writer exists at this checkpoint.
+**Current capacity justification:** The cohesive R23→R27 commercial lane is complete. R02 is byte-frozen after its immutable full-suite gate exposed a historical-migration seed helper using current ORM columns against revision 0013; its capacity slot is temporarily used by V05 on that one helper file. R03 and R39 remain serialized behind successful R02 and the generated-contract lane; R05 depends on accepted R02, while every other unfinished front is dependency- or owner-blocked.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -78,11 +78,11 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 authority; the directly owner-authorized, Pro-admitted remediation programme is
 resumed from the exact safe pause snapshot without changing any accepted slice
 or any of the 29 non-executable dispositions.
-**Current checkpoint:** `PKG-10 / R02` — R02 is resuming under the
-owner-selected every-branch authority and may continue directly into R03 after
-its verified internal checkpoint. The R23→R27 commercial chain and R38
-collection-time privacy gate are accepted; R39 waits for R03 to release the
-generated-contract lane.
+**Current checkpoint:** `PKG-10 / R02` — R02 is frozen on its exact four-path
+CI packet while V05 corrects the migration-0013 seed helper exposed by the
+immutable real-service run. R03 remains not started. The R23→R27 commercial
+chain and R38 collection-time privacy gate are accepted; R39 waits for R03 to
+release the generated-contract lane.
 R36 remains frozen before first write pending the owner's migration/signing
 scope choice, with no active lease. R35's disclosed false red-evidence claims
 remain excluded from closure evidence and its final-sealing gap remains R37's.
