@@ -47,7 +47,7 @@ the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `1`
 **Current capacity assignment:** `R02`
-**Current capacity justification:** Both Opus R02 correction packets and R46 are accepted. R02 now owns the sole active integration checkpoint: one immutable complete real-service run against the stable accepted base. No other writer starts until this exact contribution gate resolves, preventing candidate drift and a duplicate full-suite execution. Read-only Claude Opus product/UX audits remain outside this mutation pool.
+**Current capacity justification:** Both Opus R02 correction packets and R46 are accepted. R02 now owns the sole active integration checkpoint. Its completed 2,147-pass aggregate is being complemented only by four focused disposable-runner groups after the visible task hit its usage limit; the full suite will not be repeated. No other writer starts until this exact contribution gate resolves, preventing candidate drift. Read-only Claude Opus product/UX audits remain outside this mutation pool.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
