@@ -45,9 +45,16 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `1`
-**Current capacity assignment:** `R02`
-**Current capacity justification:** Both Opus R02 correction packets and R46 are accepted. R02 now owns the sole active integration checkpoint. Its completed 2,147-pass aggregate is being complemented only by four focused disposable-runner groups after the visible task hit its usage limit; the full suite will not be repeated. No other writer starts until this exact contribution gate resolves, preventing candidate drift. Read-only Claude Opus product/UX audits remain outside this mutation pool.
+**Current justified remediation writer capacity:** `3`
+**Current capacity assignment:** `R02, R36, R47`
+**Current capacity justification:** R36→R37 owns the shared-checkout offline
+protocol/migration lane, while R47 owns a separate reporting/disclosure worktree.
+Their exact leases are disjoint. R02's immutable integration gate is held on the
+demonstrated trip-end protocol failure already inside R36→R37, so no duplicate R02
+runner or product fixer is active. A read-only Opus output-reconciliation audit runs
+outside the mutation pool. No third queued implementation slice is dependency-ready:
+the database/money chain waits on R02→R05, and the remaining reporting/release chain
+waits on R47→R48.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -79,7 +86,7 @@ authority. The active queue now prioritizes locally executable product and
 engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
-**Current checkpoint:** `PKG-10 / R02` — AUT-006 is accepted at `a4c9de2`.
+**Current checkpoint:** `PKG-10 / R36` — AUT-006 is accepted at `a4c9de2`.
 Every repository failure group
 discovered by R02's complete 1,772-test authority run is now accepted: V11
 historical migration fixtures, V12 signed-v2 payout fixtures, V13 reversal
@@ -90,14 +97,17 @@ chain with migrations 0075–0077. R29→R30 is accepted at `32d617f` and R45 at
 provisions the application Redis URL, `jq`, lockfile-pinned frontend dependencies and
 Playwright Chromium; focused checks and an immutable frontend-image build are green.
 Both Opus correction packets are accepted at `aa7ff02` and `bce94ad`, and R46
-is accepted at `1c89f16`. R02 is released for its one final immutable complete
-real-service authority run against this stable base. R17 remains parked in
-`to-do.md`.
+is accepted at `1c89f16`. R02's complete immutable run and focused complement are
+preserved, but the focused W403B browser journey exposed a real trip-end protocol
+failure now owned by R36→R37; R02 will resume only after that packet is accepted.
+R47 independently owns the now-ready reporting disclosure slice. R17 remains parked
+in `to-do.md`.
 
 ## Direct owner requests outside the package queue
 
 | Date | Item | Authority | Scope boundary | Queue effect |
 | --- | --- | --- | --- | --- |
+| 3 Sep 2026 | **Dispatch approved Claude Opus 5 High work immediately in fresh tasks; do not reuse old tasks or request a redundant model/send choice.** | Direct project-owner instruction in the active remediation controller, 3 Sep 2026 | The controller still applies the repository model gate, dependency graph, exact lease and no-duplicate checks before dispatch. Once a bounded Opus packet is approved by those controls, create a fresh Opus 5 High task and send it directly. Terminal-only callbacks remain required. | Applies to future Opus dispatches. It does not authorize dependency bypass, overlapping writes, or duplicate work. |
 | 2 Sep 2026 | **Do not reuse an old task with a different model for new work.** | Direct project-owner instruction in the active remediation controller, 2 Sep 2026 | A visible task retains the model family selected when it was created. Related continuation may reuse it only without cross-model reassignment. When new work requires another model, create a fresh visible task with that model selected before dispatch, preserving cache efficiency and clear evidence provenance. | Applies to every future remediation and side-programme dispatch. The four V11–V14 correction packets were already created as new tasks directly on their chosen Terra/high or Sol/high models. |
 | 2 Sep 2026 | **Launch the paused UI/product-review suite with 3–5 Claude Opus 5 High sessions as soon as the moving UI surfaces stabilize.** | Direct project-owner instruction in the active remediation controller, 2 Sep 2026 | Trigger only after R11→R14 and R39→R44 are accepted and no overlapping auth, advertiser-planning, reporting, privacy-state, frontend, or generated-contract bytes remain unadmitted. First wave runs preserved prompts 2–6 from `issues/prompts/future-ui-product-review-prompts.md` independently against one accepted snapshot, with at most five parallel Claude Opus 5 High sessions. They remain read-only and use terminal-only callbacks. | Durable side obligation; it does not interrupt or overlap the active remediation writers. The controller must launch the first wave immediately when the trigger is satisfied, then retain prompts 1 and 7–11 in their documented dependency order. |
 | 2 Sep 2026 | **Use terminal callbacks instead of routine progress narration.** | Direct project-owner instruction in the active remediation controller, 2 Sep 2026 | Future sessions send one brief start acknowledgement, communicate only a genuine authority/scope blocker, and send one terminal completion callback. The controller does not poll or consume routine progress prose; admission remains based on the terminal receipt plus direct inspection of repository bytes, tests, reviews, and integration state. Current sessions were already instructed directly by the owner and are not messaged again. | Reduces token and attention overhead without weakening verification, callback responsibility, or controller admission. |
@@ -1584,7 +1594,7 @@ durable ledger before changing a row.
 | R33 | ONB-006 | R05, R32 | QUEUED | PASS — R33-P | PENDING | CP-ONBOARDING PENDING |
 | R34 | OFF-001 | R04 | COMPLETE | PASS — R34-P | PASS — R34-M | CP-OFFLINE PASS — R34-CP-OFFLINE |
 | R35 | OFF-002, OFF-003 | R34 | COMPLETE | PASS — R35-P | PASS — R35-M | CP-OFFLINE PASS — R35-CP-OFFLINE |
-| R36 | OFF-005 | R35 | QUEUED | PASS — R36-P | PENDING | CP-OFFLINE PENDING |
+| R36 | OFF-005 | R35 | ACTIVE | PASS — R36-P | PENDING | CP-OFFLINE PENDING |
 | R37 | OFF-006 | R36 | QUEUED | PASS — R37-P | PENDING | CP-OFFLINE PENDING |
 | R38 | PRV-001, PRV-002 | R13 | COMPLETE | PASS — R38-P | PASS — R38-M | CP-PRIVACY PASS — R38-CP-PRIVACY |
 | R39 | PRV-003 | R38 | COMPLETE | PASS — R39-P | PASS — R39-M | CP-PRIVACY PASS — R39-CP-PRIVACY |
@@ -1595,7 +1605,7 @@ durable ledger before changing a row.
 | R44 | AUD-005 | R16, R40 | COMPLETE | PASS — R44-P | PASS — R44-M | CP-PRIVACY PASS — R44-CP-PRIVACY |
 | R45 | MET-003 | R04, R41 | COMPLETE | PASS — R45-P | PASS — R45-M | CP-REPORTING PASS — R45-CP-REPORTING |
 | R46 | REP-001 | R45 | COMPLETE | PASS — R46-P | PASS — R46-M | CP-REPORTING PASS — R46-CP-REPORTING |
-| R47 | MET-001, MET-002, MET-004, REP-002 | R41, R46 | QUEUED | PASS — R47-P | PENDING | CP-REPORTING PENDING |
+| R47 | MET-001, MET-002, MET-004, REP-002 | R41, R46 | ACTIVE | PASS — R47-P | PENDING | CP-REPORTING PENDING |
 | R48 | REP-003 | R47 | QUEUED | PASS — R48-P | PENDING | CP-REPORTING PENDING |
 | R49 | REP-004 | R47, R48 | QUEUED | PASS — R49-P | PENDING | CP-REPORTING PENDING |
 | R50 | REP-005 | R47, R49 | QUEUED | PASS — R50-P | PENDING | CP-REPORTING PENDING |
