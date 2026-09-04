@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 308
+plan_revision: 309
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 438
+last_event_sequence: 439
 ---
 
 # Cardvert audit remediation programme
@@ -206,10 +206,10 @@ visible top-level Mobility tasks.
 | S29 | R60 — GOV-009 | final architecture/progress/decision synchronization | cross-package closure; Sol/high | no product implementation; reconcile all 115 candidates, integrated gates and final minimal-change review |
 
 Current justified writer capacity is **2**, assigned exactly to S08/R33 and
-S21/R49. R03 and
+S21/R50. R03 and
 R48 are accepted and their workflow/generated-contract and
-report-projection leases are released. R49 exclusively owns bounded report-
-issuance claim/reclaim/failure behavior and focused worker tests. R05 is accepted;
+report-projection leases are released. R49 is accepted and R50 owns the reachable
+report-reissue lineage plus focused status/panel tests. R05 is accepted;
 R33 owns only the bounded exact-evidence lookup implementation and focused tests,
 with no migration or index. R06's fresh bounded plan review runs without a mutation lease; only after PASS will
 it exclusively own the historical governed-downgrade migration lane across revisions
@@ -271,8 +271,8 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R46 | REP-001 | WAITING | R45 | R46-P; reviewed single reporting-cohort authority | wait for accepted R45 |
 | R47 | MET-001, MET-002, MET-004, REP-002 | ACCEPTED | R41, R46 | R47-P/M; CP-REPORTING; commit `419414a`; frozen disclosure, methodology and contract parity evidence | accepted exactly once; reporting/generated-contract lease released |
 | R48 | REP-003 | ACCEPTED | R47 | R48-P/M; CONTRACT; CP-REPORTING; commit `b17d1e7` | accepted exactly once; report-projection lease released |
-| R49 | REP-004 | ACTIVE | R47, R48 | R49-P; reviewed terminal third-attempt lease contract | begin in a fresh Sol/high session; bounded issuance lease only |
-| R50 | REP-005 | WAITING | R47, R49 | R50-P; reviewed privacy-safe latest-parent discovery contract | wait for accepted R47/R49 and generated-contract lane |
+| R49 | REP-004 | ACCEPTED | R47, R48 | R49-P/M; DB; R49-CP-REPORTING; commit `a315a59` | accepted exactly once; worker lease released |
+| R50 | REP-005 | ACTIVE | R47, R49 | R50-P; reviewed privacy-safe latest-parent discovery contract | fresh Sol/high implementation on the exact request/status/panel lease |
 | R51 | REP-006 | WAITING | R43, R49, R50 | R51-P; reviewed fenced generation-scoped publication contract | wait for accepted predecessors; Sol/xhigh implementation gate retained |
 | R52 | MET-006 | WAITING | R51 | R52-P; reviewed methodology-derived copy-guard contract | wait for accepted R51 |
 | R53 | REL-005 | ACCEPTED | release opener | R53-P; R53-M; R53-RELEASE; R53-CP-RELEASE; real Docker red/green | complete |
@@ -894,3 +894,4 @@ verification is complete.
 | 436 | 306 | 1 | REPORT_PROJECTION_ACCEPTED | R48/REP-003 accepted one typed frozen projection across screen, CSV and PDF, then released its report-projection lease and promoted R49. | commit `b17d1e7`; 7 backend and 9 frontend focused tests PASS; Unicode PDF extraction, UTC/exact-value/hash/uncertainty/ROI/currency parity, repeat deterministic render, lint/type/format/diff and independent R48-M/CONTRACT/CP-REPORTING PASS; R05 remains active |
 | 437 | 307 | 1 | DATABASE_CONFLICT_SLICE_ACCEPTED | R05/DB-001,TST-012,ONB-010 accepted savepoint-safe PostgreSQL conflict translation and released the database lane to R06. | commit `954d9a4`; exact eight-file implementation; meaningful 1-pass/3-fail red including the lost trip outer marker, then 9 exact, 48 integrity/conflict, 59 integrity/exclusivity and 30 payout/vehicle real-PostgreSQL passes; OpenAPI, Ruff, compile and diff PASS; independent R05-M, DB+MNY and R05-CP-DB PASS |
 | 438 | 308 | 1 | PARALLEL_FRONTIER_EXPANDED | R33/ONB-006 joins R49 as a dependency-ready writer while R06 performs its mandatory no-write plan re-review. | R33-P already PASS; exact driver/vehicle evidence-query and focused-test lease, no migration/index/contracts/controller docs; fresh Terra/high because this is ordinary bounded PostgreSQL query-shape implementation; R06 and R49 surfaces remain disjoint |
+| 439 | 309 | 1 | REPORT_WORKER_SLICE_ACCEPTED | R49/REP-004 accepted the terminal third-attempt lease contract and promoted R50. | commit `a315a59`; exact two-file implementation; expired final claims terminalize once without attempt four while earlier claims recover; 2 real-PostgreSQL concurrency tests, focused red/green, lint/format/diff and independent R49-M/DB/R49-CP-REPORTING PASS; two pre-existing timezone-naive SQLite rendering failures remain outside R49 |

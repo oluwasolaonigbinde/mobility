@@ -46,10 +46,10 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R33, R49`
+**Current capacity assignment:** `R33, R50`
 **Current capacity justification:** R03 and R48 are accepted and their workflow,
-generated-contract and report-projection leases are released. R49 exclusively owns
-bounded report-issuance claim/reclaim/failure behavior and focused worker tests.
+generated-contract and report-projection leases are released. R49 is accepted and
+R50 now owns the reachable report-reissue lineage and focused status/panel tests.
 R05 is accepted, making already-reviewed R33 dependency-ready on a disjoint
 onboarding-query lease. R06's fresh bounded plan review may run concurrently but does not
 become a writer until that review passes; it then exclusively owns the historical
@@ -88,7 +88,7 @@ policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
 **Current checkpoint:** `PKG-10 / R06` — R02 is accepted at `09c0b17`, R47 at
 `419414a`, R03 at `60af07d`, R48 at `b17d1e7`, and R05 at `954d9a4`; R33 and
-R49 are assigned writers while R06 performs its mandatory bounded plan re-review. AUT-006 is accepted at
+R50 are assigned writers while R06 performs its mandatory bounded plan re-review. AUT-006 is accepted at
 `a4c9de2`.
 Every repository failure group
 discovered by R02's complete 1,772-test authority run is now accepted: V11
@@ -111,8 +111,8 @@ accepted at `419414a` with complete caveated measurement facts, source/calibrati
 provenance, frozen ROI methodology and screen/CSV/PDF parity; R47-M and
 R47-CP-REPORTING pass. Its released contract lane promoted R03 and its reporting
 dependency promoted R48; both are accepted. R05 is accepted at `954d9a4`,
-releasing the exclusive database lane to R06 while R49 continues on its disjoint
-reporting-worker lease. R17 remains parked in
+releasing the exclusive database lane to R06 while accepted R49 promotes R50 on
+its disjoint report-reissue lease. R17 remains parked in
 `to-do.md`.
 
 ## Direct owner requests outside the package queue
@@ -1622,8 +1622,8 @@ durable ledger before changing a row.
 | R46 | REP-001 | R45 | COMPLETE | PASS — R46-P | PASS — R46-M | CP-REPORTING PASS — R46-CP-REPORTING |
 | R47 | MET-001, MET-002, MET-004, REP-002 | R41, R46 | COMPLETE | PASS — R47-P | PASS — R47-M | CP-REPORTING PASS — R47-CP-REPORTING |
 | R48 | REP-003 | R47 | COMPLETE | PASS — R48-P | PASS — R48-M | CP-REPORTING PASS — R48-CP-REPORTING |
-| R49 | REP-004 | R47, R48 | ACTIVE | PASS — R49-P | PENDING | CP-REPORTING PENDING |
-| R50 | REP-005 | R47, R49 | QUEUED | PASS — R50-P | PENDING | CP-REPORTING PENDING |
+| R49 | REP-004 | R47, R48 | COMPLETE | PASS — R49-P | PASS — R49-M | CP-REPORTING PASS — R49-CP-REPORTING |
+| R50 | REP-005 | R47, R49 | ACTIVE | PASS — R50-P | PENDING | CP-REPORTING PENDING |
 | R51 | REP-006 | R43, R49, R50 | QUEUED | PASS — R51-P | PENDING | CP-REPORTING PENDING |
 | R52 | MET-006 | R51 | QUEUED | PASS — R52-P | PENDING | CP-REPORTING PENDING |
 | R53 | REL-005 | none | COMPLETE | PASS — R53-P | PASS — R53-M | CP-RELEASE PASS — R53-CP-RELEASE |
