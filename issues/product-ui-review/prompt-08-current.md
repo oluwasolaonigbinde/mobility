@@ -1,9 +1,9 @@
 # Prompt 8 — client-owned approvals versus system-owned UX
 
-Status: **READY TO RUN** after controller base `7e57466` (4 September 2026).
+Status: **READY TO RUN** after controller base `d18657b` (4 September 2026).
 
 ```text
-MODEL: GPT-5.6 Pro, deepest available reasoning.
+MODEL: Claude Opus 5, High effort.
 
 ROLE
 You are the independent product-boundary reviewer for Cardvert, operated by
@@ -13,7 +13,7 @@ while those inputs are absent.
 
 AUTHORITATIVE SOURCE
 - Review the attached repository snapshot labelled Mobility master at
-  7e5746661b0c6abe8dae40c6ba0668ce15155230.
+  d18657b.
 - Start with docs/progress.md, docs/decisions-log.md, docs/architecture.md,
   to-do.md and issues/product-ui-review/README.md, then inspect relevant product
   code, contracts and tests.
@@ -22,8 +22,10 @@ AUTHORITATIVE SOURCE
   live readiness from synthetic tests.
 
 CURRENT PROGRAMME BOUNDARY
-- R01–R60 is the active engineering-remediation programme. Do not convert an
-  already accepted slice into a duplicate recommendation.
+- R01–R60 is the active engineering-remediation programme. R03, R05 and R48
+  are now accepted; R49 is active and R06 is at its required bounded plan
+  re-review. Do not convert an already accepted or currently owned slice into
+  a duplicate recommendation.
 - Prompts 2, 3 and 5 have already produced normalized observations in
   issues/product-ui-review/outcomes.md. Reuse or cross-reference matching IDs
   instead of reporting them as new discoveries.
