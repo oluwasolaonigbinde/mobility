@@ -56,6 +56,64 @@ def test_contract_is_complete_and_live_use_fails_closed() -> None:
     assert coverage["target"] == "at least 60 percent"
 
 
+def test_frozen_disclosure_wording_is_taken_from_the_contract() -> None:
+    # R47: the frozen result must reproduce the contract's own clauses verbatim so a
+    # run stays reproducible from its manifest without reading this file at runtime.
+    from app.schemas.measurement import (
+        MeasurementRoiMethodRead,
+        MeasurementRoiProvenanceRead,
+    )
+    from app.services.measurement import (
+        DENSITY_PARAMETER_CALIBRATION,
+        DENSITY_PARAMETER_SOURCE,
+        MODELLED_CONTACTS_UNCERTAINTY,
+        ROI_METHOD_LIMITATIONS,
+        SUPPRESSED_TOTAL_LABEL,
+        VERIFIED_MOVEMENT_CAVEAT,
+    )
+
+    contract = read_json(CONTRACT_PATH)
+    metrics = {row["id"]: row for row in contract["metric_hierarchy"]}
+
+    assert VERIFIED_MOVEMENT_CAVEAT == metrics["verified_vehicle_movement"]["uncertainty"]
+    # Pre-R47 wording is preserved verbatim: app/services/audience.py and
+    # app/services/audience_delivery.py both fail closed without this exact statement.
+    assert MODELLED_CONTACTS_UNCERTAINTY == (
+        "Model confidence is a diagnostic, not a statistical confidence interval."
+    )
+    contacts_uncertainty = metrics["modelled_potential_contacts"]["uncertainty"]
+    assert "not a statistical confidence interval" in contacts_uncertainty
+    assert DENSITY_PARAMETER_SOURCE == metrics["modelled_potential_contacts"]["source"]
+    assert DENSITY_PARAMETER_CALIBRATION == metrics["modelled_potential_contacts"]["calibration"]
+    assert ROI_METHOD_LIMITATIONS == metrics["true_roi"]["limitations"]
+
+    rule = contract["completeness_rule"]
+    assert set(rule) == {
+        "denominator",
+        "in_progress_handling",
+        "disclosure",
+        "suppression",
+        "omitted_label",
+        "consistency",
+    }
+    assert all(value.strip() for value in rule.values())
+    # One published omission wording for screen, CSV and PDF.
+    assert SUPPRESSED_TOTAL_LABEL == rule["omitted_label"]
+    assert SUPPRESSED_TOTAL_LABEL.isascii(), "the bounded PDF renderer is ASCII-only"
+    frontend_label = (
+        ADVERTISER_DIR / "campaigns" / "[campaignId]" / "report" / "measurement-authority.tsx"
+    ).read_text()
+    assert f'"{SUPPRESSED_TOTAL_LABEL}"' in frontend_label
+
+    # Every ROI fact the contract demands is a field the read contract actually exposes.
+    exposed = (
+        set(MeasurementRoiMethodRead.model_fields)
+        | set(MeasurementRoiProvenanceRead.model_fields)
+        | {"method_revision"}
+    )
+    assert set(contract["roi_gate"]["required_disclosure"]) <= exposed
+
+
 def test_performance_fixture_omits_roi() -> None:
     fixture = read_json(FIXTURE_DIR / "performance_only.json")
 

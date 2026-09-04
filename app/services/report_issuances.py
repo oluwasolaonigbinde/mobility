@@ -44,7 +44,11 @@ from app.schemas.report_issuances import (
     ReportIssuanceRead,
 )
 from app.services.audit import create_audit_event
-from app.services.measurement import canonical_sha256, measurement_run_reproducible
+from app.services.measurement import (
+    SUPPRESSED_TOTAL_LABEL,
+    canonical_sha256,
+    measurement_run_reproducible,
+)
 from app.services.payout_rule_serialization import database_clock
 from app.services.report_rendering import (
     ReportRenderLimitError,
@@ -256,37 +260,81 @@ async def _lock_key(session: AsyncSession, label: str) -> None:
     )
 
 
+def _completeness_snapshot(completeness) -> dict[str, object]:
+    return {
+        "cohort_trip_count": completeness.cohort_trip_count,
+        "denominator_trip_count": completeness.denominator_trip_count,
+        "in_progress_trip_count": completeness.in_progress_trip_count,
+        "covered_trip_count": completeness.covered_trip_count,
+        "insufficient_data_trip_count": completeness.insufficient_data_trip_count,
+        "excluded_trip_count": completeness.excluded_trip_count,
+        "complete": completeness.complete,
+        "suppressed": completeness.suppressed,
+        "statement": (
+            f"{completeness.covered_trip_count} of {completeness.denominator_trip_count} "
+            f"completed trips covered; {completeness.insufficient_data_trip_count} "
+            f"insufficient-data and {completeness.excluded_trip_count} excluded trips are not "
+            f"zero-filled; {completeness.in_progress_trip_count} trips were still in progress."
+        ),
+    }
+
+
 def _metric_snapshot(result: MeasurementResultRead) -> list[dict[str, object]]:
     metrics: list[dict[str, object]] = []
     for metric in result.metrics:
+        density_provenance = None
         if metric.id == "verified_vehicle_movement":
             values = [
                 {"label": "Trip count", "value": str(metric.trip_count), "unit": "trips"},
-                {"label": "Distance", "value": metric.distance_m, "unit": "metres"},
+                {
+                    "label": "Distance",
+                    "value": (
+                        SUPPRESSED_TOTAL_LABEL if metric.distance_m is None else metric.distance_m
+                    ),
+                    "unit": "metres",
+                },
                 {
                     "label": "Active tracking time",
-                    "value": str(metric.active_tracking_seconds),
+                    "value": (
+                        SUPPRESSED_TOTAL_LABEL
+                        if metric.active_tracking_seconds is None
+                        else str(metric.active_tracking_seconds)
+                    ),
                     "unit": "seconds",
                 },
             ]
-            uncertainty = None
         elif metric.id == "modelled_potential_contacts":
-            values = [{"label": "Value", "value": metric.value, "unit": "modelled contacts"}]
-            uncertainty = metric.uncertainty
+            values = [
+                {
+                    "label": "Value",
+                    "value": SUPPRESSED_TOTAL_LABEL if metric.value is None else metric.value,
+                    "unit": "modelled contacts",
+                }
+            ]
+            density_provenance = {
+                "source": metric.density_provenance.source,
+                "calibration": metric.density_provenance.calibration,
+                "profiles": [
+                    profile.model_dump() for profile in metric.density_provenance.profiles
+                ],
+            }
         else:
             values = [
                 {"label": total.currency, "value": total.value, "unit": total.currency}
                 for total in metric.totals_by_currency
             ]
-            uncertainty = None
         item: dict[str, object] = {
             "id": metric.id,
             "label": metric.label,
             "class": metric.metric_class,
             "values": values,
+            "completeness": _completeness_snapshot(metric.completeness),
         }
-        if uncertainty is not None:
+        uncertainty = getattr(metric, "uncertainty", None)
+        if uncertainty:
             item["uncertainty"] = uncertainty
+        if density_provenance is not None:
+            item["density_provenance"] = density_provenance
         metrics.append(item)
     return metrics
 
@@ -395,6 +443,8 @@ async def _compose_snapshot(
             "percent": result.roi.percent,
             "currency": result.roi.currency,
             "method_revision": result.roi.method_revision,
+            "method": result.roi.method.model_dump(),
+            "provenance": result.roi.provenance.model_dump(),
         }
     return snapshot
 

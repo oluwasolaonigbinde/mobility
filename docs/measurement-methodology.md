@@ -28,6 +28,25 @@ contract. Modelled values show their model and formula revision. Confidence is
 a model diagnostic, not a statistical confidence interval. Missing evidence is
 omitted or marked incomplete; it is never silently zero-filled.
 
+## Completeness, denominator, and suppression
+
+`completeness_rule` in the JSON contract is the single decision. The
+denominator is the frozen cohort's trips that reached a terminal ended or
+sealed state inside the period; trips still running at the boundary are
+disclosed separately and never counted against completeness. Every published
+metric states its covered count, that denominator, and its insufficient-data
+and excluded counts. A metric total is omitted — never zero-substituted — when
+the metric covers no qualifying trip, or when a required provenance input is
+absent. The frozen run computes this once;
+screen, CSV, and PDF publish that same decision without recomputing it.
+
+Verified vehicle movement always carries its contract caveat: completeness and
+quality scores describe collection quality, and movement never proves that a
+person saw an advert. Modelled potential contacts additionally freeze the
+traffic-density parameter, its source, and its calibration state — the
+parameters are configured operational defaults from a versioned profile, with
+no independent field calibration or external traffic survey applied.
+
 ## ROI is conditional and fail closed
 
 Financial ROI is absent by default. It may appear only when an advertiser has
@@ -35,6 +54,12 @@ provided defined conversion and revenue inputs and an approved reproducible
 method covers attribution, cost basis, time window, exclusions, corrections,
 late data, currencies, provenance, and reissue behavior. Every prerequisite is
 required. Missing or invalid input omits the entire ROI section and claim.
+
+When ROI does appear, `roi_gate.required_disclosure` fixes what must appear
+beside it: the approval reference, attribution rule and window, cost basis,
+exclusions, corrections, late-data rule, method limitations, conversion and
+revenue provenance, reporting cutoff, and method revision. The limitations
+clause is contract-owned, not advertiser-supplied.
 
 The repository's ROI-enabled golden case is explicitly synthetic and
 `test_only`; it demonstrates the gate and arithmetic contract without becoming

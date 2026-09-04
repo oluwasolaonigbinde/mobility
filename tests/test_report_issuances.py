@@ -1,5 +1,8 @@
 import asyncio
+import json
+import re
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
@@ -26,6 +29,15 @@ from app.schemas.report_issuances import ReportIssuanceCreate
 from app.services import report_issuances as report_issuance_service
 from app.services.measurement import issue_measurement_run
 from app.services.report_issuances import request_report_issuance, sweep_report_issuances
+
+
+def rendered_pdf_bytes(content: bytes) -> bytes:
+    """Reassemble a bounded PDF's drawn text so wrapped disclosure lines are searchable."""
+    lines = [
+        line.replace(rb"\(", b"(").replace(rb"\)", b")").replace(rb"\\", b"\\")
+        for line in re.findall(rb"\((.*)\) Tj", content)
+    ]
+    return b" ".join(lines)
 
 
 class ReportStorage(FakeStorageProvider):
@@ -134,6 +146,30 @@ def test_performance_issuance_replay_worker_download_and_tamper_fail_closed(
     assert first.json()["id"].encode() in pdf_content
     assert b"campaign-performance-export-v1" in csv_content
     assert b"campaign-report-renderer-v1" in pdf_content
+    from app.services.measurement import (
+        DENSITY_PARAMETER_CALIBRATION,
+        DENSITY_PARAMETER_SOURCE,
+        VERIFIED_MOVEMENT_CAVEAT,
+    )
+
+    frozen_metrics = {metric["id"]: metric for metric in run["result_manifest"]["metrics"]}
+    density_profile = frozen_metrics["modelled_potential_contacts"]["density_provenance"][
+        "profiles"
+    ][0]
+    for fact in (
+        VERIFIED_MOVEMENT_CAVEAT.encode(),
+        DENSITY_PARAMETER_SOURCE.encode(),
+        DENSITY_PARAMETER_CALIBRATION.encode(),
+        density_profile["value_fingerprint"].encode(),
+        density_profile["traffic_density_per_km"].encode(),
+        b"completed trips covered",
+    ):
+        # The wrapped PDF is searched through its drawn text, not its raw bytes.
+        assert fact in b" ".join(csv_content.split()), fact
+        assert fact in rendered_pdf_bytes(pdf_content), fact
+    movement = frozen_metrics["verified_vehicle_movement"]["completeness"]
+    assert movement["denominator_trip_count"] >= movement["covered_trip_count"]
+    assert movement["suppressed"] is False
     for source_group in run["input_manifest"]["sources"].values():
         for source in source_group:
             assert str(source["trip_session_id"]).encode() not in csv_content
@@ -279,6 +315,22 @@ def test_roi_golden_reissue_and_changed_request_conflict(
     assert b"Return on investment" in csv_content
     assert b"synthetic-roi-v1" in csv_content
     assert b",100,percent," in csv_content
+    pdf_content = next(
+        content for content in report_storage.contents.values() if content.startswith(b"%PDF-1.4")
+    )
+    frozen_roi = run["result_manifest"]["roi"]
+    disclosed = {
+        **frozen_roi["method"],
+        **frozen_roi["provenance"],
+        "method_revision": frozen_roi["method_revision"],
+    }
+    contract = json.loads(
+        (Path(__file__).resolve().parents[1] / "docs" / "measurement-methodology.json").read_text()
+    )
+    for field in contract["roi_gate"]["required_disclosure"]:
+        value = str(disclosed[field]).encode()
+        assert value in b" ".join(csv_content.split()), field
+        assert value in rendered_pdf_bytes(pdf_content), field
 
     reissue = request_issuance(
         db_client,

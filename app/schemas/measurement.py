@@ -87,21 +87,55 @@ class MeasurementPeriodRead(BaseModel):
     end_at: datetime
 
 
+class MeasurementCompletenessRead(BaseModel):
+    """The frozen completeness/denominator disclosure carried by every metric."""
+
+    cohort_trip_count: int
+    denominator_trip_count: int
+    in_progress_trip_count: int
+    covered_trip_count: int
+    insufficient_data_trip_count: int
+    excluded_trip_count: int
+    complete: bool
+    suppressed: bool
+
+
+class DensityProfileProvenanceRead(BaseModel):
+    profile_id: str
+    lineage_id: str
+    revision: str
+    effective_from: str
+    value_fingerprint: str
+    traffic_density_per_km: str
+    dwell_impressions_per_minute: str
+    road_category_method: str
+
+
+class DensityProvenanceRead(BaseModel):
+    source: str
+    calibration: str
+    profiles: list[DensityProfileProvenanceRead]
+
+
 class VerifiedMovementMetricRead(BaseModel):
     id: Literal["verified_vehicle_movement"]
     label: Literal["Verified vehicle movement"]
     metric_class: Literal["measured_operational_fact"] = Field(alias="class")
     trip_count: int
-    distance_m: str
-    active_tracking_seconds: int
+    distance_m: str | None
+    active_tracking_seconds: int | None
+    completeness: MeasurementCompletenessRead
+    uncertainty: str
 
 
 class ModelledContactsMetricRead(BaseModel):
     id: Literal["modelled_potential_contacts"]
     label: Literal["Modelled potential contacts"]
     metric_class: Literal["modelled_measure"] = Field(alias="class")
-    value: str
+    value: str | None
     formula_versions: list[str]
+    completeness: MeasurementCompletenessRead
+    density_provenance: DensityProvenanceRead
     uncertainty: str
 
 
@@ -115,12 +149,33 @@ class DriverCampaignCostMetricRead(BaseModel):
     label: Literal["Driver campaign cost"]
     metric_class: Literal["measured_financial_fact"] = Field(alias="class")
     totals_by_currency: list[CampaignCostTotalRead]
+    completeness: MeasurementCompletenessRead
 
 
 MeasurementMetricRead = Annotated[
     VerifiedMovementMetricRead | ModelledContactsMetricRead | DriverCampaignCostMetricRead,
     Field(discriminator="id"),
 ]
+
+
+class MeasurementRoiMethodRead(BaseModel):
+    """Every ROI method fact the methodology contract requires beside a result."""
+
+    approval_reference: str
+    attribution_rule: str
+    attribution_window: str
+    cost_basis: str
+    exclusions: str
+    corrections: str
+    late_data: str
+    limitations: str
+
+
+class MeasurementRoiProvenanceRead(BaseModel):
+    conversion_provenance: str
+    revenue_provenance: str
+    reporting_cutoff: str
+    synthetic: bool
 
 
 class MeasurementRoiRead(BaseModel):
@@ -130,6 +185,8 @@ class MeasurementRoiRead(BaseModel):
     percent: str
     currency: str
     method_revision: str
+    method: MeasurementRoiMethodRead
+    provenance: MeasurementRoiProvenanceRead
 
 
 class MeasurementRoiOmittedRead(BaseModel):

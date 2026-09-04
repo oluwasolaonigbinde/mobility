@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { components } from "@/lib/api/schema";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
@@ -13,15 +14,33 @@ import { AreaTimeseries, BarTimeseries, type SeriesPoint } from "@/components/ch
 import { MeasurementHeadlineStats } from "./measurement-headline-stats";
 import { HighExposureZoneInsights } from "@/components/analytics/high-exposure-zone-insights";
 import {
+  costMetric,
+  costMetricDisplay,
   GovernedAnalysisState,
   MeasurementAuthorityPanel,
+  modelledContactsMetric,
+  movementMetric,
+  OMITTED_TOTAL_LABEL,
   validateMeasurementAuthority,
 } from "./measurement-authority";
 import { ReportIssuancePanel } from "./report-issuance-panel";
+import { dailyMetricPublishable, FrozenDailyMetricChart } from "./frozen-daily-metric-chart";
 
 export const metadata: Metadata = { title: "Campaign Performance Analysis" };
 
 const shortDate = new Intl.DateTimeFormat("en-NG", { day: "numeric", month: "short" });
+type DailyMetric = components["schemas"]["DailyMetricItem"];
+
+function dailySeries(rows: DailyMetric[], field: "estimated_impressions" | "final_payout_total") {
+  return [...rows].reverse().flatMap((row) => {
+    const raw = row[field];
+    if (raw === null) return [];
+    const value = Number(raw);
+    return Number.isFinite(value)
+      ? [{ label: shortDate.format(new Date(row.date)), value } satisfies SeriesPoint]
+      : [];
+  });
+}
 
 export default async function CampaignReportPage({
   params,
@@ -51,17 +70,25 @@ export default async function CampaignReportPage({
   }
 
   const c = report.summary;
-  // Daily metrics arrive newest-first; charts read left→right in time.
-  const daily = [...report.daily_metrics].reverse();
-  const impressionSeries: SeriesPoint[] = daily.map((d) => ({
-    label: shortDate.format(new Date(d.date)),
-    value: Number(d.estimated_impressions ?? 0),
-  }));
-  const payoutSeries: SeriesPoint[] = daily.map((d) => ({
-    label: shortDate.format(new Date(d.date)),
-    value: Number(d.final_payout_total ?? 0),
-  }));
-  const cost = report.cost_summary.totals_by_currency[0];
+  // Daily metrics arrive newest-first; charts read left→right in time. Missing daily
+  // evidence is omitted, never converted into a fabricated zero.
+  const impressionSeries = dailySeries(report.daily_metrics, "estimated_impressions");
+  const payoutSeries = dailySeries(report.daily_metrics, "final_payout_total");
+  // Headline totals read the frozen authority, never the screen-side summaries, so one
+  // suppression decision reaches the screen, the CSV and the PDF. validateMeasurementAuthority
+  // has already proven all three metrics are present.
+  const contacts = modelledContactsMetric(authority.result)!;
+  const frozenCost = costMetric(authority.result)!;
+  const movement = movementMetric(authority.result)!;
+  const frozenCostTotal = frozenCost.totals_by_currency[0];
+  const costCurrency = frozenCostTotal?.currency ?? "NGN";
+  const contactsSuppressed = contacts.completeness.suppressed;
+  const contactsDailyPublishable = dailyMetricPublishable(contacts.completeness);
+  const costDailyPublishable =
+    dailyMetricPublishable(frozenCost.completeness) && frozenCost.totals_by_currency.length === 1;
+  const movementDailyPublishable = dailyMetricPublishable(movement.completeness);
+  const dailyBreakdownPublishable =
+    movementDailyPublishable && contactsDailyPublishable && costDailyPublishable;
 
   return (
     <div className="animate-rise mx-auto max-w-6xl">
@@ -109,9 +136,16 @@ export default async function CampaignReportPage({
                 }
               : null
           }
-          modelledPotentialContacts={report.impression_summary.estimated_impressions}
-          estimatedTripCount={report.impression_summary.estimated_trip_count}
+          modelledPotentialContacts={contacts.value}
           modelDiagnostic={report.impression_summary.average_confidence_score}
+          completeness={{
+            coveredTripCount: contacts.completeness.covered_trip_count,
+            denominatorTripCount: contacts.completeness.denominator_trip_count,
+            insufficientDataTripCount: contacts.completeness.insufficient_data_trip_count,
+            excludedTripCount: contacts.completeness.excluded_trip_count,
+            complete: contacts.completeness.complete,
+            suppressed: contacts.completeness.suppressed,
+          }}
         />
         <Stat
           label="Trips analyzed"
@@ -121,11 +155,11 @@ export default async function CampaignReportPage({
         />
         <Stat
           label="Driver campaign cost"
-          value={cost ? formatMoney(cost.final_payout_total, cost.currency) : "—"}
+          value={costMetricDisplay(frozenCost)}
           tone="green"
-          hint={
-            cost ? `${formatCount(cost.calculated_trip_count)} calculated driver trips` : undefined
-          }
+          hint={`${formatCount(frozenCost.completeness.covered_trip_count)} of ${formatCount(frozenCost.completeness.denominator_trip_count)} completed trips priced${
+            frozenCost.completeness.complete ? "" : " · period incomplete"
+          }`}
         />
         <Stat
           label="Open fraud flags"
@@ -143,27 +177,29 @@ export default async function CampaignReportPage({
 
       {/* Charts */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <Panel className="p-6">
-          <h2 className="micro text-muted mb-1">Modelled potential contacts · daily</h2>
-          <p className="text-faint mb-4 text-xs">
-            Modelled from verified vehicle movement · impressions_v1
-          </p>
+        <FrozenDailyMetricChart
+          title="Modelled potential contacts · daily"
+          description="Modelled from verified vehicle movement · impressions_v1"
+          suppressed={!contactsDailyPublishable}
+        >
           <AreaTimeseries
             points={impressionSeries}
             color="var(--color-amber)"
             ariaLabel="Daily modelled potential contacts"
           />
-        </Panel>
-        <Panel className="p-6">
-          <h2 className="micro text-muted mb-1">Driver campaign cost · daily</h2>
-          <p className="text-faint mb-4 text-xs">Driver payouts attributed to this campaign</p>
+        </FrozenDailyMetricChart>
+        <FrozenDailyMetricChart
+          title="Driver campaign cost · daily"
+          description="Driver payouts attributed to this campaign"
+          suppressed={!costDailyPublishable}
+        >
           <BarTimeseries
             points={payoutSeries}
             color="var(--color-green)"
-            currency={cost?.currency ?? "NGN"}
+            currency={costCurrency}
             ariaLabel="Daily driver campaign cost"
           />
-        </Panel>
+        </FrozenDailyMetricChart>
       </div>
 
       {/* Daily table — the accessible source of truth for the charts */}
@@ -171,57 +207,69 @@ export default async function CampaignReportPage({
         <div className="border-edge border-b px-6 py-4">
           <h2 className="micro text-muted">Daily breakdown</h2>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-sm">
-            <thead>
-              <tr className="border-edge micro text-muted border-b text-left">
-                <th className="px-6 py-3 font-normal">Date</th>
-                <th className="px-4 py-3 text-right font-normal">Trips</th>
-                <th className="px-4 py-3 text-right font-normal">Distance</th>
-                <th className="px-4 py-3 text-right font-normal">Modelled contacts</th>
-                <th className="px-4 py-3 text-right font-normal">Model diagnostic</th>
-                <th className="px-4 py-3 text-right font-normal">Quality</th>
-                <th className="px-4 py-3 text-right font-normal">Driver cost</th>
-                <th className="px-6 py-3 text-right font-normal">Flags</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.daily_metrics.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="text-muted px-6 py-10 text-center">
-                    No daily metrics yet — data appears once trips are analyzed.
-                  </td>
+        {dailyBreakdownPublishable ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead>
+                <tr className="border-edge micro text-muted border-b text-left">
+                  <th className="px-6 py-3 font-normal">Date</th>
+                  <th className="px-4 py-3 text-right font-normal">Trips</th>
+                  <th className="px-4 py-3 text-right font-normal">Distance</th>
+                  <th className="px-4 py-3 text-right font-normal">Modelled contacts</th>
+                  <th className="px-4 py-3 text-right font-normal">Model diagnostic</th>
+                  <th className="px-4 py-3 text-right font-normal">Quality</th>
+                  <th className="px-4 py-3 text-right font-normal">Driver cost</th>
+                  <th className="px-6 py-3 text-right font-normal">Flags</th>
                 </tr>
-              ) : (
-                report.daily_metrics.map((d) => (
-                  <tr
-                    key={d.date}
-                    className="border-edge/60 border-b font-mono text-xs last:border-0"
-                  >
-                    <td className="px-6 py-3">{formatDate(d.date)}</td>
-                    <td className="px-4 py-3 text-right">{d.trip_count}</td>
-                    <td className="px-4 py-3 text-right">{formatKm(d.distance_m)}</td>
-                    <td className="px-4 py-3 text-right">{formatCount(d.estimated_impressions)}</td>
-                    <td className="px-4 py-3 text-right">
-                      {formatScore(d.average_confidence_score)}
-                    </td>
-                    <td className="px-4 py-3 text-right">{formatScore(d.average_quality_score)}</td>
-                    <td className="px-4 py-3 text-right">
-                      {formatMoney(d.final_payout_total, cost?.currency ?? "NGN")}
-                    </td>
-                    <td className="px-6 py-3 text-right">
-                      {d.open_fraud_flag_count > 0 ? (
-                        <span className="text-coral">{d.open_fraud_flag_count}</span>
-                      ) : (
-                        "0"
-                      )}
+              </thead>
+              <tbody>
+                {report.daily_metrics.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="text-muted px-6 py-10 text-center">
+                      No daily metrics yet — data appears once trips are analyzed.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  report.daily_metrics.map((d) => (
+                    <tr
+                      key={d.date}
+                      className="border-edge/60 border-b font-mono text-xs last:border-0"
+                    >
+                      <td className="px-6 py-3">{formatDate(d.date)}</td>
+                      <td className="px-4 py-3 text-right">{d.trip_count}</td>
+                      <td className="px-4 py-3 text-right">{formatKm(d.distance_m)}</td>
+                      <td className="px-4 py-3 text-right">
+                        {contactsSuppressed || d.estimated_impressions === null
+                          ? OMITTED_TOTAL_LABEL
+                          : formatCount(d.estimated_impressions)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {formatScore(d.average_confidence_score)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {formatScore(d.average_quality_score)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {!costDailyPublishable || d.final_payout_total === null
+                          ? OMITTED_TOTAL_LABEL
+                          : formatMoney(d.final_payout_total, costCurrency)}
+                      </td>
+                      <td className="px-6 py-3 text-right">
+                        {d.open_fraud_flag_count > 0 ? (
+                          <span className="text-coral">{d.open_fraud_flag_count}</span>
+                        ) : (
+                          "0"
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-muted px-6 py-10 text-center text-sm">{OMITTED_TOTAL_LABEL}</p>
+        )}
       </Panel>
     </div>
   );

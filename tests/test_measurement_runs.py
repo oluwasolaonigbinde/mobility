@@ -2,6 +2,7 @@ import asyncio
 import json
 from datetime import timedelta
 from decimal import Decimal
+from pathlib import Path
 from uuid import uuid4
 
 from conftest import (
@@ -574,3 +575,367 @@ def test_concurrent_same_request_converges_on_postgres(postgis_db_sessionmaker, 
 
     first_id, second_id = asyncio.run(run_both())
     assert first_id == second_id
+
+
+def _disclosure_manifest(*, cohort_statuses=("sealed", "sealed"), estimated=True):
+    """A minimal frozen input manifest exercising the R47 disclosure contract."""
+    profile = {
+        "id": "00000000-0000-4000-8000-0000000000a1",
+        "lineage_id": "00000000-0000-4000-8000-0000000000b1",
+        "revision": "2",
+        "effective_from": "2026-07-01T00:00:00+00:00",
+        "value_fingerprint": "9" * 64,
+        "traffic_density_per_km": "180",
+        "dwell_impressions_per_minute": "12",
+        "road_category_weight": "1.0",
+        "morning_weight": "1.0",
+        "midday_weight": "1.0",
+        "evening_weight": "1.0",
+        "night_weight": "0.7",
+        "target_zone_weight": "1.0",
+        "bonus_zone_weight": "1.25",
+        "exclusion_zone_weight": "0.0",
+    }
+    trip_ids = [
+        f"00000000-0000-4000-8000-00000000001{index}" for index in range(len(cohort_statuses))
+    ]
+    return {
+        "mode": "performance_only",
+        "test_only": True,
+        "formula_version": "measurement-result-v1",
+        "method_revision": "measurement-contract-v1",
+        "period": {"start_at": DAY_1.isoformat(), "end_at": (DAY_1 + timedelta(1)).isoformat()},
+        "proof_manifest_sha256": "a" * 64,
+        "cohort": [
+            {
+                "trip_session_id": trip_id,
+                "status": status,
+                "terminal_at": (
+                    (DAY_1 + timedelta(hours=12)).isoformat()
+                    if status in {"ended", "sealed"}
+                    else None
+                ),
+            }
+            for trip_id, status in zip(trip_ids, cohort_statuses, strict=True)
+        ],
+        "sources": {
+            "trip_analytics": [
+                {
+                    "trip_session_id": trip_ids[0],
+                    "status": "computed",
+                    "distance_m": "1200.00",
+                    "active_tracking_seconds": 600,
+                }
+            ],
+            "impression_estimates": (
+                [
+                    {
+                        "trip_session_id": trip_ids[0],
+                        "status": "estimated",
+                        "formula_version": "impressions_v1",
+                        "estimated_impressions": "300.00",
+                        "provenance": {
+                            "traffic_density_profile": profile,
+                            "road_category_method": (
+                                "profile_default_weight_no_road_classification_v1"
+                            ),
+                        },
+                    }
+                ]
+                if estimated
+                else [
+                    {
+                        "trip_session_id": trip_ids[0],
+                        "status": "insufficient_data",
+                        "formula_version": "impressions_v1",
+                        "estimated_impressions": "0.00",
+                        "provenance": {},
+                    }
+                ]
+            ),
+            "payout_calculations": [
+                {
+                    "trip_session_id": trip_ids[0],
+                    "status": "calculated",
+                    "currency": "NGN",
+                    "final_payout": "800.00",
+                }
+            ],
+        },
+        "roi": None,
+    }
+
+
+def test_frozen_movement_metric_carries_the_exact_advert_viewing_caveat() -> None:
+    # MET-001
+    from app.services.measurement import calculate_measurement_result
+
+    contract = json.loads(
+        (Path(__file__).resolve().parents[1] / "docs" / "measurement-methodology.json").read_text()
+    )
+    expected = next(
+        row["uncertainty"]
+        for row in contract["metric_hierarchy"]
+        if row["id"] == "verified_vehicle_movement"
+    )
+    metrics = {
+        metric["id"]: metric
+        for metric in calculate_measurement_result(_disclosure_manifest())["metrics"]
+    }
+
+    assert metrics["verified_vehicle_movement"]["uncertainty"] == expected
+    # The performance-only claims guard stays undiluted: no ROI wording is added.
+    assert "uncertainty" not in metrics["driver_campaign_cost"]
+
+
+def test_frozen_metrics_disclose_completeness_and_suppress_unsupported_totals() -> None:
+    # MET-002
+    from app.services.measurement import calculate_measurement_result
+
+    partial = calculate_measurement_result(
+        _disclosure_manifest(cohort_statuses=("sealed", "sealed", "active"))
+    )
+    metrics = {metric["id"]: metric for metric in partial["metrics"]}
+    movement = metrics["verified_vehicle_movement"]["completeness"]
+
+    assert movement["cohort_trip_count"] == 3
+    assert movement["denominator_trip_count"] == 2
+    assert movement["in_progress_trip_count"] == 1
+    assert movement["covered_trip_count"] == 1
+    assert movement["complete"] is False
+    assert movement["suppressed"] is False
+    # A qualified partial value survives; only the denominator disclosure changes.
+    assert metrics["verified_vehicle_movement"]["distance_m"] == "1200.00"
+
+    unsupported = calculate_measurement_result(_disclosure_manifest(estimated=False))
+    contacts = {metric["id"]: metric for metric in unsupported["metrics"]}[
+        "modelled_potential_contacts"
+    ]
+    assert contacts["completeness"]["insufficient_data_trip_count"] == 1
+    assert contacts["completeness"]["suppressed"] is True
+    assert contacts["value"] is None
+
+
+def test_a_cohort_with_no_completed_trip_omits_totals_instead_of_publishing_zero() -> None:
+    # The contract's completeness rule: omission never substitutes zero. A cohort whose
+    # trips are all still running has no denominator and therefore no publishable total.
+    from app.services.measurement import calculate_measurement_result
+
+    manifest = _disclosure_manifest(cohort_statuses=("active", "active"))
+    # Analytics, estimates and payouts only exist once a trip is terminal.
+    manifest["sources"] = {source: [] for source in manifest["sources"]}
+    metrics = {metric["id"]: metric for metric in calculate_measurement_result(manifest)["metrics"]}
+    movement = metrics["verified_vehicle_movement"]
+
+    assert movement["completeness"]["denominator_trip_count"] == 0
+    assert movement["completeness"]["in_progress_trip_count"] == 2
+    assert movement["completeness"]["complete"] is False
+    assert movement["completeness"]["suppressed"] is True
+    assert movement["distance_m"] is None
+    assert movement["active_tracking_seconds"] is None
+    assert metrics["modelled_potential_contacts"]["value"] is None
+
+
+def test_completeness_excludes_a_trip_that_ends_at_the_frozen_period_boundary() -> None:
+    from app.services.measurement import calculate_measurement_result
+
+    manifest = _disclosure_manifest(cohort_statuses=("sealed",))
+    manifest["cohort"][0]["terminal_at"] = manifest["period"]["end_at"]
+
+    metrics = {metric["id"]: metric for metric in calculate_measurement_result(manifest)["metrics"]}
+    completeness = metrics["verified_vehicle_movement"]["completeness"]
+
+    assert completeness["denominator_trip_count"] == 0
+    assert completeness["in_progress_trip_count"] == 1
+    assert completeness["covered_trip_count"] == 0
+    assert completeness["suppressed"] is True
+    assert metrics["verified_vehicle_movement"]["distance_m"] is None
+    assert metrics["modelled_potential_contacts"]["value"] is None
+
+
+def test_density_provenance_missing_a_required_parameter_suppresses_contacts() -> None:
+    from app.services.measurement import calculate_measurement_result
+
+    manifest = _disclosure_manifest()
+    profile = manifest["sources"]["impression_estimates"][0]["provenance"][
+        "traffic_density_profile"
+    ]
+    del profile["traffic_density_per_km"]
+
+    contacts = {
+        metric["id"]: metric for metric in calculate_measurement_result(manifest)["metrics"]
+    }["modelled_potential_contacts"]
+
+    assert contacts["density_provenance"]["profiles"] == []
+    assert contacts["completeness"]["suppressed"] is True
+    assert contacts["value"] is None
+
+
+def test_mixed_complete_and_incomplete_density_provenance_suppresses_the_total() -> None:
+    from app.services.measurement import calculate_measurement_result
+
+    manifest = _disclosure_manifest()
+    second_trip_id = manifest["cohort"][1]["trip_session_id"]
+    incomplete = {
+        **manifest["sources"]["impression_estimates"][0],
+        "trip_session_id": second_trip_id,
+        "estimated_impressions": "200.00",
+        "provenance": {
+            "traffic_density_profile": {
+                "id": "00000000-0000-4000-8000-0000000000c1",
+            }
+        },
+    }
+    manifest["sources"]["impression_estimates"].append(incomplete)
+
+    contacts = {
+        metric["id"]: metric for metric in calculate_measurement_result(manifest)["metrics"]
+    }["modelled_potential_contacts"]
+
+    assert contacts["completeness"]["covered_trip_count"] == 2
+    assert contacts["completeness"]["suppressed"] is True
+    assert contacts["value"] is None
+    assert len(contacts["density_provenance"]["profiles"]) == 1
+
+
+def test_cost_completeness_covers_every_currency_without_suppressing_the_totals() -> None:
+    from app.services.measurement import calculate_measurement_result
+
+    manifest = _disclosure_manifest(cohort_statuses=("sealed", "sealed"))
+    manifest["sources"]["payout_calculations"].append(
+        {
+            "trip_session_id": manifest["cohort"][1]["trip_session_id"],
+            "status": "calculated",
+            "currency": "USD",
+            "final_payout": "12.50",
+        }
+    )
+    cost = {metric["id"]: metric for metric in calculate_measurement_result(manifest)["metrics"]}[
+        "driver_campaign_cost"
+    ]
+
+    assert cost["totals_by_currency"] == [
+        {"currency": "NGN", "value": "800.00"},
+        {"currency": "USD", "value": "12.50"},
+    ]
+    assert cost["completeness"]["covered_trip_count"] == 2
+    assert cost["completeness"]["complete"] is True
+    assert cost["completeness"]["suppressed"] is False
+
+
+def test_density_provenance_without_a_road_category_method_suppresses_contacts() -> None:
+    from app.services.measurement import calculate_measurement_result
+
+    manifest = _disclosure_manifest()
+    del manifest["sources"]["impression_estimates"][0]["provenance"]["road_category_method"]
+    contacts = {
+        metric["id"]: metric for metric in calculate_measurement_result(manifest)["metrics"]
+    }["modelled_potential_contacts"]
+
+    assert contacts["density_provenance"]["profiles"] == []
+    assert contacts["completeness"]["suppressed"] is True
+    assert contacts["value"] is None
+
+
+def test_reproducibility_fails_closed_for_a_manifest_that_predates_this_contract() -> None:
+    # A stored run whose manifest no longer satisfies the frozen contract must report
+    # "not reproducible" so callers render their fail-closed state, never raise a 500.
+    from app.models.measurement import MeasurementRun
+    from app.services.measurement import canonical_sha256, measurement_run_reproducible
+
+    legacy_manifest = {"schema_version": "measurement-input-manifest-v0"}
+    run = MeasurementRun(
+        input_manifest=legacy_manifest,
+        input_manifest_sha256=canonical_sha256(legacy_manifest),
+        proof_manifest={},
+        proof_manifest_sha256=canonical_sha256({}),
+        report_snapshot={},
+        report_snapshot_sha256=canonical_sha256({}),
+        result_manifest={},
+        result_manifest_sha256=canonical_sha256({}),
+    )
+    run.input_manifest["disclosure_authority"] = {
+        "report_snapshot_sha256": run.report_snapshot_sha256
+    }
+    run.input_manifest_sha256 = canonical_sha256(run.input_manifest)
+
+    assert measurement_run_reproducible(run) is False
+
+
+def test_frozen_modelled_contacts_freeze_density_parameter_source_and_calibration() -> None:
+    # MET-004
+    from app.services.measurement import calculate_measurement_result
+
+    contract = json.loads(
+        (Path(__file__).resolve().parents[1] / "docs" / "measurement-methodology.json").read_text()
+    )
+    expected = next(
+        row for row in contract["metric_hierarchy"] if row["id"] == "modelled_potential_contacts"
+    )
+    contacts = {
+        metric["id"]: metric
+        for metric in calculate_measurement_result(_disclosure_manifest())["metrics"]
+    }["modelled_potential_contacts"]
+    provenance = contacts["density_provenance"]
+
+    assert provenance["source"] == expected["source"]
+    assert provenance["calibration"] == expected["calibration"]
+    assert provenance["profiles"] == [
+        {
+            "profile_id": "00000000-0000-4000-8000-0000000000a1",
+            "lineage_id": "00000000-0000-4000-8000-0000000000b1",
+            "revision": "2",
+            "effective_from": "2026-07-01T00:00:00+00:00",
+            "value_fingerprint": "9" * 64,
+            "traffic_density_per_km": "180",
+            "dwell_impressions_per_minute": "12",
+            "road_category_method": "profile_default_weight_no_road_classification_v1",
+        }
+    ]
+    # The existing model uncertainty wording is unchanged for downstream consumers.
+    assert contacts["uncertainty"] == (
+        "Model confidence is a diagnostic, not a statistical confidence interval."
+    )
+
+
+def test_frozen_roi_exposes_every_contract_required_method_fact() -> None:
+    # REP-002
+    from app.services.measurement import calculate_measurement_result
+
+    contract = json.loads(
+        (Path(__file__).resolve().parents[1] / "docs" / "measurement-methodology.json").read_text()
+    )
+    manifest = _disclosure_manifest()
+    manifest["mode"] = "roi_enabled"
+    manifest["roi"] = {
+        "attributed_revenue": "2400.00",
+        "approved_cost_basis": "1200.00",
+        "currency": "NGN",
+        "conversion_provenance": "SYNTHETIC_TEST_ONLY conversion fixture",
+        "revenue_provenance": "SYNTHETIC_TEST_ONLY revenue fixture",
+        "reporting_cutoff": "2026-08-02T00:00:00+00:00",
+        "synthetic": True,
+        "method": {
+            "revision": "synthetic-roi-v1",
+            "approval_reference": "SYNTHETIC_TEST_ONLY",
+            "attribution_rule": "Synthetic conversion belongs to the fixture campaign.",
+            "attribution_window": "Synthetic one-day fixture window.",
+            "cost_basis": "Frozen driver campaign cost in NGN.",
+            "exclusions": "No synthetic exclusions.",
+            "corrections": "Reissue on changed fixture input.",
+            "late_data": "Late fixture data requires reissue.",
+        },
+    }
+    roi = calculate_measurement_result(manifest)["roi"]
+    disclosed = {**roi["method"], **roi["provenance"], "method_revision": roi["method_revision"]}
+
+    for field in contract["roi_gate"]["required_disclosure"]:
+        assert disclosed.get(field), field
+    expected_limitations = next(
+        row["limitations"] for row in contract["metric_hierarchy"] if row["id"] == "true_roi"
+    )
+    assert roi["method"]["limitations"] == expected_limitations
+
+    omitted = calculate_measurement_result(_disclosure_manifest())
+    assert omitted["roi"] is None
+    assert omitted["roi_gate"] == {"decision": "OMIT"}

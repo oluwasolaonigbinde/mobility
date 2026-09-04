@@ -102,6 +102,61 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
                     metric_provenance,
                 )
             )
+        completeness = metric.get("completeness")
+        if completeness:
+            rows.append(
+                (
+                    "performance",
+                    metric["id"],
+                    f"{metric['label']} - completeness",
+                    metric["class"],
+                    completeness["statement"],
+                    "trips",
+                    f"{metric_provenance};complete={completeness['complete']};"
+                    f"suppressed={completeness['suppressed']}",
+                )
+            )
+        density = metric.get("density_provenance")
+        if density:
+            rows.append(
+                (
+                    "performance",
+                    metric["id"],
+                    f"{metric['label']} - density source",
+                    metric["class"],
+                    density["source"],
+                    "",
+                    metric_provenance,
+                )
+            )
+            rows.append(
+                (
+                    "performance",
+                    metric["id"],
+                    f"{metric['label']} - density calibration",
+                    metric["class"],
+                    density["calibration"],
+                    "",
+                    metric_provenance,
+                )
+            )
+            for profile in density["profiles"]:
+                rows.append(
+                    (
+                        "performance",
+                        metric["id"],
+                        f"{metric['label']} - density parameter",
+                        metric["class"],
+                        f"{profile['traffic_density_per_km']} per km; "
+                        f"{profile['dwell_impressions_per_minute']} per dwell minute",
+                        "traffic profile",
+                        f"profile={profile['profile_id']};lineage={profile['lineage_id']};"
+                        f"revision={profile['revision']};"
+                        f"effective_from={profile['effective_from']};"
+                        f"value_hash={profile['value_fingerprint']};"
+                        f"road_category={profile['road_category_method']}",
+                    )
+                )
         if metric.get("uncertainty"):
             rows.append(
                 (
@@ -170,6 +225,7 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
     )
     financial_result = snapshot.get("financial_result")
     if financial_result is not None:
+        financial_provenance = f"{provenance};method={financial_result['method_revision']}"
         rows.extend(
             (
                 "financial_result",
@@ -178,10 +234,34 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
                 financial_result["class"],
                 financial_result[field],
                 unit,
-                f"{provenance};method={financial_result['method_revision']}",
+                financial_provenance,
             )
             for field, unit in (("ratio", "ratio"), ("percent", "percent"))
         )
+        for field, value in sorted((financial_result.get("method") or {}).items()):
+            rows.append(
+                (
+                    "financial_method",
+                    field,
+                    f"{financial_result['label']} - {field.replace('_', ' ')}",
+                    financial_result["class"],
+                    value,
+                    "",
+                    financial_provenance,
+                )
+            )
+        for field, value in sorted((financial_result.get("provenance") or {}).items()):
+            rows.append(
+                (
+                    "financial_provenance",
+                    field,
+                    f"{financial_result['label']} - {field.replace('_', ' ')}",
+                    financial_result["class"],
+                    str(value),
+                    "",
+                    financial_provenance,
+                )
+            )
     if len(rows) > MAX_ROWS:
         raise ReportRenderLimitError("report row limit exceeded")
     for row in rows:
@@ -291,6 +371,26 @@ def _pdf_report_lines(snapshot: dict) -> list[str]:
                 f"{metric['label']} - {value['label']}: {value['value']} {value['unit']} "
                 f"[{metric['class']}]"
             )
+        completeness = metric.get("completeness")
+        if completeness:
+            lines.append(f"Completeness: {completeness['statement']}")
+            lines.append(
+                f"Complete: {completeness['complete']}; "
+                f"totals omitted: {completeness['suppressed']}"
+            )
+        density = metric.get("density_provenance")
+        if density:
+            lines.append(f"Density source: {density['source']}")
+            lines.append(f"Density calibration: {density['calibration']}")
+            for profile in density["profiles"]:
+                lines.append(
+                    f"Density parameter: {profile['traffic_density_per_km']} per km; "
+                    f"{profile['dwell_impressions_per_minute']} per dwell minute "
+                    f"(profile {profile['profile_id']} revision {profile['revision']}, "
+                    f"effective {profile['effective_from']}, "
+                    f"value SHA-256 {profile['value_fingerprint']}, "
+                    f"road category {profile['road_category_method']})"
+                )
         if metric.get("uncertainty"):
             lines.append(f"Uncertainty: {metric['uncertainty']}")
 
@@ -335,6 +435,10 @@ def _pdf_report_lines(snapshot: dict) -> list[str]:
                 f"Method: {financial_result['method_revision']}",
             ]
         )
+        for field, value in sorted((financial_result.get("method") or {}).items()):
+            lines.append(f"{field.replace('_', ' ').capitalize()}: {value}")
+        for field, value in sorted((financial_result.get("provenance") or {}).items()):
+            lines.append(f"{field.replace('_', ' ').capitalize()}: {value}")
     return lines
 
 

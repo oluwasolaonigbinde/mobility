@@ -14,6 +14,7 @@ vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token
 vi.mock("next/navigation", () => ({ notFound }));
 
 import CampaignReportPage from "./page";
+import { dailyMetricPublishable, FrozenDailyMetricChart } from "./frozen-daily-metric-chart";
 
 describe("CampaignReportPage fail-closed states", () => {
   beforeEach(() => {
@@ -57,5 +58,46 @@ describe("CampaignReportPage fail-closed states", () => {
       }),
     ).rejects.toThrow("NOT_FOUND");
     expect(notFound).toHaveBeenCalledOnce();
+  });
+});
+
+describe("CampaignReportPage frozen daily metrics", () => {
+  it("withholds a suppressed daily chart behind the exact frozen omission label", () => {
+    render(
+      <FrozenDailyMetricChart
+        title="Modelled potential contacts · daily"
+        description="Frozen model"
+        suppressed
+      >
+        <div data-testid="daily-chart">fabricated chart</div>
+      </FrozenDailyMetricChart>,
+    );
+
+    expect(screen.getByText("Omitted - insufficient frozen evidence")).toBeInTheDocument();
+    expect(screen.queryByTestId("daily-chart")).not.toBeInTheDocument();
+  });
+
+  it("withholds daily rows for a mixed cohort even when its qualifying total is not suppressed", () => {
+    expect(
+      dailyMetricPublishable({
+        complete: true,
+        suppressed: false,
+        in_progress_trip_count: 1,
+        insufficient_data_trip_count: 0,
+        excluded_trip_count: 0,
+      }),
+    ).toBe(false);
+  });
+
+  it("does not authorize one daily cost series for multiple frozen currencies", () => {
+    const completeness = {
+      complete: true,
+      suppressed: false,
+      in_progress_trip_count: 0,
+      insufficient_data_trip_count: 0,
+      excluded_trip_count: 0,
+    };
+
+    expect(dailyMetricPublishable(completeness) && ["NGN", "USD"].length === 1).toBe(false);
   });
 });

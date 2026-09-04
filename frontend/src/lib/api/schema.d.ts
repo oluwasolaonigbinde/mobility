@@ -7094,6 +7094,34 @@ export interface components {
          * @enum {string}
          */
         DataSubjectRequestType: "access" | "rectification" | "erasure";
+        /** DensityProfileProvenanceRead */
+        DensityProfileProvenanceRead: {
+            /** Dwell Impressions Per Minute */
+            dwell_impressions_per_minute: string;
+            /** Effective From */
+            effective_from: string;
+            /** Lineage Id */
+            lineage_id: string;
+            /** Profile Id */
+            profile_id: string;
+            /** Revision */
+            revision: string;
+            /** Road Category Method */
+            road_category_method: string;
+            /** Traffic Density Per Km */
+            traffic_density_per_km: string;
+            /** Value Fingerprint */
+            value_fingerprint: string;
+        };
+        /** DensityProvenanceRead */
+        DensityProvenanceRead: {
+            /** Calibration */
+            calibration: string;
+            /** Profiles */
+            profiles: components["schemas"]["DensityProfileProvenanceRead"][];
+            /** Source */
+            source: string;
+        };
         /** DigitalCampaignAudienceSourceCreate */
         DigitalCampaignAudienceSourceCreate: {
             /** Aggregation Window Days */
@@ -7360,6 +7388,7 @@ export interface components {
              * @constant
              */
             class: "measured_financial_fact";
+            completeness: components["schemas"]["MeasurementCompletenessRead"];
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -9419,6 +9448,28 @@ export interface components {
             advertiser_organization: components["schemas"]["MeAdvertiserOrganization"] | null;
             user: components["schemas"]["UserRead"];
         };
+        /**
+         * MeasurementCompletenessRead
+         * @description The frozen completeness/denominator disclosure carried by every metric.
+         */
+        MeasurementCompletenessRead: {
+            /** Cohort Trip Count */
+            cohort_trip_count: number;
+            /** Complete */
+            complete: boolean;
+            /** Covered Trip Count */
+            covered_trip_count: number;
+            /** Denominator Trip Count */
+            denominator_trip_count: number;
+            /** Excluded Trip Count */
+            excluded_trip_count: number;
+            /** In Progress Trip Count */
+            in_progress_trip_count: number;
+            /** Insufficient Data Trip Count */
+            insufficient_data_trip_count: number;
+            /** Suppressed */
+            suppressed: boolean;
+        };
         /** MeasurementPeriodRead */
         MeasurementPeriodRead: {
             /**
@@ -9495,6 +9546,28 @@ export interface components {
             /** Test Only */
             test_only: boolean;
         };
+        /**
+         * MeasurementRoiMethodRead
+         * @description Every ROI method fact the methodology contract requires beside a result.
+         */
+        MeasurementRoiMethodRead: {
+            /** Approval Reference */
+            approval_reference: string;
+            /** Attribution Rule */
+            attribution_rule: string;
+            /** Attribution Window */
+            attribution_window: string;
+            /** Corrections */
+            corrections: string;
+            /** Cost Basis */
+            cost_basis: string;
+            /** Exclusions */
+            exclusions: string;
+            /** Late Data */
+            late_data: string;
+            /** Limitations */
+            limitations: string;
+        };
         /** MeasurementRoiOmittedRead */
         MeasurementRoiOmittedRead: {
             /**
@@ -9502,6 +9575,17 @@ export interface components {
              * @enum {string}
              */
             decision: "OMIT";
+        };
+        /** MeasurementRoiProvenanceRead */
+        MeasurementRoiProvenanceRead: {
+            /** Conversion Provenance */
+            conversion_provenance: string;
+            /** Reporting Cutoff */
+            reporting_cutoff: string;
+            /** Revenue Provenance */
+            revenue_provenance: string;
+            /** Synthetic */
+            synthetic: boolean;
         };
         /** MeasurementRoiRead */
         MeasurementRoiRead: {
@@ -9517,10 +9601,12 @@ export interface components {
              * @constant
              */
             label: "Return on investment";
+            method: components["schemas"]["MeasurementRoiMethodRead"];
             /** Method Revision */
             method_revision: string;
             /** Percent */
             percent: string;
+            provenance: components["schemas"]["MeasurementRoiProvenanceRead"];
             /** Ratio */
             ratio: string;
         };
@@ -9696,6 +9782,8 @@ export interface components {
              * @constant
              */
             class: "modelled_measure";
+            completeness: components["schemas"]["MeasurementCompletenessRead"];
+            density_provenance: components["schemas"]["DensityProvenanceRead"];
             /** Formula Versions */
             formula_versions: string[];
             /**
@@ -9711,7 +9799,7 @@ export interface components {
             /** Uncertainty */
             uncertainty: string;
             /** Value */
-            value: string;
+            value: string | null;
         };
         /** NinRevealRead */
         NinRevealRead: {
@@ -12282,14 +12370,15 @@ export interface components {
         /** VerifiedMovementMetricRead */
         VerifiedMovementMetricRead: {
             /** Active Tracking Seconds */
-            active_tracking_seconds: number;
+            active_tracking_seconds: number | null;
             /**
              * Class
              * @constant
              */
             class: "measured_operational_fact";
+            completeness: components["schemas"]["MeasurementCompletenessRead"];
             /** Distance M */
-            distance_m: string;
+            distance_m: string | null;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -12302,6 +12391,8 @@ export interface components {
             label: "Verified vehicle movement";
             /** Trip Count */
             trip_count: number;
+            /** Uncertainty */
+            uncertainty: string;
         };
         /** WaiverCopyRead */
         WaiverCopyRead: {

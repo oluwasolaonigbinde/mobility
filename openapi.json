@@ -8375,6 +8375,80 @@
         "title": "DataSubjectRequestType",
         "type": "string"
       },
+      "DensityProfileProvenanceRead": {
+        "properties": {
+          "dwell_impressions_per_minute": {
+            "title": "Dwell Impressions Per Minute",
+            "type": "string"
+          },
+          "effective_from": {
+            "title": "Effective From",
+            "type": "string"
+          },
+          "lineage_id": {
+            "title": "Lineage Id",
+            "type": "string"
+          },
+          "profile_id": {
+            "title": "Profile Id",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "string"
+          },
+          "road_category_method": {
+            "title": "Road Category Method",
+            "type": "string"
+          },
+          "traffic_density_per_km": {
+            "title": "Traffic Density Per Km",
+            "type": "string"
+          },
+          "value_fingerprint": {
+            "title": "Value Fingerprint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "profile_id",
+          "lineage_id",
+          "revision",
+          "effective_from",
+          "value_fingerprint",
+          "traffic_density_per_km",
+          "dwell_impressions_per_minute",
+          "road_category_method"
+        ],
+        "title": "DensityProfileProvenanceRead",
+        "type": "object"
+      },
+      "DensityProvenanceRead": {
+        "properties": {
+          "calibration": {
+            "title": "Calibration",
+            "type": "string"
+          },
+          "profiles": {
+            "items": {
+              "$ref": "#/components/schemas/DensityProfileProvenanceRead"
+            },
+            "title": "Profiles",
+            "type": "array"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "calibration",
+          "profiles"
+        ],
+        "title": "DensityProvenanceRead",
+        "type": "object"
+      },
       "DigitalCampaignAudienceSourceCreate": {
         "additionalProperties": false,
         "properties": {
@@ -8873,6 +8947,9 @@
             "title": "Class",
             "type": "string"
           },
+          "completeness": {
+            "$ref": "#/components/schemas/MeasurementCompletenessRead"
+          },
           "id": {
             "const": "driver_campaign_cost",
             "title": "Id",
@@ -8895,7 +8972,8 @@
           "id",
           "label",
           "class",
-          "totals_by_currency"
+          "totals_by_currency",
+          "completeness"
         ],
         "title": "DriverCampaignCostMetricRead",
         "type": "object"
@@ -14011,6 +14089,55 @@
         "title": "MeResponse",
         "type": "object"
       },
+      "MeasurementCompletenessRead": {
+        "description": "The frozen completeness/denominator disclosure carried by every metric.",
+        "properties": {
+          "cohort_trip_count": {
+            "title": "Cohort Trip Count",
+            "type": "integer"
+          },
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "covered_trip_count": {
+            "title": "Covered Trip Count",
+            "type": "integer"
+          },
+          "denominator_trip_count": {
+            "title": "Denominator Trip Count",
+            "type": "integer"
+          },
+          "excluded_trip_count": {
+            "title": "Excluded Trip Count",
+            "type": "integer"
+          },
+          "in_progress_trip_count": {
+            "title": "In Progress Trip Count",
+            "type": "integer"
+          },
+          "insufficient_data_trip_count": {
+            "title": "Insufficient Data Trip Count",
+            "type": "integer"
+          },
+          "suppressed": {
+            "title": "Suppressed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "cohort_trip_count",
+          "denominator_trip_count",
+          "in_progress_trip_count",
+          "covered_trip_count",
+          "insufficient_data_trip_count",
+          "excluded_trip_count",
+          "complete",
+          "suppressed"
+        ],
+        "title": "MeasurementCompletenessRead",
+        "type": "object"
+      },
       "MeasurementPeriodRead": {
         "properties": {
           "end_at": {
@@ -14191,6 +14318,55 @@
         "title": "MeasurementRoiIncludedRead",
         "type": "object"
       },
+      "MeasurementRoiMethodRead": {
+        "description": "Every ROI method fact the methodology contract requires beside a result.",
+        "properties": {
+          "approval_reference": {
+            "title": "Approval Reference",
+            "type": "string"
+          },
+          "attribution_rule": {
+            "title": "Attribution Rule",
+            "type": "string"
+          },
+          "attribution_window": {
+            "title": "Attribution Window",
+            "type": "string"
+          },
+          "corrections": {
+            "title": "Corrections",
+            "type": "string"
+          },
+          "cost_basis": {
+            "title": "Cost Basis",
+            "type": "string"
+          },
+          "exclusions": {
+            "title": "Exclusions",
+            "type": "string"
+          },
+          "late_data": {
+            "title": "Late Data",
+            "type": "string"
+          },
+          "limitations": {
+            "title": "Limitations",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approval_reference",
+          "attribution_rule",
+          "attribution_window",
+          "cost_basis",
+          "exclusions",
+          "corrections",
+          "late_data",
+          "limitations"
+        ],
+        "title": "MeasurementRoiMethodRead",
+        "type": "object"
+      },
       "MeasurementRoiOmittedRead": {
         "properties": {
           "decision": {
@@ -14203,6 +14379,34 @@
           "decision"
         ],
         "title": "MeasurementRoiOmittedRead",
+        "type": "object"
+      },
+      "MeasurementRoiProvenanceRead": {
+        "properties": {
+          "conversion_provenance": {
+            "title": "Conversion Provenance",
+            "type": "string"
+          },
+          "reporting_cutoff": {
+            "title": "Reporting Cutoff",
+            "type": "string"
+          },
+          "revenue_provenance": {
+            "title": "Revenue Provenance",
+            "type": "string"
+          },
+          "synthetic": {
+            "title": "Synthetic",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "conversion_provenance",
+          "revenue_provenance",
+          "reporting_cutoff",
+          "synthetic"
+        ],
+        "title": "MeasurementRoiProvenanceRead",
         "type": "object"
       },
       "MeasurementRoiRead": {
@@ -14221,6 +14425,9 @@
             "title": "Label",
             "type": "string"
           },
+          "method": {
+            "$ref": "#/components/schemas/MeasurementRoiMethodRead"
+          },
           "method_revision": {
             "title": "Method Revision",
             "type": "string"
@@ -14228,6 +14435,9 @@
           "percent": {
             "title": "Percent",
             "type": "string"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/MeasurementRoiProvenanceRead"
           },
           "ratio": {
             "title": "Ratio",
@@ -14240,7 +14450,9 @@
           "ratio",
           "percent",
           "currency",
-          "method_revision"
+          "method_revision",
+          "method",
+          "provenance"
         ],
         "title": "MeasurementRoiRead",
         "type": "object"
@@ -14581,6 +14793,12 @@
             "title": "Class",
             "type": "string"
           },
+          "completeness": {
+            "$ref": "#/components/schemas/MeasurementCompletenessRead"
+          },
+          "density_provenance": {
+            "$ref": "#/components/schemas/DensityProvenanceRead"
+          },
           "formula_versions": {
             "items": {
               "type": "string"
@@ -14603,8 +14821,15 @@
             "type": "string"
           },
           "value": {
-            "title": "Value",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
           }
         },
         "required": [
@@ -14613,6 +14838,8 @@
           "class",
           "value",
           "formula_versions",
+          "completeness",
+          "density_provenance",
           "uncertainty"
         ],
         "title": "ModelledContactsMetricRead",
@@ -21312,17 +21539,34 @@
       "VerifiedMovementMetricRead": {
         "properties": {
           "active_tracking_seconds": {
-            "title": "Active Tracking Seconds",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Tracking Seconds"
           },
           "class": {
             "const": "measured_operational_fact",
             "title": "Class",
             "type": "string"
           },
+          "completeness": {
+            "$ref": "#/components/schemas/MeasurementCompletenessRead"
+          },
           "distance_m": {
-            "title": "Distance M",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance M"
           },
           "id": {
             "const": "verified_vehicle_movement",
@@ -21337,6 +21581,10 @@
           "trip_count": {
             "title": "Trip Count",
             "type": "integer"
+          },
+          "uncertainty": {
+            "title": "Uncertainty",
+            "type": "string"
           }
         },
         "required": [
@@ -21345,7 +21593,9 @@
           "class",
           "trip_count",
           "distance_m",
-          "active_tracking_seconds"
+          "active_tracking_seconds",
+          "completeness",
+          "uncertainty"
         ],
         "title": "VerifiedMovementMetricRead",
         "type": "object"

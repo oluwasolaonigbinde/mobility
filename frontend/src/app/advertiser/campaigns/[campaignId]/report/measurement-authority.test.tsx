@@ -1,10 +1,28 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { components } from "@/lib/api/schema";
-import { MeasurementAuthorityPanel, validateMeasurementAuthority } from "./measurement-authority";
+import {
+  costMetric,
+  costMetricDisplay,
+  MeasurementAuthorityPanel,
+  modelledContactsMetric,
+  validateMeasurementAuthority,
+} from "./measurement-authority";
 
 type Report = components["schemas"]["CampaignReportResponse"];
 const CAMPAIGN_ID = "00000000-0000-4000-8000-000000000009";
+const COMPLETENESS = {
+  cohort_trip_count: 4,
+  denominator_trip_count: 4,
+  in_progress_trip_count: 0,
+  covered_trip_count: 4,
+  insufficient_data_trip_count: 0,
+  excluded_trip_count: 0,
+  complete: true,
+  suppressed: false,
+};
+const MOVEMENT_CAVEAT =
+  "Completeness and quality scores describe collection quality; movement does not prove that a person saw an advert.";
 
 function reportFixture({ roi = false }: { roi?: boolean } = {}): Report {
   const run = {
@@ -38,6 +56,8 @@ function reportFixture({ roi = false }: { roi?: boolean } = {}): Report {
         trip_count: 4,
         distance_m: "12000.00",
         active_tracking_seconds: 3600,
+        completeness: COMPLETENESS,
+        uncertainty: MOVEMENT_CAVEAT,
       },
       {
         id: "modelled_potential_contacts" as const,
@@ -45,6 +65,24 @@ function reportFixture({ roi = false }: { roi?: boolean } = {}): Report {
         class: "modelled_measure" as const,
         value: "900.00",
         formula_versions: ["impressions_v1"],
+        completeness: COMPLETENESS,
+        density_provenance: {
+          source:
+            "impressions_v1 output over verified vehicle movement and the applicable traffic profile",
+          calibration: "Configured defaults; no independent field calibration.",
+          profiles: [
+            {
+              profile_id: "00000000-0000-4000-8000-000000000020",
+              lineage_id: "00000000-0000-4000-8000-000000000021",
+              revision: "2",
+              effective_from: "2026-07-01T00:00:00Z",
+              value_fingerprint: "9".repeat(64),
+              traffic_density_per_km: "180",
+              dwell_impressions_per_minute: "12",
+              road_category_method: "profile_default_weight_no_road_classification_v1",
+            },
+          ],
+        },
         uncertainty: "Modelled value; not observed people or attributed conversions.",
       },
       {
@@ -52,6 +90,7 @@ function reportFixture({ roi = false }: { roi?: boolean } = {}): Report {
         label: "Driver campaign cost" as const,
         class: "measured_financial_fact" as const,
         totals_by_currency: [{ currency: "NGN", value: "1200.00" }],
+        completeness: COMPLETENESS,
       },
     ],
     roi: roi
@@ -62,6 +101,22 @@ function reportFixture({ roi = false }: { roi?: boolean } = {}): Report {
           percent: "100",
           currency: "NGN",
           method_revision: "synthetic-roi-v1",
+          method: {
+            approval_reference: "SYNTHETIC_TEST_ONLY",
+            attribution_rule: "Synthetic campaign conversion rule.",
+            attribution_window: "Synthetic one-day window.",
+            cost_basis: "Frozen driver campaign cost.",
+            exclusions: "No synthetic exclusions.",
+            corrections: "Reissue after correction.",
+            late_data: "Late data requires reissue.",
+            limitations: "Advertiser-supplied inputs are not verified by Cardvert.",
+          },
+          provenance: {
+            conversion_provenance: "SYNTHETIC_TEST_ONLY conversion fixture",
+            revenue_provenance: "SYNTHETIC_TEST_ONLY revenue fixture",
+            reporting_cutoff: "2026-08-02T00:00:00Z",
+            synthetic: true,
+          },
         }
       : null,
     roi_gate: roi
@@ -148,6 +203,11 @@ describe("frozen measurement authority", () => {
     expect(screen.getByText("Verified vehicle movement")).toBeInTheDocument();
     expect(screen.getByText("Modelled potential contacts")).toBeInTheDocument();
     expect(screen.getByText("Driver campaign cost")).toBeInTheDocument();
+    expect(screen.getByText(MOVEMENT_CAVEAT)).toBeInTheDocument();
+    expect(screen.getAllByText(/4 of 4 completed trips covered/i)).toHaveLength(3);
+    expect(
+      screen.getByText(/configured defaults; no independent field calibration/i),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/ROI/i)).not.toBeInTheDocument();
   });
 
@@ -160,6 +220,64 @@ describe("frozen measurement authority", () => {
     expect(screen.getByText("Return on investment")).toBeInTheDocument();
     expect(screen.getByText("100.00%")).toBeInTheDocument();
     expect(screen.getByText(/synthetic test-only result/i)).toBeInTheDocument();
+    expect(screen.getByText("Synthetic campaign conversion rule.")).toBeInTheDocument();
+    expect(screen.getByText("SYNTHETIC_TEST_ONLY conversion fixture")).toBeInTheDocument();
+    expect(
+      screen.getByText("Advertiser-supplied inputs are not verified by Cardvert."),
+    ).toBeInTheDocument();
+  });
+
+  it("omits an unsupported headline instead of displaying a fabricated zero", () => {
+    const report = reportFixture();
+    const contacts = report.measurement_result!.metrics.find(
+      (metric) => metric.id === "modelled_potential_contacts",
+    );
+    if (!contacts || contacts.id !== "modelled_potential_contacts") throw new Error("fixture");
+    contacts.value = null;
+    contacts.completeness = {
+      ...contacts.completeness,
+      covered_trip_count: 0,
+      insufficient_data_trip_count: 4,
+      complete: false,
+      suppressed: true,
+    };
+
+    const authority = validateMeasurementAuthority(report);
+    expect(authority.ok).toBe(true);
+    render(<MeasurementAuthorityPanel authority={authority} />);
+
+    expect(screen.getByText("Omitted - insufficient frozen evidence")).toBeInTheDocument();
+    expect(screen.queryByText(/^0$/)).not.toBeInTheDocument();
+  });
+
+  it("uses the frozen omission label for a suppressed driver-cost total", () => {
+    const report = reportFixture();
+    const cost = report.measurement_result!.metrics.find(
+      (metric) => metric.id === "driver_campaign_cost",
+    );
+    if (!cost || cost.id !== "driver_campaign_cost") throw new Error("fixture");
+    cost.totals_by_currency = [];
+    cost.completeness = { ...cost.completeness, covered_trip_count: 0, suppressed: true };
+
+    const authority = validateMeasurementAuthority(report);
+    expect(authority.ok).toBe(true);
+    render(<MeasurementAuthorityPanel authority={authority} />);
+
+    expect(screen.getByText("Omitted - insufficient frozen evidence")).toBeInTheDocument();
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
+  });
+
+  it("publishes every frozen driver-cost currency without combining their values", () => {
+    const report = reportFixture();
+    const cost = costMetric(report.measurement_result!);
+    if (!cost) throw new Error("fixture");
+    cost.totals_by_currency.push({ currency: "USD", value: "12.50" });
+
+    const display = costMetricDisplay(cost);
+
+    expect(display).toContain("₦1,200");
+    expect(display).toContain("$12.50");
+    expect(display).toContain(" · ");
   });
 
   it("rejects missing or contradictory frozen run, result, proof and ROI fields", () => {
@@ -196,5 +314,15 @@ describe("frozen measurement authority", () => {
     const brokenRanking = readyZoneReport();
     brokenRanking.high_exposure_zone_insights!.items[0]!.rank = 2;
     expect(validateMeasurementAuthority(brokenRanking).ok).toBe(false);
+  });
+});
+
+describe("frozen metric selectors", () => {
+  it("returns the frozen contacts and cost metrics the headline publishes", () => {
+    const result = reportFixture().measurement_result!;
+
+    expect(modelledContactsMetric(result)?.value).toBe("900.00");
+    expect(costMetric(result)?.totals_by_currency).toEqual([{ currency: "NGN", value: "1200.00" }]);
+    expect(costMetric(result)?.completeness.suppressed).toBe(false);
   });
 });

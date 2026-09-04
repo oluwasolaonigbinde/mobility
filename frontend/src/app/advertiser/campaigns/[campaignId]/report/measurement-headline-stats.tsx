@@ -1,5 +1,6 @@
 import { Stat } from "@/components/ui/stat";
 import { formatCount, formatScore } from "@/lib/format";
+import { OMITTED_TOTAL_LABEL } from "./measurement-authority";
 
 export type ExposureScoreView = {
   formulaVersion: string;
@@ -18,16 +19,25 @@ function formatExposurePoints(value: string | null): string {
   return Number.isFinite(parsed) ? `${parsed.toFixed(2)} / 100` : "—";
 }
 
+export type CompletenessView = {
+  coveredTripCount: number;
+  denominatorTripCount: number;
+  insufficientDataTripCount: number;
+  excludedTripCount: number;
+  complete: boolean;
+  suppressed: boolean;
+};
+
 export function MeasurementHeadlineStats({
   exposureScore,
   modelledPotentialContacts,
-  estimatedTripCount,
   modelDiagnostic,
+  completeness,
 }: {
   exposureScore: ExposureScoreView | null;
   modelledPotentialContacts: string | null;
-  estimatedTripCount: number;
   modelDiagnostic: string | null;
+  completeness: CompletenessView;
 }) {
   return (
     <>
@@ -52,8 +62,18 @@ export function MeasurementHeadlineStats({
       />
       <Stat
         label="Modelled potential contacts"
-        value={formatCount(modelledPotentialContacts)}
-        hint={`${formatCount(estimatedTripCount)} estimated trips · ${formatScore(modelDiagnostic)} model diagnostic (not a statistical confidence interval)`}
+        value={
+          completeness.suppressed || modelledPotentialContacts === null
+            ? OMITTED_TOTAL_LABEL
+            : formatCount(modelledPotentialContacts)
+        }
+        hint={`${formatCount(completeness.coveredTripCount)} of ${formatCount(completeness.denominatorTripCount)} completed trips covered · ${formatCount(completeness.insufficientDataTripCount)} insufficient-data · ${formatCount(completeness.excludedTripCount)} excluded${
+          completeness.suppressed
+            ? " · total omitted rather than zero-filled"
+            : completeness.complete
+              ? ""
+              : " · period incomplete"
+        } · ${formatScore(modelDiagnostic)} model diagnostic (not a statistical confidence interval)`}
       />
     </>
   );

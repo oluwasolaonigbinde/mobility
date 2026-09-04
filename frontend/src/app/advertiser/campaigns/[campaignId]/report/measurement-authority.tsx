@@ -6,6 +6,43 @@ import { StatusChip } from "@/components/ui/status-chip";
 type Report = components["schemas"]["CampaignReportResponse"];
 type Run = components["schemas"]["MeasurementRunSummary"];
 type Result = components["schemas"]["MeasurementResultRead"];
+type Metric = Result["metrics"][number];
+type Completeness = components["schemas"]["MeasurementCompletenessRead"];
+
+export type ModelledContactsMetric = Extract<Metric, { id: "modelled_potential_contacts" }>;
+export type CostMetric = Extract<Metric, { id: "driver_campaign_cost" }>;
+export type MovementMetric = Extract<Metric, { id: "verified_vehicle_movement" }>;
+
+// Matches completeness_rule.omitted_label in docs/measurement-methodology.json and
+// SUPPRESSED_TOTAL_LABEL in app/services/measurement.py, so all three surfaces agree.
+export const OMITTED_TOTAL_LABEL = "Omitted - insufficient frozen evidence";
+
+export function modelledContactsMetric(result: Result): ModelledContactsMetric | undefined {
+  return result.metrics.find(
+    (metric): metric is ModelledContactsMetric => metric.id === "modelled_potential_contacts",
+  );
+}
+
+export function costMetric(result: Result): CostMetric | undefined {
+  return result.metrics.find(
+    (metric): metric is CostMetric => metric.id === "driver_campaign_cost",
+  );
+}
+
+export function movementMetric(result: Result): MovementMetric | undefined {
+  return result.metrics.find(
+    (metric): metric is MovementMetric => metric.id === "verified_vehicle_movement",
+  );
+}
+
+export function costMetricDisplay(metric: CostMetric): string {
+  if (metric.completeness.suppressed || metric.totals_by_currency.length === 0) {
+    return OMITTED_TOTAL_LABEL;
+  }
+  return metric.totals_by_currency
+    .map((total) => formatMoney(total.value, total.currency))
+    .join(" · ");
+}
 
 export type MeasurementAuthority =
   | { ok: true; run: Run; result: Result; roiIncluded: boolean; testOnlyRoi: boolean }
@@ -15,6 +52,15 @@ function sameInstant(left: string, right: string): boolean {
   const leftTime = Date.parse(left);
   const rightTime = Date.parse(right);
   return Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime === rightTime;
+}
+
+function completenessCopy(value: Completeness): string {
+  const marker = value.suppressed
+    ? " · total omitted rather than zero-filled"
+    : value.complete
+      ? ""
+      : " · period incomplete";
+  return `${formatCount(value.covered_trip_count)} of ${formatCount(value.denominator_trip_count)} completed trips covered · ${formatCount(value.insufficient_data_trip_count)} insufficient-data · ${formatCount(value.excluded_trip_count)} excluded · ${formatCount(value.in_progress_trip_count)} still in progress${marker}`;
 }
 
 export function validateMeasurementAuthority(report: Report): MeasurementAuthority {
@@ -132,11 +178,17 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
             return (
               <div key={metric.id}>
                 <p className="micro text-muted">{metric.label}</p>
-                <p className="mt-1 text-lg font-medium">{formatKm(metric.distance_m)}</p>
-                <p className="text-faint mt-1 text-xs">
-                  {formatCount(metric.trip_count)} governed trips · {metric.active_tracking_seconds}
-                  s active tracking
+                <p className="mt-1 text-lg font-medium">
+                  {metric.distance_m === null ? OMITTED_TOTAL_LABEL : formatKm(metric.distance_m)}
                 </p>
+                <p className="text-faint mt-1 text-xs">
+                  {formatCount(metric.trip_count)} governed trips ·{" "}
+                  {metric.active_tracking_seconds === null
+                    ? "tracking total omitted"
+                    : `${metric.active_tracking_seconds} s active tracking`}
+                </p>
+                <p className="text-faint mt-2 text-xs">{completenessCopy(metric.completeness)}</p>
+                <p className="text-muted mt-2 text-xs">{metric.uncertainty}</p>
               </div>
             );
           }
@@ -144,22 +196,33 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
             return (
               <div key={metric.id}>
                 <p className="micro text-muted">{metric.label}</p>
-                <p className="mt-1 text-lg font-medium">{formatCount(metric.value)}</p>
+                <p className="mt-1 text-lg font-medium">
+                  {metric.value === null ? OMITTED_TOTAL_LABEL : formatCount(metric.value)}
+                </p>
                 <p className="text-faint mt-1 text-xs">{metric.uncertainty}</p>
+                <p className="text-faint mt-2 text-xs">{completenessCopy(metric.completeness)}</p>
+                <details className="text-faint mt-2 text-xs">
+                  <summary>Density parameter provenance</summary>
+                  <p className="mt-1">Source: {metric.density_provenance.source}</p>
+                  <p>Calibration: {metric.density_provenance.calibration}</p>
+                  {metric.density_provenance.profiles.map((profile) => (
+                    <p key={`${profile.lineage_id}:${profile.revision}`} className="mt-1 font-mono">
+                      profile {profile.profile_id} · lineage {profile.lineage_id} · revision{" "}
+                      {profile.revision} · effective {profile.effective_from} ·{" "}
+                      {profile.traffic_density_per_km}/km · {profile.dwell_impressions_per_minute}
+                      /dwell-minute · {profile.road_category_method} · {profile.value_fingerprint}
+                    </p>
+                  ))}
+                </details>
               </div>
             );
           }
           return (
             <div key={metric.id}>
               <p className="micro text-muted">{metric.label}</p>
-              <p className="mt-1 text-lg font-medium">
-                {metric.totals_by_currency.length
-                  ? metric.totals_by_currency
-                      .map((total) => formatMoney(total.value, total.currency))
-                      .join(" · ")
-                  : "—"}
-              </p>
+              <p className="mt-1 text-lg font-medium">{costMetricDisplay(metric)}</p>
               <p className="text-faint mt-1 text-xs">Measured campaign operating cost</p>
+              <p className="text-faint mt-2 text-xs">{completenessCopy(metric.completeness)}</p>
             </div>
           );
         })}
@@ -177,6 +240,49 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
           <p className="micro text-faint mt-1 font-mono">
             {result.roi.currency} · method {result.roi.method_revision}
           </p>
+          <dl className="text-muted mt-3 grid gap-2 text-xs md:grid-cols-2">
+            <div>
+              <dt className="font-medium">Approval</dt>
+              <dd>{result.roi.method.approval_reference}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">Attribution rule</dt>
+              <dd>{result.roi.method.attribution_rule}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">Attribution window</dt>
+              <dd>{result.roi.method.attribution_window}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">Cost basis</dt>
+              <dd>{result.roi.method.cost_basis}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">Exclusions</dt>
+              <dd>{result.roi.method.exclusions}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">Corrections</dt>
+              <dd>{result.roi.method.corrections}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">Late data</dt>
+              <dd>{result.roi.method.late_data}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">Reporting cutoff</dt>
+              <dd>{result.roi.provenance.reporting_cutoff}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">Conversion provenance</dt>
+              <dd>{result.roi.provenance.conversion_provenance}</dd>
+            </div>
+            <div>
+              <dt className="font-medium">Revenue provenance</dt>
+              <dd>{result.roi.provenance.revenue_provenance}</dd>
+            </div>
+          </dl>
+          <p className="text-muted mt-3 text-xs">{result.roi.method.limitations}</p>
         </div>
       ) : null}
 

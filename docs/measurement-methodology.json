@@ -23,6 +23,7 @@
       "class": "modelled_measure",
       "unit": "modelled potential contacts",
       "source": "impressions_v1 output over verified vehicle movement and the applicable traffic profile",
+      "calibration": "Traffic-density parameters are configured operational defaults recorded in a versioned traffic profile; no independent field calibration or external traffic survey has been applied.",
       "vintage": "traffic-profile effective interval, source fingerprint, formula version, and calculation time",
       "uncertainty": "Show the model label, formula version, source vintage, and confidence diagnostic. Confidence is not a statistical confidence interval.",
       "missing_data": "Omit the measure when movement, traffic profile, formula version, or provenance is absent; never infer unique people.",
@@ -70,6 +71,7 @@
       "source": "advertiser conversion and revenue inputs plus approved cost and attribution inputs",
       "vintage": "approved method revision and immutable input-manifest cutoff",
       "uncertainty": "Display the method's limitations, exclusions, corrections, attribution window, and provenance beside the result.",
+      "limitations": "Return on investment is computed from advertiser-supplied conversion and revenue inputs that Cardvert does not verify. It is not causal lift, incremental value, verified exposure, or attribution of a person to an advert, and modelled potential contacts are never one of its inputs.",
       "missing_data": "Omit the entire ROI section and claim when any gate prerequisite is absent."
     }
   ],
@@ -86,7 +88,21 @@
       "immutable input manifest and method revision"
     ],
     "on_missing_or_invalid": "Omit the ROI section, metric, comparison, and claim; do not estimate, imply, rename, or substitute performance measures.",
-    "synthetic_fixture_exception": "A fixture may exercise the gate only when test_only=true and every input and method is labelled synthetic; it grants no live approval."
+    "synthetic_fixture_exception": "A fixture may exercise the gate only when test_only=true and every input and method is labelled synthetic; it grants no live approval.",
+    "required_disclosure": [
+      "approval_reference",
+      "attribution_rule",
+      "attribution_window",
+      "conversion_provenance",
+      "corrections",
+      "cost_basis",
+      "exclusions",
+      "late_data",
+      "limitations",
+      "method_revision",
+      "reporting_cutoff",
+      "revenue_provenance"
+    ]
   },
   "correction_and_reissue": {
     "issued_history": "immutable",
@@ -105,5 +121,13 @@
     "guaranteed exposure",
     "causal lift",
     "ROI when the ROI gate does not pass"
-  ]
+  ],
+  "completeness_rule": {
+    "denominator": "Cohort trips whose session reached a terminal ended or sealed state inside the frozen reporting period.",
+    "in_progress_handling": "Trips still active at the period boundary are disclosed separately and are never counted in the denominator.",
+    "disclosure": "Every published metric states its covered trip count, the denominator, and the insufficient-data and excluded trip counts for the period.",
+    "suppression": "A metric total is omitted when the metric covers no qualifying trip, or when a required provenance input is absent. Omission never substitutes zero.",
+    "omitted_label": "Omitted - insufficient frozen evidence",
+    "consistency": "Screen, CSV and PDF publish the one frozen completeness and suppression decision; no surface recomputes it."
+  }
 }

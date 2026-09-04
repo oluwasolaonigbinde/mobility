@@ -33,6 +33,7 @@ from app.models.trip import TripSessionStatus
 from app.models.trip_analytics import FraudFlag, FraudFlagStatus
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus, VehicleType
+from app.services.impressions import profile_metadata
 
 PASSWORD = "long-secure-password"
 DAY_1 = datetime(2026, 6, 1, 10, 0, tzinfo=UTC)
@@ -139,6 +140,13 @@ def create_report_graph(
         traffic_density_profile_id=density_profile.id,
         status=estimate_status,
         estimated_impressions=estimated_impressions,
+        # Mirror what estimate_values() freezes in production so the frozen
+        # density provenance under test is the real estimate-time snapshot.
+        metadata={
+            "fraud_flag_counts": {"low": 0, "medium": 0, "high": 0},
+            "road_category_method": "profile_default_weight_no_road_classification_v1",
+            "traffic_density_profile": profile_metadata(density_profile),
+        },
     )
     rule = create_test_payout_rule(
         db_sessionmaker,
