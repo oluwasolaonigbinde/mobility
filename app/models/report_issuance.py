@@ -35,6 +35,23 @@ class ReportArtifactFormat(StrEnum):
     PDF = "pdf"
 
 
+class ReportPublicationState(StrEnum):
+    """Fenced lifecycle of one publication generation for a single issuance.
+
+    A generation is registered (``PREPARED``) before any private object is written, so
+    every object this platform creates is recoverable from the database alone. Only an
+    ``ABANDONED`` generation is cleanable, and ``CLEANED`` is a terminal tombstone that
+    can never become ``COMPLETE``.
+    """
+
+    PREPARED = "prepared"
+    PUBLISHING = "publishing"
+    COMPLETE = "complete"
+    ABANDONED = "abandoned"
+    CLEANING = "cleaning"
+    CLEANED = "cleaned"
+
+
 class ReportIssuance(Base):
     __tablename__ = "report_issuances"
     __table_args__ = (
@@ -186,6 +203,98 @@ class ReportArtifact(Base):
     )
 
 
+class ReportPublicationIntent(Base):
+    """Durable registration of every private object one publication attempt may write.
+
+    The row is committed before the first object write, so cleanup can always reach the
+    exact keys a crashed publisher owned without ever listing or discovering a bucket.
+    """
+
+    __tablename__ = "report_publication_intents"
+    __table_args__ = (
+        CheckConstraint("generation > 0", name="ck_report_publication_intents_generation"),
+        CheckConstraint(
+            "state IN ('prepared', 'publishing', 'complete', 'abandoned', 'cleaning', 'cleaned')",
+            name="ck_report_publication_intents_state",
+        ),
+        CheckConstraint(
+            "csv_object_key <> pdf_object_key",
+            name="ck_report_publication_intents_distinct_keys",
+        ),
+        CheckConstraint(
+            "(state = 'prepared' AND publisher_token IS NULL "
+            "AND lease_expires_at IS NOT NULL AND completed_at IS NULL "
+            "AND abandoned_at IS NULL AND cleaned_at IS NULL) OR "
+            "(state = 'publishing' AND publisher_token IS NOT NULL "
+            "AND lease_expires_at IS NOT NULL AND completed_at IS NULL "
+            "AND abandoned_at IS NULL AND cleaned_at IS NULL) OR "
+            "(state = 'complete' AND publisher_token IS NULL "
+            "AND lease_expires_at IS NULL AND completed_at IS NOT NULL "
+            "AND abandoned_at IS NULL AND cleaned_at IS NULL) OR "
+            "(state = 'abandoned' AND publisher_token IS NULL "
+            "AND lease_expires_at IS NULL AND completed_at IS NULL "
+            "AND abandoned_at IS NOT NULL AND cleaned_at IS NULL) OR "
+            "(state = 'cleaning' AND publisher_token IS NOT NULL "
+            "AND lease_expires_at IS NOT NULL AND completed_at IS NULL "
+            "AND abandoned_at IS NOT NULL AND cleaned_at IS NULL) OR "
+            "(state = 'cleaned' AND publisher_token IS NULL "
+            "AND lease_expires_at IS NULL AND completed_at IS NULL "
+            "AND abandoned_at IS NOT NULL AND cleaned_at IS NOT NULL)",
+            name="ck_report_publication_intents_state_fields",
+        ),
+        UniqueConstraint(
+            "report_issuance_id",
+            "generation",
+            name="uq_report_publication_intents_generation",
+        ),
+        UniqueConstraint("csv_object_key", name="uq_report_publication_intents_csv_key"),
+        UniqueConstraint("pdf_object_key", name="uq_report_publication_intents_pdf_key"),
+        # At most one live generation per issuance: a retry may only start once the
+        # previous generation is abandoned, so two publishers never write concurrently.
+        Index(
+            "uq_report_publication_intents_live",
+            "report_issuance_id",
+            unique=True,
+            postgresql_where=text("state IN ('prepared', 'publishing')"),
+            sqlite_where=text("state IN ('prepared', 'publishing')"),
+        ),
+        Index(
+            "ix_report_publication_intents_due",
+            "state",
+            "lease_expires_at",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    report_issuance_id: Mapped[UUID] = mapped_column(
+        ForeignKey("report_issuances.id", ondelete="RESTRICT"), nullable=False
+    )
+    generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    state: Mapped[str] = mapped_column(
+        String(16),
+        default=ReportPublicationState.PREPARED,
+        server_default="prepared",
+        nullable=False,
+    )
+    csv_object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    pdf_object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    publisher_token: Mapped[UUID | None] = mapped_column()
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(64))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    abandoned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cleaned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
 _ISSUANCE_MUTABLE_FIELDS = frozenset(
     {
         "status",
@@ -218,3 +327,49 @@ def reject_report_issuance_delete(_mapper, _connection, _target: ReportIssuance)
 @event.listens_for(ReportArtifact, "before_delete")
 def reject_report_artifact_mutation(_mapper, _connection, _target: ReportArtifact) -> None:
     raise ValueError("report artifacts are immutable")
+
+
+_PUBLICATION_IDENTITY_FIELDS = frozenset(
+    {
+        "report_issuance_id",
+        "generation",
+        "csv_object_key",
+        "pdf_object_key",
+        "created_at",
+    }
+)
+
+# A cleaned generation is a terminal tombstone: it has no edge back to any live or
+# published state, so a late stale write can never become a referenced artifact.
+_PUBLICATION_TRANSITIONS = frozenset(
+    {
+        (ReportPublicationState.PREPARED.value, ReportPublicationState.PUBLISHING.value),
+        (ReportPublicationState.PREPARED.value, ReportPublicationState.ABANDONED.value),
+        (ReportPublicationState.PUBLISHING.value, ReportPublicationState.COMPLETE.value),
+        (ReportPublicationState.PUBLISHING.value, ReportPublicationState.ABANDONED.value),
+        (ReportPublicationState.ABANDONED.value, ReportPublicationState.CLEANING.value),
+        (ReportPublicationState.CLEANING.value, ReportPublicationState.CLEANED.value),
+        (ReportPublicationState.CLEANING.value, ReportPublicationState.ABANDONED.value),
+    }
+)
+
+
+@event.listens_for(ReportPublicationIntent, "before_update")
+def validate_report_publication_transition(
+    _mapper, _connection, target: ReportPublicationIntent
+) -> None:
+    state = inspect(target)
+    if any(state.attrs[field].history.has_changes() for field in _PUBLICATION_IDENTITY_FIELDS):
+        raise ValueError("report publication generation identity is immutable")
+    history = state.attrs.state.history
+    if not history.has_changes():
+        return
+    before = history.deleted[0] if history.deleted else None
+    after = history.added[0] if history.added else None
+    if (before, after) not in _PUBLICATION_TRANSITIONS:
+        raise ValueError("report publication state transition is invalid")
+
+
+@event.listens_for(ReportPublicationIntent, "before_delete")
+def reject_report_publication_delete(_mapper, _connection, _target) -> None:
+    raise ValueError("report publication generations are append-only")

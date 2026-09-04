@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from sqlalchemy import and_, func, or_, select, text
@@ -33,6 +33,8 @@ from app.models.report_issuance import (
     ReportArtifactFormat,
     ReportIssuance,
     ReportIssuanceStatus,
+    ReportPublicationIntent,
+    ReportPublicationState,
 )
 from app.models.stored_file import FilePurpose, FileScanStatus, StoredFile
 from app.models.user import User, UserRole, UserStatus
@@ -63,15 +65,28 @@ REPORT_RENDERER_VERSION = "campaign-report-renderer-v1"
 REPORT_LEASE_SECONDS = 120
 REPORT_MAX_ATTEMPTS = 3
 
+# Only these states may own an unpublished private object, so they are the only ones a
+# publisher may write under and the only ones cleanup must retire before deleting.
+_LIVE_PUBLICATION_STATES = (
+    ReportPublicationState.PREPARED,
+    ReportPublicationState.PUBLISHING,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class _RenderedArtifact:
     format: ReportArtifactFormat
     content_type: str
     filename: str
-    storage_key: str
     content: bytes
     checksum_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedPublication:
+    intent_id: UUID
+    csv_object_key: str
+    pdf_object_key: str
 
 
 def _error(code: str, message: str, status_code: int) -> AppError:
@@ -717,7 +732,8 @@ async def get_current_report_issuance(
     )
 
 
-def _rendered_artifacts(issuance: ReportIssuance) -> tuple[_RenderedArtifact, ...]:
+def _rendered_pair(issuance: ReportIssuance) -> tuple[_RenderedArtifact, _RenderedArtifact]:
+    """Render both artifacts in memory so nothing is written before the pair exists."""
     render_snapshot = {
         **issuance.snapshot,
         "issuance": {
@@ -731,25 +747,51 @@ def _rendered_artifacts(issuance: ReportIssuance) -> tuple[_RenderedArtifact, ..
     }
     csv_content = render_report_csv(render_snapshot)
     pdf_content = render_report_pdf(render_snapshot)
-    result = []
-    for artifact_format, content_type, content in (
-        (ReportArtifactFormat.CSV, "text/csv", csv_content),
-        (ReportArtifactFormat.PDF, "application/pdf", pdf_content),
-    ):
-        result.append(
-            _RenderedArtifact(
-                format=artifact_format,
-                content_type=content_type,
-                filename=_filename(issuance, artifact_format.value),
-                storage_key=(
-                    f"managed/{issuance.organization_id}/reports/{issuance.id}/"
-                    f"artifact.{artifact_format.value}"
-                ),
-                content=content,
-                checksum_sha256=hashlib.sha256(content).hexdigest(),
-            )
+    rendered = tuple(
+        _RenderedArtifact(
+            format=artifact_format,
+            content_type=content_type,
+            filename=_filename(issuance, artifact_format.value),
+            content=content,
+            checksum_sha256=hashlib.sha256(content).hexdigest(),
         )
-    return tuple(result)
+        for artifact_format, content_type, content in (
+            (ReportArtifactFormat.CSV, "text/csv", csv_content),
+            (ReportArtifactFormat.PDF, "application/pdf", pdf_content),
+        )
+    )
+    return rendered[0], rendered[1]
+
+
+def _publication_key(
+    issuance: ReportIssuance,
+    *,
+    intent_id: UUID,
+    generation: int,
+    artifact: _RenderedArtifact,
+) -> str:
+    """Generation-unique key carrying its intent, generation and content hash.
+
+    A retry never reuses an earlier generation's key, so a partially written or
+    corrupt object from a crashed publisher can never be mistaken for this one.
+    """
+    return (
+        f"managed/{issuance.organization_id}/reports/{issuance.id}/publications/"
+        f"{intent_id}/g{generation}/{artifact.checksum_sha256}.{artifact.format.value}"
+    )
+
+
+def _as_utc(value: datetime) -> datetime:
+    """Normalise a stored timestamp so lease comparisons never mix naive and aware."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def _publication_lost() -> AppError:
+    return _error(
+        "REPORT_PUBLICATION_LOST",
+        "The report publication claim is no longer current",
+        status.HTTP_409_CONFLICT,
+    )
 
 
 async def _record_worker_failure(
@@ -792,6 +834,337 @@ async def _record_worker_failure(
         await session.commit()
 
 
+async def _abandon_publication(
+    session: AsyncSession,
+    intent: ReportPublicationIntent,
+    *,
+    now: datetime,
+    error_code: str,
+) -> None:
+    """Retire a live generation so only cleanup may touch its registered objects."""
+    intent.state = ReportPublicationState.ABANDONED
+    intent.publisher_token = None
+    intent.lease_expires_at = None
+    intent.abandoned_at = now
+    intent.last_error_code = error_code
+    await create_audit_event(
+        session,
+        actor_user_id=None,
+        action="report_publication.abandoned",
+        entity_type="report_issuance",
+        entity_id=str(intent.report_issuance_id),
+        metadata={"generation": intent.generation, "error_code": error_code},
+    )
+
+
+async def _revert_cleanup_claim(
+    session: AsyncSession,
+    intent: ReportPublicationIntent,
+    *,
+    error_code: str,
+) -> None:
+    """Return a failed cleanup claim to abandoned, leaving why it failed observable."""
+    intent.state = ReportPublicationState.ABANDONED
+    intent.publisher_token = None
+    intent.lease_expires_at = None
+    intent.last_error_code = error_code
+    await create_audit_event(
+        session,
+        actor_user_id=None,
+        action="report_publication.abandoned",
+        entity_type="report_issuance",
+        entity_id=str(intent.report_issuance_id),
+        metadata={"generation": intent.generation, "error_code": error_code},
+    )
+
+
+async def _abandon_claimed_publication(
+    sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    intent_id: UUID,
+    publisher_token: UUID | None,
+    error_code: str,
+) -> None:
+    async with sessionmaker() as session:
+        intent = await session.scalar(
+            select(ReportPublicationIntent)
+            .where(ReportPublicationIntent.id == intent_id)
+            .with_for_update()
+        )
+        if intent is None or intent.state not in _LIVE_PUBLICATION_STATES:
+            return
+        if publisher_token is not None and intent.publisher_token != publisher_token:
+            return
+        await _abandon_publication(
+            session,
+            intent,
+            now=await database_clock(session),
+            error_code=error_code,
+        )
+        await session.commit()
+
+
+async def _prepare_publication(
+    sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    issuance_id: UUID,
+    token: UUID,
+    rendered: tuple[_RenderedArtifact, _RenderedArtifact],
+) -> _PreparedPublication | None:
+    """Commit the generation and both object keys before any object write."""
+    csv_artifact, pdf_artifact = rendered
+    async with sessionmaker() as session:
+        issuance = await session.scalar(
+            select(ReportIssuance).where(ReportIssuance.id == issuance_id).with_for_update()
+        )
+        if (
+            issuance is None
+            or issuance.status != ReportIssuanceStatus.PROCESSING
+            or issuance.processing_token != token
+        ):
+            return None
+        live = int(
+            await session.scalar(
+                select(func.count())
+                .select_from(ReportPublicationIntent)
+                .where(
+                    ReportPublicationIntent.report_issuance_id == issuance_id,
+                    ReportPublicationIntent.state.in_(_LIVE_PUBLICATION_STATES),
+                )
+            )
+            or 0
+        )
+        if live:
+            # The sweep abandons superseded generations before publishing, so this is
+            # defensive: it converts a uq_report_publication_intents_live violation into a
+            # recorded worker failure instead of an IntegrityError escaping the sweep.
+            raise _error(
+                "REPORT_PUBLICATION_GENERATION_ACTIVE",
+                "Another publication generation is still live for this report",
+                status.HTTP_409_CONFLICT,
+            )
+        generation = (
+            int(
+                await session.scalar(
+                    select(func.coalesce(func.max(ReportPublicationIntent.generation), 0)).where(
+                        ReportPublicationIntent.report_issuance_id == issuance_id
+                    )
+                )
+                or 0
+            )
+            + 1
+        )
+        intent_id = uuid4()
+        prepared = _PreparedPublication(
+            intent_id=intent_id,
+            csv_object_key=_publication_key(
+                issuance, intent_id=intent_id, generation=generation, artifact=csv_artifact
+            ),
+            pdf_object_key=_publication_key(
+                issuance, intent_id=intent_id, generation=generation, artifact=pdf_artifact
+            ),
+        )
+        session.add(
+            ReportPublicationIntent(
+                id=intent_id,
+                report_issuance_id=issuance_id,
+                generation=generation,
+                state=ReportPublicationState.PREPARED,
+                csv_object_key=prepared.csv_object_key,
+                pdf_object_key=prepared.pdf_object_key,
+                lease_expires_at=(await database_clock(session))
+                + timedelta(seconds=REPORT_LEASE_SECONDS),
+            )
+        )
+        await session.commit()
+        return prepared
+
+
+async def _claim_publication(
+    sessionmaker: async_sessionmaker[AsyncSession], *, intent_id: UUID
+) -> UUID | None:
+    async with sessionmaker() as session:
+        intent = await session.scalar(
+            select(ReportPublicationIntent)
+            .where(ReportPublicationIntent.id == intent_id)
+            .with_for_update()
+        )
+        now = await database_clock(session)
+        if (
+            intent is None
+            or intent.state != ReportPublicationState.PREPARED
+            or intent.lease_expires_at is None
+            or _as_utc(intent.lease_expires_at) <= now
+        ):
+            return None
+        publisher_token = uuid4()
+        intent.state = ReportPublicationState.PUBLISHING
+        intent.publisher_token = publisher_token
+        intent.lease_expires_at = now + timedelta(seconds=REPORT_LEASE_SECONDS)
+        await session.commit()
+        return publisher_token
+
+
+async def _publication_lease_held(
+    sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    intent_id: UUID,
+    publisher_token: UUID,
+) -> bool:
+    """Re-read the fence before each object write so an abandoned publisher stops."""
+    async with sessionmaker() as session:
+        intent = await session.get(ReportPublicationIntent, intent_id)
+        if intent is None or intent.lease_expires_at is None:
+            return False
+        return (
+            intent.state == ReportPublicationState.PUBLISHING
+            and intent.publisher_token == publisher_token
+            and _as_utc(intent.lease_expires_at) > await database_clock(session)
+        )
+
+
+async def _complete_publication(
+    sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    storage: StorageProvider,
+    settings: Settings,
+    issuance_id: UUID,
+    token: UUID,
+    prepared: _PreparedPublication,
+    publisher_token: UUID,
+    rendered: tuple[_RenderedArtifact, _RenderedArtifact],
+) -> None:
+    csv_artifact, pdf_artifact = rendered
+    registered = (
+        (csv_artifact, prepared.csv_object_key),
+        (pdf_artifact, prepared.pdf_object_key),
+    )
+    async with sessionmaker() as session:
+        issuance = await session.scalar(
+            select(ReportIssuance).where(ReportIssuance.id == issuance_id).with_for_update()
+        )
+        intent = await session.scalar(
+            select(ReportPublicationIntent)
+            .where(ReportPublicationIntent.id == prepared.intent_id)
+            .with_for_update()
+        )
+        now = await database_clock(session)
+        if (
+            issuance is None
+            or issuance.status != ReportIssuanceStatus.PROCESSING
+            or issuance.processing_token != token
+            or intent is None
+            or intent.state != ReportPublicationState.PUBLISHING
+            or intent.publisher_token != publisher_token
+            or intent.lease_expires_at is None
+            or _as_utc(intent.lease_expires_at) <= now
+        ):
+            raise _publication_lost()
+        run = await session.get(MeasurementRun, issuance.measurement_run_id)
+        if run is None:
+            raise _error(
+                "REPORT_SOURCE_RUN_UNAVAILABLE",
+                "The frozen measurement run is unavailable",
+                status.HTTP_409_CONFLICT,
+            )
+        await _authorize_scope(
+            session,
+            actor_user_id=issuance.requested_by_user_id,
+            organization_id=issuance.organization_id,
+            campaign_id=issuance.campaign_id,
+            write=True,
+        )
+        if canonical_sha256(_authority_document(run, settings)) != issuance.authority_fingerprint:
+            raise _error(
+                "REPORT_AUTHORITY_REVOKED",
+                "Report publication authority is no longer current",
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        # Both registered objects are re-read under the lock, so a corrupt, replaced or
+        # already-cleaned object can never be registered as a published artifact.
+        for artifact, storage_key in registered:
+            try:
+                observed = await storage.stat(storage_key)
+            except StorageObjectNotFound as exc:
+                raise StorageObjectConflict("Registered report object is missing") from exc
+            if (
+                observed.object_key != storage_key
+                or observed.content_type.lower() != artifact.content_type
+                or observed.size_bytes != len(artifact.content)
+                or observed.checksum_sha256.lower() != artifact.checksum_sha256
+            ):
+                raise StorageObjectConflict("Published report object metadata mismatch")
+        existing_count = int(
+            await session.scalar(
+                select(func.count())
+                .select_from(ReportArtifact)
+                .where(ReportArtifact.report_issuance_id == issuance.id)
+            )
+            or 0
+        )
+        if existing_count:
+            raise _error(
+                "REPORT_ARTIFACT_STATE_CONFLICT",
+                "The report artifact pair is not publishable",
+                status.HTTP_409_CONFLICT,
+            )
+        for artifact, storage_key in registered:
+            stored_file = StoredFile(
+                upload_intent_id=None,
+                organization_id=issuance.organization_id,
+                subject_user_id=None,
+                uploader_user_id=issuance.requested_by_user_id,
+                purpose=FilePurpose.REPORT_EXPORT,
+                original_filename=artifact.filename,
+                storage_key=storage_key,
+                content_type=artifact.content_type,
+                size_bytes=len(artifact.content),
+                checksum_sha256=artifact.checksum_sha256,
+                scan_status=FileScanStatus.CLEAN,
+                actual_content_type=artifact.content_type,
+                scan_attempts=0,
+                scanned_at=now,
+            )
+            session.add(stored_file)
+            await session.flush()
+            session.add(
+                ReportArtifact(
+                    report_issuance_id=issuance.id,
+                    stored_file_id=stored_file.id,
+                    format=artifact.format,
+                    content_type=artifact.content_type,
+                    size_bytes=len(artifact.content),
+                    checksum_sha256=artifact.checksum_sha256,
+                    renderer_version=REPORT_RENDERER_VERSION,
+                )
+            )
+        issuance.status = ReportIssuanceStatus.READY
+        issuance.processing_token = None
+        issuance.lease_expires_at = None
+        issuance.next_attempt_at = None
+        issuance.last_error_code = None
+        issuance.ready_at = now
+        intent.state = ReportPublicationState.COMPLETE
+        intent.publisher_token = None
+        intent.lease_expires_at = None
+        intent.completed_at = now
+        await create_audit_event(
+            session,
+            actor_user_id=None,
+            action="report_issuance.ready",
+            entity_type="report_issuance",
+            entity_id=str(issuance.id),
+            metadata={
+                "version": issuance.version,
+                "generation": intent.generation,
+                "artifact_hashes": {
+                    artifact.format.value: artifact.checksum_sha256 for artifact, _ in registered
+                },
+            },
+        )
+        await session.commit()
+
+
 async def _generate_and_publish(
     sessionmaker: async_sessionmaker[AsyncSession],
     *,
@@ -800,6 +1173,8 @@ async def _generate_and_publish(
     issuance_id: UUID,
     token: UUID,
 ) -> None:
+    prepared: _PreparedPublication | None = None
+    publisher_token: UUID | None = None
     try:
         async with sessionmaker() as session:
             issuance = await session.get(ReportIssuance, issuance_id)
@@ -838,153 +1213,194 @@ async def _generate_and_publish(
                     "The queued report no longer matches its frozen authority",
                     status.HTTP_409_CONFLICT,
                 )
-            rendered = _rendered_artifacts(issuance)
-        for artifact in rendered:
+            rendered = _rendered_pair(issuance)
+        prepared = await _prepare_publication(
+            sessionmaker, issuance_id=issuance_id, token=token, rendered=rendered
+        )
+        if prepared is None:
+            return
+        publisher_token = await _claim_publication(sessionmaker, intent_id=prepared.intent_id)
+        if publisher_token is None:
+            raise _publication_lost()
+        for artifact, storage_key in (
+            (rendered[0], prepared.csv_object_key),
+            (rendered[1], prepared.pdf_object_key),
+        ):
+            if not await _publication_lease_held(
+                sessionmaker,
+                intent_id=prepared.intent_id,
+                publisher_token=publisher_token,
+            ):
+                raise _publication_lost()
             observed = await storage.put(
-                object_key=artifact.storage_key,
+                object_key=storage_key,
                 content_type=artifact.content_type,
                 data=artifact.content,
                 checksum_sha256=artifact.checksum_sha256,
             )
             if (
-                observed.object_key != artifact.storage_key
+                observed.object_key != storage_key
                 or observed.content_type.lower() != artifact.content_type
                 or observed.size_bytes != len(artifact.content)
                 or observed.checksum_sha256.lower() != artifact.checksum_sha256
             ):
                 raise StorageObjectConflict("Generated report object metadata mismatch")
-        async with sessionmaker() as session:
-            issuance = await session.scalar(
-                select(ReportIssuance).where(ReportIssuance.id == issuance_id).with_for_update()
+        await _complete_publication(
+            sessionmaker,
+            storage=storage,
+            settings=settings,
+            issuance_id=issuance_id,
+            token=token,
+            prepared=prepared,
+            publisher_token=publisher_token,
+            rendered=rendered,
+        )
+    except (
+        AppError,
+        ReportRenderLimitError,
+        StorageObjectConflict,
+        StorageObjectNotFound,
+        StorageUnavailable,
+    ) as exc:
+        if isinstance(exc, AppError):
+            error_code = exc.code
+        elif isinstance(exc, ReportRenderLimitError):
+            error_code = "report_render_limit"
+        elif isinstance(exc, StorageObjectConflict):
+            error_code = "stored_object_conflict"
+        else:
+            error_code = "storage_unavailable"
+        if prepared is not None:
+            await _abandon_claimed_publication(
+                sessionmaker,
+                intent_id=prepared.intent_id,
+                publisher_token=publisher_token,
+                error_code=error_code,
             )
-            if (
-                issuance is None
-                or issuance.status != ReportIssuanceStatus.PROCESSING
-                or issuance.processing_token != token
-            ):
-                return
-            run = await session.get(MeasurementRun, issuance.measurement_run_id)
-            if run is None:
-                raise _error(
-                    "REPORT_SOURCE_RUN_UNAVAILABLE",
-                    "The frozen measurement run is unavailable",
-                    status.HTTP_409_CONFLICT,
-                )
-            await _authorize_scope(
-                session,
-                actor_user_id=issuance.requested_by_user_id,
-                organization_id=issuance.organization_id,
-                campaign_id=issuance.campaign_id,
-                write=True,
-            )
-            if (
-                canonical_sha256(_authority_document(run, settings))
-                != issuance.authority_fingerprint
-            ):
-                raise _error(
-                    "REPORT_AUTHORITY_REVOKED",
-                    "Report publication authority is no longer current",
-                    status.HTTP_503_SERVICE_UNAVAILABLE,
-                )
-            existing_count = int(
-                await session.scalar(
-                    select(func.count())
-                    .select_from(ReportArtifact)
-                    .where(ReportArtifact.report_issuance_id == issuance.id)
-                )
-                or 0
-            )
-            if existing_count:
-                raise _error(
-                    "REPORT_ARTIFACT_STATE_CONFLICT",
-                    "The report artifact pair is not publishable",
-                    status.HTTP_409_CONFLICT,
-                )
-            now = await database_clock(session)
-            for artifact in rendered:
-                stored_file = StoredFile(
-                    upload_intent_id=None,
-                    organization_id=issuance.organization_id,
-                    subject_user_id=None,
-                    uploader_user_id=issuance.requested_by_user_id,
-                    purpose=FilePurpose.REPORT_EXPORT,
-                    original_filename=artifact.filename,
-                    storage_key=artifact.storage_key,
-                    content_type=artifact.content_type,
-                    size_bytes=len(artifact.content),
-                    checksum_sha256=artifact.checksum_sha256,
-                    scan_status=FileScanStatus.CLEAN,
-                    actual_content_type=artifact.content_type,
-                    scan_attempts=0,
-                    scanned_at=now,
-                )
-                session.add(stored_file)
-                await session.flush()
-                session.add(
-                    ReportArtifact(
-                        report_issuance_id=issuance.id,
-                        stored_file_id=stored_file.id,
-                        format=artifact.format,
-                        content_type=artifact.content_type,
-                        size_bytes=len(artifact.content),
-                        checksum_sha256=artifact.checksum_sha256,
-                        renderer_version=REPORT_RENDERER_VERSION,
+        await _record_worker_failure(
+            sessionmaker,
+            issuance_id=issuance_id,
+            token=token,
+            error_code=error_code,
+        )
+
+
+async def sweep_report_publications(
+    sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    storage: StorageProvider,
+    settings: Settings,
+) -> int:
+    """Retire expired generations and destroy only their registered private objects."""
+    async with sessionmaker() as session:
+        now = await database_clock(session)
+        expired = list(
+            (
+                await session.scalars(
+                    select(ReportPublicationIntent)
+                    .where(
+                        ReportPublicationIntent.state.in_(
+                            (*_LIVE_PUBLICATION_STATES, ReportPublicationState.CLEANING)
+                        ),
+                        ReportPublicationIntent.lease_expires_at <= now,
                     )
+                    .order_by(ReportPublicationIntent.created_at, ReportPublicationIntent.id)
+                    .limit(settings.worker_sweep_batch_size)
+                    .with_for_update(skip_locked=True)
                 )
-            issuance.status = ReportIssuanceStatus.READY
-            issuance.processing_token = None
-            issuance.lease_expires_at = None
-            issuance.next_attempt_at = None
-            issuance.last_error_code = None
-            issuance.ready_at = now
-            await create_audit_event(
-                session,
-                actor_user_id=None,
-                action="report_issuance.ready",
-                entity_type="report_issuance",
-                entity_id=str(issuance.id),
-                metadata={
-                    "version": issuance.version,
-                    "artifact_hashes": {
-                        artifact.format.value: artifact.checksum_sha256 for artifact in rendered
-                    },
-                },
+            ).all()
+        )
+        for intent in expired:
+            if intent.state == ReportPublicationState.CLEANING:
+                await _revert_cleanup_claim(
+                    session, intent, error_code="publication_cleanup_lease_expired"
+                )
+                continue
+            await _abandon_publication(
+                session, intent, now=now, error_code="publication_lease_expired"
             )
+        await session.commit()
+
+    claims: list[tuple[UUID, UUID, str, str]] = []
+    async with sessionmaker() as session:
+        now = await database_clock(session)
+        rows = list(
+            (
+                await session.scalars(
+                    select(ReportPublicationIntent)
+                    .where(ReportPublicationIntent.state == ReportPublicationState.ABANDONED)
+                    .order_by(ReportPublicationIntent.created_at, ReportPublicationIntent.id)
+                    .limit(settings.worker_sweep_batch_size)
+                    .with_for_update(skip_locked=True)
+                )
+            ).all()
+        )
+        for intent in rows:
+            cleanup_token = uuid4()
+            intent.state = ReportPublicationState.CLEANING
+            intent.publisher_token = cleanup_token
+            intent.lease_expires_at = now + timedelta(seconds=REPORT_LEASE_SECONDS)
+            claims.append((intent.id, cleanup_token, intent.csv_object_key, intent.pdf_object_key))
+        await session.commit()
+
+    cleaned = 0
+    for intent_id, cleanup_token, csv_object_key, pdf_object_key in claims:
+        registered_keys = (csv_object_key, pdf_object_key)
+        failure_code: str | None = None
+        try:
+            for storage_key in registered_keys:
+                await storage.delete(storage_key)
+            for storage_key in registered_keys:
+                try:
+                    await storage.stat(storage_key)
+                except StorageObjectNotFound:
+                    continue
+                failure_code = "publication_object_resurrected"
+        except StorageUnavailable:
+            failure_code = "storage_unavailable"
+        async with sessionmaker() as session:
+            intent = await session.scalar(
+                select(ReportPublicationIntent)
+                .where(ReportPublicationIntent.id == intent_id)
+                .with_for_update()
+            )
+            if (
+                intent is None
+                or intent.state != ReportPublicationState.CLEANING
+                or intent.publisher_token != cleanup_token
+            ):
+                continue
+            intent.publisher_token = None
+            intent.lease_expires_at = None
+            if failure_code is None:
+                intent.state = ReportPublicationState.CLEANED
+                intent.cleaned_at = await database_clock(session)
+                intent.last_error_code = None
+                await create_audit_event(
+                    session,
+                    actor_user_id=None,
+                    action="report_publication.cleaned",
+                    entity_type="report_issuance",
+                    entity_id=str(intent.report_issuance_id),
+                    metadata={
+                        "generation": intent.generation,
+                        "object_count": len(registered_keys),
+                    },
+                )
+                cleaned += 1
+            else:
+                await _revert_cleanup_claim(session, intent, error_code=failure_code)
             await session.commit()
-    except AppError as exc:
-        await _record_worker_failure(
-            sessionmaker,
-            issuance_id=issuance_id,
-            token=token,
-            error_code=exc.code,
-        )
-    except ReportRenderLimitError:
-        await _record_worker_failure(
-            sessionmaker,
-            issuance_id=issuance_id,
-            token=token,
-            error_code="report_render_limit",
-        )
-    except StorageObjectConflict:
-        await _record_worker_failure(
-            sessionmaker,
-            issuance_id=issuance_id,
-            token=token,
-            error_code="stored_object_conflict",
-        )
-    except (StorageObjectNotFound, StorageUnavailable):
-        await _record_worker_failure(
-            sessionmaker,
-            issuance_id=issuance_id,
-            token=token,
-            error_code="storage_unavailable",
-        )
+    return cleaned
 
 
 async def sweep_report_issuances(ctx: dict) -> int:
     sessionmaker: async_sessionmaker[AsyncSession] = ctx["sessionmaker"]
     settings: Settings = ctx["settings"]
     storage: StorageProvider = ctx["storage"]
+    # Retire and destroy orphaned generations first, so a reclaimed issuance can always
+    # register a fresh one and no unreferenced object outlives its owning attempt.
+    await sweep_report_publications(sessionmaker, storage=storage, settings=settings)
     claims: list[tuple[UUID, UUID]] = []
     async with sessionmaker() as session:
         now = await database_clock(session)
@@ -1052,6 +1468,24 @@ async def sweep_report_issuances(ctx: dict) -> int:
                 entity_id=str(issuance.id),
                 metadata={"attempt": issuance.worker_attempts},
             )
+        if claims:
+            # The issuance claim is the outer authority: a generation left live by the
+            # superseded attempt is retired here regardless of its own lease, so the new
+            # attempt is never blocked and the old publisher can no longer publish.
+            superseded = await session.scalars(
+                select(ReportPublicationIntent)
+                .where(
+                    ReportPublicationIntent.report_issuance_id.in_(
+                        [issuance_id for issuance_id, _ in claims]
+                    ),
+                    ReportPublicationIntent.state.in_(_LIVE_PUBLICATION_STATES),
+                )
+                .with_for_update()
+            )
+            for intent in superseded:
+                await _abandon_publication(
+                    session, intent, now=now, error_code="publication_claim_superseded"
+                )
         await session.commit()
     for issuance_id, token in claims:
         await _generate_and_publish(

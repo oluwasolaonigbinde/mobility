@@ -157,6 +157,7 @@ OPERATOR_AUTHORITY_EXCLUSIONS = frozenset(
         "refund_settlements",
         "report_artifacts",
         "report_issuances",
+        "report_publication_intents",
         "retargeting_source_idempotency",
         "retargeting_source_link_events",
         "retargeting_source_link_idempotency",

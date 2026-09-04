@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import re
 from datetime import UTC, datetime, timedelta
@@ -8,6 +9,7 @@ from uuid import UUID, uuid4
 import pytest
 from conftest import auth_headers, create_test_organization, create_test_user
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from test_advertiser_reports import PASSWORD
 from test_measurement_runs import create_measurement_graph, issue_payload
 from test_stored_files import FakeStorageProvider
@@ -21,14 +23,23 @@ from app.models.organization import (
     MembershipStatus,
     OrganizationMembership,
 )
-from app.models.report_issuance import ReportArtifact, ReportIssuance
+from app.models.report_issuance import (
+    ReportArtifact,
+    ReportIssuance,
+    ReportPublicationIntent,
+    ReportPublicationState,
+)
 from app.models.stored_file import StoredFile
 from app.models.user import UserRole
 from app.schemas.measurement import MeasurementRunCreate
 from app.schemas.report_issuances import ReportIssuanceCreate
 from app.services import report_issuances as report_issuance_service
 from app.services.measurement import issue_measurement_run
-from app.services.report_issuances import request_report_issuance, sweep_report_issuances
+from app.services.report_issuances import (
+    request_report_issuance,
+    sweep_report_issuances,
+    sweep_report_publications,
+)
 
 
 def rendered_pdf_bytes(content: bytes) -> bytes:
@@ -44,12 +55,28 @@ class ReportStorage(FakeStorageProvider):
     def __init__(self) -> None:
         super().__init__()
         self.fail_pdf_once = False
+        # When set, delete silently does nothing, standing in for a provider that accepts
+        # a delete the object survives (object-lock retention, a denied policy, a bug).
+        self.ignore_deletes = False
+        # Awaited after a successful write so a test can simulate what a real publisher
+        # cannot see: the world changing between its object write and its commit.
+        self.after_put = None
+
+    async def delete(self, object_key: str) -> None:
+        if self.ignore_deletes:
+            self.deleted.append(object_key)
+            return
+        await super().delete(object_key)
 
     async def put(self, **kwargs):
-        if self.fail_pdf_once and str(kwargs["object_key"]).endswith(".pdf"):
+        object_key = str(kwargs["object_key"])
+        if self.fail_pdf_once and object_key.endswith(".pdf"):
             self.fail_pdf_once = False
             raise StorageUnavailable("synthetic write failure")
-        return await super().put(**kwargs)
+        observed = await super().put(**kwargs)
+        if self.after_put is not None:
+            await self.after_put(object_key)
+        return observed
 
 
 @pytest.fixture
@@ -110,6 +137,12 @@ def run_worker(db_sessionmaker, settings, storage) -> int:
         sweep_report_issuances(
             {"sessionmaker": db_sessionmaker, "settings": settings, "storage": storage}
         )
+    )
+
+
+def run_publication_cleanup(db_sessionmaker, settings, storage) -> int:
+    return asyncio.run(
+        sweep_report_publications(db_sessionmaker, storage=storage, settings=settings)
     )
 
 
@@ -1082,3 +1115,737 @@ def test_expired_final_claim_terminalizes_once_on_postgres(
     assert [event.event_metadata for event in terminal_events] == [
         {"attempt": 3, "error_code": "worker_lease_expired"}
     ]
+
+
+@pytest.fixture
+def deterministic_render(monkeypatch):
+    """Isolate R51 publication mechanics from the SQLite timezone-naive renderer limit."""
+
+    def csv(snapshot) -> bytes:
+        return f"section,label\nissuance,{snapshot['issuance']['id']}\n".encode()
+
+    def pdf(snapshot) -> bytes:
+        return b"%PDF-1.4 " + str(snapshot["issuance"]["id"]).encode()
+
+    monkeypatch.setattr(report_issuance_service, "render_report_csv", csv)
+    monkeypatch.setattr(report_issuance_service, "render_report_pdf", pdf)
+
+
+async def read_generations(sessionmaker, issuance_id) -> list[ReportPublicationIntent]:
+    async with sessionmaker() as session:
+        return list(
+            await session.scalars(
+                select(ReportPublicationIntent)
+                .where(ReportPublicationIntent.report_issuance_id == issuance_id)
+                .order_by(ReportPublicationIntent.generation)
+            )
+        )
+
+
+def generations(db_sessionmaker, issuance_id) -> list[ReportPublicationIntent]:
+    return asyncio.run(read_generations(db_sessionmaker, issuance_id))
+
+
+def artifact_count(db_sessionmaker) -> int:
+    async def count() -> int:
+        async with db_sessionmaker() as session:
+            return int(await session.scalar(select(func.count()).select_from(ReportArtifact)) or 0)
+
+    return asyncio.run(count())
+
+
+def make_due(db_sessionmaker, issuance_id) -> None:
+    async def due() -> None:
+        async with db_sessionmaker() as session:
+            row = await session.get(ReportIssuance, issuance_id)
+            assert row is not None
+            row.next_attempt_at = datetime.now(UTC) - timedelta(seconds=1)
+            await session.commit()
+
+    asyncio.run(due())
+
+
+def test_crash_after_first_object_write_leaves_no_unregistered_orphan(
+    db_client, db_sessionmaker, settings, report_storage, deterministic_render
+) -> None:
+    _, advertiser, _, run = issue_run(db_client, db_sessionmaker)
+    issuance_id = UUID(request_issuance(db_client, advertiser, run["id"]).json()["id"])
+    report_storage.fail_pdf_once = True
+
+    assert run_worker(db_sessionmaker, settings, report_storage) == 1
+    assert len(report_storage.objects) == 1
+    assert artifact_count(db_sessionmaker) == 0
+
+    crashed = generations(db_sessionmaker, issuance_id)
+    assert [intent.generation for intent in crashed] == [1]
+    assert crashed[0].state == ReportPublicationState.ABANDONED
+    orphan_keys = {crashed[0].csv_object_key, crashed[0].pdf_object_key}
+    assert set(report_storage.objects) <= orphan_keys
+
+    run_worker(db_sessionmaker, settings, report_storage)
+    assert report_storage.objects == {}
+    assert sorted(report_storage.deleted) == sorted(orphan_keys)
+    assert generations(db_sessionmaker, issuance_id)[0].state == ReportPublicationState.CLEANED
+
+    # The tombstone is idempotent: a repeated cleanup claims and deletes nothing more.
+    assert run_publication_cleanup(db_sessionmaker, settings, report_storage) == 0
+    assert sorted(report_storage.deleted) == sorted(orphan_keys)
+
+
+def test_retry_publishes_under_a_new_generation_and_new_keys(
+    db_client, db_sessionmaker, settings, report_storage, deterministic_render
+) -> None:
+    _, advertiser, _, run = issue_run(db_client, db_sessionmaker)
+    issuance_id = UUID(request_issuance(db_client, advertiser, run["id"]).json()["id"])
+    report_storage.fail_pdf_once = True
+    assert run_worker(db_sessionmaker, settings, report_storage) == 1
+
+    make_due(db_sessionmaker, issuance_id)
+    assert run_worker(db_sessionmaker, settings, report_storage) == 1
+
+    first, second = generations(db_sessionmaker, issuance_id)
+    assert (first.generation, second.generation) == (1, 2)
+    assert first.state == ReportPublicationState.CLEANED
+    assert second.state == ReportPublicationState.COMPLETE
+    assert {first.csv_object_key, first.pdf_object_key}.isdisjoint(
+        {second.csv_object_key, second.pdf_object_key}
+    )
+    # The published key carries its intent, generation and content hash.
+    assert f"/{second.id}/g2/" in second.csv_object_key
+    assert second.csv_object_key.endswith(
+        f"{hashlib.sha256(report_storage.contents[second.csv_object_key]).hexdigest()}.csv"
+    )
+    assert set(report_storage.objects) == {second.csv_object_key, second.pdf_object_key}
+
+    async def stored_keys() -> set[str]:
+        async with db_sessionmaker() as session:
+            return set(
+                await session.scalars(
+                    select(StoredFile.storage_key).where(
+                        StoredFile.purpose == "report_export",
+                    )
+                )
+            )
+
+    assert asyncio.run(stored_keys()) == {second.csv_object_key, second.pdf_object_key}
+
+
+def test_expired_publisher_cannot_publish_and_its_objects_are_reclaimed(
+    db_client, db_sessionmaker, settings, report_storage, deterministic_render
+) -> None:
+    _, advertiser, _, run = issue_run(db_client, db_sessionmaker)
+    issuance_id = UUID(request_issuance(db_client, advertiser, run["id"]).json()["id"])
+
+    async def expire_publication_lease(object_key: str) -> None:
+        if not object_key.endswith(".pdf"):
+            return
+        async with db_sessionmaker() as session:
+            intent = await session.scalar(
+                select(ReportPublicationIntent).where(
+                    ReportPublicationIntent.report_issuance_id == issuance_id
+                )
+            )
+            assert intent is not None
+            intent.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+            await session.commit()
+
+    report_storage.after_put = expire_publication_lease
+    assert run_worker(db_sessionmaker, settings, report_storage) == 1
+    report_storage.after_put = None
+
+    assert artifact_count(db_sessionmaker) == 0
+    expired = generations(db_sessionmaker, issuance_id)[0]
+    assert expired.state == ReportPublicationState.ABANDONED
+    assert expired.last_error_code == "REPORT_PUBLICATION_LOST"
+
+    async def issuance_state() -> tuple[str, str | None]:
+        async with db_sessionmaker() as session:
+            row = await session.get(ReportIssuance, issuance_id)
+            assert row is not None
+            return row.status, row.last_error_code
+
+    assert asyncio.run(issuance_state()) == ("queued", "REPORT_PUBLICATION_LOST")
+
+    written = {expired.csv_object_key, expired.pdf_object_key}
+    assert set(report_storage.objects) == written
+    run_worker(db_sessionmaker, settings, report_storage)
+    assert report_storage.objects == {}
+    assert generations(db_sessionmaker, issuance_id)[0].state == ReportPublicationState.CLEANED
+
+
+def test_abandoned_publisher_stops_before_writing_the_rest_of_the_pair(
+    db_client, db_sessionmaker, settings, report_storage, deterministic_render
+) -> None:
+    _, advertiser, _, run = issue_run(db_client, db_sessionmaker)
+    issuance_id = UUID(request_issuance(db_client, advertiser, run["id"]).json()["id"])
+
+    async def abandon_after_first_object(object_key: str) -> None:
+        if not object_key.endswith(".csv"):
+            return
+        async with db_sessionmaker() as session:
+            intent = await session.scalar(
+                select(ReportPublicationIntent).where(
+                    ReportPublicationIntent.report_issuance_id == issuance_id
+                )
+            )
+            assert intent is not None
+            intent.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+            await session.commit()
+
+    report_storage.after_put = abandon_after_first_object
+    assert run_worker(db_sessionmaker, settings, report_storage) == 1
+    report_storage.after_put = None
+
+    # The publisher noticed it lost the fence and never wrote the second object.
+    assert len(report_storage.objects) == 1
+    assert artifact_count(db_sessionmaker) == 0
+    stopped = generations(db_sessionmaker, issuance_id)[0]
+    assert stopped.state == ReportPublicationState.ABANDONED
+    assert next(iter(report_storage.objects)) == stopped.csv_object_key
+
+    run_worker(db_sessionmaker, settings, report_storage)
+    assert report_storage.objects == {}
+    assert generations(db_sessionmaker, issuance_id)[0].state == ReportPublicationState.CLEANED
+
+
+def test_hard_crash_mid_publication_is_recovered_by_the_expired_generation_sweep(
+    db_client, db_sessionmaker, settings, report_storage, deterministic_render, monkeypatch
+) -> None:
+    """REP-006 requires recovery on DB rollback, not only on a caught exception.
+
+    A SIGKILL, an OOM, or an IntegrityError at the finalize commit leaves a PUBLISHING
+    generation with both objects written and no chance to run any except block. Only the
+    expired-generation sweep can recover it.
+    """
+    _, advertiser, _, run = issue_run(db_client, db_sessionmaker)
+    issuance_id = UUID(request_issuance(db_client, advertiser, run["id"]).json()["id"])
+
+    class Crash(BaseException):
+        """Not an Exception: nothing in the publisher may catch it."""
+
+    async def crash_before_finalizing(*args, **kwargs):
+        raise Crash
+
+    publish = report_issuance_service._complete_publication
+    monkeypatch.setattr(report_issuance_service, "_complete_publication", crash_before_finalizing)
+    with pytest.raises(Crash):
+        run_worker(db_sessionmaker, settings, report_storage)
+    # Restore only this patch: monkeypatch.undo() would also revert deterministic_render.
+    monkeypatch.setattr(report_issuance_service, "_complete_publication", publish)
+
+    stranded = generations(db_sessionmaker, issuance_id)[0]
+    assert stranded.state == ReportPublicationState.PUBLISHING
+    written = {stranded.csv_object_key, stranded.pdf_object_key}
+    assert set(report_storage.objects) == written
+    assert artifact_count(db_sessionmaker) == 0
+
+    async def expire_publication_lease() -> None:
+        async with db_sessionmaker() as session:
+            intent = await session.get(ReportPublicationIntent, stranded.id)
+            assert intent is not None
+            intent.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+            await session.commit()
+
+    asyncio.run(expire_publication_lease())
+
+    # One sweep retires the stranded generation and destroys its registered objects.
+    assert run_publication_cleanup(db_sessionmaker, settings, report_storage) == 1
+
+    recovered = generations(db_sessionmaker, issuance_id)[0]
+    assert recovered.state == ReportPublicationState.CLEANED
+    assert recovered.last_error_code is None
+    assert report_storage.objects == {}
+    assert sorted(report_storage.deleted) == sorted(written)
+
+    async def abandon_reason() -> list[str]:
+        async with db_sessionmaker() as session:
+            return [
+                event.event_metadata["error_code"]
+                for event in await session.scalars(
+                    select(AuditEvent).where(
+                        AuditEvent.action == "report_publication.abandoned",
+                        AuditEvent.entity_id == str(issuance_id),
+                    )
+                )
+            ]
+
+    assert asyncio.run(abandon_reason()) == ["publication_lease_expired"]
+
+
+def test_reclaiming_an_issuance_supersedes_its_still_leased_generation(
+    db_client, db_sessionmaker, settings, report_storage, deterministic_render, monkeypatch
+) -> None:
+    """The issuance claim is the outer authority, so correctness never rests on lease maths.
+
+    The publication lease is taken after the issuance lease and therefore outlives it. A
+    reclaimed issuance must still be able to register a fresh generation.
+    """
+    _, advertiser, _, run = issue_run(db_client, db_sessionmaker)
+    issuance_id = UUID(request_issuance(db_client, advertiser, run["id"]).json()["id"])
+
+    class Crash(BaseException):
+        pass
+
+    async def crash_before_finalizing(*args, **kwargs):
+        raise Crash
+
+    publish = report_issuance_service._complete_publication
+    monkeypatch.setattr(report_issuance_service, "_complete_publication", crash_before_finalizing)
+    with pytest.raises(Crash):
+        run_worker(db_sessionmaker, settings, report_storage)
+    # Restore only this patch: monkeypatch.undo() would also revert deterministic_render.
+    monkeypatch.setattr(report_issuance_service, "_complete_publication", publish)
+
+    stranded = generations(db_sessionmaker, issuance_id)[0]
+    assert stranded.state == ReportPublicationState.PUBLISHING
+    assert stranded.lease_expires_at is not None
+
+    # Expire only the ISSUANCE lease. The publication lease is still valid.
+    async def expire_issuance_lease() -> None:
+        async with db_sessionmaker() as session:
+            row = await session.get(ReportIssuance, issuance_id)
+            assert row is not None
+            row.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+            await session.commit()
+
+    asyncio.run(expire_issuance_lease())
+    assert run_worker(db_sessionmaker, settings, report_storage) == 1
+
+    first, second = generations(db_sessionmaker, issuance_id)
+    assert first.last_error_code == "publication_claim_superseded"
+    assert second.generation == 2
+    assert second.state == ReportPublicationState.COMPLETE
+    assert artifact_count(db_sessionmaker) == 2
+
+    run_worker(db_sessionmaker, settings, report_storage)
+    assert generations(db_sessionmaker, issuance_id)[0].state == ReportPublicationState.CLEANED
+    assert set(report_storage.objects) == {second.csv_object_key, second.pdf_object_key}
+
+
+def test_finalize_rejects_a_corrupt_object_and_registers_no_partial_pair(
+    db_client, db_sessionmaker, settings, report_storage, deterministic_render
+) -> None:
+    _, advertiser, _, run = issue_run(db_client, db_sessionmaker)
+    issuance_id = UUID(request_issuance(db_client, advertiser, run["id"]).json()["id"])
+
+    async def corrupt_csv_after_pair(object_key: str) -> None:
+        if not object_key.endswith(".pdf"):
+            return
+        csv_key = next(key for key in report_storage.objects if key.endswith(".csv"))
+        existing = report_storage.objects[csv_key]
+        report_storage.objects[csv_key] = existing.__class__(
+            object_key=csv_key,
+            size_bytes=existing.size_bytes,
+            content_type=existing.content_type,
+            checksum_sha256="c" * 64,
+        )
+
+    report_storage.after_put = corrupt_csv_after_pair
+    assert run_worker(db_sessionmaker, settings, report_storage) == 1
+    report_storage.after_put = None
+
+    assert artifact_count(db_sessionmaker) == 0
+    corrupted = generations(db_sessionmaker, issuance_id)[0]
+    assert corrupted.state == ReportPublicationState.ABANDONED
+    assert corrupted.last_error_code == "stored_object_conflict"
+
+
+def test_finalize_rejects_a_missing_half_of_the_object_pair(
+    db_client, db_sessionmaker, settings, report_storage, deterministic_render
+) -> None:
+    _, advertiser, _, run = issue_run(db_client, db_sessionmaker)
+    issuance_id = UUID(request_issuance(db_client, advertiser, run["id"]).json()["id"])
+
+    async def drop_csv_after_pair(object_key: str) -> None:
+        if not object_key.endswith(".pdf"):
+            return
+        csv_key = next(key for key in report_storage.objects if key.endswith(".csv"))
+        report_storage.objects.pop(csv_key)
+        report_storage.contents.pop(csv_key, None)
+
+    report_storage.after_put = drop_csv_after_pair
+    assert run_worker(db_sessionmaker, settings, report_storage) == 1
+    report_storage.after_put = None
+
+    assert artifact_count(db_sessionmaker) == 0
+    dropped = generations(db_sessionmaker, issuance_id)[0]
+    assert dropped.state == ReportPublicationState.ABANDONED
+    # A vanished registered object is a configuration condition, never a transient outage.
+    assert dropped.last_error_code == "stored_object_conflict"
+
+
+def test_a_surviving_object_is_never_recorded_as_a_cleaned_tombstone(
+    db_client, db_sessionmaker, settings, report_storage, deterministic_render
+) -> None:
+    """CLEANED is terminal, so it must never be written over an object that still exists."""
+    _, advertiser, _, run = issue_run(db_client, db_sessionmaker)
+    issuance_id = UUID(request_issuance(db_client, advertiser, run["id"]).json()["id"])
+    report_storage.fail_pdf_once = True
+    assert run_worker(db_sessionmaker, settings, report_storage) == 1
+    abandoned = generations(db_sessionmaker, issuance_id)[0]
+    assert abandoned.state == ReportPublicationState.ABANDONED
+    surviving = dict(report_storage.objects)
+    assert surviving
+
+    report_storage.ignore_deletes = True
+    assert run_publication_cleanup(db_sessionmaker, settings, report_storage) == 0
+
+    stuck = generations(db_sessionmaker, issuance_id)[0]
+    assert stuck.state == ReportPublicationState.ABANDONED
+    assert stuck.last_error_code == "publication_object_resurrected"
+    assert report_storage.objects == surviving
+
+    async def cleaned_events() -> int:
+        async with db_sessionmaker() as session:
+            return int(
+                await session.scalar(
+                    select(func.count())
+                    .select_from(AuditEvent)
+                    .where(AuditEvent.action == "report_publication.cleaned")
+                )
+                or 0
+            )
+
+    assert asyncio.run(cleaned_events()) == 0
+
+    # Once the provider really deletes, the next sweep completes the tombstone.
+    report_storage.ignore_deletes = False
+    assert run_publication_cleanup(db_sessionmaker, settings, report_storage) == 1
+    assert generations(db_sessionmaker, issuance_id)[0].state == ReportPublicationState.CLEANED
+    assert report_storage.objects == {}
+    assert asyncio.run(cleaned_events()) == 1
+
+
+def test_a_crashed_cleanup_worker_releases_its_claim_for_the_next_sweep(
+    db_client, db_sessionmaker, settings, report_storage, deterministic_render
+) -> None:
+    """A worker killed while holding a CLEANING claim must not strand the generation."""
+    _, advertiser, _, run = issue_run(db_client, db_sessionmaker)
+    issuance_id = UUID(request_issuance(db_client, advertiser, run["id"]).json()["id"])
+    report_storage.fail_pdf_once = True
+    assert run_worker(db_sessionmaker, settings, report_storage) == 1
+    abandoned = generations(db_sessionmaker, issuance_id)[0]
+    registered = {abandoned.csv_object_key, abandoned.pdf_object_key}
+
+    async def strand_as_expired_cleaning() -> None:
+        async with db_sessionmaker() as session:
+            intent = await session.get(ReportPublicationIntent, abandoned.id)
+            assert intent is not None
+            intent.state = ReportPublicationState.CLEANING
+            intent.publisher_token = uuid4()
+            intent.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+            await session.commit()
+
+    asyncio.run(strand_as_expired_cleaning())
+
+    # One sweep releases the dead claim and then completes the cleanup.
+    assert run_publication_cleanup(db_sessionmaker, settings, report_storage) == 1
+    assert generations(db_sessionmaker, issuance_id)[0].state == ReportPublicationState.CLEANED
+    assert report_storage.objects == {}
+    assert set(report_storage.deleted) <= registered
+
+    async def released_reason() -> list[str]:
+        async with db_sessionmaker() as session:
+            return [
+                event.event_metadata["error_code"]
+                for event in await session.scalars(
+                    select(AuditEvent).where(
+                        AuditEvent.action == "report_publication.abandoned",
+                        AuditEvent.entity_id == str(issuance_id),
+                    )
+                )
+            ]
+
+    assert "publication_cleanup_lease_expired" in asyncio.run(released_reason())
+
+
+def test_cleanup_spares_published_generations_and_unregistered_objects(
+    db_client, db_sessionmaker, settings, report_storage, deterministic_render
+) -> None:
+    _, advertiser, _, run = issue_run(db_client, db_sessionmaker)
+    issuance_id = UUID(request_issuance(db_client, advertiser, run["id"]).json()["id"])
+    assert run_worker(db_sessionmaker, settings, report_storage) == 1
+
+    published = generations(db_sessionmaker, issuance_id)[0]
+    assert published.state == ReportPublicationState.COMPLETE
+    published_keys = {published.csv_object_key, published.pdf_object_key}
+
+    unrelated_key = "managed/unrelated/reports/keep-me.csv"
+    asyncio.run(
+        report_storage.put(
+            object_key=unrelated_key,
+            content_type="text/csv",
+            data=b"unrelated",
+            checksum_sha256=hashlib.sha256(b"unrelated").hexdigest(),
+        )
+    )
+
+    for _ in range(3):
+        run_worker(db_sessionmaker, settings, report_storage)
+
+    assert report_storage.deleted == []
+    assert set(report_storage.objects) == published_keys | {unrelated_key}
+    assert generations(db_sessionmaker, issuance_id)[0].state == ReportPublicationState.COMPLETE
+    assert artifact_count(db_sessionmaker) == 2
+
+
+def test_publication_generation_fences_are_enforced_by_the_database(
+    db_client, db_sessionmaker, settings, report_storage, deterministic_render
+) -> None:
+    _, advertiser, _, run = issue_run(db_client, db_sessionmaker)
+    issuance_id = UUID(request_issuance(db_client, advertiser, run["id"]).json()["id"])
+    assert run_worker(db_sessionmaker, settings, report_storage) == 1
+    published = generations(db_sessionmaker, issuance_id)[0]
+
+    def live_intent(generation: int) -> ReportPublicationIntent:
+        return ReportPublicationIntent(
+            report_issuance_id=issuance_id,
+            generation=generation,
+            state=ReportPublicationState.PREPARED,
+            csv_object_key=f"managed/fence/{generation}.csv",
+            pdf_object_key=f"managed/fence/{generation}.pdf",
+            lease_expires_at=datetime.now(UTC) + timedelta(seconds=60),
+        )
+
+    async def two_live_generations() -> None:
+        async with db_sessionmaker() as session:
+            session.add(live_intent(10))
+            session.add(live_intent(11))
+            await session.commit()
+
+    with pytest.raises(IntegrityError):
+        asyncio.run(two_live_generations())
+
+    async def tombstone_cannot_be_published() -> None:
+        async with db_sessionmaker() as session:
+            intent = await session.get(ReportPublicationIntent, published.id)
+            assert intent is not None
+            intent.state = ReportPublicationState.CLEANED
+            await session.commit()
+
+    with pytest.raises(ValueError, match="state transition is invalid"):
+        asyncio.run(tombstone_cannot_be_published())
+
+    async def identity_is_immutable() -> None:
+        async with db_sessionmaker() as session:
+            intent = await session.get(ReportPublicationIntent, published.id)
+            assert intent is not None
+            intent.csv_object_key = "managed/rewritten.csv"
+            await session.commit()
+
+    with pytest.raises(ValueError, match="identity is immutable"):
+        asyncio.run(identity_is_immutable())
+
+    async def generations_are_append_only() -> None:
+        async with db_sessionmaker() as session:
+            intent = await session.get(ReportPublicationIntent, published.id)
+            assert intent is not None
+            await session.delete(intent)
+            await session.commit()
+
+    with pytest.raises(ValueError, match="append-only"):
+        asyncio.run(generations_are_append_only())
+
+
+def test_concurrent_sweeps_never_double_publish_or_delete_a_live_generation_on_postgres(
+    postgis_db_client, postgis_db_sessionmaker, settings
+) -> None:
+    """Two sweeps racing one queued issuance publish one pair and delete nothing.
+
+    The one-live-generation fence itself is proven by the database in
+    test_publication_generation_fences_are_enforced_by_the_database and in the 0082
+    migration test; this covers the sweep-level outcome under real row locking.
+    """
+    _, advertiser, _, run = issue_run(postgis_db_client, postgis_db_sessionmaker)
+    issuance_id = UUID(request_issuance(postgis_db_client, advertiser, run["id"]).json()["id"])
+    storage = ReportStorage()
+
+    async def race() -> list[int]:
+        context = {
+            "sessionmaker": postgis_db_sessionmaker,
+            "settings": settings,
+            "storage": storage,
+        }
+        return list(
+            await asyncio.gather(
+                sweep_report_issuances(context),
+                sweep_report_issuances(context),
+            )
+        )
+
+    assert sorted(asyncio.run(race())) == [0, 1]
+
+    published = generations(postgis_db_sessionmaker, issuance_id)
+    assert [intent.state for intent in published] == [ReportPublicationState.COMPLETE]
+    assert artifact_count(postgis_db_sessionmaker) == 2
+    assert set(storage.objects) == {
+        published[0].csv_object_key,
+        published[0].pdf_object_key,
+    }
+    assert storage.deleted == []
+
+
+def test_concurrent_cleanup_sweeps_reclaim_an_abandoned_generation_once_on_postgres(
+    postgis_db_client, postgis_db_sessionmaker, settings
+) -> None:
+    _, advertiser, _, run = issue_run(postgis_db_client, postgis_db_sessionmaker)
+    issuance_id = UUID(request_issuance(postgis_db_client, advertiser, run["id"]).json()["id"])
+    storage = ReportStorage()
+    storage.fail_pdf_once = True
+    assert run_worker(postgis_db_sessionmaker, settings, storage) == 1
+
+    abandoned = generations(postgis_db_sessionmaker, issuance_id)[0]
+    assert abandoned.state == ReportPublicationState.ABANDONED
+    registered = {abandoned.csv_object_key, abandoned.pdf_object_key}
+
+    async def race() -> list[int]:
+        return list(
+            await asyncio.gather(
+                sweep_report_publications(
+                    postgis_db_sessionmaker, storage=storage, settings=settings
+                ),
+                sweep_report_publications(
+                    postgis_db_sessionmaker, storage=storage, settings=settings
+                ),
+            )
+        )
+
+    # A generation another worker already holds must be skipped, not waited on. Without
+    # skip_locked this sweep would block on the held row until the holder commits.
+    async def sweep_while_another_worker_holds_the_row() -> int:
+        async with postgis_db_sessionmaker() as holder:
+            held = await holder.scalar(
+                select(ReportPublicationIntent)
+                .where(ReportPublicationIntent.id == abandoned.id)
+                .with_for_update()
+            )
+            assert held is not None
+            try:
+                return await asyncio.wait_for(
+                    sweep_report_publications(
+                        postgis_db_sessionmaker, storage=storage, settings=settings
+                    ),
+                    timeout=5,
+                )
+            finally:
+                await holder.rollback()
+
+    assert asyncio.run(sweep_while_another_worker_holds_the_row()) == 0
+    assert generations(postgis_db_sessionmaker, issuance_id)[0].state == (
+        ReportPublicationState.ABANDONED
+    )
+    assert storage.deleted == []
+
+    assert sorted(asyncio.run(race())) == [0, 1]
+    assert generations(postgis_db_sessionmaker, issuance_id)[0].state == (
+        ReportPublicationState.CLEANED
+    )
+    assert storage.objects == {}
+    assert set(storage.deleted) <= registered
+
+    async def cleaned_events() -> list[dict]:
+        async with postgis_db_sessionmaker() as session:
+            return [
+                event.event_metadata
+                for event in await session.scalars(
+                    select(AuditEvent).where(
+                        AuditEvent.action == "report_publication.cleaned",
+                        AuditEvent.entity_id == str(issuance_id),
+                    )
+                )
+            ]
+
+    assert asyncio.run(cleaned_events()) == [{"generation": 1, "object_count": 2}]
+
+
+def test_cleanup_never_claims_a_live_generation_on_postgres(
+    postgis_db_client, postgis_db_sessionmaker, settings, monkeypatch
+) -> None:
+    _, advertiser, _, run = issue_run(postgis_db_client, postgis_db_sessionmaker)
+    issuance_id = UUID(request_issuance(postgis_db_client, advertiser, run["id"]).json()["id"])
+    storage = ReportStorage()
+
+    class Crash(BaseException):
+        pass
+
+    async def crash_before_finalizing(*args, **kwargs):
+        raise Crash
+
+    publish = report_issuance_service._complete_publication
+    monkeypatch.setattr(report_issuance_service, "_complete_publication", crash_before_finalizing)
+    with pytest.raises(Crash):
+        run_worker(postgis_db_sessionmaker, settings, storage)
+    monkeypatch.setattr(report_issuance_service, "_complete_publication", publish)
+
+    live = generations(postgis_db_sessionmaker, issuance_id)[0]
+    assert live.state == ReportPublicationState.PUBLISHING
+    written = {live.csv_object_key, live.pdf_object_key}
+    assert set(storage.objects) == written
+
+    # Its publication lease is still valid, so cleanup must leave it and its objects alone.
+    for _ in range(3):
+        assert run_publication_cleanup(postgis_db_sessionmaker, settings, storage) == 0
+    assert generations(postgis_db_sessionmaker, issuance_id)[0].state == (
+        ReportPublicationState.PUBLISHING
+    )
+    assert storage.deleted == []
+    assert set(storage.objects) == written
+
+
+def test_crashed_publication_is_reclaimed_and_reissued_end_to_end_on_postgres(
+    postgis_db_client, postgis_db_sessionmaker, settings, monkeypatch
+) -> None:
+    """Full recovery against real PostgreSQL and the real renderer, no stubs."""
+    _, advertiser, _, run = issue_run(postgis_db_client, postgis_db_sessionmaker)
+    issuance_id = UUID(request_issuance(postgis_db_client, advertiser, run["id"]).json()["id"])
+    storage = ReportStorage()
+
+    class Crash(BaseException):
+        pass
+
+    async def crash_before_finalizing(*args, **kwargs):
+        raise Crash
+
+    publish = report_issuance_service._complete_publication
+    monkeypatch.setattr(report_issuance_service, "_complete_publication", crash_before_finalizing)
+    with pytest.raises(Crash):
+        run_worker(postgis_db_sessionmaker, settings, storage)
+    monkeypatch.setattr(report_issuance_service, "_complete_publication", publish)
+
+    stranded = generations(postgis_db_sessionmaker, issuance_id)[0]
+    orphans = {stranded.csv_object_key, stranded.pdf_object_key}
+
+    async def expire_both_leases() -> None:
+        async with postgis_db_sessionmaker() as session:
+            issuance = await session.get(ReportIssuance, issuance_id)
+            assert issuance is not None
+            issuance.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+            intent = await session.get(ReportPublicationIntent, stranded.id)
+            assert intent is not None
+            intent.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+            await session.commit()
+
+    asyncio.run(expire_both_leases())
+
+    # One sweep reclaims the issuance, destroys the orphaned generation and republishes.
+    assert run_worker(postgis_db_sessionmaker, settings, storage) == 1
+
+    first, second = generations(postgis_db_sessionmaker, issuance_id)
+    assert first.state == ReportPublicationState.CLEANED
+    assert second.state == ReportPublicationState.COMPLETE
+    assert orphans.isdisjoint({second.csv_object_key, second.pdf_object_key})
+    assert set(storage.objects) == {second.csv_object_key, second.pdf_object_key}
+    assert sorted(storage.deleted) == sorted(orphans)
+    assert artifact_count(postgis_db_sessionmaker) == 2
+
+    # The surviving objects are the real rendered report, downloadable by its owner.
+    csv_bytes = storage.contents[second.csv_object_key]
+    assert csv_bytes.startswith(b"section,")
+    assert storage.contents[second.pdf_object_key].startswith(b"%PDF-1.4")
+    ready = postgis_db_client.get(
+        f"/api/v1/advertiser/report-issuances/{issuance_id}",
+        headers=auth_headers(postgis_db_client, advertiser.email, PASSWORD),
+    )
+    assert ready.status_code == 200, ready.text
+    assert ready.json()["status"] == "ready"
+    assert [item["format"] for item in ready.json()["artifacts"]] == ["csv", "pdf"]
