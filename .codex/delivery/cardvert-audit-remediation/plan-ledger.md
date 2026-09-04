@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 326
+plan_revision: 327
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 456
+last_event_sequence: 457
 ---
 
 # Cardvert audit remediation programme
@@ -273,7 +273,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R48 | REP-003 | ACCEPTED | R47 | R48-P/M; CONTRACT; CP-REPORTING; commit `b17d1e7` | accepted exactly once; report-projection lease released |
 | R49 | REP-004 | ACCEPTED | R47, R48 | R49-P/M; DB; R49-CP-REPORTING; commit `a315a59` | accepted exactly once; worker lease released |
 | R50 | REP-005 | COMPLETE | R47, R49 | R50-P/M; PRV; CP-REPORTING; exact `dd461cf1...` freeze; focused backend/PostgreSQL/frontend/contract evidence | accepted exactly once; reporting lease released, while R51 waits for R18's migration/contract lane |
-| R51 | REP-006 | ACTIVE | R43, R49, R50 | R51-P; reviewed fenced generation-scoped publication contract | Claude Opus 5 Extra isolated task may reconcile accepted R18 base and continue the reviewed migration/contracts/final PostgreSQL+MinIO phase |
+| R51 | REP-006 | ACTIVE | R43, R49, R50 | R51-P; reviewed fenced generation-scoped publication contract | Claude Opus 5 Extra isolated task may reconcile accepted R18 base and continue the reviewed migration, privacy-registry and final PostgreSQL/MinIO phase; no generated-contract delta is required |
 | R52 | MET-006 | WAITING | R51 | R52-P; reviewed methodology-derived copy-guard contract | wait for accepted R51 |
 | R53 | REL-005 | ACCEPTED | release opener | R53-P; R53-M; R53-RELEASE; R53-CP-RELEASE; real Docker red/green | complete |
 | R54 | REL-006 | WAITING | R12, R16, R53 | R54-P; reviewed fail-closed environment-template contract | wait for accepted R12 and R14; central lease order R12 → R14 → R54 |
@@ -912,3 +912,4 @@ verification is complete.
 | 454 | 324 | 1 | PACKET_SCOPE_AMENDED | R18's fail-closed missing-currency authority governs historical fixtures upgraded to 0081: an SQL-NULL frozen offer must block the upgrade without inventing currency, while post-head synthetic bindings must supply explicit currency. | add only `tests/test_migration_0048_campaign_assignment_offer_lifecycle.py` and `tests/test_migration_0026_frozen_campaign_payment_window.py`; preserve 0048-local grandfather behavior, assert 0081 refusal with prior head/state preserved, add explicit `NGN` to the post-head 0026 fixture, and preserve production bytes |
 | 455 | 325 | 1 | MODEL_BUDGET_POLICY_REFINED | Future dispatches must use the least costly model that safely owns the task; GPT-5.6 Sol/xhigh is reserved for demonstrated necessity rather than selected automatically from a broad risk label. | owner instruction, 4 Sep 2026; Luna/max for bounded low-risk work, Terra for ordinary work, Sol only for genuinely difficult high-risk boundaries; every xhigh dispatch states its concrete necessity |
 | 456 | 326 | 1 | MONEY_AUTHORITY_SLICE_ACCEPTED | R18/MON-005/MON-006 accepted exact frozen currency authority across rule revision, offer, binding, calculation and ledger, with fail-closed legacy/migration handling and trigger-backed correction integrity. | commit `5c2d60a`; exact 22-file digest `e36f7fed...`; controller file-set/diff/lint and migration/OpenAPI checks matched; owner PostgreSQL, payout, correction, frontend and contract evidence plus DB+MNY/CONTRACT/CP-MONEY/minimal-change PASS; R51 migration/generated-contract fence released |
+| 457 | 327 | 1 | PACKET_SCOPE_AMENDED | R51 may classify its new subject-reachable publication-intent table beside existing report operator-authority exclusions, then add the sole 0082 successor migration and exact migration/PostgreSQL/MinIO evidence after reconciling accepted R18 head 0081. | ratify only the additive `report_publication_intents` entry in `app/services/data_subject_inventory.py`; add one 0082 migration, its focused migration test, the 0082 canonical-head entry in `tests/test_mvp_hardening.py`, and focused PostgreSQL/MinIO tests; preserve all other privacy semantics; no OpenAPI/type changes |
