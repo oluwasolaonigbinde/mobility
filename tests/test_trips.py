@@ -24,6 +24,7 @@ from starlette import status as http_status
 from test_payouts_v2 import create_v2_rule
 from test_payouts_v3 import create_revision_row
 
+import app.services.trips as trips_service
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
@@ -525,6 +526,145 @@ def test_driver_can_start_get_current_read_and_end_trip(db_client, db_sessionmak
     trips = fetch_trip_sessions(db_sessionmaker)
     assert trips[0].started_by_user_id == driver.id
     assert trips[0].status == TripSessionStatus.ENDED.value
+
+
+def test_trip_start_rejects_at_frozen_assignment_window_after_campaign_extension(
+    db_client,
+    db_sessionmaker,
+    monkeypatch,
+) -> None:
+    frozen_end = datetime(2030, 1, 1, tzinfo=UTC)
+    _, campaign, _, _, _, assignment = create_trip_ready_graph(
+        db_sessionmaker,
+        end_at=frozen_end,
+    )
+
+    async def extend_campaign() -> tuple[int, int]:
+        async with db_sessionmaker() as session:
+            current_campaign = await session.get(Campaign, campaign.id)
+            assert current_campaign is not None
+            current_campaign.end_at = frozen_end + timedelta(days=1)
+            await session.commit()
+            return (
+                int(await session.scalar(select(func.count(TripSession.id))) or 0),
+                int(
+                    await session.scalar(
+                        select(func.count(AuditEvent.id)).where(
+                            AuditEvent.action == "driver.trip.started"
+                        )
+                    )
+                    or 0
+                ),
+            )
+
+    before = asyncio.run(extend_campaign())
+
+    async def at_frozen_end(_session) -> datetime:
+        return frozen_end
+
+    monkeypatch.setattr(trips_service, "database_clock", at_frozen_end)
+    response = start_trip(db_client, assignment.id)
+
+    assert response.status_code == http_status.HTTP_409_CONFLICT
+    assert response.json()["error"]["code"] == "ASSIGNMENT_PAYOUT_WINDOW_EXPIRED"
+
+    async def side_effect_counts() -> tuple[int, int]:
+        async with db_sessionmaker() as session:
+            return (
+                int(await session.scalar(select(func.count(TripSession.id))) or 0),
+                int(
+                    await session.scalar(
+                        select(func.count(AuditEvent.id)).where(
+                            AuditEvent.action == "driver.trip.started"
+                        )
+                    )
+                    or 0
+                ),
+            )
+
+    assert asyncio.run(side_effect_counts()) == before
+
+
+@pytest.mark.parametrize(
+    ("binding_state", "expected_code"),
+    [
+        ("missing", "FROZEN_PAYOUT_BINDING_REQUIRED"),
+        ("not_frozen", "FROZEN_PAYOUT_WINDOW_REQUIRED"),
+        ("null_end", "FROZEN_PAYOUT_WINDOW_INVALID"),
+        ("invalid_end", "FROZEN_PAYOUT_WINDOW_INVALID"),
+    ],
+)
+def test_trip_start_fails_closed_on_unusable_frozen_payout_window_before_downstream_checks(
+    db_client,
+    db_sessionmaker,
+    monkeypatch,
+    binding_state,
+    expected_code,
+) -> None:
+    _, _, _, _, _, assignment = create_trip_ready_graph(
+        db_sessionmaker,
+        admin_email=f"window-{binding_state}-admin@example.com",
+        advertiser_email=f"window-{binding_state}-advertiser@example.com",
+        driver_email=f"window-{binding_state}-driver@example.com",
+        plate_number=f"WIN-{binding_state[:6].upper()}",
+        with_financial_authority=binding_state != "missing",
+    )
+
+    async def make_binding_unusable() -> None:
+        if binding_state == "missing":
+            return
+        async with db_sessionmaker() as session:
+            binding = await session.scalar(
+                select(AssignmentRuleBinding).where(
+                    AssignmentRuleBinding.assignment_id == assignment.id
+                )
+            )
+            assert binding is not None
+            if binding_state == "not_frozen":
+                binding.campaign_window_frozen = False
+            elif binding_state == "null_end":
+                binding.campaign_window_end_at = None
+            else:
+                binding.campaign_window_end_at = binding.campaign_window_start_at
+            await session.commit()
+
+    asyncio.run(make_binding_unusable())
+
+    async def unexpected_downstream_check(*_args, **_kwargs):
+        raise AssertionError("trip start reached a downstream evidence or cost check")
+
+    for name in (
+        "assert_new_work_authorized",
+        "ensure_current_activation_snapshot",
+        "ensure_no_active_trip_for_driver_or_vehicle",
+        "ensure_current_display_proof",
+    ):
+        monkeypatch.setattr(trips_service, name, unexpected_downstream_check)
+
+    async def side_effect_counts() -> tuple[int, int]:
+        async with db_sessionmaker() as session:
+            return (
+                int(await session.scalar(select(func.count(TripSession.id))) or 0),
+                int(
+                    await session.scalar(
+                        select(func.count(AuditEvent.id)).where(
+                            AuditEvent.action == "driver.trip.started"
+                        )
+                    )
+                    or 0
+                ),
+            )
+
+    before = asyncio.run(side_effect_counts())
+    response = start_trip(
+        db_client,
+        assignment.id,
+        email=f"window-{binding_state}-driver@example.com",
+    )
+
+    assert response.status_code == http_status.HTTP_409_CONFLICT
+    assert response.json()["error"]["code"] == expected_code
+    assert asyncio.run(side_effect_counts()) == before
 
 
 def test_trip_start_fails_closed_without_immutable_activation_snapshot(

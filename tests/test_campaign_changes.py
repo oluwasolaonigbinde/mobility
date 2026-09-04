@@ -13,7 +13,7 @@ from conftest import (
     create_test_vehicle,
     fetch_audit_events,
 )
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core.errors import AppError
 from app.models.billing import AcceptanceMethod, PaymentClass, QuoteRequestSource
@@ -531,11 +531,23 @@ def test_funding_and_change_approval_serialize_without_overauthorization_pg(
                     AssignmentRuleBinding.assignment_id == assignment.id
                 )
             )
-            return request, reserved, binding
+            current_campaign = await session.get(Campaign, campaign.id)
+            binding_count = await session.scalar(
+                select(func.count(AssignmentRuleBinding.id)).where(
+                    AssignmentRuleBinding.assignment_id == assignment.id
+                )
+            )
+            return request, reserved, binding, current_campaign, int(binding_count or 0)
 
-    request, reserved, binding = asyncio.run(race_and_converge())
+    request, reserved, binding, current_campaign, binding_count = asyncio.run(
+        race_and_converge()
+    )
     assert request.status == "applied"
     assert request.authorization_id is not None
     assert reserved == 12000
     assert binding is not None
+    assert current_campaign is not None
+    assert current_campaign.end_at == requested_end
     assert binding.campaign_window_end_at == campaign.end_at
+    assert binding.campaign_window_end_at != requested_end
+    assert binding_count == 1

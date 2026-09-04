@@ -22,7 +22,7 @@ from app.models.campaign_assignment import (
     CampaignAssignmentStatus,
 )
 from app.models.driver import DriverProfile
-from app.models.payout import PayoutCalculation
+from app.models.payout import AssignmentRuleBinding, PayoutCalculation
 from app.models.trip import (
     LocationPing,
     LocationPingBatch,
@@ -169,6 +169,45 @@ def ensure_assignment_active(assignment: CampaignAssignment) -> None:
             "CAMPAIGN_ASSIGNMENT_NOT_ACTIVE",
             "Campaign assignment must be active for trip tracking",
             status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+async def ensure_assignment_payout_window_open(
+    session: AsyncSession,
+    *,
+    assignment: CampaignAssignment,
+    now: datetime,
+) -> None:
+    binding = await session.scalar(
+        select(AssignmentRuleBinding).where(AssignmentRuleBinding.assignment_id == assignment.id)
+    )
+    if binding is None:
+        raise AppError(
+            "FROZEN_PAYOUT_BINDING_REQUIRED",
+            "Accepted frozen payout terms are required before trip tracking",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if not binding.campaign_window_frozen:
+        raise AppError(
+            "FROZEN_PAYOUT_WINDOW_REQUIRED",
+            "A frozen assignment payout window is required before trip tracking",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    frozen_start = binding.campaign_window_start_at
+    frozen_end = binding.campaign_window_end_at
+    if frozen_end is None or (
+        frozen_start is not None and as_aware_utc(frozen_end) <= as_aware_utc(frozen_start)
+    ):
+        raise AppError(
+            "FROZEN_PAYOUT_WINDOW_INVALID",
+            "The frozen assignment payout window is invalid",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if now >= as_aware_utc(frozen_end):
+        raise AppError(
+            "ASSIGNMENT_PAYOUT_WINDOW_EXPIRED",
+            "The accepted assignment payout window has ended",
+            status_code=status.HTTP_409_CONFLICT,
         )
 
 
@@ -323,6 +362,11 @@ async def start_driver_trip(
 
     ensure_assignment_active(assignment)
     ensure_campaign_active_for_trip(campaign, now)
+    await ensure_assignment_payout_window_open(
+        session,
+        assignment=assignment,
+        now=now,
+    )
     ensure_active_driver_profile(driver_profile)
     ensure_active_vehicle(vehicle)
     ensure_vehicle_belongs_to_driver(vehicle, driver_profile)
