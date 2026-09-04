@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 188
+plan_revision: 303
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 318
+last_event_sequence: 433
 ---
 
 # Cardvert audit remediation programme
@@ -205,15 +205,12 @@ visible top-level Mobility tasks.
 | S28 | R59 — TST-002 | integrated real-stack browser journey | cross-stack release/security; Sol/xhigh | all predecessor contracts integrated; local real-stack evidence only |
 | S29 | R60 — GOV-009 | final architecture/progress/decision synchronization | cross-package closure; Sol/high | no product implementation; reconcile all 115 candidates, integrated gates and final minimal-change review |
 
-Current justified writer capacity is **3**, assigned exactly to S03/R10,
-S05/R13 and S08/R32. R10 owns strict bearer security/authentication and its
-minimum architecture surface; R13 owns only `app/core/observability.py`,
-`app/services/audit.py`, `tests/test_errors.py` and
-`tests/test_audit_events.py`; R32 owns terminal-application model, migration,
-onboarding/email/schema/test and conditional generated-contract surfaces.
-These paths and domain authorities are disjoint. R32 exclusively owns the
-migration/contract lane; central configuration, shared fixtures and controller
-documents remain serialized.
+Current justified writer capacity is **2**, assigned exactly to S01/R03 and
+S18/R48. R03 exclusively owns the workflow/OpenAPI runtime/snapshot/generated-
+TypeScript contract gate. R48 owns the report-rendering common projection and
+focused report UI/tests and is excluded from workflow, generated-contract and
+migration files. The leases are write-disjoint; controller documents remain
+serialized.
 
 ## Executable slice map
 
@@ -223,10 +220,10 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | Slice | Candidate IDs | State | Dependencies / lane | Accepted evidence | Next action |
 | --- | --- | --- | --- | --- | --- |
 | R01 | GOV-001 | ACCEPTED | control opener | R01-P; R01-M; R01-CP-CONTROL; red/green validator evidence | complete |
-| R02 | GOV-003, TST-001, DB-005 | ACTIVE | R01, R04; control/branch authority | R02-P; GRAPH-CP-CONTROL; exact preserved `a3e8129f...` packet; owner selected every-branch push | resume exact three-path packet plus `tests/test_validate_progress.py` solely to replace the stale master-only assertion; R03/R17 remain held until admission |
-| R03 | GOV-004 | WAITING | R02; control/contracts | R03-P; reviewed runtime/snapshot/TypeScript authority contract | wait for accepted R02 and released generated-contract lane |
+| R02 | GOV-003, TST-001, DB-005 | ACCEPTED | R01, R04; control/branch authority | R02-P; R02-M; DB+DEP; R02-CP-CONTROL; commit `09c0b17`; 2,541 composed passing executions, zero skips | accepted exactly once; runner lease released; R05 dependency-ready and R03 remains lane-held behind R47 |
+| R03 | GOV-004 | ACTIVE | R02; control/contracts | R03-P; reviewed runtime/snapshot/TypeScript authority contract | begin only in a fresh owner session; preserve the released generated-contract lane |
 | R04 | DB-004 | ACCEPTED | database opener | R04-P; R04-M; R04-CP-DB; exact PostgreSQL/PostGIS catalog and constraint-timing red/green | complete |
-| R05 | DB-001, TST-012, ONB-010 | WAITING | R02, R04 | R05-P; reviewed savepoint/conflict contract | wait for accepted R02, R23 disbursement recheck and exact lease |
+| R05 | DB-001, TST-012, ONB-010 | WAITING | R02, R04 | R05-P; reviewed savepoint/conflict contract | dependencies satisfied; wait for exact DB/migration lease and controller dispatch |
 | R06 | DB-002 | WAITING | R02, R04, R05; historical migration authority | owner/developer approved the reviewed narrow development-time downgrade safety exception | wait for R02/R05, then repeat bounded plan review and serialize migration lane |
 | R07 | DB-003 | WAITING | R02, R04, R06 | R07-P; reviewed database immutability contract | wait for R06 policy/dependency and serialized migration lane |
 | R08 | GOV-005 | ACCEPTED | security opener | R08-P; R08-M; R08-SEC; R08-CP-SECURITY; lock-removal red and real PostgreSQL green | complete |
@@ -268,8 +265,8 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R44 | AUD-005 | WAITING | R16, R40 | R44-P; reviewed stable browser-operation-key contract | wait for accepted R40; may run disjoint from R41 on exact frontend-only lease |
 | R45 | MET-003 | WAITING | R04, R41; reporting opener | R45-P; reviewed immutable traffic-density provenance contract | wait for accepted R41 and R34 migration-lane release |
 | R46 | REP-001 | WAITING | R45 | R46-P; reviewed single reporting-cohort authority | wait for accepted R45 |
-| R47 | MET-001, MET-002, MET-004, REP-002 | WAITING | R41, R46 | R47-P; reviewed complete caveated measurement-facts contract | wait for accepted R41/R46 and generated-contract lane |
-| R48 | REP-003 | WAITING | R47 | R48-P; reviewed Unicode-safe common projection contract | wait for accepted R47; licensed font and deterministic PDF proof required |
+| R47 | MET-001, MET-002, MET-004, REP-002 | ACCEPTED | R41, R46 | R47-P/M; CP-REPORTING; commit `419414a`; frozen disclosure, methodology and contract parity evidence | accepted exactly once; reporting/generated-contract lease released |
+| R48 | REP-003 | ACTIVE | R47 | R48-P; reviewed Unicode-safe common projection contract | begin in a fresh visible session; licensed font and deterministic PDF proof required; no generated-contract files |
 | R49 | REP-004 | WAITING | R47, R48 | R49-P; reviewed terminal third-attempt lease contract | wait for accepted R47/R48 |
 | R50 | REP-005 | WAITING | R47, R49 | R50-P; reviewed privacy-safe latest-parent discovery contract | wait for accepted R47/R49 and generated-contract lane |
 | R51 | REP-006 | WAITING | R43, R49, R50 | R51-P; reviewed fenced generation-scoped publication contract | wait for accepted predecessors; Sol/xhigh implementation gate retained |
@@ -348,7 +345,7 @@ trigger and a newly reviewed authority amendment.
 | `/root/r13_attempt5_review` | S05 / R13 attempt-7 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `16f1b2b8...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-6 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `08d04f8c...` diff | FIX |
 | `/root/r13_attempt5_review` | S05 / R13 attempt-5 M, SEC, PRV and CP-PRIVACY review | GPT-5.6 Sol/high — bounded cross-sink privacy/security admission | released reviewed exact `6e171d42...` diff | FIX |
-| task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d` | S01 / R02→R03 control and contract packet | GPT-5.6 Sol/high — cross-package CI and real-service authority owns the packet's hardest boundary | R02 exact packet frozen after 484 green/zero skips; V05 migration-seed correction required; R03 not started | BLOCKED |
+| task `01a05e92-1216-7b53-95f2-c9c7c8be3f9d` | S01 / R02→R03 control and contract packet | GPT-5.6 Sol/high — cross-package CI and real-service authority owns the packet's hardest boundary | R02 accepted at `09c0b17`; runner lease released; R03 not started and remains lane-held behind R47 | ACCEPTED-R02 |
 | task `01a05e49-0107-7611-8ee8-515273881aa8` | V02 / R15 evidence correction | GPT-5.6 Sol/high — worker crash and partial-completion semantics | released exact R15 diff | ACCEPTED |
 | task `01a05e49-48d5-7823-9388-537d0800e87b` | S07 / R28 plan and independent review | GPT-5.6 Terra/high — ordinary bounded campaign lifecycle planning | read-only; no mutation lease | BLOCKED-OWNER |
 | task `01a05e4d-a742-70c0-bcbf-6cb6595170d2` | S08 / R32 implementation, R33 held | GPT-5.6 Sol/high — onboarding security, migration and contract authority | released accepted R32 diff; R33 remains dependency-held | ACCEPTED |
@@ -885,3 +882,6 @@ verification is complete.
 | 428 | 298 | 1 | FOLLOWUP_PACKET_AUTHORIZED | FU-06 may use the otherwise-idle third writer slot to verify and correct mobile-width reachability of the already-delivered logout and change-password controls. | exact lease `frontend/src/components/shell/app-shell.tsx`, its focused existing/new test file, and only a directly required existing account-control component; no auth/API/schema/route/contract/theme/controller-doc changes; disjoint from R36→R37 and R47; red/green responsive component evidence plus scoped type/lint/format/diff and one consolidated minimal review |
 | 429 | 299 | 1 | OFFLINE_PACKET_ACCEPTED | R36/OFF-005 and R37/OFF-006 accepted durable signed mixed-batch disposition, truthful client retention/retry and server-created terminal grace-expiry adjudication. | migration 0080; 16 focused real-PostgreSQL, 59 frontend, W403B mobile browser and preserved 122 backend/125 R14-B checks PASS; repeat independent review PASS; no live GPS/device/provider claim |
 | 430 | 300 | 1 | FOLLOWUP_PACKET_ACCEPTED | FU-06 accepted mobile-width access to the existing password-change and durable sign-out controls for administrator and advertiser shells. | exact two-file frontend change; responsive red/green and 7 focused tests, live Chromium at 375×812 and 1280×800, type/lint/format/diff and independent minimal review PASS; desktop/auth/API/route/contract/theme behavior unchanged |
+| 431 | 301 | 1 | CI_SLICE_ACCEPTED | R02/GOV-003,TST-001,DB-005 accepted exactly once and released the CI/runner lease. | commit `09c0b1702b0571e772a75bf02a6d9bf2a89465eb`, tree `2d81b7b92f40d8861aecae21a4e05ff0941324f4`; approval-aware W403B test-only correction; preserved 2,147-pass authority plus 387-pass complement and current W403B 1/REL-005 6 gives 2,541 passing executions, zero skips; Ruff/diff PASS; R02-M, DB+DEP and R02-CP-CONTROL PASS |
+| 432 | 302 | 1 | REPORTING_SLICE_ACCEPTED | R47/MET-001,MET-002,MET-004,REP-002 accepted frozen completeness, density provenance and caveated ROI methodology consistently across API, screen, CSV and PDF; its released contract lane promotes R03 as the sole assigned next slice. | commit `419414a`; source receipt 38 focused backend passes/3 skips, 30 real-PostgreSQL passes, 16 frontend passes, CSV/PDF/OpenAPI parity, Ruff/Prettier/TypeScript/ESLint/webpack/diff PASS and final R47-M/CP-REPORTING PASS; controller integration smoke 43 backend passes/3 skips plus 16 frontend passes and byte-clean regenerated contract copies; R05/R48 remain undispatched |
+| 433 | 303 | 1 | PARALLEL_FRONTIER_AUTHORIZED | R03/GOV-004 and R48/REP-003 are assigned as two dependency-ready, write-disjoint slices after R02/R47 acceptance. Future execution owners must be fresh visible sessions; simple bounded work uses GPT-5.6 Luna/max fast mode, with Sol reserved for genuinely complex high-risk boundaries. | R03 lease: workflow/runtime OpenAPI/snapshot/generated TypeScript only; R48 lease: common report projection/rendering/UI/tests, excluding workflow/contracts/migrations; terminal-only callbacks and proportional verification; direct owner instruction, 4 Sep 2026 |

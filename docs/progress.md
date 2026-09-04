@@ -46,15 +46,12 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R02, R47`
-**Current capacity justification:** R36→R37 owns the shared-checkout offline
-protocol/migration lane, while R47 owns a separate reporting/disclosure worktree.
-Their exact leases are disjoint. R02's immutable integration gate is held on the
-demonstrated trip-end protocol failure already inside R36→R37, so no duplicate R02
-runner or product fixer is active. A read-only Opus output-reconciliation audit runs
-outside the mutation pool. No third queued implementation slice is dependency-ready:
-the database/money chain waits on R02→R05, and the remaining reporting/release chain
-waits on R47→R48.
+**Current capacity assignment:** `R03, R48`
+**Current capacity justification:** R02 and R47 are accepted. R03 exclusively owns
+the workflow/OpenAPI runtime/snapshot/generated-TypeScript contract gate. R48 owns
+only the report-rendering common projection and focused report UI/tests and is
+explicitly excluded from workflow, generated-contract and migration files. These
+leases are write-disjoint; controller documents remain serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -86,7 +83,9 @@ authority. The active queue now prioritizes locally executable product and
 engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
-**Current checkpoint:** `PKG-10 / R47` — AUT-006 is accepted at `a4c9de2`.
+**Current checkpoint:** `PKG-10 / R03` — R02 is accepted at `09c0b17` and R47 at
+`419414a`; R03 and R48 are the assigned remediation slices. AUT-006 is accepted at
+`a4c9de2`.
 Every repository failure group
 discovered by R02's complete 1,772-test authority run is now accepted: V11
 historical migration fixtures, V12 signed-v2 payout fixtures, V13 reversal
@@ -101,14 +100,21 @@ is accepted at `1c89f16`. R02's complete immutable run and focused complement ar
 preserved, but the focused W403B browser journey exposed a real trip-end protocol
 failure now owned by R36→R37; R02 will resume only after that packet is accepted.
 R36→R37 is accepted with migration 0080, signed mixed-batch disposition and
-server-owned grace-expiry adjudication; its W403B trip-end journey is green. R02 may
-now resume its final focused integration closure. R47 independently owns the active
-reporting disclosure slice. R17 remains parked in `to-do.md`.
+server-owned grace-expiry adjudication. R02's final W403B approval-aware correction
+is accepted at `09c0b17`: the composed immutable authority is 2,541 passing
+executions with zero skips, and R02-M, DB+DEP and R02-CP-CONTROL all pass. R47 is
+accepted at `419414a` with complete caveated measurement facts, source/calibration
+provenance, frozen ROI methodology and screen/CSV/PDF parity; R47-M and
+R47-CP-REPORTING pass. Its released contract lane promotes R03 and its reporting
+dependency promotes R48; their leases are explicitly disjoint. R05 remains
+dependency-ready and undispatched. R17 remains parked in
+`to-do.md`.
 
 ## Direct owner requests outside the package queue
 
 | Date | Item | Authority | Scope boundary | Queue effect |
 | --- | --- | --- | --- | --- |
+| 4 Sep 2026 | **Use fresh visible sessions for new work; use GPT-5.6 Luna/max with fast mode for simple bounded tasks and reserve Sol for genuinely complex work.** | Direct project-owner instruction in the active remediation controller, 4 Sep 2026 | Do not use internal subagents as the execution owner for new slices. Before dispatch, apply the repository model gate to the task's actual hardest boundary: Luna/max fast is preferred for simple low-risk bounded work, Terra remains available for ordinary implementation, and Sol is used only for difficult money, security, migration, concurrency or cross-contract authority. Never reuse an older session under a changed model. | Applies to all future dispatches. Existing completed reconciliation workers are closed; R03 and R48 must begin in separate fresh visible sessions with proportional verification and terminal-only callbacks. |
 | 4 Sep 2026 | **Use otherwise-idle disjoint capacity for the smallest verified controller-audit follow-up while the main remediation frontier is dependency-held.** | Direct project-owner instruction to maximize useful parallel execution, 4 Sep 2026; controller-selected FU-06 from the recovered row-385 audits | FU-06 may verify and, if current, correct mobile-width reachability of existing logout and change-password controls only. It owns the shell/account-control component and focused responsive tests; AUT-004 logout/session semantics, APIs, schemas, routes, generated contracts, R36/R37, R47 and user-owned design/theme work remain unchanged. | Adds one bounded side packet outside R01–R60 without moving the active PKG-10 pointer. Its exact disjoint lease and proportional verification must be recorded before dispatch. |
 | 3 Sep 2026 | **Controller orchestration must not absorb or interfere with Claude tasks created independently by the owner.** | Direct project-owner correction in the active remediation controller, 3 Sep 2026 | Session reconciliation covers only tasks explicitly dispatched by this controller. Driver-journey, landing/design, future-delivery, external-dependency and other owner-created Claude work remain outside controller inspection, mutation, admission and scheduling authority unless the owner later places a specific result in scope. | Narrows the result-recovery task to the three controller-dispatched row-385 audits; the broader prepared Claude prompt was not sent. |
 | 3 Sep 2026 | **Dispatch approved Claude Opus 5 High work immediately in fresh tasks; do not reuse old tasks or request a redundant model/send choice.** | Direct project-owner instruction in the active remediation controller, 3 Sep 2026 | The controller still applies the repository model gate, dependency graph, exact lease and no-duplicate checks before dispatch. Once a bounded Opus packet is approved by those controls, create a fresh Opus 5 High task and send it directly. Terminal-only callbacks remain required. | Applies to future Opus dispatches. It does not authorize dependency bypass, overlapping writes, or duplicate work. |
@@ -1564,8 +1570,8 @@ durable ledger before changing a row.
 | Slice | Candidate IDs | Dependencies | State | Plan review | Diff review | Domain checkpoint |
 | --- | --- | --- | --- | --- | --- | --- |
 | R01 | GOV-001 | none | COMPLETE | PASS — R01-P | PASS — R01-M | CP-CONTROL PASS — R01-CP-CONTROL |
-| R02 | GOV-003, TST-001, DB-005 | R01, R04 | ACTIVE | PASS — R02-P | PENDING | CP-CONTROL PENDING |
-| R03 | GOV-004 | R02 | QUEUED | PASS — R03-P | PENDING | CP-CONTROL PENDING |
+| R02 | GOV-003, TST-001, DB-005 | R01, R04 | COMPLETE | PASS — R02-P | PASS — R02-M | CP-CONTROL PASS — R02-CP-CONTROL |
+| R03 | GOV-004 | R02 | ACTIVE | PASS — R03-P | PENDING | CP-CONTROL PENDING |
 | R04 | DB-004 | none | COMPLETE | PASS — R04-P | PASS — R04-M | CP-DB PASS — R04-CP-DB |
 | R05 | DB-001, TST-012, ONB-010 | R02, R04 | QUEUED | PASS — R05-P | PENDING | CP-DB PENDING |
 | R06 | DB-002 | R02, R04, R05 | QUEUED | PENDING | PENDING | CP-DB PENDING |
@@ -1609,8 +1615,8 @@ durable ledger before changing a row.
 | R44 | AUD-005 | R16, R40 | COMPLETE | PASS — R44-P | PASS — R44-M | CP-PRIVACY PASS — R44-CP-PRIVACY |
 | R45 | MET-003 | R04, R41 | COMPLETE | PASS — R45-P | PASS — R45-M | CP-REPORTING PASS — R45-CP-REPORTING |
 | R46 | REP-001 | R45 | COMPLETE | PASS — R46-P | PASS — R46-M | CP-REPORTING PASS — R46-CP-REPORTING |
-| R47 | MET-001, MET-002, MET-004, REP-002 | R41, R46 | ACTIVE | PASS — R47-P | PENDING | CP-REPORTING PENDING |
-| R48 | REP-003 | R47 | QUEUED | PASS — R48-P | PENDING | CP-REPORTING PENDING |
+| R47 | MET-001, MET-002, MET-004, REP-002 | R41, R46 | COMPLETE | PASS — R47-P | PASS — R47-M | CP-REPORTING PASS — R47-CP-REPORTING |
+| R48 | REP-003 | R47 | ACTIVE | PASS — R48-P | PENDING | CP-REPORTING PENDING |
 | R49 | REP-004 | R47, R48 | QUEUED | PASS — R49-P | PENDING | CP-REPORTING PENDING |
 | R50 | REP-005 | R47, R49 | QUEUED | PASS — R50-P | PENDING | CP-REPORTING PENDING |
 | R51 | REP-006 | R43, R49, R50 | QUEUED | PASS — R51-P | PENDING | CP-REPORTING PENDING |
