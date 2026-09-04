@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { Panel } from "@/components/ui/panel";
 
@@ -20,6 +20,7 @@ type Issuance = {
   error_code?: string | null;
   artifacts: Artifact[];
 };
+type CurrentIssuance = Pick<Issuance, "id" | "measurement_run_id" | "version" | "status">;
 type PersistedRequest = {
   clientRequestId: string;
   issuanceId: string | null;
@@ -75,7 +76,9 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export function ReportIssuancePanel({ measurementRunId }: { measurementRunId: string }) {
+  const queryClient = useQueryClient();
   const storageKey = `report-issuance:${measurementRunId}`;
+  const currentQueryKey = ["report-issuance-current", measurementRunId] as const;
   const storedRequest = useSyncExternalStore(
     subscribeToStorage,
     () => localStorage.getItem(storageKey),
@@ -104,8 +107,12 @@ export function ReportIssuancePanel({ measurementRunId }: { measurementRunId: st
           }),
         },
       ),
-    onSuccess: (issuance, pending) => {
+    onSuccess: async (issuance, pending) => {
+      await queryClient.cancelQueries({ queryKey: currentQueryKey });
       const settled = { ...pending, issuanceId: issuance.id };
+      queryClient.setQueryData<CurrentIssuance>(currentQueryKey, (knownCurrent) =>
+        !knownCurrent || issuance.version >= knownCurrent.version ? issuance : knownCurrent,
+      );
       persistRequest(storageKey, settled);
     },
   });
@@ -122,10 +129,29 @@ export function ReportIssuancePanel({ measurementRunId }: { measurementRunId: st
     }
   }, [create, request]);
 
+  const current = useQuery({
+    queryKey: currentQueryKey,
+    queryFn: ({ signal }) =>
+      requestJson<CurrentIssuance | null>(
+        `/api/advertiser/measurement-runs/${measurementRunId}/report-issuances`,
+        { signal },
+      ),
+    refetchInterval: (query) => {
+      const value = query.state.data;
+      return value?.status === "queued" || value?.status === "processing" ? 3_000 : false;
+    },
+    refetchIntervalInBackground: false,
+    retry: (failureCount, error) =>
+      !(error instanceof IssuanceRequestError && [401, 403, 404, 409].includes(error.status)) &&
+      failureCount < 1,
+  });
+
+  const trackedIssuanceId = current.data?.id ?? request?.issuanceId ?? null;
+
   const status = useQuery({
-    queryKey: ["report-issuance", measurementRunId, request?.issuanceId],
-    queryFn: () => requestJson<Issuance>(`/api/advertiser/report-issuances/${request?.issuanceId}`),
-    enabled: Boolean(request?.issuanceId),
+    queryKey: ["report-issuance", measurementRunId, trackedIssuanceId],
+    queryFn: () => requestJson<Issuance>(`/api/advertiser/report-issuances/${trackedIssuanceId}`),
+    enabled: Boolean(trackedIssuanceId),
     refetchInterval: (query) => {
       const current = query.state.data;
       return current?.status === "queued" || current?.status === "processing" ? 3_000 : false;
@@ -143,7 +169,18 @@ export function ReportIssuancePanel({ measurementRunId }: { measurementRunId: st
     const pdf = byFormat.get("pdf");
     return csv && pdf && byFormat.size === 2 ? { csv, pdf } : null;
   }, [status.data]);
-  const failedIssuanceId = status.data?.status === "failed" ? status.data.id : null;
+  const hiddenStatusError =
+    status.error instanceof IssuanceRequestError &&
+    status.error.status === 404 &&
+    current.data?.id === trackedIssuanceId;
+  const failedIssuanceId =
+    status.data?.status === "failed"
+      ? status.data.id
+      : current.data?.status === "failed"
+        ? current.data.id
+        : null;
+  const hiddenReadyParent =
+    hiddenStatusError && current.data?.status === "ready" ? current.data : null;
 
   function submit(reissueOfId: string | null) {
     const pending: PersistedRequest = {
@@ -162,7 +199,7 @@ export function ReportIssuancePanel({ measurementRunId }: { measurementRunId: st
     create.mutate(request);
   }
 
-  const error = create.error ?? status.error;
+  const error = create.error ?? (hiddenStatusError ? null : status.error) ?? current.error;
 
   return (
     <Panel className="mt-6 p-6" aria-label="Downloadable report artifacts">
@@ -174,7 +211,7 @@ export function ReportIssuancePanel({ measurementRunId }: { measurementRunId: st
             same metrics, disclosure rules and conditional-measure decision.
           </p>
         </div>
-        {!request && !create.isPending ? (
+        {!request && current.isSuccess && !current.data && !create.isPending ? (
           <button
             type="button"
             className="bg-amber text-bg rounded-md px-4 py-2 text-sm font-semibold disabled:opacity-50"
@@ -196,7 +233,9 @@ export function ReportIssuancePanel({ measurementRunId }: { measurementRunId: st
 
       {create.isPending ||
       status.data?.status === "queued" ||
-      status.data?.status === "processing" ? (
+      status.data?.status === "processing" ||
+      current.data?.status === "queued" ||
+      current.data?.status === "processing" ? (
         <p className="text-muted mt-4 text-sm" role="status">
           Your report is being prepared. This page will update when both files are ready.
         </p>
@@ -233,13 +272,30 @@ export function ReportIssuancePanel({ measurementRunId }: { measurementRunId: st
         </div>
       ) : null}
 
+      {hiddenReadyParent ? (
+        <div className="mt-5">
+          <p className="text-muted text-sm">
+            Version {hiddenReadyParent.version} is the current report and can be replaced under the
+            latest report authority.
+          </p>
+          <button
+            type="button"
+            className="text-muted hover:text-fg mt-3 text-sm underline underline-offset-4"
+            disabled={create.isPending}
+            onClick={() => submit(hiddenReadyParent.id)}
+          >
+            Create a new version
+          </button>
+        </div>
+      ) : null}
+
       {status.data?.status === "ready" && !readyArtifacts ? (
         <p className="text-coral mt-4 text-sm" role="alert">
           The complete artifact pair could not be verified. No download is available.
         </p>
       ) : null}
 
-      {status.data?.status === "failed" || error ? (
+      {status.data?.status === "failed" || current.data?.status === "failed" || error ? (
         <div className="mt-4">
           <p className="text-coral text-sm" role="alert">
             This report is unavailable. Create a new version or contact support with the report

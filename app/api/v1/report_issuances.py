@@ -14,9 +14,11 @@ from app.schemas.report_issuances import (
     ReportArtifactDownloadRead,
     ReportArtifactDownloadRequest,
     ReportIssuanceCreate,
+    ReportIssuanceCurrentRead,
     ReportIssuanceRead,
 )
 from app.services.report_issuances import (
+    get_current_report_issuance,
     get_report_issuance,
     issue_report_artifact_download,
     report_issuance_read,
@@ -24,6 +26,24 @@ from app.services.report_issuances import (
 )
 
 router = APIRouter(tags=["Report Issuances"])
+
+
+@router.get(
+    "/advertiser/measurement-runs/{run_id}/report-issuances",
+    response_model=ReportIssuanceCurrentRead | None,
+)
+async def advertiser_get_current_report_issuance(
+    run_id: UUID,
+    user: AdvertiserUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> ReportIssuanceCurrentRead | None:
+    return await get_current_report_issuance(
+        session,
+        actor_user_id=user.id,
+        measurement_run_id=run_id,
+        settings=settings,
+    )
 
 
 @router.post(

@@ -41,6 +41,7 @@ from app.schemas.report_issuances import (
     ReportArtifactDownloadRead,
     ReportArtifactRead,
     ReportIssuanceCreate,
+    ReportIssuanceCurrentRead,
     ReportIssuanceRead,
 )
 from app.services.audit import create_audit_event
@@ -676,6 +677,44 @@ async def get_report_issuance(
     if authority_fingerprint != issuance.authority_fingerprint:
         raise _not_found()
     return issuance
+
+
+async def get_current_report_issuance(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    measurement_run_id: UUID,
+    settings: Settings,
+) -> ReportIssuanceCurrentRead | None:
+    run = await session.get(MeasurementRun, measurement_run_id)
+    if run is None:
+        raise _not_found()
+    try:
+        await _authorize_scope(
+            session,
+            actor_user_id=actor_user_id,
+            organization_id=run.organization_id,
+            campaign_id=run.campaign_id,
+            write=True,
+        )
+        _validate_frozen_run(run)
+        _authority_document(run, settings)
+    except AppError as exc:
+        raise _not_found() from exc
+    issuance = await session.scalar(
+        select(ReportIssuance)
+        .where(ReportIssuance.measurement_run_id == run.id)
+        .order_by(ReportIssuance.version.desc())
+        .limit(1)
+    )
+    if issuance is None:
+        return None
+    return ReportIssuanceCurrentRead(
+        id=issuance.id,
+        measurement_run_id=issuance.measurement_run_id,
+        version=issuance.version,
+        status=issuance.status,
+    )
 
 
 def _rendered_artifacts(issuance: ReportIssuance) -> tuple[_RenderedArtifact, ...]:

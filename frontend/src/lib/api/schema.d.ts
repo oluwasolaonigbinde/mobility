@@ -2801,7 +2801,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Advertiser Get Current Report Issuance */
+        get: operations["advertiser_get_current_report_issuance_api_v1_advertiser_measurement_runs__run_id__report_issuances_get"];
         put?: never;
         /** Advertiser Request Report Issuance */
         post: operations["advertiser_request_report_issuance_api_v1_advertiser_measurement_runs__run_id__report_issuances_post"];
@@ -11034,6 +11035,22 @@ export interface components {
             /** Reissue Of Id */
             reissue_of_id?: string | null;
         };
+        /** ReportIssuanceCurrentRead */
+        ReportIssuanceCurrentRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Measurement Run Id
+             * Format: uuid
+             */
+            measurement_run_id: string;
+            status: components["schemas"]["ReportIssuanceStatus"];
+            /** Version */
+            version: number;
+        };
         /** ReportIssuanceRead */
         ReportIssuanceRead: {
             /** Artifacts */
@@ -18684,6 +18701,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FileDownloadRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    advertiser_get_current_report_issuance_api_v1_advertiser_measurement_runs__run_id__report_issuances_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportIssuanceCurrentRead"] | null;
                 };
             };
             /** @description Validation Error */

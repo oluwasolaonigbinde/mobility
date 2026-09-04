@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as getStatus } from "./[issuanceId]/route";
 import { GET as downloadArtifact } from "./[issuanceId]/artifacts/[format]/download/route";
-import { POST as createIssuance } from "../measurement-runs/[runId]/report-issuances/route";
+import {
+  GET as getCurrentIssuance,
+  POST as createIssuance,
+} from "../measurement-runs/[runId]/report-issuances/route";
 
 const mocks = vi.hoisted(() => ({
   getSessionToken: vi.fn(),
@@ -39,6 +42,28 @@ describe("report issuance BFF", () => {
         body: { client_request_id: "request", reissue_of_id: null },
       },
     );
+  });
+
+  it("reads the privacy-safe current parent for a measurement run", async () => {
+    mocks.get.mockResolvedValue({
+      data: { id: "issuance", measurement_run_id: "run", version: 2, status: "failed" },
+    });
+
+    const response = await getCurrentIssuance(new Request("http://localhost"), {
+      params: Promise.resolve({ runId: "run" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.get).toHaveBeenCalledWith(
+      "/api/v1/advertiser/measurement-runs/{run_id}/report-issuances",
+      { params: { path: { run_id: "run" } } },
+    );
+    expect(await response.json()).toEqual({
+      id: "issuance",
+      measurement_run_id: "run",
+      version: 2,
+      status: "failed",
+    });
   });
 
   it("reads one issuance and turns a report-aware download into a no-store redirect", async () => {

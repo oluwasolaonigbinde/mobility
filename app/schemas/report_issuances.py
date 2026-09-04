@@ -38,6 +38,13 @@ class ReportIssuanceRead(BaseModel):
     ready_at: datetime | None
 
 
+class ReportIssuanceCurrentRead(BaseModel):
+    id: UUID
+    measurement_run_id: UUID
+    version: int
+    status: ReportIssuanceStatus
+
+
 class ReportArtifactDownloadRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

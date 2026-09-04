@@ -567,8 +567,13 @@ def test_cross_tenant_viewer_revocation_and_gate_changes_fail_closed(
         f"/api/v1/advertiser/report-issuances/{issuance.json()['id']}",
         headers=auth_headers(db_client, advertiser.email, PASSWORD),
     )
+    hidden_parent = db_client.get(
+        f"/api/v1/advertiser/measurement-runs/{run['id']}/report-issuances",
+        headers=auth_headers(db_client, advertiser.email, PASSWORD),
+    )
     assert hidden.status_code == 404
     assert hidden.json()["error"]["code"] == "REPORT_ISSUANCE_NOT_FOUND"
+    assert hidden_parent.status_code == 404
     db_client.app.dependency_overrides[get_settings] = lambda: settings
 
     async def revoke() -> None:
@@ -589,6 +594,149 @@ def test_cross_tenant_viewer_revocation_and_gate_changes_fail_closed(
         headers=auth_headers(db_client, advertiser.email, PASSWORD),
     )
     assert revoked.status_code == 404
+
+
+def test_changed_authority_and_requester_can_discover_only_the_current_reissue_parent(
+    db_client, db_sessionmaker, settings
+) -> None:
+    approved_settings = settings.model_copy(
+        update={
+            "privacy_disclosure_synthetic_test_mode": False,
+            "privacy_disclosure_live_authorized": True,
+            "privacy_legal_approval_reference": "approved-legal-fixture-v1",
+            "privacy_disclosure_config_reference": "approved-disclosure-fixture-v1",
+            "privacy_query_history_retention_reference": "approved-retention-fixture-v1",
+            "measurement_live_issuance_authorized": True,
+            "measurement_report_method_reference": "measurement-contract-v1",
+        }
+    )
+    db_client.app.dependency_overrides[get_settings] = lambda: approved_settings
+    _, advertiser, _, run = issue_run(db_client, db_sessionmaker, test_only=False)
+    no_current = db_client.get(
+        f"/api/v1/advertiser/measurement-runs/{run['id']}/report-issuances",
+        headers=auth_headers(db_client, advertiser.email, PASSWORD),
+    )
+    assert no_current.status_code == 200
+    assert no_current.json() is None
+    first = request_issuance(db_client, advertiser, run["id"])
+    assert first.status_code == 202, first.text
+
+    async def mark_ready() -> None:
+        async with db_sessionmaker() as session:
+            issuance = await session.get(ReportIssuance, UUID(first.json()["id"]))
+            assert issuance is not None
+            issuance.status = "ready"
+            issuance.ready_at = datetime.now(UTC)
+            await session.commit()
+
+    asyncio.run(mark_ready())
+
+    successor = create_test_user(
+        db_sessionmaker,
+        email="report-successor@example.com",
+        password=PASSWORD,
+        role=UserRole.ADVERTISER,
+    )
+    viewer = create_test_user(
+        db_sessionmaker,
+        email="report-parent-viewer@example.com",
+        password=PASSWORD,
+        role=UserRole.ADVERTISER,
+    )
+    outsider = create_test_user(
+        db_sessionmaker,
+        email="report-parent-outsider@example.com",
+        password=PASSWORD,
+        role=UserRole.ADVERTISER,
+    )
+    create_test_organization(db_sessionmaker, owner_user_id=outsider.id)
+
+    async def add_memberships() -> None:
+        async with db_sessionmaker() as session:
+            session.add_all(
+                [
+                    OrganizationMembership(
+                        organization_id=UUID(run["organization_id"]),
+                        user_id=successor.id,
+                        role=MembershipRole.MANAGER,
+                        status=MembershipStatus.ACTIVE,
+                    ),
+                    OrganizationMembership(
+                        organization_id=UUID(run["organization_id"]),
+                        user_id=viewer.id,
+                        role=MembershipRole.VIEWER,
+                        status=MembershipStatus.ACTIVE,
+                    ),
+                ]
+            )
+            await session.commit()
+
+    asyncio.run(add_memberships())
+    changed_settings = approved_settings.model_copy(
+        update={"privacy_legal_approval_reference": "approved-successor-authority-v2"}
+    )
+    db_client.app.dependency_overrides[get_settings] = lambda: changed_settings
+    successor_headers = auth_headers(db_client, successor.email, PASSWORD)
+
+    hidden_status = db_client.get(
+        f"/api/v1/advertiser/report-issuances/{first.json()['id']}",
+        headers=successor_headers,
+    )
+    assert hidden_status.status_code == 404
+
+    current = db_client.get(
+        f"/api/v1/advertiser/measurement-runs/{run['id']}/report-issuances",
+        headers=successor_headers,
+    )
+    assert current.status_code == 200, current.text
+    assert current.json() == {
+        "id": first.json()["id"],
+        "measurement_run_id": run["id"],
+        "version": 1,
+        "status": "ready",
+    }
+
+    reissue = request_issuance(
+        db_client,
+        successor,
+        run["id"],
+        reissue_of_id=current.json()["id"],
+    )
+    assert reissue.status_code == 202, reissue.text
+    assert reissue.json()["version"] == 2
+    assert reissue.json()["reissue_of_id"] == first.json()["id"]
+
+    async def mark_failed() -> None:
+        async with db_sessionmaker() as session:
+            issuance = await session.get(ReportIssuance, UUID(reissue.json()["id"]))
+            assert issuance is not None
+            issuance.status = "failed"
+            issuance.last_error_code = "storage_unavailable"
+            await session.commit()
+
+    asyncio.run(mark_failed())
+    failed_parent = db_client.get(
+        f"/api/v1/advertiser/measurement-runs/{run['id']}/report-issuances",
+        headers=auth_headers(db_client, advertiser.email, PASSWORD),
+    )
+    assert failed_parent.status_code == 200
+    assert failed_parent.json()["id"] == reissue.json()["id"]
+    assert failed_parent.json()["status"] == "failed"
+    recovered = request_issuance(
+        db_client,
+        advertiser,
+        run["id"],
+        reissue_of_id=failed_parent.json()["id"],
+    )
+    assert recovered.status_code == 202, recovered.text
+    assert recovered.json()["version"] == 3
+
+    for hidden_user in (viewer, outsider):
+        hidden_parent = db_client.get(
+            f"/api/v1/advertiser/measurement-runs/{run['id']}/report-issuances",
+            headers=auth_headers(db_client, hidden_user.email, PASSWORD),
+        )
+        assert hidden_parent.status_code == 404
 
 
 def test_report_audits_exclude_contents_urls_and_raw_errors(
@@ -752,6 +900,68 @@ def test_concurrent_identical_requests_converge_on_postgres(
             return int(await session.scalar(select(func.count()).select_from(ReportIssuance)) or 0)
 
     assert asyncio.run(count()) == 1
+
+
+def test_concurrent_identical_reissues_converge_on_postgres(
+    postgis_db_sessionmaker, settings
+) -> None:
+    admin, advertiser, campaign = create_measurement_graph(postgis_db_sessionmaker)
+
+    async def create_parent() -> tuple[UUID, UUID]:
+        async with postgis_db_sessionmaker() as session:
+            run = await issue_measurement_run(
+                session,
+                actor_user_id=admin.id,
+                payload=MeasurementRunCreate.model_validate(issue_payload(campaign.id)),
+                settings=settings,
+            )
+            parent = await request_report_issuance(
+                session,
+                actor_user_id=advertiser.id,
+                measurement_run_id=run.id,
+                payload=ReportIssuanceCreate(client_request_id=uuid4()),
+                settings=settings,
+                admin=False,
+            )
+            parent.status = "failed"
+            parent.last_error_code = "storage_unavailable"
+            await session.commit()
+            return run.id, parent.id
+
+    run_id, parent_id = asyncio.run(create_parent())
+    payload = ReportIssuanceCreate(client_request_id=uuid4(), reissue_of_id=parent_id)
+
+    async def request_once() -> UUID:
+        async with postgis_db_sessionmaker() as session:
+            issuance = await request_report_issuance(
+                session,
+                actor_user_id=advertiser.id,
+                measurement_run_id=run_id,
+                payload=payload,
+                settings=settings,
+                admin=False,
+            )
+            await session.commit()
+            return issuance.id
+
+    async def run_both() -> tuple[UUID, UUID]:
+        first, second = await asyncio.gather(request_once(), request_once())
+        return first, second
+
+    first_id, second_id = asyncio.run(run_both())
+    assert first_id == second_id
+
+    async def versions() -> list[int]:
+        async with postgis_db_sessionmaker() as session:
+            return list(
+                await session.scalars(
+                    select(ReportIssuance.version)
+                    .where(ReportIssuance.measurement_run_id == run_id)
+                    .order_by(ReportIssuance.version)
+                )
+            )
+
+    assert asyncio.run(versions()) == [1, 2]
 
 
 def test_expired_earlier_claim_retries_successfully_on_postgres(
