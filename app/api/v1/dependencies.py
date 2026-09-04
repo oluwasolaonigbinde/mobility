@@ -8,6 +8,7 @@ from starlette import status
 
 from app.adapters.ad_platforms import AdPlatformAdapter, build_ad_platform_adapter
 from app.adapters.storage import StorageProvider, build_storage_provider
+from app.core import clock
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
 from app.core.payment_enqueue import PaymentEventEnqueuer, build_payment_event_enqueuer
@@ -122,7 +123,7 @@ async def get_current_user(
     cap_at = datetime.fromtimestamp(claims.authenticated_at, UTC) + timedelta(
         minutes=settings.session_absolute_lifetime_minutes
     )
-    if datetime.now(UTC) >= cap_at:
+    if clock.now() >= cap_at:
         raise AppError(
             "SESSION_EXPIRED",
             "Session has reached its maximum lifetime",

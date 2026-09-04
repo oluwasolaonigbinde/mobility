@@ -2008,21 +2008,23 @@ def test_postgres_list_uses_wall_clock_after_transaction_start(
     )
 
     async def cross_boundary() -> tuple[list[UUID], datetime, datetime]:
-        async with postgis_db_sessionmaker() as setup_session:
-            expires_at = await setup_session.scalar(
-                select(func.clock_timestamp() + timedelta(seconds=1))
-            )
-            await setup_session.execute(
-                update(CampaignAssignment)
-                .where(CampaignAssignment.id == assignment_id)
-                .values(expires_at=expires_at)
-            )
-            await setup_session.commit()
-
         async with postgis_db_sessionmaker() as session:
+            # `now()` is frozen at transaction start while `clock_timestamp()`
+            # keeps advancing. Expiring the offer exactly one microsecond after
+            # this transaction began puts the two clocks on opposite sides of
+            # the boundary immediately, so the crossing is proved rather than
+            # slept through (TST-008).
             transaction_started_at = await session.scalar(select(func.now()))
+            expires_at = transaction_started_at + timedelta(microseconds=1)
+            async with postgis_db_sessionmaker() as setup_session:
+                await setup_session.execute(
+                    update(CampaignAssignment)
+                    .where(CampaignAssignment.id == assignment_id)
+                    .values(expires_at=expires_at)
+                )
+                await setup_session.commit()
+
             assert transaction_started_at < expires_at
-            await asyncio.sleep(1.1)
             assignments, _ = await assignments_service.list_driver_assignments(
                 session,
                 user_id=driver.id,
@@ -2031,6 +2033,10 @@ def test_postgres_list_uses_wall_clock_after_transaction_start(
                 assignment_status=CampaignAssignmentStatus.OFFERED.value,
             )
             statement_wall_clock = await assignments_service.database_clock(session)
+            # The one-microsecond margin only separates the two clocks while
+            # this transaction stays open, so pin that invariant rather than
+            # assuming it.
+            assert await session.scalar(select(func.now())) == transaction_started_at
             return [assignment.id for assignment in assignments], expires_at, statement_wall_clock
 
     assignment_ids, expires_at, statement_wall_clock = asyncio.run(cross_boundary())

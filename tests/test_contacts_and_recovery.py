@@ -1,7 +1,7 @@
 import asyncio
 import hashlib
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -433,7 +433,13 @@ def test_password_reset_is_non_enumerating_single_use_expiring_and_revokes_sessi
                 expiring_settings,
                 synthetic_test_authority=True,
             )
-            await asyncio.sleep(1.1)
+            # TST-008: expiry is proved, not waited out. The configured TTL is
+            # asserted directly, then the token's expiry is moved into the past
+            # so the refusal is deterministic. The exact +/- 1 microsecond
+            # boundary lives in tests/test_time_boundaries.py.
+            assert second.expires_at == second.created_at + timedelta(seconds=1)
+            second.expires_at = second.created_at + timedelta(microseconds=1)
+            await session.flush()
             with pytest.raises(AppError) as expired:
                 await complete_password_reset(
                     session,

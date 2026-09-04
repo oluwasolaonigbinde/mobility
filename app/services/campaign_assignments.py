@@ -1,6 +1,6 @@
 import hashlib
 import json
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
+from app.core import clock
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
 from app.db.integrity import integrity_constraint_name
@@ -119,7 +120,7 @@ MATCHING_VERSION = "matching_v1"
 
 
 def utc_now() -> datetime:
-    return datetime.now(UTC)
+    return clock.now()
 
 
 def as_aware_utc(value: datetime) -> datetime:

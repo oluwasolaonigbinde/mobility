@@ -1182,6 +1182,7 @@ def validate_backup_authority(
     expected_release_id: str,
     expected_release_revision: str,
     expected_config_sha256: str,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
     complete = dict(complete_marker)
     validated_manifest = validate_backup_manifest(manifest)
@@ -1219,7 +1220,10 @@ def validate_backup_authority(
         raise ContractError("Backup complete marker expiry is invalid") from exc
     if expires.tzinfo is None:
         raise ContractError("Backup complete marker expiry must include a timezone")
-    if expires <= datetime.now(UTC):
+    observed_now = now or datetime.now(UTC)
+    if observed_now.tzinfo is None or observed_now.utcoffset() is None:
+        raise ContractError("Backup retention validation time must be timezone-aware")
+    if expires <= observed_now.astimezone(UTC):
         raise ContractError("Backup complete marker is expired")
     return {
         **expected_identity,

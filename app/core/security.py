@@ -7,6 +7,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import Argon2Error
 from jwt import InvalidTokenError
 
+from app.core import clock
 from app.core.config import Settings
 
 _password_hasher = PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1)
@@ -40,7 +41,7 @@ def create_access_token(
     auth_time: datetime | None = None,
     expires_at: datetime | None = None,
 ) -> tuple[str, int]:
-    now = datetime.now(UTC)
+    now = clock.now()
     auth_time = auth_time or now
     expires_at = expires_at or now + timedelta(minutes=settings.access_token_expire_minutes)
     expires_in = max(0, int((expires_at - now).total_seconds()))
@@ -89,7 +90,7 @@ def _validated_claims(payload: dict[str, object]) -> ValidatedAccessTokenClaims:
     issued_at = _epoch_claim(payload, "iat")
     authenticated_at = _epoch_claim(payload, "auth_time")
     session_version = _integer_claim(payload, "sv")
-    now = datetime.now(UTC).timestamp()
+    now = clock.now().timestamp()
     if (
         session_version < 1
         or expires_at <= now

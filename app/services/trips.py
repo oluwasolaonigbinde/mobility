@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
+from app.core import clock
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.db.integrity import integrity_constraint_name
@@ -130,7 +131,7 @@ class TripEvidenceReconcileResult:
 
 
 def utc_now() -> datetime:
-    value = datetime.now(UTC)
+    value = clock.now()
     return value.replace(microsecond=(value.microsecond // 1000) * 1000)
 
 

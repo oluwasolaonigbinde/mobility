@@ -26,6 +26,7 @@ from app.models.organization import (
 from app.models.report_issuance import (
     ReportArtifact,
     ReportIssuance,
+    ReportIssuanceStatus,
     ReportPublicationIntent,
     ReportPublicationState,
 )
@@ -1306,6 +1307,53 @@ def test_abandoned_publisher_stops_before_writing_the_rest_of_the_pair(
     run_worker(db_sessionmaker, settings, report_storage)
     assert report_storage.objects == {}
     assert generations(db_sessionmaker, issuance_id)[0].state == ReportPublicationState.CLEANED
+
+
+def test_processing_lease_lapses_exactly_at_its_instant_without_sleeping(
+    db_client, db_sessionmaker, settings, report_storage, deterministic_render, monkeypatch
+) -> None:
+    """TST-008: the reclaim boundary is pinned with an injected clock, not waited out.
+
+    A sleeping test can only show that a lease expires *eventually*. Freezing the
+    worker's database clock shows the exact instant it lapses: one microsecond
+    earlier the holder still owns the issuance, and at the instant itself the
+    sweep reclaims it.
+    """
+    _, advertiser, _, run = issue_run(db_client, db_sessionmaker)
+    issuance_id = UUID(request_issuance(db_client, advertiser, run["id"]).json()["id"])
+    lease_at = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
+
+    async def strand_a_processing_lease() -> None:
+        async with db_sessionmaker() as session:
+            issuance = await session.get(ReportIssuance, issuance_id)
+            assert issuance is not None
+            issuance.status = ReportIssuanceStatus.PROCESSING
+            issuance.processing_token = uuid4()
+            issuance.lease_expires_at = lease_at
+            issuance.next_attempt_at = None
+            await session.commit()
+
+    asyncio.run(strand_a_processing_lease())
+
+    real_clock = report_issuance_service.database_clock
+
+    def sweep_at(instant: datetime) -> int:
+        async def frozen(session) -> datetime:
+            return instant
+
+        monkeypatch.setattr(report_issuance_service, "database_clock", frozen)
+        try:
+            return run_worker(db_sessionmaker, settings, report_storage)
+        finally:
+            # Restore only this patch: monkeypatch.undo() would also revert
+            # deterministic_render.
+            monkeypatch.setattr(report_issuance_service, "database_clock", real_clock)
+
+    assert sweep_at(lease_at - timedelta(microseconds=1)) == 0
+    assert asyncio.run(read_generations(db_sessionmaker, issuance_id)) == []
+
+    assert sweep_at(lease_at) == 1
+    assert generations(db_sessionmaker, issuance_id)[0].state == ReportPublicationState.COMPLETE
 
 
 def test_hard_crash_mid_publication_is_recovered_by_the_expired_generation_sweep(
