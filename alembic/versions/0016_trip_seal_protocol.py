@@ -154,6 +154,18 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute("LOCK TABLE quarantined_ping_batches IN ACCESS EXCLUSIVE MODE")
+    op.execute("LOCK TABLE trip_sessions IN ACCESS EXCLUSIVE MODE")
+    op.execute(
+        sa.text(
+            "DO $$ BEGIN "
+            "IF EXISTS (SELECT 1 FROM quarantined_ping_batches) "
+            "OR EXISTS (SELECT 1 FROM trip_sessions WHERE status = 'sealed') THEN "
+            "RAISE EXCEPTION '0016 downgrade blocked: sealed trip authority exists'; "
+            "END IF; END $$;"
+        )
+    )
+
     op.drop_constraint(
         "ck_data_purge_audit_partition_name_required", "data_purge_audit", type_="check"
     )

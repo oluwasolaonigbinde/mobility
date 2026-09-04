@@ -458,6 +458,20 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute("LOCK TABLE campaign_payout_rules IN ACCESS EXCLUSIVE MODE")
+    op.execute("LOCK TABLE payout_calculations IN ACCESS EXCLUSIVE MODE")
+    op.execute("LOCK TABLE earnings_ledger_entries IN ACCESS EXCLUSIVE MODE")
+    op.execute(
+        sa.text(
+            "DO $$ BEGIN "
+            "IF EXISTS (SELECT 1 FROM campaign_payout_rules) "
+            "OR EXISTS (SELECT 1 FROM payout_calculations) "
+            "OR EXISTS (SELECT 1 FROM earnings_ledger_entries) THEN "
+            "RAISE EXCEPTION '0010 downgrade blocked: payout authority exists'; "
+            "END IF; END $$;"
+        )
+    )
+
     op.drop_index("ix_earnings_ledger_entries_driver_status", table_name="earnings_ledger_entries")
     op.drop_index(
         "ix_earnings_ledger_entries_campaign_occurred_at",

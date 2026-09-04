@@ -260,6 +260,15 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute("SET LOCAL lock_timeout = '5s'")
     op.execute("SET LOCAL statement_timeout = '600s'")
+    op.execute("LOCK TABLE data_purge_audit IN ACCESS EXCLUSIVE MODE")
+    op.execute(
+        sa.text(
+            "DO $$ BEGIN "
+            "IF EXISTS (SELECT 1 FROM data_purge_audit) THEN "
+            "RAISE EXCEPTION '0014 downgrade blocked: data purge audit exists'; "
+            "END IF; END $$;"
+        )
+    )
 
     op.drop_index("ix_data_purge_audit_partition_created_at", table_name="data_purge_audit")
     op.drop_index("uq_data_purge_audit_dropped", table_name="data_purge_audit")
