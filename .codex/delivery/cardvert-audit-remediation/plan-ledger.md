@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 343
+plan_revision: 345
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 473
+last_event_sequence: 475
 ---
 
 # Cardvert audit remediation programme
@@ -207,12 +207,13 @@ visible top-level Mobility tasks.
 | S28 | R59 — TST-002 | integrated real-stack browser journey | cross-stack release/security; Sol/xhigh | all predecessor contracts integrated; local real-stack evidence only |
 | S29 | R60 — GOV-009 | final architecture/progress/decision synchronization | cross-package closure; Sol/high | no product implementation; reconcile all 115 candidates, integrated gates and final minimal-change review |
 
-Current justified writer capacity is **2**, assigned exactly to S13/R21 and
-S26/R57. R20, R31, R51, R52 and R55 are accepted. R21 owns the final
-pre-provider fraud/assessment authorization gate, while R57 owns deterministic
+Current justified writer capacity is **2**, assigned exactly to S13/R22 and
+S26/R57. R20, R21, R31, R51, R52 and R55 are accepted. R22 owns the exclusive
+payout-balance, replacement-chain, fraud-resolution and conservation state
+machine, while R57 owns deterministic
 application-clock injection and focused time-boundary tests across auth,
 recovery, trip, campaign and release-contract surfaces. Their product and test
-leases are disjoint; R57 has no disbursement/provider-worker, fraud or
+leases are disjoint; R57 has no disbursement/provider-worker, fraud, debt or
 earnings-release authority. Controller documents remain serialized.
 
 ## Executable slice map
@@ -242,8 +243,8 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R18 | MON-005, MON-006 | COMPLETE | R04, R06, R07 | R18-P/M; DB+MNY; CONTRACT; CP-MONEY; exact `e36f7fed...` freeze; focused PostgreSQL, payout, correction, frontend and contract evidence | accepted exactly once at `5c2d60a`; money/migration/generated-contract lane released; task may continue R19 only after separate packet |
 | R19 | MON-002 | COMPLETE | R18 | R19-P/M; DB+MNY; CP-MONEY; exact `870f1dfb...` freeze; forced-overlap PostgreSQL and focused payout evidence | accepted exactly once at `3c7b678`; payout-day ordering lease released |
 | R20 | MON-001, DB-007, MON-008 | COMPLETE | R05, R18 | R20-P/M; DB+MNY; CP-MONEY; commit `d8cd891`; migration 0083 and real PostgreSQL crash/concurrency evidence | accepted exactly once; disbursement intent/migration lease released to R21 |
-| R21 | MON-003 | ACTIVE | R20 | R21-P; reviewed final pre-provider authorization contract | retained Sol/xhigh S13 task owns exact disbursement/fraud/earnings-release final-gate lease; no migration |
-| R22 | MON-004, MON-007, MON-009 | WAITING | R20, R21 | R22-P; reviewed exclusive conservation/replacement state contract | wait for R20/R21 and migration/contracts |
+| R21 | MON-003 | COMPLETE | R20 | R21-P/M; DB+MNY+SEC; CP-MONEY; commit `ee43b10` | accepted exactly once; final-authorization lease released to R22 |
+| R22 | MON-004, MON-007, MON-009 | ACTIVE | R20, R21 | R22-P; reviewed exclusive conservation/replacement state contract | retained Sol/xhigh S13 task owns exact disbursement/debt/hold/earnings-release/API/schema/migration/contracts/tests lease |
 | R23 | COM-001, COM-004 | ACCEPTED | R08; commercial opener | R23-P/M/MNY/CP-COMMERCIAL; PostgreSQL, migration 0073 and contract evidence | complete at `8fd5fc4` |
 | R24 | COM-002 | ACCEPTED | R08, R23 | R24-P/M/MNY/CP-COMMERCIAL; causal epoch and PostgreSQL race evidence | complete at `36df828` |
 | R25 | COM-003, COM-005 | COMPLETE | R08, R24 | R25-P/M; MNY+CONTRACT; CP-COMMERCIAL | accepted exactly once at binary diff `b3086d10...`; controller 6-test PostgreSQL/API/OpenAPI check passed |
@@ -928,3 +929,5 @@ verification is complete.
 | 471 | 341 | 1 | PACKET_DISPATCHED | R21/MON-003 continues in the retained S13 task after separate R20 admission. | GPT-5.6 Sol/xhigh remains necessary for adversarial pre-provider money authorization and PostgreSQL fraud/assessment races; exact disbursement worker/service, fraud-assessment/hold, earnings-release and focused-test lease; no migration unless a new reviewed amendment; direct terminal callback |
 | 472 | 342 | 1 | RELEASE_COMPATIBILITY_SLICE_ACCEPTED | R55/REL-004 accepted authenticated immutable compatibility receipts and convergent forward-only release/recovery handling across current and previous images and schema revisions. | commit `662077a`; exact seven-file integration; controller 455 focused passes, Ruff, shell syntax and diff checks; owner full Docker rehearsal twice and R55-M/SEC/DEP+DB+CONTRACT/RELEASE/CP-RELEASE PASS; no push or deploy |
 | 473 | 343 | 1 | PACKET_DISPATCHED | R57/TST-008 begins after R55 releases the release-contract lease. | GPT-5.6 Sol/high is proportionate for security, money-adjacent and release clock boundaries without the higher cost of xhigh; exact application-clock, auth/recovery/trip/campaign/release-contract and focused-test lease; no policy changes, migrations or generated contracts; direct terminal callback |
+| 474 | 344 | 1 | FINAL_AUTHORIZATION_SLICE_ACCEPTED | R21/MON-003 accepted complete-batch pre-provider reauthorization under stable money/fraud locks with zero adapter calls on drift and generation-bound non-secret audit evidence. | commit `ee43b10`; exact six-file integration; owner 17-case real-PostgreSQL R21 suite and 37 adjacent passes; controller 14 host-runnable passes/20 environment skips; Ruff/format/diff and R21-M/DB+MNY+SEC/CP-MONEY PASS; no migration or public contract change |
+| 475 | 345 | 1 | PACKET_DISPATCHED | R22/MON-004,MON-007,MON-009 continues in the retained S13 task after separate R21 admission. | GPT-5.6 Sol/xhigh remains necessary for exactly-once cash conservation across concurrent replacement, late dual-success, debt and fraud transitions plus a PostgreSQL migration and generated contracts; exact disbursement/debt/hold/earnings-release/API/schema/migration/contract/test lease; direct terminal callback |
