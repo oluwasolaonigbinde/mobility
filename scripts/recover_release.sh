@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -Eeuo pipefail
+umask 077
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/release_common.sh"
 
 CURRENT_STATE=""
@@ -82,14 +83,20 @@ if [[ "${RELEASE_LOCAL_REHEARSAL:-false}" == true ]]; then
   preflight_args+=(--local-rehearsal)
 fi
 current_preflight="$(python3 scripts/release_contract.py "${current_preflight_args[@]}" --check-images)"
+current_backend_image="$(release_env_value "${CURRENT_ENV_FILE}" BACKEND_IMAGE)"
 export RELEASE_LOG_RELEASE_ID="$(jq -r '.release_id' <<<"${current_preflight}")"
 export RELEASE_LOG_REVISION="$(jq -r '.release_revision' <<<"${current_preflight}")"
 [[ "$(jq -r '.release_id' <<<"${current_preflight}")" == "$(jq -r '.release_id' "${CURRENT_STATE}")" \
   && "$(jq -r '.release_revision' <<<"${current_preflight}")" == "$(jq -r '.revision' "${CURRENT_STATE}")" \
+  && "${current_backend_image}" == "$(jq -r '.backend_image' "${CURRENT_STATE}")" \
   && "$(jq -r '.config_sha256' <<<"${current_preflight}")" == "$(jq -r '.config_sha256' "${CURRENT_STATE}")" ]] \
   || { echo "ERROR: current environment does not match current release authority" >&2; exit 1; }
 jq -e '.stages | index("migration") != null' "${CURRENT_STATE}" >/dev/null \
   || { echo "ERROR: recovery requires recorded forward-migration authority" >&2; exit 1; }
+compatibility_outcome="$(release_stage_outcome "${CURRENT_STATE}" compatibility)"
+[[ "${compatibility_outcome}" == passed:* ]] \
+  || { echo "ERROR: recovery requires an accepted compatibility receipt" >&2; exit 1; }
+accepted_authority="${compatibility_outcome#passed:}"
 python3 scripts/release_contract.py "${preflight_args[@]}" >/dev/null
 previous_release_id="$(release_env_value "${PREVIOUS_ENV_FILE}" RELEASE_ID)"
 [[ "$(jq -r '.previous_release_id' "${CURRENT_STATE}")" == "${previous_release_id}" ]] \
@@ -104,23 +111,49 @@ fi
 python3 scripts/release_contract.py "${preflight_args[@]}" --check-images >/dev/null
 forward_alembic_revision="$("${compose[@]}" exec -T db psql -U mobility -d mobility -Atc \
   'SELECT version_num FROM alembic_version')"
-compatibility_sha256="$(python3 scripts/release_contract.py compatibility-validate \
+compatibility_authority="$(python3 scripts/release_contract.py compatibility-validate \
   --evidence "${COMPATIBILITY_EVIDENCE}" \
+  --env-file "${CURRENT_ENV_FILE}" \
   --target-release-id "$(jq -r '.release_id' "${CURRENT_STATE}")" \
   --target-revision "$(jq -r '.revision' "${CURRENT_STATE}")" \
   --target-backend-image "$(jq -r '.backend_image' "${CURRENT_STATE}")" \
   --previous-release-id "${previous_release_id}" \
-  --forward-alembic-revision "${forward_alembic_revision}")"
-[[ "$(jq -r '.previous_revision' "${COMPATIBILITY_EVIDENCE}")" == "${previous_revision}" \
-  && "$(jq -r '.previous_backend_image' "${COMPATIBILITY_EVIDENCE}")" == "${previous_backend_image}" ]] \
-  || { echo "ERROR: compatibility evidence does not bind the previous image" >&2; exit 1; }
+  --previous-revision "${previous_revision}" \
+  --previous-backend-image "${previous_backend_image}" \
+  --forward-alembic-revision "${forward_alembic_revision}" \
+  --accepted-receipt-sha256 "${accepted_authority%%:*}" \
+  --accepted-receipt-hmac "${accepted_authority#*:}")"
+[[ "${compatibility_outcome}" == "passed:${compatibility_authority}" ]] \
+  || { echo "ERROR: recovery compatibility receipt conflicts with release state" >&2; exit 1; }
+compatibility_sha256="${compatibility_authority%%:*}"
 "${compose[@]}" stop edge api worker frontend >/dev/null 2>&1 || true
 "${compose[@]}" up -d --no-build --wait --wait-timeout 120 db redis api worker frontend >/dev/null
-# Recovery never runs an Alembic downgrade. The supplied compatibility evidence
-# must prove the previous image against the forward-migrated schema.
-current_compose=(docker compose -f "${RELEASE_COMPOSE_FILE}" --env-file "${CURRENT_ENV_FILE}")
-"${current_compose[@]}" run --rm -T --no-deps api \
-  python -m app.operations.readiness --write-canary
+# Recovery never runs an Alembic downgrade. The accepted receipt was generated
+# by this exact previous image against this forward schema; recheck its running
+# API and report models before opening traffic.
+"${compose[@]}" exec -T api python -c \
+  'from urllib.request import urlopen; r=urlopen("http://127.0.0.1:8000/api/v1/health/ready",timeout=5); raise SystemExit(0 if r.status == 200 else 1)'
+"${compose[@]}" exec -T api python - <<'PY'
+import asyncio
+
+from sqlalchemy import select
+
+from app.db.session import get_engine
+from app.models.report_issuance import ReportArtifact, ReportIssuance
+
+
+async def main() -> None:
+    engine = get_engine()
+    try:
+        async with engine.connect() as connection:
+            await connection.execute(select(ReportIssuance).limit(1))
+            await connection.execute(select(ReportArtifact).limit(1))
+    finally:
+        await engine.dispose()
+
+
+asyncio.run(main())
+PY
 EDGE_OPEN=true
 "${compose[@]}" up -d --no-build --wait --wait-timeout 120 edge >/dev/null
 COMPOSE_PRODUCTION_FILE="${RELEASE_COMPOSE_FILE}" COMPOSE_ENV_FILE="${PREVIOUS_ENV_FILE}" \
@@ -128,27 +161,46 @@ COMPOSE_PRODUCTION_FILE="${RELEASE_COMPOSE_FILE}" COMPOSE_ENV_FILE="${PREVIOUS_E
   scripts/release_smoke.sh --email "${SMOKE_EMAIL}" --password-file "${SMOKE_PASSWORD_FILE}" \
     --expected-database-revision "${forward_alembic_revision}"
 
-python3 - "${STATE_DIR}/recovery-$(date -u +%Y%m%dT%H%M%SZ).json" \
+python3 - "${STATE_DIR}/recovery-$(jq -r '.release_id' "${CURRENT_STATE}")-${previous_release_id}.json" \
   "$(jq -r '.release_id' "${CURRENT_STATE}")" "${previous_release_id}" "${compatibility_sha256}" <<'PY'
 import json
 import os
 import sys
+import tempfile
 from datetime import UTC, datetime
+from pathlib import Path
 
 path, failed_release, recovered_release, evidence_sha256 = sys.argv[1:]
-payload = {
+stable = {
     "schema_version": 1,
     "event": "release_recovery",
     "failed_release_id": failed_release,
     "recovered_release_id": recovered_release,
     "compatibility_evidence_sha256": evidence_sha256,
     "database_downgrade": False,
+}
+target = Path(path)
+if target.exists():
+    existing = json.loads(target.read_text())
+    if any(existing.get(name) != value for name, value in stable.items()):
+        raise SystemExit("ERROR: recovery retry authority conflicts with its receipt")
+    raise SystemExit(0)
+payload = {
+    **stable,
     "recorded_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
 }
-descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-with os.fdopen(descriptor, "w", encoding="utf-8") as output:
-    json.dump(payload, output, sort_keys=True, separators=(",", ":"))
-    output.write("\n")
+descriptor, temporary_name = tempfile.mkstemp(prefix=f".{target.name}.", dir=target.parent)
+temporary = Path(temporary_name)
+try:
+    os.fchmod(descriptor, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+        json.dump(payload, output, sort_keys=True, separators=(",", ":"))
+        output.write("\n")
+        output.flush()
+        os.fsync(output.fileno())
+    os.replace(temporary, target)
+finally:
+    temporary.unlink(missing_ok=True)
 PY
 EDGE_OPEN=false
 release_log release_recovery passed

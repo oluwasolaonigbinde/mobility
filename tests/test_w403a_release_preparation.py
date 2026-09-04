@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import io
 import json
 import logging
@@ -27,7 +28,11 @@ from scripts.release_contract import (
     TLS_FILE_NAMES,
     ContractError,
     _check_image_labels,
+    _write_new_private_json,
     build_backup_manifest,
+    build_compatibility_receipt,
+    compatibility_acceptance_hmac,
+    compatibility_receipt_sha256,
     compose_environment_names,
     database_url_for_name,
     frontend_build_environment_names,
@@ -214,6 +219,8 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
             "ENVIRONMENT": "production",
             "RELEASE_ID": "20260828T120000Z-1715fe53",
             "RELEASE_REVISION": "1715fe53b19972cd6db829a08a9d6cf572fbd656",
+            "RELEASE_EVIDENCE_SIGNING_SECRET": RELEASE_EVIDENCE_SECRET,
+            "RELEASE_EVIDENCE_KEY_ID": RELEASE_EVIDENCE_KEY_ID,
             "BACKEND_IMAGE": "registry.invalid/cardvert/backend@sha256:" + "1" * 64,
             "FRONTEND_IMAGE": "registry.invalid/cardvert/frontend@sha256:" + "2" * 64,
             "POSTGIS_IMAGE": "postgis/postgis@sha256:" + "3" * 64,
@@ -467,6 +474,43 @@ def test_release_environment_accepts_complete_provider_neutral_contract(tmp_path
     assert validated["release_revision"] == "1715fe53b19972cd6db829a08a9d6cf572fbd656"
     assert validated["public_origin"] == "https://cardvert.client-owned-domain.com"
     assert validated["data_service_adapter"] == "bundled"
+
+
+@pytest.mark.parametrize(
+    "source_name",
+    [
+        "JWT_SECRET_KEY",
+        "EMAIL_RECEIPT_SIGNING_SECRET",
+        "POSTGRES_PASSWORD",
+        "REDIS_PASSWORD",
+        "OBJECT_STORAGE_SECRET_ACCESS_KEY",
+        "EMAIL_SMTP_PASSWORD",
+        "PAYOUT_CRYPTO_KEYRING_B64",
+        "TRIP_EVIDENCE_SIGNING_KEYRING_B64",
+        "BACKUP_PASSPHRASE_FILE",
+    ],
+)
+def test_release_evidence_secret_must_use_dedicated_custody(
+    tmp_path: Path, source_name: str
+) -> None:
+    environment = valid_release_environment(tmp_path)
+    if source_name.endswith("KEYRING_B64"):
+        version_name = (
+            "PAYOUT_CRYPTO_KEY_VERSION"
+            if source_name.startswith("PAYOUT")
+            else "TRIP_EVIDENCE_SIGNING_KEY_VERSION"
+        )
+        keyring = json.loads(environment[source_name])
+        environment["RELEASE_EVIDENCE_SIGNING_SECRET"] = keyring[environment[version_name]]
+    elif source_name == "BACKUP_PASSPHRASE_FILE":
+        environment["RELEASE_EVIDENCE_SIGNING_SECRET"] = Path(
+            environment[source_name]
+        ).read_text().strip()
+    else:
+        environment["RELEASE_EVIDENCE_SIGNING_SECRET"] = environment[source_name]
+
+    with pytest.raises(ContractError, match="dedicated signing secret"):
+        validate_release_environment(environment, allow_local_rehearsal=False)
 
 
 def test_staging_environment_uses_same_fail_closed_contract(tmp_path: Path) -> None:
@@ -1065,44 +1109,332 @@ def test_release_state_is_append_only_and_retry_convergent() -> None:
 
 
 def test_compatibility_evidence_binds_previous_image_and_forward_schema() -> None:
-    evidence = {
+    generated_at = datetime(2026, 8, 28, 12, 0, tzinfo=UTC)
+    evidence = compatibility_receipt(generated_at=generated_at)
+
+    assert validate_compatibility_evidence(
+        evidence,
+        target_release_id=evidence["target_release_id"],
+        target_revision=evidence["target_revision"],
+        target_backend_image=evidence["target_backend_image"],
+        previous_release_id=evidence["previous_release_id"],
+        previous_revision=evidence["previous_revision"],
+        previous_backend_image=evidence["previous_backend_image"],
+        forward_alembic_revision=evidence["forward_alembic_revision"],
+        signing_secret=RELEASE_EVIDENCE_SECRET,
+        key_id=RELEASE_EVIDENCE_KEY_ID,
+        now=generated_at + timedelta(minutes=1),
+    )["result"] == "passed"
+
+
+RELEASE_EVIDENCE_SECRET = "Release-evidence-secret-that-is-dedicated-and-random-2026!"
+RELEASE_EVIDENCE_KEY_ID = "release-evidence-2026-01"
+
+
+def compatibility_receipt(
+    *,
+    generated_at: datetime | None = None,
+    readiness_revision: str | None = None,
+    readiness_status: str = "ready",
+    report_status: str = "passed",
+) -> dict:
+    generated_at = generated_at or datetime(2026, 8, 28, 12, 0, tzinfo=UTC)
+    previous_revision = "3" * 40
+    forward_revision = "0082_report_publication_intents"
+    checked_at = (generated_at - timedelta(seconds=1)).isoformat().replace("+00:00", "Z")
+    readiness_output = {
+        "event": "release_readiness",
+        "status": readiness_status,
+        "release_revision": readiness_revision or previous_revision,
+        "checked_at": checked_at,
+        "checks": {"database": {"alembic_revision": forward_revision}},
+    }
+    report_output = {
+        "event": "report_schema_canary",
+        "status": report_status,
+        "release_revision": previous_revision,
+        "forward_alembic_revision": forward_revision,
+        "checked_at": checked_at,
+        "checks": {
+            "report_issuances_select": "ok",
+            "report_artifacts_select": "ok",
+        },
+    }
+    return build_compatibility_receipt(
+        target_release_id="20260828T120000Z-current",
+        target_revision="1" * 40,
+        target_backend_image="registry.invalid/backend@sha256:" + "2" * 64,
+        previous_release_id="20260827T120000Z-previous",
+        previous_revision=previous_revision,
+        previous_backend_image="registry.invalid/backend@sha256:" + "4" * 64,
+        forward_alembic_revision=forward_revision,
+        readiness_output=readiness_output,
+        report_schema_output=report_output,
+        generated_at=generated_at,
+        key_id=RELEASE_EVIDENCE_KEY_ID,
+        signing_secret=RELEASE_EVIDENCE_SECRET,
+    )
+
+
+def validate_test_compatibility_receipt(evidence: dict, *, now: datetime | None = None) -> None:
+    validate_compatibility_evidence(
+        evidence,
+        target_release_id="20260828T120000Z-current",
+        target_revision="1" * 40,
+        target_backend_image="registry.invalid/backend@sha256:" + "2" * 64,
+        previous_release_id="20260827T120000Z-previous",
+        previous_revision="3" * 40,
+        previous_backend_image="registry.invalid/backend@sha256:" + "4" * 64,
+        forward_alembic_revision="0082_report_publication_intents",
+        signing_secret=RELEASE_EVIDENCE_SECRET,
+        key_id=RELEASE_EVIDENCE_KEY_ID,
+        now=now or datetime(2026, 8, 28, 12, 1, tzinfo=UTC),
+    )
+
+
+@pytest.mark.parametrize(
+    ("path", "changed_value"),
+    [
+        (("target_release_id",), "20260828T120000Z-changed"),
+        (("target_revision",), "a" * 40),
+        (("target_backend_image",), "registry.invalid/backend@sha256:" + "a" * 64),
+        (("previous_release_id",), "20260827T120000Z-changed"),
+        (("previous_revision",), "b" * 40),
+        (("previous_backend_image",), "registry.invalid/backend@sha256:" + "b" * 64),
+        (("forward_alembic_revision",), "0081_payout_money_authority"),
+        (("generated_at",), "2026-08-28T11:59:00Z"),
+        (("key_id",), "release-evidence-2026-02"),
+        (("probes", "readiness", "output_sha256"), "c" * 64),
+        (("probes", "readiness", "output", "status"), "failed"),
+        (("probes", "report_schema", "output_sha256"), "d" * 64),
+        (("probes", "report_schema", "output", "status"), "failed"),
+    ],
+)
+def test_compatibility_receipt_rejects_tampering(
+    path: tuple[str, ...], changed_value: str
+) -> None:
+    evidence = copy.deepcopy(compatibility_receipt())
+    target = evidence
+    for name in path[:-1]:
+        target = target[name]
+    target[path[-1]] = changed_value
+
+    with pytest.raises(ContractError):
+        validate_test_compatibility_receipt(evidence)
+
+
+@pytest.mark.parametrize("signature_index", range(64))
+def test_compatibility_receipt_rejects_every_changed_signature_byte(
+    signature_index: int,
+) -> None:
+    evidence = compatibility_receipt()
+    signature = evidence["hmac_sha256"]
+    replacement = "0" if signature[signature_index] != "0" else "1"
+    evidence["hmac_sha256"] = (
+        signature[:signature_index] + replacement + signature[signature_index + 1 :]
+    )
+
+    with pytest.raises(ContractError, match="HMAC"):
+        validate_test_compatibility_receipt(evidence)
+
+
+@pytest.mark.parametrize("probe_name", ["readiness", "report_schema"])
+@pytest.mark.parametrize("field", ["output", "output_sha256"])
+def test_compatibility_receipt_rejects_missing_probe_output(
+    probe_name: str, field: str
+) -> None:
+    evidence = compatibility_receipt()
+    del evidence["probes"][probe_name][field]
+
+    with pytest.raises(ContractError):
+        validate_test_compatibility_receipt(evidence)
+
+
+def test_compatibility_receipt_rejects_malformed_signed_readiness_checks() -> None:
+    generated_at = datetime(2026, 8, 28, 12, 0, tzinfo=UTC)
+    with pytest.raises(ContractError, match="readiness output did not pass"):
+        build_compatibility_receipt(
+            target_release_id="20260828T120000Z-current",
+            target_revision="1" * 40,
+            target_backend_image="registry.invalid/backend@sha256:" + "2" * 64,
+            previous_release_id="20260827T120000Z-previous",
+            previous_revision="3" * 40,
+            previous_backend_image="registry.invalid/backend@sha256:" + "4" * 64,
+            forward_alembic_revision="0082_report_publication_intents",
+            readiness_output={
+                "event": "release_readiness",
+                "status": "ready",
+                "release_revision": "3" * 40,
+                "checked_at": "2026-08-28T11:59:59Z",
+                "checks": [],
+            },
+            report_schema_output={
+                "event": "report_schema_canary",
+                "status": "passed",
+                "release_revision": "3" * 40,
+                "forward_alembic_revision": "0082_report_publication_intents",
+                "checked_at": "2026-08-28T11:59:59Z",
+                "checks": {
+                    "report_issuances_select": "ok",
+                    "report_artifacts_select": "ok",
+                },
+            },
+            generated_at=generated_at,
+            key_id=RELEASE_EVIDENCE_KEY_ID,
+            signing_secret=RELEASE_EVIDENCE_SECRET,
+        )
+
+
+def test_compatibility_receipt_rejects_legacy_booleans_and_current_image_output() -> None:
+    legacy = {
         "schema_version": 1,
         "result": "passed",
-        "target_release_id": "20260828T120000Z-current",
-        "target_revision": "1" * 40,
-        "target_backend_image": "registry.invalid/backend@sha256:" + "2" * 64,
-        "previous_release_id": "20260827T120000Z-previous",
-        "previous_revision": "3" * 40,
-        "previous_backend_image": "registry.invalid/backend@sha256:" + "4" * 64,
-        "forward_alembic_revision": "0071_report_issuance",
         "checks": {
             "no_database_downgrade": True,
             "previous_image_readiness": True,
             "previous_image_report_schema_canary": True,
         },
     }
-    assert (
+    with pytest.raises(ContractError):
+        validate_test_compatibility_receipt(legacy)
+
+    with pytest.raises(ContractError, match="previous revision"):
+        compatibility_receipt(readiness_revision="1" * 40)
+
+
+@pytest.mark.parametrize(
+    "receipt_factory",
+    [
+        lambda: compatibility_receipt(readiness_status="failed"),
+        lambda: compatibility_receipt(report_status="failed"),
+    ],
+)
+def test_compatibility_receipt_is_not_generated_from_failed_previous_image_probe(
+    receipt_factory,
+) -> None:
+    with pytest.raises(ContractError, match="did not pass"):
+        receipt_factory()
+
+
+def test_first_release_uses_signed_bootstrap_receipt_without_inventing_predecessor() -> None:
+    generated_at = datetime(2026, 8, 28, 12, 0, tzinfo=UTC)
+    evidence = build_compatibility_receipt(
+        target_release_id="20260828T120000Z-current",
+        target_revision="1" * 40,
+        target_backend_image="registry.invalid/backend@sha256:" + "2" * 64,
+        previous_release_id="",
+        previous_revision="",
+        previous_backend_image="",
+        forward_alembic_revision="0082_report_publication_intents",
+        readiness_output=None,
+        report_schema_output=None,
+        generated_at=generated_at,
+        key_id=RELEASE_EVIDENCE_KEY_ID,
+        signing_secret=RELEASE_EVIDENCE_SECRET,
+    )
+
+    assert evidence["previous_release_id"] is None
+    assert evidence["previous_revision"] is None
+    assert evidence["previous_backend_image"] is None
+    assert evidence["probes"] is None
+    assert validate_compatibility_evidence(
+        evidence,
+        target_release_id=evidence["target_release_id"],
+        target_revision=evidence["target_revision"],
+        target_backend_image=evidence["target_backend_image"],
+        previous_release_id="",
+        previous_revision="",
+        previous_backend_image="",
+        forward_alembic_revision=evidence["forward_alembic_revision"],
+        signing_secret=RELEASE_EVIDENCE_SECRET,
+        key_id=RELEASE_EVIDENCE_KEY_ID,
+        now=generated_at,
+    )["result"] == "passed"
+
+
+def test_unaccepted_stale_compatibility_receipt_fails_but_exact_release_anchor_survives() -> None:
+    evidence = compatibility_receipt()
+    receipt_sha256 = compatibility_receipt_sha256(evidence)
+    acceptance_hmac = compatibility_acceptance_hmac(
+        receipt_sha256=receipt_sha256,
+        target_release_id=evidence["target_release_id"],
+        target_revision=evidence["target_revision"],
+        target_backend_image=evidence["target_backend_image"],
+        key_id=RELEASE_EVIDENCE_KEY_ID,
+        signing_secret=RELEASE_EVIDENCE_SECRET,
+    )
+    stale_now = datetime(2026, 8, 28, 13, 0, tzinfo=UTC)
+    with pytest.raises(ContractError, match="stale"):
+        validate_test_compatibility_receipt(evidence, now=stale_now)
+
+    validate_compatibility_evidence(
+        evidence,
+        target_release_id=evidence["target_release_id"],
+        target_revision=evidence["target_revision"],
+        target_backend_image=evidence["target_backend_image"],
+        previous_release_id=evidence["previous_release_id"],
+        previous_revision=evidence["previous_revision"],
+        previous_backend_image=evidence["previous_backend_image"],
+        forward_alembic_revision=evidence["forward_alembic_revision"],
+        signing_secret=RELEASE_EVIDENCE_SECRET,
+        key_id=RELEASE_EVIDENCE_KEY_ID,
+        now=stale_now,
+        accepted_receipt_sha256=receipt_sha256,
+        accepted_receipt_hmac=acceptance_hmac,
+    )
+    with pytest.raises(ContractError, match="accepted receipt"):
         validate_compatibility_evidence(
             evidence,
             target_release_id=evidence["target_release_id"],
             target_revision=evidence["target_revision"],
             target_backend_image=evidence["target_backend_image"],
             previous_release_id=evidence["previous_release_id"],
+            previous_revision=evidence["previous_revision"],
+            previous_backend_image=evidence["previous_backend_image"],
             forward_alembic_revision=evidence["forward_alembic_revision"],
-        )["result"]
-        == "passed"
-    )
-
-    changed = {**evidence, "forward_alembic_revision": "0070_other"}
-    with pytest.raises(ContractError):
+            signing_secret=RELEASE_EVIDENCE_SECRET,
+            key_id=RELEASE_EVIDENCE_KEY_ID,
+            now=stale_now,
+            accepted_receipt_sha256="f" * 64,
+            accepted_receipt_hmac=acceptance_hmac,
+        )
+    with pytest.raises(ContractError, match="authority"):
         validate_compatibility_evidence(
-            changed,
+            evidence,
             target_release_id=evidence["target_release_id"],
             target_revision=evidence["target_revision"],
             target_backend_image=evidence["target_backend_image"],
             previous_release_id=evidence["previous_release_id"],
+            previous_revision=evidence["previous_revision"],
+            previous_backend_image=evidence["previous_backend_image"],
             forward_alembic_revision=evidence["forward_alembic_revision"],
+            signing_secret=RELEASE_EVIDENCE_SECRET,
+            key_id=RELEASE_EVIDENCE_KEY_ID,
+            now=stale_now,
+            accepted_receipt_sha256=receipt_sha256,
+            accepted_receipt_hmac="f" * 64,
         )
+
+
+def test_compatibility_receipt_rejects_any_future_generation_time() -> None:
+    evidence = compatibility_receipt()
+    with pytest.raises(ContractError, match="future"):
+        validate_test_compatibility_receipt(
+            evidence, now=datetime(2026, 8, 28, 11, 59, 59, 999999, tzinfo=UTC)
+        )
+
+
+def test_compatibility_receipt_writer_never_replaces_an_existing_artifact(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "receipt.json"
+    path.write_text('{"existing":true}\n')
+    path.chmod(0o600)
+
+    with pytest.raises(ContractError, match="cannot be overwritten"):
+        _write_new_private_json(path, {"replacement": True})
+
+    assert json.loads(path.read_text()) == {"existing": True}
 
 
 def test_backup_manifest_authenticates_database_objects_and_release() -> None:
@@ -1254,6 +1586,7 @@ def test_operational_entry_points_are_shell_valid() -> None:
 
 
 def test_release_scripts_never_run_alembic_downgrade() -> None:
+    release = (ROOT / "scripts/release.sh").read_text()
     scripts = "\n".join(
         path.read_text()
         for path in (ROOT / "scripts/release.sh", ROOT / "scripts/recover_release.sh")
@@ -1266,8 +1599,33 @@ def test_release_scripts_never_run_alembic_downgrade() -> None:
     assert "--expected-database-revision" in scripts
     assert "--current-env-file" in scripts
     assert scripts.count("--wait-timeout 120 edge") == 2
+    assert "compatibility-generate" in release
+    assert "--previous-env-file" in release
+    assert "--accepted-receipt-sha256" in scripts
+    assert "--accepted-receipt-hmac" in scripts
+    recovery = (ROOT / "scripts/recover_release.sh").read_text()
+    assert (
+        'current_backend_image="$(release_env_value "${CURRENT_ENV_FILE}" BACKEND_IMAGE)"'
+    ) in recovery
+    assert (
+        '"${current_backend_image}" == "$(jq -r \'.backend_image\' "${CURRENT_STATE}")"'
+    ) in recovery
+    assert release.index('--stage compatibility') < release.index(
+        "python -m app.operations.readiness --write-canary"
+    )
+    assert '"${previous_compose[@]}" stop api worker' not in release
+    previous_probe = release[
+        release.index("previous_compose=(") : release.index("validation_args=(")
+    ]
+    assert "worker" not in previous_probe
+    assert "current_compose" not in recovery
+    assert "previous_image_readiness" not in scripts
+    assert "previous_image_report_schema_canary" not in scripts
+    rehearsal = (ROOT / "scripts/rehearse_w403a.sh").read_text()
+    assert "recovery-compatibility.json" not in rehearsal
+    assert rehearsal.count('--compatibility-evidence "${release_compatibility}"') == 6
+    assert "RELEASE_COMPATIBILITY_BREAK_REPORT_CANARY=true" in rehearsal
     backup = (ROOT / "scripts/backup_release.sh").read_text()
-    release = (ROOT / "scripts/release.sh").read_text()
     assert "--leave-writers-stopped" in release
     assert '"${compose[@]}" start "${service}"' in backup
     assert 'up -d --no-build "${service}"' not in backup

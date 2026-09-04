@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 
 set -Eeuo pipefail
+umask 077
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/release_common.sh"
 
 ENV_FILE=""
+PREVIOUS_ENV_FILE=""
 STATE_DIR=""
 BACKUP_DIR=""
 SMOKE_EMAIL=""
@@ -13,12 +15,15 @@ RECOVER_STALE_LOCK=false
 LOCK_DIR=""
 LOCK_OWNED=false
 EDGE_OPEN=false
+PREVIOUS_PROBE_OPEN=false
+PROBE_DIR=""
 
 usage() {
   cat >&2 <<'EOF'
 Usage: scripts/release.sh --env-file PATH --state-dir PATH --backup-dir PATH
        [--smoke-email ADDRESS --smoke-password-file PATH]
-       --compatibility-evidence PATH [--recover-stale-lock]
+       --compatibility-evidence PATH [--previous-env-file PATH]
+       [--recover-stale-lock]
 EOF
 }
 
@@ -27,10 +32,17 @@ cleanup() {
   set +e
   if (( exit_code != 0 )); then
     release_stop_edge_if_open "${EDGE_OPEN}" "${ENV_FILE}" || true
+    if [[ "${PREVIOUS_PROBE_OPEN}" == true && -n "${PREVIOUS_ENV_FILE}" ]]; then
+      docker compose -f "${RELEASE_COMPOSE_FILE}" --env-file "${PREVIOUS_ENV_FILE}" \
+        stop api >/dev/null 2>&1 || true
+    fi
     release_log release failed >&2
   fi
   if [[ "${LOCK_OWNED}" == true && -n "${LOCK_DIR}" ]]; then
     rm -rf -- "${LOCK_DIR}"
+  fi
+  if [[ -n "${PROBE_DIR}" && -d "${PROBE_DIR}" ]]; then
+    rm -rf -- "${PROBE_DIR}"
   fi
   exit "${exit_code}"
 }
@@ -39,6 +51,7 @@ trap cleanup EXIT HUP INT TERM
 while (( $# > 0 )); do
   case "$1" in
     --env-file) ENV_FILE="$2"; shift ;;
+    --previous-env-file) PREVIOUS_ENV_FILE="$2"; shift ;;
     --state-dir) STATE_DIR="$2"; shift ;;
     --backup-dir) BACKUP_DIR="$2"; shift ;;
     --smoke-email) SMOKE_EMAIL="$2"; shift ;;
@@ -52,10 +65,12 @@ while (( $# > 0 )); do
 done
 
 [[ -r "${ENV_FILE}" && -n "${STATE_DIR}" && -n "${BACKUP_DIR}" \
-  && -r "${COMPATIBILITY_EVIDENCE}" ]] || { usage; exit 2; }
-release_require_commands docker jq python3 sha256sum
+  && -n "${COMPATIBILITY_EVIDENCE}" ]] || { usage; exit 2; }
+release_require_commands docker jq mktemp python3 sha256sum
 cd "${RELEASE_REPO_ROOT}"
 release_require_path_outside_repository "${BACKUP_DIR}" "backup output"
+release_require_path_outside_repository "${COMPATIBILITY_EVIDENCE}" \
+  "compatibility receipt"
 
 mkdir -p -- "${STATE_DIR}"
 chmod 700 "${STATE_DIR}"
@@ -115,7 +130,15 @@ config_sha256="$(jq -r '.config_sha256' <<<"${preflight}")"
 backend_image="$(release_env_value "${ENV_FILE}" BACKEND_IMAGE)"
 frontend_image="$(release_env_value "${ENV_FILE}" FRONTEND_IMAGE)"
 previous_release_id="$(release_env_value "${ENV_FILE}" PREVIOUS_RELEASE_ID 2>/dev/null || true)"
+previous_revision=""
+previous_backend_image=""
 if [[ -n "${previous_release_id}" ]]; then
+  [[ -r "${PREVIOUS_ENV_FILE}" ]] \
+    || { echo "ERROR: predecessor releases require the previous environment" >&2; exit 2; }
+  [[ "$(release_env_value "${PREVIOUS_ENV_FILE}" RELEASE_ID)" == "${previous_release_id}" ]] \
+    || { echo "ERROR: previous environment does not match PREVIOUS_RELEASE_ID" >&2; exit 1; }
+  previous_revision="$(release_env_value "${PREVIOUS_ENV_FILE}" RELEASE_REVISION)"
+  previous_backend_image="$(release_env_value "${PREVIOUS_ENV_FILE}" BACKEND_IMAGE)"
   [[ -n "${SMOKE_EMAIL}" && -r "${SMOKE_PASSWORD_FILE}" ]] \
     || { echo "ERROR: predecessor releases require smoke account credentials" >&2; exit 2; }
   python3 - "${SMOKE_PASSWORD_FILE}" "${RELEASE_REPO_ROOT}" <<'PY'
@@ -133,8 +156,9 @@ if path == repository or repository in path.parents:
 if path.stat().st_mode & (stat.S_IRWXG | stat.S_IRWXO):
     raise SystemExit("ERROR: smoke password file must have mode 0600 or stricter")
 PY
-elif [[ -n "${SMOKE_EMAIL}" || -n "${SMOKE_PASSWORD_FILE}" ]]; then
-  echo "ERROR: first-release smoke must not invent account credentials" >&2
+elif [[ -n "${SMOKE_EMAIL}" || -n "${SMOKE_PASSWORD_FILE}" \
+  || -n "${PREVIOUS_ENV_FILE}" ]]; then
+  echo "ERROR: first-release smoke must not invent predecessor authority" >&2
   exit 2
 fi
 state_file="${STATE_DIR}/${release_id}.json"
@@ -143,6 +167,17 @@ if [[ "${RELEASE_LOCAL_REHEARSAL:-false}" != true ]]; then
   "${compose[@]}" pull --policy always >/dev/null
 fi
 python3 scripts/release_contract.py "${preflight_args[@]}" --check-images >/dev/null
+if [[ -n "${previous_release_id}" ]]; then
+  previous_preflight_args=(preflight --env-file "${PREVIOUS_ENV_FILE}" \
+    --compose-file "${RELEASE_COMPOSE_FILE}" --expected-checkout-revision "${revision}")
+  if [[ "${RELEASE_LOCAL_REHEARSAL:-false}" == true ]]; then
+    previous_preflight_args+=(--local-rehearsal)
+  else
+    docker compose -f "${RELEASE_COMPOSE_FILE}" --env-file "${PREVIOUS_ENV_FILE}" \
+      pull --policy always >/dev/null
+  fi
+  python3 scripts/release_contract.py "${previous_preflight_args[@]}" --check-images >/dev/null
+fi
 python3 scripts/release_contract.py state-init \
   --state-file "${state_file}" --release-id "${release_id}" --revision "${revision}" \
   --backend-image "${backend_image}" --frontend-image "${frontend_image}" \
@@ -203,23 +238,178 @@ if ! release_stage_done "${state_file}" migration; then
     --state-file "${state_file}" --release-id "${release_id}" --stage migration >/dev/null
 fi
 
-"${compose[@]}" up -d --no-build --wait --wait-timeout 120 db redis api worker frontend >/dev/null
-if ! release_stage_done "${state_file}" compatibility; then
-  forward_alembic_revision="$("${compose[@]}" exec -T db psql -U mobility -d mobility -Atc \
-    'SELECT version_num FROM alembic_version')"
-  evidence_sha256="$(python3 scripts/release_contract.py compatibility-validate \
-    --evidence "${COMPATIBILITY_EVIDENCE}" --target-release-id "${release_id}" \
+forward_alembic_revision="$("${compose[@]}" exec -T db psql -U mobility -d mobility -Atc \
+  'SELECT version_num FROM alembic_version')"
+if [[ ! -e "${COMPATIBILITY_EVIDENCE}" ]]; then
+  generation_args=(compatibility-generate --output "${COMPATIBILITY_EVIDENCE}" \
+    --env-file "${ENV_FILE}" --target-release-id "${release_id}" \
     --target-revision "${revision}" --target-backend-image "${backend_image}" \
-    --previous-release-id "${previous_release_id}" \
-    --forward-alembic-revision "${forward_alembic_revision}")"
-  "${compose[@]}" exec -T api python -m app.operations.readiness --write-canary
-  "${compose[@]}" exec -T api python -c \
-    'from app.models.report_issuance import ReportIssuance; print("{\"event\":\"report_schema_canary\",\"status\":\"ok\"}")' \
-    >/dev/null
+    --previous-release-id "${previous_release_id}" --previous-revision "${previous_revision}" \
+    --previous-backend-image "${previous_backend_image}" \
+    --forward-alembic-revision "${forward_alembic_revision}")
+  if [[ -n "${previous_release_id}" ]]; then
+    PROBE_DIR="$(mktemp -d "${STATE_DIR}/.${release_id}.compatibility-probes.XXXXXX")"
+    chmod 700 "${PROBE_DIR}"
+    readiness_output="${PROBE_DIR}/readiness.json"
+    report_schema_output="${PROBE_DIR}/report-schema.json"
+    previous_compose=(docker compose -f "${RELEASE_COMPOSE_FILE}" \
+      --env-file "${PREVIOUS_ENV_FILE}")
+    PREVIOUS_PROBE_OPEN=true
+    "${previous_compose[@]}" up -d --no-build --wait --wait-timeout 120 \
+      db redis api \
+      >/dev/null
+    "${previous_compose[@]}" exec -T api python - >"${readiness_output}" <<'PY'
+import asyncio
+import json
+import os
+from datetime import UTC, datetime
+from urllib.request import urlopen
+
+from sqlalchemy import text
+
+from app.db.session import get_engine
+
+
+async def main() -> None:
+    with urlopen("http://127.0.0.1:8000/api/v1/health/ready", timeout=5) as response:
+        if response.status != 200:
+            raise RuntimeError("previous-image readiness endpoint failed")
+    engine = get_engine()
+    try:
+        async with engine.connect() as connection:
+            row = (
+                await connection.execute(
+                    text(
+                        "SELECT (SELECT version_num FROM alembic_version), "
+                        "(SELECT extversion FROM pg_extension WHERE extname='postgis')"
+                    )
+                )
+            ).one()
+    finally:
+        await engine.dispose()
+    print(
+        json.dumps(
+            {
+                "event": "release_readiness",
+                "status": "ready",
+                "release_revision": os.environ["RELEASE_REVISION"],
+                "checked_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                "checks": {
+                    "api": {"status": "ok"},
+                    "database": {
+                        "alembic_revision": row[0],
+                        "postgis_version": row[1],
+                    },
+                },
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+
+
+asyncio.run(main())
+PY
+    report_canary=("${previous_compose[@]}" run --rm -T --no-deps)
+    if [[ "${RELEASE_COMPATIBILITY_BREAK_REPORT_CANARY:-false}" == true ]]; then
+      [[ "${RELEASE_LOCAL_REHEARSAL:-false}" == true ]] || {
+        echo "ERROR: report-canary mutation is restricted to local rehearsal" >&2
+        exit 2
+      }
+      report_canary+=(-e R55_BREAK_REPORT_CANARY=true)
+    fi
+    report_canary+=(api python -)
+    "${report_canary[@]}" >"${report_schema_output}" <<'PY'
+import asyncio
+import json
+import os
+from datetime import UTC, datetime
+
+from sqlalchemy import select, text
+
+from app.db.session import get_engine
+from app.models.report_issuance import ReportArtifact, ReportIssuance
+
+
+async def main() -> None:
+    engine = get_engine()
+    try:
+        async with engine.connect() as connection:
+            if os.environ.get("R55_BREAK_REPORT_CANARY") == "true":
+                await connection.execute(
+                    text("SELECT r55_missing_previous_image_column FROM report_issuances")
+                )
+            await connection.execute(select(ReportIssuance).limit(1))
+            await connection.execute(select(ReportArtifact).limit(1))
+            forward_revision = (
+                await connection.execute(text("SELECT version_num FROM alembic_version"))
+            ).scalar_one()
+    finally:
+        await engine.dispose()
+    print(
+        json.dumps(
+            {
+                "event": "report_schema_canary",
+                "status": "passed",
+                "release_revision": os.environ["RELEASE_REVISION"],
+                "forward_alembic_revision": forward_revision,
+                "checked_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                "checks": {
+                    "report_issuances_select": "ok",
+                    "report_artifacts_select": "ok",
+                },
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+
+
+asyncio.run(main())
+PY
+    chmod 600 "${readiness_output}" "${report_schema_output}"
+    "${previous_compose[@]}" stop api >/dev/null
+    PREVIOUS_PROBE_OPEN=false
+    generation_args+=(--readiness-output "${readiness_output}" \
+      --report-schema-output "${report_schema_output}")
+  fi
+  python3 scripts/release_contract.py "${generation_args[@]}" >/dev/null
+  if [[ -n "${PROBE_DIR}" ]]; then
+    rm -rf -- "${PROBE_DIR}"
+    PROBE_DIR=""
+  fi
+fi
+
+validation_args=(compatibility-validate --evidence "${COMPATIBILITY_EVIDENCE}" \
+  --env-file "${ENV_FILE}" --target-release-id "${release_id}" \
+  --target-revision "${revision}" --target-backend-image "${backend_image}" \
+  --previous-release-id "${previous_release_id}" --previous-revision "${previous_revision}" \
+  --previous-backend-image "${previous_backend_image}" \
+  --forward-alembic-revision "${forward_alembic_revision}")
+if release_stage_done "${state_file}" compatibility; then
+  accepted_outcome="$(release_stage_outcome "${state_file}" compatibility)"
+  [[ "${accepted_outcome}" == passed:* ]] \
+    || { echo "ERROR: compatibility state lacks an accepted receipt" >&2; exit 1; }
+  accepted_authority="${accepted_outcome#passed:}"
+  validation_args+=(--accepted-receipt-sha256 "${accepted_authority%%:*}" \
+    --accepted-receipt-hmac "${accepted_authority#*:}")
+fi
+evidence_authority="$(python3 scripts/release_contract.py "${validation_args[@]}")"
+
+if ! release_stage_done "${state_file}" compatibility; then
   python3 scripts/release_contract.py state-advance \
     --state-file "${state_file}" --release-id "${release_id}" --stage compatibility \
-    --outcome "passed:${evidence_sha256}" >/dev/null
+    --outcome "passed:${evidence_authority}" >/dev/null
+else
+  [[ "$(release_stage_outcome "${state_file}" compatibility)" == "passed:${evidence_authority}" ]] \
+    || { echo "ERROR: retry compatibility receipt conflicts with release state" >&2; exit 1; }
 fi
+
+"${compose[@]}" up -d --no-build --wait --wait-timeout 120 db redis api worker frontend >/dev/null
+"${compose[@]}" exec -T api python -m app.operations.readiness --write-canary
+"${compose[@]}" exec -T api python -c \
+  'from app.models.report_issuance import ReportIssuance; print("{\"event\":\"report_schema_canary\",\"status\":\"ok\"}")' \
+  >/dev/null
 
 EDGE_OPEN=true
 "${compose[@]}" up -d --no-build --wait --wait-timeout 120 edge >/dev/null

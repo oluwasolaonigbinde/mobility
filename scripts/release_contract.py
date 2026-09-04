@@ -8,6 +8,7 @@ import ast
 import base64
 import binascii
 import hashlib
+import hmac
 import ipaddress
 import json
 import os
@@ -26,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 RELEASE_ID_RE = re.compile(r"^[0-9]{8}T[0-9]{6}Z-[a-zA-Z0-9][a-zA-Z0-9._-]{3,63}$")
+RELEASE_EVIDENCE_KEY_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{3,63}$")
 PINNED_IMAGE_RE = re.compile(r"^[^\s:@]+(?:/[^\s:@]+)*@sha256:[0-9a-f]{64}$")
 LOCAL_IMAGE_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 PLACEHOLDER_RE = re.compile(
@@ -52,6 +54,7 @@ SECRET_NAMES = (
     "OBJECT_STORAGE_SECRET_ACCESS_KEY",
     "EMAIL_SMTP_PASSWORD",
     "EMAIL_RECEIPT_SIGNING_SECRET",
+    "RELEASE_EVIDENCE_SIGNING_SECRET",
 )
 TLS_FILE_NAMES = (
     "POSTGRES_TLS_CA_FILE",
@@ -87,6 +90,8 @@ REQUIRED_NAMES = (
     "SESSION_COOKIE_NAME",
     "BACKUP_PASSPHRASE_FILE",
     "BACKUP_RETENTION_DAYS",
+    "RELEASE_EVIDENCE_SIGNING_SECRET",
+    "RELEASE_EVIDENCE_KEY_ID",
 )
 BUNDLED_REQUIRED_NAMES = ("POSTGIS_IMAGE", "REDIS_IMAGE", *TLS_FILE_NAMES)
 RELEASE_ONLY_NAMES = (
@@ -104,6 +109,8 @@ RELEASE_ONLY_NAMES = (
     "REDIS_PASSWORD",
     "BACKUP_PASSPHRASE_FILE",
     "BACKUP_RETENTION_DAYS",
+    "RELEASE_EVIDENCE_SIGNING_SECRET",
+    "RELEASE_EVIDENCE_KEY_ID",
     *TLS_FILE_NAMES,
 )
 STAGE_ORDER = (
@@ -113,15 +120,21 @@ STAGE_ORDER = (
     "compatibility",
     "traffic",
 )
+COMPATIBILITY_RECEIPT_MAX_AGE = timedelta(minutes=30)
+COMPATIBILITY_RECEIPT_FUTURE_SKEW = timedelta(0)
 
 
 class ContractError(ValueError):
     """A production or recovery contract is incomplete or unsafe."""
 
 
-def _canonical_sha256(value: Any) -> str:
+def _canonical_json_bytes(value: Any) -> bytes:
     payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-    return hashlib.sha256(payload.encode()).hexdigest()
+    return payload.encode()
+
+
+def _canonical_sha256(value: Any) -> str:
+    return hashlib.sha256(_canonical_json_bytes(value)).hexdigest()
 
 
 def release_config_sha256(
@@ -411,6 +424,66 @@ def _validate_versioned_keyring(
         raise ContractError(f"{keyring_name} must contain 32-byte keys")
 
 
+def _active_keyring_material(
+    environment: Mapping[str, str], *, keyring_name: str, version_name: str
+) -> tuple[str, bytes]:
+    try:
+        keyring = json.loads(_require(environment, keyring_name))
+        encoded_key = keyring[_require(environment, version_name)]
+        decoded_key = base64.b64decode(encoded_key, validate=True)
+    except (KeyError, TypeError, ValueError, binascii.Error, json.JSONDecodeError) as exc:
+        raise ContractError(f"{keyring_name} must contain its active base64 key version") from exc
+    if not isinstance(encoded_key, str) or len(decoded_key) != 32:
+        raise ContractError(f"{keyring_name} must contain 32-byte keys")
+    return encoded_key, decoded_key
+
+
+def validate_release_evidence_configuration(
+    environment: Mapping[str, str],
+) -> tuple[str, str]:
+    secret = _require(environment, "RELEASE_EVIDENCE_SIGNING_SECRET")
+    key_id = _require(environment, "RELEASE_EVIDENCE_KEY_ID")
+    _validate_secret("RELEASE_EVIDENCE_SIGNING_SECRET", secret)
+    if not RELEASE_EVIDENCE_KEY_ID_RE.fullmatch(key_id) or PLACEHOLDER_RE.search(key_id):
+        raise ContractError("RELEASE_EVIDENCE_KEY_ID is invalid")
+
+    forbidden_text = {
+        environment.get(name, "").strip()
+        for name in (
+            "JWT_SECRET_KEY",
+            "EMAIL_RECEIPT_SIGNING_SECRET",
+            "POSTGRES_PASSWORD",
+            "REDIS_PASSWORD",
+            "OBJECT_STORAGE_SECRET_ACCESS_KEY",
+            "EMAIL_SMTP_PASSWORD",
+        )
+    }
+    backup_path = Path(environment.get("BACKUP_PASSPHRASE_FILE", "")).expanduser()
+    if backup_path.is_file():
+        forbidden_text.add(backup_path.read_text().strip())
+
+    forbidden_bytes: set[bytes] = set()
+    for keyring_name, version_name in (
+        ("PAYOUT_CRYPTO_KEYRING_B64", "PAYOUT_CRYPTO_KEY_VERSION"),
+        ("TRIP_EVIDENCE_SIGNING_KEYRING_B64", "TRIP_EVIDENCE_SIGNING_KEY_VERSION"),
+    ):
+        encoded, decoded = _active_keyring_material(
+            environment, keyring_name=keyring_name, version_name=version_name
+        )
+        forbidden_text.add(encoded)
+        forbidden_bytes.add(decoded)
+
+    if secret in forbidden_text or secret.encode() in forbidden_bytes:
+        raise ContractError("Release evidence must use a dedicated signing secret")
+    try:
+        decoded_secret = base64.b64decode(secret, validate=True)
+    except (ValueError, binascii.Error):
+        decoded_secret = b""
+    if decoded_secret in forbidden_bytes:
+        raise ContractError("Release evidence must use a dedicated signing secret")
+    return secret, key_id
+
+
 def _validate_https_authority(name: str, value: str) -> None:
     parsed = urlparse(value)
     try:
@@ -578,6 +651,7 @@ def validate_release_environment(
         _validate_secret(name, _require(environment, name))
     _validate_payout_keyring(environment)
     _validate_live_adapters(environment)
+    validate_release_evidence_configuration(environment)
 
     tls_paths = {
         name: _validate_external_tls_file(
@@ -714,6 +788,186 @@ def validate_release_state(state: Mapping[str, Any]) -> dict[str, Any]:
     return dict(state)
 
 
+def _utc_timestamp(value: Any, *, name: str) -> datetime:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        raise ContractError(f"{name} must be a UTC timestamp")
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError as exc:
+        raise ContractError(f"{name} must be a UTC timestamp") from exc
+    if parsed.utcoffset() != timedelta(0):
+        raise ContractError(f"{name} must be a UTC timestamp")
+    return parsed.astimezone(UTC)
+
+
+def _generated_timestamp(value: datetime) -> str:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ContractError("Compatibility receipt generation time must be timezone-aware")
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def compatibility_receipt_sha256(evidence: Mapping[str, Any]) -> str:
+    return _canonical_sha256(evidence)
+
+
+def _compatibility_signature(value: Mapping[str, Any], signing_secret: str) -> str:
+    unsigned = {name: field for name, field in value.items() if name != "hmac_sha256"}
+    return hmac.new(
+        signing_secret.encode(), _canonical_json_bytes(unsigned), hashlib.sha256
+    ).hexdigest()
+
+
+def compatibility_acceptance_hmac(
+    *,
+    receipt_sha256: str,
+    target_release_id: str,
+    target_revision: str,
+    target_backend_image: str,
+    key_id: str,
+    signing_secret: str,
+) -> str:
+    return hmac.new(
+        signing_secret.encode(),
+        _canonical_json_bytes(
+            {
+                "authority": "accepted_release_compatibility_receipt",
+                "key_id": key_id,
+                "receipt_sha256": receipt_sha256,
+                "target_backend_image": target_backend_image,
+                "target_release_id": target_release_id,
+                "target_revision": target_revision,
+            }
+        ),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _validate_probe_time(
+    output: Mapping[str, Any], *, generated_at: datetime, probe_name: str
+) -> None:
+    checked_at = _utc_timestamp(output.get("checked_at"), name=f"{probe_name} checked_at")
+    if checked_at > generated_at + COMPATIBILITY_RECEIPT_FUTURE_SKEW:
+        raise ContractError(f"Compatibility {probe_name} output is from the future")
+    if generated_at - checked_at > COMPATIBILITY_RECEIPT_MAX_AGE:
+        raise ContractError(f"Compatibility {probe_name} output is stale")
+
+
+def _validate_compatibility_probe_outputs(
+    probes: Any,
+    *,
+    previous_revision: str,
+    forward_alembic_revision: str,
+    generated_at: datetime,
+) -> None:
+    if not isinstance(probes, Mapping) or set(probes) != {"readiness", "report_schema"}:
+        raise ContractError("Compatibility receipt must contain both previous-image probes")
+    for probe_name in ("readiness", "report_schema"):
+        probe = probes.get(probe_name)
+        if not isinstance(probe, Mapping) or set(probe) != {"output", "output_sha256"}:
+            raise ContractError(f"Compatibility {probe_name} probe output is missing")
+        output = probe.get("output")
+        digest = probe.get("output_sha256")
+        if not isinstance(output, Mapping) or not SHA256_RE.fullmatch(str(digest)):
+            raise ContractError(f"Compatibility {probe_name} probe output is invalid")
+        if not hmac.compare_digest(str(digest), _canonical_sha256(output)):
+            raise ContractError(f"Compatibility {probe_name} output digest is invalid")
+        if output.get("release_revision") != previous_revision:
+            raise ContractError(f"Compatibility {probe_name} did not run the previous revision")
+        _validate_probe_time(output, generated_at=generated_at, probe_name=probe_name)
+
+    readiness = probes["readiness"]["output"]
+    readiness_checks = readiness.get("checks")
+    readiness_database = (
+        readiness_checks.get("database") if isinstance(readiness_checks, Mapping) else None
+    )
+    if (
+        not isinstance(readiness_database, Mapping)
+        or
+        readiness.get("event") != "release_readiness"
+        or readiness.get("status") != "ready"
+        or readiness_database.get("alembic_revision") != forward_alembic_revision
+    ):
+        raise ContractError("Compatibility readiness output did not pass the forward schema")
+
+    report = probes["report_schema"]["output"]
+    if (
+        report.get("event") != "report_schema_canary"
+        or report.get("status") != "passed"
+        or report.get("forward_alembic_revision") != forward_alembic_revision
+        or report.get("checks")
+        != {
+            "report_issuances_select": "ok",
+            "report_artifacts_select": "ok",
+        }
+    ):
+        raise ContractError("Compatibility report-schema output did not pass the forward schema")
+
+
+def build_compatibility_receipt(
+    *,
+    target_release_id: str,
+    target_revision: str,
+    target_backend_image: str,
+    previous_release_id: str,
+    previous_revision: str,
+    previous_backend_image: str,
+    forward_alembic_revision: str,
+    readiness_output: Mapping[str, Any] | None,
+    report_schema_output: Mapping[str, Any] | None,
+    generated_at: datetime,
+    key_id: str,
+    signing_secret: str,
+) -> dict[str, Any]:
+    generated = _generated_timestamp(generated_at)
+    probes = None
+    if previous_release_id:
+        if readiness_output is None or report_schema_output is None:
+            raise ContractError("Previous-image compatibility requires both probe outputs")
+        probes = {
+            "readiness": {
+                "output": dict(readiness_output),
+                "output_sha256": _canonical_sha256(readiness_output),
+            },
+            "report_schema": {
+                "output": dict(report_schema_output),
+                "output_sha256": _canonical_sha256(report_schema_output),
+            },
+        }
+    elif readiness_output is not None or report_schema_output is not None:
+        raise ContractError("First-release compatibility must not invent predecessor probes")
+
+    receipt: dict[str, Any] = {
+        "schema_version": 2,
+        "evidence_type": "previous_image_forward_schema_compatibility",
+        "result": "passed",
+        "target_release_id": target_release_id,
+        "target_revision": target_revision,
+        "target_backend_image": target_backend_image,
+        "previous_release_id": previous_release_id or None,
+        "previous_revision": previous_revision or None,
+        "previous_backend_image": previous_backend_image or None,
+        "forward_alembic_revision": forward_alembic_revision,
+        "probes": probes,
+        "generated_at": generated,
+        "key_id": key_id,
+    }
+    receipt["hmac_sha256"] = _compatibility_signature(receipt, signing_secret)
+    validate_compatibility_evidence(
+        receipt,
+        target_release_id=target_release_id,
+        target_revision=target_revision,
+        target_backend_image=target_backend_image,
+        previous_release_id=previous_release_id,
+        previous_revision=previous_revision,
+        previous_backend_image=previous_backend_image,
+        forward_alembic_revision=forward_alembic_revision,
+        signing_secret=signing_secret,
+        key_id=key_id,
+        now=generated_at,
+    )
+    return receipt
+
+
 def validate_compatibility_evidence(
     evidence: Mapping[str, Any],
     *,
@@ -721,51 +975,117 @@ def validate_compatibility_evidence(
     target_revision: str,
     target_backend_image: str,
     previous_release_id: str,
+    previous_revision: str,
+    previous_backend_image: str,
     forward_alembic_revision: str,
+    signing_secret: str,
+    key_id: str,
+    now: datetime | None = None,
+    accepted_receipt_sha256: str = "",
+    accepted_receipt_hmac: str = "",
 ) -> dict[str, Any]:
     value = dict(evidence)
-    checks = (
-        {
-            "no_database_downgrade": True,
-            "previous_image_readiness": True,
-            "previous_image_report_schema_canary": True,
-        }
-        if previous_release_id
-        else {"first_release_no_predecessor": True, "no_database_downgrade": True}
-    )
+    required_fields = {
+        "schema_version",
+        "evidence_type",
+        "result",
+        "target_release_id",
+        "target_revision",
+        "target_backend_image",
+        "previous_release_id",
+        "previous_revision",
+        "previous_backend_image",
+        "forward_alembic_revision",
+        "probes",
+        "generated_at",
+        "key_id",
+        "hmac_sha256",
+    }
+    if set(value) != required_fields:
+        raise ContractError("Compatibility receipt fields are incomplete or unsupported")
     expected = {
-        "schema_version": 1,
+        "schema_version": 2,
+        "evidence_type": "previous_image_forward_schema_compatibility",
         "result": "passed",
         "target_release_id": target_release_id,
         "target_revision": target_revision,
         "target_backend_image": target_backend_image,
         "previous_release_id": previous_release_id or None,
+        "previous_revision": previous_revision or None,
+        "previous_backend_image": previous_backend_image or None,
         "forward_alembic_revision": forward_alembic_revision,
-        "checks": checks,
+        "key_id": key_id,
     }
     for name, expected_value in expected.items():
         if value.get(name) != expected_value:
-            raise ContractError(f"Compatibility evidence conflicts on {name}")
+            raise ContractError(f"Compatibility receipt conflicts on {name}")
+
     if not RELEASE_ID_RE.fullmatch(target_release_id) or not REVISION_RE.fullmatch(target_revision):
-        raise ContractError("Compatibility evidence target identity is invalid")
+        raise ContractError("Compatibility receipt target identity is invalid")
     _validate_image("target_backend_image", target_backend_image, allow_local_rehearsal=True)
     if not forward_alembic_revision.strip():
-        raise ContractError("Compatibility evidence lacks the forward migration revision")
+        raise ContractError("Compatibility receipt lacks the forward migration revision")
+    if not RELEASE_EVIDENCE_KEY_ID_RE.fullmatch(key_id):
+        raise ContractError("Compatibility receipt key ID is invalid")
+    _validate_secret("RELEASE_EVIDENCE_SIGNING_SECRET", signing_secret)
+
+    generated_at = _utc_timestamp(value.get("generated_at"), name="generated_at")
+    observed_now = now or datetime.now(UTC)
+    if observed_now.tzinfo is None or observed_now.utcoffset() is None:
+        raise ContractError("Compatibility validation time must be timezone-aware")
+    observed_now = observed_now.astimezone(UTC)
+    if generated_at > observed_now + COMPATIBILITY_RECEIPT_FUTURE_SKEW:
+        raise ContractError("Compatibility receipt generation time is in the future")
+
+    receipt_sha256 = compatibility_receipt_sha256(value)
+    anchored = False
+    if accepted_receipt_sha256:
+        if not SHA256_RE.fullmatch(accepted_receipt_sha256):
+            raise ContractError("Compatibility accepted receipt digest is invalid")
+        if not hmac.compare_digest(receipt_sha256, accepted_receipt_sha256):
+            raise ContractError("Compatibility accepted receipt digest does not match")
+        expected_acceptance_hmac = compatibility_acceptance_hmac(
+            receipt_sha256=receipt_sha256,
+            target_release_id=target_release_id,
+            target_revision=target_revision,
+            target_backend_image=target_backend_image,
+            key_id=key_id,
+            signing_secret=signing_secret,
+        )
+        if (
+            not SHA256_RE.fullmatch(accepted_receipt_hmac)
+            or not hmac.compare_digest(accepted_receipt_hmac, expected_acceptance_hmac)
+        ):
+            raise ContractError("Compatibility accepted receipt authority is invalid")
+        anchored = True
+    elif accepted_receipt_hmac:
+        raise ContractError("Compatibility accepted receipt authority lacks its digest")
+    if observed_now - generated_at > COMPATIBILITY_RECEIPT_MAX_AGE and not anchored:
+        raise ContractError("Compatibility receipt is stale")
+
+    signature = value.get("hmac_sha256")
+    if not isinstance(signature, str) or not SHA256_RE.fullmatch(signature):
+        raise ContractError("Compatibility receipt HMAC is invalid")
+    expected_signature = _compatibility_signature(value, signing_secret)
+    if not hmac.compare_digest(signature, expected_signature):
+        raise ContractError("Compatibility receipt HMAC is invalid")
+
     if previous_release_id:
         if not RELEASE_ID_RE.fullmatch(previous_release_id):
-            raise ContractError("Compatibility evidence previous release is invalid")
-        previous_revision = str(value.get("previous_revision", ""))
-        previous_backend_image = str(value.get("previous_backend_image", ""))
+            raise ContractError("Compatibility receipt previous release is invalid")
         if not REVISION_RE.fullmatch(previous_revision):
-            raise ContractError("Compatibility evidence previous revision is invalid")
+            raise ContractError("Compatibility receipt previous revision is invalid")
         _validate_image(
             "previous_backend_image", previous_backend_image, allow_local_rehearsal=True
         )
-    elif (
-        value.get("previous_revision") is not None
-        or value.get("previous_backend_image") is not None
-    ):
-        raise ContractError("First-release compatibility evidence must not invent a predecessor")
+        _validate_compatibility_probe_outputs(
+            value["probes"],
+            previous_revision=previous_revision,
+            forward_alembic_revision=forward_alembic_revision,
+            generated_at=generated_at,
+        )
+    elif previous_revision or previous_backend_image or value.get("probes") is not None:
+        raise ContractError("First-release compatibility receipt must not invent a predecessor")
     return value
 
 
@@ -1111,6 +1431,53 @@ def _write_private_json(path: Path, value: Mapping[str, Any]) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def _write_new_private_json(path: Path, value: Mapping[str, Any]) -> None:
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            json.dump(value, output, sort_keys=True, separators=(",", ":"))
+            output.write("\n")
+            output.flush()
+            os.fsync(output.fileno())
+        try:
+            os.link(temporary, path)
+        except FileExistsError as exc:
+            raise ContractError(
+                "Compatibility receipt already exists and cannot be overwritten"
+            ) from exc
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _read_private_json(path: Path, *, label: str) -> dict[str, Any]:
+    expanded = path.expanduser()
+    if expanded.is_symlink():
+        raise ContractError(f"{label} must not be a symbolic link")
+    resolved = expanded.resolve()
+    if resolved == ROOT or ROOT in resolved.parents:
+        raise ContractError(f"{label} must stay outside the repository")
+    try:
+        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(resolved, flags)
+        with os.fdopen(descriptor, encoding="utf-8") as source:
+            details = os.fstat(source.fileno())
+            if (
+                not stat.S_ISREG(details.st_mode)
+                or details.st_uid != os.geteuid()
+                or details.st_mode & (stat.S_IRWXG | stat.S_IRWXO)
+            ):
+                raise ContractError(f"{label} must be an owner-only regular file")
+            value = json.load(source)
+    except json.JSONDecodeError as exc:
+        raise ContractError(f"{label} must contain JSON") from exc
+    if not isinstance(value, dict):
+        raise ContractError(f"{label} must contain a JSON object")
+    return value
+
+
 def _cli_preflight(args: argparse.Namespace) -> int:
     env_file = Path(args.env_file).resolve()
     compose_file = Path(args.compose_file).resolve()
@@ -1234,16 +1601,70 @@ def _cli_manifest_validate(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cli_compatibility_validate(args: argparse.Namespace) -> int:
-    evidence = validate_compatibility_evidence(
-        json.loads(Path(args.evidence).read_text()),
+def _cli_compatibility_generate(args: argparse.Namespace) -> int:
+    output_path = Path(args.output).expanduser().resolve()
+    if output_path == ROOT or ROOT in output_path.parents:
+        raise ContractError("Compatibility receipt must stay outside the repository")
+    if output_path.exists():
+        raise ContractError("Compatibility receipt already exists and cannot be overwritten")
+    environment = read_env_file(Path(args.env_file).expanduser().resolve())
+    signing_secret, key_id = validate_release_evidence_configuration(environment)
+    readiness_output = (
+        _read_private_json(Path(args.readiness_output), label="Readiness probe output")
+        if args.readiness_output
+        else None
+    )
+    report_schema_output = (
+        _read_private_json(Path(args.report_schema_output), label="Report-schema probe output")
+        if args.report_schema_output
+        else None
+    )
+    receipt = build_compatibility_receipt(
         target_release_id=args.target_release_id,
         target_revision=args.target_revision,
         target_backend_image=args.target_backend_image,
         previous_release_id=args.previous_release_id,
+        previous_revision=args.previous_revision,
+        previous_backend_image=args.previous_backend_image,
         forward_alembic_revision=args.forward_alembic_revision,
+        readiness_output=readiness_output,
+        report_schema_output=report_schema_output,
+        generated_at=datetime.now(UTC),
+        key_id=key_id,
+        signing_secret=signing_secret,
     )
-    print(_canonical_sha256(evidence))
+    _write_new_private_json(output_path, receipt)
+    print(compatibility_receipt_sha256(receipt))
+    return 0
+
+
+def _cli_compatibility_validate(args: argparse.Namespace) -> int:
+    environment = read_env_file(Path(args.env_file).expanduser().resolve())
+    signing_secret, key_id = validate_release_evidence_configuration(environment)
+    evidence = validate_compatibility_evidence(
+        _read_private_json(Path(args.evidence), label="Compatibility receipt"),
+        target_release_id=args.target_release_id,
+        target_revision=args.target_revision,
+        target_backend_image=args.target_backend_image,
+        previous_release_id=args.previous_release_id,
+        previous_revision=args.previous_revision,
+        previous_backend_image=args.previous_backend_image,
+        forward_alembic_revision=args.forward_alembic_revision,
+        signing_secret=signing_secret,
+        key_id=key_id,
+        accepted_receipt_sha256=args.accepted_receipt_sha256,
+        accepted_receipt_hmac=args.accepted_receipt_hmac,
+    )
+    receipt_sha256 = compatibility_receipt_sha256(evidence)
+    acceptance_hmac = compatibility_acceptance_hmac(
+        receipt_sha256=receipt_sha256,
+        target_release_id=args.target_release_id,
+        target_revision=args.target_revision,
+        target_backend_image=args.target_backend_image,
+        key_id=key_id,
+        signing_secret=signing_secret,
+    )
+    print(f"{receipt_sha256}:{acceptance_hmac}")
     return 0
 
 
@@ -1302,13 +1723,31 @@ def main(argv: list[str] | None = None) -> int:
     manifest_validate = subparsers.add_parser("manifest-validate")
     manifest_validate.add_argument("--manifest", required=True)
     manifest_validate.set_defaults(handler=_cli_manifest_validate)
+    compatibility_generate = subparsers.add_parser("compatibility-generate")
+    compatibility_generate.add_argument("--output", required=True)
+    compatibility_generate.add_argument("--env-file", required=True)
+    compatibility_generate.add_argument("--target-release-id", required=True)
+    compatibility_generate.add_argument("--target-revision", required=True)
+    compatibility_generate.add_argument("--target-backend-image", required=True)
+    compatibility_generate.add_argument("--previous-release-id", default="")
+    compatibility_generate.add_argument("--previous-revision", default="")
+    compatibility_generate.add_argument("--previous-backend-image", default="")
+    compatibility_generate.add_argument("--forward-alembic-revision", required=True)
+    compatibility_generate.add_argument("--readiness-output", default="")
+    compatibility_generate.add_argument("--report-schema-output", default="")
+    compatibility_generate.set_defaults(handler=_cli_compatibility_generate)
     compatibility_validate = subparsers.add_parser("compatibility-validate")
     compatibility_validate.add_argument("--evidence", required=True)
+    compatibility_validate.add_argument("--env-file", required=True)
     compatibility_validate.add_argument("--target-release-id", required=True)
     compatibility_validate.add_argument("--target-revision", required=True)
     compatibility_validate.add_argument("--target-backend-image", required=True)
     compatibility_validate.add_argument("--previous-release-id", default="")
+    compatibility_validate.add_argument("--previous-revision", default="")
+    compatibility_validate.add_argument("--previous-backend-image", default="")
     compatibility_validate.add_argument("--forward-alembic-revision", required=True)
+    compatibility_validate.add_argument("--accepted-receipt-sha256", default="")
+    compatibility_validate.add_argument("--accepted-receipt-hmac", default="")
     compatibility_validate.set_defaults(handler=_cli_compatibility_validate)
     backup_authority_validate = subparsers.add_parser("backup-authority-validate")
     backup_authority_validate.add_argument("--complete-marker", required=True)

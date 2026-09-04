@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
 
 set -Eeuo pipefail
+umask 077
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/release_common.sh"
 
 release_require_commands docker git gpg jq openssl python3 sha256sum tar
 cd "${RELEASE_REPO_ROOT}"
 
 readonly REVISION="$(git rev-parse HEAD)"
-readonly PREVIOUS_REVISION="b64d07a0d7dcf97eb2654345ce55642165a570cf"
-readonly PREVIOUS_ALEMBIC_REVISION="0070_driver_vehicle_approval"
-readonly FORWARD_ALEMBIC_REVISION="0071_report_issuances"
+readonly PREVIOUS_REVISION="26f5e2217302b60df472788c277d34977915f184"
+readonly PREVIOUS_ALEMBIC_REVISION="0071_report_issuances"
+readonly FORWARD_ALEMBIC_REVISION="0082_report_publication_intents"
 readonly PROJECT_NAME="cardvert-w403a-rehearsal"
 readonly MINIO_CONTAINER="${PROJECT_NAME}-minio"
+readonly SCANNER_CONTAINER="${PROJECT_NAME}-scanner"
+readonly MAP_STYLE_URL="https://maps.client-owned-domain.com/styles/cardvert-rehearsal.json"
 readonly MINIO_IMAGE="minio/minio@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0"
 readonly MC_IMAGE="minio/mc@sha256:fb8f773eac8ef9d6da0486d5dec2f42f219358bcb8de579d1623d518c9ebd4cc"
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/cardvert-w403a-rehearsal.XXXXXX")"
@@ -27,44 +30,13 @@ cleanup() {
   local exit_code=$?
   set +e
   docker rm -f "${MINIO_CONTAINER}" >/dev/null 2>&1 || true
+  docker rm -f "${SCANNER_CONTAINER}" >/dev/null 2>&1 || true
   docker compose -f "${RELEASE_COMPOSE_FILE}" --env-file "${CURRENT_ENV_FILE}" \
     down -v --remove-orphans >/dev/null 2>&1 || true
   rm -rf -- "${TEMP_DIR}"
   exit "${exit_code}"
 }
 trap cleanup EXIT HUP INT TERM
-
-release_log rehearsal_build starting
-docker build --build-arg "VCS_REF=${REVISION}" -t "${PROJECT_NAME}-backend:local" . >/dev/null
-docker build --build-arg "VCS_REF=${REVISION}" -t "${PROJECT_NAME}-frontend:local" frontend >/dev/null
-backend_image="$(docker image inspect "${PROJECT_NAME}-backend:local" --format '{{.Id}}')"
-frontend_image="$(docker image inspect "${PROJECT_NAME}-frontend:local" --format '{{.Id}}')"
-
-previous_context="${TEMP_DIR}/previous-context"
-mkdir -p "${previous_context}"
-git archive "${PREVIOUS_REVISION}" | tar -x -C "${previous_context}"
-install -m 644 Dockerfile requirements-production.txt "${previous_context}/"
-install -m 644 frontend/Dockerfile "${previous_context}/frontend/Dockerfile"
-docker build --build-arg "VCS_REF=${PREVIOUS_REVISION}" \
-  -t "${PROJECT_NAME}-previous-backend:local" "${previous_context}" >/dev/null
-docker build --build-arg "VCS_REF=${PREVIOUS_REVISION}" \
-  -t "${PROJECT_NAME}-previous-frontend:local" "${previous_context}/frontend" >/dev/null
-previous_backend_image="$(docker image inspect "${PROJECT_NAME}-previous-backend:local" --format '{{.Id}}')"
-previous_frontend_image="$(docker image inspect "${PROJECT_NAME}-previous-frontend:local" --format '{{.Id}}')"
-
-database_password="Db-$(openssl rand -hex 24)"
-redis_password="Redis-$(openssl rand -hex 24)"
-jwt_secret="Jwt-$(openssl rand -hex 32)"
-storage_secret="Storage-$(openssl rand -hex 24)"
-storage_access="rehearsal-$(openssl rand -hex 12)"
-keyring="$(openssl rand -base64 32 | tr -d '\n')"
-previous_release_id="20260827T120000Z-rehearsal-previous"
-current_release_id="$(date -u +%Y%m%dT%H%M%SZ)-rehearsal-current"
-passphrase_file="${TEMP_DIR}/backup-passphrase"
-smoke_password_file="${TEMP_DIR}/smoke-password"
-printf 'Backup-%s\n' "$(openssl rand -hex 32)" >"${passphrase_file}"
-printf 'Smoke-%s\n' "$(openssl rand -hex 24)" >"${smoke_password_file}"
-chmod 600 "${passphrase_file}" "${smoke_password_file}"
 
 tls_dir="${TEMP_DIR}/tls"
 mkdir -p "${tls_dir}"
@@ -83,6 +55,67 @@ for tls_host in db redis; do
 done
 chmod 600 "${tls_dir}/ca.key" "${tls_dir}/db.key" "${tls_dir}/redis.key"
 
+release_log rehearsal_build starting
+docker build --build-arg "VCS_REF=${REVISION}" \
+  -t "${PROJECT_NAME}-backend-app:local" . >/dev/null
+docker build --build-arg "VCS_REF=${REVISION}" \
+  --build-arg "NEXT_PUBLIC_MAP_STYLE_URL=${MAP_STYLE_URL}" \
+  -t "${PROJECT_NAME}-frontend:local" frontend >/dev/null
+frontend_image="$(docker image inspect "${PROJECT_NAME}-frontend:local" --format '{{.Id}}')"
+
+previous_context="${TEMP_DIR}/previous-context"
+mkdir -p "${previous_context}"
+git archive "${PREVIOUS_REVISION}" | tar -x -C "${previous_context}"
+chmod -R u=rwX,go=rX "${previous_context}"
+install -m 644 Dockerfile requirements-production.txt "${previous_context}/"
+install -m 644 frontend/Dockerfile "${previous_context}/frontend/Dockerfile"
+docker build --build-arg "VCS_REF=${PREVIOUS_REVISION}" \
+  -t "${PROJECT_NAME}-previous-backend-app:local" "${previous_context}" >/dev/null
+docker build --build-arg "VCS_REF=${PREVIOUS_REVISION}" \
+  --build-arg "NEXT_PUBLIC_MAP_STYLE_URL=${MAP_STYLE_URL}" \
+  -t "${PROJECT_NAME}-previous-frontend:local" "${previous_context}/frontend" >/dev/null
+
+trust_context="${TEMP_DIR}/backend-trust-context"
+mkdir -p "${trust_context}"
+install -m 644 "${tls_dir}/ca.crt" "${trust_context}/ca.crt"
+# Arq resolves Redis trust through the system store, so the synthetic one-day
+# CA belongs only in these disposable rehearsal images.
+cat >"${trust_context}/Dockerfile" <<EOF
+FROM ${PROJECT_NAME}-backend-app:local
+USER root
+COPY ca.crt /usr/local/share/ca-certificates/cardvert-w403a-rehearsal.crt
+RUN update-ca-certificates
+USER cardvert
+EOF
+docker build -t "${PROJECT_NAME}-backend:local" "${trust_context}" >/dev/null
+cat >"${trust_context}/Dockerfile" <<EOF
+FROM ${PROJECT_NAME}-previous-backend-app:local
+USER root
+COPY ca.crt /usr/local/share/ca-certificates/cardvert-w403a-rehearsal.crt
+RUN update-ca-certificates
+USER cardvert
+EOF
+docker build -t "${PROJECT_NAME}-previous-backend:local" "${trust_context}" >/dev/null
+backend_image="$(docker image inspect "${PROJECT_NAME}-backend:local" --format '{{.Id}}')"
+previous_backend_image="$(docker image inspect "${PROJECT_NAME}-previous-backend:local" --format '{{.Id}}')"
+previous_frontend_image="$(docker image inspect "${PROJECT_NAME}-previous-frontend:local" --format '{{.Id}}')"
+
+database_password="Db-$(openssl rand -hex 24)"
+redis_password="Redis-$(openssl rand -hex 24)"
+jwt_secret="Jwt-$(openssl rand -hex 32)"
+storage_secret="Storage-$(openssl rand -hex 24)"
+storage_access="rehearsal-$(openssl rand -hex 12)"
+keyring="$(openssl rand -base64 32 | tr -d '\n')"
+release_evidence_secret="Release-Evidence-$(openssl rand -hex 32)"
+release_evidence_key_id="local-rehearsal-$(openssl rand -hex 8)"
+previous_release_id="20260827T120000Z-rehearsal-previous"
+current_release_id="$(date -u +%Y%m%dT%H%M%SZ)-rehearsal-current"
+passphrase_file="${TEMP_DIR}/backup-passphrase"
+smoke_password_file="${TEMP_DIR}/smoke-password"
+printf 'Backup-%s\n' "$(openssl rand -hex 32)" >"${passphrase_file}"
+printf 'Smoke-%s\n' "$(openssl rand -hex 24)" >"${smoke_password_file}"
+chmod 600 "${passphrase_file}" "${smoke_password_file}"
+
 write_environment() {
   local path="$1"
   local release_id="$2"
@@ -95,6 +128,8 @@ ENVIRONMENT=rehearsal
 RELEASE_ID=${release_id}
 RELEASE_REVISION=${release_revision}
 PREVIOUS_RELEASE_ID=${predecessor}
+RELEASE_EVIDENCE_SIGNING_SECRET=${release_evidence_secret}
+RELEASE_EVIDENCE_KEY_ID=${release_evidence_key_id}
 BACKEND_IMAGE=${selected_backend}
 FRONTEND_IMAGE=${selected_frontend}
 POSTGIS_IMAGE=postgis/postgis@sha256:44126d872ac91993766c341e369c539e8196614321765d36a6f1bab0419a5fa5
@@ -117,16 +152,44 @@ REDIS_URL=rediss://:${redis_password}@redis:6379/0?ssl_ca_certs=/run/secrets/red
 JWT_SECRET_KEY=${jwt_secret}
 PAYOUT_CRYPTO_KEYRING_B64={"1":"${keyring}"}
 PAYOUT_CRYPTO_KEY_VERSION=1
+TRIP_EVIDENCE_SIGNING_KEYRING_B64={"1":"${keyring}"}
+TRIP_EVIDENCE_SIGNING_KEY_VERSION=1
 OBJECT_STORAGE_ENDPOINT_URL=http://${MINIO_CONTAINER}:9000
 OBJECT_STORAGE_PUBLIC_ENDPOINT_URL=http://${MINIO_CONTAINER}:9000
 OBJECT_STORAGE_REGION=local-rehearsal-1
 OBJECT_STORAGE_BUCKET=cardvert-private-rehearsal
 OBJECT_STORAGE_ACCESS_KEY_ID=${storage_access}
 OBJECT_STORAGE_SECRET_ACCESS_KEY=${storage_secret}
+MALWARE_SCANNER_HOST=${SCANNER_CONTAINER}
+MALWARE_SCANNER_PORT=3310
+MALWARE_SCANNER_TIMEOUT_SECONDS=30
+FILE_KYC_RETENTION_DAYS=365
+INSTALLATION_EVIDENCE_UPLOADER_ROLES=driver,admin
+INSTALLATION_EVIDENCE_REQUIRED_VIEWS=front,rear,left,right
+INSTALLATION_EVIDENCE_VALIDITY_HOURS=24
+DISPLAY_PROOF_CHALLENGE_TTL_SECONDS=900
+DISPLAY_PROOF_VALIDITY_SECONDS=86400
+EVIDENCE_HIGH_EARNER_THRESHOLD_NGN=100000
+EVIDENCE_RENEWAL_LOOKBACK_DAYS=30
+EVIDENCE_CHALLENGE_RESPONSE_HOURS=24
+VERIFIED_HOURS_FLOOR_PER_WEEK=10
+EMAIL_PROVIDER=smtp
+EMAIL_SENDER_ADDRESS=rehearsal@client-owned-domain.com
+EMAIL_SMTP_HOST=smtp.client-owned-domain.com
+EMAIL_SMTP_PORT=587
+EMAIL_SMTP_USERNAME=cardvert-rehearsal
+EMAIL_SMTP_PASSWORD=Email-Smtp-$(openssl rand -hex 24)
+EMAIL_SMTP_STARTTLS=true
+EMAIL_RECEIPT_SIGNING_SECRET=Email-Receipt-$(openssl rand -hex 24)
+EMAIL_RECEIPT_KEY_ID=local-rehearsal-email
+NEXT_PUBLIC_MAP_STYLE_URL=${MAP_STYLE_URL}
 ALLOW_DEMO_SEED=false
 DEMO_LOGIN_ENABLED=false
 PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE=false
 PRIVACY_DISCLOSURE_LIVE_AUTHORIZED=false
+PRIVACY_COLLECTION_SYNTHETIC_TEST_MODE=false
+PRIVACY_COLLECTION_LIVE_AUTHORIZED=true
+PRIVACY_LEGAL_APPROVAL_REFERENCE=local-synthetic-legal-authority
 MEASUREMENT_LIVE_ISSUANCE_AUTHORIZED=false
 LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER=true
 LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER=true
@@ -136,6 +199,37 @@ BACKUP_RETENTION_DAYS=35
 SENTRY_DSN=
 LOG_LEVEL=INFO
 EOF
+  python3 - "${path}" "${RELEASE_REPO_ROOT}/production.env.example" <<'PY'
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+path = Path(sys.argv[1])
+template = Path(sys.argv[2])
+overrides = {}
+for line in path.read_text().splitlines():
+    if line and not line.startswith("#") and "=" in line:
+        name, value = line.split("=", 1)
+        overrides[name] = value
+rendered = []
+for line in template.read_text().splitlines():
+    if not line or line.startswith("#") or "=" not in line:
+        continue
+    name, value = line.split("=", 1)
+    rendered.append(f"{name}={overrides.get(name, value)}")
+descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+temporary = Path(temporary_name)
+try:
+    os.fchmod(descriptor, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+        output.write("\n".join(rendered) + "\n")
+        output.flush()
+        os.fsync(output.fileno())
+    os.replace(temporary, path)
+finally:
+    temporary.unlink(missing_ok=True)
+PY
   chmod 600 "${path}"
 }
 
@@ -146,6 +240,35 @@ write_environment "${PREVIOUS_ENV_FILE}" "${previous_release_id}" "${PREVIOUS_RE
 
 docker compose -f "${RELEASE_COMPOSE_FILE}" --env-file "${CURRENT_ENV_FILE}" \
   create db redis >/dev/null
+scanner_server="${TEMP_DIR}/scanner.py"
+cat >"${scanner_server}" <<'PY'
+import socketserver
+import struct
+
+
+class Handler(socketserver.BaseRequestHandler):
+    def handle(self) -> None:
+        command = b""
+        while not command.endswith(b"\0"):
+            command += self.request.recv(1)
+        if command != b"zINSTREAM\0":
+            return
+        while True:
+            length = struct.unpack("!I", self.request.recv(4))[0]
+            if length == 0:
+                break
+            remaining = length
+            while remaining:
+                remaining -= len(self.request.recv(remaining))
+        self.request.sendall(b"stream: OK\0")
+
+
+socketserver.ThreadingTCPServer(("0.0.0.0", 3310), Handler).serve_forever()
+PY
+chmod 644 "${scanner_server}"
+docker run -d --name "${SCANNER_CONTAINER}" --network "${PROJECT_NAME}_data" \
+  -v "${scanner_server}:/tmp/scanner.py:ro" --entrypoint python \
+  "${backend_image}" /tmp/scanner.py >/dev/null
 docker run -d --name "${MINIO_CONTAINER}" --network "${PROJECT_NAME}_data" \
   -e "MINIO_ROOT_USER=${storage_access}" -e "MINIO_ROOT_PASSWORD=${storage_secret}" \
   "${MINIO_IMAGE}" server /data >/dev/null
@@ -209,28 +332,36 @@ VALUES
 SQL
 
 release_compatibility="${TEMP_DIR}/release-compatibility.json"
-jq -n \
-  --arg release "${current_release_id}" --arg revision "${REVISION}" \
-  --arg image "${backend_image}" --arg previous_release "${previous_release_id}" \
-  --arg previous_revision "${PREVIOUS_REVISION}" --arg previous_image "${previous_backend_image}" \
-  --arg migration "${FORWARD_ALEMBIC_REVISION}" \
-  '{schema_version:1,result:"passed",target_release_id:$release,target_revision:$revision,
-    target_backend_image:$image,previous_release_id:$previous_release,
-    previous_revision:$previous_revision,previous_backend_image:$previous_image,
-    forward_alembic_revision:$migration,
-    checks:{no_database_downgrade:true,previous_image_readiness:true,
-      previous_image_report_schema_canary:true}}' >"${release_compatibility}"
-chmod 600 "${release_compatibility}"
 
-release_log rehearsal_populated_forward_release starting
+release_log rehearsal_previous_report_canary_red starting
+set +e
+RELEASE_COMPATIBILITY_BREAK_REPORT_CANARY=true \
+  scripts/release.sh --env-file "${CURRENT_ENV_FILE}" \
+  --previous-env-file "${PREVIOUS_ENV_FILE}" --state-dir "${STATE_DIR}" \
+  --backup-dir "${BACKUP_DIR}" --smoke-email "rehearsal@example.invalid" \
+  --smoke-password-file "${smoke_password_file}" \
+  --compatibility-evidence "${release_compatibility}"
+broken_canary_status=$?
+set -e
+if (( broken_canary_status == 0 )); then
+  echo "ERROR: broken previous-image report canary unexpectedly passed" >&2
+  exit 1
+fi
+[[ ! -e "${release_compatibility}" ]] \
+  || { echo "ERROR: failed previous-image probe produced a receipt" >&2; exit 1; }
+release_log rehearsal_previous_report_canary_red passed
+
+release_log rehearsal_populated_forward_release_green starting
 scripts/release.sh --env-file "${CURRENT_ENV_FILE}" --state-dir "${STATE_DIR}" \
   --backup-dir "${BACKUP_DIR}" --smoke-email "rehearsal@example.invalid" \
   --smoke-password-file "${smoke_password_file}" \
+  --previous-env-file "${PREVIOUS_ENV_FILE}" \
   --compatibility-evidence "${release_compatibility}"
 # Retry proves the authenticated backup and ordered release state converge.
 scripts/release.sh --env-file "${CURRENT_ENV_FILE}" --state-dir "${STATE_DIR}" \
   --backup-dir "${BACKUP_DIR}" --smoke-email "rehearsal@example.invalid" \
   --smoke-password-file "${smoke_password_file}" \
+  --previous-env-file "${PREVIOUS_ENV_FILE}" \
   --compatibility-evidence "${release_compatibility}"
 compose=(docker compose -f "${RELEASE_COMPOSE_FILE}" --env-file "${CURRENT_ENV_FILE}")
 
@@ -276,26 +407,17 @@ if any(page.get("Versions") or page.get("DeleteMarkers") for page in pages):
 print('{"event":"restore_object_cleanup","status":"passed"}')
 PY
 
-recovery_compatibility="${TEMP_DIR}/recovery-compatibility.json"
-jq -n \
-  --arg release "${current_release_id}" --arg revision "${REVISION}" \
-  --arg image "${backend_image}" --arg previous_release "${previous_release_id}" \
-  --arg previous_revision "${PREVIOUS_REVISION}" --arg previous_image "${previous_backend_image}" \
-  --arg migration "${FORWARD_ALEMBIC_REVISION}" \
-  '{schema_version:1,result:"passed",target_release_id:$release,target_revision:$revision,
-    target_backend_image:$image,previous_release_id:$previous_release,
-    previous_revision:$previous_revision,previous_backend_image:$previous_image,
-    forward_alembic_revision:$migration,
-    checks:{no_database_downgrade:true,previous_image_readiness:true,
-      previous_image_report_schema_canary:true}}' >"${recovery_compatibility}"
-chmod 600 "${recovery_compatibility}"
-
 release_log rehearsal_distinct_previous_recovery starting
 scripts/recover_release.sh --current-state "${recovery_state_file}" \
   --current-env-file "${CURRENT_ENV_FILE}" \
   --previous-env-file "${PREVIOUS_ENV_FILE}" --state-dir "${RECOVERY_STATE_DIR}" \
   --smoke-email "rehearsal@example.invalid" --smoke-password-file "${smoke_password_file}" \
-  --compatibility-evidence "${recovery_compatibility}"
+  --compatibility-evidence "${release_compatibility}"
+scripts/recover_release.sh --current-state "${recovery_state_file}" \
+  --current-env-file "${CURRENT_ENV_FILE}" \
+  --previous-env-file "${PREVIOUS_ENV_FILE}" --state-dir "${RECOVERY_STATE_DIR}" \
+  --smoke-email "rehearsal@example.invalid" --smoke-password-file "${smoke_password_file}" \
+  --compatibility-evidence "${release_compatibility}"
 db_revision_after_recovery="$("${compose[@]}" exec -T db psql -U mobility -d mobility -Atc \
   'SELECT version_num FROM alembic_version')"
 [[ "${db_revision_after_recovery}" == "${FORWARD_ALEMBIC_REVISION}" ]] \
@@ -304,10 +426,15 @@ release_log recovery_distinct_previous_revision passed
 
 # An invalid smoke identity fails after edge open and must close the edge in
 # the release trap while retaining the forward database.
-if scripts/release.sh --env-file "${CURRENT_ENV_FILE}" --state-dir "${STATE_DIR}" \
+set +e
+scripts/release.sh --env-file "${CURRENT_ENV_FILE}" --state-dir "${STATE_DIR}" \
   --backup-dir "${BACKUP_DIR}" --smoke-email "missing@example.invalid" \
   --smoke-password-file "${smoke_password_file}" \
-  --compatibility-evidence "${release_compatibility}"; then
+  --previous-env-file "${PREVIOUS_ENV_FILE}" \
+  --compatibility-evidence "${release_compatibility}"
+failed_smoke_status=$?
+set -e
+if (( failed_smoke_status == 0 )); then
   echo "ERROR: deliberate post-edge smoke failure unexpectedly passed" >&2
   exit 1
 fi
