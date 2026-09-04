@@ -46,18 +46,22 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R22, R58`
+**Current capacity assignment:** `R22`
 **Current capacity justification:** R31 and R51 are accepted and their campaign
 and reporting-publication leases are released. R20 and R21 are accepted; R22
 now owns the exclusive payout-balance, replacement-chain, fraud-resolution and
 conservation state machine across its disbursement, debt, hold, earnings-release,
 API/schema, migration, generated-contract and focused-test surfaces. R55 is accepted and its
 release/recovery lease is released. R57 is accepted and its clock/test lease is
-released. R58 owns only the real worker-process recovery harness and worker
-registration/CI enforcement tests for already accepted jobs. R22 and R58 have
-disjoint product, test and isolated-integration surfaces; R58 has no product
-worker, disbursement, debt, fraud or earnings-release mutation authority.
-Controller documents remain serialized.
+released. R58 is accepted and its worker-recovery test lease is released. R59
+cannot mutate until R22 is accepted, so the released slot is used only for the
+disjoint R59-P aggregate-plan and environment-readiness packet; because it has
+no mutation lease, it does not consume remediation writer capacity. R59-P may read
+the accepted release surfaces and prepare the exact final-journey contract, but
+may not edit, integrate, run the mutating journey, or claim R59 acceptance.
+R22 retains the exclusive payout-balance, replacement-chain, fraud-resolution,
+migration and generated-contract surfaces. Controller documents remain
+serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -93,8 +97,9 @@ policy, external inputs and evidence-triggered observations are parked in
 `419414a`, R03 at `60af07d`, R48 at `b17d1e7`, R05 at `954d9a4`, R49 at
 `a315a59`, R33 at `14f155a`, R06 at `05b4901`, R07 at `84cb94e`, and R50 at
 `bb8c13e`, R18 at `5c2d60a`, R19 at `3c7b678`, R51 at `2f52c3e`, and R31 at
-`eb59a84`, R52 at `cab745c`, R20 at `d8cd891`, R21 at `ee43b10`, R55 at `662077a`, and R57 at `2599b87`; R22 and R58 are the assigned
-disjoint writers.
+`eb59a84`, R52 at `cab745c`, R20 at `d8cd891`, R21 at `ee43b10`, R55 at `662077a`, R57 at `2599b87`, and R58 at `f07cb54`; R22 is the
+only active implementation writer while R59-P prepares the blocked aggregate
+plan without repository mutation.
 AUT-006 is accepted at
 `a4c9de2`.
 Every repository failure group
@@ -1639,7 +1644,7 @@ durable ledger before changing a row.
 | R55 | REL-004 | R03, R18, R48, R51, R54 | COMPLETE | PASS — R55-P | PASS — R55-M | CP-RELEASE PASS — R55-CP-RELEASE |
 | R56 | TST-005 | R09, R11, R14, R40 | COMPLETE | PASS — R56-P | PASS — R56-M | CP-SECURITY PASS — R56-CP-SECURITY |
 | R57 | TST-008 | R19, R27, R49, R55 | COMPLETE | PASS — R57-P | PASS — R57-M | CP-RELEASE PASS — R57-CP-RELEASE |
-| R58 | TST-011 | R15, R20, R21, R43, R49, R51 | ACTIVE | PASS — R58-P | PENDING | CP-WORKERS PENDING |
+| R58 | TST-011 | R15, R20, R21, R43, R49, R51 | COMPLETE | PASS — R58-P | PASS — R58-M | CP-WORKERS PASS — R58-CP-WORKERS |
 | R59 | TST-002 | R22, R31, R33, R37, R41, R44, R48, R50, R51, R56, R57, R58 | QUEUED | PENDING | PENDING | CP-RELEASE PENDING |
 | R60 | GOV-009 | R03, R17, R18, R22, R27, R31, R33, R37, R43, R44, R52, R55, R56, R59 | QUEUED | PENDING | PENDING | CP-CONTROL PENDING |
 
