@@ -46,11 +46,12 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R20, R55`
+**Current capacity assignment:** `R21, R55`
 **Current capacity justification:** R31 and R51 are accepted and their campaign
-and reporting-publication leases are released. R20 owns the disbursement intent,
-provider, worker, money-service, focused-test and sole 0083 migration surfaces.
-R55 owns release-contract, release/recovery/rehearsal scripts, focused release
+and reporting-publication leases are released. R20 is accepted and R21 now owns
+the final pre-provider fraud/assessment authorization gate across its disbursement,
+fraud, earnings-release and focused-test surfaces. R55 owns release-contract,
+release/recovery/rehearsal scripts, focused release
 tests and serialized evidence-signing configuration inherited from R54. Their
 write and test surfaces are disjoint; R55 has no disbursement/provider/worker,
 money-schema or product-API authority. Controller documents remain serialized.
@@ -85,11 +86,12 @@ authority. The active queue now prioritizes locally executable product and
 engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
-**Current checkpoint:** `PKG-10 / R20` — R02 is accepted at `09c0b17`, R47 at
+**Current checkpoint:** `PKG-10 / R21` — R02 is accepted at `09c0b17`, R47 at
 `419414a`, R03 at `60af07d`, R48 at `b17d1e7`, R05 at `954d9a4`, R49 at
 `a315a59`, R33 at `14f155a`, R06 at `05b4901`, R07 at `84cb94e`, and R50 at
 `bb8c13e`, R18 at `5c2d60a`, R19 at `3c7b678`, R51 at `2f52c3e`, and R31 at
-`eb59a84`, and R52 at `cab745c`; R20 and R55 are the assigned disjoint writers.
+`eb59a84`, R52 at `cab745c`, and R20 at `d8cd891`; R21 and R55 are the assigned
+disjoint writers.
 AUT-006 is accepted at
 `a4c9de2`.
 Every repository failure group
@@ -1596,8 +1598,8 @@ durable ledger before changing a row.
 | R17 | TST-007 | R02, R03 | QUEUED | PENDING | PENDING | CP-CONTROL PENDING |
 | R18 | MON-005, MON-006 | R04, R06, R07 | COMPLETE | PASS — R18-P | PASS — R18-M | CP-MONEY PASS — R18-CP-MONEY |
 | R19 | MON-002 | R18 | COMPLETE | PASS — R19-P | PASS — R19-M | CP-MONEY PASS — R19-CP-MONEY |
-| R20 | MON-001, DB-007, MON-008 | R05, R18 | ACTIVE | PASS — R20-P | PENDING | CP-MONEY PENDING |
-| R21 | MON-003 | R20 | QUEUED | PASS — R21-P | PENDING | CP-MONEY PENDING |
+| R20 | MON-001, DB-007, MON-008 | R05, R18 | COMPLETE | PASS — R20-P | PASS — R20-M | CP-MONEY PASS — R20-CP-MONEY |
+| R21 | MON-003 | R20 | ACTIVE | PASS — R21-P | PENDING | CP-MONEY PENDING |
 | R22 | MON-004, MON-007, MON-009 | R20, R21 | QUEUED | PASS — R22-P | PENDING | CP-MONEY PENDING |
 | R23 | COM-001, COM-004 | R08 | COMPLETE | PASS — R23-P | PASS — R23-M | CP-COMMERCIAL PASS — R23-CP-COMMERCIAL |
 | R24 | COM-002 | R08, R23 | COMPLETE | PASS — R24-P | PASS — R24-M | CP-COMMERCIAL PASS — R24-CP-COMMERCIAL |

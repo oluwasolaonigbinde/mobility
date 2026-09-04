@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 339
+plan_revision: 341
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 469
+last_event_sequence: 471
 ---
 
 # Cardvert audit remediation programme
@@ -207,9 +207,9 @@ visible top-level Mobility tasks.
 | S28 | R59 — TST-002 | integrated real-stack browser journey | cross-stack release/security; Sol/xhigh | all predecessor contracts integrated; local real-stack evidence only |
 | S29 | R60 — GOV-009 | final architecture/progress/decision synchronization | cross-package closure; Sol/high | no product implementation; reconcile all 115 candidates, integrated gates and final minimal-change review |
 
-Current justified writer capacity is **2**, assigned exactly to S13/R20 and
-S24/R55. R31, R51 and R52 are accepted. R20 owns the disbursement/provider/worker
-and sole 0083 migration lane, while R55 owns release-contract,
+Current justified writer capacity is **2**, assigned exactly to S13/R21 and
+S24/R55. R20, R31, R51 and R52 are accepted. R21 owns the final pre-provider
+fraud/assessment authorization gate, while R55 owns release-contract,
 release/recovery/rehearsal scripts, focused release tests and the serialized
 evidence-signing configuration inherited from R54. Their product, test and local
 integration surfaces are disjoint; controller documents remain serialized.
@@ -240,8 +240,8 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R17 | TST-007 | PARKED | R02, R03; coverage policy | no authoritative floor/path/base/ratchet policy; not a demonstrated product-runtime defect | retained in `to-do.md` for a later developer policy decision; does not consume active remediation capacity |
 | R18 | MON-005, MON-006 | COMPLETE | R04, R06, R07 | R18-P/M; DB+MNY; CONTRACT; CP-MONEY; exact `e36f7fed...` freeze; focused PostgreSQL, payout, correction, frontend and contract evidence | accepted exactly once at `5c2d60a`; money/migration/generated-contract lane released; task may continue R19 only after separate packet |
 | R19 | MON-002 | COMPLETE | R18 | R19-P/M; DB+MNY; CP-MONEY; exact `870f1dfb...` freeze; forced-overlap PostgreSQL and focused payout evidence | accepted exactly once at `3c7b678`; payout-day ordering lease released |
-| R20 | MON-001, DB-007, MON-008 | ACTIVE | R05, R18 | R20-P; reviewed durable per-line provider-intent contract | fresh Sol/xhigh worktree task owns the disbursement/provider/worker and sole 0083 migration lane |
-| R21 | MON-003 | WAITING | R20 | R21-P; reviewed final pre-provider authorization contract | wait for R20 |
+| R20 | MON-001, DB-007, MON-008 | COMPLETE | R05, R18 | R20-P/M; DB+MNY; CP-MONEY; commit `d8cd891`; migration 0083 and real PostgreSQL crash/concurrency evidence | accepted exactly once; disbursement intent/migration lease released to R21 |
+| R21 | MON-003 | ACTIVE | R20 | R21-P; reviewed final pre-provider authorization contract | retained Sol/xhigh S13 task owns exact disbursement/fraud/earnings-release final-gate lease; no migration |
 | R22 | MON-004, MON-007, MON-009 | WAITING | R20, R21 | R22-P; reviewed exclusive conservation/replacement state contract | wait for R20/R21 and migration/contracts |
 | R23 | COM-001, COM-004 | ACCEPTED | R08; commercial opener | R23-P/M/MNY/CP-COMMERCIAL; PostgreSQL, migration 0073 and contract evidence | complete at `8fd5fc4` |
 | R24 | COM-002 | ACCEPTED | R08, R23 | R24-P/M/MNY/CP-COMMERCIAL; causal epoch and PostgreSQL race evidence | complete at `36df828` |
@@ -923,3 +923,5 @@ verification is complete.
 | 467 | 337 | 1 | PACKET_SCOPE_AMENDED | R20 may update five compatibility test surfaces whose assertions directly encode the superseded inline-provider and pre-R20 worker registration behavior. | add test-only write authority for `tests/test_payout_batches_api.py`, `tests/test_payout_reconciliation.py`, `tests/test_payout_reconciliation_api.py`, `tests/test_worker_jobs.py`, and `tests/test_worker_substrate.py`; preserve debt semantics and all unrelated assertions; no production, migration, generated-contract, controller-document or other test expansion; Sol/xhigh model gate unchanged |
 | 468 | 338 | 1 | DUPLICATE_OWNER_FENCED | The original R20 client launch materialized after its verified absence had triggered a retry, creating two overlapping owners; the original clean owner was stopped and the retry owner retained because it had the only implementation edit. | stop task `01a06cb9-6e8e-7721-bc82-bed4191cc683` in clean worktree `1af5`; retain task `01a06cbf-96b4-7451-8d4a-1b1f1d6ce87d` in worktree `72b3`; transfer event-467 test lease unchanged; no duplicate result may be admitted |
 | 469 | 339 | 1 | DUPLICATE_OWNER_SELECTION_CORRECTED | A filesystem fence taken after event 468 showed the original R20 owner had already produced the materially advanced model implementation before its stop was delivered, while the retry held only initial red-test edits; ownership was corrected to preserve the more advanced candidate. | retain task `01a06cb9-6e8e-7721-bc82-bed4191cc683` and worktree `1af5`; stop task `01a06cbf-96b4-7451-8d4a-1b1f1d6ce87d` and preserve worktree `72b3` without further writes; event-467 lease applies only to the retained owner; no retry bytes may be merged without separate reconciliation |
+| 470 | 340 | 1 | DISBURSEMENT_INTENT_SLICE_ACCEPTED | R20/MON-001,DB-007,MON-008 accepted durable per-line provider intents, lookup-first ambiguous recovery, generation-fenced results and no lock-held provider I/O. | commit `d8cd891`; exact 16-file integration and migration 0083; owner 111 passes/one intentional skip plus real PostgreSQL crash/concurrency/migration evidence; controller 86 passes/12 environment skips; Ruff/diff and R20-M/DB+MNY/CP-MONEY PASS; no public contract change |
+| 471 | 341 | 1 | PACKET_DISPATCHED | R21/MON-003 continues in the retained S13 task after separate R20 admission. | GPT-5.6 Sol/xhigh remains necessary for adversarial pre-provider money authorization and PostgreSQL fraud/assessment races; exact disbursement worker/service, fraud-assessment/hold, earnings-release and focused-test lease; no migration unless a new reviewed amendment; direct terminal callback |
