@@ -975,6 +975,28 @@ async def sweep_report_issuances(ctx: dict) -> int:
             ).all()
         )
         for issuance in rows:
+            if (
+                issuance.status == ReportIssuanceStatus.PROCESSING
+                and issuance.worker_attempts >= REPORT_MAX_ATTEMPTS
+            ):
+                issuance.status = ReportIssuanceStatus.FAILED
+                issuance.processing_token = None
+                issuance.lease_expires_at = None
+                issuance.next_attempt_at = None
+                issuance.last_error_code = "worker_lease_expired"
+                issuance.ready_at = None
+                await create_audit_event(
+                    session,
+                    actor_user_id=None,
+                    action="report_issuance.failed",
+                    entity_type="report_issuance",
+                    entity_id=str(issuance.id),
+                    metadata={
+                        "attempt": issuance.worker_attempts,
+                        "error_code": "worker_lease_expired",
+                    },
+                )
+                continue
             token = uuid4()
             issuance.status = ReportIssuanceStatus.PROCESSING
             issuance.worker_attempts += 1

@@ -407,6 +407,77 @@ def test_partial_storage_failure_exposes_no_artifact_and_retry_recovers_pair(
     assert len(recovered.json()["artifacts"]) == 2
 
 
+def test_expired_third_worker_claim_terminalizes_without_a_fourth_attempt(
+    db_client, db_sessionmaker, settings, report_storage, monkeypatch
+) -> None:
+    _, advertiser, _, run = issue_run(db_client, db_sessionmaker)
+    issuance = request_issuance(db_client, advertiser, run["id"])
+    issuance_id = UUID(issuance.json()["id"])
+
+    async def simulate_worker_crash(*args, **kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(
+        report_issuance_service,
+        "_generate_and_publish",
+        simulate_worker_crash,
+    )
+
+    async def expire_claim(expected_attempt: int) -> None:
+        async with db_sessionmaker() as session:
+            row = await session.get(ReportIssuance, issuance_id)
+            assert row is not None
+            assert row.status == "processing"
+            assert row.worker_attempts == expected_attempt
+            assert row.processing_token is not None
+            row.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+            await session.commit()
+
+    for attempt in range(1, 4):
+        assert run_worker(db_sessionmaker, settings, report_storage) == 1
+        asyncio.run(expire_claim(attempt))
+
+    assert run_worker(db_sessionmaker, settings, report_storage) == 0
+
+    async def terminal_state() -> tuple[ReportIssuance, list[AuditEvent]]:
+        async with db_sessionmaker() as session:
+            row = await session.get(ReportIssuance, issuance_id)
+            assert row is not None
+            events = list(
+                await session.scalars(
+                    select(AuditEvent).where(
+                        AuditEvent.entity_type == "report_issuance",
+                        AuditEvent.entity_id == str(issuance_id),
+                        AuditEvent.action.in_(
+                            {
+                                "report_issuance.worker_claimed",
+                                "report_issuance.failed",
+                            }
+                        ),
+                    )
+                )
+            )
+            return row, events
+
+    failed, events = asyncio.run(terminal_state())
+    assert failed.status == "failed"
+    assert failed.worker_attempts == 3
+    assert failed.processing_token is None
+    assert failed.lease_expires_at is None
+    assert failed.next_attempt_at is None
+    assert failed.ready_at is None
+    assert failed.last_error_code == "worker_lease_expired"
+
+    claimed = [event for event in events if event.action == "report_issuance.worker_claimed"]
+    terminal = [event for event in events if event.action == "report_issuance.failed"]
+    assert sorted(event.event_metadata["attempt"] for event in claimed) == [1, 2, 3]
+    assert len(terminal) == 1
+    assert terminal[0].event_metadata == {
+        "attempt": 3,
+        "error_code": "worker_lease_expired",
+    }
+
+
 def test_terminal_failure_can_only_recover_as_an_append_only_new_version(
     db_client, db_sessionmaker, settings, report_storage
 ) -> None:
@@ -681,3 +752,123 @@ def test_concurrent_identical_requests_converge_on_postgres(
             return int(await session.scalar(select(func.count()).select_from(ReportIssuance)) or 0)
 
     assert asyncio.run(count()) == 1
+
+
+def test_expired_earlier_claim_retries_successfully_on_postgres(
+    postgis_db_client, postgis_db_sessionmaker, settings
+) -> None:
+    _, advertiser, _, run = issue_run(postgis_db_client, postgis_db_sessionmaker)
+    issuance = request_issuance(postgis_db_client, advertiser, run["id"])
+    issuance_id = UUID(issuance.json()["id"])
+
+    async def expire_first_claim() -> None:
+        async with postgis_db_sessionmaker() as session:
+            row = await session.get(ReportIssuance, issuance_id)
+            assert row is not None
+            row.status = "processing"
+            row.worker_attempts = 1
+            row.processing_token = uuid4()
+            row.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+            await session.commit()
+
+    asyncio.run(expire_first_claim())
+    storage = ReportStorage()
+    assert run_worker(postgis_db_sessionmaker, settings, storage) == 1
+
+    async def completed_state() -> tuple[ReportIssuance, list[AuditEvent]]:
+        async with postgis_db_sessionmaker() as session:
+            row = await session.get(ReportIssuance, issuance_id)
+            assert row is not None
+            events = list(
+                await session.scalars(
+                    select(AuditEvent).where(
+                        AuditEvent.entity_type == "report_issuance",
+                        AuditEvent.entity_id == str(issuance_id),
+                        AuditEvent.action.in_(
+                            {
+                                "report_issuance.worker_claimed",
+                                "report_issuance.ready",
+                                "report_issuance.failed",
+                            }
+                        ),
+                    )
+                )
+            )
+            return row, events
+
+    ready, events = asyncio.run(completed_state())
+    assert ready.status == "ready"
+    assert ready.worker_attempts == 2
+    assert ready.processing_token is None
+    assert ready.lease_expires_at is None
+    assert ready.next_attempt_at is None
+    assert ready.last_error_code is None
+    assert len(storage.objects) == 2
+    assert [
+        event.event_metadata["attempt"]
+        for event in events
+        if event.action == "report_issuance.worker_claimed"
+    ] == [2]
+    assert len([event for event in events if event.action == "report_issuance.ready"]) == 1
+    assert not [event for event in events if event.action == "report_issuance.failed"]
+
+
+def test_expired_final_claim_terminalizes_once_on_postgres(
+    postgis_db_client, postgis_db_sessionmaker, settings
+) -> None:
+    _, advertiser, _, run = issue_run(postgis_db_client, postgis_db_sessionmaker)
+    issuance = request_issuance(postgis_db_client, advertiser, run["id"])
+    issuance_id = UUID(issuance.json()["id"])
+
+    async def expire_final_claim() -> None:
+        async with postgis_db_sessionmaker() as session:
+            row = await session.get(ReportIssuance, issuance_id)
+            assert row is not None
+            row.status = "processing"
+            row.worker_attempts = 3
+            row.processing_token = uuid4()
+            row.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+            await session.commit()
+
+    asyncio.run(expire_final_claim())
+    storage = ReportStorage()
+
+    async def run_concurrent_sweeps() -> list[int]:
+        context = {
+            "sessionmaker": postgis_db_sessionmaker,
+            "settings": settings,
+            "storage": storage,
+        }
+        return list(
+            await asyncio.gather(
+                sweep_report_issuances(context),
+                sweep_report_issuances(context),
+            )
+        )
+
+    assert asyncio.run(run_concurrent_sweeps()) == [0, 0]
+
+    async def terminal_state() -> tuple[ReportIssuance, list[AuditEvent]]:
+        async with postgis_db_sessionmaker() as session:
+            row = await session.get(ReportIssuance, issuance_id)
+            assert row is not None
+            events = list(
+                await session.scalars(
+                    select(AuditEvent).where(
+                        AuditEvent.entity_type == "report_issuance",
+                        AuditEvent.entity_id == str(issuance_id),
+                        AuditEvent.action == "report_issuance.failed",
+                    )
+                )
+            )
+            return row, events
+
+    failed, terminal_events = asyncio.run(terminal_state())
+    assert failed.status == "failed"
+    assert failed.worker_attempts == 3
+    assert failed.processing_token is None
+    assert failed.lease_expires_at is None
+    assert failed.last_error_code == "worker_lease_expired"
+    assert [event.event_metadata for event in terminal_events] == [
+        {"attempt": 3, "error_code": "worker_lease_expired"}
+    ]
