@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 324
+plan_revision: 325
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 454
+last_event_sequence: 455
 ---
 
 # Cardvert audit remediation programme
@@ -144,10 +144,12 @@ non-executable until the owner supplies the complete policy named below.
   unchanged behavior, exact candidates and slices, dependency state, allowed
   paths, leases, model gate, verification, required reviews, and stop rules.
 - The controller runs on GPT-5.6 Sol/medium by the owner's 1 Sep adjustment.
-  Model selection remains explicit before every delegated dispatch: Luna only for bounded read-only
-  inventory; Terra/high for ordinary implementation or review; Sol/high or
-  Sol/xhigh for money, security, migrations, PostgreSQL concurrency,
-  privacy/offline, deployment, or cross-package authority.
+  Model selection remains explicit before every delegated dispatch and uses the
+  least costly model that safely owns the boundary: Luna/max for bounded low-risk
+  work, Terra for ordinary implementation or review, and Sol only for genuinely
+  difficult money, security, migration, concurrency, deployment, or cross-package
+  authority. Sol/xhigh is exceptional and must have a concrete necessity stated
+  in the dispatch; risk-category membership alone is not sufficient.
 - Candidate results remain provisional until the controller inspects the
   integrated diff, tests, red/green evidence, required specialist verdicts,
   and actual checkout state.
@@ -908,3 +910,4 @@ verification is complete.
 | 452 | 322 | 1 | PACKET_SCOPE_AMENDED | R18 may keep the revisions-panel synthetic fixture truthful after regenerated contracts make payout-rule revision currency required. | add only `frontend/src/app/admin/payouts/rules/revisions-panel.test.tsx`; supply `currency: "NGN"` in the synthetic revision fixture; no product behavior or assertion changes |
 | 453 | 323 | 1 | PACKET_SCOPE_AMENDED | R18 may synchronize the canonical migration-chain gate with the accepted 0080 migration and its new 0081 money-authority head. | add only `tests/test_mvp_hardening.py`; advance `EXPECTED_ALEMBIC_HEAD` to `0081_payout_money_authority`, add the 0080/0081 filenames, preserve all other gate semantics, and rerun the exact gate |
 | 454 | 324 | 1 | PACKET_SCOPE_AMENDED | R18's fail-closed missing-currency authority governs historical fixtures upgraded to 0081: an SQL-NULL frozen offer must block the upgrade without inventing currency, while post-head synthetic bindings must supply explicit currency. | add only `tests/test_migration_0048_campaign_assignment_offer_lifecycle.py` and `tests/test_migration_0026_frozen_campaign_payment_window.py`; preserve 0048-local grandfather behavior, assert 0081 refusal with prior head/state preserved, add explicit `NGN` to the post-head 0026 fixture, and preserve production bytes |
+| 455 | 325 | 1 | MODEL_BUDGET_POLICY_REFINED | Future dispatches must use the least costly model that safely owns the task; GPT-5.6 Sol/xhigh is reserved for demonstrated necessity rather than selected automatically from a broad risk label. | owner instruction, 4 Sep 2026; Luna/max for bounded low-risk work, Terra for ordinary work, Sol only for genuinely difficult high-risk boundaries; every xhigh dispatch states its concrete necessity |
