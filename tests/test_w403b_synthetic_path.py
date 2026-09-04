@@ -347,11 +347,27 @@ def test_correlated_synthetic_pilot_journey(db_client, db_sessionmaker, settings
     )
     fake_activation = FakeAdPlatformAdapter()
     db_client.app.dependency_overrides[get_ad_platform_adapter] = lambda: fake_activation
+    activation_approval = db_client.post(
+        f"/api/v1/admin/exposure-segments/{segment_id}/delivery-approvals",
+        headers=auth_headers(db_client, admin.email, PASSWORD)
+        | {"Idempotency-Key": f"{CORRELATION_ID}-activation-approval"},
+        json={
+            "operation": "ad_platform_activation",
+            "purpose_code": "aggregate_contextual_activation",
+            "provider": fake_activation.name,
+            "provider_account_reference": "synthetic-test-account",
+            "budget_ceiling": "0.00",
+            "legal_approval_reference": f"synthetic-test-{CORRELATION_ID}",
+            "valid_until": (datetime.now(UTC) + timedelta(days=1)).isoformat(),
+        },
+    )
+    assert activation_approval.status_code == 201, activation_approval.text
+    approval_id = activation_approval.json()["id"]
     activated = db_client.post(
         f"/api/v1/admin/exposure-segments/{segment_id}/activations",
         headers=auth_headers(db_client, admin.email, PASSWORD)
         | {"Idempotency-Key": f"{CORRELATION_ID}-activation"},
-        json={},
+        json={"approval_id": approval_id},
     )
     assert activated.status_code == 201, activated.text
     assert activated.json()["synthetic"] is True
@@ -376,7 +392,7 @@ def test_correlated_synthetic_pilot_journey(db_client, db_sessionmaker, settings
         f"/api/v1/admin/exposure-segments/{segment_id}/activations",
         headers=auth_headers(db_client, admin.email, PASSWORD)
         | {"Idempotency-Key": f"{CORRELATION_ID}-live-activation"},
-        json={},
+        json={"approval_id": approval_id},
     )
     assert blocked_activation.status_code == 503
     assert blocked_activation.json()["error"]["code"] == "AD_PLATFORM_LIVE_ACTIVATION_BLOCKED"
