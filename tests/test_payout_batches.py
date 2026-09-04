@@ -5,11 +5,16 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from conftest import auth_headers
 from sqlalchemy import func, select
 from test_mny03a_earnings_release import build_graph, create_flag
 
 from app.adapters.crypto import EnvelopeCryptoProvider
-from app.adapters.disbursement import DisabledDisbursementAdapter, FakeDisbursementAdapter
+from app.adapters.disbursement import (
+    DisabledDisbursementAdapter,
+    FakeDisbursementAdapter,
+    ProviderSubmission,
+)
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
 from app.models.disbursement import PayoutBatch, PayoutBatchLine
@@ -407,6 +412,15 @@ def test_postgres_concurrent_batches_have_one_reservation_winner(
 
         async def attempt(batch_id):
             async with postgis_db_sessionmaker() as session:
+                session.add(
+                    AuditEvent(
+                        actor_user_id=graph.admin.id,
+                        action="test.r05.reservation_outer_write",
+                        entity_type="payout_batch_conflict_probe",
+                        entity_id=str(batch_id),
+                        event_metadata={},
+                    )
+                )
                 try:
                     await reserve_payout_batch(
                         session,
@@ -426,6 +440,7 @@ def test_postgres_concurrent_batches_have_one_reservation_winner(
                         )
                         or 0
                     )
+                    await session.commit()
                     return exc.code, stored.status, partials
 
         results = await asyncio.gather(attempt(first.id), attempt(second.id))
@@ -439,9 +454,17 @@ def test_postgres_concurrent_batches_have_one_reservation_winner(
                 )
                 or 0
             )
-        return results, count
+            markers = int(
+                await session.scalar(
+                    select(func.count(AuditEvent.id)).where(
+                        AuditEvent.action == "test.r05.reservation_outer_write"
+                    )
+                )
+                or 0
+            )
+        return results, count, markers
 
-    results, count = asyncio.run(exercise())
+    results, count, markers = asyncio.run(exercise())
     assert sorted(result[0] for result in results) == [
         "PAYOUT_ENTRY_ALREADY_RESERVED",
         "won",
@@ -449,6 +472,146 @@ def test_postgres_concurrent_batches_have_one_reservation_winner(
     loser = next(result for result in results if result[0] != "won")
     assert loser == ("PAYOUT_ENTRY_ALREADY_RESERVED", "draft", 0)
     assert count == 1
+    assert markers == 2
+
+
+def test_reservation_conflict_keeps_public_error_envelope(db_client, db_sessionmaker) -> None:
+    graph = build_graph(db_sessionmaker, f"envelope-{uuid4().hex[:8]}")
+
+    async def seed():
+        async with db_sessionmaker() as session:
+            entry = await _seed_authority(session, graph)
+            first = await create_payout_batch_draft(
+                session, currency="NGN", actor_user_id=graph.admin.id
+            )
+            second = await create_payout_batch_draft(
+                session, currency="NGN", actor_user_id=graph.admin.id
+            )
+            await reserve_payout_batch(
+                session,
+                batch_id=first.id,
+                ledger_entry_ids=(entry.id,),
+                actor_user_id=graph.admin.id,
+            )
+            await session.commit()
+            return entry.id, second.id
+
+    entry_id, batch_id = asyncio.run(seed())
+    response = db_client.post(
+        f"/api/v1/admin/payout-batches/{batch_id}/reserve",
+        headers=auth_headers(db_client, graph.admin.email, "long-secure-password"),
+        json={"ledger_entry_ids": [str(entry_id)]},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"] == {
+        "code": "PAYOUT_ENTRY_ALREADY_RESERVED",
+        "message": "A selected ledger entry already has an active payout reservation",
+        "details": {},
+        "request_id": response.headers["x-request-id"],
+    }
+
+
+def test_postgres_duplicate_provider_reference_preserves_outer_write(
+    postgis_db_sessionmaker,
+) -> None:
+    graph = build_graph(postgis_db_sessionmaker, f"provider-ref-{uuid4().hex[:8]}")
+    checker = type(graph.admin)(
+        email=f"provider-ref-checker-{uuid4().hex}@example.com",
+        password_hash=graph.admin.password_hash,
+        full_name="Provider Reference Checker",
+        role="admin",
+        status="active",
+    )
+    duplicate_reference = f"provider-line-{uuid4().hex}"
+
+    class FixedReferenceAdapter(FakeDisbursementAdapter):
+        async def submit_batch(self, *, batch_id, instructions):
+            self.calls.append((batch_id, instructions))
+            return ProviderSubmission(
+                provider_reference=f"provider-batch-{batch_id}",
+                line_references={
+                    instruction.line_id: duplicate_reference for instruction in instructions
+                },
+            )
+
+    async def exercise():
+        async with postgis_db_sessionmaker() as session:
+            session.add(checker)
+            await session.flush()
+            entries = [await _seed_authority(session, graph) for _ in range(2)]
+            batches = []
+            for entry in entries:
+                batch = await create_payout_batch_draft(
+                    session, currency="NGN", actor_user_id=graph.admin.id
+                )
+                await reserve_payout_batch(
+                    session,
+                    batch_id=batch.id,
+                    ledger_entry_ids=(entry.id,),
+                    actor_user_id=graph.admin.id,
+                )
+                await approve_payout_batch(
+                    session,
+                    batch_id=batch.id,
+                    actor_user_id=checker.id,
+                )
+                batches.append(batch)
+            await submit_payout_batch(
+                session,
+                batch_id=batches[0].id,
+                actor_user_id=graph.admin.id,
+                adapter=FixedReferenceAdapter(),
+            )
+            await session.commit()
+
+        async with postgis_db_sessionmaker() as session:
+            session.add(
+                AuditEvent(
+                    actor_user_id=graph.admin.id,
+                    action="test.r05.provider_reference_outer_write",
+                    entity_type="payout_batch_conflict_probe",
+                    entity_id=str(batches[1].id),
+                    event_metadata={},
+                )
+            )
+            with pytest.raises(AppError) as duplicate:
+                await submit_payout_batch(
+                    session,
+                    batch_id=batches[1].id,
+                    actor_user_id=graph.admin.id,
+                    adapter=FixedReferenceAdapter(),
+                )
+            assert duplicate.value.code == "DISBURSEMENT_PROVIDER_REFERENCE_DUPLICATE"
+            await session.commit()
+
+        async with postgis_db_sessionmaker() as session:
+            stored = await session.get(PayoutBatch, batches[1].id)
+            lines = tuple(
+                (
+                    await session.scalars(
+                        select(PayoutBatchLine).where(
+                            PayoutBatchLine.batch_id == batches[1].id
+                        )
+                    )
+                ).all()
+            )
+            markers = int(
+                await session.scalar(
+                    select(func.count(AuditEvent.id)).where(
+                        AuditEvent.action == "test.r05.provider_reference_outer_write"
+                    )
+                )
+                or 0
+            )
+            assert stored is not None
+            return stored.status, lines, markers
+
+    status_value, lines, markers = asyncio.run(exercise())
+    assert status_value == "reserved"
+    assert all(line.status == "reserved" for line in lines)
+    assert all(line.provider_transfer_reference is None for line in lines)
+    assert markers == 1
 
 
 def test_postgres_hold_creation_serializes_before_reservation(

@@ -28,13 +28,14 @@ from conftest import (
     create_test_vehicle,
     fetch_activation_events,
 )
-from sqlalchemy import update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from test_trips import create_trip_ready_graph
 
 import app.services.campaign_assignments as assignments_service
 import app.services.trips as trips_service
 from app.core.errors import AppError
+from app.models.audit import AuditEvent
 from app.models.campaign import CampaignStatus, CreativeStatus
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
@@ -718,6 +719,180 @@ def test_concurrent_trip_starts_one_winner_postgis(
         "ACTIVE_TRIP_EXISTS_FOR_DRIVER",
         "ACTIVE_TRIP_EXISTS_FOR_VEHICLE",
     }
+
+
+@pytest.mark.parametrize(
+    ("same_driver", "expected_code"),
+    [
+        (True, "ACTIVE_TRIP_EXISTS_FOR_DRIVER"),
+        (False, "ACTIVE_TRIP_EXISTS_FOR_VEHICLE"),
+    ],
+)
+def test_postgres_trip_uniqueness_conflict_preserves_outer_write(
+    postgis_db_sessionmaker,
+    same_driver,
+    expected_code,
+) -> None:
+    admin, campaigns, driver, profile, vehicle = build_graph(
+        postgis_db_sessionmaker,
+        f"pg-trip-savepoint-{'driver' if same_driver else 'vehicle'}",
+        campaign_count=2,
+    )
+    first_assignment = create_test_campaign_assignment(
+        postgis_db_sessionmaker,
+        campaign_id=campaigns[0].id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        assigned_by_user_id=admin.id,
+        assignment_status=CampaignAssignmentStatus.DEACTIVATED,
+    )
+
+    if same_driver:
+        second_driver = driver
+        second_profile = profile
+        second_vehicle = create_test_vehicle(
+            postgis_db_sessionmaker,
+            driver_profile_id=profile.id,
+            plate_number="R05-SECOND",
+            vehicle_status=VehicleStatus.ACTIVE,
+        )
+    else:
+        second_driver = create_test_user(
+            postgis_db_sessionmaker,
+            email="driver-pg-trip-savepoint-vehicle-2@example.com",
+            password=PASSWORD,
+            role=UserRole.DRIVER,
+        )
+        second_profile = create_test_driver_profile(
+            postgis_db_sessionmaker,
+            user_id=second_driver.id,
+            onboarding_status=DriverOnboardingStatus.ACTIVE,
+        )
+        second_vehicle = vehicle
+    second_assignment = create_test_campaign_assignment(
+        postgis_db_sessionmaker,
+        campaign_id=campaigns[1].id,
+        driver_profile_id=second_profile.id,
+        vehicle_id=second_vehicle.id,
+        assigned_by_user_id=admin.id,
+        assignment_status=CampaignAssignmentStatus.DEACTIVATED,
+    )
+    attempts = (
+        (first_assignment.id, campaigns[0].id, driver.id, profile.id, vehicle.id),
+        (
+            second_assignment.id,
+            campaigns[1].id,
+            second_driver.id,
+            second_profile.id,
+            second_vehicle.id,
+        ),
+    )
+
+    async def attempt(index: int) -> str:
+        assignment_id, campaign_id, user_id, profile_id, vehicle_id = attempts[index]
+        async with postgis_db_sessionmaker() as session:
+            session.add(
+                AuditEvent(
+                    actor_user_id=user_id,
+                    action="test.r05.trip_outer_write",
+                    entity_type="trip_conflict_probe",
+                    entity_id=str(index),
+                    event_metadata={},
+                )
+            )
+            trip = trips_service.TripSession(
+                assignment_id=assignment_id,
+                campaign_id=campaign_id,
+                driver_profile_id=profile_id,
+                vehicle_id=vehicle_id,
+                started_by_user_id=user_id,
+                status=TripSessionStatus.ACTIVE.value,
+                evidence_protocol_version=2,
+                started_at=datetime.now(UTC),
+                trip_metadata={},
+            )
+            try:
+                await trips_service._add_trip_translating_exclusivity_conflict(
+                    session, trip
+                )
+                await session.commit()
+                return "created"
+            except AppError as exc:
+                assert exc.status_code == 409
+                await session.commit()
+                return exc.code
+
+    async def exercise() -> tuple[list[str], int]:
+        outcomes = list(await asyncio.gather(attempt(0), attempt(1)))
+        async with postgis_db_sessionmaker() as session:
+            markers = int(
+                await session.scalar(
+                    select(func.count(AuditEvent.id)).where(
+                        AuditEvent.action == "test.r05.trip_outer_write"
+                    )
+                )
+                or 0
+            )
+        return outcomes, markers
+
+    outcomes, markers = asyncio.run(exercise())
+    assert sorted(outcomes) == [expected_code, "created"]
+    assert markers == 2
+
+
+def test_postgres_trip_savepoint_does_not_translate_unexpected_constraint(
+    postgis_db_sessionmaker,
+) -> None:
+    admin, campaigns, driver, profile, vehicle = build_graph(
+        postgis_db_sessionmaker, "pg-trip-unexpected"
+    )
+    assignment = create_test_campaign_assignment(
+        postgis_db_sessionmaker,
+        campaign_id=campaigns[0].id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        assigned_by_user_id=admin.id,
+        assignment_status=CampaignAssignmentStatus.DEACTIVATED,
+    )
+
+    async def exercise() -> int:
+        async with postgis_db_sessionmaker() as session:
+            session.add(
+                AuditEvent(
+                    actor_user_id=driver.id,
+                    action="test.r05.trip_unexpected_outer_write",
+                    entity_type="trip_conflict_probe",
+                    entity_id="unexpected",
+                    event_metadata={},
+                )
+            )
+            trip = trips_service.TripSession(
+                assignment_id=assignment.id,
+                campaign_id=campaigns[0].id,
+                driver_profile_id=profile.id,
+                vehicle_id=vehicle.id,
+                started_by_user_id=driver.id,
+                status="unexpected",
+                evidence_protocol_version=2,
+                started_at=datetime.now(UTC),
+                trip_metadata={},
+            )
+            with pytest.raises(IntegrityError):
+                await trips_service._add_trip_translating_exclusivity_conflict(
+                    session, trip
+                )
+            await session.commit()
+        async with postgis_db_sessionmaker() as session:
+            return int(
+                await session.scalar(
+                    select(func.count(AuditEvent.id)).where(
+                        AuditEvent.action == "test.r05.trip_unexpected_outer_write"
+                    )
+                )
+                or 0
+            )
+
+    assert asyncio.run(exercise()) == 1
 
 
 def test_concurrent_admin_activations_fail_closed_postgis(postgis_db_sessionmaker) -> None:

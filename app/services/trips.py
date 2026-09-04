@@ -362,20 +362,25 @@ async def start_driver_trip(
         started_at=now,
         trip_metadata=payload.metadata,
     )
-    session.add(trip)
+    await _add_trip_translating_exclusivity_conflict(session, trip)
+    await session.refresh(trip)
+    return trip
+
+
+async def _add_trip_translating_exclusivity_conflict(
+    session: AsyncSession, trip: TripSession
+) -> None:
+    await session.flush()
     try:
-        await session.flush()
+        async with session.begin_nested():
+            session.add(trip)
+            await session.flush()
     except IntegrityError as exc:
-        # FND-07 (RM7): a lost race on either trip-exclusivity index returns
-        # the same stable 409 code as the pre-check; anything else re-raises.
         envelope = TRIP_CONFLICT_ENVELOPES.get(integrity_constraint_name(exc) or "")
         if envelope is None:
             raise
-        await session.rollback()
         code, message = envelope
         raise AppError(code, message, status_code=status.HTTP_409_CONFLICT) from exc
-    await session.refresh(trip)
-    return trip
 
 
 async def get_current_driver_trip(

@@ -5,11 +5,13 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 from starlette import status
 
 from app.core.errors import AppError
+from app.db.integrity import integrity_constraint_name
 from app.models.audit import AuditEvent
 from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.driver_application import DriverApplication, DriverApplicationStatus
@@ -374,30 +376,17 @@ async def submit_application_vehicle(
         actor_user_id=application.user_id,
         purpose=FilePurpose.VEHICLE_EVIDENCE,
     )
+    await session.flush()
+    normalized_plate = normalize_plate_number(payload.plate_number)
+    country_code = payload.plate_country_code.strip().upper()
     if payload.vehicle_id is None:
-        normalized_plate = normalize_plate_number(payload.plate_number)
-        country_code = payload.plate_country_code.strip().upper()
         await ensure_unique_plate(
             session,
             plate_country_code=country_code,
             plate_number_normalized=normalized_plate,
         )
-        vehicle = Vehicle(
-            id=uuid4(),
-            driver_profile_id=profile.id,
-            plate_number=payload.plate_number.strip(),
-            plate_number_normalized=normalized_plate,
-            plate_country_code=country_code,
-            vehicle_type=payload.vehicle_type.value,
-            make=payload.make.strip() if payload.make else None,
-            model=payload.model.strip() if payload.model else None,
-            year=payload.year,
-            color=payload.color.strip() if payload.color else None,
-            status=VehicleStatus.PENDING.value,
-            vehicle_metadata={},
-        )
-        session.add(vehicle)
-        await session.flush()
+        vehicle = None
+        current_version = 0
     else:
         vehicle = await session.scalar(
             select(Vehicle)
@@ -416,48 +405,77 @@ async def submit_application_vehicle(
                 "The current vehicle revision is already pending review",
                 status.HTTP_409_CONFLICT,
             )
-        normalized_plate = normalize_plate_number(payload.plate_number)
-        country_code = payload.plate_country_code.strip().upper()
         await ensure_unique_plate(
             session,
             plate_country_code=country_code,
             plate_number_normalized=normalized_plate,
             exclude_vehicle_id=vehicle.id,
         )
-        vehicle.plate_number = payload.plate_number.strip()
-        vehicle.plate_number_normalized = normalized_plate
-        vehicle.plate_country_code = country_code
-        vehicle.vehicle_type = payload.vehicle_type.value
-        vehicle.make = payload.make.strip() if payload.make else None
-        vehicle.model = payload.model.strip() if payload.model else None
-        vehicle.year = payload.year
-        vehicle.color = payload.color.strip() if payload.color else None
-        if vehicle.status == VehicleStatus.ACTIVE.value:
-            vehicle.status = VehicleStatus.PENDING.value
-    current_version = await session.scalar(
-        select(func.max(VehicleEvidenceSubmission.version)).where(
-            VehicleEvidenceSubmission.vehicle_id == vehicle.id
+        current_version = int(
+            await session.scalar(
+                select(func.max(VehicleEvidenceSubmission.version)).where(
+                    VehicleEvidenceSubmission.vehicle_id == vehicle.id
+                )
+            )
+            or 0
         )
-    )
-    submission = VehicleEvidenceSubmission(
-        id=uuid4(),
-        vehicle_id=vehicle.id,
-        version=int(current_version or 0) + 1,
-        client_request_id=payload.client_request_id,
-        status=KycSubmissionStatus.PENDING_REVIEW.value,
-        snapshot_trusted=True,
-        plate_number_snapshot=vehicle.plate_number,
-        plate_number_normalized_snapshot=vehicle.plate_number_normalized,
-        plate_country_code_snapshot=vehicle.plate_country_code,
-        vehicle_type_snapshot=vehicle.vehicle_type,
-        make_snapshot=vehicle.make,
-        model_snapshot=vehicle.model,
-        year_snapshot=vehicle.year,
-        color_snapshot=vehicle.color,
-        created_by_user_id=application.user_id,
-    )
-    session.add(submission)
-    await session.flush()
+    try:
+        async with session.begin_nested():
+            if vehicle is None:
+                vehicle = Vehicle(
+                    id=uuid4(),
+                    driver_profile_id=profile.id,
+                    plate_number=payload.plate_number.strip(),
+                    plate_number_normalized=normalized_plate,
+                    plate_country_code=country_code,
+                    vehicle_type=payload.vehicle_type.value,
+                    make=payload.make.strip() if payload.make else None,
+                    model=payload.model.strip() if payload.model else None,
+                    year=payload.year,
+                    color=payload.color.strip() if payload.color else None,
+                    status=VehicleStatus.PENDING.value,
+                    vehicle_metadata={},
+                )
+                session.add(vehicle)
+                await session.flush()
+            else:
+                vehicle.plate_number = payload.plate_number.strip()
+                vehicle.plate_number_normalized = normalized_plate
+                vehicle.plate_country_code = country_code
+                vehicle.vehicle_type = payload.vehicle_type.value
+                vehicle.make = payload.make.strip() if payload.make else None
+                vehicle.model = payload.model.strip() if payload.model else None
+                vehicle.year = payload.year
+                vehicle.color = payload.color.strip() if payload.color else None
+                if vehicle.status == VehicleStatus.ACTIVE.value:
+                    vehicle.status = VehicleStatus.PENDING.value
+            submission = VehicleEvidenceSubmission(
+                id=uuid4(),
+                vehicle_id=vehicle.id,
+                version=current_version + 1,
+                client_request_id=payload.client_request_id,
+                status=KycSubmissionStatus.PENDING_REVIEW.value,
+                snapshot_trusted=True,
+                plate_number_snapshot=vehicle.plate_number,
+                plate_number_normalized_snapshot=vehicle.plate_number_normalized,
+                plate_country_code_snapshot=vehicle.plate_country_code,
+                vehicle_type_snapshot=vehicle.vehicle_type,
+                make_snapshot=vehicle.make,
+                model_snapshot=vehicle.model,
+                year_snapshot=vehicle.year,
+                color_snapshot=vehicle.color,
+                created_by_user_id=application.user_id,
+            )
+            session.add(submission)
+            await session.flush()
+    except IntegrityError as exc:
+        if integrity_constraint_name(exc) != "uq_vehicles_plate_country_normalized":
+            raise
+        raise _error(
+            "DUPLICATE_VEHICLE_PLATE",
+            "A vehicle with this normalized plate already exists in this country",
+            status.HTTP_409_CONFLICT,
+        ) from exc
     session.add_all(
         VehicleEvidenceDocument(
             submission_id=submission.id,

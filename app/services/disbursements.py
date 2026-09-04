@@ -16,6 +16,7 @@ from app.adapters.disbursement import (
 )
 from app.adapters.disbursement.provider import DisbursementUnavailableError
 from app.core.errors import AppError
+from app.db.integrity import integrity_constraint_name
 from app.models.disbursement import (
     PayoutBatch,
     PayoutBatchLine,
@@ -52,19 +53,6 @@ def _canonical(value: object) -> bytes:
 
 def _fingerprint(value: object) -> str:
     return hashlib.sha256(_canonical(value)).hexdigest()
-
-
-def _violated_constraint(exc: IntegrityError) -> str | None:
-    candidates = (exc.orig, getattr(exc.orig, "__cause__", None))
-    return next(
-        (
-            str(name)
-            for candidate in candidates
-            if candidate is not None
-            if (name := getattr(candidate, "constraint_name", None)) is not None
-        ),
-        None,
-    )
 
 
 async def create_payout_batch_draft(
@@ -225,6 +213,7 @@ async def reserve_payout_batch(
     )
     payees_by_subject = {(payee.subject_id, payee.tenant_id): payee for payee in payees}
     lines: list[PayoutBatchLine] = []
+    await session.flush()
     for entry in entries:
         held = await session.scalar(
             select(func.count(FraudFlag.id)).where(
@@ -242,7 +231,8 @@ async def reserve_payout_batch(
         ):
             raise _error(
                 "PAYOUT_ENTRY_INELIGIBLE",
-                "Every selected entry must be positive, available, payable, and in batch currency",
+                "Every selected entry must be positive, available, payable, "
+                "and in batch currency",
             )
         payee = payees_by_subject.get((entry.driver_profile_id, entry.driver_user_id))
         if payee is None:
@@ -263,35 +253,38 @@ async def reserve_payout_batch(
                 "instruction_fingerprint": instruction_fingerprint,
             }
         )
-        line = PayoutBatchLine(
-            batch_id=batch.id,
-            ledger_entry_id=entry.id,
-            payee_version_id=payee_version.id,
-            bank_account_version_id=account_version.id,
-            amount=entry.amount,
-            currency=entry.currency,
-            instruction=instruction,
-            instruction_fingerprint=instruction_fingerprint,
-            idempotency_key=idempotency_key,
-            status=PayoutBatchLineStatus.RESERVED,
-            reservation_active=True,
+        lines.append(
+            PayoutBatchLine(
+                batch_id=batch.id,
+                ledger_entry_id=entry.id,
+                payee_version_id=payee_version.id,
+                bank_account_version_id=account_version.id,
+                amount=entry.amount,
+                currency=entry.currency,
+                instruction=instruction,
+                instruction_fingerprint=instruction_fingerprint,
+                idempotency_key=idempotency_key,
+                status=PayoutBatchLineStatus.RESERVED,
+                reservation_active=True,
+            )
         )
-        session.add(line)
-        lines.append(line)
-    batch.total_amount = sum((line.amount for line in lines), Decimal("0"))
-    batch.instruction_set_fingerprint = _fingerprint(
-        {
-            "currency": batch.currency,
-            "total_amount": f"{batch.total_amount:.2f}",
-            "line_fingerprints": sorted(line.instruction_fingerprint for line in lines),
-        }
-    )
-    batch.status = PayoutBatchStatus.RESERVED
     try:
-        await session.flush()
+        async with session.begin_nested():
+            session.add_all(lines)
+            batch.total_amount = sum((line.amount for line in lines), Decimal("0"))
+            batch.instruction_set_fingerprint = _fingerprint(
+                {
+                    "currency": batch.currency,
+                    "total_amount": f"{batch.total_amount:.2f}",
+                    "line_fingerprints": sorted(
+                        line.instruction_fingerprint for line in lines
+                    ),
+                }
+            )
+            batch.status = PayoutBatchStatus.RESERVED
+            await session.flush()
     except IntegrityError as exc:
-        constraint = _violated_constraint(exc)
-        await session.rollback()
+        constraint = integrity_constraint_name(exc)
         if constraint != "uq_payout_batch_lines_active_ledger_entry":
             raise
         raise _error(
@@ -430,6 +423,7 @@ async def submit_payout_batch(
         )
         for line in lines
     )
+    await session.flush()
     try:
         receipt = await adapter.submit_batch(batch_id=str(batch.id), instructions=instructions)
     except DisbursementUnavailableError as exc:
@@ -452,28 +446,28 @@ async def submit_payout_batch(
             "The provider did not return one unique reference per payout line",
             http_status=status.HTTP_502_BAD_GATEWAY,
         )
-    for line in lines:
-        provider_reference = receipt.line_references[str(line.id)]
-        if not provider_reference or line.provider_transfer_reference not in {
-            None,
-            provider_reference,
-        }:
-            raise _error(
-                "DISBURSEMENT_PROVIDER_REPLAY_CONFLICT",
-                "The provider returned a conflicting line reference",
-            )
-        line.provider_transfer_reference = provider_reference
-        if line.status == PayoutBatchLineStatus.RESERVED:
-            line.status = PayoutBatchLineStatus.SUBMITTED
     replay = batch.status == PayoutBatchStatus.SUBMITTED
-    batch.status = PayoutBatchStatus.SUBMITTED
-    batch.provider_submission_reference = receipt.provider_reference
-    batch.submitted_at = batch.submitted_at or datetime.now(UTC)
     try:
-        await session.flush()
+        async with session.begin_nested():
+            for line in lines:
+                provider_reference = receipt.line_references[str(line.id)]
+                if not provider_reference or line.provider_transfer_reference not in {
+                    None,
+                    provider_reference,
+                }:
+                    raise _error(
+                        "DISBURSEMENT_PROVIDER_REPLAY_CONFLICT",
+                        "The provider returned a conflicting line reference",
+                    )
+                line.provider_transfer_reference = provider_reference
+                if line.status == PayoutBatchLineStatus.RESERVED:
+                    line.status = PayoutBatchLineStatus.SUBMITTED
+            batch.status = PayoutBatchStatus.SUBMITTED
+            batch.provider_submission_reference = receipt.provider_reference
+            batch.submitted_at = batch.submitted_at or datetime.now(UTC)
+            await session.flush()
     except IntegrityError as exc:
-        constraint = _violated_constraint(exc)
-        await session.rollback()
+        constraint = integrity_constraint_name(exc)
         if constraint != "uq_payout_batch_lines_provider_transfer_reference":
             raise
         raise _error(

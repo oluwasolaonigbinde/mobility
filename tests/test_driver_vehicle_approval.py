@@ -334,6 +334,18 @@ def test_vehicle_approval_denies_cross_owner_and_self_approval(
     assert cross_owner.status_code == 404
     assert cross_owner.json()["error"]["code"] == "VEHICLE_NOT_FOUND"
 
+    duplicate_plate = db_client.post(
+        "/api/v1/auth/driver-onboarding/vehicle",
+        json=_vehicle_payload(other_token, other_files),
+    )
+    assert duplicate_plate.status_code == 409
+    assert duplicate_plate.json()["error"] == {
+        "code": "DUPLICATE_VEHICLE_PLATE",
+        "message": "A vehicle with this normalized plate already exists in this country",
+        "details": {},
+        "request_id": duplicate_plate.headers["x-request-id"],
+    }
+
     driver = create_test_user(
         db_sessionmaker,
         email="vehicle-self-approver@example.com",
@@ -908,6 +920,109 @@ def test_postgres_concurrent_identical_vehicle_decisions_converge_after_lock(
         "VEHICLE_DECISION_RETRY_CONFLICT",
         "VEHICLE_ALREADY_DECIDED",
     )
+
+
+def test_postgres_concurrent_applicant_plate_conflict_preserves_outer_write(
+    postgis_db_client, postgis_db_sessionmaker, settings, monkeypatch
+) -> None:
+    applicants = [
+        _approved_applicant(
+            postgis_db_client,
+            postgis_db_sessionmaker,
+            settings,
+            suffix=f"pg-plate-race-{index}",
+        )
+        for index in range(2)
+    ]
+    payloads = []
+    for index, (token, application, _admin) in enumerate(applicants):
+        files = _seed_vehicle_files(
+            postgis_db_sessionmaker,
+            application=application,
+            suffix=f"pg-plate-race-{index}",
+        )
+        payloads.append(
+            ApplicantVehicleSubmissionCreate.model_validate(
+                _vehicle_payload(token, files, plate_number="R05-PLATE")
+            )
+        )
+
+    original_precheck = vehicle_onboarding_service.ensure_unique_plate
+    prechecks_complete = asyncio.Event()
+    arrivals = 0
+
+    async def synchronized_precheck(*args, **kwargs):
+        nonlocal arrivals
+        await original_precheck(*args, **kwargs)
+        arrivals += 1
+        if arrivals == 2:
+            prechecks_complete.set()
+        await prechecks_complete.wait()
+
+    monkeypatch.setattr(
+        vehicle_onboarding_service,
+        "ensure_unique_plate",
+        synchronized_precheck,
+    )
+
+    async def submit_one(index: int) -> str:
+        _token, application, _admin = applicants[index]
+        async with postgis_db_sessionmaker() as session:
+            session.add(
+                AuditEvent(
+                    actor_user_id=application.user_id,
+                    action="test.r05.vehicle_plate_outer_write",
+                    entity_type="vehicle_conflict_probe",
+                    entity_id=str(index),
+                    event_metadata={},
+                )
+            )
+            try:
+                await submit_application_vehicle(
+                    session,
+                    payload=payloads[index],
+                    settings=settings,
+                )
+                await session.commit()
+                return "created"
+            except AppError as exc:
+                assert exc.status_code == 409
+                await session.commit()
+                return exc.code
+
+    async def exercise() -> tuple[list[str], int, int, int]:
+        outcomes = list(
+            await asyncio.wait_for(
+                asyncio.gather(submit_one(0), submit_one(1)),
+                timeout=10,
+            )
+        )
+        async with postgis_db_sessionmaker() as session:
+            vehicles = int(
+                await session.scalar(
+                    select(func.count(Vehicle.id)).where(
+                        Vehicle.plate_country_code == "NG",
+                        Vehicle.plate_number_normalized == "R05PLATE",
+                    )
+                )
+                or 0
+            )
+            submissions = int(
+                await session.scalar(select(func.count(VehicleEvidenceSubmission.id))) or 0
+            )
+            markers = int(
+                await session.scalar(
+                    select(func.count(AuditEvent.id)).where(
+                        AuditEvent.action == "test.r05.vehicle_plate_outer_write"
+                    )
+                )
+                or 0
+            )
+        return outcomes, vehicles, submissions, markers
+
+    outcomes, vehicles, submissions, markers = asyncio.run(exercise())
+    assert sorted(outcomes) == ["DUPLICATE_VEHICLE_PLATE", "created"]
+    assert (vehicles, submissions, markers) == (1, 1, 2)
 
 
 def test_postgres_nin_rewrap_and_trip_share_eligibility_before_profile_order(

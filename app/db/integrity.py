@@ -21,6 +21,9 @@ EXPECTED_UNIQUE_CONSTRAINTS = frozenset(
         "uq_installation_evidence_request",
         "uq_installation_evidence_assignment_pending",
         "uq_installation_evidence_photo_file",
+        "uq_payout_batch_lines_active_ledger_entry",
+        "uq_payout_batch_lines_provider_transfer_reference",
+        "uq_vehicles_plate_country_normalized",
     }
 )
 
@@ -73,6 +76,16 @@ _SQLITE_UNIQUE_COLUMNS = {
         "installation_evidence_submissions.assignment_id",
     ): "uq_installation_evidence_assignment_pending",
     ("installation_evidence_photos.stored_file_id",): "uq_installation_evidence_photo_file",
+    (
+        "payout_batch_lines.ledger_entry_id",
+    ): "uq_payout_batch_lines_active_ledger_entry",
+    (
+        "payout_batch_lines.provider_transfer_reference",
+    ): "uq_payout_batch_lines_provider_transfer_reference",
+    (
+        "vehicles.plate_country_code",
+        "vehicles.plate_number_normalized",
+    ): "uq_vehicles_plate_country_normalized",
 }
 
 _QUOTED_CONSTRAINT_RE = re.compile(r'(?:constraint|index) ["\']([^"\']+)["\']', re.I)
