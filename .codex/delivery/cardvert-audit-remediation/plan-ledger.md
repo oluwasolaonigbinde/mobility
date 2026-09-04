@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 348
+plan_revision: 349
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 478
+last_event_sequence: 479
 ---
 
 # Cardvert audit remediation programme
@@ -934,3 +934,4 @@ verification is complete.
 | 476 | 346 | 1 | DETERMINISTIC_CLOCK_SLICE_ACCEPTED | R57/TST-008 accepted an injected application-clock seam, preserved database-clock authority, monotonic job duration and exact no-sleep boundary evidence across security, Lagos-day, trip, provider, report and release surfaces. | commit `2599b87`; exact ten-file integration; controller 22 new tests plus Ruff/format/diff pass; owner 153 real-PostgreSQL core, 495 money/release, 19 security and 30 auth-race passes with zero skips; R57-M/MNY/SEC/RELEASE/CP-RELEASE PASS after fixing and mutation-testing a vacuous monotonic assertion |
 | 477 | 347 | 1 | PACKET_DISPATCHED | R58/TST-011 begins after R21 and R57 release its predecessor and worker-test holds. | GPT-5.6 Sol/xhigh is concretely required for real ARQ subprocess SIGKILL/restart cut points spanning Redis, PostgreSQL, payout side effects, deletion privacy and report publication convergence; exact test-harness and worker-registration/CI-test lease only; no product crash hook or product worker edit; direct terminal callback |
 | 478 | 348 | 1 | WORKER_RECOVERY_SLICE_ACCEPTED | R58/TST-011 accepted real ARQ subprocess SIGKILL/restart recovery evidence across earnings, payout, deletion, report publication and cursor progression. | commit `f07cb54`; exact three-test-file integration; seven real Redis/PostgreSQL recovery passes, ten focused WORKERS/MNY/PRV passes and nine fsync-backed receipts; controller registration smoke plus Ruff/format/diff PASS; R58-M/WORKERS/MNY/PRV/CP-WORKERS PASS; no product crash hook or product behavior change |
+| 479 | 349 | 1 | PLAN_PACKET_SETUP_STARTED | R59-P begins read-only aggregate-journey planning and isolated-environment readiness while R59 implementation remains dependency-blocked on active R22. | client task `e214dfa6-41a3-4ff4-b090-758a6c5c7d26`; GPT-5.6 Sol/high because the plan crosses money, privacy, security, workers and release authority while xhigh is unnecessary for read-only planning; no mutation lease or R59 acceptance authority; direct planning callback then wait for R22 admission |
