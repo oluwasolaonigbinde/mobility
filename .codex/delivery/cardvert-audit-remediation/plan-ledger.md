@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 311
+plan_revision: 314
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 441
+last_event_sequence: 444
 ---
 
 # Cardvert audit remediation programme
@@ -895,3 +895,6 @@ verification is complete.
 | 439 | 309 | 1 | REPORT_WORKER_SLICE_ACCEPTED | R49/REP-004 accepted the terminal third-attempt lease contract and promoted R50. | commit `a315a59`; exact two-file implementation; expired final claims terminalize once without attempt four while earlier claims recover; 2 real-PostgreSQL concurrency tests, focused red/green, lint/format/diff and independent R49-M/DB/R49-CP-REPORTING PASS; two pre-existing timezone-naive SQLite rendering failures remain outside R49 |
 | 440 | 310 | 1 | ONBOARDING_QUERY_SLICE_ACCEPTED | R33/ONB-006 accepted exact bounded approval-evidence queries and released its onboarding lease. | commit `14f155a`; exact six-file implementation with no migration/index/contract change; 40 focused real-PostgreSQL tests, no audit-events sequential scans, scoped lint/diff and independent R33-M/DB/R33-CP-ONBOARDING PASS |
 | 441 | 311 | 1 | GOVERNED_DOWNGRADE_SLICE_ACCEPTED | R06/DB-002 accepted transactional governed-downgrade refusal and promoted R07 into the exclusive database lane. | commit `05b4901`; exact four-file implementation across historical revisions 0010/0014/0016 and focused guards; 7 red failures, then 16 guard and 10 adjacent migration passes; ACCESS EXCLUSIVE race proof, Ruff/diff and independent corrected R06-P plus R06-M/DB/MNY/PRV/R06-CP-DB PASS |
+| 442 | 312 | 1 | SESSION_DELIVERY_POLICY_AMENDED | Every controller-created task must actively deliver its terminal receipt to the controller after each slice; compatible dependency-ordered slices may share one predeclared same-model lane, but each remains separately admitted before the next begins. | direct owner instruction; exact callback target `01a05de2-0b5d-73f0-ae3d-0e979b734658`; no routine polling; missing callback causes one adoption/reconciliation check, never duplicate implementation; fresh task required for changed model, domain, risk or conflicting lease |
+| 443 | 313 | 1 | PACKET_RESUMED | A fresh visible task adopted the preserved R07 partial candidate in its existing worktree after the original worktree launch failed to mature into an addressable callback-capable task. | task `01a06c2b-2912-7333-a0b5-37ceb97be94b`; GPT-5.6 Sol/high for PostgreSQL migration-era purge immutability; exact two-file lease; direct terminal callback; R18 predeclared but unauthorized until separate R07 admission |
+| 444 | 314 | 1 | PACKET_RESUMED | A fresh visible task adopted the preserved R50 partial candidate in its existing worktree after the original worktree launch failed to mature into an addressable callback-capable task. | task `01a06c2b-24f3-72a1-9d38-d651e7833413`; GPT-5.6 Sol/high for privacy-safe report authority, status races and generated contracts; exact existing R50 lease; direct terminal callback; R51→R52 predeclared but unauthorized until separate predecessor admission |
