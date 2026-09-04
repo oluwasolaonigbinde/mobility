@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 336
+plan_revision: 337
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 466
+last_event_sequence: 467
 ---
 
 # Cardvert audit remediation programme
@@ -920,3 +920,4 @@ verification is complete.
 | 464 | 334 | 1 | PACKET_DISPATCHED | R52/MET-006 begins in parallel on a disjoint focused copy-governance guard. | GPT-5.6 Terra/high for ordinary bounded test implementation; write lease only `tests/test_measurement_methodology.py`, with methodology JSON and advertiser/shared frontend sources read-only; direct terminal callback |
 | 465 | 335 | 1 | MEASUREMENT_COPY_GUARD_ACCEPTED | R52/MET-006 accepted a contract-derived advertiser copy guard across advertiser and shared production sources. | commit `cab745c`; exact one-file integration; six focused passes, scoped Ruff/format/diff and independent R52-M/CONTRACT/CP-REPORTING PASS; no production copy or methodology contract changed |
 | 466 | 336 | 1 | PACKET_DISPATCHED | R55/REL-004 begins in a fresh worktree task after R52 releases the second writer slot. | GPT-5.6 Sol/xhigh retained by accepted R55-P because cross-version image/schema compatibility, signed evidence and atomic release/recovery acceptance are difficult release-authority boundaries; exact release-contract/scripts/tests and inherited R54 signing-configuration lease; local synthetic evidence only; direct terminal callback |
+| 467 | 337 | 1 | PACKET_SCOPE_AMENDED | R20 may update five compatibility test surfaces whose assertions directly encode the superseded inline-provider and pre-R20 worker registration behavior. | add test-only write authority for `tests/test_payout_batches_api.py`, `tests/test_payout_reconciliation.py`, `tests/test_payout_reconciliation_api.py`, `tests/test_worker_jobs.py`, and `tests/test_worker_substrate.py`; preserve debt semantics and all unrelated assertions; no production, migration, generated-contract, controller-document or other test expansion; Sol/xhigh model gate unchanged |
