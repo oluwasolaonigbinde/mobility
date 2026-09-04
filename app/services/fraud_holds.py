@@ -1,4 +1,5 @@
 import hashlib
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -99,6 +100,24 @@ async def lock_fraud_hold_scope(
     await session.execute(
         select(TripSession.id).where(TripSession.id == trip_id).with_for_update()
     )
+
+
+async def lock_fraud_hold_scopes(
+    session: AsyncSession,
+    trip_ids: Iterable[UUID],
+) -> tuple[UUID, ...]:
+    """Lock a multi-trip money decision under one stable global order."""
+    ordered_trip_ids = tuple(sorted(set(trip_ids), key=str))
+    if not ordered_trip_ids:
+        return ()
+    await lock_fraud_reconciliation_gate(session, exclusive=False)
+    for trip_id in ordered_trip_ids:
+        await lock_fraud_hold_scope(
+            session,
+            trip_id,
+            reconciliation_gate_held=True,
+        )
+    return ordered_trip_ids
 
 
 async def fraud_hold_counts(session: AsyncSession, trip_id: UUID) -> dict[str, int]:

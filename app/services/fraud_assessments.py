@@ -40,6 +40,7 @@ class CurrentFraudAssessment:
     analytics: TripAnalytics | None
     flags: list[FraudFlag]
     current: bool
+    route_replay_signature: RouteReplaySignature | None = None
 
 
 def current_flag_facts(flags: Sequence[FraudFlag]) -> list[dict[str, object]]:
@@ -116,28 +117,38 @@ async def load_current_successful_assessment(
     *,
     trip_id: UUID,
     settings: Settings,
+    lock_rows: bool = False,
 ) -> CurrentFraudAssessment:
     """Rebuild the exact persisted assessment inputs and verify every watermark."""
-    analytics = await session.scalar(
-        select(TripAnalytics).where(TripAnalytics.trip_session_id == trip_id)
-    )
+    analytics_statement = select(TripAnalytics).where(TripAnalytics.trip_session_id == trip_id)
+    if lock_rows:
+        analytics_statement = analytics_statement.with_for_update()
+    analytics = await session.scalar(analytics_statement)
     if analytics is None or analytics.formula_version != settings.route_analytics_formula_version:
         return CurrentFraudAssessment(None, analytics, [], False)
 
-    assessment = await session.scalar(
-        select(FraudAssessment).where(FraudAssessment.trip_session_id == trip_id)
+    assessment_statement = select(FraudAssessment).where(FraudAssessment.trip_session_id == trip_id)
+    if lock_rows:
+        assessment_statement = assessment_statement.with_for_update()
+    assessment = await session.scalar(assessment_statement)
+    flags = await load_current_detection_flags(
+        session,
+        analytics=analytics,
+        lock_rows=lock_rows,
     )
-    flags = await load_current_detection_flags(session, analytics=analytics)
-    signature = await session.scalar(
-        select(RouteReplaySignature).where(RouteReplaySignature.trip_session_id == trip_id)
+    signature_statement = select(RouteReplaySignature).where(
+        RouteReplaySignature.trip_session_id == trip_id
     )
+    if lock_rows:
+        signature_statement = signature_statement.with_for_update()
+    signature = await session.scalar(signature_statement)
     if signature is None:
         return CurrentFraudAssessment(assessment, analytics, flags, False)
 
     try:
         analytics_fingerprint = analytics_output_fingerprint(analytics)
     except Exception:
-        return CurrentFraudAssessment(assessment, analytics, flags, False)
+        return CurrentFraudAssessment(assessment, analytics, flags, False, signature)
     replay_source_current = signature.source_analytics_fingerprint == analytics_fingerprint
     replay_current = (
         signature.trip_analytics_id == analytics.id
@@ -164,7 +175,7 @@ async def load_current_successful_assessment(
             upstream_facts={"route_replay": route_replay_assessment_facts(signature)},
         )
     )
-    return CurrentFraudAssessment(assessment, analytics, flags, current)
+    return CurrentFraudAssessment(assessment, analytics, flags, current, signature)
 
 
 async def _locked_assessment(
@@ -183,8 +194,9 @@ async def load_current_detection_flags(
     session: AsyncSession,
     *,
     analytics: TripAnalytics,
+    lock_rows: bool = False,
 ) -> list[FraudFlag]:
-    result = await session.execute(
+    statement = (
         select(FraudFlag)
         .where(
             FraudFlag.trip_analytics_id == analytics.id,
@@ -192,6 +204,9 @@ async def load_current_detection_flags(
         )
         .order_by(FraudFlag.flag_type, FraudFlag.severity, FraudFlag.id)
     )
+    if lock_rows:
+        statement = statement.with_for_update()
+    result = await session.execute(statement)
     return list(result.scalars().all())
 
 

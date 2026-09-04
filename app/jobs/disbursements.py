@@ -2,6 +2,7 @@ from typing import Any
 from uuid import UUID
 
 from app.adapters.disbursement import DisabledDisbursementAdapter, DisbursementAdapter
+from app.core.config import Settings, get_settings
 from app.services.disbursements import (
     find_due_payout_submission_intent_ids,
     process_payout_submission_intent,
@@ -12,6 +13,10 @@ def _adapter(ctx: dict[str, Any]) -> DisbursementAdapter:
     return ctx.get("disbursement_adapter") or DisabledDisbursementAdapter()
 
 
+def _settings(ctx: dict[str, Any]) -> Settings:
+    return ctx.get("settings") or get_settings()
+
+
 async def process_disbursement_intent_job(
     ctx: dict[str, Any], intent_id: str
 ) -> dict[str, str]:
@@ -20,6 +25,7 @@ async def process_disbursement_intent_job(
         ctx["sessionmaker"],
         intent_id=parsed_intent_id,
         adapter=_adapter(ctx),
+        settings=_settings(ctx),
     )
     return {"intent_id": str(parsed_intent_id), "outcome": outcome}
 

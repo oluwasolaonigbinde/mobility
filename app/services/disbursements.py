@@ -18,6 +18,7 @@ from app.adapters.disbursement import (
     VerifiedLineEvidence,
 )
 from app.adapters.disbursement.provider import DisbursementUnavailableError
+from app.core.config import Settings, get_settings
 from app.core.errors import AppError
 from app.db.integrity import integrity_constraint_name
 from app.models.disbursement import (
@@ -48,10 +49,17 @@ from app.models.payout import (
 from app.models.trip_analytics import FraudFlag
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
-from app.services.fraud_holds import fraud_hold_active_clause, lock_fraud_hold_scope
+from app.services.fraud_assessments import load_current_successful_assessment
+from app.services.fraud_holds import (
+    fraud_hold_active_clause,
+    lock_fraud_hold_scope,
+    lock_fraud_hold_scopes,
+)
 from app.services.payout_debt import lock_driver_currency_debt_scope
+from app.services.route_replay import route_replay_config_fingerprint
 
 DISBURSEMENT_CLAIM_LEASE = timedelta(minutes=2)
+FINAL_DISBURSEMENT_GATE_VERSION = "payout_final_authorization_v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,7 +171,10 @@ async def reserve_payout_batch(
     ledger_entry_ids: tuple[UUID, ...],
     actor_user_id: UUID,
 ) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...]]:
-    await require_active_admin(session, actor_user_id)
+    # Preserve the admin-first lock order even when the caller has pending rows
+    # whose foreign keys would otherwise be autoflushed before authorization.
+    with session.no_autoflush:
+        await require_active_admin(session, actor_user_id)
     if not ledger_entry_ids or len(set(ledger_entry_ids)) != len(ledger_entry_ids):
         raise _error(
             "PAYOUT_BATCH_ENTRIES_INVALID",
@@ -525,6 +536,259 @@ def _aware_utc(value: datetime) -> datetime:
     return (value.replace(tzinfo=UTC) if value.tzinfo is None else value).astimezone(UTC)
 
 
+def _iso(value: datetime | None) -> str | None:
+    return _aware_utc(value).isoformat() if value is not None else None
+
+
+def _final_gate_config_state(settings: Settings) -> dict[str, object]:
+    return {
+        "route_analytics_formula_version": settings.route_analytics_formula_version,
+        "route_replay_detector_version": settings.route_replay_detector_version,
+        "route_replay_config_fingerprint": route_replay_config_fingerprint(settings),
+        "fraud_assessment_formula_version": settings.fraud_assessment_formula_version,
+    }
+
+
+async def _final_payout_authority(
+    session: AsyncSession,
+    *,
+    batch: PayoutBatch,
+    lines: tuple[PayoutBatchLine, ...],
+    intents_by_line: dict[UUID, PayoutSubmissionIntent],
+    current_intent: PayoutSubmissionIntent,
+    provider_name: str,
+    settings: Settings,
+) -> dict[str, object]:
+    if batch.status not in {
+        PayoutBatchStatus.RESERVED.value,
+        PayoutBatchStatus.SUBMITTED.value,
+        PayoutBatchStatus.RECONCILED.value,
+    }:
+        raise _error(
+            "PAYOUT_BATCH_NOT_SUBMITTABLE",
+            "The payout batch no longer has unresolved provider work",
+        )
+    if (
+        batch.approved_by_user_id is None
+        or batch.approved_at is None
+        or batch.approved_by_user_id == batch.created_by_user_id
+    ):
+        raise _error(
+            "PAYOUT_BATCH_MAKER_CHECKER_REQUIRED",
+            "The batch no longer has valid maker-checker approval",
+        )
+    _assert_frozen(batch, lines)
+
+    candidates: list[tuple[PayoutBatchLine, PayoutSubmissionIntent]] = []
+    for line in lines:
+        intent = intents_by_line.get(line.id)
+        if line.status != PayoutBatchLineStatus.RESERVED.value:
+            if intent is not None and intent.state != PayoutSubmissionIntentState.RESOLVED.value:
+                raise _error(
+                    "PAYOUT_SUBMISSION_INTENT_CONFLICT",
+                    "A provider-final payout line has unresolved submission authority",
+                )
+            continue
+        if (
+            intent is None
+            or intent.state == PayoutSubmissionIntentState.RESOLVED.value
+            or not line.reservation_active
+            or line.provider_transfer_reference is not None
+        ):
+            raise _error(
+                "PAYOUT_SUBMISSION_INTENT_MISSING",
+                "Every unresolved payout line requires one active durable intent",
+            )
+        if (
+            intent.provider_name != provider_name
+            or intent.idempotency_key != line.idempotency_key
+            or intent.instruction != line.instruction
+            or intent.instruction_fingerprint != line.instruction_fingerprint
+        ):
+            raise _error(
+                "PAYOUT_SUBMISSION_INTENT_CONFLICT",
+                "A durable payout intent no longer matches its frozen line",
+            )
+        candidates.append((line, intent))
+    if not candidates or all(intent.id != current_intent.id for _, intent in candidates):
+        raise _error(
+            "PAYOUT_SUBMISSION_INTENT_CONFLICT",
+            "The claimed payout intent is not in the complete unresolved batch set",
+        )
+
+    ledger_ids = tuple(line.ledger_entry_id for line, _ in candidates)
+    ledger_stubs = list(
+        (
+            await session.execute(
+                select(
+                    EarningsLedgerEntry.id,
+                    EarningsLedgerEntry.trip_session_id,
+                    EarningsLedgerEntry.driver_profile_id,
+                    EarningsLedgerEntry.currency,
+                )
+                .where(EarningsLedgerEntry.id.in_(ledger_ids))
+                .order_by(EarningsLedgerEntry.id)
+            )
+        ).all()
+    )
+    if len(ledger_stubs) != len(ledger_ids) or any(
+        stub.trip_session_id is None for stub in ledger_stubs
+    ):
+        raise _error(
+            "PAYOUT_LEDGER_NOT_AVAILABLE",
+            "Every unresolved payout line must retain available trip-ledger authority",
+        )
+
+    ordered_trip_ids = await lock_fraud_hold_scopes(
+        session,
+        (stub.trip_session_id for stub in ledger_stubs if stub.trip_session_id is not None),
+    )
+    debt_scopes = sorted(
+        {(stub.driver_profile_id, stub.currency) for stub in ledger_stubs},
+        key=lambda item: (str(item[0]), item[1]),
+    )
+    for driver_profile_id, currency in debt_scopes:
+        _, debt_account = await lock_driver_currency_debt_scope(
+            session,
+            driver_profile_id=driver_profile_id,
+            currency=currency,
+        )
+        if debt_account is not None and debt_account.outstanding_amount > 0:
+            raise _error(
+                "PAYOUT_DEBT_ALLOCATION_REQUIRED",
+                "Carry-forward debt must be allocated before provider submission",
+            )
+
+    ledgers = tuple(
+        (
+            await session.scalars(
+                select(EarningsLedgerEntry)
+                .where(EarningsLedgerEntry.id.in_(ledger_ids))
+                .order_by(EarningsLedgerEntry.id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+        ).all()
+    )
+    ledgers_by_id = {entry.id: entry for entry in ledgers}
+    ledger_authorities: list[dict[str, object]] = []
+    for line, intent in candidates:
+        entry = ledgers_by_id.get(line.ledger_entry_id)
+        if (
+            entry is None
+            or entry.status != EarningsLedgerEntryStatus.AVAILABLE.value
+            or entry.entry_type == EarningsLedgerEntryType.REVERSAL.value
+            or entry.amount <= 0
+            or entry.amount != line.amount
+            or entry.currency != line.currency
+            or entry.trip_session_id is None
+        ):
+            raise _error(
+                "PAYOUT_LEDGER_NOT_AVAILABLE",
+                "An unresolved payout line no longer has its frozen available ledger credit",
+            )
+        ledger_authorities.append(
+            {
+                "line_id": str(line.id),
+                "intent_id": str(intent.id),
+                "ledger_entry_id": str(entry.id),
+                "trip_session_id": str(entry.trip_session_id),
+                "driver_profile_id": str(entry.driver_profile_id),
+                "entry_type": entry.entry_type,
+                "status": entry.status,
+                "amount": f"{entry.amount:.2f}",
+                "currency": entry.currency,
+                "reservation_active": line.reservation_active,
+                "instruction_fingerprint": line.instruction_fingerprint,
+            }
+        )
+
+    trip_authorities: list[dict[str, object]] = []
+    for trip_id in ordered_trip_ids:
+        active_hold = bool(
+            await session.scalar(
+                select(FraudFlag.id)
+                .where(
+                    FraudFlag.trip_session_id == trip_id,
+                    fraud_hold_active_clause(),
+                )
+                .order_by(FraudFlag.id)
+                .limit(1)
+            )
+        )
+        if active_hold:
+            raise _error(
+                "PAYOUT_ENTRY_HELD",
+                "An unresolved payout entry has an active fraud hold",
+            )
+        authority = await load_current_successful_assessment(
+            session,
+            trip_id=trip_id,
+            settings=settings,
+            lock_rows=True,
+        )
+        assessment = authority.assessment
+        analytics = authority.analytics
+        signature = authority.route_replay_signature
+        if not authority.current or assessment is None or analytics is None or signature is None:
+            raise _error(
+                "PAYOUT_ASSESSMENT_NOT_CURRENT",
+                "An unresolved payout entry lacks a current successful fraud assessment",
+            )
+        trip_authorities.append(
+            {
+                "trip_session_id": str(trip_id),
+                "assessment_current": True,
+                "fraud_hold_active": False,
+                "assessment_id": str(assessment.id),
+                "assessment_status": assessment.status,
+                "assessment_formula_version": assessment.formula_version,
+                "assessment_source_analytics_fingerprint": (
+                    assessment.source_analytics_fingerprint
+                ),
+                "assessment_inputs_fingerprint": assessment.inputs_fingerprint,
+                "assessment_flags_count": assessment.flags_count,
+                "assessment_flags_updated_through": _iso(assessment.flags_updated_through),
+                "assessment_assessed_at": _iso(assessment.assessed_at),
+                "assessment_updated_at": _iso(assessment.updated_at),
+                "analytics_id": str(analytics.id),
+                "analytics_formula_version": analytics.formula_version,
+                "analytics_computed_at": _iso(analytics.computed_at),
+                "analytics_updated_at": _iso(analytics.updated_at),
+                "route_replay_signature_id": str(signature.id),
+                "route_replay_status": signature.status,
+                "route_replay_detector_version": signature.detector_version,
+                "route_replay_config_fingerprint": (signature.detector_config_fingerprint),
+                "route_replay_source_analytics_fingerprint": (
+                    signature.source_analytics_fingerprint
+                ),
+                "route_replay_computed_at": _iso(signature.computed_at),
+                "route_replay_updated_at": _iso(signature.updated_at),
+                "flag_watermarks": [
+                    {
+                        "flag_id": str(flag.id),
+                        "status": flag.status,
+                        "updated_at": _iso(flag.updated_at),
+                    }
+                    for flag in authority.flags
+                ],
+            }
+        )
+
+    config_state = _final_gate_config_state(settings)
+    return {
+        "final_gate_version": FINAL_DISBURSEMENT_GATE_VERSION,
+        "final_gate_config": config_state,
+        "final_gate_config_fingerprint": _fingerprint(config_state),
+        "batch_id": str(batch.id),
+        "batch_instruction_set_fingerprint": batch.instruction_set_fingerprint,
+        "candidate_line_ids": [str(line.id) for line, _ in candidates],
+        "candidate_intent_ids": [str(intent.id) for _, intent in candidates],
+        "ledger_authorities": ledger_authorities,
+        "trip_authorities": trip_authorities,
+    }
+
+
 async def find_due_payout_submission_intent_ids(
     session: AsyncSession, *, limit: int = 100
 ) -> tuple[UUID, ...]:
@@ -562,33 +826,76 @@ async def claim_payout_submission_intent(
     *,
     intent_id: UUID,
     adapter: DisbursementAdapter,
+    settings: Settings | None = None,
 ) -> ClaimedDisbursementIntent | None:
     capabilities = _submission_capabilities(adapter)
+    settings = settings or get_settings()
     async with sessionmaker() as session:
         stub = (
             await session.execute(
                 select(
                     PayoutSubmissionIntent.payout_batch_line_id,
                     PayoutBatchLine.batch_id,
+                    PayoutBatch.created_by_user_id,
+                    PayoutBatch.approved_by_user_id,
+                    PayoutSubmissionIntent.requested_by_user_id,
                 )
                 .join(
                     PayoutBatchLine,
                     PayoutBatchLine.id == PayoutSubmissionIntent.payout_batch_line_id,
                 )
+                .join(PayoutBatch, PayoutBatch.id == PayoutBatchLine.batch_id)
                 .where(PayoutSubmissionIntent.id == intent_id)
             )
         ).one_or_none()
         if stub is None:
             return None
-        batch, lines = await _locked_batch_with_lines(session, stub.batch_id)
-        intent = await session.scalar(
-            select(PayoutSubmissionIntent)
-            .where(PayoutSubmissionIntent.id == intent_id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
+        requester_ids = set(
+            await session.scalars(
+                select(PayoutSubmissionIntent.requested_by_user_id)
+                .join(
+                    PayoutBatchLine,
+                    PayoutBatchLine.id == PayoutSubmissionIntent.payout_batch_line_id,
+                )
+                .where(PayoutBatchLine.batch_id == stub.batch_id)
+            )
         )
+        admin_ids = requester_ids | {stub.created_by_user_id}
+        if stub.approved_by_user_id is not None:
+            admin_ids.add(stub.approved_by_user_id)
+        for admin_id in sorted(admin_ids, key=str):
+            await require_active_admin(session, admin_id)
+        batch, lines = await _locked_batch_with_lines(session, stub.batch_id)
+        if (
+            batch.created_by_user_id != stub.created_by_user_id
+            or batch.approved_by_user_id != stub.approved_by_user_id
+        ):
+            raise _error(
+                "PAYOUT_BATCH_AUTHORITY_CHANGED",
+                "The payout batch maker-checker authority changed during final authorization",
+            )
+        intents = tuple(
+            (
+                await session.scalars(
+                    select(PayoutSubmissionIntent)
+                    .where(
+                        PayoutSubmissionIntent.payout_batch_line_id.in_([line.id for line in lines])
+                    )
+                    .order_by(PayoutSubmissionIntent.payout_batch_line_id)
+                    .with_for_update()
+                    .execution_options(populate_existing=True)
+                )
+            ).all()
+        )
+        intents_by_line = {intent.payout_batch_line_id: intent for intent in intents}
+        intent = next((item for item in intents if item.id == intent_id), None)
         if intent is None:
             return None
+        if {item.requested_by_user_id for item in intents} != requester_ids:
+            raise _error(
+                "PAYOUT_BATCH_AUTHORITY_CHANGED",
+                "The payout request authority changed during final authorization",
+            )
         line = next(item for item in lines if item.id == intent.payout_batch_line_id)
         if (
             intent.state == PayoutSubmissionIntentState.RESOLVED.value
@@ -601,11 +908,11 @@ async def claim_payout_submission_intent(
                 "The configured provider does not own this durable submission intent",
                 http_status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-        now = _aware_utc(await session.scalar(select(func.now())))
+        claim_checked_at = _aware_utc(await session.scalar(select(func.now())))
         if intent.state == PayoutSubmissionIntentState.CLAIMED.value:
             if (
                 intent.claim_expires_at is not None
-                and _aware_utc(intent.claim_expires_at) > now
+                and _aware_utc(intent.claim_expires_at) > claim_checked_at
             ):
                 return None
             action = PayoutSubmissionClaimAction.QUERY
@@ -615,12 +922,22 @@ async def claim_payout_submission_intent(
             action = PayoutSubmissionClaimAction.SUBMIT
         else:
             return None
+        final_authority = await _final_payout_authority(
+            session,
+            batch=batch,
+            lines=lines,
+            intents_by_line=intents_by_line,
+            current_intent=intent,
+            provider_name=capabilities.provider_name,
+            settings=settings,
+        )
+        authorized_at = _aware_utc(await session.scalar(select(func.now())))
         claim_token = uuid4()
         intent.state = PayoutSubmissionIntentState.CLAIMED.value
         intent.generation += 1
         intent.claim_token = claim_token
         intent.claim_action = action.value
-        intent.claim_expires_at = now + DISBURSEMENT_CLAIM_LEASE
+        intent.claim_expires_at = authorized_at + DISBURSEMENT_CLAIM_LEASE
         attempt = PayoutSubmissionAttempt(
             intent_id=intent.id,
             generation=intent.generation,
@@ -630,6 +947,20 @@ async def claim_payout_submission_intent(
             instruction_fingerprint=intent.instruction_fingerprint,
         )
         session.add(attempt)
+        await create_audit_event(
+            session,
+            actor_user_id=intent.requested_by_user_id,
+            action="worker.payout_submission.authorized",
+            entity_type="payout_submission_intent",
+            entity_id=str(intent.id),
+            metadata={
+                **final_authority,
+                "authorized_at": authorized_at.isoformat(),
+                "claim_generation": intent.generation,
+                "claim_action": action.value,
+                "claim_expires_at": intent.claim_expires_at.isoformat(),
+            },
+        )
         await session.commit()
         return ClaimedDisbursementIntent(
             intent_id=intent.id,
@@ -808,11 +1139,13 @@ async def process_payout_submission_intent(
     *,
     intent_id: UUID,
     adapter: DisbursementAdapter,
+    settings: Settings | None = None,
 ) -> str:
     claim = await claim_payout_submission_intent(
         sessionmaker,
         intent_id=intent_id,
         adapter=adapter,
+        settings=settings,
     )
     if claim is None:
         return "skipped"

@@ -15,10 +15,12 @@ from app.adapters.disbursement import (
     FakeDisbursementAdapter,
     ProviderSubmission,
 )
+from app.core.config import get_settings
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
 from app.models.disbursement import PayoutBatch, PayoutBatchLine, PayoutSubmissionIntent
 from app.models.payout import EarningsLedgerEntry
+from app.models.route_replay import RouteReplaySignature, RouteReplayStatus
 from app.models.trip_analytics import FraudFlag
 from app.services.disbursements import (
     approve_payout_batch,
@@ -27,15 +29,61 @@ from app.services.disbursements import (
     reserve_payout_batch,
     submit_payout_batch,
 )
+from app.services.fraud_assessments import (
+    assess_trip_fraud,
+    load_current_detection_flags,
+    load_current_successful_assessment,
+    route_replay_assessment_facts,
+)
 from app.services.fraud_holds import lock_fraud_hold_scope
 from app.services.payees import (
     VerifiedBankAccountDetails,
     add_verified_bank_account_version,
     create_pilot_payee,
 )
+from app.services.route_replay import route_replay_config_fingerprint
+from app.services.trip_analytics import analytics_output_fingerprint
 
 
 async def _seed_authority(session, graph, *, amount="100.00"):
+    settings = get_settings()
+    current = await load_current_successful_assessment(
+        session,
+        trip_id=graph.trip.id,
+        settings=settings,
+    )
+    if not current.current:
+        analytics = await session.get(type(graph.analytics), graph.analytics.id)
+        signature = await session.scalar(
+            select(RouteReplaySignature).where(
+                RouteReplaySignature.trip_session_id == graph.trip.id
+            )
+        )
+        if signature is None:
+            signature = RouteReplaySignature(
+                trip_session_id=graph.trip.id,
+                trip_analytics_id=analytics.id,
+                status=RouteReplayStatus.COMPUTED.value,
+                detector_version=settings.route_replay_detector_version,
+                detector_config_fingerprint=route_replay_config_fingerprint(settings),
+                source_analytics_fingerprint=analytics_output_fingerprint(analytics),
+                payload_fingerprint="a" * 64,
+                normalized_fingerprint="b" * 64,
+                point_count=3,
+                error_code=None,
+                computed_at=graph.analytics.computed_at,
+            )
+            session.add(signature)
+            await session.flush()
+        flags = await load_current_detection_flags(session, analytics=analytics)
+        await assess_trip_fraud(
+            session,
+            analytics=analytics,
+            flags=flags,
+            settings=settings,
+            now=graph.analytics.computed_at,
+            upstream_facts={"route_replay": route_replay_assessment_facts(signature)},
+        )
     payee, _ = await create_pilot_payee(
         session,
         driver_profile_id=graph.profile.id,
