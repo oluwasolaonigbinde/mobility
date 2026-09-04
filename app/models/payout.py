@@ -94,12 +94,23 @@ PAYOUT_RULE_MODEL_XOR_SQL = (
     ")"
 )
 
+CURRENCY_CODE_SQL = (
+    "length(currency) = 3"
+    " AND currency = upper(currency)"
+    " AND substr(currency, 1, 1) IN ('A','B','C','D','E','F','G','H','I','J','K','L','M',"
+    "'N','O','P','Q','R','S','T','U','V','W','X','Y','Z')"
+    " AND substr(currency, 2, 1) IN ('A','B','C','D','E','F','G','H','I','J','K','L','M',"
+    "'N','O','P','Q','R','S','T','U','V','W','X','Y','Z')"
+    " AND substr(currency, 3, 1) IN ('A','B','C','D','E','F','G','H','I','J','K','L','M',"
+    "'N','O','P','Q','R','S','T','U','V','W','X','Y','Z')"
+)
+
 
 class CampaignPayoutRule(Base):
     __tablename__ = "campaign_payout_rules"
     __table_args__ = (
         CheckConstraint("status IN ('active', 'inactive')", name="ck_campaign_payout_rules_status"),
-        CheckConstraint("length(currency) = 3", name="ck_campaign_payout_rules_currency"),
+        CheckConstraint(CURRENCY_CODE_SQL, name="ck_campaign_payout_rules_currency"),
         CheckConstraint(
             "base_rate_per_km >= 0",
             name="ck_campaign_payout_rules_base_rate_per_km_non_negative",
@@ -240,6 +251,10 @@ class CampaignPayoutRuleRevision(Base):
             "premium_hourly_rate_naira IS NULL OR premium_hourly_rate_naira >= 0",
             name="ck_campaign_payout_rule_revisions_premium_rate_non_negative",
         ),
+        CheckConstraint(
+            CURRENCY_CODE_SQL,
+            name="ck_campaign_payout_rule_revisions_currency",
+        ),
         UniqueConstraint(
             "campaign_id",
             "revision_number",
@@ -260,11 +275,11 @@ class CampaignPayoutRuleRevision(Base):
         server_default=text("gen_random_uuid()"),
     )
     campaign_id: Mapped[UUID] = mapped_column(
-        ForeignKey("campaigns.id", ondelete="CASCADE"),
+        ForeignKey("campaigns.id", ondelete="RESTRICT"),
         nullable=False,
     )
     payout_rule_id: Mapped[UUID] = mapped_column(
-        ForeignKey("campaign_payout_rules.id"),
+        ForeignKey("campaign_payout_rules.id", ondelete="RESTRICT"),
         nullable=False,
     )
     revision_number: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -272,6 +287,7 @@ class CampaignPayoutRuleRevision(Base):
     hourly_rate_naira: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     premium_hourly_rate_naira: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     daily_payable_hours_cap: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
     eligibility_params: Mapped[dict[str, Any]] = mapped_column(
         JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
@@ -310,6 +326,10 @@ class AssignmentRuleBinding(Base):
             "premium_hourly_rate_naira IS NULL OR premium_hourly_rate_naira >= 0",
             name="ck_assignment_rule_bindings_premium_rate_non_negative",
         ),
+        CheckConstraint(
+            CURRENCY_CODE_SQL,
+            name="ck_assignment_rule_bindings_currency",
+        ),
         UniqueConstraint(
             "assignment_id",
             name="uq_assignment_rule_bindings_assignment_id",
@@ -323,16 +343,17 @@ class AssignmentRuleBinding(Base):
         server_default=text("gen_random_uuid()"),
     )
     assignment_id: Mapped[UUID] = mapped_column(
-        ForeignKey("campaign_assignments.id", ondelete="CASCADE"),
+        ForeignKey("campaign_assignments.id", ondelete="RESTRICT"),
         nullable=False,
     )
     revision_id: Mapped[UUID] = mapped_column(
-        ForeignKey("campaign_payout_rule_revisions.id"),
+        ForeignKey("campaign_payout_rule_revisions.id", ondelete="RESTRICT"),
         nullable=False,
     )
     hourly_rate_naira: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     premium_hourly_rate_naira: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     daily_payable_hours_cap: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
     eligibility_params: Mapped[dict[str, Any]] = mapped_column(
         JSON().with_variant(postgresql.JSONB(), "postgresql"),
         default=dict,
@@ -470,7 +491,7 @@ class PayoutCalculation(Base):
             "status IN ('calculated', 'insufficient_data', 'blocked')",
             name="ck_payout_calculations_status",
         ),
-        CheckConstraint("length(currency) = 3", name="ck_payout_calculations_currency"),
+        CheckConstraint(CURRENCY_CODE_SQL, name="ck_payout_calculations_currency"),
         CheckConstraint(
             "distance_component >= 0",
             name="ck_payout_calculations_distance_component_non_negative",
@@ -550,15 +571,15 @@ class PayoutCalculation(Base):
         server_default=text("gen_random_uuid()"),
     )
     trip_session_id: Mapped[UUID] = mapped_column(
-        ForeignKey("trip_sessions.id", ondelete="CASCADE"),
+        ForeignKey("trip_sessions.id", ondelete="RESTRICT"),
         nullable=False,
     )
     trip_analytics_id: Mapped[UUID] = mapped_column(
-        ForeignKey("trip_analytics.id", ondelete="CASCADE"),
+        ForeignKey("trip_analytics.id", ondelete="RESTRICT"),
         nullable=False,
     )
     impression_estimate_id: Mapped[UUID] = mapped_column(
-        ForeignKey("impression_estimates.id", ondelete="CASCADE"),
+        ForeignKey("impression_estimates.id", ondelete="RESTRICT"),
         nullable=False,
     )
     payout_rule_id: Mapped[UUID] = mapped_column(
@@ -566,19 +587,19 @@ class PayoutCalculation(Base):
         nullable=False,
     )
     assignment_id: Mapped[UUID] = mapped_column(
-        ForeignKey("campaign_assignments.id", ondelete="CASCADE"),
+        ForeignKey("campaign_assignments.id", ondelete="RESTRICT"),
         nullable=False,
     )
     campaign_id: Mapped[UUID] = mapped_column(
-        ForeignKey("campaigns.id", ondelete="CASCADE"),
+        ForeignKey("campaigns.id", ondelete="RESTRICT"),
         nullable=False,
     )
     driver_profile_id: Mapped[UUID] = mapped_column(
-        ForeignKey("driver_profiles.id", ondelete="CASCADE"),
+        ForeignKey("driver_profiles.id", ondelete="RESTRICT"),
         nullable=False,
     )
     vehicle_id: Mapped[UUID] = mapped_column(
-        ForeignKey("vehicles.id", ondelete="CASCADE"),
+        ForeignKey("vehicles.id", ondelete="RESTRICT"),
         nullable=False,
     )
     formula_version: Mapped[str] = mapped_column(
@@ -652,7 +673,7 @@ class EarningsLedgerEntry(Base):
             "status IN ('pending', 'available', 'voided', 'reversed', 'paid')",
             name="ck_earnings_ledger_entries_status",
         ),
-        CheckConstraint("length(currency) = 3", name="ck_earnings_ledger_entries_currency"),
+        CheckConstraint(CURRENCY_CODE_SQL, name="ck_earnings_ledger_entries_currency"),
         CheckConstraint("amount >= 0", name="ck_earnings_ledger_entries_amount_non_negative"),
         Index(
             "uq_earnings_ledger_entries_payout_calculation_id",
@@ -694,18 +715,18 @@ class EarningsLedgerEntry(Base):
         ForeignKey("payout_calculations.id", ondelete="RESTRICT"),
     )
     driver_profile_id: Mapped[UUID] = mapped_column(
-        ForeignKey("driver_profiles.id", ondelete="CASCADE"),
+        ForeignKey("driver_profiles.id", ondelete="RESTRICT"),
         nullable=False,
     )
     driver_user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     campaign_id: Mapped[UUID] = mapped_column(
-        ForeignKey("campaigns.id", ondelete="CASCADE"),
+        ForeignKey("campaigns.id", ondelete="RESTRICT"),
         nullable=False,
     )
     trip_session_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("trip_sessions.id", ondelete="SET NULL"),
+        ForeignKey("trip_sessions.id", ondelete="RESTRICT"),
     )
-    vehicle_id: Mapped[UUID | None] = mapped_column(ForeignKey("vehicles.id", ondelete="SET NULL"))
+    vehicle_id: Mapped[UUID | None] = mapped_column(ForeignKey("vehicles.id", ondelete="RESTRICT"))
     entry_type: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)

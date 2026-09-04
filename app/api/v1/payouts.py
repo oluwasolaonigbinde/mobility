@@ -151,6 +151,7 @@ def payout_rule_revision_response(
         hourly_rate_naira=revision.hourly_rate_naira,
         premium_hourly_rate_naira=revision.premium_hourly_rate_naira,
         daily_payable_hours_cap=revision.daily_payable_hours_cap,
+        currency=revision.currency,
         # Historical revision rows may represent "no overrides" as NULL.
         # Keep the public response stable and equivalent to newly written {}.
         eligibility_params=revision.eligibility_params or {},
@@ -182,6 +183,7 @@ def payout_rule_revision_audit_values(
             if revision.daily_payable_hours_cap is not None
             else None
         ),
+        "currency": revision.currency,
         "eligibility_params": revision.eligibility_params,
         "formula_version": revision.formula_version,
     }

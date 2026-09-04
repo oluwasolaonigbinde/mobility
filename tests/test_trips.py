@@ -136,6 +136,7 @@ def create_trip_ready_graph(
                     hourly_rate_naira=Decimal("1.00"),
                     premium_hourly_rate_naira=None,
                     daily_payable_hours_cap=Decimal("1.00"),
+                    currency="NGN",
                     eligibility_params={},
                     resolved_eligibility_params={},
                     formula_version="payout_v3",

@@ -1137,6 +1137,16 @@ def _creative_snapshot(creative: CampaignCreative) -> dict[str, object]:
     }
 
 
+def _valid_frozen_currency(value: object) -> bool:
+    return bool(
+        isinstance(value, str)
+        and len(value) == 3
+        and value.isascii()
+        and value.isalpha()
+        and value == value.upper()
+    )
+
+
 def _offer_terms_complete(terms: dict | None, terms_sha256: str | None) -> bool:
     if terms is None or terms_sha256 is None:
         return False
@@ -1159,7 +1169,7 @@ def _offer_terms_complete(terms: dict | None, terms_sha256: str | None) -> bool:
     if terms.get("offer_terms_version") != OFFER_TERMS_VERSION:
         return False
     currency = terms.get("currency")
-    if not isinstance(currency, str) or len(currency) != 3:
+    if not _valid_frozen_currency(currency):
         return False
     service_area = terms.get("service_area")
     branding = terms.get("branding")
@@ -1182,12 +1192,20 @@ def _offer_terms_complete(terms: dict | None, terms_sha256: str | None) -> bool:
     payout = terms.get("payout")
     if not isinstance(payout, dict):
         return False
+    payout_currency = payout.get("currency")
     if (
         payout.get("formula_version") != PAYOUT_V3
         or not payout.get("revision_id")
         or not payout.get("payout_rule_id")
         or not payout.get("effective_from")
         or not isinstance(payout.get("eligibility_params"), dict)
+        or (
+            "currency" in payout
+            and (
+                not _valid_frozen_currency(payout_currency)
+                or payout_currency != currency
+            )
+        )
     ):
         return False
     try:
@@ -1314,6 +1332,8 @@ async def build_offer_terms(
     if (
         revision is None
         or revision.formula_version != PAYOUT_V3
+        or not _valid_frozen_currency(revision.currency)
+        or revision.currency != campaign.currency
         or revision.hourly_rate_naira is None
         or revision.premium_hourly_rate_naira is None
         or revision.daily_payable_hours_cap is None
@@ -1355,7 +1375,7 @@ async def build_offer_terms(
         )
     terms = {
         "offer_terms_version": OFFER_TERMS_VERSION,
-        "currency": campaign.currency,
+        "currency": revision.currency,
         "campaign_window_start_at": as_aware_utc(campaign.start_at).isoformat(),
         "campaign_window_end_at": as_aware_utc(campaign.end_at).isoformat(),
         "service_area": {
@@ -1376,6 +1396,7 @@ async def build_offer_terms(
         },
         "creative": creative_snapshot,
         "payout": {
+            "currency": revision.currency,
             "revision_id": str(revision.id),
             "payout_rule_id": str(revision.payout_rule_id),
             "revision_number": revision.revision_number,
@@ -1519,6 +1540,7 @@ async def create_rule_binding_for_accept(
         hourly_rate = Decimal(payout["hourly_rate_naira"])
         premium_rate = Decimal(payout["premium_hourly_rate_naira"])
         daily_cap = Decimal(payout["daily_payable_hours_cap"])
+        currency = payout["currency"] if "currency" in payout else terms["currency"]
     except (KeyError, TypeError, ValueError, ArithmeticError) as exc:
         raise AppError(
             "FROZEN_OFFER_TERMS_REQUIRED",
@@ -1537,11 +1559,30 @@ async def create_rule_binding_for_accept(
             "The accepted offer has no premium service area",
             status_code=status.HTTP_409_CONFLICT,
         )
+    revision = await session.scalar(
+        select(CampaignPayoutRuleRevision)
+        .where(
+            CampaignPayoutRuleRevision.id == revision_id,
+            CampaignPayoutRuleRevision.campaign_id == assignment.campaign_id,
+        )
+        .with_for_update()
+    )
+    if (
+        revision is None
+        or revision.currency != currency
+        or str(revision.payout_rule_id) != payout["payout_rule_id"]
+    ):
+        raise AppError(
+            "FROZEN_OFFER_TERMS_REQUIRED",
+            "The accepted offer currency disagrees with its frozen payout revision",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     resolved_eligibility = dict(terms["eligibility"])
     resolved_eligibility.pop("stationary_policy_marker", None)
     binding = AssignmentRuleBinding(
         assignment_id=assignment.id,
         revision_id=revision_id,
+        currency=currency,
         hourly_rate_naira=hourly_rate,
         premium_hourly_rate_naira=premium_rate,
         daily_payable_hours_cap=daily_cap,

@@ -179,6 +179,7 @@ def test_subject_link_registry_counts_recovery_contact_and_trip_manifest_rows(
                 hourly_rate_naira=Decimal("1000"),
                 premium_hourly_rate_naira=Decimal("1500"),
                 daily_payable_hours_cap=Decimal("8"),
+                currency="NGN",
                 eligibility_params={},
                 formula_version="payout_v3",
                 premium_zone_ids=[],

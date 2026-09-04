@@ -408,13 +408,18 @@ def validate_currency_code(value: str | None, *, fallback: str | None = None) ->
     if value is None:
         return None
     normalized = value.strip().upper()
-    if len(normalized) != 3 or not normalized.isalpha():
+    if len(normalized) != 3 or not normalized.isascii() or not normalized.isalpha():
         raise AppError(
             "INVALID_CURRENCY",
             "Currency must be a 3-letter code",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     return normalized
+
+
+def merge_payout_metadata(prefix: dict | None, authoritative: dict) -> dict:
+    """Attach caller context without allowing it to replace payout evidence."""
+    return {**(prefix or {}), **authoritative}
 
 
 async def get_campaign(session: AsyncSession, campaign_id: UUID) -> Campaign:
@@ -613,6 +618,7 @@ async def create_campaign_payout_rule(
             hourly_rate_naira=rule.hourly_rate_naira,
             premium_hourly_rate_naira=None,
             daily_payable_hours_cap=rule.daily_payable_hours_cap,
+            currency=rule.currency,
             eligibility_params=rule.eligibility_params or {},
             formula_version=PAYOUT_V3,
             reason="genesis: initial payout_v2 rule values at rule creation",
@@ -784,6 +790,7 @@ async def create_payout_rule_revision(
         hourly_rate_naira=payload.hourly_rate_naira,
         premium_hourly_rate_naira=payload.premium_hourly_rate_naira,
         daily_payable_hours_cap=payload.daily_payable_hours_cap,
+        currency=rule.currency,
         eligibility_params=payload.eligibility_params,
         formula_version=PAYOUT_V3,
         reason=payload.reason,
@@ -1315,7 +1322,6 @@ def v2_inputs_fingerprint(
 def v3_inputs_fingerprint(
     *,
     binding: AssignmentRuleBinding,
-    currency: str,
     params: EligibilityParams,
     ping_fingerprint: str,
     zone_fingerprint: str,
@@ -1346,7 +1352,7 @@ def v3_inputs_fingerprint(
             "exclusion_zone_ids": list(binding.exclusion_zone_ids or []),
             "exclusion_zone_geometry_hash": binding.exclusion_zone_geometry_hash,
             "stationary_policy_marker": binding.stationary_policy_marker,
-            "currency": currency,
+            "currency": binding.currency,
             "ping_set_fingerprint": ping_fingerprint,
             "zone_state_fingerprint": zone_fingerprint,
             "window_start_at": window_start_at,
@@ -1747,6 +1753,8 @@ async def trip_payout_entry_for_trip(
 async def ensure_ledger_entry(
     session: AsyncSession,
     calculation: PayoutCalculation,
+    *,
+    metadata_prefix: dict | None = None,
 ) -> EarningsLedgerEntry | None:
     existing = await ledger_for_calculation(session, calculation.id)
     if existing is not None:
@@ -1788,10 +1796,13 @@ async def ensure_ledger_entry(
         currency=calculation.currency,
         description="Trip payout",
         occurred_at=calculation.calculated_at,
-        ledger_metadata={
-            "formula_version": calculation.formula_version,
-            "payout_calculation_id": str(calculation.id),
-        },
+        ledger_metadata=merge_payout_metadata(
+            metadata_prefix,
+            {
+                "formula_version": calculation.formula_version,
+                "payout_calculation_id": str(calculation.id),
+            },
+        ),
     )
     try:
         async with session.begin_nested():
@@ -1938,6 +1949,7 @@ async def calculate_trip_payout_v2(
     counts: dict[str, int],
     metadata: dict,
     settings: Settings,
+    metadata_prefix: dict | None = None,
     now: datetime | None = None,
 ) -> tuple[PayoutCalculation, EarningsLedgerEntry | None, bool]:
     ensure_postgis(session)
@@ -2072,6 +2084,7 @@ async def calculate_trip_payout_v2(
         "financial_cutoff_at": cutoff.isoformat() if cutoff is not None else None,
         "recorded_trip_end_at": _aware_utc(trip.ended_at).isoformat(),
     }
+    payout_metadata = merge_payout_metadata(metadata_prefix, payout_metadata)
 
     calculation = PayoutCalculation(
         trip_session_id=trip.id,
@@ -2113,10 +2126,10 @@ async def calculate_trip_payout_v2(
         )
         if existing is None:
             raise
-        ledger = await ensure_ledger_entry(session, existing)
+        ledger = await ensure_ledger_entry(session, existing, metadata_prefix=metadata_prefix)
         return existing, ledger, False
     await session.refresh(calculation)
-    ledger = await ensure_ledger_entry(session, calculation)
+    ledger = await ensure_ledger_entry(session, calculation, metadata_prefix=metadata_prefix)
     return calculation, ledger, True
 
 
@@ -2177,6 +2190,7 @@ async def calculate_trip_payout_v3(
     counts: dict[str, int],
     metadata: dict,
     settings: Settings,
+    metadata_prefix: dict | None = None,
     now: datetime | None = None,
 ) -> tuple[PayoutCalculation, EarningsLedgerEntry | None, bool]:
     """payout_v3 (MNY-06B): priced EXCLUSIVELY from the assignment's frozen
@@ -2197,7 +2211,10 @@ async def calculate_trip_payout_v3(
         session, trip=trip, window_end_at=window_end_at
     )
     revision = await session.get(CampaignPayoutRuleRevision, binding.revision_id)
-    rule = await session.get(CampaignPayoutRule, revision.payout_rule_id)
+    if revision is None or revision.currency != binding.currency:
+        raise invalid_rule_values(
+            "the frozen assignment binding must match its payout revision currency"
+        )
     params = frozen_eligibility_params(binding)
     premium_zone_uuids = [UUID(str(zone_id)) for zone_id in binding.premium_zone_ids or []]
     ping_rows = await load_eligibility_pings(
@@ -2221,7 +2238,6 @@ async def calculate_trip_payout_v3(
     pings_fingerprint = ping_set_fingerprint(ping_rows)
     inputs_fingerprint = v3_inputs_fingerprint(
         binding=binding,
-        currency=rule.currency,
         params=params,
         ping_fingerprint=pings_fingerprint,
         zone_fingerprint=(
@@ -2302,10 +2318,11 @@ async def calculate_trip_payout_v3(
 
     payout_metadata = {
         "formula_version": PAYOUT_V3,
-        "payout_rule_id": str(rule.id),
+        "payout_rule_id": str(revision.payout_rule_id),
         "binding": {
             "binding_id": str(binding.id),
             "revision_id": str(binding.revision_id),
+            "currency": binding.currency,
             "bound_at": binding.bound_at.isoformat(),
             "campaign_window_start_at": (
                 window_start_at.isoformat() if window_start_at is not None else None
@@ -2385,19 +2402,20 @@ async def calculate_trip_payout_v3(
         "financial_cutoff_at": cutoff.isoformat() if cutoff is not None else None,
         "recorded_trip_end_at": _aware_utc(trip.ended_at).isoformat(),
     }
+    payout_metadata = merge_payout_metadata(metadata_prefix, payout_metadata)
 
     calculation = PayoutCalculation(
         trip_session_id=trip.id,
         trip_analytics_id=analytics.id,
         impression_estimate_id=estimate.id,
-        payout_rule_id=rule.id,
+        payout_rule_id=revision.payout_rule_id,
         assignment_id=analytics.assignment_id,
         campaign_id=analytics.campaign_id,
         driver_profile_id=analytics.driver_profile_id,
         vehicle_id=analytics.vehicle_id,
         formula_version=PAYOUT_V3,
         status=status_value,
-        currency=rule.currency,
+        currency=binding.currency,
         gross_payout=amount,
         final_payout=amount,
         eligible_seconds=breakdown.eligible_seconds,
@@ -2422,14 +2440,14 @@ async def calculate_trip_payout_v3(
             session,
             trip_id=trip.id,
             formula_version=PAYOUT_V3,
-            payout_rule_id=rule.id,
+            payout_rule_id=revision.payout_rule_id,
         )
         if existing is None:
             raise
-        ledger = await ensure_ledger_entry(session, existing)
+        ledger = await ensure_ledger_entry(session, existing, metadata_prefix=metadata_prefix)
         return existing, ledger, False
     await session.refresh(calculation)
-    ledger = await ensure_ledger_entry(session, calculation)
+    ledger = await ensure_ledger_entry(session, calculation, metadata_prefix=metadata_prefix)
     return calculation, ledger, True
 
 
@@ -2447,8 +2465,7 @@ async def v3_calculation_is_stale(
     if binding is None or not binding.campaign_window_frozen:
         return True
     revision = await session.get(CampaignPayoutRuleRevision, binding.revision_id)
-    rule = await session.get(CampaignPayoutRule, revision.payout_rule_id)
-    if rule is None:
+    if revision is None or revision.currency != binding.currency:
         return True
     await get_campaign(session, trip.campaign_id)
     window_start_at, window_end_at = frozen_campaign_window(binding)
@@ -2466,7 +2483,6 @@ async def v3_calculation_is_stale(
     )
     current = v3_inputs_fingerprint(
         binding=binding,
-        currency=rule.currency,
         params=params,
         ping_fingerprint=ping_set_fingerprint(ping_rows),
         zone_fingerprint=(
@@ -2475,7 +2491,7 @@ async def v3_calculation_is_stale(
         window_start_at=window_start_at,
         window_end_at=effective_window_end,
     )
-    return calculation.inputs_fingerprint != current
+    return calculation.currency != binding.currency or calculation.inputs_fingerprint != current
 
 
 async def _calculate_trip_payout_v1(
@@ -2489,6 +2505,7 @@ async def _calculate_trip_payout_v1(
     metadata: dict,
     formula_version: str,
     now: datetime | None,
+    metadata_prefix: dict | None = None,
 ) -> tuple[PayoutCalculation, EarningsLedgerEntry | None, bool]:
     existing = await existing_payout_calculation(
         session,
@@ -2503,7 +2520,7 @@ async def _calculate_trip_payout_v1(
             estimate=estimate,
             counts=counts,
         )
-        ledger = await ensure_ledger_entry(session, existing)
+        ledger = await ensure_ledger_entry(session, existing, metadata_prefix=metadata_prefix)
         return existing, ledger, False
 
     calculated_at = now or utc_now()
@@ -2552,6 +2569,7 @@ async def _calculate_trip_payout_v1(
             "source_impression_fingerprint": impression_output_fingerprint(estimate),
         }
     )
+    values["payout_metadata"] = merge_payout_metadata(metadata_prefix, values["payout_metadata"])
 
     calculation = PayoutCalculation(
         trip_session_id=trip.id,
@@ -2589,10 +2607,10 @@ async def _calculate_trip_payout_v1(
             estimate=estimate,
             counts=counts,
         )
-        ledger = await ensure_ledger_entry(session, existing)
+        ledger = await ensure_ledger_entry(session, existing, metadata_prefix=metadata_prefix)
         return existing, ledger, False
     await session.refresh(calculation)
-    ledger = await ensure_ledger_entry(session, calculation)
+    ledger = await ensure_ledger_entry(session, calculation, metadata_prefix=metadata_prefix)
     return calculation, ledger, True
 
 
@@ -2605,6 +2623,7 @@ async def calculate_trip_payout(
     settings: Settings,
     now: datetime | None = None,
     strict_staleness: bool = True,
+    metadata_prefix: dict | None = None,
 ) -> tuple[PayoutCalculation, EarningsLedgerEntry | None, bool]:
     """Per-rule formula dispatch (D2/D8, Q4/Q5) + engine routing (MNY-06B).
 
@@ -2659,7 +2678,7 @@ async def calculate_trip_payout(
                     estimate=estimate,
                     counts=counts,
                 )
-            ledger = await ensure_ledger_entry(session, existing)
+            ledger = await ensure_ledger_entry(session, existing, metadata_prefix=metadata_prefix)
             return existing, ledger, False
 
     # Engine routing (MNY-06B): binding presence decides the engine. A bound
@@ -2693,6 +2712,7 @@ async def calculate_trip_payout(
             counts=counts,
             metadata=metadata,
             settings=settings,
+            metadata_prefix=metadata_prefix,
             now=now,
         )
 
@@ -2723,6 +2743,7 @@ async def calculate_trip_payout(
             counts=counts,
             metadata=metadata,
             settings=settings,
+            metadata_prefix=metadata_prefix,
             now=now,
         )
     return await _calculate_trip_payout_v1(
@@ -2735,6 +2756,7 @@ async def calculate_trip_payout(
         metadata=metadata,
         formula_version=rule.formula_version,
         now=now,
+        metadata_prefix=metadata_prefix,
     )
 
 
@@ -3261,6 +3283,17 @@ async def _posted_amount_for_trip(
     driver_profile_id: UUID,
     currency: str,
 ) -> Decimal:
+    mismatched_currency_entry_id = await session.scalar(
+        select(EarningsLedgerEntry.id)
+        .where(
+            EarningsLedgerEntry.trip_session_id == trip_session_id,
+            EarningsLedgerEntry.currency != currency,
+            EarningsLedgerEntry.status != EarningsLedgerEntryStatus.VOIDED.value,
+        )
+        .limit(1)
+    )
+    if mismatched_currency_entry_id is not None:
+        raise payout_day_currency_mismatch()
     total = await session.scalar(
         select(func.coalesce(func.sum(signed_ledger_amount_expression()), 0)).where(
             EarningsLedgerEntry.trip_session_id == trip_session_id,
@@ -3394,6 +3427,13 @@ async def compute_payout_day_targets(
                     " frozen rule binding; resolve manually",
                     status_code=status.HTTP_409_CONFLICT,
                 )
+            revision = await session.get(CampaignPayoutRuleRevision, binding.revision_id)
+            if (
+                revision is None
+                or revision.currency != binding.currency
+                or calculation.currency != binding.currency
+            ):
+                raise payout_day_currency_mismatch()
             window_start_at, window_end_at = frozen_campaign_window(binding)
             trip_cap_seconds = int(Decimal(binding.daily_payable_hours_cap) * SECONDS_PER_HOUR)
             hourly_rate = Decimal(binding.hourly_rate_naira)
@@ -3422,7 +3462,7 @@ async def compute_payout_day_targets(
                 "stationary_policy_marker": binding.stationary_policy_marker,
                 "campaign_window_start_at": window_start_at,
                 "campaign_window_end_at": window_end_at,
-                "currency": calculation.currency,
+                "currency": binding.currency,
             }
         else:
             trip_cap_seconds = daily_cap_seconds(rule)
@@ -3699,11 +3739,30 @@ async def write_day_differentials(
                     raise correction_release_at_required()
                 entry_status = EarningsLedgerEntryStatus.PENDING.value
             else:
+                paid_credit_id = None
+                if delta < 0:
+                    paid_credit_id = await session.scalar(
+                        select(EarningsLedgerEntry.id)
+                        .where(
+                            EarningsLedgerEntry.driver_profile_id == driver_profile_id,
+                            EarningsLedgerEntry.trip_session_id == target.trip_session_id,
+                            EarningsLedgerEntry.currency == target.currency,
+                            EarningsLedgerEntry.status == EarningsLedgerEntryStatus.PAID.value,
+                            EarningsLedgerEntry.entry_type
+                            != EarningsLedgerEntryType.REVERSAL.value,
+                        )
+                        .order_by(EarningsLedgerEntry.occurred_at, EarningsLedgerEntry.id)
+                        .limit(1)
+                    )
                 entry_status = (
-                    trip_payout_entry.status
-                    if trip_payout_entry is not None
-                    and trip_payout_entry.status != EarningsLedgerEntryStatus.VOIDED.value
-                    else EarningsLedgerEntryStatus.PENDING.value
+                    EarningsLedgerEntryStatus.AVAILABLE.value
+                    if paid_credit_id is not None
+                    else (
+                        trip_payout_entry.status
+                        if trip_payout_entry is not None
+                        and trip_payout_entry.status != EarningsLedgerEntryStatus.VOIDED.value
+                        else EarningsLedgerEntryStatus.PENDING.value
+                    )
                 )
             breakdown_metadata = {
                 "eligible_seconds": target.eligible_seconds,

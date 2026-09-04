@@ -869,10 +869,8 @@ async def build_rich_seed(
                     payout_rule_id=None,
                     metadata=f7_metadata(seed_step="payout"),
                     settings=settings,
+                    metadata_prefix=f7_metadata(),
                 )
-                calculation.payout_metadata = f7_metadata(**calculation.payout_metadata)
-                if ledger is not None:
-                    ledger.ledger_metadata = f7_metadata(**ledger.ledger_metadata)
                 await session.flush()
                 new_trips.append(trip)
     audit_event_count = await _ensure_audit_backlog(

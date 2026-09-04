@@ -1032,6 +1032,7 @@ def create_test_campaign_payout_revision(
                 hourly_rate_naira=hourly_rate_naira,
                 premium_hourly_rate_naira=premium_hourly_rate_naira,
                 daily_payable_hours_cap=daily_payable_hours_cap,
+                currency="NGN",
                 eligibility_params={},
                 formula_version="payout_v3",
                 reason="test offer terms",

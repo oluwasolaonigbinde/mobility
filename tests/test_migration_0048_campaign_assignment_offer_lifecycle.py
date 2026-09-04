@@ -7,9 +7,9 @@ from uuid import UUID, uuid4
 import pytest
 from conftest import (
     create_test_campaign,
-    create_test_campaign_payout_revision,
     create_test_driver_profile,
     create_test_organization,
+    create_test_payout_rule,
     create_test_user,
     create_test_vehicle,
 )
@@ -22,6 +22,7 @@ from test_migration_0014_partitioning import (
     create_database_from_url,
     downgrade_to,
     drop_database,
+    fetch_all,
     upgrade_to,
 )
 
@@ -31,6 +32,8 @@ from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
 
 PRE_OFFER_REVISION = "0047_retargeting_source_links"
+OFFER_REVISION = "0048_campaign_assignment_offer_lifecycle"
+R18_PREVIOUS_REVISION = "0080_trip_evidence_partial_disposition"
 
 
 def test_offer_migration_static_shape_and_sqlite_branch() -> None:
@@ -83,16 +86,34 @@ def test_legacy_roundtrip_and_new_evidence_downgrade_guard(monkeypatch) -> None:
             vehicle_status=VehicleStatus.ACTIVE,
             plate_number=f"MIG-{uuid4().hex[:8]}",
         )
-        revision = create_test_campaign_payout_revision(
+        rule = create_test_payout_rule(
             sessionmaker,
             campaign_id=campaign.id,
             created_by_user_id=admin.id,
         )
+        revision_id = uuid4()
         assignment_id = uuid4()
         binding_id = uuid4()
 
         async def insert_rows() -> None:
             async with engine.begin() as connection:
+                await connection.execute(
+                    text(
+                        "INSERT INTO campaign_payout_rule_revisions "
+                        "(id,campaign_id,payout_rule_id,revision_number,effective_from,"
+                        "hourly_rate_naira,premium_hourly_rate_naira,"
+                        "daily_payable_hours_cap,eligibility_params,formula_version,"
+                        "reason,created_by_user_id) VALUES "
+                        "(:id,:campaign_id,:rule_id,1,now()-interval '1 day',1000,1500,8,"
+                        "'{}'::jsonb,'payout_v3','test offer terms',:admin_id)"
+                    ),
+                    {
+                        "id": revision_id,
+                        "campaign_id": campaign.id,
+                        "rule_id": rule.id,
+                        "admin_id": admin.id,
+                    },
+                )
                 await connection.execute(
                     text(
                         "INSERT INTO campaign_assignments "
@@ -134,7 +155,7 @@ def test_legacy_roundtrip_and_new_evidence_downgrade_guard(monkeypatch) -> None:
                     {
                         "id": binding_id,
                         "assignment_id": assignment_id,
-                        "revision_id": revision.id,
+                        "revision_id": revision_id,
                     },
                 )
 
@@ -145,13 +166,13 @@ def test_legacy_roundtrip_and_new_evidence_downgrade_guard(monkeypatch) -> None:
             "campaign_id": campaign.id,
             "assignment_id": assignment_id,
             "binding_id": binding_id,
-            "revision_id": revision.id,
+            "revision_id": revision_id,
         }
 
     try:
         upgrade_to(migration_url, PRE_OFFER_REVISION, monkeypatch)
         seeded = seed_legacy()
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, OFFER_REVISION, monkeypatch)
 
         async def assert_new_columns() -> None:
             engine = create_async_engine(migration_url, poolclass=NullPool)
@@ -181,7 +202,7 @@ def test_legacy_roundtrip_and_new_evidence_downgrade_guard(monkeypatch) -> None:
 
         asyncio.run(assert_new_columns())
         downgrade_to(migration_url, PRE_OFFER_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, OFFER_REVISION, monkeypatch)
 
         async def insert_new_evidence() -> UUID:
             engine = create_async_engine(migration_url, poolclass=NullPool)
@@ -290,5 +311,11 @@ def test_legacy_roundtrip_and_new_evidence_downgrade_guard(monkeypatch) -> None:
             asyncio.run(mutate_offer())
         with pytest.raises(RuntimeError, match="0048 downgrade blocked"):
             downgrade_to(migration_url, PRE_OFFER_REVISION, monkeypatch)
+        upgrade_to(migration_url, R18_PREVIOUS_REVISION, monkeypatch)
+        with pytest.raises(DBAPIError, match="0081 upgrade blocked"):
+            upgrade_to(migration_url, "head", monkeypatch)
+        assert asyncio.run(fetch_all(migration_url, "SELECT version_num FROM alembic_version")) == [
+            (R18_PREVIOUS_REVISION,)
+        ]
     finally:
         asyncio.run(drop_database(migration_url))

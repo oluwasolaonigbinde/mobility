@@ -93,7 +93,7 @@ def normalize_currency(value: str | None) -> str | None:
     if value is None:
         return None
     normalized = value.strip().upper()
-    if len(normalized) != 3 or not normalized.isalpha():
+    if len(normalized) != 3 or not normalized.isascii() or not normalized.isalpha():
         raise ValueError("Currency must be a 3-letter code")
     return normalized
 
@@ -282,6 +282,7 @@ class CampaignPayoutRuleRevisionRead(DecimalStringMixin):
     hourly_rate_naira: Decimal
     premium_hourly_rate_naira: Decimal | None
     daily_payable_hours_cap: Decimal | None
+    currency: str
     eligibility_params: dict[str, Any]
     formula_version: str
     reason: str

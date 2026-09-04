@@ -23,6 +23,7 @@ function revision(overrides: Partial<Revision>): Revision {
     hourly_rate_naira: "1200.00",
     premium_hourly_rate_naira: null,
     daily_payable_hours_cap: "8",
+    currency: "NGN",
     eligibility_params: {},
     formula_version: "payout_v3",
     reason: "genesis: initial payout_v2 rule values at rule creation",

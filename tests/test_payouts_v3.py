@@ -52,6 +52,7 @@ from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.payout import (
     AssignmentRuleBinding,
+    CampaignPayoutRule,
     CampaignPayoutRuleRevision,
     EarningsLedgerEntry,
     EarningsLedgerEntryStatus,
@@ -67,6 +68,7 @@ from app.services import payouts
 from app.services.campaign_assignments import (
     accept_driver_assignment,
     build_offer_terms,
+    canonical_offer_terms_sha256,
     create_campaign_assignment,
     premium_zone_geometry_hash,
     resolved_eligibility_snapshot,
@@ -172,6 +174,7 @@ def create_revision_row(
     created_by_user_id,
     number: int = 1,
     effective_from: datetime = PAST_EFFECTIVE,
+    currency: str = "NGN",
     base: str = "1000.00",
     premium: str | None = "2000.00",
     cap: str = "8.00",
@@ -184,6 +187,7 @@ def create_revision_row(
                 payout_rule_id=rule_id,
                 revision_number=number,
                 effective_from=effective_from,
+                currency=currency,
                 hourly_rate_naira=Decimal(base),
                 premium_hourly_rate_naira=Decimal(premium) if premium is not None else None,
                 daily_payable_hours_cap=Decimal(cap),
@@ -237,6 +241,7 @@ def insert_binding(
             binding = AssignmentRuleBinding(
                 assignment_id=assignment_id,
                 revision_id=revision.id,
+                currency=revision.currency,
                 hourly_rate_naira=revision.hourly_rate_naira,
                 premium_hourly_rate_naira=revision.premium_hourly_rate_naira,
                 daily_payable_hours_cap=revision.daily_payable_hours_cap,
@@ -337,7 +342,15 @@ def accept_assignment(db_sessionmaker, settings, *, user_id, assignment_id):
     return asyncio.run(run())
 
 
-def materialize_offer(db_sessionmaker, settings, graph) -> None:
+def materialize_offer(
+    db_sessionmaker,
+    settings,
+    graph,
+    *,
+    legacy_top_level_currency_only: bool = False,
+    null_payout_currency: bool = False,
+    nested_payout_currency: str | None = None,
+) -> None:
     """Populate the new immutable offer snapshot after test revisions exist."""
 
     async def run() -> None:
@@ -354,6 +367,18 @@ def materialize_offer(db_sessionmaker, settings, graph) -> None:
                 creative_id=graph.creative.id,
                 settings=settings,
             )
+            if legacy_top_level_currency_only:
+                terms["payout"].pop("currency")
+            elif null_payout_currency:
+                terms["payout"]["currency"] = None
+            elif nested_payout_currency is not None:
+                terms["payout"]["currency"] = nested_payout_currency
+            if (
+                legacy_top_level_currency_only
+                or null_payout_currency
+                or nested_payout_currency is not None
+            ):
+                fingerprint = canonical_offer_terms_sha256(terms)
             assignment.offer_terms = terms
             assignment.offer_terms_sha256 = fingerprint
             assignment.expires_at = FUTURE - timedelta(days=1)
@@ -456,12 +481,14 @@ def test_accept_freezes_effective_revision_with_zone_snapshot(
         assignment_id=graph.assignment.id,
     )
     assert accepted.status == CampaignAssignmentStatus.ACCEPTED.value
+    assert accepted.offer_terms["payout"]["currency"] == "NGN"
 
     bindings = fetch_bindings(postgis_db_sessionmaker)
     assert len(bindings) == 1
     binding = bindings[0]
     assert binding.assignment_id == graph.assignment.id
     assert binding.revision_id == revision.id
+    assert binding.currency == revision.currency == "NGN"
     assert binding.hourly_rate_naira == Decimal("1500.00")
     assert binding.premium_hourly_rate_naira == Decimal("2500.00")
     assert binding.daily_payable_hours_cap == Decimal("6.00")
@@ -506,6 +533,154 @@ def test_accept_freezes_effective_revision_with_zone_snapshot(
     assert binding.premium_zone_geometry_hash == asyncio.run(expected_hash())
     assert len(binding.premium_zone_geometry_hash) == 64
     int(binding.premium_zone_geometry_hash, 16)  # hex digest
+
+
+def test_accept_legacy_offer_binds_its_frozen_top_level_currency(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_offered_graph(postgis_db_sessionmaker, "v3-legacy-offer-currency")
+    rule = create_v2_rule(
+        postgis_db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        created_by_user_id=graph.admin.id,
+    )
+    revision = create_revision_row(
+        postgis_db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        rule_id=rule.id,
+        created_by_user_id=graph.admin.id,
+    )
+    materialize_offer(
+        postgis_db_sessionmaker,
+        settings,
+        graph,
+        legacy_top_level_currency_only=True,
+    )
+
+    accepted = accept_assignment(
+        postgis_db_sessionmaker,
+        settings,
+        user_id=graph.driver.id,
+        assignment_id=graph.assignment.id,
+    )
+
+    binding = fetch_bindings(postgis_db_sessionmaker)[0]
+    assert "currency" not in accepted.offer_terms["payout"]
+    assert binding.currency == revision.currency == accepted.offer_terms["currency"] == "NGN"
+
+
+def test_accept_rejects_explicitly_null_nested_offer_currency(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_offered_graph(postgis_db_sessionmaker, "v3-null-offer-currency")
+    rule = create_v2_rule(
+        postgis_db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        created_by_user_id=graph.admin.id,
+    )
+    create_revision_row(
+        postgis_db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        rule_id=rule.id,
+        created_by_user_id=graph.admin.id,
+    )
+    materialize_offer(
+        postgis_db_sessionmaker,
+        settings,
+        graph,
+        null_payout_currency=True,
+    )
+
+    with pytest.raises(AppError) as exc_info:
+        accept_assignment(
+            postgis_db_sessionmaker,
+            settings,
+            user_id=graph.driver.id,
+            assignment_id=graph.assignment.id,
+        )
+
+    assert exc_info.value.code == "FROZEN_OFFER_TERMS_REQUIRED"
+    assert fetch_bindings(postgis_db_sessionmaker) == []
+
+
+def test_accept_rejects_nested_offer_currency_that_disagrees_with_top_level(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_offered_graph(postgis_db_sessionmaker, "v3-nested-currency-mismatch")
+    rule = create_v2_rule(
+        postgis_db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        created_by_user_id=graph.admin.id,
+    )
+    create_revision_row(
+        postgis_db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        rule_id=rule.id,
+        created_by_user_id=graph.admin.id,
+    )
+    materialize_offer(
+        postgis_db_sessionmaker,
+        settings,
+        graph,
+        nested_payout_currency="USD",
+    )
+
+    with pytest.raises(AppError) as exc_info:
+        accept_assignment(
+            postgis_db_sessionmaker,
+            settings,
+            user_id=graph.driver.id,
+            assignment_id=graph.assignment.id,
+        )
+
+    assert exc_info.value.code == "FROZEN_OFFER_TERMS_REQUIRED"
+    assert fetch_bindings(postgis_db_sessionmaker) == []
+
+
+def test_accept_rejects_legacy_offer_currency_that_disagrees_with_revision(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_offered_graph(postgis_db_sessionmaker, "v3-legacy-currency-drift")
+    rule = create_v2_rule(
+        postgis_db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        created_by_user_id=graph.admin.id,
+    )
+    revision = create_revision_row(
+        postgis_db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        rule_id=rule.id,
+        created_by_user_id=graph.admin.id,
+    )
+    materialize_offer(
+        postgis_db_sessionmaker,
+        settings,
+        graph,
+        legacy_top_level_currency_only=True,
+    )
+
+    async def drift_revision_currency() -> None:
+        async with postgis_db_sessionmaker() as session:
+            stored_revision = await session.get(CampaignPayoutRuleRevision, revision.id)
+            stored_revision.currency = "USD"
+            await session.commit()
+
+    asyncio.run(drift_revision_currency())
+
+    with pytest.raises(AppError) as exc_info:
+        accept_assignment(
+            postgis_db_sessionmaker,
+            settings,
+            user_id=graph.driver.id,
+            assignment_id=graph.assignment.id,
+        )
+
+    assert exc_info.value.code == "FROZEN_OFFER_TERMS_REQUIRED"
+    assert fetch_bindings(postgis_db_sessionmaker) == []
 
 
 def test_rolling_policy_changes_only_through_revision_overlay(settings) -> None:
@@ -825,6 +1000,28 @@ def test_v3_base_only_prices_from_binding_not_rule(postgis_db_sessionmaker, sett
         raise AssertionError("expected AppError")
     except AppError as exc:
         assert exc.code in {"PAYOUT_RULE_NOT_FOUND", "INVALID_PAYOUT_RULE"}
+
+
+def test_v3_currency_is_frozen_in_binding_after_rule_drift(
+    postgis_db_sessionmaker, settings
+) -> None:
+    graph = build_v2_graph(postgis_db_sessionmaker, "v3-currency-freeze")
+    bind_v2_graph(postgis_db_sessionmaker, settings, graph)
+
+    async def mutate_rule_currency() -> None:
+        async with postgis_db_sessionmaker() as session:
+            rule = await session.get(CampaignPayoutRule, graph.rule.id)
+            rule.currency = "USD"
+            await session.commit()
+
+    asyncio.run(mutate_rule_currency())
+    result = pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
+
+    assert result.overall == "completed"
+    calculation = fetch_payout_calculations(postgis_db_sessionmaker)[0]
+    assert calculation.currency == "NGN"
+    assert calculation.payout_metadata["binding"]["currency"] == "NGN"
+    assert fetch_earnings_ledger_entries(postgis_db_sessionmaker)[0].currency == "NGN"
 
 
 def test_v3_payout_metadata_preserves_legitimate_null_accepted_window(
@@ -1607,6 +1804,7 @@ def test_v3_fingerprint_covers_every_frozen_binding_input() -> None:
         values = {
             "id": "11111111-1111-1111-1111-111111111111",
             "revision_id": "22222222-2222-2222-2222-222222222222",
+            "currency": "NGN",
             "hourly_rate_naira": Decimal("1000.00"),
             "premium_hourly_rate_naira": Decimal("2000.00"),
             "daily_payable_hours_cap": Decimal("8.00"),
@@ -1633,7 +1831,6 @@ def test_v3_fingerprint_covers_every_frozen_binding_input() -> None:
     def fingerprint(b, **overrides) -> str:
         kwargs = {
             "binding": b,
-            "currency": "NGN",
             "params": params,
             "ping_fingerprint": "ping-fp",
             "zone_fingerprint": "zone-fp",
@@ -1648,6 +1845,7 @@ def test_v3_fingerprint_covers_every_frozen_binding_input() -> None:
     variants = [
         binding(id="99999999-9999-9999-9999-999999999999"),
         binding(revision_id="99999999-9999-9999-9999-999999999999"),
+        binding(currency="USD"),
         binding(hourly_rate_naira=Decimal("1001.00")),
         binding(premium_hourly_rate_naira=Decimal("2001.00")),
         binding(premium_hourly_rate_naira=None),
@@ -1693,7 +1891,6 @@ def test_v3_fingerprint_covers_every_frozen_binding_input() -> None:
     fingerprints = [fingerprint(variant) for variant in variants]
     fingerprints.extend(
         [
-            fingerprint(binding(), currency="USD"),
             fingerprint(binding(), ping_fingerprint="other"),
             fingerprint(binding(), zone_fingerprint="other"),
             fingerprint(binding(), window_start_at=datetime(2026, 1, 1, tzinfo=UTC)),

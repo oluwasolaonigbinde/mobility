@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 
+import pytest
 from conftest import (
     auth_headers,
     create_test_campaign,
@@ -31,9 +32,9 @@ from app.core.errors import AppError
 from app.models.campaign import CampaignStatus
 from app.models.payout import CampaignPayoutRuleRevision
 from app.models.user import UserRole
-from app.schemas.payouts import CampaignPayoutRuleRevisionCreate
+from app.schemas.payouts import CampaignPayoutRuleCreate, CampaignPayoutRuleRevisionCreate
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock
-from app.services.payouts import create_payout_rule_revision
+from app.services.payouts import create_payout_rule_revision, validate_currency_code
 
 PASSWORD = "long-secure-password"
 
@@ -125,6 +126,7 @@ def test_revision_response_normalizes_historical_null_eligibility_params() -> No
         payout_rule_id="0c0c0c0c-0000-4000-8000-000000000003",
         revision_number=1,
         effective_from=datetime.now(UTC),
+        currency="NGN",
         hourly_rate_naira=Decimal("1200.00"),
         premium_hourly_rate_naira=None,
         daily_payable_hours_cap=Decimal("8.00"),
@@ -137,7 +139,17 @@ def test_revision_response_normalizes_historical_null_eligibility_params() -> No
 
     response = payout_rule_revision_response(revision)
 
+    assert response.currency == "NGN"
     assert response.eligibility_params == {}
+
+
+def test_currency_validation_rejects_non_ascii_letters() -> None:
+    with pytest.raises(ValueError, match="3-letter code"):
+        CampaignPayoutRuleCreate(currency="ÉÉÉ")
+
+    with pytest.raises(AppError) as exc_info:
+        validate_currency_code("ÉÉÉ")
+    assert exc_info.value.code == "INVALID_CURRENCY"
 
 
 # --- API: atomic genesis, create/supersede, list, audit ----------------------
@@ -159,6 +171,7 @@ def test_api_create_supersede_list_and_value_complete_audit(
     genesis = body["items"][0]
     assert genesis["revision_number"] == 1
     assert genesis["formula_version"] == "payout_v3"
+    assert genesis["currency"] == "NGN"
     assert genesis["hourly_rate_naira"] == "1200.00"
     assert genesis["premium_hourly_rate_naira"] is None
     assert genesis["daily_payable_hours_cap"] == "8.00"
@@ -172,8 +185,19 @@ def test_api_create_supersede_list_and_value_complete_audit(
     ]
     assert len(created_events) == 1
     genesis_audit = created_events[0].event_metadata["genesis_revision"]
+    assert set(genesis_audit) == {
+        "revision_number",
+        "effective_from",
+        "hourly_rate_naira",
+        "premium_hourly_rate_naira",
+        "daily_payable_hours_cap",
+        "currency",
+        "eligibility_params",
+        "formula_version",
+    }
     assert genesis_audit["revision_number"] == 1
     assert genesis_audit["hourly_rate_naira"] == "1200.00"
+    assert genesis_audit["currency"] == "NGN"
 
     # Supersede via API.
     effective_from = datetime.now(UTC) + timedelta(hours=1)
@@ -193,6 +217,7 @@ def test_api_create_supersede_list_and_value_complete_audit(
     revision = created.json()
     assert revision["revision_number"] == 2
     assert revision["formula_version"] == "payout_v3"
+    assert revision["currency"] == "NGN"
     # Decimal-as-string on the wire (X4).
     assert revision["hourly_rate_naira"] == "1500.00"
     assert revision["premium_hourly_rate_naira"] == "1800.00"
@@ -216,14 +241,28 @@ def test_api_create_supersede_list_and_value_complete_audit(
     assert len(revision_events) == 1
     metadata = revision_events[0].event_metadata
     assert metadata["reason"] == "rate uplift for premium zones"
+    expected_value_keys = {
+        "revision_number",
+        "effective_from",
+        "hourly_rate_naira",
+        "premium_hourly_rate_naira",
+        "daily_payable_hours_cap",
+        "currency",
+        "eligibility_params",
+        "formula_version",
+    }
+    assert set(metadata["before"]) == expected_value_keys
+    assert set(metadata["after"]) == expected_value_keys
     assert metadata["before"]["revision_number"] == 1
     assert metadata["before"]["hourly_rate_naira"] == "1200.00"
     assert metadata["before"]["premium_hourly_rate_naira"] is None
     assert metadata["before"]["daily_payable_hours_cap"] == "8.00"
+    assert metadata["before"]["currency"] == "NGN"
     assert metadata["after"]["revision_number"] == 2
     assert metadata["after"]["hourly_rate_naira"] == "1500.00"
     assert metadata["after"]["premium_hourly_rate_naira"] == "1800.00"
     assert metadata["after"]["daily_payable_hours_cap"] == "7.50"
+    assert metadata["after"]["currency"] == "NGN"
     assert metadata["after"]["eligibility_params"] == {"stationary_grace_min": 6}
     assert revision_events[0].actor_user_id == ctx.admin.id
 

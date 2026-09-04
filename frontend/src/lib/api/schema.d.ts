@@ -6069,6 +6069,8 @@ export interface components {
              * Format: uuid
              */
             created_by_user_id: string;
+            /** Currency */
+            currency: string;
             /** Daily Payable Hours Cap */
             daily_payable_hours_cap: string | null;
             /**

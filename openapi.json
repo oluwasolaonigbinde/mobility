@@ -5290,6 +5290,10 @@
             "title": "Created By User Id",
             "type": "string"
           },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
           "daily_payable_hours_cap": {
             "anyOf": [
               {
@@ -5365,6 +5369,7 @@
           "hourly_rate_naira",
           "premium_hourly_rate_naira",
           "daily_payable_hours_cap",
+          "currency",
           "eligibility_params",
           "formula_version",
           "reason",

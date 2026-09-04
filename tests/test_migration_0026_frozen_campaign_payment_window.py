@@ -17,6 +17,7 @@ from test_migration_0014_partitioning import (
 )
 
 PRE_WINDOW_REVISION = "0025_fraud_disputes_notifications"
+WINDOW_REVISION = "0026_frozen_campaign_payment_window"
 
 
 def test_frozen_campaign_window_empty_down_up_cycle(monkeypatch) -> None:
@@ -79,7 +80,7 @@ def test_frozen_campaign_window_populated_downgrade_fails_closed(monkeypatch) ->
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, WINDOW_REVISION, monkeypatch)
         asyncio.run(seed())
         with pytest.raises(DBAPIError, match="downgrade blocked"):
             downgrade_to(migration_url, PRE_WINDOW_REVISION, monkeypatch)

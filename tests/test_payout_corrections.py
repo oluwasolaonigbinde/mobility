@@ -24,7 +24,7 @@ from conftest import (
     fetch_audit_events,
     fetch_earnings_ledger_entries,
 )
-from sqlalchemy import select, update
+from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError
 from starlette import status as http_status
 from test_payouts_v2 import (
@@ -40,9 +40,11 @@ from test_trip_processing import PASSWORD, add_pings, run_pipeline
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.campaign import Campaign, CampaignStatus
+from app.models.disbursement import PayoutDebtObligation
 from app.models.payout import (
     AssignmentRuleBinding,
     CampaignPayoutRule,
+    CampaignPayoutRuleRevision,
     EarningsLedgerEntry,
     EarningsLedgerEntryStatus,
     EarningsLedgerEntryType,
@@ -286,11 +288,19 @@ def reload_order(db_sessionmaker, order_id) -> PayoutCorrectionOrder:
     return asyncio.run(fetch())
 
 
-def raise_rule_rate(db_sessionmaker, rule_id, rate: str) -> None:
+def raise_rule_rate(
+    db_sessionmaker,
+    rule_id,
+    rate: str,
+    *,
+    currency: str | None = None,
+) -> None:
     async def run() -> None:
         async with db_sessionmaker() as session:
             rule = await session.get(CampaignPayoutRule, rule_id)
             rule.hourly_rate_naira = Decimal(rate)
+            if currency is not None:
+                rule.currency = currency
             await session.commit()
 
     asyncio.run(run())
@@ -1029,6 +1039,66 @@ def test_negative_delta_posts_reversal_without_debt_handling(
     assert totals_after.pending_amount == totals_before.pending_amount - Decimal("150.00")
 
 
+def test_paid_trip_correction_inserts_available_reversal_without_terminal_rewrite(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_v2_graph(postgis_db_sessionmaker, "co-paid-negative")
+    pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
+    set_trip_payout_status(
+        postgis_db_sessionmaker,
+        graph.trip.id,
+        EarningsLedgerEntryStatus.PAID.value,
+    )
+    raise_rule_rate(postgis_db_sessionmaker, graph.rule.id, "900.00")
+    order, approver = approved_order(
+        postgis_db_sessionmaker,
+        settings,
+        graph,
+        "co-paid-negative",
+    )
+
+    async def install_paid_terminal_guard() -> None:
+        async with postgis_db_sessionmaker() as session:
+            await session.execute(
+                text(
+                    """
+                    CREATE FUNCTION test_reject_paid_ledger_rewrite()
+                    RETURNS trigger AS $$
+                    BEGIN
+                      IF OLD.status = 'paid' AND NEW.status <> OLD.status THEN
+                        RAISE EXCEPTION 'paid ledger status is terminal';
+                      END IF;
+                      RETURN NEW;
+                    END;
+                    $$ LANGUAGE plpgsql
+                    """
+                )
+            )
+            await session.execute(
+                text(
+                    "CREATE TRIGGER test_paid_ledger_terminal "
+                    "BEFORE UPDATE ON earnings_ledger_entries FOR EACH ROW "
+                    "EXECUTE FUNCTION test_reject_paid_ledger_rewrite()"
+                )
+            )
+            await session.commit()
+
+    asyncio.run(install_paid_terminal_guard())
+    execute(postgis_db_sessionmaker, settings, order.id, approver.id, release_at=None)
+
+    entries = correction_entries(postgis_db_sessionmaker)
+    assert len(entries) == 1
+    assert entries[0].entry_type == EarningsLedgerEntryType.REVERSAL.value
+    assert entries[0].status == EarningsLedgerEntryStatus.AVAILABLE.value
+
+    async def obligation_source_id():
+        async with postgis_db_sessionmaker() as session:
+            return await session.scalar(select(PayoutDebtObligation.source_reversal_entry_id))
+
+    assert asyncio.run(obligation_source_id()) == entries[0].id
+
+
 # --- v3 and mixed-day recompute correctness (PR6) ----------------------------
 
 
@@ -1066,7 +1136,12 @@ def test_v3_day_reprices_from_frozen_binding_through_an_order(
         graph.trip.id,
         EarningsLedgerEntryStatus.PENDING.value,
     )
-    raise_rule_rate(postgis_db_sessionmaker, graph.rule.id, "9999.00")
+    raise_rule_rate(
+        postgis_db_sessionmaker,
+        graph.rule.id,
+        "9999.00",
+        currency="USD",
+    )
     projection = service(
         postgis_db_sessionmaker,
         lambda session: project_campaign_day(
@@ -1083,6 +1158,8 @@ def test_v3_day_reprices_from_frozen_binding_through_an_order(
     assert target.delta_amount == Decimal("0.00")
     assert target.governing_values["binding_id"] == graph.binding.id
     assert target.governing_values["hourly_rate_naira"] == Decimal("1000.00")
+    assert target.currency == "NGN"
+    assert target.governing_values["currency"] == "NGN"
     assert target.governing_values["campaign_window_start_at"] == graph.campaign.start_at
     assert target.governing_values["campaign_window_end_at"] == graph.campaign.end_at
 
@@ -1113,6 +1190,59 @@ def test_v3_day_reprices_from_frozen_binding_through_an_order(
     # stales the order projection.
     assert after_window_edit.fingerprint == projection.fingerprint
     assert after_window_edit.computations[0].trips[0].target_amount == Decimal("500.00")
+
+
+def test_v3_day_refuses_revision_binding_and_ledger_currency_disagreement(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_v2_graph(postgis_db_sessionmaker, "co-v3-currency-chain")
+    bind_v2_graph(postgis_db_sessionmaker, settings, graph, base="1000.00")
+    pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
+
+    async def set_revision_currency(currency: str) -> None:
+        async with postgis_db_sessionmaker() as session:
+            revision = await session.get(CampaignPayoutRuleRevision, graph.revision.id)
+            revision.currency = currency
+            await session.commit()
+
+    asyncio.run(set_revision_currency("USD"))
+    with pytest.raises(AppError) as revision_error:
+        service(
+            postgis_db_sessionmaker,
+            lambda session: project_campaign_day(
+                session,
+                campaign_id=graph.campaign.id,
+                lagos_day=lagos_day_for(graph.trip.started_at),
+                settings=settings,
+            ),
+        )
+    assert revision_error.value.code == "PAYOUT_DAY_CURRENCY_MISMATCH"
+
+    asyncio.run(set_revision_currency("NGN"))
+
+    async def set_ledger_currency() -> None:
+        async with postgis_db_sessionmaker() as session:
+            entry = await session.scalar(
+                select(EarningsLedgerEntry).where(
+                    EarningsLedgerEntry.trip_session_id == graph.trip.id
+                )
+            )
+            entry.currency = "USD"
+            await session.commit()
+
+    asyncio.run(set_ledger_currency())
+    with pytest.raises(AppError) as ledger_error:
+        service(
+            postgis_db_sessionmaker,
+            lambda session: project_campaign_day(
+                session,
+                campaign_id=graph.campaign.id,
+                lagos_day=lagos_day_for(graph.trip.started_at),
+                settings=settings,
+            ),
+        )
+    assert ledger_error.value.code == "PAYOUT_DAY_CURRENCY_MISMATCH"
 
 
 def test_mixed_v2_v3_day_shares_one_cap_pool_through_an_order(

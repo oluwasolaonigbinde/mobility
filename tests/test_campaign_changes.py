@@ -352,6 +352,7 @@ def test_funding_and_change_approval_serialize_without_overauthorization_pg(
                     hourly_rate_naira="1000.00",
                     premium_hourly_rate_naira="1500.00",
                     daily_payable_hours_cap="8.00",
+                    currency="NGN",
                     eligibility_params={},
                     resolved_eligibility_params={},
                     formula_version="payout_v3",
