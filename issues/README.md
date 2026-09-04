@@ -1,8 +1,8 @@
 # Cardvert audit corpus
 
 This directory preserves the independent first-pass audits commissioned for
-Cardvert on 1 September 2026 and the later product/UI prompt suite that has
-been deliberately paused.
+Cardvert on 1 September 2026. The separate UI/product-review programme now has
+one canonical home at [`product-ui-review/`](product-ui-review/README.md).
 
 Raw audit responses are provenance records, not accepted repository truth.
 Findings become actionable only after they are normalized, checked against the
@@ -14,7 +14,8 @@ current source, classified, ordered and independently reviewed.
 - `audits/raw/` — one sanitized Markdown artifact per source response.
 - `findings/` — current-source verification records created later.
 - `planning/` — consolidation and remediation-order documents created later.
-- `prompts/` — paused future audit prompts; these are not active work.
+- `product-ui-review/` — the eleven prompts, recovered answers, normalized
+  outcomes, reconciliation and proposed future packets.
 
 ## Current boundary
 

@@ -1,9 +1,9 @@
-# Controller Opus follow-up audit reconciliation
+# UI/product-review reconciliation
 
 ## Scope and authority
 
 This note reconciles only the three controller-dispatched follow-up audits
-listed as CTL-CLD-01 through CTL-CLD-03 in `issues/audit-manifest.md`. It does
+listed as CTL-CLD-01 through CTL-CLD-03 in `../audit-manifest.md`. It does
 not verify their claims, admit work, alter the executable package queue, or
 turn suggested wording and designs into product authority. The reports audited
 the later `3832cff` working snapshot (with CTL-CLD-03 also reporting
@@ -11,8 +11,8 @@ the later `3832cff` working snapshot (with CTL-CLD-03 also reporting
 `637841d95493bcc24334356da42097fa53a5d16f`.
 
 The later-snapshot normalization pass is now recorded separately in
-`../findings/controller-opus-follow-up-findings.md`, with dependency and likely
-lease design in `controller-opus-follow-up-remediation.md`. It created 42
+`outcomes.md`, with dependency and likely
+lease design in `packets.md`. It created 42
 provenance-preserving candidates: 28 behavioral/copy corrections, 6 usability
 deferrals, and 8 owner decisions. The closed 14-source first-pass set remains
 unchanged; none of these candidates is silently inserted into PKG-10 or the

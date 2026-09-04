@@ -59,9 +59,9 @@ until separately verified, normalized, and admitted through repository control.
 
 | ID | Conversation/task ID | Displayed title | Audited ref reported by source | State | Raw artifact |
 | --- | --- | --- | --- | --- | --- |
-| CTL-CLD-01 | `7b03371a-1471-4afe-b640-c236834dd328` | Cardvert UX audit | `master @ 3832cff` | COLLECTED | `audits/raw/claude-controller-cardvert-ux-audit.md` (`sha256:457133623a6ee6e7a9ed68c34bbea6288dd82b662e22411e1f676525873ffd7f`) |
-| CTL-CLD-02 | `40bbab0c-bac9-4e96-88e0-f1ada01d926c` | Cardvert copy audit and voice guide | `master @ 3832cff` | COLLECTED | `audits/raw/claude-controller-cardvert-copy-audit.html` (`sha256:50c123f3a59ba5935fca43495f2ab2549a4d2008387b9cd3bcb42feff64aa190`) |
-| CTL-CLD-03 | `fd6240e1-f64f-4a72-b879-7656ee8bbf82` | Cardvert advertiser journey audit | working tree `3832cff` (`HEAD 25925e2` reported by source) | COLLECTED | `audits/raw/claude-controller-cardvert-advertiser-journey-audit.md` (`sha256:d33fe0249f22e9a2be8693d3fa3ae84dc8dc2d34b03a2cb40b43ba507efe37b5`) |
+| CTL-CLD-01 | `7b03371a-1471-4afe-b640-c236834dd328` | Cardvert UX audit | `master @ 3832cff` | COLLECTED | `product-ui-review/answers/prompt-02-ui-ergonomics.md` (`sha256:457133623a6ee6e7a9ed68c34bbea6288dd82b662e22411e1f676525873ffd7f`) |
+| CTL-CLD-02 | `40bbab0c-bac9-4e96-88e0-f1ada01d926c` | Cardvert copy audit and voice guide | `master @ 3832cff` | COLLECTED | `product-ui-review/answers/prompt-03-copy-voice.html` (`sha256:50c123f3a59ba5935fca43495f2ab2549a4d2008387b9cd3bcb42feff64aa190`) |
+| CTL-CLD-03 | `fd6240e1-f64f-4a72-b879-7656ee8bbf82` | Cardvert advertiser journey audit | working tree `3832cff` (`HEAD 25925e2` reported by source) | COLLECTED | `product-ui-review/answers/prompt-05-advertiser-journey.md` (`sha256:d33fe0249f22e9a2be8693d3fa3ae84dc8dc2d34b03a2cb40b43ba507efe37b5`) |
 
 All three were recovered on 3 September 2026 from their exact local Claude
 conversation JSONL. CTL-CLD-02's authored HTML artifact was also still present
@@ -69,8 +69,8 @@ in that session's scratchpad and is retained byte-for-byte. CTL-CLD-01 and
 CTL-CLD-03 retain the complete terminal Markdown reports visible in their
 assistant responses. No report text was reconstructed or normalized in place.
 Their separate later-snapshot normalization is complete in
-`findings/controller-opus-follow-up-findings.md`; dependency and likely-lease
-design is in `planning/controller-opus-follow-up-remediation.md`. This adds 42
+`product-ui-review/outcomes.md`; dependency and likely-lease design is in
+`product-ui-review/packets.md`. This adds 42
 follow-up candidates without changing the 14-response first-pass count or the
 R01-R60 executable queue.
 

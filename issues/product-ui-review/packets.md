@@ -1,9 +1,9 @@
-# Controller Opus follow-up remediation design
+# UI/product-review proposed packets
 
 ## Authority
 
 This is a dependency and likely-lease design for the 42 candidates in
-`../findings/controller-opus-follow-up-findings.md`. It does not amend
+`outcomes.md`. It does not amend
 `docs/progress.md`, authorize implementation, or insert work into R01-R60.
 Every executable packet requires current-state reproduction, an approved queue
 amendment, disjoint ownership, proportional red/green evidence, and the

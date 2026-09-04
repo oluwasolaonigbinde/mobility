@@ -1,6 +1,8 @@
-# Paused Cardvert UI and product-review prompt suite
+# Cardvert UI and product-review prompt suite
 
-Status: **PAUSED — do not run during first-pass audit reconciliation.**
+Status: **IN PROGRESS.** Prompts 2, 3 and 5 are answered and normalized. Prompts
+1, 4, 6, 7 and 8 remain independent review work; prompts 9–11 retain their
+documented sequential order.
 
 These eleven prompts are preserved from the 1 September 2026 planning
 conversation. Each prompt remains in its own fenced block for individual
@@ -734,4 +736,3 @@ Finish with:
 ```
 
 This gives you broad coverage without asking one model to understand the entire codebase, edit copy, map workflows, and write the client document in a single overloaded session.
-

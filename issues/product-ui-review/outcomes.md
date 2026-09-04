@@ -1,4 +1,4 @@
-# Controller Opus follow-up findings
+# UI/product-review normalized outcomes
 
 ## Scope and provenance
 
