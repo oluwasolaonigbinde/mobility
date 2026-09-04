@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 352
+plan_revision: 353
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 482
+last_event_sequence: 483
 ---
 
 # Cardvert audit remediation programme
@@ -938,3 +938,4 @@ verification is complete.
 | 480 | 350 | 1 | PAYOUT_CONSERVATION_SLICE_ACCEPTED | R22/MON-004,MON-007,MON-009 accepted exclusive payout conservation, governed replacement/late-success recovery and chain-wide fraud resolution with one durable paid/debt outcome. | commit `7835ba8`; 13-path integration with migration 0084 and synchronized public contracts; controller reran core projection, dual-success debt and real-PostgreSQL migration guards green; owner 16 R22, 33 combined R21+R22 and 99 adjacent passes plus frontend type/lint/493 tests/build; Sol/medium consolidated DB+MNY/CONTRACT/CP-MONEY review PASS; `data_subject_requests.py` reachability registration and `test_mvp_hardening.py` 0084 head guard ratified as necessary exact lease extensions; no live provider/payment claim |
 | 481 | 351 | 1 | PLAN_REVIEW_PASSED | R59-P accepted the minimum isolated real-stack mutating browser-journey contract after correcting an unsafe draft that shared the ordinary parallel e2e job and over-reran accepted predecessor proofs. | task `01a06ec4-d18f-7ac3-8dda-39591db42262`; GPT-5.6 Sol/high read-only review; exact eight-path lease, unique Compose project/ports, production API/worker/frontend, API+worker outage/reload recovery, persisted money/privacy/release receipt, scoped teardown and evidence-reuse matrix; final minimal SEC+DB+MNY+PRV+WORKERS+DEP/CP-RELEASE verdict PASS; no repository mutation |
 | 482 | 352 | 1 | PACKET_DISPATCHED | R59/TST-002 begins the accepted isolated real-stack browser release journey now that every predecessor is integrated. | task `01a06ecd-5d61-7ad2-b222-1efb1976e133`; GPT-5.6 Sol/xhigh required by accepted S28 for cross-stack authentication, money, privacy, Redis/ARQ recovery and release authority; exact eight-path CI/Playwright/Compose/wrapper/static-guard/doc lease; local synthetic evidence only, no product/API/migration/provider/deploy mutation; direct terminal callback and stop before R60 |
+| 483 | 353 | 1 | PLAN_PACKET_STARTED | R60-P begins read-only closure planning and maps the parked R17 coverage-policy decision while R59 remains the only implementation writer. | task `01a06ece-05ab-79c3-beb2-983fe278a233`; GPT-5.6 Sol/high for cross-program contract/control reconciliation without xhigh planning cost; no mutation or completion authority; exact 115-disposition reconciliation, R59 resume facts and two-to-three bounded R17 policy options; direct terminal planning callback |
