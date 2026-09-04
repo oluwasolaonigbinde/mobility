@@ -46,15 +46,13 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R33, R50`
+**Current capacity assignment:** `R07, R50`
 **Current capacity justification:** R03 and R48 are accepted and their workflow,
 generated-contract and report-projection leases are released. R49 is accepted and
 R50 now owns the reachable report-reissue lineage and focused status/panel tests.
-R05 is accepted, making already-reviewed R33 dependency-ready on a disjoint
-onboarding-query lease. R06's fresh bounded plan review may run concurrently but does not
-become a writer until that review passes; it then exclusively owns the historical
-governed-downgrade migration lane across revisions 0010, 0014 and 0016 plus focused
-downgrade guards. Controller documents remain serialized.
+R33 and R06 are accepted. R07 now owns the exclusive database purge-immutability
+lane, while R50 owns the disjoint report-reissue lineage and focused status/panel
+tests. Controller documents remain serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -86,9 +84,10 @@ authority. The active queue now prioritizes locally executable product and
 engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
-**Current checkpoint:** `PKG-10 / R06` — R02 is accepted at `09c0b17`, R47 at
-`419414a`, R03 at `60af07d`, R48 at `b17d1e7`, and R05 at `954d9a4`; R33 and
-R50 are assigned writers while R06 performs its mandatory bounded plan re-review. AUT-006 is accepted at
+**Current checkpoint:** `PKG-10 / R07` — R02 is accepted at `09c0b17`, R47 at
+`419414a`, R03 at `60af07d`, R48 at `b17d1e7`, R05 at `954d9a4`, R49 at
+`a315a59`, R33 at `14f155a`, and R06 at `05b4901`; R07 and R50 are assigned
+writers. AUT-006 is accepted at
 `a4c9de2`.
 Every repository failure group
 discovered by R02's complete 1,772-test authority run is now accepted: V11
@@ -1579,8 +1578,8 @@ durable ledger before changing a row.
 | R03 | GOV-004 | R02 | COMPLETE | PASS — R03-P | PASS — R03-M | CP-CONTROL PASS — R03-CP-CONTROL |
 | R04 | DB-004 | none | COMPLETE | PASS — R04-P | PASS — R04-M | CP-DB PASS — R04-CP-DB |
 | R05 | DB-001, TST-012, ONB-010 | R02, R04 | COMPLETE | PASS — R05-P | PASS — R05-M | CP-DB PASS — R05-CP-DB |
-| R06 | DB-002 | R02, R04, R05 | QUEUED | PENDING | PENDING | CP-DB PENDING |
-| R07 | DB-003 | R02, R04, R06 | QUEUED | PASS — R07-P | PENDING | CP-DB PENDING |
+| R06 | DB-002 | R02, R04, R05 | COMPLETE | PASS — R06-P | PASS — R06-M | CP-DB PASS — R06-CP-DB |
+| R07 | DB-003 | R02, R04, R06 | ACTIVE | PASS — R07-P | PENDING | CP-DB PENDING |
 | R08 | GOV-005 | none | COMPLETE | PASS — R08-P | PASS — R08-M | CP-SECURITY PASS — R08-CP-SECURITY |
 | R09 | GOV-007, AUT-001, AUT-002 | R10 | COMPLETE | PASS — R09-P | PASS — R09-M | CP-SECURITY PASS — R09-CP-SECURITY |
 | R10 | AUT-005 | R08 | COMPLETE | PASS — R10-P | PASS — R10-M | CP-SECURITY PASS — R10-CP-SECURITY |
@@ -1606,7 +1605,7 @@ durable ledger before changing a row.
 | R30 | CAM-003 | R29 | COMPLETE | PASS — R30-P | PASS — R30-M | CP-CAMPAIGN PASS — R30-CP-CAMPAIGN |
 | R31 | CAM-004 | R18, R19, R30 | QUEUED | PASS — R31-P | PENDING | CP-CAMPAIGN PENDING |
 | R32 | ONB-002 | none | COMPLETE | PASS — R32-P | PASS — R32-M | CP-ONBOARDING PASS — R32-CP-ONBOARDING |
-| R33 | ONB-006 | R05, R32 | ACTIVE | PASS — R33-P | PENDING | CP-ONBOARDING PENDING |
+| R33 | ONB-006 | R05, R32 | COMPLETE | PASS — R33-P | PASS — R33-M | CP-ONBOARDING PASS — R33-CP-ONBOARDING |
 | R34 | OFF-001 | R04 | COMPLETE | PASS — R34-P | PASS — R34-M | CP-OFFLINE PASS — R34-CP-OFFLINE |
 | R35 | OFF-002, OFF-003 | R34 | COMPLETE | PASS — R35-P | PASS — R35-M | CP-OFFLINE PASS — R35-CP-OFFLINE |
 | R36 | OFF-005 | R35 | COMPLETE | PASS — R36-P | PASS — R36-M | CP-OFFLINE PASS — R36-CP-OFFLINE |
