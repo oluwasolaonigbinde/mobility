@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { ChangePasswordForm } from "@/components/auth/change-password-form";
 import type { MeResponse } from "@/lib/auth/current-user";
 import { SessionLogoutButton } from "@/components/driver/logout-button";
 import { NotificationCenter } from "@/components/notifications/notification-center";
@@ -84,7 +85,30 @@ export function AppShell({
               canManageAdvertiserPreferences={canManageAdvertiserPreferences}
               sessionScope={me.user.id}
             />
-            <span aria-label="Workspace context">Workspace</span>
+            <span aria-label="Workspace context" className="hidden md:inline">
+              Workspace
+            </span>
+            <details className="relative md:hidden">
+              <summary className="hover:text-ink cursor-pointer list-none transition-colors">
+                Account
+              </summary>
+              <section
+                aria-label="Account"
+                className="border-edge bg-panel absolute top-full right-0 mt-3 w-[min(20rem,calc(100vw-2rem))] rounded-xl border p-4 shadow-xl"
+              >
+                <p className="text-ink truncate text-sm font-medium">{me.user.full_name}</p>
+                <p className="micro text-faint mt-0.5 mb-4">
+                  {roleLabel[me.user.role] ?? me.user.role}
+                </p>
+                <p className="text-ink mb-3 text-sm font-medium">Change password</p>
+                <ChangePasswordForm />
+                <SessionLogoutButton
+                  label="Sign out"
+                  className="micro text-muted hover:text-coral transition-colors"
+                  formClassName="mt-4"
+                />
+              </section>
+            </details>
           </div>
         </header>
 
