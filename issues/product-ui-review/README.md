@@ -16,7 +16,7 @@ engineering audit corpus.
 | 5 | Advertiser journey | Answered and normalized | [verbatim answer](answers/prompt-05-advertiser-journey.md) |
 | 6 | Driver journey | Not run by this programme | — |
 | 7 | Errors, gates and state transitions | Not run | — |
-| 8 | Client-owned approvals versus system-owned UX | Not run; may be combined with 7 | — |
+| 8 | Client-owned approvals versus system-owned UX | Ready now; revised current-snapshot prompt | [execution prompt](prompt-08-current.md) |
 | 9 | Client-facing PRD and visual-system guide | Waits for 1–8 | — |
 | 10 | Adversarial PRD review | Waits for 9 | — |
 | 11 | Consolidated implementation backlog | Waits for 10 | — |
