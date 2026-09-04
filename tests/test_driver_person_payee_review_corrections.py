@@ -19,6 +19,7 @@ from test_stored_files import FakeStorageProvider
 from app.adapters.crypto import EnvelopeCryptoProvider
 from app.api.v1.dependencies import get_storage_provider
 from app.core.errors import AppError
+from app.models.audit import AuditEvent
 from app.models.driver_application import DriverApplicationAccessToken
 from app.models.notification import Notification, NotificationType
 from app.models.payee import Payee
@@ -137,6 +138,171 @@ def test_approval_requires_actual_exact_current_review_reads(
         json=_approval_payload(),
     )
     assert approved.status_code == 200, approved.json()
+
+
+def test_person_payee_approval_rejects_evidence_with_wrong_entity_type(
+    db_client, db_sessionmaker, settings
+) -> None:
+    reference, _ = _register(db_client, db_sessionmaker, settings, suffix="wrong-entity-type")
+    application = _application(db_sessionmaker, email="person-payee-wrong-entity-type@example.com")
+    files = _seed_clean_kyc_files(
+        db_sessionmaker, email="person-payee-wrong-entity-type@example.com"
+    )
+    assert (
+        db_client.post(
+            "/api/v1/auth/driver-onboarding/person-payee",
+            json=_person_payee_payload(reference, files),
+        ).status_code
+        == 201
+    )
+    admin = create_test_user(
+        db_sessionmaker,
+        email="person-payee-wrong-entity-type-admin@example.com",
+        password=PASSWORD,
+    )
+    _complete_admin_review(
+        db_client,
+        db_sessionmaker,
+        admin=admin,
+        application=application,
+        files=files,
+    )
+
+    async def corrupt_entity_types() -> None:
+        async with db_sessionmaker() as session:
+            events = list(
+                (
+                    await session.scalars(
+                        select(AuditEvent).where(
+                            AuditEvent.actor_user_id == admin.id,
+                            AuditEvent.action.in_(
+                                (
+                                    "admin.kyc.nin_read",
+                                    "admin.bank_account.read",
+                                    "stored_file.read",
+                                )
+                            ),
+                        )
+                    )
+                ).all()
+            )
+            assert events
+            for event in events:
+                event.entity_type = "wrong_evidence_entity"
+            await session.commit()
+
+    asyncio.run(corrupt_entity_types())
+    response = db_client.post(
+        f"/api/v1/admin/driver-applications/{application.id}/person-payee-decision",
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+        json=_approval_payload(),
+    )
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "PERSON_PAYEE_REVIEW_EVIDENCE_INCOMPLETE"
+
+
+@pytest.mark.parametrize(
+    "near_match",
+    ("actor", "action", "entity_id", "version", "purpose", "access_purpose", "reason"),
+)
+def test_person_payee_approval_rejects_each_other_near_match_evidence(
+    db_client, db_sessionmaker, settings, near_match
+) -> None:
+    reference, _ = _register(db_client, db_sessionmaker, settings, suffix=f"near-{near_match}")
+    email = f"person-payee-near-{near_match}@example.com"
+    application = _application(db_sessionmaker, email=email)
+    files = _seed_clean_kyc_files(db_sessionmaker, email=email)
+    assert (
+        db_client.post(
+            "/api/v1/auth/driver-onboarding/person-payee",
+            json=_person_payee_payload(reference, files),
+        ).status_code
+        == 201
+    )
+    admin = create_test_user(
+        db_sessionmaker,
+        email=f"person-payee-near-{near_match}-admin@example.com",
+        password=PASSWORD,
+    )
+    other_admin = create_test_user(
+        db_sessionmaker,
+        email=f"person-payee-near-{near_match}-other@example.com",
+        password=PASSWORD,
+    )
+    _complete_admin_review(
+        db_client,
+        db_sessionmaker,
+        admin=admin,
+        application=application,
+        files=files,
+    )
+
+    async def corrupt_evidence() -> None:
+        async with db_sessionmaker() as session:
+            events = list(
+                (
+                    await session.scalars(
+                        select(AuditEvent).where(
+                            AuditEvent.actor_user_id == admin.id,
+                            AuditEvent.action.in_(
+                                (
+                                    "admin.kyc.nin_read",
+                                    "admin.bank_account.read",
+                                    "stored_file.read",
+                                )
+                            ),
+                        )
+                    )
+                ).all()
+            )
+            assert events
+            if near_match == "actor":
+                for event in events:
+                    event.actor_user_id = other_admin.id
+            elif near_match == "action":
+                for event in events:
+                    event.action = "wrong.evidence_read"
+            elif near_match == "entity_id":
+                for event in events:
+                    event.entity_id = str(uuid4())
+            elif near_match == "version":
+                for event in events:
+                    if event.action == "admin.bank_account.read":
+                        event.event_metadata = {
+                            **event.event_metadata,
+                            "bank_account_version": 999,
+                        }
+            elif near_match == "purpose":
+                for event in events:
+                    if event.action in {"admin.kyc.nin_read", "admin.bank_account.read"}:
+                        event.event_metadata = {
+                            **event.event_metadata,
+                            "purpose": "wrong_review_purpose",
+                        }
+            elif near_match == "access_purpose":
+                for event in events:
+                    if event.action == "stored_file.read":
+                        event.event_metadata = {
+                            **event.event_metadata,
+                            "access_purpose": "wrong_access_purpose",
+                        }
+            else:
+                for event in events:
+                    if event.action == "stored_file.read":
+                        event.event_metadata = {
+                            **event.event_metadata,
+                            "reason": "wrong_review_reason",
+                        }
+            await session.commit()
+
+    asyncio.run(corrupt_evidence())
+    response = db_client.post(
+        f"/api/v1/admin/driver-applications/{application.id}/person-payee-decision",
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+        json=_approval_payload(),
+    )
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "PERSON_PAYEE_REVIEW_EVIDENCE_INCOMPLETE"
 
 
 def test_applicant_capture_is_not_payout_authority(db_client, db_sessionmaker, settings) -> None:

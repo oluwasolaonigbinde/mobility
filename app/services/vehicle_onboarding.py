@@ -572,25 +572,28 @@ async def _require_review_reads(
     actor_user_id: UUID,
     document_file_ids: dict[str, UUID],
 ) -> None:
-    events = list(
+    required_file_ids = tuple(str(file_id) for file_id in document_file_ids.values())
+    reviewed = set(
         (
             await session.scalars(
-                select(AuditEvent).where(
+                select(AuditEvent.entity_id)
+                .distinct()
+                .where(
                     AuditEvent.actor_user_id == actor_user_id,
                     AuditEvent.action == "stored_file.read",
+                    AuditEvent.entity_type == "stored_file",
+                    AuditEvent.entity_id.in_(required_file_ids),
+                    AuditEvent.event_metadata["file_purpose"].as_string()
+                    == FilePurpose.VEHICLE_EVIDENCE.value,
+                    AuditEvent.event_metadata["access_purpose"].as_string() == "kyc_review",
+                    AuditEvent.event_metadata["reason"].as_string()
+                    == f"vehicle_approval:{submission.id}",
                 )
+                .limit(len(required_file_ids))
             )
         ).all()
     )
-    reviewed = {
-        UUID(event.entity_id)
-        for event in events
-        if event.entity_id is not None
-        and event.event_metadata.get("file_purpose") == FilePurpose.VEHICLE_EVIDENCE.value
-        and event.event_metadata.get("access_purpose") == "kyc_review"
-        and event.event_metadata.get("reason") == f"vehicle_approval:{submission.id}"
-    }
-    if not set(document_file_ids.values()).issubset(reviewed):
+    if not set(required_file_ids).issubset(reviewed):
         raise _error(
             "VEHICLE_REVIEW_EVIDENCE_INCOMPLETE",
             "Approval requires audited reads of every exact current vehicle document",

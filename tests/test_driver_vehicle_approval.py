@@ -425,6 +425,68 @@ def test_vehicle_approval_fails_closed_for_unsafe_and_unread_evidence(
     assert unread.json()["error"]["code"] == "VEHICLE_REVIEW_EVIDENCE_INCOMPLETE"
 
 
+def test_vehicle_approval_rejects_reads_with_wrong_entity_type(
+    db_client, db_sessionmaker, settings
+) -> None:
+    token, application, admin = _approved_applicant(
+        db_client, db_sessionmaker, settings, suffix="wrong-entity-type"
+    )
+    files = _seed_vehicle_files(
+        db_sessionmaker, application=application, suffix="wrong-entity-type"
+    )
+    submitted = db_client.post(
+        "/api/v1/auth/driver-onboarding/vehicle", json=_vehicle_payload(token, files)
+    )
+    assert submitted.status_code == 201
+    _review_files(
+        db_client,
+        db_sessionmaker,
+        admin=admin,
+        submission_id=submitted.json()["submission_id"],
+        files=files,
+    )
+
+    async def corrupt_entity_types() -> None:
+        async with db_sessionmaker() as session:
+            events = list(
+                (
+                    await session.scalars(
+                        select(AuditEvent).where(
+                            AuditEvent.actor_user_id == admin.id,
+                            AuditEvent.action == "stored_file.read",
+                        )
+                    )
+                ).all()
+            )
+            assert events
+            for event in events:
+                event.entity_type = "wrong_evidence_entity"
+            await session.commit()
+
+    asyncio.run(corrupt_entity_types())
+    response = db_client.post(
+        _decision_path(
+            application.id,
+            submitted.json()["vehicle_id"],
+            submitted.json()["submission_id"],
+        ),
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+        json={
+            "client_request_id": str(uuid4()),
+            "decision": "approved",
+            "reason_code": "complete_current_evidence",
+            "owner_match_confirmed": True,
+            "vehicle_identity_confirmed": True,
+            "roadworthy_confirmed": True,
+            "pilot_car_confirmed": True,
+            "documents_readable_confirmed": True,
+            "valid_until": "2099-01-01T00:00:00Z",
+        },
+    )
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "VEHICLE_REVIEW_EVIDENCE_INCOMPLETE"
+
+
 def test_missing_vehicle_object_cannot_create_qualifying_read_or_approval(
     db_client, db_sessionmaker, settings
 ) -> None:

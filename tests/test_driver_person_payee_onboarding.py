@@ -405,6 +405,26 @@ def test_admin_approval_is_idempotent_audited_safe_and_non_work_eligible(
         application=application,
         files=files,
     )
+
+    async def add_large_nonqualifying_history() -> None:
+        async with db_sessionmaker() as session:
+            session.add_all(
+                AuditEvent(
+                    actor_user_id=admin.id,
+                    action="stored_file.read",
+                    entity_type="unrelated_evidence",
+                    entity_id=str(uuid4()),
+                    event_metadata={
+                        "file_purpose": "wrong_file_purpose",
+                        "access_purpose": "wrong_access_purpose",
+                        "reason": "wrong_review_reason",
+                    },
+                )
+                for _ in range(1000)
+            )
+            await session.commit()
+
+    asyncio.run(add_large_nonqualifying_history())
     decision_id = uuid4()
     decision = {
         "client_request_id": str(decision_id),

@@ -322,48 +322,65 @@ async def _require_exact_review_evidence(
     account = await session.get(PayeeBankAccount, account_version.bank_account_id)
     if account is None:  # pragma: no cover - protected by FK
         raise RuntimeError("Person/payee bank-account authority disappeared")
-    events = list(
+    review_purpose = "person_payee_approval"
+    nin_read = bool(
+        await session.scalar(
+            select(
+                select(AuditEvent.id)
+                .where(
+                    AuditEvent.actor_user_id == actor_user_id,
+                    AuditEvent.action == "admin.kyc.nin_read",
+                    AuditEvent.entity_type == "driver_kyc_submission",
+                    AuditEvent.entity_id == str(submission.id),
+                    AuditEvent.event_metadata["purpose"].as_string() == review_purpose,
+                )
+                .limit(1)
+                .exists()
+            )
+        )
+    )
+    account_read = bool(
+        await session.scalar(
+            select(
+                select(AuditEvent.id)
+                .where(
+                    AuditEvent.actor_user_id == actor_user_id,
+                    AuditEvent.action == "admin.bank_account.read",
+                    AuditEvent.entity_type == "payee_bank_account",
+                    AuditEvent.entity_id == str(account.id),
+                    AuditEvent.event_metadata["bank_account_version"].as_integer()
+                    == account_version.version,
+                    AuditEvent.event_metadata["purpose"].as_string() == review_purpose,
+                )
+                .limit(1)
+                .exists()
+            )
+        )
+    )
+    required_file_ids = tuple(str(file_id) for file_id in document_file_ids.values())
+    reviewed_files = set(
         (
             await session.scalars(
-                select(AuditEvent).where(
+                select(AuditEvent.entity_id)
+                .distinct()
+                .where(
                     AuditEvent.actor_user_id == actor_user_id,
-                    AuditEvent.action.in_(
-                        (
-                            "admin.kyc.nin_read",
-                            "admin.bank_account.read",
-                            "stored_file.read",
-                        )
-                    ),
+                    AuditEvent.action == "stored_file.read",
+                    AuditEvent.entity_type == "stored_file",
+                    AuditEvent.entity_id.in_(required_file_ids),
+                    AuditEvent.event_metadata["file_purpose"].as_string() == "driver_kyc",
+                    AuditEvent.event_metadata["access_purpose"].as_string() == "kyc_review",
+                    AuditEvent.event_metadata["reason"].as_string()
+                    == f"person_payee_approval:{submission.id}",
                 )
+                .limit(len(required_file_ids))
             )
         ).all()
     )
-    nin_read = any(
-        event.action == "admin.kyc.nin_read"
-        and event.entity_id == str(submission.id)
-        and event.event_metadata.get("purpose") == "person_payee_approval"
-        for event in events
-    )
-    account_read = any(
-        event.action == "admin.bank_account.read"
-        and event.entity_id == str(account.id)
-        and event.event_metadata.get("bank_account_version") == account_version.version
-        and event.event_metadata.get("purpose") == "person_payee_approval"
-        for event in events
-    )
-    reviewed_files = {
-        UUID(event.entity_id)
-        for event in events
-        if event.action == "stored_file.read"
-        and event.entity_id is not None
-        and event.event_metadata.get("file_purpose") == "driver_kyc"
-        and event.event_metadata.get("access_purpose") == "kyc_review"
-        and event.event_metadata.get("reason") == f"person_payee_approval:{submission.id}"
-    }
     if (
         not nin_read
         or not account_read
-        or not set(document_file_ids.values()).issubset(reviewed_files)
+        or not set(required_file_ids).issubset(reviewed_files)
     ):
         raise _error(
             "PERSON_PAYEE_REVIEW_EVIDENCE_INCOMPLETE",
