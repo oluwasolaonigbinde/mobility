@@ -255,6 +255,24 @@ def upgrade() -> None:
         "data_purge_audit",
         ["partition_name", "created_at"],
     )
+    op.execute(
+        sa.text(
+            """
+            CREATE FUNCTION reject_data_purge_audit_mutation() RETURNS trigger AS $$
+            BEGIN
+                RAISE EXCEPTION 'data purge audit is immutable' USING ERRCODE = '55000';
+                RETURN NULL;
+            END;
+            $$ LANGUAGE plpgsql
+            """
+        )
+    )
+    op.execute(
+        "CREATE TRIGGER data_purge_audit_immutable "
+        "BEFORE UPDATE OR DELETE OR TRUNCATE ON data_purge_audit "
+        "FOR EACH STATEMENT EXECUTE FUNCTION reject_data_purge_audit_mutation()"
+    )
+    op.execute("ALTER TABLE data_purge_audit ENABLE ALWAYS TRIGGER data_purge_audit_immutable")
 
 
 def downgrade() -> None:
@@ -270,6 +288,8 @@ def downgrade() -> None:
         )
     )
 
+    op.execute("DROP TRIGGER data_purge_audit_immutable ON data_purge_audit")
+    op.execute("DROP FUNCTION reject_data_purge_audit_mutation()")
     op.drop_index("ix_data_purge_audit_partition_created_at", table_name="data_purge_audit")
     op.drop_index("uq_data_purge_audit_dropped", table_name="data_purge_audit")
     op.drop_table("data_purge_audit")

@@ -26,6 +26,7 @@ from conftest import (
 from sqlalchemy import CheckConstraint, UniqueConstraint, text
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -418,6 +419,101 @@ def test_0014_migration_static_shape() -> None:
         assert name in migration
     for forbidden_table in ["notifications", "fraud_disputes", "payout_batches", "heatmaps"]:
         assert f'"{forbidden_table}"' not in migration
+
+
+def test_data_purge_audit_is_database_immutable_and_appendable(monkeypatch) -> None:
+    source_url = configured_postgres_url()
+    migration_url = asyncio.run(create_database_from_url(source_url))
+
+    async def exercise_immutability() -> None:
+        engine = create_async_engine(migration_url, poolclass=NullPool)
+        try:
+            async with engine.connect() as connection:
+                catalog = (
+                    await connection.execute(
+                        text(
+                            """
+                            SELECT trigger_row.tgname,
+                                   trigger_row.tgenabled,
+                                   trigger_row.tgtype,
+                                   function_row.proname
+                            FROM pg_trigger trigger_row
+                            JOIN pg_proc function_row
+                              ON function_row.oid = trigger_row.tgfoid
+                            WHERE trigger_row.tgrelid = 'data_purge_audit'::regclass
+                              AND NOT trigger_row.tgisinternal
+                            """
+                        )
+                    )
+                ).one()
+                assert catalog == (
+                    "data_purge_audit_immutable",
+                    b"A",
+                    58,
+                    "reject_data_purge_audit_mutation",
+                )
+                await connection.rollback()
+
+                await connection.execute(
+                    text(
+                        """
+                        INSERT INTO data_purge_audit
+                            (event, retention_months, job_run_id)
+                        VALUES
+                            ('batches_purged', 12, 'r07-original')
+                        """
+                    )
+                )
+                await connection.commit()
+
+                mutations = (
+                    "UPDATE data_purge_audit SET retention_months = 99",
+                    "DELETE FROM data_purge_audit",
+                    "TRUNCATE data_purge_audit",
+                )
+                for statement in mutations:
+                    transaction = await connection.begin()
+                    await connection.execute(text("SET LOCAL session_replication_role = replica"))
+                    with pytest.raises(DBAPIError, match="data purge audit is immutable"):
+                        await connection.execute(text(statement))
+                    await transaction.rollback()
+
+                    rows = (
+                        await connection.execute(
+                            text(
+                                "SELECT job_run_id, retention_months "
+                                "FROM data_purge_audit ORDER BY created_at, id"
+                            )
+                        )
+                    ).all()
+                    assert rows == [("r07-original", 12)]
+                    await connection.rollback()
+
+                await connection.execute(
+                    text(
+                        """
+                        INSERT INTO data_purge_audit
+                            (event, retention_months, job_run_id)
+                        VALUES
+                            ('batches_purged', 12, 'r07-appended')
+                        """
+                    )
+                )
+                await connection.commit()
+                job_run_ids = (
+                    await connection.execute(
+                        text("SELECT job_run_id FROM data_purge_audit ORDER BY created_at, id")
+                    )
+                ).scalars()
+                assert list(job_run_ids) == ["r07-original", "r07-appended"]
+        finally:
+            await engine.dispose()
+
+    try:
+        upgrade_to(migration_url, "head", monkeypatch)
+        asyncio.run(exercise_immutability())
+    finally:
+        asyncio.run(drop_database(migration_url))
 
 
 def test_empty_database_upgrade_downgrade_cycle(monkeypatch) -> None:
