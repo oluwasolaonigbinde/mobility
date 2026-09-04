@@ -1,9 +1,11 @@
 # Prompt 8 — client-owned approvals versus system-owned UX
 
-Status: **IN PROGRESS** in the existing GPT-5.6 Pro task **Review External
-Dependencies**. Do not dispatch a duplicate. Its submitted source base is
-`7e57466` (4 September 2026); reconcile the returned observations against newer
-accepted slices rather than rerunning solely because the controller advanced.
+Status: **COMPLETE AND RECONCILED**. The sole GPT-5.6 Pro task was **Review
+External Dependencies**; its submitted source base was `7e57466` (4 September
+2026), while the supplied pack resolved to `38094d6`. Its returned observations
+were reconciled against current source and preserved in
+[answers/prompt-08-external-boundary.md](answers/prompt-08-external-boundary.md).
+Do not dispatch a duplicate.
 
 ```text
 MODEL: GPT-5.6 Pro, deepest available reasoning.
