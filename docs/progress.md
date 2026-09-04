@@ -45,16 +45,16 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `1`
-**Current capacity assignment:** `R51`
+**Current justified remediation writer capacity:** `2`
+**Current capacity assignment:** `R19, R51`
 **Current capacity justification:** R03 and R48 are accepted and their workflow,
 generated-contract and report-projection leases are released. R49 is accepted and
 R50 now owns the reachable report-reissue lineage and focused status/panel tests.
-R33, R06, R07, R50 and R18 are accepted. R18 has released the exclusive
-money/migration and generated-contract lane. R51 may reconcile the accepted R18
-base and continue its reviewed report-publication migration, generated contracts,
-and final PostgreSQL/MinIO authority in its isolated Claude worktree. Controller
-documents remain serialized.
+R33, R06, R07, R50 and R18 are accepted. R19 continues the cached R18 money task
+on payout-day ordering only, while R51 owns report-publication model/service,
+the sole 0082 migration and PostgreSQL/MinIO recovery evidence in its isolated
+Claude worktree. Their product and test leases are disjoint; R19 has no migration
+or generated-contract authority. Controller documents remain serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -86,11 +86,11 @@ authority. The active queue now prioritizes locally executable product and
 engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
-**Current checkpoint:** `PKG-10 / R51` — R02 is accepted at `09c0b17`, R47 at
+**Current checkpoint:** `PKG-10 / R19` — R02 is accepted at `09c0b17`, R47 at
 `419414a`, R03 at `60af07d`, R48 at `b17d1e7`, R05 at `954d9a4`, R49 at
 `a315a59`, R33 at `14f155a`, R06 at `05b4901`, R07 at `84cb94e`, and R50 at
-`bb8c13e`, and R18 at `5c2d60a`; R51 is the assigned writer with its former
-migration/generated-contract fence released. AUT-006 is accepted at
+`bb8c13e`, and R18 at `5c2d60a`; R19 and R51 are the assigned disjoint writers.
+AUT-006 is accepted at
 `a4c9de2`.
 Every repository failure group
 discovered by R02's complete 1,772-test authority run is now accepted: V11
@@ -1595,7 +1595,7 @@ durable ledger before changing a row.
 | R16 | GOV-008 | none | COMPLETE | PASS — R16-P | PASS — R16-M | CP-CONTROL PASS — R16-CP-CONTROL |
 | R17 | TST-007 | R02, R03 | QUEUED | PENDING | PENDING | CP-CONTROL PENDING |
 | R18 | MON-005, MON-006 | R04, R06, R07 | COMPLETE | PASS — R18-P | PASS — R18-M | CP-MONEY PASS — R18-CP-MONEY |
-| R19 | MON-002 | R18 | QUEUED | PASS — R19-P | PENDING | CP-MONEY PENDING |
+| R19 | MON-002 | R18 | ACTIVE | PASS — R19-P | PENDING | CP-MONEY PENDING |
 | R20 | MON-001, DB-007, MON-008 | R05, R18 | QUEUED | PASS — R20-P | PENDING | CP-MONEY PENDING |
 | R21 | MON-003 | R20 | QUEUED | PASS — R21-P | PENDING | CP-MONEY PENDING |
 | R22 | MON-004, MON-007, MON-009 | R20, R21 | QUEUED | PASS — R22-P | PENDING | CP-MONEY PENDING |
