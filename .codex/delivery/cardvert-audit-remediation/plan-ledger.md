@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 349
+plan_revision: 351
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 479
+last_event_sequence: 481
 ---
 
 # Cardvert audit remediation programme
@@ -935,3 +935,5 @@ verification is complete.
 | 477 | 347 | 1 | PACKET_DISPATCHED | R58/TST-011 begins after R21 and R57 release its predecessor and worker-test holds. | GPT-5.6 Sol/xhigh is concretely required for real ARQ subprocess SIGKILL/restart cut points spanning Redis, PostgreSQL, payout side effects, deletion privacy and report publication convergence; exact test-harness and worker-registration/CI-test lease only; no product crash hook or product worker edit; direct terminal callback |
 | 478 | 348 | 1 | WORKER_RECOVERY_SLICE_ACCEPTED | R58/TST-011 accepted real ARQ subprocess SIGKILL/restart recovery evidence across earnings, payout, deletion, report publication and cursor progression. | commit `f07cb54`; exact three-test-file integration; seven real Redis/PostgreSQL recovery passes, ten focused WORKERS/MNY/PRV passes and nine fsync-backed receipts; controller registration smoke plus Ruff/format/diff PASS; R58-M/WORKERS/MNY/PRV/CP-WORKERS PASS; no product crash hook or product behavior change |
 | 479 | 349 | 1 | PLAN_PACKET_SETUP_STARTED | R59-P begins read-only aggregate-journey planning and isolated-environment readiness while R59 implementation remains dependency-blocked on active R22. | client task `e214dfa6-41a3-4ff4-b090-758a6c5c7d26`; GPT-5.6 Sol/high because the plan crosses money, privacy, security, workers and release authority while xhigh is unnecessary for read-only planning; no mutation lease or R59 acceptance authority; direct planning callback then wait for R22 admission |
+| 480 | 350 | 1 | PAYOUT_CONSERVATION_SLICE_ACCEPTED | R22/MON-004,MON-007,MON-009 accepted exclusive payout conservation, governed replacement/late-success recovery and chain-wide fraud resolution with one durable paid/debt outcome. | commit `7835ba8`; 13-path integration with migration 0084 and synchronized public contracts; controller reran core projection, dual-success debt and real-PostgreSQL migration guards green; owner 16 R22, 33 combined R21+R22 and 99 adjacent passes plus frontend type/lint/493 tests/build; Sol/medium consolidated DB+MNY/CONTRACT/CP-MONEY review PASS; `data_subject_requests.py` reachability registration and `test_mvp_hardening.py` 0084 head guard ratified as necessary exact lease extensions; no live provider/payment claim |
+| 481 | 351 | 1 | PLAN_REVIEW_PASSED | R59-P accepted the minimum isolated real-stack mutating browser-journey contract after correcting an unsafe draft that shared the ordinary parallel e2e job and over-reran accepted predecessor proofs. | task `01a06ec4-d18f-7ac3-8dda-39591db42262`; GPT-5.6 Sol/high read-only review; exact eight-path lease, unique Compose project/ports, production API/worker/frontend, API+worker outage/reload recovery, persisted money/privacy/release receipt, scoped teardown and evidence-reuse matrix; final minimal SEC+DB+MNY+PRV+WORKERS+DEP/CP-RELEASE verdict PASS; no repository mutation |
