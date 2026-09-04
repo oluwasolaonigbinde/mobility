@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 328
+plan_revision: 330
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 458
+last_event_sequence: 460
 ---
 
 # Cardvert audit remediation programme
@@ -241,7 +241,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R16 | GOV-008 | ACCEPTED | provider-boundary opener | R16-P/M/CONTRACT/CP-CONTROL; structural and behavioral evidence | complete |
 | R17 | TST-007 | PARKED | R02, R03; coverage policy | no authoritative floor/path/base/ratchet policy; not a demonstrated product-runtime defect | retained in `to-do.md` for a later developer policy decision; does not consume active remediation capacity |
 | R18 | MON-005, MON-006 | COMPLETE | R04, R06, R07 | R18-P/M; DB+MNY; CONTRACT; CP-MONEY; exact `e36f7fed...` freeze; focused PostgreSQL, payout, correction, frontend and contract evidence | accepted exactly once at `5c2d60a`; money/migration/generated-contract lane released; task may continue R19 only after separate packet |
-| R19 | MON-002 | ACTIVE | R18 | R19-P; reviewed Lagos-day predecessor-order contract | cached R18 Sol/xhigh task continues on exact payout ordering lease; no migration/contracts; disjoint from isolated R51 publication work |
+| R19 | MON-002 | COMPLETE | R18 | R19-P/M; DB+MNY; CP-MONEY; exact `870f1dfb...` freeze; forced-overlap PostgreSQL and focused payout evidence | accepted exactly once at `3c7b678`; payout-day ordering lease released |
 | R20 | MON-001, DB-007, MON-008 | WAITING | R05, R18 | R20-P; reviewed durable per-line provider-intent contract | wait for predecessors and migration/worker lane |
 | R21 | MON-003 | WAITING | R20 | R21-P; reviewed final pre-provider authorization contract | wait for R20 |
 | R22 | MON-004, MON-007, MON-009 | WAITING | R20, R21 | R22-P; reviewed exclusive conservation/replacement state contract | wait for R20/R21 and migration/contracts |
@@ -253,7 +253,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R28 | CAM-001 | COMPLETE | campaign opener | R28-P/M and CP-CAMPAIGN; product commit `a9c417a` | accepted exactly once; campaign lease released |
 | R29 | CAM-002 | WAITING | R04, R08, R28 | R29-P; reviewed active-driver uniqueness contract | wait for R28 owner decision and migration lane |
 | R30 | CAM-003 | WAITING | R29 | R30-P; reviewed due-challenge finality contract | wait for R29 |
-| R31 | CAM-004 | WAITING | R18, R19, R30 | R31-P; reviewed frozen assignment-window contract | wait for predecessors and trip lease |
+| R31 | CAM-004 | ACTIVE | R18, R19, R30 | R31-P; reviewed frozen assignment-window contract | fresh Sol/xhigh task on exact trip-start and focused-test lease; no payout/migration/contracts; disjoint from R51 |
 | R32 | ONB-002 | ACCEPTED | onboarding opener | R32-P/M/SEC/DB/CP-ONBOARDING; PostgreSQL and contract evidence | complete |
 | R33 | ONB-006 | ACCEPTED | R05, R32 | R33-P/M; DB; R33-CP-ONBOARDING; commit `14f155a` | accepted exactly once; onboarding-query lease released |
 | R34 | OFF-001 | COMPLETE | R04; offline opener | R34-P/M; DB/PRV/SEC/MNY; CP-OFFLINE; accepted product commit `a95a7ca` | complete; released R35 and central migration/contract/config lanes |
@@ -914,3 +914,5 @@ verification is complete.
 | 456 | 326 | 1 | MONEY_AUTHORITY_SLICE_ACCEPTED | R18/MON-005/MON-006 accepted exact frozen currency authority across rule revision, offer, binding, calculation and ledger, with fail-closed legacy/migration handling and trigger-backed correction integrity. | commit `5c2d60a`; exact 22-file digest `e36f7fed...`; controller file-set/diff/lint and migration/OpenAPI checks matched; owner PostgreSQL, payout, correction, frontend and contract evidence plus DB+MNY/CONTRACT/CP-MONEY/minimal-change PASS; R51 migration/generated-contract fence released |
 | 457 | 327 | 1 | PACKET_SCOPE_AMENDED | R51 may classify its new subject-reachable publication-intent table beside existing report operator-authority exclusions, then add the sole 0082 successor migration and exact migration/PostgreSQL/MinIO evidence after reconciling accepted R18 head 0081. | ratify only the additive `report_publication_intents` entry in `app/services/data_subject_inventory.py`; add one 0082 migration, its focused migration test, the 0082 canonical-head entry in `tests/test_mvp_hardening.py`, and focused PostgreSQL/MinIO tests; preserve all other privacy semantics; no OpenAPI/type changes |
 | 458 | 328 | 1 | PACKET_DISPATCHED | R19/MON-002 resumed in the existing cached R18 task after separate R18 admission, parallel to disjoint R51 publication work. | GPT-5.6 Sol/xhigh retained because forced-overlap PostgreSQL transactions can otherwise allocate a shared monetary day cap by arrival order; exact lease `app/services/payouts.py`, `app/services/trip_processing.py`, `tests/test_payouts_v3.py`, `tests/test_trip_processing.py`, plus one new focused R19 PostgreSQL test if required; no migration/generated contracts/controller docs; separate terminal callback required |
+| 459 | 329 | 1 | PAYOUT_ORDERING_SLICE_ACCEPTED | R19/MON-002 accepted canonical `(started_at,id)` predecessor authority under sorted Lagos-day locks, preventing later-first economic cap capture while preserving retryable partial processing. | commit `3c7b678`; exact three-file digest `870f1dfb...`; controller exact file-set/diff/lint and two focused PostgreSQL tests matched; owner red/green, 33-file-suite tests and minimal/DB+MNY/CP-MONEY PASS |
+| 460 | 330 | 1 | PACKET_DISPATCHED | R31/CAM-004 began in a fresh task because the accepted plan requires S14 to remain separate from the R18→R19 session lane. | GPT-5.6 Sol/xhigh justified by concurrent campaign-extension/trip-start serialization at a money-producing eligibility boundary; exact lease `app/services/trips.py`, `tests/test_trips.py`, `tests/test_campaign_changes.py`, plus new `tests/test_r31_frozen_window_postgresql.py`; payout/binding code verification-only; no migration/contracts/controller docs; direct terminal callback required |
