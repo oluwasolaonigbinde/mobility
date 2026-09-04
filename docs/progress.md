@@ -46,13 +46,13 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R07, R50`
+**Current capacity assignment:** `R18, R50`
 **Current capacity justification:** R03 and R48 are accepted and their workflow,
 generated-contract and report-projection leases are released. R49 is accepted and
 R50 now owns the reachable report-reissue lineage and focused status/panel tests.
-R33 and R06 are accepted. R07 now owns the exclusive database purge-immutability
-lane, while R50 owns the disjoint report-reissue lineage and focused status/panel
-tests. Controller documents remain serialized.
+R33, R06 and R07 are accepted. R18 now owns the exclusive money/migration lane,
+while R50 owns the disjoint report-reissue lineage and focused status/panel tests.
+Controller documents remain serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -84,10 +84,10 @@ authority. The active queue now prioritizes locally executable product and
 engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
-**Current checkpoint:** `PKG-10 / R07` — R02 is accepted at `09c0b17`, R47 at
+**Current checkpoint:** `PKG-10 / R18` — R02 is accepted at `09c0b17`, R47 at
 `419414a`, R03 at `60af07d`, R48 at `b17d1e7`, R05 at `954d9a4`, R49 at
-`a315a59`, R33 at `14f155a`, and R06 at `05b4901`; R07 and R50 are assigned
-writers. AUT-006 is accepted at
+`a315a59`, R33 at `14f155a`, R06 at `05b4901`, and R07 at `84cb94e`; R18 and
+R50 are assigned writers. AUT-006 is accepted at
 `a4c9de2`.
 Every repository failure group
 discovered by R02's complete 1,772-test authority run is now accepted: V11
@@ -118,7 +118,7 @@ its disjoint report-reissue lease. R17 remains parked in
 
 | Date | Item | Authority | Scope boundary | Queue effect |
 | --- | --- | --- | --- | --- |
-| 4 Sep 2026 | **Require an explicit controller callback after every slice, and predeclare compatible multi-slice session lanes where they reduce repeated setup.** | Direct project-owner instruction in the active remediation controller, 4 Sep 2026 | Every controller-created task must call `send_message_to_thread` for controller task `01a05de2-0b5d-73f0-ae3d-0e979b734658` with its terminal receipt; ending only in the worker task is insufficient. One visible task may retain its original model and continue a predeclared dependency-ordered lane only when the slices share a domain, risk class and compatible ownership. It must return a separate receipt after each slice and wait for controller admission plus the next explicit packet. Cross-domain work, overlapping leases, migrations/generated contracts owned elsewhere, or a changed model require a fresh task. | Applies to all current and future controller dispatches. R07 is admitted separately before the same task may receive R18; R50 is admitted separately before the same task may receive R51 and later R52. Missing callback delivery triggers one state reconciliation and adoption of existing work, never a duplicate implementation owner. |
+| 4 Sep 2026 | **Require an explicit controller callback after every slice, and predeclare compatible multi-slice session lanes where they reduce repeated setup.** | Direct project-owner instruction in the active remediation controller, 4 Sep 2026 | Every controller-created task must call `send_message_to_thread` for controller task `01a05de2-0b5d-73f0-ae3d-0e979b734658` with its terminal receipt; ending only in the worker task is insufficient. One visible task may retain its original model and continue a predeclared dependency-ordered lane only when the slices share a domain, risk class and compatible ownership. It must return a separate receipt after each slice and wait for controller admission plus the next explicit packet. Cross-domain work, overlapping leases, migrations/generated contracts owned elsewhere, or a changed model require a fresh task. | Applies to all current and future controller dispatches. R07 and R50 remain standalone because their successors require different risk/model gates; R18→R19 and R20→R21→R22 are the first compatible reusable lanes. Missing callback delivery triggers one state reconciliation and adoption of existing work, never a duplicate implementation owner. |
 | 4 Sep 2026 | **Use fresh visible sessions for new work; use GPT-5.6 Luna/max with fast mode for simple bounded tasks and reserve Sol for genuinely complex work.** | Direct project-owner instruction in the active remediation controller, 4 Sep 2026 | Do not use internal subagents as the execution owner for new slices. Before dispatch, apply the repository model gate to the task's actual hardest boundary: Luna/max fast is preferred for simple low-risk bounded work, Terra remains available for ordinary implementation, and Sol is used only for difficult money, security, migration, concurrency or cross-contract authority. Never reuse an older session under a changed model. | Applies to all future dispatches. Existing completed reconciliation workers are closed; R03 and R48 must begin in separate fresh visible sessions with proportional verification and terminal-only callbacks. |
 | 4 Sep 2026 | **Use otherwise-idle disjoint capacity for the smallest verified controller-audit follow-up while the main remediation frontier is dependency-held.** | Direct project-owner instruction to maximize useful parallel execution, 4 Sep 2026; controller-selected FU-06 from the recovered row-385 audits | FU-06 may verify and, if current, correct mobile-width reachability of existing logout and change-password controls only. It owns the shell/account-control component and focused responsive tests; AUT-004 logout/session semantics, APIs, schemas, routes, generated contracts, R36/R37, R47 and user-owned design/theme work remain unchanged. | Adds one bounded side packet outside R01–R60 without moving the active PKG-10 pointer. Its exact disjoint lease and proportional verification must be recorded before dispatch. |
 | 3 Sep 2026 | **Controller orchestration must not absorb or interfere with Claude tasks created independently by the owner.** | Direct project-owner correction in the active remediation controller, 3 Sep 2026 | Session reconciliation covers only tasks explicitly dispatched by this controller. Driver-journey, landing/design, future-delivery, external-dependency and other owner-created Claude work remain outside controller inspection, mutation, admission and scheduling authority unless the owner later places a specific result in scope. | Narrows the result-recovery task to the three controller-dispatched row-385 audits; the broader prepared Claude prompt was not sent. |
@@ -1580,7 +1580,7 @@ durable ledger before changing a row.
 | R04 | DB-004 | none | COMPLETE | PASS — R04-P | PASS — R04-M | CP-DB PASS — R04-CP-DB |
 | R05 | DB-001, TST-012, ONB-010 | R02, R04 | COMPLETE | PASS — R05-P | PASS — R05-M | CP-DB PASS — R05-CP-DB |
 | R06 | DB-002 | R02, R04, R05 | COMPLETE | PASS — R06-P | PASS — R06-M | CP-DB PASS — R06-CP-DB |
-| R07 | DB-003 | R02, R04, R06 | ACTIVE | PASS — R07-P | PENDING | CP-DB PENDING |
+| R07 | DB-003 | R02, R04, R06 | COMPLETE | PASS — R07-P | PASS — R07-M | CP-DB PASS — R07-CP-DB |
 | R08 | GOV-005 | none | COMPLETE | PASS — R08-P | PASS — R08-M | CP-SECURITY PASS — R08-CP-SECURITY |
 | R09 | GOV-007, AUT-001, AUT-002 | R10 | COMPLETE | PASS — R09-P | PASS — R09-M | CP-SECURITY PASS — R09-CP-SECURITY |
 | R10 | AUT-005 | R08 | COMPLETE | PASS — R10-P | PASS — R10-M | CP-SECURITY PASS — R10-CP-SECURITY |
@@ -1591,7 +1591,7 @@ durable ledger before changing a row.
 | R15 | GOV-006 | none | COMPLETE | PASS — R15-P | PASS — R15-M | CP-WORKERS PASS — R15-CP-WORKERS |
 | R16 | GOV-008 | none | COMPLETE | PASS — R16-P | PASS — R16-M | CP-CONTROL PASS — R16-CP-CONTROL |
 | R17 | TST-007 | R02, R03 | QUEUED | PENDING | PENDING | CP-CONTROL PENDING |
-| R18 | MON-005, MON-006 | R04, R06, R07 | QUEUED | PASS — R18-P | PENDING | CP-MONEY PENDING |
+| R18 | MON-005, MON-006 | R04, R06, R07 | ACTIVE | PASS — R18-P | PENDING | CP-MONEY PENDING |
 | R19 | MON-002 | R18 | QUEUED | PASS — R19-P | PENDING | CP-MONEY PENDING |
 | R20 | MON-001, DB-007, MON-008 | R05, R18 | QUEUED | PASS — R20-P | PENDING | CP-MONEY PENDING |
 | R21 | MON-003 | R20 | QUEUED | PASS — R21-P | PENDING | CP-MONEY PENDING |

@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 314
+plan_revision: 316
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 444
+last_event_sequence: 446
 ---
 
 # Cardvert audit remediation programme
@@ -227,7 +227,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R04 | DB-004 | ACCEPTED | database opener | R04-P; R04-M; R04-CP-DB; exact PostgreSQL/PostGIS catalog and constraint-timing red/green | complete |
 | R05 | DB-001, TST-012, ONB-010 | ACCEPTED | R02, R04 | R05-P/M; DB+MNY; R05-CP-DB; commit `954d9a4` | accepted exactly once; database-concurrency lease released |
 | R06 | DB-002 | ACCEPTED | R02, R04, R05; historical migration authority | R06-P/M; DB+MNY+PRV; R06-CP-DB; commit `05b4901` | accepted exactly once; historical migration lease released |
-| R07 | DB-003 | ACTIVE | R02, R04, R06 | R07-P; reviewed database immutability contract | fresh Sol/high implementation in the exclusive database lane |
+| R07 | DB-003 | COMPLETE | R02, R04, R06 | R07-P/M; DB; CP-DB; exact `cd1dc6cd...` freeze; seven focused real-PostgreSQL migration passes | accepted exactly once; database lane released to R18 |
 | R08 | GOV-005 | ACCEPTED | security opener | R08-P; R08-M; R08-SEC; R08-CP-SECURITY; lock-removal red and real PostgreSQL green | complete |
 | R09 | GOV-007, AUT-001, AUT-002 | COMPLETE | R10 | R09-P/M; SEC; CP-SECURITY; exact `5b0a3f68...` freeze; five focused real-PostgreSQL refresh passes | accepted exactly once; authentication lease released |
 | R10 | AUT-005 | ACCEPTED | R08 | R10-P/M/SEC/CP-SECURITY; strict-claim and route-graph evidence | complete |
@@ -238,7 +238,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | ACCEPTED | provider-boundary opener | R16-P/M/CONTRACT/CP-CONTROL; structural and behavioral evidence | complete |
 | R17 | TST-007 | PARKED | R02, R03; coverage policy | no authoritative floor/path/base/ratchet policy; not a demonstrated product-runtime defect | retained in `to-do.md` for a later developer policy decision; does not consume active remediation capacity |
-| R18 | MON-005, MON-006 | WAITING | R04, R06, R07 | R18-P; reviewed frozen-money-authority contract | wait for predecessors and migration/contract lane |
+| R18 | MON-005, MON-006 | ACTIVE | R04, R06, R07 | R18-P; reviewed frozen-money-authority contract | fresh Sol/xhigh task after separate R07 admission; exclusive money/migration/contract lane; may continue R19 after separate admission |
 | R19 | MON-002 | WAITING | R18 | R19-P; reviewed Lagos-day predecessor-order contract | wait for R18 |
 | R20 | MON-001, DB-007, MON-008 | WAITING | R05, R18 | R20-P; reviewed durable per-line provider-intent contract | wait for predecessors and migration/worker lane |
 | R21 | MON-003 | WAITING | R20 | R21-P; reviewed final pre-provider authorization contract | wait for R20 |
@@ -898,3 +898,5 @@ verification is complete.
 | 442 | 312 | 1 | SESSION_DELIVERY_POLICY_AMENDED | Every controller-created task must actively deliver its terminal receipt to the controller after each slice; compatible dependency-ordered slices may share one predeclared same-model lane, but each remains separately admitted before the next begins. | direct owner instruction; exact callback target `01a05de2-0b5d-73f0-ae3d-0e979b734658`; no routine polling; missing callback causes one adoption/reconciliation check, never duplicate implementation; fresh task required for changed model, domain, risk or conflicting lease |
 | 443 | 313 | 1 | PACKET_RESUMED | A fresh visible task adopted the preserved R07 partial candidate in its existing worktree after the original worktree launch failed to mature into an addressable callback-capable task. | task `01a06c2b-2912-7333-a0b5-37ceb97be94b`; GPT-5.6 Sol/high for PostgreSQL migration-era purge immutability; exact two-file lease; direct terminal callback; R18 predeclared but unauthorized until separate R07 admission |
 | 444 | 314 | 1 | PACKET_RESUMED | A fresh visible task adopted the preserved R50 partial candidate in its existing worktree after the original worktree launch failed to mature into an addressable callback-capable task. | task `01a06c2b-24f3-72a1-9d38-d651e7833413`; GPT-5.6 Sol/high for privacy-safe report authority, status races and generated contracts; exact existing R50 lease; direct terminal callback; R51→R52 predeclared but unauthorized until separate predecessor admission |
+| 445 | 315 | 1 | DATABASE_IMMUTABILITY_SLICE_ACCEPTED | R07/DB-003 accepted database-enforced append-only purge-audit authority and released the exclusive database lane to R18. | commit `84cb94e`; exact two-file implementation; ALWAYS statement trigger denies privileged update/delete/truncate while preserving append/read and governed empty downgrade; owner seven PostgreSQL passes, exact diff digest, Ruff/diff and independent R07-M/DB/CP-DB PASS; controller digest/lint/diff matched, local PostgreSQL rerun unavailable because no database URL was configured |
+| 446 | 316 | 1 | LANE_MODEL_GATE_CORRECTED | R07 and R50 remain standalone because their accepted successors require different models; R18 starts fresh at Sol/xhigh and may later reuse that task for R19, while the separately planned R20→R21→R22 chain may share its own Sol/xhigh task. | direct application of the owner cache rule and repository model gate; no model override on an existing task; every slice still sends its own controller callback and waits for separate admission |
