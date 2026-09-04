@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 320
+plan_revision: 321
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 450
+last_event_sequence: 451
 ---
 
 # Cardvert audit remediation programme
@@ -271,7 +271,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R48 | REP-003 | ACCEPTED | R47 | R48-P/M; CONTRACT; CP-REPORTING; commit `b17d1e7` | accepted exactly once; report-projection lease released |
 | R49 | REP-004 | ACCEPTED | R47, R48 | R49-P/M; DB; R49-CP-REPORTING; commit `a315a59` | accepted exactly once; worker lease released |
 | R50 | REP-005 | COMPLETE | R47, R49 | R50-P/M; PRV; CP-REPORTING; exact `dd461cf1...` freeze; focused backend/PostgreSQL/frontend/contract evidence | accepted exactly once; reporting lease released, while R51 waits for R18's migration/contract lane |
-| R51 | REP-006 | WAITING | R43, R49, R50 | R51-P; reviewed fenced generation-scoped publication contract | wait for accepted predecessors; Sol/xhigh implementation gate retained |
+| R51 | REP-006 | ACTIVE | R43, R49, R50 | R51-P; reviewed fenced generation-scoped publication contract | Claude Opus 5 Extra Phase A on isolated model/service/test lease; migration/contracts/final PostgreSQL+MinIO held behind R18 |
 | R52 | MET-006 | WAITING | R51 | R52-P; reviewed methodology-derived copy-guard contract | wait for accepted R51 |
 | R53 | REL-005 | ACCEPTED | release opener | R53-P; R53-M; R53-RELEASE; R53-CP-RELEASE; real Docker red/green | complete |
 | R54 | REL-006 | WAITING | R12, R16, R53 | R54-P; reviewed fail-closed environment-template contract | wait for accepted R12 and R14; central lease order R12 → R14 → R54 |
@@ -904,3 +904,4 @@ verification is complete.
 | 448 | 318 | 1 | PACKET_BASE_REFRESHED | R18 resumed on the R50-accepted generated-contract baseline after a pre-write fence prevented overlapping contract mutation. | task `01a06c37-f1c1-7bd0-8f56-a1a93bd4e754`; accepted product base `bb8c13e`; GPT-5.6 Sol/xhigh; R51 remains serialized until R18 releases migration/contract authority |
 | 449 | 319 | 1 | PACKET_SCOPE_AMENDED | R18 may update the demo seed so final F7 payout and ledger metadata is supplied through the authoritative insert path instead of mutating schema-frozen money rows after creation. | add only `app/seeds/rich.py`; `tests/test_seed_demo.py` remains verification-only unless a distinct stale assertion is demonstrated; preserve seed idempotency/content; no other scope expansion |
 | 450 | 320 | 1 | PACKET_SCOPE_AMENDED | R18 may keep direct synthetic constructors truthful after adding required frozen currency to payout-rule revisions and assignment bindings. | add only `tests/conftest.py`, `tests/test_data_subject_inventory_registry.py`, `tests/test_trips.py`, and `tests/test_campaign_changes.py`; pass explicit authoritative `NGN` at the four inventoried constructors only; no defaults, nullable relaxation, assertion changes or further behavior expansion |
+| 451 | 321 | 1 | OPUS_PACKET_DISPATCHED | A fresh Claude Opus 5 Extra worktree task began R51's fenced publication and orphan-recovery Phase A while R18 retains the migration and generated-contract lane. | worktree `.claude/worktrees/fenced-report-publication-recovery-167eec` at `7233438`; exact report-issuance model/service/worker/test lease; no migration or generated-contract writes until R18 admission; terminal callback to `scratchpad/r51-controller-callback.md`; no duplicate owner |

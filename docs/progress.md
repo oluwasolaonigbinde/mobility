@@ -45,15 +45,16 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `1`
-**Current capacity assignment:** `R18`
+**Current justified remediation writer capacity:** `2`
+**Current capacity assignment:** `R18, R51`
 **Current capacity justification:** R03 and R48 are accepted and their workflow,
 generated-contract and report-projection leases are released. R49 is accepted and
 R50 now owns the reachable report-reissue lineage and focused status/panel tests.
-R33, R06, R07 and R50 are accepted. R18 now owns the exclusive money/migration
-and generated-contract lane. R51 is dependency-ready but shares R18's migration
-and contract surfaces, so it remains serialized rather than creating a divergent
-migration head or stale generated baseline. Controller documents remain serialized.
+R33, R06, R07 and R50 are accepted. R18 owns the exclusive money/migration and
+generated-contract lane. R51 performs only its disjoint report-publication model,
+service and test Phase A in an isolated Claude worktree; its migration allocation,
+generated contracts and final PostgreSQL/MinIO authority remain fenced until R18
+is accepted. Controller documents remain serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -88,7 +89,7 @@ policy, external inputs and evidence-triggered observations are parked in
 **Current checkpoint:** `PKG-10 / R18` — R02 is accepted at `09c0b17`, R47 at
 `419414a`, R03 at `60af07d`, R48 at `b17d1e7`, R05 at `954d9a4`, R49 at
 `a315a59`, R33 at `14f155a`, R06 at `05b4901`, R07 at `84cb94e`, and R50 at
-`bb8c13e`; R18 is the assigned writer. AUT-006 is accepted at
+`bb8c13e`; R18 and fenced R51 Phase A are assigned writers. AUT-006 is accepted at
 `a4c9de2`.
 Every repository failure group
 discovered by R02's complete 1,772-test authority run is now accepted: V11
@@ -1625,7 +1626,7 @@ durable ledger before changing a row.
 | R48 | REP-003 | R47 | COMPLETE | PASS — R48-P | PASS — R48-M | CP-REPORTING PASS — R48-CP-REPORTING |
 | R49 | REP-004 | R47, R48 | COMPLETE | PASS — R49-P | PASS — R49-M | CP-REPORTING PASS — R49-CP-REPORTING |
 | R50 | REP-005 | R47, R49 | COMPLETE | PASS — R50-P | PASS — R50-M | CP-REPORTING PASS — R50-CP-REPORTING |
-| R51 | REP-006 | R43, R49, R50 | QUEUED | PASS — R51-P | PENDING | CP-REPORTING PENDING |
+| R51 | REP-006 | R43, R49, R50 | ACTIVE | PASS — R51-P | PENDING | CP-REPORTING PENDING |
 | R52 | MET-006 | R51 | QUEUED | PASS — R52-P | PENDING | CP-REPORTING PENDING |
 | R53 | REL-005 | none | COMPLETE | PASS — R53-P | PASS — R53-M | CP-RELEASE PASS — R53-CP-RELEASE |
 | R54 | REL-006 | R12, R16, R53 | COMPLETE | PASS — R54-P | PASS — R54-M | CP-RELEASE PASS — R54-CP-RELEASE |
