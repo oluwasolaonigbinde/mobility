@@ -1,9 +1,12 @@
 # Prompt 8 — client-owned approvals versus system-owned UX
 
-Status: **READY TO RUN** after controller base `d18657b` (4 September 2026).
+Status: **IN PROGRESS** in the existing GPT-5.6 Pro task **Review External
+Dependencies**. Do not dispatch a duplicate. Its submitted source base is
+`7e57466` (4 September 2026); reconcile the returned observations against newer
+accepted slices rather than rerunning solely because the controller advanced.
 
 ```text
-MODEL: Claude Opus 5, High effort.
+MODEL: GPT-5.6 Pro, deepest available reasoning.
 
 ROLE
 You are the independent product-boundary reviewer for Cardvert, operated by
@@ -13,7 +16,7 @@ while those inputs are absent.
 
 AUTHORITATIVE SOURCE
 - Review the attached repository snapshot labelled Mobility master at
-  572f4e1.
+  7e5746661b0c6abe8dae40c6ba0668ce15155230.
 - Start with docs/progress.md, docs/decisions-log.md, docs/architecture.md,
   to-do.md and issues/product-ui-review/README.md, then inspect relevant product
   code, contracts and tests.
@@ -29,11 +32,10 @@ CURRENT PROGRAMME BOUNDARY
 - Prompts 2, 3 and 5 have already produced normalized observations in
   issues/product-ui-review/outcomes.md. Reuse or cross-reference matching IDs
   instead of reporting them as new discoveries.
-- This review may write only its finished report to
-  issues/product-ui-review/answers/prompt-08-external-boundary.md. It may
-  recommend later product work, but it cannot edit product/controller files or
+- This review is read-only. It may recommend later product work, but it cannot
   authorize implementation, legal wording, provider selection, deployment or
-  live data use.
+  live data use. The controller will preserve its returned answer under
+  issues/product-ui-review/answers/.
 
 TASK
 For every material approval, external input or operational dependency, separate:
@@ -91,9 +93,6 @@ OUTPUT
    answer on the owner's behalf.
 7. Deduplication appendix mapping every DUPLICATE item to its existing R-slice,
    to-do entry, decision row or UI/product-review outcome ID.
-8. Save this exact finished report to
-   issues/product-ui-review/answers/prompt-08-external-boundary.md so the
-   controller can reconcile it into the canonical review folder later.
 
 QUALITY RULES
 - Use plain human-facing wording in recommendations; never expose internal gate
