@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 345
+plan_revision: 347
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 475
+last_event_sequence: 477
 ---
 
 # Cardvert audit remediation programme
@@ -208,13 +208,13 @@ visible top-level Mobility tasks.
 | S29 | R60 — GOV-009 | final architecture/progress/decision synchronization | cross-package closure; Sol/high | no product implementation; reconcile all 115 candidates, integrated gates and final minimal-change review |
 
 Current justified writer capacity is **2**, assigned exactly to S13/R22 and
-S26/R57. R20, R21, R31, R51, R52 and R55 are accepted. R22 owns the exclusive
+S27/R58. R20, R21, R31, R51, R52, R55 and R57 are accepted. R22 owns the exclusive
 payout-balance, replacement-chain, fraud-resolution and conservation state
-machine, while R57 owns deterministic
-application-clock injection and focused time-boundary tests across auth,
-recovery, trip, campaign and release-contract surfaces. Their product and test
-leases are disjoint; R57 has no disbursement/provider-worker, fraud, debt or
-earnings-release authority. Controller documents remain serialized.
+machine, while R58 owns only the real worker-process recovery harness and
+worker registration/CI enforcement tests for already accepted jobs. Their
+product, test and isolated-integration leases are disjoint; R58 has no product
+worker, disbursement, fraud, debt or earnings-release mutation authority.
+Controller documents remain serialized.
 
 ## Executable slice map
 
@@ -279,8 +279,8 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R54 | REL-006 | WAITING | R12, R16, R53 | R54-P; reviewed fail-closed environment-template contract | wait for accepted R12 and R14; central lease order R12 → R14 → R54 |
 | R55 | REL-004 | COMPLETE | R03, R18, R48, R51, R54 | R55-P/M; SEC; DEP+DB+CONTRACT; RELEASE; CP-RELEASE; commit `662077a` | accepted exactly once; release/recovery/receipt and evidence-signing leases released |
 | R56 | TST-005 | WAITING | R09, R11, R14, R40 | R56-P; reviewed generated authorization-denial matrix | wait for predecessors and audit-route fixture release |
-| R57 | TST-008 | ACTIVE | R19, R27, R49, R55 | R57-P; reviewed deterministic clock boundary contract | fresh Sol/high worktree task owns exact application-clock and focused boundary-test lease |
-| R58 | TST-011 | WAITING | R15, R20, R21, R43, R49, R51 | R58-P; reviewed real worker termination/restart contract | wait for registered predecessor jobs and worker lane release |
+| R57 | TST-008 | COMPLETE | R19, R27, R49, R55 | R57-P/M; MNY; SEC; RELEASE; CP-RELEASE; commit `2599b87` | accepted exactly once; deterministic clock/test lease released |
+| R58 | TST-011 | ACTIVE | R15, R20, R21, R43, R49, R51 | R58-P; reviewed real worker termination/restart contract | fresh Sol/xhigh worktree task owns exact worker-process harness and registration/CI-test lease; no product mutation |
 | R59 | TST-002 | QUEUED | R22, R31, R33, R37, R41, R44, R48, R50, R51, R56, R57, R58 | — | wait |
 | R60 | GOV-009 | QUEUED | R03, R17, R18, R22, R27, R31, R33, R37, R43, R44, R52, R55, R56, R59 | — | wait |
 
@@ -931,3 +931,5 @@ verification is complete.
 | 473 | 343 | 1 | PACKET_DISPATCHED | R57/TST-008 begins after R55 releases the release-contract lease. | GPT-5.6 Sol/high is proportionate for security, money-adjacent and release clock boundaries without the higher cost of xhigh; exact application-clock, auth/recovery/trip/campaign/release-contract and focused-test lease; no policy changes, migrations or generated contracts; direct terminal callback |
 | 474 | 344 | 1 | FINAL_AUTHORIZATION_SLICE_ACCEPTED | R21/MON-003 accepted complete-batch pre-provider reauthorization under stable money/fraud locks with zero adapter calls on drift and generation-bound non-secret audit evidence. | commit `ee43b10`; exact six-file integration; owner 17-case real-PostgreSQL R21 suite and 37 adjacent passes; controller 14 host-runnable passes/20 environment skips; Ruff/format/diff and R21-M/DB+MNY+SEC/CP-MONEY PASS; no migration or public contract change |
 | 475 | 345 | 1 | PACKET_DISPATCHED | R22/MON-004,MON-007,MON-009 continues in the retained S13 task after separate R21 admission. | GPT-5.6 Sol/xhigh remains necessary for exactly-once cash conservation across concurrent replacement, late dual-success, debt and fraud transitions plus a PostgreSQL migration and generated contracts; exact disbursement/debt/hold/earnings-release/API/schema/migration/contract/test lease; direct terminal callback |
+| 476 | 346 | 1 | DETERMINISTIC_CLOCK_SLICE_ACCEPTED | R57/TST-008 accepted an injected application-clock seam, preserved database-clock authority, monotonic job duration and exact no-sleep boundary evidence across security, Lagos-day, trip, provider, report and release surfaces. | commit `2599b87`; exact ten-file integration; controller 22 new tests plus Ruff/format/diff pass; owner 153 real-PostgreSQL core, 495 money/release, 19 security and 30 auth-race passes with zero skips; R57-M/MNY/SEC/RELEASE/CP-RELEASE PASS after fixing and mutation-testing a vacuous monotonic assertion |
+| 477 | 347 | 1 | PACKET_DISPATCHED | R58/TST-011 begins after R21 and R57 release its predecessor and worker-test holds. | GPT-5.6 Sol/xhigh is concretely required for real ARQ subprocess SIGKILL/restart cut points spanning Redis, PostgreSQL, payout side effects, deletion privacy and report publication convergence; exact test-harness and worker-registration/CI-test lease only; no product crash hook or product worker edit; direct terminal callback |
