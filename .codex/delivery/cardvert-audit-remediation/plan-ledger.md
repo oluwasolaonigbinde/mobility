@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 318
+plan_revision: 319
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 448
+last_event_sequence: 449
 ---
 
 # Cardvert audit remediation programme
@@ -902,3 +902,4 @@ verification is complete.
 | 446 | 316 | 1 | LANE_MODEL_GATE_CORRECTED | R07 and R50 remain standalone because their accepted successors require different models; R18 starts fresh at Sol/xhigh and may later reuse that task for R19, while the separately planned R20→R21→R22 chain may share its own Sol/xhigh task. | direct application of the owner cache rule and repository model gate; no model override on an existing task; every slice still sends its own controller callback and waits for separate admission |
 | 447 | 317 | 1 | REPORT_REISSUE_SLICE_ACCEPTED | R50/REP-005 accepted privacy-safe discovery of the latest permitted issuance parent and reachable append-only reissue without weakening exact replay or hidden-authority behavior. | commit `bb8c13e`; exact 11-file digest `dd461cf1...`; controller digest/diff/lint and focused backend behavior matched; owner focused real-PostgreSQL, frontend, OpenAPI/type regeneration and R50-M/PRV/CP-REPORTING PASS; controller frontend rerun hit the host Node 26 localStorage environment defect, while the owner's isolated nine-test frontend run passed |
 | 448 | 318 | 1 | PACKET_BASE_REFRESHED | R18 resumed on the R50-accepted generated-contract baseline after a pre-write fence prevented overlapping contract mutation. | task `01a06c37-f1c1-7bd0-8f56-a1a93bd4e754`; accepted product base `bb8c13e`; GPT-5.6 Sol/xhigh; R51 remains serialized until R18 releases migration/contract authority |
+| 449 | 319 | 1 | PACKET_SCOPE_AMENDED | R18 may update the demo seed so final F7 payout and ledger metadata is supplied through the authoritative insert path instead of mutating schema-frozen money rows after creation. | add only `app/seeds/rich.py`; `tests/test_seed_demo.py` remains verification-only unless a distinct stale assertion is demonstrated; preserve seed idempotency/content; no other scope expansion |
