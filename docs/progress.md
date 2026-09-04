@@ -46,16 +46,15 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R31, R51`
-**Current capacity justification:** R03 and R48 are accepted and their workflow,
-generated-contract and report-projection leases are released. R49 is accepted and
-R50 now owns the reachable report-reissue lineage and focused status/panel tests.
-R33, R06, R07, R50, R18 and R19 are accepted. R31 owns only frozen assignment
-trip-start eligibility and its focused tests in a fresh task, while R51 owns
-report-publication model/service, the sole 0082 migration and PostgreSQL/MinIO
-recovery evidence in its isolated Claude worktree. Their product and test leases
-are disjoint; R31 has no payout, migration or generated-contract authority.
-Controller documents remain serialized.
+**Current capacity assignment:** `R20, R52`
+**Current capacity justification:** R31 and R51 are accepted and their campaign
+and reporting-publication leases are released. R20 owns the disbursement intent,
+provider, worker, money-service, focused-test and sole 0083 migration surfaces.
+R52 owns only the measurement-methodology copy guard while treating methodology
+JSON and advertiser/shared frontend sources as read-only inputs. Their write and
+test surfaces are disjoint; R52 has no migration, money, provider, worker,
+generated-contract or production-frontend authority. Controller documents remain
+serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -87,11 +86,11 @@ authority. The active queue now prioritizes locally executable product and
 engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
-**Current checkpoint:** `PKG-10 / R31` — R02 is accepted at `09c0b17`, R47 at
+**Current checkpoint:** `PKG-10 / R20` — R02 is accepted at `09c0b17`, R47 at
 `419414a`, R03 at `60af07d`, R48 at `b17d1e7`, R05 at `954d9a4`, R49 at
 `a315a59`, R33 at `14f155a`, R06 at `05b4901`, R07 at `84cb94e`, and R50 at
-`bb8c13e`, R18 at `5c2d60a`, and R19 at `3c7b678`; R31 and R51 are the assigned
-disjoint writers.
+`bb8c13e`, R18 at `5c2d60a`, R19 at `3c7b678`, R51 at `2f52c3e`, and R31 at
+`eb59a84`; R20 and R52 are the assigned disjoint writers.
 AUT-006 is accepted at
 `a4c9de2`.
 Every repository failure group
@@ -1598,7 +1597,7 @@ durable ledger before changing a row.
 | R17 | TST-007 | R02, R03 | QUEUED | PENDING | PENDING | CP-CONTROL PENDING |
 | R18 | MON-005, MON-006 | R04, R06, R07 | COMPLETE | PASS — R18-P | PASS — R18-M | CP-MONEY PASS — R18-CP-MONEY |
 | R19 | MON-002 | R18 | COMPLETE | PASS — R19-P | PASS — R19-M | CP-MONEY PASS — R19-CP-MONEY |
-| R20 | MON-001, DB-007, MON-008 | R05, R18 | QUEUED | PASS — R20-P | PENDING | CP-MONEY PENDING |
+| R20 | MON-001, DB-007, MON-008 | R05, R18 | ACTIVE | PASS — R20-P | PENDING | CP-MONEY PENDING |
 | R21 | MON-003 | R20 | QUEUED | PASS — R21-P | PENDING | CP-MONEY PENDING |
 | R22 | MON-004, MON-007, MON-009 | R20, R21 | QUEUED | PASS — R22-P | PENDING | CP-MONEY PENDING |
 | R23 | COM-001, COM-004 | R08 | COMPLETE | PASS — R23-P | PASS — R23-M | CP-COMMERCIAL PASS — R23-CP-COMMERCIAL |
@@ -1609,7 +1608,7 @@ durable ledger before changing a row.
 | R28 | CAM-001 | none | COMPLETE | PASS — R28-P | PASS — R28-M | CP-CAMPAIGN PASS — R28-CP-CAMPAIGN |
 | R29 | CAM-002 | R04, R08, R28 | COMPLETE | PASS — R29-P | PASS — R29-M | CP-CAMPAIGN PASS — R29-CP-CAMPAIGN |
 | R30 | CAM-003 | R29 | COMPLETE | PASS — R30-P | PASS — R30-M | CP-CAMPAIGN PASS — R30-CP-CAMPAIGN |
-| R31 | CAM-004 | R18, R19, R30 | ACTIVE | PASS — R31-P | PENDING | CP-CAMPAIGN PENDING |
+| R31 | CAM-004 | R18, R19, R30 | COMPLETE | PASS — R31-P | PASS — R31-M | CP-CAMPAIGN PASS — R31-CP-CAMPAIGN |
 | R32 | ONB-002 | none | COMPLETE | PASS — R32-P | PASS — R32-M | CP-ONBOARDING PASS — R32-CP-ONBOARDING |
 | R33 | ONB-006 | R05, R32 | COMPLETE | PASS — R33-P | PASS — R33-M | CP-ONBOARDING PASS — R33-CP-ONBOARDING |
 | R34 | OFF-001 | R04 | COMPLETE | PASS — R34-P | PASS — R34-M | CP-OFFLINE PASS — R34-CP-OFFLINE |
@@ -1629,8 +1628,8 @@ durable ledger before changing a row.
 | R48 | REP-003 | R47 | COMPLETE | PASS — R48-P | PASS — R48-M | CP-REPORTING PASS — R48-CP-REPORTING |
 | R49 | REP-004 | R47, R48 | COMPLETE | PASS — R49-P | PASS — R49-M | CP-REPORTING PASS — R49-CP-REPORTING |
 | R50 | REP-005 | R47, R49 | COMPLETE | PASS — R50-P | PASS — R50-M | CP-REPORTING PASS — R50-CP-REPORTING |
-| R51 | REP-006 | R43, R49, R50 | ACTIVE | PASS — R51-P | PENDING | CP-REPORTING PENDING |
-| R52 | MET-006 | R51 | QUEUED | PASS — R52-P | PENDING | CP-REPORTING PENDING |
+| R51 | REP-006 | R43, R49, R50 | COMPLETE | PASS — R51-P | PASS — R51-M | CP-REPORTING PASS — R51-CP-REPORTING |
+| R52 | MET-006 | R51 | ACTIVE | PASS — R52-P | PENDING | CP-REPORTING PENDING |
 | R53 | REL-005 | none | COMPLETE | PASS — R53-P | PASS — R53-M | CP-RELEASE PASS — R53-CP-RELEASE |
 | R54 | REL-006 | R12, R16, R53 | COMPLETE | PASS — R54-P | PASS — R54-M | CP-RELEASE PASS — R54-CP-RELEASE |
 | R55 | REL-004 | R03, R18, R48, R51, R54 | QUEUED | PASS — R55-P | PENDING | CP-RELEASE PENDING |

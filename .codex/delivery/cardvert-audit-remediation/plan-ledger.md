@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 330
+plan_revision: 334
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 460
+last_event_sequence: 464
 ---
 
 # Cardvert audit remediation programme
@@ -242,7 +242,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R17 | TST-007 | PARKED | R02, R03; coverage policy | no authoritative floor/path/base/ratchet policy; not a demonstrated product-runtime defect | retained in `to-do.md` for a later developer policy decision; does not consume active remediation capacity |
 | R18 | MON-005, MON-006 | COMPLETE | R04, R06, R07 | R18-P/M; DB+MNY; CONTRACT; CP-MONEY; exact `e36f7fed...` freeze; focused PostgreSQL, payout, correction, frontend and contract evidence | accepted exactly once at `5c2d60a`; money/migration/generated-contract lane released; task may continue R19 only after separate packet |
 | R19 | MON-002 | COMPLETE | R18 | R19-P/M; DB+MNY; CP-MONEY; exact `870f1dfb...` freeze; forced-overlap PostgreSQL and focused payout evidence | accepted exactly once at `3c7b678`; payout-day ordering lease released |
-| R20 | MON-001, DB-007, MON-008 | WAITING | R05, R18 | R20-P; reviewed durable per-line provider-intent contract | wait for predecessors and migration/worker lane |
+| R20 | MON-001, DB-007, MON-008 | ACTIVE | R05, R18 | R20-P; reviewed durable per-line provider-intent contract | fresh Sol/xhigh worktree task owns the disbursement/provider/worker and sole 0083 migration lane |
 | R21 | MON-003 | WAITING | R20 | R21-P; reviewed final pre-provider authorization contract | wait for R20 |
 | R22 | MON-004, MON-007, MON-009 | WAITING | R20, R21 | R22-P; reviewed exclusive conservation/replacement state contract | wait for R20/R21 and migration/contracts |
 | R23 | COM-001, COM-004 | ACCEPTED | R08; commercial opener | R23-P/M/MNY/CP-COMMERCIAL; PostgreSQL, migration 0073 and contract evidence | complete at `8fd5fc4` |
@@ -253,7 +253,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R28 | CAM-001 | COMPLETE | campaign opener | R28-P/M and CP-CAMPAIGN; product commit `a9c417a` | accepted exactly once; campaign lease released |
 | R29 | CAM-002 | WAITING | R04, R08, R28 | R29-P; reviewed active-driver uniqueness contract | wait for R28 owner decision and migration lane |
 | R30 | CAM-003 | WAITING | R29 | R30-P; reviewed due-challenge finality contract | wait for R29 |
-| R31 | CAM-004 | ACTIVE | R18, R19, R30 | R31-P; reviewed frozen assignment-window contract | fresh Sol/xhigh task on exact trip-start and focused-test lease; no payout/migration/contracts; disjoint from R51 |
+| R31 | CAM-004 | COMPLETE | R18, R19, R30 | R31-P/M; CP-CAMPAIGN; commit `eb59a84`; exact digest `506651c9...` | accepted exactly once; campaign trip-start lease released |
 | R32 | ONB-002 | ACCEPTED | onboarding opener | R32-P/M/SEC/DB/CP-ONBOARDING; PostgreSQL and contract evidence | complete |
 | R33 | ONB-006 | ACCEPTED | R05, R32 | R33-P/M; DB; R33-CP-ONBOARDING; commit `14f155a` | accepted exactly once; onboarding-query lease released |
 | R34 | OFF-001 | COMPLETE | R04; offline opener | R34-P/M; DB/PRV/SEC/MNY; CP-OFFLINE; accepted product commit `a95a7ca` | complete; released R35 and central migration/contract/config lanes |
@@ -273,8 +273,8 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R48 | REP-003 | ACCEPTED | R47 | R48-P/M; CONTRACT; CP-REPORTING; commit `b17d1e7` | accepted exactly once; report-projection lease released |
 | R49 | REP-004 | ACCEPTED | R47, R48 | R49-P/M; DB; R49-CP-REPORTING; commit `a315a59` | accepted exactly once; worker lease released |
 | R50 | REP-005 | COMPLETE | R47, R49 | R50-P/M; PRV; CP-REPORTING; exact `dd461cf1...` freeze; focused backend/PostgreSQL/frontend/contract evidence | accepted exactly once; reporting lease released, while R51 waits for R18's migration/contract lane |
-| R51 | REP-006 | ACTIVE | R43, R49, R50 | R51-P; reviewed fenced generation-scoped publication contract | Claude Opus 5 Extra isolated task may reconcile accepted R18 base and continue the reviewed migration, privacy-registry and final PostgreSQL/MinIO phase; no generated-contract delta is required |
-| R52 | MET-006 | WAITING | R51 | R52-P; reviewed methodology-derived copy-guard contract | wait for accepted R51 |
+| R51 | REP-006 | COMPLETE | R43, R49, R50 | R51-P/M; DB+PRV; CP-REPORTING; commit `2f52c3e`; migration 0082 and PostgreSQL/MinIO evidence | accepted exactly once; reporting publication and migration lanes released |
+| R52 | MET-006 | ACTIVE | R51 | R52-P; reviewed methodology-derived copy-guard contract | fresh Terra/high task owns only the focused guard test; methodology contract and advertiser/shared sources are read-only |
 | R53 | REL-005 | ACCEPTED | release opener | R53-P; R53-M; R53-RELEASE; R53-CP-RELEASE; real Docker red/green | complete |
 | R54 | REL-006 | WAITING | R12, R16, R53 | R54-P; reviewed fail-closed environment-template contract | wait for accepted R12 and R14; central lease order R12 → R14 → R54 |
 | R55 | REL-004 | WAITING | R03, R18, R48, R51, R54 | R55-P; reviewed mechanically generated compatibility receipt contract | wait for predecessors and exclusive release lane |
@@ -916,3 +916,7 @@ verification is complete.
 | 458 | 328 | 1 | PACKET_DISPATCHED | R19/MON-002 resumed in the existing cached R18 task after separate R18 admission, parallel to disjoint R51 publication work. | GPT-5.6 Sol/xhigh retained because forced-overlap PostgreSQL transactions can otherwise allocate a shared monetary day cap by arrival order; exact lease `app/services/payouts.py`, `app/services/trip_processing.py`, `tests/test_payouts_v3.py`, `tests/test_trip_processing.py`, plus one new focused R19 PostgreSQL test if required; no migration/generated contracts/controller docs; separate terminal callback required |
 | 459 | 329 | 1 | PAYOUT_ORDERING_SLICE_ACCEPTED | R19/MON-002 accepted canonical `(started_at,id)` predecessor authority under sorted Lagos-day locks, preventing later-first economic cap capture while preserving retryable partial processing. | commit `3c7b678`; exact three-file digest `870f1dfb...`; controller exact file-set/diff/lint and two focused PostgreSQL tests matched; owner red/green, 33-file-suite tests and minimal/DB+MNY/CP-MONEY PASS |
 | 460 | 330 | 1 | PACKET_DISPATCHED | R31/CAM-004 began in a fresh task because the accepted plan requires S14 to remain separate from the R18→R19 session lane. | GPT-5.6 Sol/xhigh justified by concurrent campaign-extension/trip-start serialization at a money-producing eligibility boundary; exact lease `app/services/trips.py`, `tests/test_trips.py`, `tests/test_campaign_changes.py`, plus new `tests/test_r31_frozen_window_postgresql.py`; payout/binding code verification-only; no migration/contracts/controller docs; direct terminal callback required |
+| 461 | 331 | 1 | REPORT_PUBLICATION_SLICE_ACCEPTED | R51/REP-006 accepted fenced report publication and durable orphan recovery, releasing the reporting-publication and migration lanes. | commit `2f52c3e`; exact eight-file integration; migration 0082; 90 targeted passes, real PostgreSQL/MinIO and nine mutation checks; final R51-M, DB+PRV and CP-REPORTING PASS; no OpenAPI change |
+| 462 | 332 | 1 | CAMPAIGN_WINDOW_SLICE_ACCEPTED | R31/CAM-004 accepted serialized frozen-window trip eligibility and released its campaign lease. | commit `eb59a84`; exact four-file integration and digest `506651c9...`; 35 leased plus 3 adjacent passes, two controller PostgreSQL checks, and R31-M/CP-CAMPAIGN PASS |
+| 463 | 333 | 1 | PACKET_DISPATCHED | R20/MON-001,DB-007,MON-008 begins in a fresh worktree task on the accepted 0082 head. | GPT-5.6 Sol/xhigh is necessary for provider side-effect ambiguity, exactly-once money concurrency and a PostgreSQL migration; exact disbursement/provider/worker/API/schema/tests and sole 0083 migration lease; direct terminal callback; R21→R22 predeclared but separately admitted |
+| 464 | 334 | 1 | PACKET_DISPATCHED | R52/MET-006 begins in parallel on a disjoint focused copy-governance guard. | GPT-5.6 Terra/high for ordinary bounded test implementation; write lease only `tests/test_measurement_methodology.py`, with methodology JSON and advertiser/shared frontend sources read-only; direct terminal callback |
