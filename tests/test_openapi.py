@@ -1,3 +1,13 @@
+import json
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+OPENAPI_ARTIFACTS = (
+    ROOT / "openapi.json",
+    ROOT / "docs/api/openapi.snapshot.json",
+)
+
+
 def test_openapi_schema_generates(client) -> None:
     response = client.get("/openapi.json")
 
@@ -38,3 +48,15 @@ def test_openapi_schema_generates(client) -> None:
         trip_operation["operationId"] == "advertiser_get_campaign_trip_aggregate_api_v1_advertiser_"
         "campaigns__campaign_id__trips_get"
     )
+
+
+def test_openapi_matches_committed_json_artifacts(client) -> None:
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    runtime_schema = response.json()
+    rendered_runtime_schema = json.dumps(runtime_schema, indent=2, sort_keys=True) + "\n"
+
+    for artifact in OPENAPI_ARTIFACTS:
+        assert json.loads(artifact.read_text(encoding="utf-8")) == runtime_schema
+        assert artifact.read_text(encoding="utf-8") == rendered_runtime_schema

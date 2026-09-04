@@ -146,6 +146,10 @@ jobs:
       - name: Validate delivery packages and checklist
         run: python scripts/validate_progress.py
       - run: pip install -e ".[dev]"
+      - name: Runtime OpenAPI contract drift check
+        env:
+          PAYOUT_CRYPTO_KEYRING_B64: '{"1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}'
+        run: python scripts/update_openapi_snapshot.py --check
       - run: ruff check .
 
       - name: Wait for MinIO and ClamAV
