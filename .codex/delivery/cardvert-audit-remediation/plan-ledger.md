@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 304
+plan_revision: 305
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 434
+last_event_sequence: 435
 ---
 
 # Cardvert audit remediation programme
@@ -205,14 +205,14 @@ visible top-level Mobility tasks.
 | S28 | R59 — TST-002 | integrated real-stack browser journey | cross-stack release/security; Sol/xhigh | all predecessor contracts integrated; local real-stack evidence only |
 | S29 | R60 — GOV-009 | final architecture/progress/decision synchronization | cross-package closure; Sol/high | no product implementation; reconcile all 115 candidates, integrated gates and final minimal-change review |
 
-Current justified writer capacity is **3**, assigned exactly to S01/R03,
-S02/R05 and S18/R48. R03 exclusively owns the workflow/OpenAPI runtime/snapshot/
-generated-TypeScript contract gate. R48 owns the report-rendering common
-projection and focused report UI/tests and is excluded from workflow, generated-
-contract and migration files. R05 exclusively owns savepoint-safe real-
+Current justified writer capacity is **2**, assigned exactly to S02/R05 and
+S18/R48. R03 is accepted and its workflow/generated-contract lease is released.
+R48 exclusively owns the report-rendering common projection and focused report
+UI/tests. R05 exclusively owns savepoint-safe real-
 PostgreSQL conflict translation and focused tests; it owns the database-
 concurrency lane but no migration or generated-contract files. The three leases
-are write-disjoint; controller documents remain serialized.
+were write-disjoint; the two remaining leases are also write-disjoint and controller
+documents remain serialized.
 
 ## Executable slice map
 
@@ -223,7 +223,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | --- | --- | --- | --- | --- | --- |
 | R01 | GOV-001 | ACCEPTED | control opener | R01-P; R01-M; R01-CP-CONTROL; red/green validator evidence | complete |
 | R02 | GOV-003, TST-001, DB-005 | ACCEPTED | R01, R04; control/branch authority | R02-P; R02-M; DB+DEP; R02-CP-CONTROL; commit `09c0b17`; 2,541 composed passing executions, zero skips | accepted exactly once; runner lease released; R05 dependency-ready and R03 remains lane-held behind R47 |
-| R03 | GOV-004 | ACTIVE | R02; control/contracts | R03-P; reviewed runtime/snapshot/TypeScript authority contract | begin only in a fresh owner session; preserve the released generated-contract lane |
+| R03 | GOV-004 | ACCEPTED | R02; control/contracts | R03-P/M; CONTRACT; R03-CP-CONTROL; commit `60af07d` | accepted exactly once; workflow/generated-contract lease released |
 | R04 | DB-004 | ACCEPTED | database opener | R04-P; R04-M; R04-CP-DB; exact PostgreSQL/PostGIS catalog and constraint-timing red/green | complete |
 | R05 | DB-001, TST-012, ONB-010 | ACTIVE | R02, R04 | R05-P; reviewed savepoint/conflict contract | begin in a fresh visible Sol/high session; exact database-concurrency lease, no migration/generated-contract files |
 | R06 | DB-002 | WAITING | R02, R04, R05; historical migration authority | owner/developer approved the reviewed narrow development-time downgrade safety exception | wait for R02/R05, then repeat bounded plan review and serialize migration lane |
@@ -888,3 +888,4 @@ verification is complete.
 | 432 | 302 | 1 | REPORTING_SLICE_ACCEPTED | R47/MET-001,MET-002,MET-004,REP-002 accepted frozen completeness, density provenance and caveated ROI methodology consistently across API, screen, CSV and PDF; its released contract lane promotes R03 as the sole assigned next slice. | commit `419414a`; source receipt 38 focused backend passes/3 skips, 30 real-PostgreSQL passes, 16 frontend passes, CSV/PDF/OpenAPI parity, Ruff/Prettier/TypeScript/ESLint/webpack/diff PASS and final R47-M/CP-REPORTING PASS; controller integration smoke 43 backend passes/3 skips plus 16 frontend passes and byte-clean regenerated contract copies; R05/R48 remain undispatched |
 | 433 | 303 | 1 | PARALLEL_FRONTIER_AUTHORIZED | R03/GOV-004 and R48/REP-003 are assigned as two dependency-ready, write-disjoint slices after R02/R47 acceptance. Future execution owners must be fresh visible sessions; simple bounded work uses GPT-5.6 Luna/max fast mode, with Sol reserved for genuinely complex high-risk boundaries. | R03 lease: workflow/runtime OpenAPI/snapshot/generated TypeScript only; R48 lease: common report projection/rendering/UI/tests, excluding workflow/contracts/migrations; terminal-only callbacks and proportional verification; direct owner instruction, 4 Sep 2026 |
 | 434 | 304 | 1 | PARALLEL_FRONTIER_EXPANDED | R05/DB-001,TST-012,ONB-010 joins R03 and R48 as a third dependency-ready, write-disjoint implementation slice. | R05 owns savepoint-safe real-PostgreSQL uniqueness/conflict translation in trip, disbursement and vehicle-onboarding services plus focused tests; no migration, generated-contract, workflow, report-rendering or controller-document lease; fresh Sol/high session because transaction rollback and concurrent uniqueness races are the packet's hardest boundary |
+| 435 | 305 | 1 | CONTRACT_SLICE_ACCEPTED | R03/GOV-004 accepted deterministic equality across runtime FastAPI OpenAPI, both JSON baselines and generated TypeScript, then released its workflow/generated-contract lease. | commit `60af07d`; exact three-file implementation; red stale-root-JSON oracle then 2 focused tests PASS; deterministic generator `--check`, runtime/JSON/type parity, workflow/static/lint/diff and independent R03-M/CONTRACT/CP-CONTROL PASS; R05/R48 remain active |

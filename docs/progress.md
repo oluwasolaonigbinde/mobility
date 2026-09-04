@@ -45,13 +45,11 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R03, R05, R48`
-**Current capacity justification:** R02 and R47 are accepted. R03 exclusively owns
-the workflow/OpenAPI runtime/snapshot/generated-TypeScript contract gate. R48 owns
-only the report-rendering common projection and focused report UI/tests and is
-explicitly excluded from workflow, generated-contract and migration files. These
-leases are write-disjoint. R05 exclusively owns savepoint-safe real-PostgreSQL
+**Current justified remediation writer capacity:** `2`
+**Current capacity assignment:** `R05, R48`
+**Current capacity justification:** R03 is accepted and its workflow/generated-
+contract lease is released. R48 exclusively owns the report-rendering common
+projection and focused report UI/tests. R05 exclusively owns savepoint-safe real-PostgreSQL
 conflict translation across trip, disbursement and vehicle-onboarding services and
 their focused tests; it owns the database-concurrency lane but no migration or
 generated-contract files. Controller documents remain serialized.
@@ -86,8 +84,8 @@ authority. The active queue now prioritizes locally executable product and
 engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
-**Current checkpoint:** `PKG-10 / R03` — R02 is accepted at `09c0b17` and R47 at
-`419414a`; R03, R05 and R48 are the assigned remediation slices. AUT-006 is accepted at
+**Current checkpoint:** `PKG-10 / R05` — R02 is accepted at `09c0b17`, R47 at
+`419414a`, and R03 at `60af07d`; R05 and R48 are the assigned remediation slices. AUT-006 is accepted at
 `a4c9de2`.
 Every repository failure group
 discovered by R02's complete 1,772-test authority run is now accepted: V11
@@ -1574,7 +1572,7 @@ durable ledger before changing a row.
 | --- | --- | --- | --- | --- | --- | --- |
 | R01 | GOV-001 | none | COMPLETE | PASS — R01-P | PASS — R01-M | CP-CONTROL PASS — R01-CP-CONTROL |
 | R02 | GOV-003, TST-001, DB-005 | R01, R04 | COMPLETE | PASS — R02-P | PASS — R02-M | CP-CONTROL PASS — R02-CP-CONTROL |
-| R03 | GOV-004 | R02 | ACTIVE | PASS — R03-P | PENDING | CP-CONTROL PENDING |
+| R03 | GOV-004 | R02 | COMPLETE | PASS — R03-P | PASS — R03-M | CP-CONTROL PASS — R03-CP-CONTROL |
 | R04 | DB-004 | none | COMPLETE | PASS — R04-P | PASS — R04-M | CP-DB PASS — R04-CP-DB |
 | R05 | DB-001, TST-012, ONB-010 | R02, R04 | ACTIVE | PASS — R05-P | PENDING | CP-DB PENDING |
 | R06 | DB-002 | R02, R04, R05 | QUEUED | PENDING | PENDING | CP-DB PENDING |
