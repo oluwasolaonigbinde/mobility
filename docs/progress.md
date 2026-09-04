@@ -46,10 +46,10 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R05, R48`
-**Current capacity justification:** R03 is accepted and its workflow/generated-
-contract lease is released. R48 exclusively owns the report-rendering common
-projection and focused report UI/tests. R05 exclusively owns savepoint-safe real-PostgreSQL
+**Current capacity assignment:** `R05, R49`
+**Current capacity justification:** R03 and R48 are accepted and their workflow,
+generated-contract and report-projection leases are released. R49 exclusively owns
+bounded report-issuance claim/reclaim/failure behavior and focused worker tests. R05 exclusively owns savepoint-safe real-PostgreSQL
 conflict translation across trip, disbursement and vehicle-onboarding services and
 their focused tests; it owns the database-concurrency lane but no migration or
 generated-contract files. Controller documents remain serialized.
@@ -85,7 +85,7 @@ engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
 **Current checkpoint:** `PKG-10 / R05` — R02 is accepted at `09c0b17`, R47 at
-`419414a`, and R03 at `60af07d`; R05 and R48 are the assigned remediation slices. AUT-006 is accepted at
+`419414a`, R03 at `60af07d`, and R48 at `b17d1e7`; R05 and R49 are the assigned remediation slices. AUT-006 is accepted at
 `a4c9de2`.
 Every repository failure group
 discovered by R02's complete 1,772-test authority run is now accepted: V11
@@ -1617,8 +1617,8 @@ durable ledger before changing a row.
 | R45 | MET-003 | R04, R41 | COMPLETE | PASS — R45-P | PASS — R45-M | CP-REPORTING PASS — R45-CP-REPORTING |
 | R46 | REP-001 | R45 | COMPLETE | PASS — R46-P | PASS — R46-M | CP-REPORTING PASS — R46-CP-REPORTING |
 | R47 | MET-001, MET-002, MET-004, REP-002 | R41, R46 | COMPLETE | PASS — R47-P | PASS — R47-M | CP-REPORTING PASS — R47-CP-REPORTING |
-| R48 | REP-003 | R47 | ACTIVE | PASS — R48-P | PENDING | CP-REPORTING PENDING |
-| R49 | REP-004 | R47, R48 | QUEUED | PASS — R49-P | PENDING | CP-REPORTING PENDING |
+| R48 | REP-003 | R47 | COMPLETE | PASS — R48-P | PASS — R48-M | CP-REPORTING PASS — R48-CP-REPORTING |
+| R49 | REP-004 | R47, R48 | ACTIVE | PASS — R49-P | PENDING | CP-REPORTING PENDING |
 | R50 | REP-005 | R47, R49 | QUEUED | PASS — R50-P | PENDING | CP-REPORTING PENDING |
 | R51 | REP-006 | R43, R49, R50 | QUEUED | PASS — R51-P | PENDING | CP-REPORTING PENDING |
 | R52 | MET-006 | R51 | QUEUED | PASS — R52-P | PENDING | CP-REPORTING PENDING |
