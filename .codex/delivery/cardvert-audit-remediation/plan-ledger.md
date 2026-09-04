@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 325
+plan_revision: 326
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 455
+last_event_sequence: 456
 ---
 
 # Cardvert audit remediation programme
@@ -240,7 +240,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | ACCEPTED | provider-boundary opener | R16-P/M/CONTRACT/CP-CONTROL; structural and behavioral evidence | complete |
 | R17 | TST-007 | PARKED | R02, R03; coverage policy | no authoritative floor/path/base/ratchet policy; not a demonstrated product-runtime defect | retained in `to-do.md` for a later developer policy decision; does not consume active remediation capacity |
-| R18 | MON-005, MON-006 | ACTIVE | R04, R06, R07 | R18-P; reviewed frozen-money-authority contract | fresh Sol/xhigh task after separate R07 admission; exclusive money/migration/contract lane; required-currency fixture and canonical migration-head compatibility explicitly included; may continue R19 after separate admission |
+| R18 | MON-005, MON-006 | COMPLETE | R04, R06, R07 | R18-P/M; DB+MNY; CONTRACT; CP-MONEY; exact `e36f7fed...` freeze; focused PostgreSQL, payout, correction, frontend and contract evidence | accepted exactly once at `5c2d60a`; money/migration/generated-contract lane released; task may continue R19 only after separate packet |
 | R19 | MON-002 | WAITING | R18 | R19-P; reviewed Lagos-day predecessor-order contract | wait for R18 |
 | R20 | MON-001, DB-007, MON-008 | WAITING | R05, R18 | R20-P; reviewed durable per-line provider-intent contract | wait for predecessors and migration/worker lane |
 | R21 | MON-003 | WAITING | R20 | R21-P; reviewed final pre-provider authorization contract | wait for R20 |
@@ -273,7 +273,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R48 | REP-003 | ACCEPTED | R47 | R48-P/M; CONTRACT; CP-REPORTING; commit `b17d1e7` | accepted exactly once; report-projection lease released |
 | R49 | REP-004 | ACCEPTED | R47, R48 | R49-P/M; DB; R49-CP-REPORTING; commit `a315a59` | accepted exactly once; worker lease released |
 | R50 | REP-005 | COMPLETE | R47, R49 | R50-P/M; PRV; CP-REPORTING; exact `dd461cf1...` freeze; focused backend/PostgreSQL/frontend/contract evidence | accepted exactly once; reporting lease released, while R51 waits for R18's migration/contract lane |
-| R51 | REP-006 | ACTIVE | R43, R49, R50 | R51-P; reviewed fenced generation-scoped publication contract | Claude Opus 5 Extra Phase A on isolated model/service/test lease; migration/contracts/final PostgreSQL+MinIO held behind R18 |
+| R51 | REP-006 | ACTIVE | R43, R49, R50 | R51-P; reviewed fenced generation-scoped publication contract | Claude Opus 5 Extra isolated task may reconcile accepted R18 base and continue the reviewed migration/contracts/final PostgreSQL+MinIO phase |
 | R52 | MET-006 | WAITING | R51 | R52-P; reviewed methodology-derived copy-guard contract | wait for accepted R51 |
 | R53 | REL-005 | ACCEPTED | release opener | R53-P; R53-M; R53-RELEASE; R53-CP-RELEASE; real Docker red/green | complete |
 | R54 | REL-006 | WAITING | R12, R16, R53 | R54-P; reviewed fail-closed environment-template contract | wait for accepted R12 and R14; central lease order R12 → R14 → R54 |
@@ -911,3 +911,4 @@ verification is complete.
 | 453 | 323 | 1 | PACKET_SCOPE_AMENDED | R18 may synchronize the canonical migration-chain gate with the accepted 0080 migration and its new 0081 money-authority head. | add only `tests/test_mvp_hardening.py`; advance `EXPECTED_ALEMBIC_HEAD` to `0081_payout_money_authority`, add the 0080/0081 filenames, preserve all other gate semantics, and rerun the exact gate |
 | 454 | 324 | 1 | PACKET_SCOPE_AMENDED | R18's fail-closed missing-currency authority governs historical fixtures upgraded to 0081: an SQL-NULL frozen offer must block the upgrade without inventing currency, while post-head synthetic bindings must supply explicit currency. | add only `tests/test_migration_0048_campaign_assignment_offer_lifecycle.py` and `tests/test_migration_0026_frozen_campaign_payment_window.py`; preserve 0048-local grandfather behavior, assert 0081 refusal with prior head/state preserved, add explicit `NGN` to the post-head 0026 fixture, and preserve production bytes |
 | 455 | 325 | 1 | MODEL_BUDGET_POLICY_REFINED | Future dispatches must use the least costly model that safely owns the task; GPT-5.6 Sol/xhigh is reserved for demonstrated necessity rather than selected automatically from a broad risk label. | owner instruction, 4 Sep 2026; Luna/max for bounded low-risk work, Terra for ordinary work, Sol only for genuinely difficult high-risk boundaries; every xhigh dispatch states its concrete necessity |
+| 456 | 326 | 1 | MONEY_AUTHORITY_SLICE_ACCEPTED | R18/MON-005/MON-006 accepted exact frozen currency authority across rule revision, offer, binding, calculation and ledger, with fail-closed legacy/migration handling and trigger-backed correction integrity. | commit `5c2d60a`; exact 22-file digest `e36f7fed...`; controller file-set/diff/lint and migration/OpenAPI checks matched; owner PostgreSQL, payout, correction, frontend and contract evidence plus DB+MNY/CONTRACT/CP-MONEY/minimal-change PASS; R51 migration/generated-contract fence released |
