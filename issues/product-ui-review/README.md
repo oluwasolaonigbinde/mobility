@@ -16,7 +16,7 @@ engineering audit corpus.
 | 5 | Advertiser journey | Answered and normalized | [verbatim answer](answers/prompt-05-advertiser-journey.md) |
 | 6 | Driver journey | Not run by this programme | — |
 | 7 | Errors, gates and state transitions | Not run | — |
-| 8 | Client-owned approvals versus system-owned UX | Ready now; revised current-snapshot prompt | [execution prompt](prompt-08-current.md) |
+| 8 | Client-owned approvals versus system-owned UX | Answered and reconciled | [verbatim answer](answers/prompt-08-external-boundary.md) |
 | 9 | Client-facing PRD and visual-system guide | Waits for 1–8 | — |
 | 10 | Adversarial PRD review | Waits for 9 | — |
 | 11 | Consolidated implementation backlog | Waits for 10 | — |
@@ -37,6 +37,13 @@ The exact evidence, deduplication and status of all 42 are in
 [outcomes.md](outcomes.md). [reconciliation.md](reconciliation.md) explains
 overlap with the original remediation programme and prevents double-counting.
 
+Prompt 8's returned external-boundary review is preserved in
+[answers/prompt-08-external-boundary.md](answers/prompt-08-external-boundary.md).
+Its 62-row classification remains intact for provenance. Current-base
+reconciliation records PB-12 as a current `PRODUCT-DEFECT` and PB-13 as a
+partial duplicate of `CPY-002`; the six owner-question groups remain in the
+answer. This does not add to the 42-outcome set or authorize implementation.
+
 ## Proposed packets and execution authority
 
 [packets.md](packets.md) groups the 28 potentially buildable candidates into 14
@@ -50,8 +57,9 @@ controls, commit `a73556c`. All other proposed packets remain unimplemented.
 
 ## Continuation order
 
-1. Finish prompts 1, 4, 6, 7 and 8 against one stable accepted snapshot.
-2. Reconcile their answers into this same folder and update the 42-outcome set rather
+1. Finish prompts 1, 4, 6 and 7 against one stable accepted snapshot; Prompt 8 is
+   answered and reconciled.
+2. Reconcile later answers into this same folder and update the 42-outcome set rather
    than creating a parallel register.
 3. Run prompt 9 using answers 1–8, then prompt 10 against that PRD.
 4. Run prompt 11 last to produce the consolidated backlog.

@@ -111,3 +111,22 @@ legal queue maps to FOD-001/FOD-005/FOD-008. CTL-CLD-03 D1-D15 map one-to-one
 or in explicitly joined root causes to ADV-001-ADV-010, FUX-009, FOD-005,
 FOD-006, and AUD-006; its journey gaps and trust risks repeat or contextualize
 those normalized claims.
+
+## Prompt 8 current-base reconciliation
+
+The completed external-boundary review is preserved in
+[answers/prompt-08-external-boundary.md](answers/prompt-08-external-boundary.md).
+Its returned 62-row classification is retained for provenance, but this
+normalized register records only the requested current-base reconciliation:
+
+- `PB-12` remains a current `PRODUCT-DEFECT` (P1): privacy/reporting denials
+  still fail at page-critical advertiser boundaries and can hide unrelated
+  campaign-management work. Its current source evidence and bounded acceptance
+  criteria are in the Prompt 8 answer.
+- `PB-13` is a `DUPLICATE` of `CPY-002` with partial remediation only: report
+  and planning surfaces still expose internal codes, UUIDs and hashes, while
+  the capability route remains subject to the existing `FOD-003` owner decision.
+  It creates no new normalized copy outcome.
+- `PB-20`, `PB-24`, `PB-29`, `PB-30`, `PB-41` and `PB-52` remain six unanswered
+  `OWNER-DECISION` groups in the Prompt 8 answer. They are not new `FOD` IDs and
+  do not authorize product, provider, legal or live-use changes.
