@@ -46,15 +46,16 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R21, R55`
+**Current capacity assignment:** `R21, R57`
 **Current capacity justification:** R31 and R51 are accepted and their campaign
 and reporting-publication leases are released. R20 is accepted and R21 now owns
 the final pre-provider fraud/assessment authorization gate across its disbursement,
-fraud, earnings-release and focused-test surfaces. R55 owns release-contract,
-release/recovery/rehearsal scripts, focused release
-tests and serialized evidence-signing configuration inherited from R54. Their
-write and test surfaces are disjoint; R55 has no disbursement/provider/worker,
-money-schema or product-API authority. Controller documents remain serialized.
+fraud, earnings-release and focused-test surfaces. R55 is accepted and its
+release/recovery lease is released. R57 owns the deterministic application-clock
+boundary and focused time-boundary tests across auth, recovery, trip, campaign
+and release-contract surfaces. R21 and R57 have disjoint write and test leases;
+R57 has no disbursement/provider-worker, fraud or earnings-release authority.
+Controller documents remain serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -90,7 +91,7 @@ policy, external inputs and evidence-triggered observations are parked in
 `419414a`, R03 at `60af07d`, R48 at `b17d1e7`, R05 at `954d9a4`, R49 at
 `a315a59`, R33 at `14f155a`, R06 at `05b4901`, R07 at `84cb94e`, and R50 at
 `bb8c13e`, R18 at `5c2d60a`, R19 at `3c7b678`, R51 at `2f52c3e`, and R31 at
-`eb59a84`, R52 at `cab745c`, and R20 at `d8cd891`; R21 and R55 are the assigned
+`eb59a84`, R52 at `cab745c`, R20 at `d8cd891`, and R55 at `662077a`; R21 and R57 are the assigned
 disjoint writers.
 AUT-006 is accepted at
 `a4c9de2`.
@@ -1633,9 +1634,9 @@ durable ledger before changing a row.
 | R52 | MET-006 | R51 | COMPLETE | PASS — R52-P | PASS — R52-M | CP-REPORTING PASS — R52-CP-REPORTING |
 | R53 | REL-005 | none | COMPLETE | PASS — R53-P | PASS — R53-M | CP-RELEASE PASS — R53-CP-RELEASE |
 | R54 | REL-006 | R12, R16, R53 | COMPLETE | PASS — R54-P | PASS — R54-M | CP-RELEASE PASS — R54-CP-RELEASE |
-| R55 | REL-004 | R03, R18, R48, R51, R54 | ACTIVE | PASS — R55-P | PENDING | CP-RELEASE PENDING |
+| R55 | REL-004 | R03, R18, R48, R51, R54 | COMPLETE | PASS — R55-P | PASS — R55-M | CP-RELEASE PASS — R55-CP-RELEASE |
 | R56 | TST-005 | R09, R11, R14, R40 | COMPLETE | PASS — R56-P | PASS — R56-M | CP-SECURITY PASS — R56-CP-SECURITY |
-| R57 | TST-008 | R19, R27, R49, R55 | QUEUED | PASS — R57-P | PENDING | CP-RELEASE PENDING |
+| R57 | TST-008 | R19, R27, R49, R55 | ACTIVE | PASS — R57-P | PENDING | CP-RELEASE PENDING |
 | R58 | TST-011 | R15, R20, R21, R43, R49, R51 | QUEUED | PASS — R58-P | PENDING | CP-WORKERS PENDING |
 | R59 | TST-002 | R22, R31, R33, R37, R41, R44, R48, R50, R51, R56, R57, R58 | QUEUED | PENDING | PENDING | CP-RELEASE PENDING |
 | R60 | GOV-009 | R03, R17, R18, R22, R27, R31, R33, R37, R43, R44, R52, R55, R56, R59 | QUEUED | PENDING | PENDING | CP-CONTROL PENDING |

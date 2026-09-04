@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 341
+plan_revision: 343
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 471
+last_event_sequence: 473
 ---
 
 # Cardvert audit remediation programme
@@ -208,11 +208,12 @@ visible top-level Mobility tasks.
 | S29 | R60 — GOV-009 | final architecture/progress/decision synchronization | cross-package closure; Sol/high | no product implementation; reconcile all 115 candidates, integrated gates and final minimal-change review |
 
 Current justified writer capacity is **2**, assigned exactly to S13/R21 and
-S24/R55. R20, R31, R51 and R52 are accepted. R21 owns the final pre-provider
-fraud/assessment authorization gate, while R55 owns release-contract,
-release/recovery/rehearsal scripts, focused release tests and the serialized
-evidence-signing configuration inherited from R54. Their product, test and local
-integration surfaces are disjoint; controller documents remain serialized.
+S26/R57. R20, R31, R51, R52 and R55 are accepted. R21 owns the final
+pre-provider fraud/assessment authorization gate, while R57 owns deterministic
+application-clock injection and focused time-boundary tests across auth,
+recovery, trip, campaign and release-contract surfaces. Their product and test
+leases are disjoint; R57 has no disbursement/provider-worker, fraud or
+earnings-release authority. Controller documents remain serialized.
 
 ## Executable slice map
 
@@ -275,9 +276,9 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R52 | MET-006 | COMPLETE | R51 | R52-P/M; CONTRACT; CP-REPORTING; commit `cab745c`; six focused tests and scoped lint/format/diff | accepted exactly once; measurement-copy guard lease released |
 | R53 | REL-005 | ACCEPTED | release opener | R53-P; R53-M; R53-RELEASE; R53-CP-RELEASE; real Docker red/green | complete |
 | R54 | REL-006 | WAITING | R12, R16, R53 | R54-P; reviewed fail-closed environment-template contract | wait for accepted R12 and R14; central lease order R12 → R14 → R54 |
-| R55 | REL-004 | ACTIVE | R03, R18, R48, R51, R54 | R55-P; reviewed mechanically generated compatibility receipt contract | fresh Sol/xhigh worktree task owns the release/recovery/receipt lane; synthetic local evidence only |
+| R55 | REL-004 | COMPLETE | R03, R18, R48, R51, R54 | R55-P/M; SEC; DEP+DB+CONTRACT; RELEASE; CP-RELEASE; commit `662077a` | accepted exactly once; release/recovery/receipt and evidence-signing leases released |
 | R56 | TST-005 | WAITING | R09, R11, R14, R40 | R56-P; reviewed generated authorization-denial matrix | wait for predecessors and audit-route fixture release |
-| R57 | TST-008 | WAITING | R19, R27, R49, R55 | R57-P; reviewed deterministic clock boundary contract | wait for predecessors and shared auth/release fixtures |
+| R57 | TST-008 | ACTIVE | R19, R27, R49, R55 | R57-P; reviewed deterministic clock boundary contract | fresh Sol/high worktree task owns exact application-clock and focused boundary-test lease |
 | R58 | TST-011 | WAITING | R15, R20, R21, R43, R49, R51 | R58-P; reviewed real worker termination/restart contract | wait for registered predecessor jobs and worker lane release |
 | R59 | TST-002 | QUEUED | R22, R31, R33, R37, R41, R44, R48, R50, R51, R56, R57, R58 | — | wait |
 | R60 | GOV-009 | QUEUED | R03, R17, R18, R22, R27, R31, R33, R37, R43, R44, R52, R55, R56, R59 | — | wait |
@@ -925,3 +926,5 @@ verification is complete.
 | 469 | 339 | 1 | DUPLICATE_OWNER_SELECTION_CORRECTED | A filesystem fence taken after event 468 showed the original R20 owner had already produced the materially advanced model implementation before its stop was delivered, while the retry held only initial red-test edits; ownership was corrected to preserve the more advanced candidate. | retain task `01a06cb9-6e8e-7721-bc82-bed4191cc683` and worktree `1af5`; stop task `01a06cbf-96b4-7451-8d4a-1b1f1d6ce87d` and preserve worktree `72b3` without further writes; event-467 lease applies only to the retained owner; no retry bytes may be merged without separate reconciliation |
 | 470 | 340 | 1 | DISBURSEMENT_INTENT_SLICE_ACCEPTED | R20/MON-001,DB-007,MON-008 accepted durable per-line provider intents, lookup-first ambiguous recovery, generation-fenced results and no lock-held provider I/O. | commit `d8cd891`; exact 16-file integration and migration 0083; owner 111 passes/one intentional skip plus real PostgreSQL crash/concurrency/migration evidence; controller 86 passes/12 environment skips; Ruff/diff and R20-M/DB+MNY/CP-MONEY PASS; no public contract change |
 | 471 | 341 | 1 | PACKET_DISPATCHED | R21/MON-003 continues in the retained S13 task after separate R20 admission. | GPT-5.6 Sol/xhigh remains necessary for adversarial pre-provider money authorization and PostgreSQL fraud/assessment races; exact disbursement worker/service, fraud-assessment/hold, earnings-release and focused-test lease; no migration unless a new reviewed amendment; direct terminal callback |
+| 472 | 342 | 1 | RELEASE_COMPATIBILITY_SLICE_ACCEPTED | R55/REL-004 accepted authenticated immutable compatibility receipts and convergent forward-only release/recovery handling across current and previous images and schema revisions. | commit `662077a`; exact seven-file integration; controller 455 focused passes, Ruff, shell syntax and diff checks; owner full Docker rehearsal twice and R55-M/SEC/DEP+DB+CONTRACT/RELEASE/CP-RELEASE PASS; no push or deploy |
+| 473 | 343 | 1 | PACKET_DISPATCHED | R57/TST-008 begins after R55 releases the release-contract lease. | GPT-5.6 Sol/high is proportionate for security, money-adjacent and release clock boundaries without the higher cost of xhigh; exact application-clock, auth/recovery/trip/campaign/release-contract and focused-test lease; no policy changes, migrations or generated contracts; direct terminal callback |
