@@ -45,12 +45,13 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `1`
-**Current capacity assignment:** `R49`
+**Current justified remediation writer capacity:** `2`
+**Current capacity assignment:** `R33, R49`
 **Current capacity justification:** R03 and R48 are accepted and their workflow,
 generated-contract and report-projection leases are released. R49 exclusively owns
 bounded report-issuance claim/reclaim/failure behavior and focused worker tests.
-R05 is accepted. R06's fresh bounded plan review may run concurrently but does not
+R05 is accepted, making already-reviewed R33 dependency-ready on a disjoint
+onboarding-query lease. R06's fresh bounded plan review may run concurrently but does not
 become a writer until that review passes; it then exclusively owns the historical
 governed-downgrade migration lane across revisions 0010, 0014 and 0016 plus focused
 downgrade guards. Controller documents remain serialized.
@@ -86,7 +87,8 @@ engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
 **Current checkpoint:** `PKG-10 / R06` — R02 is accepted at `09c0b17`, R47 at
-`419414a`, R03 at `60af07d`, R48 at `b17d1e7`, and R05 at `954d9a4`; R06 and R49 are the assigned remediation slices. AUT-006 is accepted at
+`419414a`, R03 at `60af07d`, R48 at `b17d1e7`, and R05 at `954d9a4`; R33 and
+R49 are assigned writers while R06 performs its mandatory bounded plan re-review. AUT-006 is accepted at
 `a4c9de2`.
 Every repository failure group
 discovered by R02's complete 1,772-test authority run is now accepted: V11
@@ -1604,7 +1606,7 @@ durable ledger before changing a row.
 | R30 | CAM-003 | R29 | COMPLETE | PASS — R30-P | PASS — R30-M | CP-CAMPAIGN PASS — R30-CP-CAMPAIGN |
 | R31 | CAM-004 | R18, R19, R30 | QUEUED | PASS — R31-P | PENDING | CP-CAMPAIGN PENDING |
 | R32 | ONB-002 | none | COMPLETE | PASS — R32-P | PASS — R32-M | CP-ONBOARDING PASS — R32-CP-ONBOARDING |
-| R33 | ONB-006 | R05, R32 | QUEUED | PASS — R33-P | PENDING | CP-ONBOARDING PENDING |
+| R33 | ONB-006 | R05, R32 | ACTIVE | PASS — R33-P | PENDING | CP-ONBOARDING PENDING |
 | R34 | OFF-001 | R04 | COMPLETE | PASS — R34-P | PASS — R34-M | CP-OFFLINE PASS — R34-CP-OFFLINE |
 | R35 | OFF-002, OFF-003 | R34 | COMPLETE | PASS — R35-P | PASS — R35-M | CP-OFFLINE PASS — R35-CP-OFFLINE |
 | R36 | OFF-005 | R35 | COMPLETE | PASS — R36-P | PASS — R36-M | CP-OFFLINE PASS — R36-CP-OFFLINE |

@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 307
+plan_revision: 308
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 437
+last_event_sequence: 438
 ---
 
 # Cardvert audit remediation programme
@@ -205,11 +205,13 @@ visible top-level Mobility tasks.
 | S28 | R59 — TST-002 | integrated real-stack browser journey | cross-stack release/security; Sol/xhigh | all predecessor contracts integrated; local real-stack evidence only |
 | S29 | R60 — GOV-009 | final architecture/progress/decision synchronization | cross-package closure; Sol/high | no product implementation; reconcile all 115 candidates, integrated gates and final minimal-change review |
 
-Current justified writer capacity is **1**, assigned exactly to S21/R49. R03 and
+Current justified writer capacity is **2**, assigned exactly to S08/R33 and
+S21/R49. R03 and
 R48 are accepted and their workflow/generated-contract and
 report-projection leases are released. R49 exclusively owns bounded report-
 issuance claim/reclaim/failure behavior and focused worker tests. R05 is accepted;
-R06's fresh bounded plan review runs without a mutation lease; only after PASS will
+R33 owns only the bounded exact-evidence lookup implementation and focused tests,
+with no migration or index. R06's fresh bounded plan review runs without a mutation lease; only after PASS will
 it exclusively own the historical governed-downgrade migration lane across revisions
 0010, 0014 and 0016 plus focused downgrade guards. Controller documents remain
 serialized.
@@ -253,7 +255,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R30 | CAM-003 | WAITING | R29 | R30-P; reviewed due-challenge finality contract | wait for R29 |
 | R31 | CAM-004 | WAITING | R18, R19, R30 | R31-P; reviewed frozen assignment-window contract | wait for predecessors and trip lease |
 | R32 | ONB-002 | ACCEPTED | onboarding opener | R32-P/M/SEC/DB/CP-ONBOARDING; PostgreSQL and contract evidence | complete |
-| R33 | ONB-006 | WAITING | R05, R32 | R33-P; current 50k-row exact-index experiment | wait for accepted R05; revalidate exact-index plan |
+| R33 | ONB-006 | ACTIVE | R05, R32 | R33-P; current 50k-row exact-index experiment | fresh Terra/high implementation on the exact no-migration evidence-query lease |
 | R34 | OFF-001 | COMPLETE | R04; offline opener | R34-P/M; DB/PRV/SEC/MNY; CP-OFFLINE; accepted product commit `a95a7ca` | complete; released R35 and central migration/contract/config lanes |
 | R35 | OFF-002, OFF-003 | COMPLETE | R34 | R35-P/M; OFF+SEC; CP-OFFLINE; exact `e232ab7d...` freeze; 65 focused frontend passes plus typecheck/lint/format | accepted exactly once; offline frontend lease released |
 | R36 | OFF-005 | READY | R35; signed per-sample disposition authority | owner/developer selected the already reviewed durable Alembic/model/`trip_evidence.py` design | reacquire the serialized migration/model/signing lease after the active generated-contract lane is clear |
@@ -891,3 +893,4 @@ verification is complete.
 | 435 | 305 | 1 | CONTRACT_SLICE_ACCEPTED | R03/GOV-004 accepted deterministic equality across runtime FastAPI OpenAPI, both JSON baselines and generated TypeScript, then released its workflow/generated-contract lease. | commit `60af07d`; exact three-file implementation; red stale-root-JSON oracle then 2 focused tests PASS; deterministic generator `--check`, runtime/JSON/type parity, workflow/static/lint/diff and independent R03-M/CONTRACT/CP-CONTROL PASS; R05/R48 remain active |
 | 436 | 306 | 1 | REPORT_PROJECTION_ACCEPTED | R48/REP-003 accepted one typed frozen projection across screen, CSV and PDF, then released its report-projection lease and promoted R49. | commit `b17d1e7`; 7 backend and 9 frontend focused tests PASS; Unicode PDF extraction, UTC/exact-value/hash/uncertainty/ROI/currency parity, repeat deterministic render, lint/type/format/diff and independent R48-M/CONTRACT/CP-REPORTING PASS; R05 remains active |
 | 437 | 307 | 1 | DATABASE_CONFLICT_SLICE_ACCEPTED | R05/DB-001,TST-012,ONB-010 accepted savepoint-safe PostgreSQL conflict translation and released the database lane to R06. | commit `954d9a4`; exact eight-file implementation; meaningful 1-pass/3-fail red including the lost trip outer marker, then 9 exact, 48 integrity/conflict, 59 integrity/exclusivity and 30 payout/vehicle real-PostgreSQL passes; OpenAPI, Ruff, compile and diff PASS; independent R05-M, DB+MNY and R05-CP-DB PASS |
+| 438 | 308 | 1 | PARALLEL_FRONTIER_EXPANDED | R33/ONB-006 joins R49 as a dependency-ready writer while R06 performs its mandatory no-write plan re-review. | R33-P already PASS; exact driver/vehicle evidence-query and focused-test lease, no migration/index/contracts/controller docs; fresh Terra/high because this is ordinary bounded PostgreSQL query-shape implementation; R06 and R49 surfaces remain disjoint |
