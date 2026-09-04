@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 316
+plan_revision: 318
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 446
+last_event_sequence: 448
 ---
 
 # Cardvert audit remediation programme
@@ -270,7 +270,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R47 | MET-001, MET-002, MET-004, REP-002 | ACCEPTED | R41, R46 | R47-P/M; CP-REPORTING; commit `419414a`; frozen disclosure, methodology and contract parity evidence | accepted exactly once; reporting/generated-contract lease released |
 | R48 | REP-003 | ACCEPTED | R47 | R48-P/M; CONTRACT; CP-REPORTING; commit `b17d1e7` | accepted exactly once; report-projection lease released |
 | R49 | REP-004 | ACCEPTED | R47, R48 | R49-P/M; DB; R49-CP-REPORTING; commit `a315a59` | accepted exactly once; worker lease released |
-| R50 | REP-005 | ACTIVE | R47, R49 | R50-P; reviewed privacy-safe latest-parent discovery contract | fresh Sol/high implementation on the exact request/status/panel lease |
+| R50 | REP-005 | COMPLETE | R47, R49 | R50-P/M; PRV; CP-REPORTING; exact `dd461cf1...` freeze; focused backend/PostgreSQL/frontend/contract evidence | accepted exactly once; reporting lease released, while R51 waits for R18's migration/contract lane |
 | R51 | REP-006 | WAITING | R43, R49, R50 | R51-P; reviewed fenced generation-scoped publication contract | wait for accepted predecessors; Sol/xhigh implementation gate retained |
 | R52 | MET-006 | WAITING | R51 | R52-P; reviewed methodology-derived copy-guard contract | wait for accepted R51 |
 | R53 | REL-005 | ACCEPTED | release opener | R53-P; R53-M; R53-RELEASE; R53-CP-RELEASE; real Docker red/green | complete |
@@ -900,3 +900,5 @@ verification is complete.
 | 444 | 314 | 1 | PACKET_RESUMED | A fresh visible task adopted the preserved R50 partial candidate in its existing worktree after the original worktree launch failed to mature into an addressable callback-capable task. | task `01a06c2b-24f3-72a1-9d38-d651e7833413`; GPT-5.6 Sol/high for privacy-safe report authority, status races and generated contracts; exact existing R50 lease; direct terminal callback; R51→R52 predeclared but unauthorized until separate predecessor admission |
 | 445 | 315 | 1 | DATABASE_IMMUTABILITY_SLICE_ACCEPTED | R07/DB-003 accepted database-enforced append-only purge-audit authority and released the exclusive database lane to R18. | commit `84cb94e`; exact two-file implementation; ALWAYS statement trigger denies privileged update/delete/truncate while preserving append/read and governed empty downgrade; owner seven PostgreSQL passes, exact diff digest, Ruff/diff and independent R07-M/DB/CP-DB PASS; controller digest/lint/diff matched, local PostgreSQL rerun unavailable because no database URL was configured |
 | 446 | 316 | 1 | LANE_MODEL_GATE_CORRECTED | R07 and R50 remain standalone because their accepted successors require different models; R18 starts fresh at Sol/xhigh and may later reuse that task for R19, while the separately planned R20→R21→R22 chain may share its own Sol/xhigh task. | direct application of the owner cache rule and repository model gate; no model override on an existing task; every slice still sends its own controller callback and waits for separate admission |
+| 447 | 317 | 1 | REPORT_REISSUE_SLICE_ACCEPTED | R50/REP-005 accepted privacy-safe discovery of the latest permitted issuance parent and reachable append-only reissue without weakening exact replay or hidden-authority behavior. | commit `bb8c13e`; exact 11-file digest `dd461cf1...`; controller digest/diff/lint and focused backend behavior matched; owner focused real-PostgreSQL, frontend, OpenAPI/type regeneration and R50-M/PRV/CP-REPORTING PASS; controller frontend rerun hit the host Node 26 localStorage environment defect, while the owner's isolated nine-test frontend run passed |
+| 448 | 318 | 1 | PACKET_BASE_REFRESHED | R18 resumed on the R50-accepted generated-contract baseline after a pre-write fence prevented overlapping contract mutation. | task `01a06c37-f1c1-7bd0-8f56-a1a93bd4e754`; accepted product base `bb8c13e`; GPT-5.6 Sol/xhigh; R51 remains serialized until R18 releases migration/contract authority |
