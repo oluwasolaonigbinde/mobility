@@ -1,0 +1,2582 @@
+<title>Cardvert Copy Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+
+<style>
+  /* ── Palette derived from the Terrax Media brand guide already in the repo:
+        Battle Cat #256f1a · Rainforest Nights #071e03 · Crimson Flame #ee2f41
+        Golden Accent #f2c94c · Mint Whisper #c8f6d0
+        Neutrals are biased green so nothing reads as stock grey.            */
+
+  :root {
+    --paper:        #f5f8f2;
+    --surface:      #ffffff;
+    --surface-2:    #edf3e9;
+    --ink:          #0f1f0c;
+    --ink-2:        #3d4f39;
+    --ink-3:        #6d7f68;
+    --rule:         #d9e3d3;
+    --rule-2:       #bccdb5;
+    --brand:        #256f1a;
+    --brand-ink:    #1b5313;
+    --mint:         #c8f6d0;
+
+    --hi:           #b81c2c;
+    --hi-bg:        #fbeaea;
+    --md:           #8a6300;
+    --md-bg:        #fbf1d5;
+    --lo:           #3f6382;
+    --lo-bg:        #e9f0f5;
+
+    --before-bg:    #fbf0ef;
+    --before-rule:  #edd4d2;
+    --after-bg:     #ecf8ee;
+    --after-rule:   #cbe8cf;
+
+    --shadow: 0 1px 0 var(--rule);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:       #071e03;
+      --surface:     #0c2908;
+      --surface-2:   #113310;
+      --ink:         #e8f6e5;
+      --ink-2:       #a9c4a4;
+      --ink-3:       #7b9776;
+      --rule:        #1d4318;
+      --rule-2:      #2c5824;
+      --brand:       #8bd67b;
+      --brand-ink:   #a8e39a;
+      --mint:        #1c4a20;
+
+      --hi:          #ff9a95;
+      --hi-bg:       #3a1513;
+      --md:          #f2c94c;
+      --md-bg:       #372d0a;
+      --lo:          #9dc0da;
+      --lo-bg:       #122c3a;
+
+      --before-bg:   #2c1211;
+      --before-rule: #4a1f1c;
+      --after-bg:    #0e2f12;
+      --after-rule:  #1d5222;
+
+      --shadow: 0 1px 0 var(--rule);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:       #071e03;
+    --surface:     #0c2908;
+    --surface-2:   #113310;
+    --ink:         #e8f6e5;
+    --ink-2:       #a9c4a4;
+    --ink-3:       #7b9776;
+    --rule:        #1d4318;
+    --rule-2:      #2c5824;
+    --brand:       #8bd67b;
+    --brand-ink:   #a8e39a;
+    --mint:        #1c4a20;
+
+    --hi:          #ff9a95;
+    --hi-bg:       #3a1513;
+    --md:          #f2c94c;
+    --md-bg:       #372d0a;
+    --lo:          #9dc0da;
+    --lo-bg:       #122c3a;
+
+    --before-bg:   #2c1211;
+    --before-rule: #4a1f1c;
+    --after-bg:    #0e2f12;
+    --after-rule:  #1d5222;
+
+    --shadow: 0 1px 0 var(--rule);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--brand-ink); }
+
+  code, pre, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  /* ── shell ─────────────────────────────────────────────── */
+
+  .wrap {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+  }
+
+  .cols {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 48px;
+    align-items: start;
+  }
+
+  @media (min-width: 1040px) {
+    .cols { grid-template-columns: 208px minmax(0, 1fr); gap: 56px; }
+    .rail { position: sticky; top: 32px; }
+  }
+
+  /* ── masthead ──────────────────────────────────────────── */
+
+  .mast {
+    border-bottom: 2px solid var(--ink);
+    padding: 56px 0 20px;
+    margin-bottom: 40px;
+  }
+
+  .kicker {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--brand-ink);
+    margin: 0 0 18px;
+  }
+
+  h1 {
+    font-size: clamp(2.1rem, 5.2vw, 3.4rem);
+    line-height: 1.03;
+    letter-spacing: -0.028em;
+    font-weight: 700;
+    margin: 0 0 18px;
+    text-wrap: balance;
+    max-width: 20ch;
+  }
+
+  .standfirst {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-size: 1.14rem;
+    line-height: 1.6;
+    color: var(--ink-2);
+    max-width: 64ch;
+    margin: 0;
+  }
+
+  .scope {
+    margin-top: 26px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+  }
+
+  .scope div {
+    padding: 11px 16px;
+    border-right: 1px solid var(--rule);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    color: var(--ink-3);
+  }
+
+  .scope div:last-child { border-right: 0; }
+  .scope b { color: var(--ink); font-weight: 500; }
+
+  /* ── contents rail ─────────────────────────────────────── */
+
+  .rail h2 {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 500;
+    margin: 0 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .rail ol {
+    list-style: none;
+    margin: 0 0 28px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .rail a {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 5px 0;
+    font-size: 13px;
+    color: var(--ink-2);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+  }
+
+  .rail a:hover, .rail a:focus-visible {
+    color: var(--brand-ink);
+    border-bottom-color: var(--rule-2);
+  }
+
+  .rail a span {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── section bands ─────────────────────────────────────── */
+
+  .band { margin-bottom: 64px; scroll-margin-top: 24px; }
+
+  .band-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: 10px;
+    margin-bottom: 8px;
+  }
+
+  .band-head h2 {
+    font-size: 1.5rem;
+    letter-spacing: -0.018em;
+    font-weight: 600;
+    margin: 0;
+    flex: 1;
+  }
+
+  .band-head .n {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--brand-ink);
+    text-transform: uppercase;
+  }
+
+  .band-note {
+    font-family: "Source Serif 4", Georgia, serif;
+    color: var(--ink-2);
+    font-size: 1rem;
+    max-width: 68ch;
+    margin: 0 0 26px;
+  }
+
+  /* ── finding card ──────────────────────────────────────── */
+
+  .f {
+    display: flex;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 0;
+    margin-bottom: 14px;
+  }
+
+  .bar { width: 4px; flex: 0 0 4px; }
+  .bar.s1 { background: var(--hi); }
+  .bar.s2 { background: var(--md); }
+  .bar.s3 { background: var(--lo); }
+
+  .f-body { padding: 18px 20px 16px; min-width: 0; flex: 1; }
+
+  .f-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .f-id {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ink-3);
+    letter-spacing: 0.06em;
+  }
+
+  .f-head h3 {
+    font-size: 1.06rem;
+    font-weight: 600;
+    letter-spacing: -0.012em;
+    margin: 0;
+    flex: 1 1 320px;
+    text-wrap: balance;
+  }
+
+  .tags { display: flex; gap: 5px; flex-wrap: wrap; }
+
+  .tag {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    padding: 2.5px 7px 2.5px 6px;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+
+  .t1 { color: var(--hi); background: var(--hi-bg); border-color: var(--hi); }
+  .t2 { color: var(--md); background: var(--md-bg); border-color: var(--md); }
+  .t3 { color: var(--lo); background: var(--lo-bg); border-color: var(--lo); }
+  .tD { color: var(--ink); background: var(--surface-2); border-color: var(--rule-2); }
+  .tL { color: var(--brand-ink); background: var(--mint); border-color: var(--brand); }
+
+  .loc {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    color: var(--ink-3);
+    margin: 0 0 14px;
+    line-height: 1.7;
+    word-break: break-word;
+  }
+
+  .loc .aud {
+    color: var(--brand-ink);
+    border: 1px solid var(--rule-2);
+    background: var(--surface-2);
+    padding: 1px 6px;
+    margin-right: 6px;
+  }
+
+  /* ── before / after ────────────────────────────────────── */
+
+  .ba {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  @media (min-width: 720px) {
+    .ba { grid-template-columns: 1fr 1fr; }
+  }
+
+  .ba > div { padding: 11px 13px 13px; border: 1px solid; }
+
+  .before { background: var(--before-bg); border-color: var(--before-rule); }
+  .after  { background: var(--after-bg);  border-color: var(--after-rule); }
+
+  .ba-l {
+    display: block;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    margin-bottom: 7px;
+  }
+
+  .before .ba-l { color: var(--hi); }
+  .after  .ba-l { color: var(--brand-ink); }
+
+  /* current copy is set in the machine voice; replacement in the human one */
+  .before p {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    line-height: 1.62;
+    margin: 0 0 7px;
+    color: var(--ink);
+    word-break: break-word;
+  }
+
+  .before p:last-child { margin-bottom: 0; }
+
+  .after p {
+    font-family: "Source Serif 4", Georgia, serif;
+    font-size: 15px;
+    line-height: 1.55;
+    margin: 0 0 7px;
+    color: var(--ink);
+  }
+
+  .after p:last-child { margin-bottom: 0; }
+  .after em { color: var(--ink-2); font-size: 13.5px; }
+
+  .btn-ex {
+    display: inline-block;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border: 1px solid var(--brand);
+    color: var(--brand-ink);
+    background: transparent;
+    margin: 2px 4px 2px 0;
+  }
+
+  /* ── meta grid ─────────────────────────────────────────── */
+
+  .meta {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px 22px;
+    margin: 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+  }
+
+  @media (min-width: 720px) {
+    .meta { grid-template-columns: 1fr 1fr; }
+    .meta .span { grid-column: 1 / -1; }
+  }
+
+  .meta dt {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 3px;
+  }
+
+  .meta dd {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink-2);
+  }
+
+  .meta dd b { color: var(--ink); font-weight: 600; }
+  .legal-y { color: var(--hi); font-weight: 500; }
+
+  /* ── compact table ─────────────────────────────────────── */
+
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--rule); background: var(--surface); }
+
+  table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13.5px; }
+
+  thead th {
+    text-align: left;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--ink-3);
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--rule-2);
+    background: var(--surface-2);
+  }
+
+  tbody td {
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+    color: var(--ink-2);
+  }
+
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody td:first-child { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-3); white-space: nowrap; }
+  tbody td b { color: var(--ink); font-weight: 500; }
+  tbody code { font-size: 11.5px; color: var(--ink); }
+
+  /* ── voice guide ───────────────────────────────────────── */
+
+  .guide { background: var(--surface); border: 1px solid var(--rule); padding: 4px 0 0; }
+
+  .rule-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4px 28px;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  @media (min-width: 800px) {
+    .rule-row { grid-template-columns: 190px minmax(0, 1fr); }
+  }
+
+  .rule-row:last-child { border-bottom: 0; }
+
+  .rule-row h4 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.008em;
+  }
+
+  .rule-row .body { font-size: 14.5px; color: var(--ink-2); line-height: 1.6; }
+  .rule-row .body p { margin: 0 0 9px; }
+  .rule-row .body p:last-child { margin-bottom: 0; }
+  .rule-row .body strong { color: var(--ink); font-weight: 600; }
+
+  .yn {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  @media (min-width: 620px) { .yn { grid-template-columns: 1fr 1fr; } }
+
+  .yn div { padding: 9px 12px; border: 1px solid; font-size: 13px; line-height: 1.5; }
+  .yn .no  { background: var(--before-bg); border-color: var(--before-rule); font-family: "IBM Plex Mono", monospace; font-size: 12px; }
+  .yn .yes { background: var(--after-bg);  border-color: var(--after-rule); font-family: "Source Serif 4", Georgia, serif; font-size: 14.5px; }
+
+  .yn span {
+    display: block;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 9.5px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+
+  .yn .no span  { color: var(--hi); }
+  .yn .yes span { color: var(--brand-ink); }
+
+  .banlist { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 5px; }
+  .banlist li {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    padding: 3px 8px;
+    background: var(--before-bg);
+    border: 1px solid var(--before-rule);
+    color: var(--ink);
+  }
+
+  /* ── misc ──────────────────────────────────────────────── */
+
+  .callout {
+    border: 1px solid var(--rule-2);
+    border-left: 4px solid var(--brand);
+    background: var(--surface);
+    padding: 16px 20px;
+    margin-bottom: 26px;
+  }
+
+  .callout p {
+    font-family: "Source Serif 4", Georgia, serif;
+    margin: 0 0 9px;
+    color: var(--ink-2);
+    max-width: 70ch;
+  }
+
+  .callout p:last-child { margin-bottom: 0; }
+  .callout strong { color: var(--ink); font-weight: 600; }
+
+  .tally {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    margin-bottom: 40px;
+  }
+
+  .tally div { padding: 15px 17px; border-right: 1px solid var(--rule); }
+  .tally div:last-child { border-right: 0; }
+
+  .tally .num {
+    font-size: 1.9rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .tally .lab {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-top: 7px;
+  }
+
+  footer {
+    border-top: 2px solid var(--ink);
+    margin-top: 56px;
+    padding-top: 18px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    color: var(--ink-3);
+    line-height: 1.8;
+  }
+
+  :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <div class="mast">
+    <p class="kicker">Product content audit · master @ 3832cff · read-only</p>
+    <h1>Cardvert is talking to its own build system.</h1>
+    <p class="standfirst">Across the public site, the driver app, the advertiser workspace and every outbound
+      email, the product speaks in the vocabulary of the delivery process that built it — authority, governance,
+      freezing, manifests, digests, gates. Drivers are shown SHA-256 hashes. Advertisers are told to
+      &ldquo;issue a new governed measurement run.&rdquo; Applicants are asked to save a UUID. This is a copy audit of
+      what is on screen, with replacement wording and a voice guide to stop it recurring.</p>
+    <div class="scope">
+      <div><b>52</b> findings <span style="opacity:.7">+ 18 minor</span></div>
+      <div><b>4</b> audiences</div>
+      <div><b>12</b> mechanical defects</div>
+      <div><b>10</b> need legal sign-off</div>
+      <div>No files changed</div>
+    </div>
+  </div>
+
+  <div class="cols">
+
+    <nav class="rail" aria-label="Contents">
+      <h2>Sections</h2>
+      <ol>
+        <li><a href="#a">Brand &amp; naming <span>6</span></a></li>
+        <li><a href="#b">Public site <span>8</span></a></li>
+        <li><a href="#c">Driver app <span>15</span></a></li>
+        <li><a href="#d">Advertiser <span>13</span></a></li>
+        <li><a href="#e">Email &amp; alerts <span>6</span></a></li>
+        <li><a href="#f">Errors &amp; system <span>4</span></a></li>
+      </ol>
+      <h2>Reference</h2>
+      <ol>
+        <li><a href="#guide">Voice guide</a></li>
+        <li><a href="#banned">Prohibited words</a></li>
+        <li><a href="#legal">Legal queue</a></li>
+      </ol>
+    </nav>
+
+    <main>
+
+      <div class="tally">
+        <div><div class="num" style="color:var(--hi)">20</div><div class="lab">Blocker</div></div>
+        <div><div class="num" style="color:var(--md)">20</div><div class="lab">High</div></div>
+        <div><div class="num" style="color:var(--lo)">12</div><div class="lab">Medium</div></div>
+        <div><div class="num">12</div><div class="lab">Defects, not taste</div></div>
+      </div>
+
+      <div class="callout">
+        <p><strong>How severity is assigned.</strong> <em>Blocker</em> means an external user — a driver, an
+          applicant, a paying advertiser — is shown something they cannot act on, cannot understand, or that
+          damages trust in the money or the measurement. <em>High</em> is comprehensible but wrong in voice.
+          <em>Medium</em> is inconsistency and polish.</p>
+        <p>Findings tagged <strong>Defect</strong> are mechanical: a raw enum reaching the screen, a slug
+          rendered as a label, a message referencing a code that is never displayed. Those are bugs and should be
+          fixed regardless of any view on tone. Everything else is a content judgement and is open to argument.</p>
+      </div>
+
+      <!-- ══════════════════════════════════════ A ══════════════════════════ -->
+      <section class="band" id="a">
+        <div class="band-head"><span class="n">Part A</span><h2>Brand and naming</h2></div>
+        <p class="band-note">The public site draws a clean line: Terrax Media is the company that sells
+          campaigns to brands; Cardvert is the driver app. Every authenticated surface then ignores that line.</p>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">A1</span><h3>Advertisers sign in to the driver app</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Terminology</span></span></header>
+            <p class="loc"><span class="aud">Advertiser</span> <code>/login</code>, all authenticated pages ·
+              <code>frontend/src/components/shell/app-shell.tsx:52–58</code>,
+              <code>frontend/src/app/login/page.tsx:30</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Cardvert // aggregate mobility measurement</p>
+                <p>[sidebar brand] Cardvert.</p>
+                <p>[landing footer] Cardvert is the Terrax Media driver app.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Terrax Media</p>
+                <p><em>Sidebar and sign-in carry Terrax Media for advertisers and admins. Cardvert branding
+                  stays on <code>/driver/*</code> only, where the landing page already places it.</em></p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>The public site tells a brand manager that Cardvert is the app their
+                drivers use. They then sign in to a product called Cardvert. Either the landing page is wrong or
+                the app is — a prospect cannot tell which, and neither can a driver.</dd></div>
+              <div><dt>Tone rationale</dt><dd>One name per audience. The buyer buys from Terrax Media; the driver
+                works in Cardvert. Anything else reads as an unfinished rebrand.</dd></div>
+              <div class="span"><dt>Legal / compliance</dt><dd>Not required — but confirm with the owner which
+                entity contracts with advertisers before changing the sign-in mark.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">A2</span><h3>A code comment used as a brand separator</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Implementation language</span></span></header>
+            <p class="loc"><span class="aud">All</span> <code>/login</code>, <code>/apply</code> ·
+              <code>frontend/src/app/login/page.tsx:30</code>, <code>frontend/src/app/apply/page.tsx:15</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Cardvert // aggregate mobility measurement</p>
+                <p>Cardvert // driver network</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Terrax Media · Moving out-of-home advertising</p>
+                <p>Cardvert · Drive and earn</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd><code>//</code> is a comment marker. It is a developer's habit
+                standing in for a typographic separator, and it appears on the two highest-traffic unauthenticated
+                pages.</dd></div>
+              <div><dt>Tone rationale</dt><dd>The middot is already the separator used everywhere else in the
+                product. Use it consistently.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">A3</span><h3>Six names for the same product</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Terminology</span></span></header>
+            <p class="loc"><span class="aud">All</span> multiple ·
+              <code>login/page.tsx:37</code>, <code>apply/page.tsx:15,20</code>,
+              <code>landing/content.ts:239</code>, <code>landing/page.tsx:359</code>,
+              <code>shell/app-shell.tsx:79,87</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>&ldquo;your command center&rdquo; · &ldquo;the driver workspace&rdquo; · &ldquo;driver network&rdquo; ·
+                  &ldquo;Sign in to the platform&rdquo; · &ldquo;Network · Advertiser&rdquo; ·
+                  &ldquo;Workspace&rdquo; · &ldquo;Terrax Media's driver app&rdquo;</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Two nouns only. <strong>Cardvert</strong> for the driver app. <strong>Terrax Media</strong>
+                  for the advertiser and admin product. Drop &ldquo;network&rdquo;, &ldquo;workspace&rdquo;,
+                  &ldquo;command center&rdquo; and &ldquo;platform&rdquo; entirely.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Command center&rdquo; is also US spelling in a product that is
+                otherwise British-English and Nigerian. &ldquo;Network&rdquo; implies a marketplace of drivers
+                that a ten-vehicle pilot does not have.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Every extra synonym is a thing the reader has to reconcile. Two
+                names, held rigidly, is the whole fix.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">A4</span><h3>Four cities claimed for a one-city pilot</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Misleading claim</span></span></header>
+            <p class="loc"><span class="aud">All, pre-auth</span> <code>/login</code> ·
+              <code>frontend/src/app/login/page.tsx:53</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Terrax measurement · Abuja · Lagos · Port Harcourt · Kano</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Terrax Media · Abuja</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>The landing page, sourced to the confirmed client answers, states a
+                controlled pilot: Abuja, 10 vehicles, 5 advertisers, 3 months. The sign-in page implies national
+                coverage. A prospect who reads both has been given two different companies.</dd></div>
+              <div><dt>Tone rationale</dt><dd>The pilot is a credible, specific story. Inflating it costs more
+                trust than it buys.</dd></div>
+              <div class="span"><dt>Legal / compliance</dt><dd><span class="legal-y">Confirm before shipping.</span>
+                An unqualified availability claim in four states is a marketing representation.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">A5</span><h3>A timezone database name shown as a place</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Defect</span></span></header>
+            <p class="loc"><span class="aud">Advertiser, Admin</span> campaign change form, payout corrections ·
+              <code>advertiser/campaigns/[campaignId]/campaign-change-panel.tsx:57,65</code>,
+              <code>admin/payouts/corrections/page.tsx:130</code>,
+              <code>admin/payouts/corrections/new-order-form.tsx:35</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>New start (Lagos time)</p>
+                <p>New end (Lagos time)</p>
+                <p>[table column] Lagos day</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>New start <em>(WAT)</em></p>
+                <p>New end <em>(WAT)</em></p>
+                <p>[table column] Campaign day <em>(WAT)</em></p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd><code>Africa/Lagos</code> is the IANA identifier for all of Nigeria.
+                It has leaked out of the data layer into labels shown to an advertiser whose campaign is running
+                in <em>Abuja</em>. It reads as a mistake, because it looks like one.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Name the zone (WAT), not the row in the tz database.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s3"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">A6</span><h3>Mixed British and American spelling</h3>
+              <span class="tags"><span class="tag t3">Medium</span><span class="tag tD">Defect</span></span></header>
+            <p class="loc"><span class="aud">All</span> report, driver track ·
+              <code>advertiser/campaigns/[campaignId]/report/page.tsx:117,181</code> vs
+              <code>driver/(portal)/track/page.tsx:59</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>&ldquo;Trips analyzed&rdquo; · &ldquo;once trips are analyzed&rdquo;</p>
+                <p>&ldquo;Route analysed&rdquo; · &ldquo;Colour&rdquo; · &ldquo;Licence&rdquo; ·
+                  &ldquo;itemised&rdquo; · &ldquo;organization&rdquo;</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>British English throughout: <em>analysed, colour, licence, itemised, organisation,
+                  recognise</em>. Keep <code>organization</code> in API field names; change only the visible label.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>Nigerian business English is British. Mixing the two inside one report
+                page is the single clearest signal that copy was assembled rather than written.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Pick the locale of the market, not the locale of the framework
+                docs.</dd></div>
+            </dl>
+          </div>
+        </article>
+      </section>
+
+      <!-- ══════════════════════════════════════ B ══════════════════════════ -->
+      <section class="band" id="b">
+        <div class="band-head"><span class="n">Part B</span><h2>Public site and driver application</h2></div>
+        <p class="band-note">The Terrax landing page is the strongest writing in the repository — concrete,
+          two-sided, honest about the pilot. It is undermined by traceability metadata printed on the page, and
+          by an application funnel written as a legal disclaimer.</p>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">B1</span><h3>Internal decision-log references printed on the marketing site</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Internal identifier</span></span></header>
+            <p class="loc"><span class="aud">Public</span> <code>/landing</code> §What we do, §How it works ·
+              <code>frontend/src/app/landing/content.ts:111,116,121</code>,
+              <code>frontend/src/app/landing/steps.tsx:53</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Q16 · one active campaign per vehicle</p>
+                <p>Q5, Q17 · verified hours and approved installation evidence</p>
+                <p>Q25 · platform-managed production</p>
+                <p>Confirmed in client answers Q1, Q2, Q13, Q26.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>One brand per car, for the whole campaign.</p>
+                <p>Hours count only when the car is genuinely working.</p>
+                <p>Printing, fitting and permits handled by us.</p>
+                <p><em>Delete the &ldquo;Confirmed in client answers&hellip;&rdquo; line entirely. Keep the
+                  Q-references as source comments in <code>content.ts</code>, where they belong.</em></p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Q16&rdquo; is a row in a delivery questionnaire. It is
+                rendered on the public marketing page under every service claim and under every step of
+                &ldquo;How it works&rdquo;. A visitor sees footnote markers that resolve to nothing.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Provenance is real and worth keeping — in the source file's
+                docblock, which already does exactly this well. It is not a visitor-facing artefact.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">B2</span><h3>The application page's headline is a denial</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Voice</span></span></header>
+            <p class="loc"><span class="aud">Driver applicant</span> <code>/apply</code> ·
+              <code>frontend/src/app/apply/page.tsx:26–29,45–48,51–54</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>[eyebrow] Application journey</p>
+                <p>[h2] Application receipt is not work approval</p>
+                <p>After admin review and invitation, sign in to the driver app. The status reference and
+                  onboarding code never grant a session, campaign work, or tracking authority.</p>
+                <p>No password, work access, assignment, payout or document access is created by these forms.
+                  Vehicle approval never assigns campaign work automatically.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>[eyebrow] What happens next</p>
+                <p>[h2] Five steps to your first campaign</p>
+                <p>We review every application by hand. If you are approved, we will email you an invitation to
+                  set up your Cardvert sign-in — that invitation is the point at which you can start earning.</p>
+                <p><em>Delete the second paragraph. It restates the first as a set of negations.</em></p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>Three of the four blocks on this page tell the applicant what they
+                have <em>not</em> been granted. The page's job is to get a qualified driver to submit documents;
+                it opens by pre-emptively rejecting them.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Managing expectations is right. Do it once, forwards
+                (&ldquo;here is what happens next&rdquo;), not four times backwards.</dd></div>
+              <div class="span"><dt>Legal / compliance</dt><dd><span class="legal-y">Confirm before shipping.</span>
+                The negations may be deliberate anti-misrepresentation wording. Legal should approve the
+                condensed version rather than have it removed unilaterally.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">B3</span><h3>A build-status note published to applicants</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Delivery process</span></span></header>
+            <p class="loc"><span class="aud">Driver applicant</span> <code>/apply</code>, person &amp; payee form ·
+              <code>frontend/src/app/apply/person-payee-form.tsx:163–166</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Live onboarding remains unavailable until Terrax Media supplies approved legal/privacy wording
+                  and adopts the production storage, scanner, key-custody and bank-provider gates.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>If the form is not accepting submissions: <em>&ldquo;Driver sign-ups are not open yet. Leave
+                  your details above and we will email you the moment they are.&rdquo;</em></p>
+                <p>If it is accepting them: <em>delete this line.</em></p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>This is an internal readiness checklist — key custody, scanner,
+                bank provider — rendered on a public form that asks a Nigerian driver for their NIN and bank
+                account. It tells a stranger that the company has not yet secured its own privacy wording,
+                immediately above the field where they type their national identity number.</dd></div>
+              <div><dt>Tone rationale</dt><dd>A user needs to know whether they can proceed, and what to do
+                otherwise. They never need the list of internal dependencies standing between us and
+                launch.</dd></div>
+              <div class="span"><dt>Legal / compliance</dt><dd><span class="legal-y">Escalate.</span> Independent
+                of wording: a form collecting NIN and bank details while the page itself states that privacy
+                approval is outstanding is a compliance question, not a copy question.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">B4</span><h3>Applicants are asked to copy down a UUID</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Internal identifier</span></span></header>
+            <p class="loc"><span class="aud">Driver applicant</span> <code>/apply</code>, vehicle form ·
+              <code>frontend/src/app/apply/vehicle-form.tsx:119–123,172–176</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>[field] Existing vehicle ID (only when revising)</p>
+                <p>[placeholder] Leave blank for your first submission</p>
+                <p>Save vehicle ID 8f14e45f-ceea-467a-9e2f-1c0d3b2a5e77 for a later revision.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p><em>Remove the field.</em> Look the vehicle up from the onboarding code and the plate number
+                  already supplied.</p>
+                <p>Saved. We have your Toyota Corolla, plate ABC-123-XY. If you need to send new documents for
+                  this car, come back here with the same code and we will update it.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>A database primary key is handed to a driver applicant as something
+                to store and retype. Nobody will. The plate number is a natural key the applicant already knows
+                and has already entered.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Never ask a person to hold state the system already holds. If an
+                identifier must be shown, use one from their world.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">B5</span><h3>&ldquo;Person &amp; payee&rdquo;, &ldquo;protected evidence&rdquo;, &ldquo;NIN projection&rdquo;</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Implementation language</span></span></header>
+            <p class="loc"><span class="aud">Driver applicant</span> <code>/apply</code> ·
+              <code>person-payee-form.tsx:92–93,173–175</code>, <code>vehicle-form.tsx:105–106,169–171</code>,
+              <code>apply/page.tsx:35</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Person &amp; payee stage</p>
+                <p>Submit protected onboarding evidence</p>
+                <p>Person/payee evidence version 2 is pending review. NIN projection: ******1234.</p>
+                <p>Vehicle evidence version 1 for ABC-123-XY is pending_review.</p>
+                <p>[button] Protecting and submitting&hellip;</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Your details and payment account</p>
+                <p>Send your ID and bank details</p>
+                <p>Received. We have your NIN ending 1234 and your bank details. A reviewer will check them
+                  within two working days.</p>
+                <p>Received. We have the documents for ABC-123-XY and will review them.</p>
+                <p>[button] Sending securely&hellip;</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Payee&rdquo;, &ldquo;evidence&rdquo;, &ldquo;version&rdquo; and
+                &ldquo;projection&rdquo; are the internal record model. &ldquo;Projection&rdquo; in particular is
+                a data-modelling term for a derived read view; to the applicant it means nothing at all. And
+                <code>pending_review</code> reaches the screen as a raw enum.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Say what the person sent and what happens to it. Version numbers
+                are the system's business.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">B6</span><h3>Meta-commentary explaining a design decision to the user</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">AI voice</span></span></header>
+            <p class="loc"><span class="aud">Driver applicant</span> <code>/apply</code>, status check ·
+              <code>frontend/src/app/apply/application-forms.tsx:110–112,121–123</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Status responses are intentionally limited to the pending review state.</p>
+                <p>Application status: pending review. Person/payee stage: pending_review. Vehicle stage: not_submitted.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Enter the reference from your confirmation email to see where your application has got to.</p>
+                <p>Still with us. Your details are in the queue for review; we have not yet had your vehicle
+                  documents. We will email you either way.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Intentionally limited&rdquo; is the product defending its own
+                implementation to the person using it — the signature move of copy written by whoever wrote the
+                endpoint. It also tells the applicant, uselessly, that the answer is deliberately unhelpful. The
+                two stage values below are raw enums.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Never explain a constraint the user did not ask about. Say what
+                you can tell them, then what happens next.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s3"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">B7</span><h3>&ldquo;If the cohort is accepting applications&rdquo;</h3>
+              <span class="tags"><span class="tag t3">Medium</span><span class="tag tD">Voice</span></span></header>
+            <p class="loc"><span class="aud">Driver applicant</span> <code>/apply</code> ·
+              <code>frontend/src/app/apply/application-forms.tsx:41–44</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Share the minimum contact details. An operations reviewer will contact you if the cohort is
+                  accepting applications.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Start with the basics — five fields. If your details fit the current pilot intake, we will
+                  email you within two working days.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;The minimum contact details&rdquo; frames the form as a
+                grudging concession. &ldquo;Cohort&rdquo; is programme-management jargon, and the conditional
+                &ldquo;if&rdquo; with no timeframe reads as a brush-off.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Give effort (&ldquo;five fields&rdquo;) and a timeframe. Both are
+                things the applicant can hold you to.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s3"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">B8</span><h3>Form fields shaped by the API, not the applicant</h3>
+              <span class="tags"><span class="tag t3">Medium</span><span class="tag tD">Defect</span></span></header>
+            <p class="loc"><span class="aud">Driver applicant</span> <code>/apply</code> ·
+              <code>application-forms.tsx:76–81</code>, <code>person-payee-form.tsx:140–147</code>,
+              <code>vehicle-form.tsx:126–133</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Country code &nbsp; [NG] &nbsp; maxLength 2</p>
+                <p>Plate country code &nbsp; [NG]</p>
+                <p>Bank code &nbsp; numeric, exactly 3</p>
+                <p>Service city</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p><em>Drop both country-code fields</em> — default to Nigeria for a Nigerian pilot.</p>
+                <p>Bank &nbsp; <em>[dropdown of Nigerian banks]</em></p>
+                <p>City you drive in</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Bank code&rdquo; asks a driver for the three-digit NIBSS
+                institution code. Almost nobody knows theirs. &ldquo;Country code&rdquo; asks for ISO 3166 in a
+                single-country pilot. &ldquo;Service city&rdquo; is the column name.</dd></div>
+              <div><dt>Tone rationale</dt><dd>A form should ask for what the person has, not what the schema
+                stores. Getting a bank wrong is a failed payout.</dd></div>
+            </dl>
+          </div>
+        </article>
+      </section>
+
+      <!-- ══════════════════════════════════════ C ══════════════════════════ -->
+      <section class="band" id="c">
+        <div class="band-head"><span class="n">Part C</span><h2>Cardvert &mdash; the driver app</h2></div>
+        <p class="band-note">This is the worst-affected surface and the highest-stakes one: it is used one-handed,
+          in traffic, by people whose weekly income depends on understanding it. It currently speaks in the
+          vocabulary of a distributed-systems design document.</p>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">C1</span><h3>The driver's status is a shouted enum</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Defect</span></span></header>
+            <p class="loc"><span class="aud">Driver</span> <code>/driver</code>, <code>/driver/track</code>,
+              <code>/driver/assignments</code> ·
+              <code>frontend/src/lib/driver/campaign-journey.ts:58</code>,
+              <code>components/driver/campaign-journey-panel.tsx:44,58</code>,
+              <code>driver/(portal)/page.tsx:73–81</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Standing<br>READY &nbsp;|&nbsp; TRACKING &nbsp;|&nbsp; PENDING &nbsp;|&nbsp; BLOCKED &nbsp;|&nbsp; DEGRADED</p>
+                <p>server verified &nbsp;/&nbsp; not work-ready</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Ready to drive &nbsp;·&nbsp; Trip running &nbsp;·&nbsp; Waiting on us &nbsp;·&nbsp;
+                  Action needed &nbsp;·&nbsp; Can't check right now</p>
+                <p><em>Sub-label:</em> All checks passed / Something's outstanding</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>The union type is rendered directly. &ldquo;DEGRADED&rdquo; is a
+                monitoring term — a driver reads it as a judgement about themselves. &ldquo;BLOCKED&rdquo; in caps
+                is alarming and does not say by what or what to do.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Status labels should name the driver's situation, not the
+                system's. The distinction that matters to them is: can I earn right now, and if not, is it me or
+                you?</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">C2</span><h3>The app narrates its own epistemic state</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">AI voice</span></span></header>
+            <p class="loc"><span class="aud">Driver</span> journey summary, all driver pages ·
+              <code>frontend/src/lib/driver/campaign-journey.ts:396,412,419,389</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Backend onboarding, vehicle, offer and activation authority are current.</p>
+                <p>Some authority could not be verified. Cardvert will not claim readiness.</p>
+                <p>Campaign work remains unavailable until every server-governed stage completes.</p>
+                <p>A server-confirmed trip is in progress. Keep Cardvert visible on screen.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>You're cleared to drive. Start a trip whenever you set off.</p>
+                <p>We can't check your status right now. Try again when you have signal — don't start a trip
+                  until this clears.</p>
+                <p>A few things still need finishing before you can start earning. They're listed below.</p>
+                <p>Trip running. Keep this screen on while you drive.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Backend&rdquo; and &ldquo;server-governed&rdquo; are
+                architecture. &ldquo;Cardvert will not claim readiness&rdquo; is the product describing its own
+                reasoning about its own confidence — pure machine self-commentary, and the clearest single
+                example in the codebase.</dd></div>
+              <div><dt>Tone rationale</dt><dd>The driver needs one of three answers: go, wait, or fix something.
+                Never explain <em>why the system cannot be sure</em>; state the consequence and the next step.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">C3</span><h3>Internal invariant violations shown to the driver</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Implementation language</span></span></header>
+            <p class="loc"><span class="aud">Driver</span> campaign journey steps ·
+              <code>frontend/src/lib/driver/campaign-journey.ts:255–258,303–307,309–313,318–322</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Offer authority conflict — More than one active assignment was reported.</p>
+                <p>Activation authority conflict — Assignment history looks active but canonical activation is absent.</p>
+                <p>Assignment sources disagree; a new trip is withheld.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Something doesn't add up on your account</p>
+                <p>We've found a problem with your campaign assignment and can't let you start a trip until it's
+                  sorted. We've flagged it to the team — call [ops number] if you need it fixed today.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>These states occur when the system's own data is inconsistent. The
+                driver is shown the internal contradiction — &ldquo;canonical activation is absent&rdquo; — and
+                given no route to resolution. They cannot fix it, and there is no one named to contact.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Own the fault, don't describe it. Every blocking state a driver can
+                hit must end in an action: a number to call, a person to chase, or a wait with a duration.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">C4</span><h3>Nine accounting tiles instead of one number</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Voice</span></span></header>
+            <p class="loc"><span class="aud">Driver</span> <code>/driver/earnings</code> ·
+              <code>frontend/src/app/driver/(portal)/earnings/page.tsx:84–108,116–120</code>,
+              <code>driver/(portal)/page.tsx:107,120–125</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Batch-payable · Pending · Released · Available ledger · Cash paid · Paid ledger ·
+                  Carried debt · Voided · Lifetime earned · Ledger entries</p>
+                <p>Recent page: 2 held · 3 other pending · 4 released · 9 paid</p>
+                <p>Batch-payable earnings &nbsp; ₦0<br>₦0 pending · ₦0 carried debt · ₦0 lifetime</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p><strong>Next payout &nbsp; ₦18,400</strong><br>Paid to your bank on Friday</p>
+                <p>Still being checked &nbsp; ₦2,100<br>Under review &nbsp; ₦900 &nbsp;
+                  <span class="btn-ex">Why?</span></p>
+                <p>Paid to date &nbsp; ₦146,200</p>
+                <p><em>Move &ldquo;carried debt&rdquo;, &ldquo;voided&rdquo; and the ledger counts behind a
+                  &ldquo;Full breakdown&rdquo; link.</em></p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>Ten money tiles, six of which are internal ledger states
+                (&ldquo;batch-payable&rdquo;, &ldquo;available ledger&rdquo;, &ldquo;paid ledger&rdquo;) that a
+                driver cannot distinguish. &ldquo;Carried debt&rdquo; is shown in alarm red with no explanation
+                of what it is or how it arose. &ldquo;Recent page:&rdquo; is pagination language.</dd></div>
+              <div><dt>Tone rationale</dt><dd>The driver has one question: how much am I getting, and when? Lead
+                with that answer. Everything else is a second screen.</dd></div>
+              <div class="span"><dt>Legal / compliance</dt><dd><span class="legal-y">Confirm.</span> How
+                deductions and carried debt are disclosed to drivers is contractual, not just editorial.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">C5</span><h3>A SHA-256 digest and a raw JSON dump on the driver's job card</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Internal identifier</span></span></header>
+            <p class="loc"><span class="aud">Driver</span> <code>/driver/assignments</code> ·
+              <code>frontend/src/app/driver/(portal)/assignments/page.tsx:199,247–252,258–271</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Frozen offer terms</p>
+                <p>Creative: Full wrap — amber · 3b1f9a4c8e2d7b06&hellip;</p>
+                <p>Evidence 9f2c1ad4e8b73206f5c1&hellip;</p>
+                <p>▸ View complete frozen snapshot &nbsp;<em>[expands to raw JSON]</em></p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>The terms you accepted</p>
+                <p>Base ₦1,200/hr · Premium zone ₦1,800/hr · Up to 8 hrs paid per day<br>
+                  Abuja · 12 Sep – 12 Dec · Full wrap, amber</p>
+                <p><em>These terms are locked for the whole campaign and cannot be changed.</em></p>
+                <p><span class="btn-ex">Download as PDF</span></p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>The tamper-evidence hash and the full offer JSON are rendered on the
+                card a driver taps to decide whether to accept work. The digest is meaningless without a verifier;
+                the JSON dump is a debugging affordance shipped to production.</dd></div>
+              <div><dt>Tone rationale</dt><dd>The <em>promise</em> the hash encodes — &ldquo;these terms cannot
+                change&rdquo; — is genuinely reassuring and should be stated in words. The hash itself is not the
+                promise, it is the mechanism.</dd></div>
+              <div class="span"><dt>Legal / compliance</dt><dd><span class="legal-y">Confirm.</span> If the
+                immutable snapshot is the contractual record, legal should specify the retrievable form — a PDF
+                or emailed copy — before the raw JSON is removed.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">C6</span><h3>The live tracking screen reads as a network console</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Implementation language</span></span></header>
+            <p class="loc"><span class="aud">Driver</span> <code>/driver/track</code>, during a trip ·
+              <code>frontend/src/app/driver/(portal)/track/trip-tracker.tsx:919–952</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>● active</p>
+                <p>Pings synced &nbsp; 412<br>Buffered &nbsp; 7<br>GPS &nbsp; ±12m fix<br>
+                  Diagnostics &nbsp; 2 retained</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>● Recording your trip</p>
+                <p>Time counted &nbsp; 2h 14m<br>Zone &nbsp; Premium (Wuse II)<br>
+                  Location &nbsp; Good signal<br>Saved on this phone &nbsp; 7 min not yet sent</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Pings&rdquo;, &ldquo;buffered&rdquo; and
+                &ldquo;diagnostics … retained&rdquo; are the sync queue's internals. <code>{assessment.health}</code>
+                is rendered raw, so the primary status of a paid working session displays as the lowercase word
+                &ldquo;active&rdquo; or &ldquo;degraded&rdquo;. None of these four numbers tells the driver the
+                one thing they want mid-shift: how much have I earned so far.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Show the driver's units — minutes, zones, naira — not the
+                transport layer's. Sync state matters only as &ldquo;is any of my time at risk?&rdquo;.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">C7</span><h3>Trip errors written for whoever will debug them</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Implementation language</span></span></header>
+            <p class="loc"><span class="aud">Driver</span> <code>/driver/track</code> error banner ·
+              <code>trip-tracker.tsx:222,236,256,346,371,386,398,454,500,512,612,821,854,865</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>This browser cannot provide the exclusive tracking lock Cardvert requires.</p>
+                <p>Cardvert could not reconcile trip authority; the writer remains reserved.</p>
+                <p>End stopped because Cardvert can no longer vouch for the durable watermark.</p>
+                <p>Some GPS evidence is unsynced or diagnostically retained. End with an incomplete client
+                  watermark?</p>
+                <p>Cardvert did not return a signed GPS evidence receipt.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>This browser can't run Cardvert safely. Open it from the Cardvert icon on your home screen.</p>
+                <p>We're double-checking this trip. Don't close the app — this usually takes a few seconds.</p>
+                <p>We can't finish this trip safely yet. Stay on this screen; we're saving your time, not losing it.</p>
+                <p>Some of this trip hasn't reached us yet. End it now and we'll send the rest when you're back
+                  online — or wait for signal first. &nbsp;<span class="btn-ex">End anyway</span>
+                  <span class="btn-ex">Wait</span></p>
+                <p>Your last few minutes haven't been confirmed. We'll keep trying — your time is saved on this
+                  phone.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Exclusive tracking lock&rdquo;, &ldquo;the writer remains
+                reserved&rdquo;, &ldquo;durable watermark&rdquo; and &ldquo;signed evidence receipt&rdquo; are
+                internal protocol terms. Every one of these appears at the moment a driver's paid time is at
+                risk — the highest-anxiety point in the product.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Two obligations in a trip error: say whether their <em>time and
+                money are safe</em>, and give one concrete action. The engineering reason is never one of the two.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">C8</span><h3>&ldquo;Reconcile trip&rdquo; as a primary button</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Implementation language</span></span></header>
+            <p class="loc"><span class="aud">Driver</span> <code>/driver/track</code> ·
+              <code>trip-tracker.tsx:964–971,990–996</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>[button] Reconcile trip</p>
+                <p>[button] Reconciling…</p>
+                <p>[button] ▶ Start trip &nbsp; / &nbsp; ■ End trip</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p><span class="btn-ex">Check trip status</span></p>
+                <p><span class="btn-ex">Checking…</span></p>
+                <p><em>Keep Start trip / End trip — they are good.</em></p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Reconcile&rdquo; is an accounting and distributed-systems verb.
+                It appears in the same slot as &ldquo;End trip&rdquo;, so the driver's only cue is that the button
+                changed to a word they don't know at a moment something has gone wrong.</dd></div>
+              <div><dt>Tone rationale</dt><dd>A button names the outcome in the user's language. &ldquo;Check&rdquo;
+                is honest about what happens and carries no risk of being read as destructive.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">C9</span><h3>Governance vocabulary in the onboarding steps</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Compliance jargon</span></span></header>
+            <p class="loc"><span class="aud">Driver</span> journey panel, all driver pages ·
+              <code>frontend/src/lib/driver/campaign-journey.ts:83,89,131,145,159,187,196,380,372</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>An application receipt is not approval or work access.</p>
+                <p>The current protected submission is approved.</p>
+                <p>Submit a new governed revision before campaign work.</p>
+                <p>A current approved car and evidence revision are required.</p>
+                <p>Complete the governed stages above before a new trip can start.</p>
+                <p>Start remains subject to the live PWA capability and server checks.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>We've got your application. We'll email you when it's reviewed.</p>
+                <p>Your ID and bank details are approved.</p>
+                <p>Send us up-to-date documents and we'll review them again.</p>
+                <p>We need an approved car with current documents before you can be offered work.</p>
+                <p>Finish the steps above and you'll be able to start a trip.</p>
+                <p>You're ready. We'll run a last check on location and signal when you tap Start.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Governed revision&rdquo;, &ldquo;protected submission&rdquo;
+                and &ldquo;evidence revision&rdquo; are the document-versioning model. &ldquo;PWA&rdquo; is the
+                delivery technology. None of it is defined anywhere the driver can see.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Onboarding copy is the driver's first read of whether this company
+                is competent and fair. Governance vocabulary reads as evasion even when the underlying rigour is
+                real.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">C10</span><h3>&ldquo;Payout v3&rdquo; and &ldquo;frozen tier breakdown&rdquo; on the payslip</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Internal identifier</span></span></header>
+            <p class="loc"><span class="aud">Driver</span> <code>/driver/earnings/trips/[tripId]</code> ·
+              <code>driver/(portal)/earnings/trips/[tripId]/page.tsx:159–170,238</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Payout v3 · frozen base/premium terms from assignment acceptance</p>
+                <p>Computed under the previous per-km formula.</p>
+                <p>[heading] Frozen tier breakdown &nbsp;/&nbsp; Base tier &nbsp;/&nbsp; Premium tier</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Paid at the rates you accepted for this campaign</p>
+                <p>Paid under the older per-kilometre rate, before we moved to hourly.</p>
+                <p>[heading] How this was worked out &nbsp;/&nbsp; Base zone &nbsp;/&nbsp; Premium zone</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>A formula version number is printed on the driver's earnings
+                breakdown. &ldquo;Frozen&rdquo; and &ldquo;tier&rdquo; are internal; the landing page and the
+                offer both say <em>zone</em>, so the payslip contradicts both.</dd></div>
+              <div><dt>Tone rationale</dt><dd>One vocabulary for pay, from advert to offer to payslip: base zone,
+                premium zone, excluded. Never version numbers.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">C11</span><h3>&ldquo;Mutation controls are hidden&rdquo;</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Implementation language</span></span></header>
+            <p class="loc"><span class="aud">Driver</span> offline state, trip earnings ·
+              <code>driver/(portal)/earnings/trips/[tripId]/page.tsx:141–144,113–117</code>,
+              <code>driver/(portal)/earnings/page.tsx:42–46</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Reconnect to verify the latest payout, hold and dispute outcome. Previously loaded review
+                  details and mutation controls are hidden.</p>
+                <p>Cardvert verified the trip calculation but could not verify current hold authority, so the
+                  amount is withheld from this view.</p>
+                <p>Cardvert could not verify the current ledger, campaign history, or hold authority. No saved
+                  balance is shown as current.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>You're offline. We'll show your earnings again when you reconnect — we're hiding old figures
+                  rather than risk showing you an out-of-date amount.</p>
+                <p>We can't confirm whether this trip is still under review, so we're not showing an amount yet.
+                  Pull down to retry.</p>
+                <p>We can't load your earnings right now. Nothing is lost — try again in a moment.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Mutation controls&rdquo; is GraphQL/CRUD terminology for
+                &ldquo;buttons&rdquo;. &ldquo;Hold authority&rdquo; and &ldquo;shown as current&rdquo; describe
+                the caching policy. The underlying behaviour — refusing to show a stale balance — is genuinely
+                good and worth saying plainly.</dd></div>
+              <div><dt>Tone rationale</dt><dd>When you do something careful on the user's behalf, say what you
+                did and why in their terms. That converts an obstacle into evidence of trustworthiness.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">C12</span><h3>A diagnostic console shipped inside the driver app</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Developer surface</span></span></header>
+            <p class="loc"><span class="aud">Driver</span> <code>/driver/capabilities</code> ·
+              <code>driver/(portal)/capabilities/page.tsx:5</code>,
+              <code>driver/(portal)/capabilities/capability-probe.tsx:230–306</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>[tab title] PWA capability probe</p>
+                <p>R14-A · contract r14-a-v2 &nbsp;|&nbsp; Production PWA capability probe</p>
+                <p>Test BFF session &nbsp;|&nbsp; Test Web Locks &nbsp;|&nbsp; WAKE_LOCK_DENIED</p>
+                <p>Redacted report &nbsp;<em>[raw JSON block]</em></p>
+                <p>Automated build evidence exercises this contract. Physical Android/iPhone journeys, route
+                  accuracy and battery measurements are still required post-build&hellip;</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p><em>Move the route out of the driver portal — put it behind an admin or staff-only path, or
+                  gate it on an env flag. If a driver-facing version is needed, it is a different page:</em></p>
+                <p>[h1] Check your phone is ready</p>
+                <p>Location &nbsp;✓ &nbsp; Screen stays on &nbsp;✓ &nbsp; Works offline &nbsp;✓<br>
+                  Everything looks good. You're ready to drive.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>The page sits inside the authenticated driver layout, under the
+                driver's own tab bar and header. Any driver who reaches the URL gets contract version strings,
+                error codes, a JSON report with a Copy button, and a note stating that on-device testing has not
+                been done. It is not linked, but it is shipped.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Diagnostics belong to staff. A driver-facing readiness check, if
+                wanted, answers one question in three ticks.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">C13</span><h3>Anti-fraud rationale aimed at the driver</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Voice</span></span></header>
+            <p class="loc"><span class="aud">Driver</span> <code>/driver/assignments</code>, display proof ·
+              <code>driver/(portal)/assignments/installation-evidence-actions.tsx:104–113,168–172</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Fresh display proof required</p>
+                <p>Complete the current-photo challenge before 14/09/2026, 18:00. This verifies fresh
+                  assignment-bound evidence; phone GPS is not treated as proof that the branded vehicle moved.</p>
+                <p>[button] Complete required display challenge</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Photo needed by 6pm today</p>
+                <p>Take a quick photo of the advert on your car. We ask every driver for one from time to time so
+                  we can show the brand their campaign is running.</p>
+                <p><span class="btn-ex">Take photo</span></p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Challenge&rdquo; is a cryptographic-protocol term that also
+                reads, in plain English, as confrontation. The second sentence explains the fraud model to the
+                person it is designed to catch — it tells an honest driver they are suspected.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Give the reason that is true and generous: the advertiser is paying
+                for proof the campaign ran. Same request, no accusation.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s3"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">C14</span><h3>&ldquo;ops&rdquo; as a character in the driver's app</h3>
+              <span class="tags"><span class="tag t3">Medium</span><span class="tag tD">Terminology</span></span></header>
+            <p class="loc"><span class="aud">Driver</span> empty states ·
+              <code>driver/(portal)/assignments/page.tsx:153–156,289–292</code>,
+              <code>driver/(portal)/profile/page.tsx:121–123</code>,
+              <code>lib/driver/campaign-journey.ts:97,203</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Campaign offers appear here once ops assigns your vehicle.</p>
+                <p>No vehicles registered — ops adds vehicles to your profile.</p>
+                <p>Operations has not activated this driver profile.</p>
+                <p>Installation evidence is waiting for the operations policy to be configured.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Campaign offers will show up here once we match you to one.</p>
+                <p>No cars on your profile yet. We add these once your documents are approved.</p>
+                <p>Your profile is still being reviewed.</p>
+                <p>Photo uploads aren't switched on for your campaign yet — we'll let you know when they are.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Ops&rdquo; is an internal team abbreviation. The last item is
+                worse: it exposes a missing configuration as if the driver should understand what a policy is,
+                and gives no timeframe.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Cardvert speaks as &ldquo;we&rdquo;. The driver has one
+                counterparty, not an org chart.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s3"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">C15</span><h3>Raw status enums as chips throughout the driver app</h3>
+              <span class="tags"><span class="tag t3">Medium</span><span class="tag tD">Defect</span></span></header>
+            <p class="loc"><span class="aud">Driver</span> multiple ·
+              <code>driver/(portal)/profile/page.tsx:69,133</code>,
+              <code>driver/(portal)/page.tsx:180</code>, <code>track/page.tsx:107</code>,
+              <code>earnings/trips/[tripId]/page.tsx:290</code>,
+              <code>assignments/installation-evidence-actions.tsx:117</code>,
+              <code>earnings/trips/[tripId]/page.tsx:68</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>pending &nbsp;|&nbsp; active &nbsp;|&nbsp; suspended &nbsp;(profile, vehicle)</p>
+                <p>available &nbsp;|&nbsp; voided &nbsp;|&nbsp; reversed &nbsp;(ledger rows)</p>
+                <p>Latest review: pending review &nbsp;(<code>replaceAll("_", " ")</code>, no label map)</p>
+                <p>Required view label: <code>rear_windscreen</code> → &ldquo;Rear windscreen&rdquo;</p>
+                <p>Exclusion fallback: <code>reason.replace(/_/g, " ")</code></p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Add an explicit label map for every enum reaching a chip, as
+                  <code>lib/campaigns/status.ts</code> and <code>earnings-presentation.ts</code> already do
+                  well.</p>
+                <p>Under review · Approved · On hold — never the wire value, and never a fallback that just
+                  strips underscores.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>Mechanical: the schema union is interpolated straight into JSX. The
+                underscore-stripping fallbacks mean any enum value added server-side appears on a driver's screen
+                untranslated, with no build-time error.</dd></div>
+              <div><dt>Tone rationale</dt><dd>An exhaustive <code>Record&lt;Status, string&gt;</code> makes the
+                compiler force a label for every new state. The project already does this in three places —
+                the pattern exists, it is just not applied consistently.</dd></div>
+            </dl>
+          </div>
+        </article>
+      </section>
+
+      <!-- ══════════════════════════════════════ D ══════════════════════════ -->
+      <section class="band" id="d">
+        <div class="band-head"><span class="n">Part D</span><h2>Advertiser workspace</h2></div>
+        <p class="band-note">The measurement rigour here is real and is a genuine differentiator. It is
+          presented in the vocabulary of the audit that produced it, so the customer sees hashes and gate
+          decisions rather than the confidence those things are supposed to buy.</p>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">D1</span><h3>Cryptographic provenance on the customer's report</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Internal identifier</span></span></header>
+            <p class="loc"><span class="aud">Advertiser</span> Campaign Performance Analysis ·
+              <code>advertiser/campaigns/[campaignId]/report/measurement-authority.tsx:116–126,137,182–190</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>[panel] Frozen measurement authority &nbsp; [chip] reproducible</p>
+                <p>12 Sep → 12 Dec · no client recalculation</p>
+                <p>1,204 governed trips · 431820s active tracking</p>
+                <p>Run 4f8c2a91-6b30-4d7e-a2f1-90c5e8d4b117<br>
+                  result 9a2f4c8e1b06d3f7… · proof 71e0c4a9f2b83d15… · report 3c9d70b2e4a16f88…</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>[panel] Verified results &nbsp; [chip] Locked</p>
+                <p>12 Sep – 12 Dec · These figures are fixed and will not change</p>
+                <p>1,204 verified trips · 119h 57m of tracked driving</p>
+                <p><em>Move the run ID and the three digests behind a &ldquo;Verification details&rdquo;
+                  disclosure, or into the downloadable PDF, where an auditor would look for them.</em></p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>Three truncated SHA-256 digests and a UUID sit at the bottom of the
+                report a brand manager takes into a review meeting. <code>431820s</code> is raw seconds.
+                &ldquo;Frozen&rdquo;, &ldquo;authority&rdquo;, &ldquo;governed&rdquo; and &ldquo;no client
+                recalculation&rdquo; describe the mechanism rather than the guarantee.</dd></div>
+              <div><dt>Tone rationale</dt><dd>The guarantee is &ldquo;these numbers are locked and independently
+                checkable&rdquo;. Say that. Keep the digests for the people who verify them; a customer never
+                will from a web page.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">D2</span><h3>The headline metric is mostly a disclaimer</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Voice</span></span></header>
+            <p class="loc"><span class="aud">Advertiser</span> report headline stats, dashboard ·
+              <code>report/measurement-headline-stats.tsx:35–58</code>,
+              <code>advertiser/page.tsx:28–37</code>,
+              <code>advertiser/campaigns/[campaignId]/page.tsx:143–151</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Exposure score &nbsp; 68.42 / 100<br>
+                  exposure_v1 · 40 scored routes · 2 missing · formula a41c9d8e2b70… · input 5f30b1a7c4e9…<br>
+                  Synthetic uncalibrated operational index; not an impression estimate, audience count,
+                  statistical confidence interval or attribution result.</p>
+                <p>Model confidence diagnostic &nbsp; 0.81<br>
+                  Formula diagnostic, not a statistical confidence interval</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Exposure score &nbsp; 68 / 100<br>
+                  Our own index of how much road-side attention this campaign was in a position to earn. Based on
+                  40 of 42 routes. &nbsp;<span class="btn-ex">How we calculate this</span></p>
+                <p>Data completeness &nbsp; 81%<br>
+                  How much of the campaign we could measure directly rather than estimate.</p>
+                <p><em>Move &ldquo;not an impression estimate or audience count&rdquo; into the linked
+                  methodology note, once, in full.</em></p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>The caveat is four times the length of the number and lists four
+                things the metric <em>isn't</em> before saying what it is. Two content hashes sit inside a stat
+                tile. Meanwhile &ldquo;Model confidence diagnostic&rdquo; is a metric whose own subtitle
+                explains that its name is misleading — which is a sign the name is wrong.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Refusing to overclaim is the product's strongest asset. Deliver it
+                as a positive definition plus one link, not as a stack of negations on the dashboard.</dd></div>
+              <div class="span"><dt>Legal / compliance</dt><dd><span class="legal-y">Confirm before shipping.</span>
+                The disclaimer wording is a measurement-claim boundary. Legal must approve any condensed form and
+                the placement of the full text.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">D3</span><h3>Error screens instructing the customer to run a backend job</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Developer instruction</span></span></header>
+            <p class="loc"><span class="aud">Advertiser</span> report, map ·
+              <code>report/measurement-authority.tsx:204–229</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>[eyebrow] Fail-closed reporting state</p>
+                <p>Frozen analysis failed its integrity check — No campaign result is shown. Issue a new governed
+                  measurement run after correcting the source authority.</p>
+                <p>MEASUREMENT_RUN_INTEGRITY_FAILURE</p>
+                <p>Live analysis is unavailable — The approved reporting method and live-use gates are not
+                  complete for this deployment.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>[eyebrow] Report unavailable</p>
+                <p>We're holding this report back<br>Our checks flagged an inconsistency in the underlying data,
+                  so we won't show you figures we can't stand behind. Our team has been alerted and will contact
+                  you. &nbsp;<span class="btn-ex">Email your account manager</span></p>
+                <p><em>Keep the code, but label it: &ldquo;Reference: MEASUREMENT_RUN_INTEGRITY_FAILURE&rdquo;.</em></p>
+                <p>Reporting for this campaign isn't switched on yet. We'll email you as soon as your first
+                  report is ready.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Issue a new governed measurement run&rdquo; is an instruction
+                only an engineer can carry out, given to a paying customer looking for their campaign results.
+                &ldquo;Fail-closed&rdquo; is an engineering property. &ldquo;Not complete for this
+                deployment&rdquo; tells the customer the product is unfinished.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Withholding results rather than showing wrong ones is a promise
+                worth making explicitly. But the sentence must end with what <em>we</em> will do, and a way to
+                reach a person.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">D4</span><h3>A synthetic ROI figure can render on a live report</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Misleading claim</span></span></header>
+            <p class="loc"><span class="aud">Advertiser</span> report, financial result ·
+              <code>report/measurement-authority.tsx:167–180</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Return on investment &nbsp;[chip] synthetic test-only result</p>
+                <p>142.60%</p>
+                <p>NGN · method roi-v1-r3</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p><em>Do not render a synthetic figure on a customer surface at all.</em> Replace the whole
+                  block with:</p>
+                <p>Return on investment<br>Not yet available — we need your conversion and revenue figures before
+                  we can calculate this. &nbsp;<span class="btn-ex">Send us your figures</span></p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>A large, prominent percentage renders on the advertiser's report with
+                a small amber chip as its only qualification. A chip is not sufficient to stop a number that size
+                being screenshotted into a board deck. &ldquo;Method roi-v1-r3&rdquo; is an internal revision
+                identifier.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Test data has no legitimate place on a customer-visible surface.
+                This is the one finding in the audit where the recommendation is removal rather than rewording.</dd></div>
+              <div class="span"><dt>Legal / compliance</dt><dd><span class="legal-y">Escalate.</span> A displayed
+                ROI percentage that is not derived from the customer's real data is a representation risk
+                regardless of the chip beside it.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">D5</span><h3>Unexplained privacy terminology in zone rankings</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Compliance jargon</span></span></header>
+            <p class="loc"><span class="aud">Advertiser</span> report, coverage map ·
+              <code>components/analytics/high-exposure-zone-insights.tsx:9–12,29,43,101–113</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>[eyebrow] Governed zone insight &nbsp; [chip] suppressed</p>
+                <p>Zone rankings are withheld by the disclosure floor.</p>
+                <p>The issued zone authority is stale. A new governed aggregate is required.</p>
+                <p>Ranks disclosure-cleared zones by frozen modelled potential contacts.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>[eyebrow] Where the campaign performed &nbsp; [chip] Not shown</p>
+                <p>Too few trips in these zones to report without identifying individual drivers, so we've held
+                  the ranking back.</p>
+                <p>These rankings are out of date. Your next report will refresh them.</p>
+                <p>Zones ranked by estimated exposure, using only zones with enough activity to report safely.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Disclosure floor&rdquo; is a k-anonymity threshold — real,
+                sound, and completely opaque. &ldquo;Suppressed&rdquo;, &ldquo;stale&rdquo; and
+                &ldquo;unavailable&rdquo; are raw enum values rendered as chips. The customer is told data is
+                being withheld, in language that makes withholding sound arbitrary.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Privacy protections are a selling point when explained in one
+                sentence of cause and effect, and a liability when named only by their technical term.</dd></div>
+              <div class="span"><dt>Legal / compliance</dt><dd><span class="legal-y">Confirm.</span> Any
+                restatement of the disclosure threshold should be checked against the privacy operating model.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">D6</span><h3>Billing history written as a ledger schema</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Implementation language</span></span></header>
+            <p class="loc"><span class="aud">Advertiser</span> <code>/advertiser/billing</code> ·
+              <code>advertiser/billing/page.tsx:33–36,74–78,82–85,97–101</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>[eyebrow] Canonical receipts, lifecycle events and accepted-term allocations</p>
+                <p>Unapplied — does not authorize production</p>
+                <p>2 immutable allocations</p>
+                <p>No canonical receipts have been recorded.</p>
+                <p>Online payment checkout is unavailable until an approved provider is configured. Manual
+                  bank-transfer evidence remains the canonical supported path.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>[eyebrow] Your payments, invoices and what they've been applied to</p>
+                <p>Not yet applied — we haven't matched this to a campaign, so production can't start</p>
+                <p>Applied to 2 campaigns</p>
+                <p>No payments recorded yet. Once you transfer, we'll list it here within one working day.</p>
+                <p>We take payment by bank transfer. Card payment is coming later — your account manager will
+                  send transfer details with your quotation.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Canonical&rdquo;, &ldquo;lifecycle events&rdquo; and
+                &ldquo;immutable allocations&rdquo; are the data model. &ldquo;Unapplied — does not authorize
+                production&rdquo; is genuinely important (their campaign will not print) but reads as a
+                permissions error. The last line explains an unfinished integration to the customer.</dd></div>
+              <div><dt>Tone rationale</dt><dd>On a money page, every line must answer &ldquo;what does this mean
+                for my campaign?&rdquo;. Missing features are described by what <em>is</em> available.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">D7</span><h3>Kebab-case slugs rendered as dropdown options</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Defect</span></span></header>
+            <p class="loc"><span class="aud">Advertiser</span> <code>/advertiser/planning-sources</code> ·
+              <code>advertiser/planning-sources/source-form.tsx:55,65,75,99,109</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Category: site-visitor · content-interest · conversion-intent</p>
+                <p>Category: area-demand · time-pattern · contextual-affinity</p>
+                <p>Record-count band: 0-99 · 100-999 · 1000-plus</p>
+                <p>Confidence band: low · medium · high</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>What the source tells you: People who visited your site · People who read specific content ·
+                  People who showed buying intent</p>
+                <p>Roughly how many records: Under 100 · 100–999 · 1,000 or more</p>
+                <p>How confident are you in this? Rough guess · Fairly sure · Confident</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>Mechanical: <code>&lt;option key={value}&gt;{value}&lt;/option&gt;</code>
+                with no label. The API's slug is the visible text in five dropdowns. The sibling
+                <code>source_type</code> select does this correctly two lines above, so the pattern is present
+                and just wasn't applied.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Every option needs a written label. Options that ask for a judgement
+                should say what the judgement is for.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">D8</span><h3>UUIDs and a full digest as the only identifiers on screen</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Defect</span></span></header>
+            <p class="loc"><span class="aud">Advertiser</span> <code>/advertiser/planning-sources</code> ·
+              <code>advertiser/planning-sources/page.tsx:70,88,126,130,133</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>[h2] website-traffic &nbsp; [chip] active</p>
+                <p>Evidence 4c1e9b7a2f508d63c1a9e07b45f28d3a90c6e1b74f2a8d05c39e7b6104f8a2d1</p>
+                <p>[chip] stale parent state</p>
+                <p>Campaign 7b21e0c4-5f39-4a8e-b1d7-0c93f2a6e845<br>
+                  Target zone d09f4c17-a3b8-4e26-9f01-58c7d2b34e60</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>[h2] Website traffic &nbsp; [chip] Active</p>
+                <p><em>Remove the digest from this view.</em></p>
+                <p>[chip] Source no longer active</p>
+                <p>Yello Season Q3 · Wuse II core</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>The advertiser cannot tell which campaign or zone a link belongs to,
+                because only the UUIDs are shown — the campaign name and zone name are both available on adjacent
+                queries. The <code>source_type</code> slug is the <code>&lt;h2&gt;</code>. A 64-character hash is
+                printed in full. &ldquo;Stale parent state&rdquo; is ORM vocabulary.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Identify records by the name the user gave them. A UUID on screen
+                is almost always a missing join.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">D9</span><h3>An error telling the user to quote a code that is never shown</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Defect</span></span></header>
+            <p class="loc"><span class="aud">Advertiser</span> report download panel ·
+              <code>report/report-issuance-panel.tsx:236–246,190–194,215–222</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>This report is unavailable. Create a new version or contact support with the report status
+                  code.</p>
+                <p>The complete artifact pair could not be verified. No download is available.</p>
+                <p>[button] Retry the same request</p>
+                <p>Download CSV &nbsp; 9a2f4c8e1b06…</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>We couldn't build this report. Try again — if it fails twice, email
+                  <em>support@terraxmedia.com</em> quoting <strong>{code}</strong>.</p>
+                <p>One of the two files didn't come out right, so we're not offering a partial download. Try
+                  again.</p>
+                <p><span class="btn-ex">Try again</span></p>
+                <p><span class="btn-ex">Download CSV</span> <em>(digest moves to the file's own footer)</em></p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>Mechanical: the message instructs the user to quote a status code,
+                and no code is rendered anywhere in the component. &ldquo;Artifact pair&rdquo; is build-system
+                vocabulary. &ldquo;Retry the same request&rdquo; describes idempotency, not what the button does.</dd></div>
+              <div><dt>Tone rationale</dt><dd>If you ask a user to contact support with a reference, show the
+                reference and name the channel.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s3"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">D10</span><h3>Driver payouts and fraud counts on the advertiser's dashboard</h3>
+              <span class="tags"><span class="tag t3">Medium</span><span class="tag tD">Voice</span></span></header>
+            <p class="loc"><span class="aud">Advertiser</span> <code>/advertiser</code>, campaign, report ·
+              <code>advertiser/page.tsx:48–60</code>, <code>report/page.tsx:120–135</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Driver campaign cost &nbsp; ₦840,000<br>Payout projection — not advertiser spend</p>
+                <p>Open fraud flags &nbsp; 3<br>Auto-pulled from billable inventory</p>
+                <p>Trips analyzed &nbsp; 1,204<br>1,318 total sessions · 9 active vehicles</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p><em>Consider removing the driver-cost tile from advertiser surfaces entirely — it exposes
+                  your margin. If it stays:</em><br>Driver hours paid &nbsp; 1,120 h<br>What we paid drivers for
+                  your campaign. Not your invoice total.</p>
+                <p>Trips under review &nbsp; 3<br>Held back from your figures while we check them.</p>
+                <p>Trips counted &nbsp; 1,204<br>of 1,318 recorded · 9 vehicles active</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Auto-pulled from billable inventory&rdquo; is pipeline
+                vocabulary and &ldquo;fraud&rdquo; is an alarming word to put on a customer dashboard without
+                context — the driver-facing surfaces carefully say &ldquo;under review&rdquo; instead.
+                &ldquo;Sessions&rdquo; is the database noun. And a hint that exists to correct a misleading label
+                (&ldquo;not advertiser spend&rdquo;) means the label is wrong.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Use the same neutral review language with advertisers that you
+                already use with drivers, and never rely on a hint to undo a headline.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s3"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">D11</span><h3>&ldquo;Immutable&rdquo;, &ldquo;governed&rdquo; and &ldquo;cutoff&rdquo; on commercial controls</h3>
+              <span class="tags"><span class="tag t3">Medium</span><span class="tag tD">Implementation language</span></span></header>
+            <p class="loc"><span class="aud">Advertiser</span> campaign detail ·
+              <code>advertiser/campaigns/[campaignId]/commercial-panel.tsx:75</code>,
+              <code>campaign-change-panel.tsx:28</code>,
+              <code>campaign-cancellation-panel.tsx:54</code>,
+              <code>report/report-issuance-panel.tsx:172–175</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>[button] Accept immutable terms</p>
+                <p>[panel] Governed campaign changes</p>
+                <p>☐ I understand this records a permanent cancellation cutoff.</p>
+                <p>Create an immutable, privacy-cleared copy of this frozen analysis. Both formats use the same
+                  metrics, disclosure rules and conditional-measure decision.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p><span class="btn-ex">Accept these terms</span> <em>with helper: &ldquo;Once accepted, these
+                  terms can't be changed.&rdquo;</em></p>
+                <p>[panel] Request a change</p>
+                <p>☐ I understand the campaign will stop on this date and can't be restarted.</p>
+                <p>Download this report as a CSV and PDF. Both contain the same figures as this page and are
+                  fixed once created.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Immutable&rdquo; on a button is a data-structure property, not
+                a consequence. &ldquo;Cancellation cutoff&rdquo; makes the most consequential checkbox in the
+                product the hardest sentence to parse. &ldquo;Conditional-measure decision&rdquo; is opaque.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Irreversibility belongs in the helper text, in the future tense,
+                naming the consequence. The button names the action.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s3"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">D12</span><h3>A model version string in a chart subtitle</h3>
+              <span class="tags"><span class="tag t3">Medium</span><span class="tag tD">Internal identifier</span></span></header>
+            <p class="loc"><span class="aud">Advertiser</span> report charts ·
+              <code>report/page.tsx:147–151,178–184</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Modelled potential contacts · daily<br>Modelled from verified vehicle movement · impressions_v1</p>
+                <p>[table headers] Modelled contacts · Model diagnostic · Quality</p>
+                <p>No daily metrics yet — data appears once trips are analyzed.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Estimated daily exposure<br>Modelled from verified vehicle movement</p>
+                <p>[table headers] Est. exposure · Data completeness · Trip quality</p>
+                <p>Nothing to show yet. Daily figures appear the day after your first campaign trips.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd><code>impressions_v1</code> is a schema identifier printed under a
+                chart. &ldquo;Model diagnostic&rdquo; and &ldquo;Quality&rdquo; are bare scores with no stated
+                scale, in a table whose other columns are in naira and kilometres.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Column headers must be readable without the methodology note open
+                beside them.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s3"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">D13</span><h3>The advertiser has no afternoon</h3>
+              <span class="tags"><span class="tag t3">Medium</span><span class="tag tD">Defect</span></span></header>
+            <p class="loc"><span class="aud">Advertiser</span> <code>/advertiser</code> ·
+              <code>advertiser/page.tsx:15</code> vs <code>driver/(portal)/page.tsx:52</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p><code>hours &lt; 12 ? "Good morning" : "Good evening"</code></p>
+                <p>[driver app, same feature] morning / afternoon / evening</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Share one greeting helper between the two dashboards, with the driver app's three
+                  branches.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>Mechanical: an advertiser opening the dashboard at 2pm is told
+                &ldquo;Good evening&rdquo;. The correct implementation already exists eight files away.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Small, but it is the first line on the page and it is visibly
+                wrong for five hours a day.</dd></div>
+            </dl>
+          </div>
+        </article>
+      </section>
+
+      <!-- ══════════════════════════════════════ E ══════════════════════════ -->
+      <section class="band" id="e">
+        <div class="band-head"><span class="n">Part E</span><h2>Email and notifications</h2></div>
+        <p class="band-note">Every transactional email in the product is a single passive sentence with no
+          greeting, no name, no specifics and no link. Several also contradict the careful language used for the
+          same event in-app.</p>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">E1</span><h3>Emails accuse drivers of fraud; the app does not</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Terminology</span></span></header>
+            <p class="loc"><span class="aud">Driver</span> transactional email ·
+              <code>app/services/email_templates.py:78–83</code> vs
+              <code>app/services/fraud_disputes.py:37–84</code>,
+              <code>driver/(portal)/earnings/trips/[tripId]/page.tsx:33–37,169</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>[subject] Fraud review resolved<br>Your fraud review has been resolved.</p>
+                <p>[subject] Fraud dispute update<br>Your fraud dispute has received a reply.</p>
+                <p><em>In-app, the same events read:</em> &ldquo;Earnings review&rdquo; · &ldquo;Location data
+                  needs review&rdquo; · &ldquo;Under review&rdquo; · &ldquo;Review cleared&rdquo;</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>[subject] Your trip review is finished<br>Hello {first_name}, we've finished reviewing your
+                  trip on {date}. {Outcome sentence: released and joining Friday's payout / not payable, and
+                  why.} See the full breakdown: {link}</p>
+                <p>[subject] We've replied about your {date} trip<br>Hello {first_name}, a member of our team has
+                  replied to your message about this trip. Read it here: {link}</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>The in-app copy is deliberately and carefully neutral — someone
+                thought hard about not accusing drivers. The email then puts &ldquo;Fraud&rdquo; in the subject
+                line, where it is visible on a lock screen and to anyone nearby. It also never says the outcome,
+                which is the only thing the driver wants to know.</dd></div>
+              <div><dt>Tone rationale</dt><dd>&ldquo;Fraud&rdquo; is an internal risk category. It should not
+                appear in any driver-facing string, in any channel. &ldquo;Review&rdquo; already carries the
+                meaning.</dd></div>
+              <div class="span"><dt>Legal / compliance</dt><dd><span class="legal-y">Confirm.</span> An
+                unqualified fraud allegation sent by email to a named individual carries defamation exposure that
+                &ldquo;review&rdquo; does not.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">E2</span><h3>A campaign stops and the email doesn't say which one</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Voice</span></span></header>
+            <p class="loc"><span class="aud">Advertiser</span> transactional email ·
+              <code>app/services/email_templates.py:56–75</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>[subject] Campaign paused for budget<br>A campaign was paused by the configured budget policy.</p>
+                <p>[subject] Campaign budget alert<br>A configured campaign budget alert threshold was reached.</p>
+                <p>[subject] Campaign approved<br>Your campaign has been approved.</p>
+                <p>[subject] Campaign cancelled<br>A campaign cancellation has been recorded.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>[subject] {Campaign} has paused — budget reached<br>Hello {name}, {Campaign} hit its
+                  {daily/total} budget of {amount} at {time} and has stopped running. Raise the budget to restart
+                  it: {link}</p>
+                <p>[subject] {Campaign} has used {pct}% of its budget<br>&hellip;{amount} of {total} spent. At the
+                  current rate it will run until {date}. {link}</p>
+                <p>[subject] {Campaign} is approved<br>Good news — {Campaign} has passed review. Next: we'll
+                  confirm your vehicles and send the production schedule. {link}</p>
+                <p>[subject] {Campaign} is cancelled<br>{Campaign} was cancelled on {date}. Any unallocated
+                  payment stays on your account. {link}</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>All four are passive, unaddressed, and omit the campaign name — an
+                advertiser running several campaigns cannot tell which one stopped. &ldquo;Configured&rdquo;
+                appears twice and adds nothing except the implication that a setting, rather than the company,
+                did it. None contains a link.</dd></div>
+              <div><dt>Tone rationale</dt><dd>A transactional email needs four things: what happened, to which
+                thing, what it means, and one link. Currently they have one.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">E3</span><h3>The first email a driver ever gets</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Implementation language</span></span></header>
+            <p class="loc"><span class="aud">Driver applicant</span> onboarding email ·
+              <code>app/services/email_templates.py:40–52,28–37</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>[subject] Continue your Cardvert driver application<br>Use this expiring Cardvert
+                  driver-onboarding access code to submit protected person and payee evidence: 8FJ2-K91Q</p>
+                <p>[subject] Reset your Cardvert password<br>Use this single-use password reset action before it
+                  expires: {action}</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>[subject] Your Cardvert code: 8FJ2-K91Q<br>Hello {first_name}, here's the code to finish your
+                  driver application. It expires in {duration}.<br><strong>8FJ2-K91Q</strong><br>You'll need your
+                  driving licence, your vehicle papers and your bank details. {link}</p>
+                <p>[subject] Reset your Cardvert password<br>Hello {first_name}, use this link to set a new
+                  password. It works once and expires in {duration}. If you didn't ask for this, ignore this
+                  email — nothing has changed. {link}</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Person and payee evidence&rdquo; is the record model.
+                &ldquo;Password reset action&rdquo; is a call to <code>action</code> — it is not a word for a link
+                or a code, and the driver won't know which to look for. Neither email says how long it lasts, and
+                neither has a greeting. The reset email is missing the standard &ldquo;didn't ask for this?&rdquo;
+                security line.</dd></div>
+              <div><dt>Tone rationale</dt><dd>The onboarding code email is the driver's first contact with the
+                brand. Put the code in the subject line, name what they'll need, and give a timeframe.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">E4</span><h3>&ldquo;Verified activity below floor&rdquo;</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Implementation language</span></span></header>
+            <p class="loc"><span class="aud">Driver</span> activity emails and notices ·
+              <code>app/services/email_templates.py:84–98</code>,
+              <code>driver/(portal)/earnings/trips/[tripId]/page.tsx:50–53</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>[subject] Verified activity below floor<br>Verified activity was below the configured weekly
+                  floor.</p>
+                <p>Your verified activity was below the configured weekly floor.</p>
+                <p>[subject] Assignment inactive<br>No verified activity was recorded for this assignment.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>[subject] You're below the weekly minimum for {Campaign}<br>Hello {first_name}, you drove
+                  {hours} paid hours last week — the minimum for this campaign is {min}. If this continues, we may
+                  have to reassign the advert. Anything we can help with? {link}</p>
+                <p>[subject] No trips recorded for {Campaign} this week<br>We haven't seen any trips on
+                  {Campaign} since {date}. If the advert is still on your car and something's wrong with the app,
+                  tell us and we'll sort it. {link}</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Floor&rdquo; is the internal name for the threshold and reads
+                as a typo. &ldquo;Configured&rdquo; blames a setting. The message carries a real consequence —
+                possible reassignment — and never states it, never gives the actual numbers, and never offers
+                help.</dd></div>
+              <div><dt>Tone rationale</dt><dd>When a message exists to change someone's behaviour, give them the
+                number they missed, the number they need, the consequence, and a way to respond.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s3"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">E5</span><h3>Screaming-caps system labels in the notification tray</h3>
+              <span class="tags"><span class="tag t3">Medium</span><span class="tag tD">Voice</span></span></header>
+            <p class="loc"><span class="aud">Advertiser</span> notification centre ·
+              <code>components/notifications/notification-center.tsx:294–299,271–274</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>ORGANIZATION DELIVERY PREFERENCES</p>
+                <p>In-app notifications are always on. &nbsp; Transactional email ☑</p>
+                <p>Reconnect to load current notifications. Saved notification data is not shown as current while
+                  offline.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>How we contact your team</p>
+                <p>Notifications always appear here. &nbsp; Also email us ☑</p>
+                <p>You're offline. We'll load your notifications when you reconnect.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Delivery&rdquo; here means the email-delivery subsystem, not
+                anything the customer would call delivery in an advertising product. &ldquo;Transactional
+                email&rdquo; is email-industry vocabulary. The caps come from the surrounding
+                <code>micro</code> style, not from an intentional label.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Settings labels are questions the user is answering. Phrase them
+                that way.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s3"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">E6</span><h3>No email identifies its sender or its recipient</h3>
+              <span class="tags"><span class="tag t3">Medium</span><span class="tag tD">Voice</span></span></header>
+            <p class="loc"><span class="aud">All</span> every template ·
+              <code>app/services/email_templates.py:16–25,54–99</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p><code>html_body = f"&lt;p&gt;{body}&lt;/p&gt;"</code></p>
+                <p><em>One unstyled paragraph. No greeting, no signature, no company, no unsubscribe, no link.</em></p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>One shared layout: Cardvert or Terrax Media wordmark, &ldquo;Hello {first_name},&rdquo;, the
+                  body, one primary link, then a footer — who sent it, why they received it, and how to change
+                  their preferences.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>An email with no branding and no addressee is indistinguishable from
+                spam, particularly one whose subject line contains the word &ldquo;Fraud&rdquo;. The whole
+                template layer is a bare f-string.</dd></div>
+              <div><dt>Tone rationale</dt><dd>The email is often the only touchpoint between sessions; it carries
+                as much brand weight as the app.</dd></div>
+              <div class="span"><dt>Legal / compliance</dt><dd><span class="legal-y">Confirm.</span> Sender
+                identity and a preferences link in the footer are standard requirements for commercial email —
+                confirm scope for transactional messages with the compliance adviser.</dd></div>
+            </dl>
+          </div>
+        </article>
+      </section>
+
+      <!-- ══════════════════════════════════════ F ══════════════════════════ -->
+      <section class="band" id="f">
+        <div class="band-head"><span class="n">Part F</span><h2>Errors, validation and system states</h2></div>
+        <p class="band-note">Backend messages reach the screen verbatim — <code>return { error: error.message }</code>
+          in both the driver and advertiser action layers — so every API string is production copy.</p>
+
+        <article class="f">
+          <div class="bar s1"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">F1</span><h3>Database column names in validation errors</h3>
+              <span class="tags"><span class="tag t1">Blocker</span><span class="tag tD">Defect</span></span></header>
+            <p class="loc"><span class="aud">Advertiser, Driver</span> form validation ·
+              <code>app/services/campaigns.py</code> and others, surfaced via
+              <code>frontend/src/app/driver/actions.ts:16</code>,
+              <code>advertiser/campaigns/new/actions.ts:27,48</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Campaign end_at is in the past</p>
+                <p>start_at must be before or equal to end_at</p>
+                <p>expires_at must be in the future</p>
+                <p>stored_file_id cannot be null</p>
+                <p>campaign_id does not belong to organization_id</p>
+                <p>basics.start_at: Enter a start date</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>The end date has already passed. Pick a date in the future.</p>
+                <p>The end date must be on or after the start date.</p>
+                <p>Pick an expiry date in the future.</p>
+                <p>Upload a creative file before saving.</p>
+                <p>That campaign belongs to a different organisation.</p>
+                <p>Enter a start date. <em>(drop the schema path prefix)</em></p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>Mechanical, and in two layers. Backend messages naming
+                <code>end_at</code>, <code>start_at</code>, <code>stored_file_id</code> render unchanged in the
+                UI. Separately, <code>createCampaignAction</code> prefixes the Zod issue path onto the message,
+                producing &ldquo;basics.start_at: Enter a start date&rdquo; from an otherwise fine string.</dd></div>
+              <div><dt>Tone rationale</dt><dd>A validation message names the field as it is labelled on screen
+                and says what to do. Field paths are for logs.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">F2</span><h3>&ldquo;Contact ops&rdquo; on the global error page</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Terminology</span></span></header>
+            <p class="loc"><span class="aud">All</span> error boundary ·
+              <code>frontend/src/app/error.tsx:31–36</code>,
+              <code>frontend/src/app/global-error.tsx:33–38</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>Something broke — That wasn't supposed to happen.</p>
+                <p>The error has been logged (ref 8a91f0c2). Try again — if it persists, contact ops with the
+                  reference.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Something went wrong at our end.</p>
+                <p>We've logged it. Try again — if it keeps happening, email
+                  <em>support@terraxmedia.com</em> and quote <strong>8a91f0c2</strong>.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>&ldquo;Ops&rdquo; is an internal team. A driver in Abuja or a brand
+                manager has no way to contact it and is given no address. &ldquo;Something broke&rdquo; is
+                cheerful in a way that reads as unserious on the money surfaces.</dd></div>
+              <div><dt>Tone rationale</dt><dd>An error page owns the fault, gives one action, and names a real
+                channel. This one does the first and neither of the others.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s2"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">F3</span><h3>&ldquo;hashing…&rdquo; as a loading state</h3>
+              <span class="tags"><span class="tag t2">High</span><span class="tag tD">Defect</span></span></header>
+            <p class="loc"><span class="aud">Advertiser</span> creative upload ·
+              <code>advertiser/campaigns/new/wizard.tsx:341–346</code>,
+              <code>lib/files/creative-upload.ts</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p>hashing…</p>
+                <p>uploading…</p>
+                <p>scanning…</p>
+                <p>✓ artwork-final.pdf passed security scan</p>
+                <p>Creative files must be larger than 0 bytes and no more than 25 MB.</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p>Preparing your file…</p>
+                <p>Uploading…</p>
+                <p>Checking the file…</p>
+                <p>✓ artwork-final.pdf uploaded and checked</p>
+                <p>That file appears to be empty. Choose a PNG, JPEG, WebP, MP4 or PDF under 25 MB.</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>Mechanical: the internal phase enum is interpolated as the label
+                (<code>{phase}…</code>). &ldquo;Hashing&rdquo; is a checksum step the customer has no concept of.
+                &ldquo;Larger than 0 bytes&rdquo; is the validator's phrasing for an empty file.</dd></div>
+              <div><dt>Tone rationale</dt><dd>Loading states name what the user is waiting for, in their terms.
+                &ldquo;Passed security scan&rdquo; also implies the customer's own artwork was suspected —
+                &ldquo;checked&rdquo; carries the fact without the accusation.</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="f">
+          <div class="bar s3"></div>
+          <div class="f-body">
+            <header class="f-head"><span class="f-id">F4</span><h3>An accessibility label on a word that does nothing</h3>
+              <span class="tags"><span class="tag t3">Medium</span><span class="tag tD">Defect</span></span></header>
+            <p class="loc"><span class="aud">Advertiser, Admin</span> topbar ·
+              <code>components/shell/app-shell.tsx:79,87</code>, <code>:11</code></p>
+            <div class="ba">
+              <div class="before"><span class="ba-l">Now</span>
+                <p><code>&lt;span aria-label="Workspace context"&gt;Workspace&lt;/span&gt;</code></p>
+                <p>Network · Admin / Ops</p></div>
+              <div class="after"><span class="ba-l">Proposed</span>
+                <p><em>Remove the span.</em> If it is meant to show which organisation the user is in, render the
+                  organisation name; if not, it is decoration and should not carry a label.</p>
+                <p>Terrax Media · Operations</p></div>
+            </div>
+            <dl class="meta">
+              <div><dt>Why it fails</dt><dd>A static, non-interactive word is given an <code>aria-label</code>, so
+                screen-reader users hear &ldquo;Workspace context&rdquo; announced for an element with no content
+                and no behaviour. The visible fallback beside it, &ldquo;Network · Admin / Ops&rdquo;, exposes an
+                internal role key and a team abbreviation as the user's identity.</dd></div>
+              <div><dt>Tone rationale</dt><dd>An accessible name should describe something the user can act on.
+                Labelling decoration adds noise for the people who most need signal.</dd></div>
+            </dl>
+          </div>
+        </article>
+      </section>
+
+      <!-- ══════════════════════════════════════ also flagged ═══════════════ -->
+      <section class="band">
+        <div class="band-head"><span class="n">Appendix</span><h2>Also flagged</h2></div>
+        <p class="band-note">Lower-severity items sharing a cause with a finding above. Each is a one-line fix.</p>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr><th>Ref</th><th>Current copy</th><th>Where</th><th>Fix</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>G1</td><td><b>&ldquo;Enter the network&rdquo;</b> on the sign-in button, but <b>&ldquo;Sign in&rdquo;</b> on the demo variant of the same component</td><td><code>login/login-form.tsx:62,33</code></td><td>&ldquo;Sign in&rdquo; in both branches</td></tr>
+              <tr><td>G2</td><td>&ldquo;Trip entries · recent ledger&rdquo; as a dashboard tile</td><td><code>driver/(portal)/page.tsx:68–70</code></td><td>&ldquo;Trips this month&rdquo;</td></tr>
+              <tr><td>G3</td><td>&ldquo;Server trip confirmed — tap to manage tracking&rdquo;</td><td><code>driver/(portal)/page.tsx:96</code></td><td>&ldquo;Trip running — tap to open&rdquo;</td></tr>
+              <tr><td>G4</td><td>&ldquo;This legacy assignment has no complete frozen offer terms.&rdquo;</td><td><code>driver/(portal)/assignments/page.tsx:277</code></td><td>&ldquo;This job was set up before we started recording full terms in the app. Contact us if you need them.&rdquo;</td></tr>
+              <tr><td>G5</td><td><b>Deactivate</b> as the driver's button for stopping an active campaign</td><td><code>assignments/assignment-actions.tsx:23</code></td><td>&ldquo;Stop carrying this advert&rdquo;</td></tr>
+              <tr><td>G6</td><td>&ldquo;Awaiting admin activation.&rdquo;</td><td><code>assignments/assignment-actions.tsx:41</code></td><td>&ldquo;Accepted — we're finalising your start date.&rdquo;</td></tr>
+              <tr><td>G7</td><td>&ldquo;Stationary after two 2-minute movement checks (shared grace applied)&rdquo;</td><td><code>earnings/trips/[tripId]/page.tsx:63</code></td><td>&ldquo;Parked for longer than the allowed break&rdquo;</td></tr>
+              <tr><td>G8</td><td>&ldquo;A status reference does not create driver access.&rdquo;</td><td><code>driver/(portal)/profile/page.tsx:52–55</code></td><td>&ldquo;We'll email you when your application is reviewed.&rdquo;</td></tr>
+              <tr><td>G9</td><td>&ldquo;Decision required. This offer does not grant campaign work.&rdquo;</td><td><code>assignments/page.tsx:36–41</code></td><td>&ldquo;Waiting on you — accept or decline.&rdquo; / &ldquo;Accepted. We'll confirm your start date.&rdquo;</td></tr>
+              <tr><td>G10</td><td>&ldquo;Unexpected empty response from the server.&rdquo; / &ldquo;&hellip;creating the campaign.&rdquo;</td><td><code>login/actions.ts:88</code>, <code>campaigns/new/actions.ts:44</code></td><td>&ldquo;Something went wrong. Try again.&rdquo;</td></tr>
+              <tr><td>G11</td><td>&ldquo;server unreachable&rdquo; interpolated into a user-facing sentence</td><td><code>campaigns/new/actions.ts:67</code></td><td>&ldquo;we couldn't reach our servers&rdquo;</td></tr>
+              <tr><td>G12</td><td>&ldquo;New submissions will appear here with their immutable review history.&rdquo;</td><td><code>admin/approvals/page.tsx:72</code></td><td>&ldquo;New submissions appear here, with the full review history for each.&rdquo;</td></tr>
+              <tr><td>G13</td><td>&ldquo;The detection engine is watching every trip.&rdquo;</td><td><code>admin/fraud/page.tsx:173</code></td><td>&ldquo;No flags right now. Checks run on every trip.&rdquo;</td></tr>
+              <tr><td>G14</td><td>&ldquo;Release positive deltas at&rdquo;</td><td><code>admin/payouts/corrections/order-actions.tsx:96</code></td><td>&ldquo;Pay increases from&rdquo;</td></tr>
+              <tr><td>G15</td><td>&ldquo;Ready creative ID&rdquo; / placeholder &ldquo;UUID of the ready campaign creative&rdquo;; &ldquo;paste a trip UUID&rdquo;; &ldquo;Available ledger UUIDs, separated by commas&rdquo;</td><td><code>admin/assignments/new/assignment-form.tsx:257–259</code>, <code>admin/payouts/process-trip-form.tsx:22</code>, <code>admin/payouts/batches/batch-forms.tsx:52–53</code></td><td>Internal tools, so lower priority — but replace with pickers; hand-pasted UUIDs are an operational error risk on money actions</td></tr>
+              <tr><td>G16</td><td>&ldquo;Planning sources&rdquo; / &ldquo;Aggregate-only retargeting inputs&rdquo; as advertiser navigation</td><td><code>advertiser/layout.tsx:6</code>, <code>planning-sources/page.tsx:55</code></td><td>&ldquo;Audience inputs&rdquo; / &ldquo;Tell us who you're trying to reach&rdquo;</td></tr>
+              <tr><td>G17</td><td>&ldquo;Back to your dashboard&rdquo; on the 404 — drivers have a Home tab, not a dashboard</td><td><code>app/not-found.tsx:15</code></td><td>&ldquo;Back to home&rdquo;</td></tr>
+              <tr><td>G18</td><td>&ldquo;Documents are&hellip; encrypted; reviewers receive only masked details unless an authorized, audited review requires a sensitive read.&rdquo;</td><td><code>apply/person-payee-form.tsx:95–99</code></td><td>&ldquo;Your documents are encrypted. Our reviewers see only the last four digits unless they need the full details to approve you — and every time they look is recorded.&rdquo;</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════ guide ══════════════════════ -->
+      <section class="band" id="guide">
+        <div class="band-head"><span class="n">Reference</span><h2>Cardvert voice guide</h2></div>
+        <p class="band-note">Short enough to be held in mind while writing a string. The test for any line:
+          would you say it out loud to a driver at a filling station in Abuja, or to a brand manager across a
+          table?</p>
+
+        <div class="guide">
+
+          <div class="rule-row">
+            <h4>Brand voice</h4>
+            <div class="body">
+              <p><strong>Direct, warm, and specific.</strong> We are the counterparty, not the platform. We say
+                <em>we</em> and <em>you</em> — never &ldquo;the system&rdquo;, &ldquo;operations&rdquo;,
+                &ldquo;ops&rdquo;, or &ldquo;Cardvert&rdquo; as the subject of a sentence about our own behaviour.</p>
+              <p><strong>Rigour is shown, not named.</strong> Our measurement and payout discipline is a
+                differentiator. Express it as a promise the reader benefits from — &ldquo;these figures are locked
+                and won't change&rdquo; — never as the mechanism that delivers it.</p>
+              <p><strong>Confident about the pilot.</strong> Ten cars in Abuja for three months is a specific,
+                credible thing. Never imply scale we don't have.</p>
+            </div>
+          </div>
+
+          <div class="rule-row">
+            <h4>Sentence style</h4>
+            <div class="body">
+              <p>Active voice. British English. One idea per sentence, under 20 words where possible. Sentence
+                case for every heading, label and button.</p>
+              <p>Lead with the outcome, then the reason. <em>&ldquo;We can't start your trip — your car's
+                documents need renewing&rdquo;</em>, not the reverse.</p>
+              <div class="yn">
+                <div class="no"><span>Not this</span>Campaign work remains unavailable until every server-governed
+                  stage completes.</div>
+                <div class="yes"><span>This</span>A few things still need finishing before you can start earning.
+                  They're listed below.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rule-row">
+            <h4>Terminology</h4>
+            <div class="body">
+              <p>One word per concept, held across app, email and marketing site:</p>
+              <p><strong>job</strong> (not assignment) · <strong>offer</strong> · <strong>trip</strong> ·
+                <strong>base zone / premium zone / excluded</strong> (never tier) ·
+                <strong>review</strong> (never fraud, in any driver-facing string) ·
+                <strong>payout</strong> · <strong>documents</strong> (never evidence, to drivers) ·
+                <strong>campaign</strong> · <strong>advert</strong> (the thing on the car) ·
+                <strong>creative</strong> (the artwork, advertiser-side only)</p>
+              <p>Money is always <strong>₦</strong> with thousands separators. Durations are always
+                <strong>2h 14m</strong> — never raw seconds. Dates are <strong>12 Sep 2026</strong>. Times carry
+                <strong>WAT</strong>, never a timezone identifier.</p>
+            </div>
+          </div>
+
+          <div class="rule-row">
+            <h4>Buttons and controls</h4>
+            <div class="body">
+              <p>A button is a verb phrase naming the outcome in the user's language: <em>Start trip</em>,
+                <em>Accept job</em>, <em>Download CSV</em>, <em>Take photo</em>. Never a system verb
+                (<em>Reconcile</em>, <em>Deactivate</em>, <em>Retry the same request</em>) and never a bare noun.</p>
+              <p>Consequences go in helper text, not the label. The button says <em>Accept these terms</em>; the
+                line beneath says <em>Once accepted, these terms can't be changed.</em></p>
+              <p>Loading states use the button's own verb in the present participle — <em>Starting…</em>,
+                <em>Uploading…</em> — never an internal phase name.</p>
+              <p>Destructive and irreversible actions name what stops, and when.</p>
+            </div>
+          </div>
+
+          <div class="rule-row">
+            <h4>Empty states</h4>
+            <div class="body">
+              <p>Three parts: what would be here, why it isn't yet, and the one thing that would change that.
+                Never a bare negation.</p>
+              <div class="yn">
+                <div class="no"><span>Not this</span>No canonical receipts have been recorded.</div>
+                <div class="yes"><span>This</span>No payments yet. Once you transfer, we'll list it here within
+                  one working day.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rule-row">
+            <h4>Errors</h4>
+            <div class="body">
+              <p>Own the fault when it is ours. Say what happened in the user's terms, whether their work or
+                money is safe, and exactly one thing to do next. Never expose the internal cause, a stack of
+                negations, or an instruction only staff can carry out.</p>
+              <p>If you tell someone to contact support, show the reference and name the channel in the same
+                sentence.</p>
+              <div class="yn">
+                <div class="no"><span>Not this</span>Frozen analysis failed its integrity check. Issue a new
+                  governed measurement run after correcting the source authority.</div>
+                <div class="yes"><span>This</span>We're holding this report back — our checks flagged something in
+                  the underlying data. Our team has been alerted and will be in touch.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rule-row">
+            <h4>Blocked and gated states</h4>
+            <div class="body">
+              <p>The hardest category in this product, and the one currently written worst. Every blocked state
+                must answer three questions in order:</p>
+              <p><strong>1.</strong> Is this me or you? &nbsp; <strong>2.</strong> What happens to my money or my
+                work in the meantime? &nbsp; <strong>3.</strong> What is the single next thing — and by when?</p>
+              <p>If the block is caused by our own inconsistent data, say so plainly and give a human to contact.
+                Never show the driver the contradiction.</p>
+              <div class="yn">
+                <div class="no"><span>Not this</span>Activation authority conflict — Assignment history looks
+                  active but canonical activation is absent.</div>
+                <div class="yes"><span>This</span>Something doesn't add up on your account, so we can't start a
+                  trip yet. We've flagged it — call us on [number] if you need it today.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rule-row">
+            <h4>Emails</h4>
+            <div class="body">
+              <p>Subject line names the thing and the event: <em>&ldquo;Yello Season Q3 has paused — budget
+                reached&rdquo;</em>. Never a bare category.</p>
+              <p>Body: greeting with first name, what happened, what it means for them, one link. Footer: who
+                sent it, why they got it, how to change preferences.</p>
+              <p>Never put an internal risk category (&ldquo;fraud&rdquo;) in a subject line. Never send a
+                message about someone's money that omits the amount and the date.</p>
+            </div>
+          </div>
+
+          <div class="rule-row">
+            <h4>Status labels</h4>
+            <div class="body">
+              <p>Every enum that reaches the screen passes through an exhaustive
+                <code>Record&lt;Status, string&gt;</code> so the compiler forces a label for each new state. No
+                underscore-stripping fallbacks — they let untranslated values ship silently.</p>
+              <p>Labels name the user's situation, not the record's: <em>Waiting on us</em>,
+                <em>Action needed</em>, <em>Under review</em>, <em>Paid</em>.</p>
+            </div>
+          </div>
+
+          <div class="rule-row" id="banned">
+            <h4>Never ship</h4>
+            <div class="body">
+              <p>These words and patterns should not appear in any string rendered to a driver, applicant or
+                advertiser. Most are legitimate in code, comments, admin tooling and the architecture docs.</p>
+              <ul class="banlist">
+                <li>authority</li><li>governed</li><li>frozen</li><li>immutable</li><li>canonical</li>
+                <li>reconcile</li><li>provenance</li><li>fail-closed</li><li>manifest</li><li>watermark</li>
+                <li>writer / lock</li><li>ping</li><li>buffered</li><li>dead letter</li><li>idempotent</li>
+                <li>mutation</li><li>projection</li><li>session (as a noun)</li><li>backend</li><li>server</li>
+                <li>PWA</li><li>BFF</li><li>probe</li><li>schema</li><li>enum</li><li>payload</li>
+                <li>SHA-256 / digest / checksum / fingerprint</li><li>UUID</li><li>tenant</li>
+                <li>evidence (to drivers)</li><li>payee</li><li>ops</li><li>cohort</li><li>degraded</li>
+                <li>stale</li><li>suppressed</li><li>disclosure floor</li><li>gate</li><li>configured</li>
+                <li>fraud (to drivers)</li><li>challenge</li><li>artifact</li><li>v1 / v2 / v3</li>
+                <li>Q-references</li><li>Lagos time</li>
+              </ul>
+              <p style="margin-top:12px">Also never ship: raw JSON on a user surface · a code the user is told to
+                quote but is not shown · a metric whose subtitle corrects its own name · test or synthetic data on
+                a customer surface · a sentence explaining why the system cannot be certain.</p>
+            </div>
+          </div>
+
+          <div class="rule-row">
+            <h4>Cardvert vs Terrax Media</h4>
+            <div class="body">
+              <p><strong>Terrax Media</strong> is the company. It sells campaigns to brands, contracts with
+                advertisers, issues quotations and invoices, and publishes the Campaign Performance Analysis. It
+                owns the public site, the advertiser workspace, the admin tools, and every advertiser-facing
+                email. Its line is <em>Driving Impact Beyond Locations</em>.</p>
+              <p><strong>Cardvert</strong> is the driver app, and only the driver app. It appears on
+                <code>/driver/*</code>, on the driver application funnel, and in driver emails. Drivers work with
+                Cardvert; brands work with Terrax Media.</p>
+              <p><strong>Where they meet:</strong> the landing page's Cardvert section, and the driver's offer,
+                which comes from a Terrax Media campaign. In both places, name the relationship once —
+                &ldquo;Cardvert is Terrax Media's driver app&rdquo; — and then use one name per surface.</p>
+              <p><strong>Never:</strong> a shared sign-in branded Cardvert for advertisers; &ldquo;Terrax
+                measurement&rdquo; as a product name; &ldquo;the network&rdquo;, &ldquo;the platform&rdquo;,
+                &ldquo;command center&rdquo; or &ldquo;workspace&rdquo; as substitutes for either.</p>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════ legal ══════════════════════ -->
+      <section class="band" id="legal">
+        <div class="band-head"><span class="n">Reference</span><h2>Needs legal or compliance sign-off</h2></div>
+        <p class="band-note">No policy or legal wording has been rewritten in this audit, and no approval has
+          been assumed. These six items must not be changed on editorial judgement alone. The privacy note on the
+          landing page states that Terrax Media's legal and compliance adviser approves privacy, consent and
+          retention wording — that adviser is the right owner for this queue.</p>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Ref</th><th>Item</th><th>Question for legal</th></tr></thead>
+            <tbody>
+              <tr><td>A4</td><td>Four-city availability line on sign-in</td><td>Is a four-state coverage claim supportable during a single-city pilot?</td></tr>
+              <tr><td>B2</td><td>Disclaimer stack on <code>/apply</code></td><td>Are the negations required anti-misrepresentation wording? Approve a single condensed statement.</td></tr>
+              <tr><td>B3</td><td>NIN and bank collection while the page states privacy approval is outstanding</td><td>Should this form be collecting identity and bank data at all in its current state?</td></tr>
+              <tr><td>C4 / C5</td><td>Driver disclosure of carried debt; the immutable offer terms as contractual record</td><td>What must a driver be able to retrieve, and in what form, once the JSON snapshot is removed?</td></tr>
+              <tr><td>D2 / D5</td><td>Measurement disclaimers and the disclosure threshold</td><td>Approve condensed wording and its placement; confirm against the privacy operating model.</td></tr>
+              <tr><td>D4</td><td>Synthetic ROI rendering on a customer surface</td><td>Confirm removal. A test-derived percentage displayed to a paying advertiser is a representation risk.</td></tr>
+              <tr><td>E1 / E6</td><td>&ldquo;Fraud&rdquo; in email subject lines; sender identity and preference links</td><td>Confirm the neutral term, and the footer requirements for transactional mail.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer>
+        <p>Read-only audit of <code>master</code> at <code>3832cff</code>. No files were modified, staged or
+          committed; no tests were run. Line references are to the working tree at that commit.<br>
+          Findings marked <em>Defect</em> are mechanical and verifiable from the source. All other findings are
+          content judgements offered for the owner's decision.</p>
+      </footer>
+
+    </main>
+  </div>
+</div>
