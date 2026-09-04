@@ -13,7 +13,7 @@ while those inputs are absent.
 
 AUTHORITATIVE SOURCE
 - Review the attached repository snapshot labelled Mobility master at
-  d18657b.
+  572f4e1.
 - Start with docs/progress.md, docs/decisions-log.md, docs/architecture.md,
   to-do.md and issues/product-ui-review/README.md, then inspect relevant product
   code, contracts and tests.
@@ -29,7 +29,9 @@ CURRENT PROGRAMME BOUNDARY
 - Prompts 2, 3 and 5 have already produced normalized observations in
   issues/product-ui-review/outcomes.md. Reuse or cross-reference matching IDs
   instead of reporting them as new discoveries.
-- This review is read-only. It may recommend later product work, but it cannot
+- This review may write only its finished report to
+  issues/product-ui-review/answers/prompt-08-external-boundary.md. It may
+  recommend later product work, but it cannot edit product/controller files or
   authorize implementation, legal wording, provider selection, deployment or
   live data use.
 
@@ -89,6 +91,9 @@ OUTPUT
    answer on the owner's behalf.
 7. Deduplication appendix mapping every DUPLICATE item to its existing R-slice,
    to-do entry, decision row or UI/product-review outcome ID.
+8. Save this exact finished report to
+   issues/product-ui-review/answers/prompt-08-external-boundary.md so the
+   controller can reconcile it into the canonical review folder later.
 
 QUALITY RULES
 - Use plain human-facing wording in recommendations; never expose internal gate
