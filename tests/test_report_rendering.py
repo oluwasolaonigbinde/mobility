@@ -1,10 +1,14 @@
+import csv
 import hashlib
-import re
+import io
 
 import pytest
 
 from app.services.report_rendering import (
     ReportRenderLimitError,
+    _csv_cell,
+    _pdf_report_lines,
+    build_frozen_report_projection,
     render_report_csv,
     render_report_pdf,
 )
@@ -45,15 +49,6 @@ def density_profile(index: int) -> dict:
     }
 
 
-def rendered_pdf_text(content: bytes) -> str:
-    encoded_lines = re.findall(rb"\((.*)\) Tj", content)
-    lines = [
-        line.replace(rb"\(", b"(").replace(rb"\)", b")").replace(rb"\\", b"\\").decode("ascii")
-        for line in encoded_lines
-    ]
-    return " ".join(lines)
-
-
 def export_snapshot(*, include_roi: bool = False, profile_count: int = 1) -> dict:
     snapshot = {
         "schema_version": "campaign-performance-export-v1",
@@ -70,6 +65,7 @@ def export_snapshot(*, include_roi: bool = False, profile_count: int = 1) -> dic
         },
         "measurement": {
             "run_id": "11111111-1111-1111-1111-111111111111",
+            "input_sha256": "0" * 64,
             "result_sha256": "a" * 64,
             "proof_sha256": "b" * 64,
             "report_sha256": "c" * 64,
@@ -165,20 +161,21 @@ def test_renderers_are_deterministic_formula_safe_and_share_the_snapshot() -> No
     assert first_pdf.startswith(b"%PDF-1.4")
     assert b"/JavaScript" not in first_pdf
     assert b"/URI" not in first_pdf
-    assert b"Return on investment" in first_pdf
-    assert first_pdf.count(b") Tj") > 20
+    assert b"/FontFile2" in first_pdf
+    assert b"/ToUnicode" in first_pdf
+    assert "Return on investment" in "\n".join(_pdf_report_lines(snapshot))
 
 
 def test_performance_only_artifacts_contain_no_roi_text() -> None:
     snapshot = export_snapshot()
 
     csv_content = render_report_csv(snapshot).lower()
-    pdf_content = render_report_pdf(snapshot).lower()
+    pdf_lines = "\n".join(_pdf_report_lines(snapshot)).lower()
 
     assert b"roi" not in csv_content
     assert b"return on investment" not in csv_content
-    assert b"roi" not in pdf_content
-    assert b"return on investment" not in pdf_content
+    assert "roi" not in pdf_lines
+    assert "return on investment" not in pdf_lines
 
 
 def test_renderers_enforce_field_row_page_and_output_bounds() -> None:
@@ -199,31 +196,42 @@ def test_renderers_enforce_field_row_page_and_output_bounds() -> None:
         render_report_pdf(too_long)
 
 
-def test_csv_and_pdf_publish_the_same_frozen_disclosure_facts() -> None:
-    # MET-001, MET-002, MET-004, REP-002 parity across both frozen formats.
+def test_csv_pdf_and_screen_contract_share_one_frozen_projection() -> None:
+    # REP-003: all exports consume one typed row projection rather than parallel formatting.
     snapshot = export_snapshot(include_roi=True)
 
-    csv_content = render_report_csv(snapshot).decode("utf-8")
-    pdf_content = rendered_pdf_text(render_report_pdf(snapshot))
+    projection = build_frozen_report_projection(snapshot)
+    csv_rows = list(csv.reader(io.StringIO(render_report_csv(snapshot).decode("utf-8"))))
+    pdf_lines = _pdf_report_lines(snapshot)
 
-    density = snapshot["metrics"][1]["density_provenance"]
-    profile = density["profiles"][0]
-    required = [
-        MOVEMENT_CAVEAT,
-        snapshot["metrics"][0]["completeness"]["statement"],
-        snapshot["metrics"][1]["completeness"]["statement"],
-        density["source"],
-        density["calibration"],
-        profile["value_fingerprint"],
-        profile["road_category_method"],
-        *snapshot["financial_result"]["method"].values(),
-        snapshot["financial_result"]["provenance"]["conversion_provenance"],
-        snapshot["financial_result"]["provenance"]["revenue_provenance"],
-        snapshot["financial_result"]["provenance"]["reporting_cutoff"],
+    assert [tuple(row) for row in csv_rows[1:]] == [
+        tuple(_csv_cell(value) for value in row.as_csv_row()) for row in projection.rows
     ]
-    for fact in required:
-        assert fact in csv_content, fact
-        assert "".join(fact.split()) in "".join(pdf_content.split()), fact
+    for row in projection.rows:
+        assert row.as_pdf_line() in pdf_lines
+
+    period = next(row for row in projection.rows if row.metric_id == "period")
+    timezone = next(row for row in projection.rows if row.metric_id == "timestamp_timezone")
+    rounding = next(row for row in projection.rows if row.metric_id == "rounding")
+    financial_currency = next(row for row in projection.rows if row.metric_id == "currency")
+    assert f"input={snapshot['measurement']['input_sha256']}" in period.provenance
+    assert timezone.value == "UTC"
+    assert rounding.value == "Exact frozen decimal strings"
+    assert snapshot["financial_result"]["currency"] in "\n".join(pdf_lines)
+    assert financial_currency.value == snapshot["financial_result"]["currency"]
+
+
+def test_unicode_labels_are_embedded_in_the_pdf_without_ascii_replacement() -> None:
+    snapshot = export_snapshot()
+    snapshot["metrics"][0]["label"] = "Lágos — ụgbọala"
+
+    projection = build_frozen_report_projection(snapshot)
+    pdf_content = render_report_pdf(snapshot)
+
+    assert any(row.label == "Lágos — ụgbọala - Distance" for row in projection.rows)
+    assert "Lágos — ụgbọala - Distance" in "\n".join(_pdf_report_lines(snapshot))
+    assert b"/FontFile2" in pdf_content
+    assert b"/ToUnicode" in pdf_content
 
 
 def test_suppressed_totals_are_omitted_rather_than_zero_filled() -> None:
@@ -234,11 +242,11 @@ def test_suppressed_totals_are_omitted_rather_than_zero_filled() -> None:
     snapshot["metrics"][1]["completeness"] = completeness(covered=0, insufficient=2)
 
     csv_content = render_report_csv(snapshot).decode("utf-8")
-    pdf_content = rendered_pdf_text(render_report_pdf(snapshot))
+    pdf_content = "\n".join(_pdf_report_lines(snapshot))
 
     assert "omitted - insufficient frozen evidence" in csv_content
     assert "omitted - insufficient frozen evidence" in pdf_content
-    assert "totals omitted: True" in pdf_content
+    assert "suppressed=True" in pdf_content
     assert "suppressed=True" in csv_content
 
 

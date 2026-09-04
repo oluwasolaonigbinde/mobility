@@ -8,6 +8,7 @@ import {
   modelledContactsMetric,
   validateMeasurementAuthority,
 } from "./measurement-authority";
+import { frozenReportScreenProjection } from "./frozen-report-projection";
 
 type Report = components["schemas"]["CampaignReportResponse"];
 const CAMPAIGN_ID = "00000000-0000-4000-8000-000000000009";
@@ -193,6 +194,26 @@ function readyZoneReport(): Report {
 }
 
 describe("frozen measurement authority", () => {
+  it("keeps every screen field inside the typed frozen report projection", () => {
+    const report = reportFixture({ roi: true });
+    const projection = frozenReportScreenProjection(
+      report.measurement_run!,
+      report.measurement_result!,
+    );
+
+    expect(projection.metrics).toEqual(report.measurement_result!.metrics);
+    expect(projection.roi).toEqual(report.measurement_result!.roi);
+    expect(projection.roiGate).toEqual(report.measurement_result!.roi_gate);
+    expect(projection).toMatchObject({
+      timezone: "UTC",
+      rounding: "Exact frozen decimal strings; no browser rounding.",
+      inputSha256: "a".repeat(64),
+      resultSha256: "b".repeat(64),
+      proofSha256: "c".repeat(64),
+      reportSha256: "d".repeat(64),
+    });
+  });
+
   it("renders performance analysis with no ROI wording when the frozen gate omits it", () => {
     const report = reportFixture();
     const authority = validateMeasurementAuthority(report);
@@ -208,6 +229,13 @@ describe("frozen measurement authority", () => {
     expect(
       screen.getByText(/configured defaults; no independent field calibration/i),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/2026-08-01T00:00:00.000Z to 2026-08-02T00:00:00.000Z · UTC/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/exact frozen decimal strings; no browser rounding/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/input a{64}/i)).toBeInTheDocument();
     expect(screen.queryByText(/ROI/i)).not.toBeInTheDocument();
   });
 
@@ -218,7 +246,7 @@ describe("frozen measurement authority", () => {
     render(<MeasurementAuthorityPanel authority={authority} />);
 
     expect(screen.getByText("Return on investment")).toBeInTheDocument();
-    expect(screen.getByText("100.00%")).toBeInTheDocument();
+    expect(screen.getByText("100%")).toBeInTheDocument();
     expect(screen.getByText(/synthetic test-only result/i)).toBeInTheDocument();
     expect(screen.getByText("Synthetic campaign conversion rule.")).toBeInTheDocument();
     expect(screen.getByText("SYNTHETIC_TEST_ONLY conversion fixture")).toBeInTheDocument();
@@ -275,8 +303,8 @@ describe("frozen measurement authority", () => {
 
     const display = costMetricDisplay(cost);
 
-    expect(display).toContain("₦1,200");
-    expect(display).toContain("$12.50");
+    expect(display).toContain("NGN 1200.00");
+    expect(display).toContain("USD 12.50");
     expect(display).toContain(" · ");
   });
 

@@ -1,7 +1,8 @@
 import type { components } from "@/lib/api/schema";
-import { formatCount, formatDate, formatKm, formatMoney } from "@/lib/format";
+import { formatCount } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
+import { exactFrozenValue, frozenReportScreenProjection } from "./frozen-report-projection";
 
 type Report = components["schemas"]["CampaignReportResponse"];
 type Run = components["schemas"]["MeasurementRunSummary"];
@@ -40,7 +41,7 @@ export function costMetricDisplay(metric: CostMetric): string {
     return OMITTED_TOTAL_LABEL;
   }
   return metric.totals_by_currency
-    .map((total) => formatMoney(total.value, total.currency))
+    .map((total) => `${total.currency} ${exactFrozenValue(total.value)}`)
     .join(" · ");
 }
 
@@ -157,6 +158,7 @@ export function validateMeasurementAuthority(report: Report): MeasurementAuthori
 export function MeasurementAuthorityPanel({ authority }: { authority: MeasurementAuthority }) {
   if (!authority.ok) return null;
   const { run, result } = authority;
+  const projection = frozenReportScreenProjection(run, result);
 
   return (
     <Panel className="mt-6 p-6" aria-label="Frozen measurement authority">
@@ -165,21 +167,22 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
           <p className="micro text-amber">Frozen measurement authority</p>
           <h2 className="mt-1 font-medium">Verified and modelled results</h2>
           <p className="text-muted mt-1 text-sm">
-            {formatDate(result.period.start_at)} → {formatDate(result.period.end_at)} · no client
-            recalculation
+            {projection.period} · {projection.timezone} · no client recalculation
           </p>
         </div>
         <StatusChip tone="green">reproducible</StatusChip>
       </div>
 
       <div className="mt-5 grid gap-4 md:grid-cols-3">
-        {result.metrics.map((metric) => {
+        {projection.metrics.map((metric) => {
           if (metric.id === "verified_vehicle_movement") {
             return (
               <div key={metric.id}>
                 <p className="micro text-muted">{metric.label}</p>
                 <p className="mt-1 text-lg font-medium">
-                  {metric.distance_m === null ? OMITTED_TOTAL_LABEL : formatKm(metric.distance_m)}
+                  {metric.distance_m === null
+                    ? OMITTED_TOTAL_LABEL
+                    : `${exactFrozenValue(metric.distance_m)} metres`}
                 </p>
                 <p className="text-faint mt-1 text-xs">
                   {formatCount(metric.trip_count)} governed trips ·{" "}
@@ -197,7 +200,7 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
               <div key={metric.id}>
                 <p className="micro text-muted">{metric.label}</p>
                 <p className="mt-1 text-lg font-medium">
-                  {metric.value === null ? OMITTED_TOTAL_LABEL : formatCount(metric.value)}
+                  {metric.value === null ? OMITTED_TOTAL_LABEL : exactFrozenValue(metric.value)}
                 </p>
                 <p className="text-faint mt-1 text-xs">{metric.uncertainty}</p>
                 <p className="text-faint mt-2 text-xs">{completenessCopy(metric.completeness)}</p>
@@ -228,70 +231,72 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
         })}
       </div>
 
-      {authority.roiIncluded && result.roi ? (
+      {projection.roiGate.decision === "INCLUDE" && projection.roi ? (
         <div className="border-edge mt-5 border-t pt-5" aria-label="Conditional financial result">
           <div className="flex flex-wrap items-center gap-3">
-            <h3 className="font-medium">{result.roi.label}</h3>
+            <h3 className="font-medium">{projection.roi.label}</h3>
             {authority.testOnlyRoi ? (
               <StatusChip tone="amber">synthetic test-only result</StatusChip>
             ) : null}
           </div>
-          <p className="mt-2 text-2xl font-semibold">{Number(result.roi.percent).toFixed(2)}%</p>
+          <p className="mt-2 text-2xl font-semibold">{exactFrozenValue(projection.roi.percent)}%</p>
           <p className="micro text-faint mt-1 font-mono">
-            {result.roi.currency} · method {result.roi.method_revision}
+            {projection.roi.currency} · method {projection.roi.method_revision}
           </p>
           <dl className="text-muted mt-3 grid gap-2 text-xs md:grid-cols-2">
             <div>
               <dt className="font-medium">Approval</dt>
-              <dd>{result.roi.method.approval_reference}</dd>
+              <dd>{projection.roi.method.approval_reference}</dd>
             </div>
             <div>
               <dt className="font-medium">Attribution rule</dt>
-              <dd>{result.roi.method.attribution_rule}</dd>
+              <dd>{projection.roi.method.attribution_rule}</dd>
             </div>
             <div>
               <dt className="font-medium">Attribution window</dt>
-              <dd>{result.roi.method.attribution_window}</dd>
+              <dd>{projection.roi.method.attribution_window}</dd>
             </div>
             <div>
               <dt className="font-medium">Cost basis</dt>
-              <dd>{result.roi.method.cost_basis}</dd>
+              <dd>{projection.roi.method.cost_basis}</dd>
             </div>
             <div>
               <dt className="font-medium">Exclusions</dt>
-              <dd>{result.roi.method.exclusions}</dd>
+              <dd>{projection.roi.method.exclusions}</dd>
             </div>
             <div>
               <dt className="font-medium">Corrections</dt>
-              <dd>{result.roi.method.corrections}</dd>
+              <dd>{projection.roi.method.corrections}</dd>
             </div>
             <div>
               <dt className="font-medium">Late data</dt>
-              <dd>{result.roi.method.late_data}</dd>
+              <dd>{projection.roi.method.late_data}</dd>
             </div>
             <div>
               <dt className="font-medium">Reporting cutoff</dt>
-              <dd>{result.roi.provenance.reporting_cutoff}</dd>
+              <dd>{projection.roi.provenance.reporting_cutoff}</dd>
             </div>
             <div>
               <dt className="font-medium">Conversion provenance</dt>
-              <dd>{result.roi.provenance.conversion_provenance}</dd>
+              <dd>{projection.roi.provenance.conversion_provenance}</dd>
             </div>
             <div>
               <dt className="font-medium">Revenue provenance</dt>
-              <dd>{result.roi.provenance.revenue_provenance}</dd>
+              <dd>{projection.roi.provenance.revenue_provenance}</dd>
             </div>
           </dl>
-          <p className="text-muted mt-3 text-xs">{result.roi.method.limitations}</p>
+          <p className="text-muted mt-3 text-xs">{projection.roi.method.limitations}</p>
         </div>
       ) : null}
 
       <div className="border-edge mt-5 border-t pt-4 font-mono text-xs">
         <p className="text-muted">Run {run.id}</p>
         <p className="text-faint mt-1">
-          result {run.result_manifest_sha256.slice(0, 16)}… · proof{" "}
-          {run.proof_manifest_sha256.slice(0, 16)}… · report{" "}
-          {run.report_snapshot_sha256.slice(0, 16)}…
+          timezone {projection.timezone} · rounding {projection.rounding}
+        </p>
+        <p className="text-faint mt-1 break-all">
+          input {projection.inputSha256} · result {projection.resultSha256} · proof{" "}
+          {projection.proofSha256} · report {projection.reportSha256}
         </p>
       </div>
     </Panel>

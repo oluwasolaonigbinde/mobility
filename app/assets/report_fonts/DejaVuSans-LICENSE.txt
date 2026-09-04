@@ -1,0 +1,8 @@
+DejaVu Sans is distributed under the Bitstream Vera license.
+
+Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved.
+Copyright (c) 2006 by Tavmjong Bah. All Rights Reserved.
+
+The DejaVu changes are in the public domain. The font's embedded copyright and
+license notices are retained in DejaVuSans.ttf. This vendored copy is used only
+for deterministic, Unicode-capable frozen-report PDFs.

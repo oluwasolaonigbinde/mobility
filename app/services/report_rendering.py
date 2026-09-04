@@ -5,9 +5,14 @@ from __future__ import annotations
 import csv
 import io
 import json
+import struct
 import textwrap
 import unicodedata
 from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from functools import lru_cache
+from pathlib import Path
 
 MAX_INPUT_BYTES = 512 * 1024
 MAX_OUTPUT_BYTES = 1024 * 1024
@@ -16,10 +21,45 @@ MAX_FIELD_CHARACTERS = 2048
 PDF_LINES_PER_PAGE = 48
 MAX_PDF_PAGES = 16
 PDF_LINE_CHARACTERS = 92
+REPORT_TIMEZONE = "UTC"
+PDF_FONT_PATH = Path(__file__).parents[1] / "assets" / "report_fonts" / "DejaVuSans.ttf"
 
 
 class ReportRenderLimitError(ValueError):
     """A frozen report exceeds a fixed renderer safety boundary."""
+
+
+@dataclass(frozen=True)
+class FrozenReportRow:
+    section: str
+    metric_id: str
+    label: str
+    metric_class: str
+    value: str
+    unit: str
+    provenance: str
+
+    def as_csv_row(self) -> tuple[str, str, str, str, str, str, str]:
+        return (
+            self.section,
+            self.metric_id,
+            self.label,
+            self.metric_class,
+            self.value,
+            self.unit,
+            self.provenance,
+        )
+
+    def as_pdf_line(self) -> str:
+        return (
+            f"[{self.section} | {self.metric_id} | {self.metric_class}] {self.label}: "
+            f"{self.value}{f' {self.unit}' if self.unit else ''} — {self.provenance}"
+        )
+
+
+@dataclass(frozen=True)
+class FrozenReportProjection:
+    rows: tuple[FrozenReportRow, ...]
 
 
 def _bounded_text(value: object) -> str:
@@ -43,13 +83,25 @@ def _snapshot_size_guard(snapshot: dict) -> None:
         raise ReportRenderLimitError("report input byte limit exceeded")
 
 
-def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
+def _utc_instant(value: object) -> str:
+    try:
+        instant = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ReportRenderLimitError("report timestamp is invalid") from exc
+    if instant.tzinfo is None:
+        raise ReportRenderLimitError("report timestamp must include a timezone")
+    return instant.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def build_frozen_report_projection(snapshot: dict) -> FrozenReportProjection:
+    """Normalize every frozen report fact once before any output renderer sees it."""
     _snapshot_size_guard(snapshot)
     measurement = snapshot["measurement"]
     provenance = (
-        f"run={measurement['run_id']};result={measurement['result_sha256']};"
+        f"run={measurement['run_id']};input={measurement['input_sha256']};"
+        f"result={measurement['result_sha256']};"
         f"proof={measurement['proof_sha256']};report={measurement['report_sha256']};"
-        f"method={measurement['method_revision']}"
+        f"method={measurement['method_revision']};formula={measurement['formula_version']}"
     )
     issuance = snapshot.get("issuance")
     if not isinstance(issuance, dict):
@@ -59,8 +111,8 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
         f"schema={issuance['schema_version']};renderer={issuance['renderer_version']};"
         f"created={issuance['created_at']};authority={issuance['creation_authority']}"
     )
-    rows: list[tuple[str, str, str, str, str, str, str]] = [
-        (
+    rows: list[FrozenReportRow] = [
+        FrozenReportRow(
             "report",
             "issuance",
             "Issuance identity",
@@ -69,7 +121,7 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
             f"version {issuance['version']}",
             issuance_provenance,
         ),
-        (
+        FrozenReportRow(
             "report",
             "title",
             snapshot["title"],
@@ -78,21 +130,40 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
             "",
             f"{provenance};{issuance_provenance}",
         ),
-        (
+        FrozenReportRow(
             "measurement",
             "period",
             "Reporting period",
             "frozen_period",
-            f"{measurement['period_start_at']} to {measurement['period_end_at']}",
+            f"{_utc_instant(measurement['period_start_at'])} to "
+            f"{_utc_instant(measurement['period_end_at'])}",
             "",
             provenance,
+        ),
+        FrozenReportRow(
+            "report",
+            "timestamp_timezone",
+            "Timestamp timezone",
+            "display_contract",
+            REPORT_TIMEZONE,
+            "IANA timezone",
+            "timestamps are frozen ISO-8601 instants displayed in UTC",
+        ),
+        FrozenReportRow(
+            "report",
+            "rounding",
+            "Rounding",
+            "display_contract",
+            "Exact frozen decimal strings",
+            "no browser rounding",
+            "CSV, PDF and screen retain the frozen decimal representation",
         ),
     ]
     for metric in snapshot["metrics"]:
         metric_provenance = f"{provenance};formula={measurement['formula_version']}"
         for value in metric["values"]:
             rows.append(
-                (
+                FrozenReportRow(
                     "performance",
                     metric["id"],
                     f"{metric['label']} - {value['label']}",
@@ -105,7 +176,7 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
         completeness = metric.get("completeness")
         if completeness:
             rows.append(
-                (
+                FrozenReportRow(
                     "performance",
                     metric["id"],
                     f"{metric['label']} - completeness",
@@ -119,7 +190,7 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
         density = metric.get("density_provenance")
         if density:
             rows.append(
-                (
+                FrozenReportRow(
                     "performance",
                     metric["id"],
                     f"{metric['label']} - density source",
@@ -130,7 +201,7 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
                 )
             )
             rows.append(
-                (
+                FrozenReportRow(
                     "performance",
                     metric["id"],
                     f"{metric['label']} - density calibration",
@@ -142,7 +213,7 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
             )
             for profile in density["profiles"]:
                 rows.append(
-                    (
+                    FrozenReportRow(
                         "performance",
                         metric["id"],
                         f"{metric['label']} - density parameter",
@@ -159,7 +230,7 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
                 )
         if metric.get("uncertainty"):
             rows.append(
-                (
+                FrozenReportRow(
                     "performance",
                     metric["id"],
                     f"{metric['label']} - uncertainty",
@@ -178,7 +249,7 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
         f"segment_snapshot_hashes={','.join(exposure['segment_snapshot_hashes'])}"
     )
     rows.append(
-        (
+        FrozenReportRow(
             "exposure",
             "disclosure_state",
             "Disclosure state",
@@ -190,7 +261,7 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
     )
     if exposure.get("score") is not None:
         rows.append(
-            (
+            FrozenReportRow(
                 "exposure",
                 "exposure_score",
                 "Exposure score",
@@ -202,7 +273,7 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
         )
     for zone in exposure["zones"]:
         rows.append(
-            (
+            FrozenReportRow(
                 "exposure",
                 "high_exposure_zone",
                 zone["label"],
@@ -213,7 +284,7 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
             )
         )
     rows.append(
-        (
+        FrozenReportRow(
             "exposure",
             "disclaimer",
             "Disclosure and uncertainty",
@@ -226,8 +297,19 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
     financial_result = snapshot.get("financial_result")
     if financial_result is not None:
         financial_provenance = f"{provenance};method={financial_result['method_revision']}"
+        rows.append(
+            FrozenReportRow(
+                "financial_result",
+                "currency",
+                f"{financial_result['label']} - currency",
+                financial_result["class"],
+                financial_result["currency"],
+                "ISO 4217 currency",
+                financial_provenance,
+            )
+        )
         rows.extend(
-            (
+            FrozenReportRow(
                 "financial_result",
                 field,
                 financial_result["label"],
@@ -240,7 +322,7 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
         )
         for field, value in sorted((financial_result.get("method") or {}).items()):
             rows.append(
-                (
+                FrozenReportRow(
                     "financial_method",
                     field,
                     f"{financial_result['label']} - {field.replace('_', ' ')}",
@@ -252,7 +334,7 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
             )
         for field, value in sorted((financial_result.get("provenance") or {}).items()):
             rows.append(
-                (
+                FrozenReportRow(
                     "financial_provenance",
                     field,
                     f"{financial_result['label']} - {field.replace('_', ' ')}",
@@ -265,9 +347,9 @@ def _rows(snapshot: dict) -> list[tuple[str, str, str, str, str, str, str]]:
     if len(rows) > MAX_ROWS:
         raise ReportRenderLimitError("report row limit exceeded")
     for row in rows:
-        for value in row:
+        for value in row.as_csv_row():
             _bounded_text(value)
-    return rows
+    return FrozenReportProjection(rows=tuple(rows))
 
 
 def render_report_csv(snapshot: dict) -> bytes:
@@ -276,44 +358,159 @@ def render_report_csv(snapshot: dict) -> bytes:
     writer.writerow(
         ("section", "metric_id", "label", "metric_class", "value", "unit", "provenance")
     )
-    for row in _rows(snapshot):
-        writer.writerow(tuple(_csv_cell(value) for value in row))
+    for row in build_frozen_report_projection(snapshot).rows:
+        writer.writerow(tuple(_csv_cell(value) for value in row.as_csv_row()))
     content = stream.getvalue().encode("utf-8")
     if len(content) > MAX_OUTPUT_BYTES:
         raise ReportRenderLimitError("report output byte limit exceeded")
     return content
 
 
-def _pdf_text(value: object) -> str:
-    text = _bounded_text(value).encode("ascii", "replace").decode("ascii")
-    return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+@lru_cache(maxsize=1)
+def _font_metadata() -> tuple[bytes, dict[int, int], int, int]:
+    font = PDF_FONT_PATH.read_bytes()
+    tables = {
+        font[offset : offset + 4]: struct.unpack(">II", font[offset + 8 : offset + 16])
+        for offset in range(12, 12 + struct.unpack(">H", font[4:6])[0] * 16, 16)
+    }
+    try:
+        hhea_offset, _ = tables[b"hhea"]
+        cmap_offset, _ = tables[b"cmap"]
+    except KeyError as exc:
+        raise ReportRenderLimitError("report PDF font is incomplete") from exc
+    ascent, descent = struct.unpack(">hh", font[hhea_offset + 4 : hhea_offset + 8])
+    cmap = _unicode_cmap(font, cmap_offset)
+    return font, cmap, ascent, descent
 
 
-def _pdf_stream(lines: Iterable[str]) -> bytes:
+def _unicode_cmap(font: bytes, cmap_offset: int) -> dict[int, int]:
+    records = struct.unpack(">H", font[cmap_offset + 2 : cmap_offset + 4])[0]
+    candidates = []
+    for index in range(records):
+        start = cmap_offset + 4 + index * 8
+        platform_id, encoding_id, offset = struct.unpack(">HHI", font[start : start + 8])
+        subtable = cmap_offset + offset
+        fmt = struct.unpack(">H", font[subtable : subtable + 2])[0]
+        if (platform_id, encoding_id) in {(0, 3), (3, 1), (3, 10)} and fmt in {4, 12}:
+            candidates.append((fmt, subtable))
+    if not candidates:
+        raise ReportRenderLimitError("report PDF font has no Unicode cmap")
+    fmt, subtable = max(candidates, key=lambda candidate: candidate[0])
+    if fmt == 12:
+        groups = struct.unpack(">I", font[subtable + 12 : subtable + 16])[0]
+        mapping: dict[int, int] = {}
+        for index in range(groups):
+            start = subtable + 16 + index * 12
+            first, last, glyph = struct.unpack(">III", font[start : start + 12])
+            mapping.update(
+                {codepoint: glyph + codepoint - first for codepoint in range(first, last + 1)}
+            )
+        return mapping
+    seg_count = struct.unpack(">H", font[subtable + 6 : subtable + 8])[0] // 2
+    end_codes = subtable + 14
+    start_codes = end_codes + seg_count * 2 + 2
+    id_deltas = start_codes + seg_count * 2
+    id_range_offsets = id_deltas + seg_count * 2
+    mapping = {}
+    for index in range(seg_count):
+        end = struct.unpack(">H", font[end_codes + index * 2 : end_codes + index * 2 + 2])[0]
+        start = struct.unpack(">H", font[start_codes + index * 2 : start_codes + index * 2 + 2])[0]
+        delta = struct.unpack(">h", font[id_deltas + index * 2 : id_deltas + index * 2 + 2])[0]
+        range_offset = struct.unpack(
+            ">H", font[id_range_offsets + index * 2 : id_range_offsets + index * 2 + 2]
+        )[0]
+        for codepoint in range(start, end + 1):
+            if range_offset:
+                glyph_offset = id_range_offsets + index * 2 + range_offset + (codepoint - start) * 2
+                glyph = struct.unpack(">H", font[glyph_offset : glyph_offset + 2])[0]
+                glyph = (glyph + delta) % 65536 if glyph else 0
+            else:
+                glyph = (codepoint + delta) % 65536
+            mapping[codepoint] = glyph
+    return mapping
+
+
+def _pdf_font_objects(text: str) -> tuple[dict[int, bytes], dict[str, int]]:
+    font, cmap, ascent, descent = _font_metadata()
+    characters = sorted(set(text))
+    unsupported = [character for character in characters if not cmap.get(ord(character), 0)]
+    if unsupported:
+        raise ReportRenderLimitError("report PDF font does not support a frozen Unicode character")
+    cid_by_character = {character: index + 1 for index, character in enumerate(characters)}
+    cid_to_gid = bytearray((len(characters) + 1) * 2)
+    for character, cid in cid_by_character.items():
+        cid_to_gid[cid * 2 : cid * 2 + 2] = struct.pack(">H", cmap[ord(character)])
+    cmap_entries = []
+    for character, cid in cid_by_character.items():
+        encoded = character.encode("utf-16-be").hex().upper()
+        cmap_entries.append(f"<{cid:04X}> <{encoded}>")
+    character_map = "\n".join(cmap_entries)
+    to_unicode = (
+        "/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n"
+        "/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n"
+        "/CMapName /CardvertFrozenReport-UCS def\n/CMapType 2 def\n"
+        "1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n"
+        f"{len(cmap_entries)} beginbfchar\n"
+        f"{character_map}\nendbfchar\nendcmap\n"
+        "CMapName currentdict /CMap defineresource pop\nend\nend"
+    ).encode("ascii")
+    objects = {
+        3: f"<< /Length {len(font)} /Length1 {len(font)} >>\nstream\n".encode("ascii")
+        + font
+        + b"\nendstream",
+        4: (
+            "<< /Type /FontDescriptor /FontName /CardvertFrozenReport "
+            "/Flags 32 /FontBBox [-1021 -463 1793 1232] "
+            f"/Ascent {ascent} /Descent {descent} /CapHeight {ascent} /ItalicAngle 0 "
+            "/StemV 80 /FontFile2 3 0 R >>"
+        ).encode("ascii"),
+        5: (
+            "<< /Type /Font /Subtype /CIDFontType2 /BaseFont /CardvertFrozenReport "
+            "/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> "
+            "/FontDescriptor 4 0 R /DW 600 /CIDToGIDMap 6 0 R >>"
+        ).encode("ascii"),
+        6: f"<< /Length {len(cid_to_gid)} >>\nstream\n".encode("ascii")
+        + bytes(cid_to_gid)
+        + b"\nendstream",
+        7: f"<< /Length {len(to_unicode)} >>\nstream\n".encode("ascii")
+        + to_unicode
+        + b"\nendstream",
+        8: (
+            "<< /Type /Font /Subtype /Type0 /BaseFont /CardvertFrozenReport "
+            "/Encoding /Identity-H /DescendantFonts [5 0 R] /ToUnicode 7 0 R >>"
+        ).encode("ascii"),
+    }
+    return objects, {character: cid for character, cid in cid_by_character.items()}
+
+
+def _pdf_stream(lines: Iterable[str], character_cids: dict[str, int]) -> bytes:
     commands = ["BT", "/F1 9 Tf", "42 785 Td", "12 TL"]
     for line in lines:
-        commands.extend((f"({_pdf_text(line)}) Tj", "T*"))
+        encoded = "".join(f"{character_cids[character]:04X}" for character in _bounded_text(line))
+        commands.extend((f"<{encoded}> Tj", "T*"))
     commands.append("ET")
     return "\n".join(commands).encode("ascii")
 
 
 def _pdf_document(pages: list[list[str]]) -> bytes:
-    page_ids = [4 + index * 2 for index in range(len(pages))]
+    document_text = "".join(line for page in pages for line in page)
+    font_objects, character_cids = _pdf_font_objects(document_text)
+    page_ids = [9 + index * 2 for index in range(len(pages))]
     objects: dict[int, bytes] = {
         1: b"<< /Type /Catalog /Pages 2 0 R >>",
         2: (
             f"<< /Type /Pages /Count {len(pages)} /Kids "
             f"[{' '.join(f'{page_id} 0 R' for page_id in page_ids)}] >>"
         ).encode("ascii"),
-        3: b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
     }
+    objects.update(font_objects)
     for index, lines in enumerate(pages):
         page_id = page_ids[index]
         content_id = page_id + 1
-        stream = _pdf_stream(lines)
+        stream = _pdf_stream(lines, character_cids)
         objects[page_id] = (
             f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
-            f"/Resources << /Font << /F1 3 0 R >> >> /Contents {content_id} 0 R >>"
+            f"/Resources << /Font << /F1 8 0 R >> >> /Contents {content_id} 0 R >>"
         ).encode("ascii")
         objects[content_id] = (
             f"<< /Length {len(stream)} >>\nstream\n".encode("ascii") + stream + b"\nendstream"
@@ -338,107 +535,15 @@ def _pdf_document(pages: list[list[str]]) -> bytes:
 
 
 def _pdf_report_lines(snapshot: dict) -> list[str]:
-    # Exercise the same bounded row projection as CSV before creating a more
-    # readable document layout from the identical frozen snapshot.
-    _rows(snapshot)
-    issuance = snapshot["issuance"]
-    measurement = snapshot["measurement"]
+    projection = build_frozen_report_projection(snapshot)
     lines = [
         "Synthetic test artifact" if snapshot["synthetic"] else "Issued report artifact",
         "",
-        "Issuance",
-        f"Identity: {issuance['id']} (version {issuance['version']})",
-        f"Schema: {issuance['schema_version']}",
-        f"Renderer: {issuance['renderer_version']}",
-        f"Created: {issuance['created_at']}",
-        f"Creation authority: {issuance['creation_authority']}",
+        "Frozen report projection",
+        "Every row below is shared with the CSV and screen display contract.",
         "",
-        "Frozen measurement provenance",
-        f"Run: {measurement['run_id']}",
-        f"Input SHA-256: {measurement.get('input_sha256', '')}",
-        f"Result SHA-256: {measurement['result_sha256']}",
-        f"Proof SHA-256: {measurement['proof_sha256']}",
-        f"Report SHA-256: {measurement['report_sha256']}",
-        f"Method: {measurement['method_revision']}",
-        f"Formula: {measurement['formula_version']}",
-        f"Period: {measurement['period_start_at']} to {measurement['period_end_at']}",
-        "",
-        "Performance metrics",
     ]
-    for metric in snapshot["metrics"]:
-        for value in metric["values"]:
-            lines.append(
-                f"{metric['label']} - {value['label']}: {value['value']} {value['unit']} "
-                f"[{metric['class']}]"
-            )
-        completeness = metric.get("completeness")
-        if completeness:
-            lines.append(f"Completeness: {completeness['statement']}")
-            lines.append(
-                f"Complete: {completeness['complete']}; "
-                f"totals omitted: {completeness['suppressed']}"
-            )
-        density = metric.get("density_provenance")
-        if density:
-            lines.append(f"Density source: {density['source']}")
-            lines.append(f"Density calibration: {density['calibration']}")
-            for profile in density["profiles"]:
-                lines.append(
-                    f"Density parameter: {profile['traffic_density_per_km']} per km; "
-                    f"{profile['dwell_impressions_per_minute']} per dwell minute "
-                    f"(profile {profile['profile_id']} revision {profile['revision']}, "
-                    f"effective {profile['effective_from']}, "
-                    f"value SHA-256 {profile['value_fingerprint']}, "
-                    f"road category {profile['road_category_method']})"
-                )
-        if metric.get("uncertainty"):
-            lines.append(f"Uncertainty: {metric['uncertainty']}")
-
-    exposure = snapshot["exposure"]
-    lines.extend(
-        [
-            "",
-            "Disclosure and exposure",
-            f"Disclosure state: {exposure['state']}",
-        ]
-    )
-    if exposure.get("score") is not None:
-        lines.append(f"Exposure score: {exposure['score']} points")
-    for zone in exposure["zones"]:
-        lines.append(
-            f"Rank {zone['rank']}: {zone['label']} - "
-            f"{zone['modelled_potential_contacts']} modelled potential contacts"
-        )
-    lines.extend(
-        [
-            f"Formula: {exposure['formula_version']}",
-            f"Formula SHA-256: {exposure['formula_fingerprint']}",
-            f"Input SHA-256: {exposure['input_fingerprint']}",
-            f"Authority SHA-256: {exposure['authority_fingerprint']}",
-        ]
-    )
-    for segment_hash in exposure["segment_snapshot_hashes"]:
-        lines.append(f"Disclosure segment SHA-256: {segment_hash}")
-    lines.append(f"Disclosure note: {exposure['disclaimer']}")
-    if exposure.get("uncertainty"):
-        lines.append(f"Exposure uncertainty: {exposure['uncertainty']}")
-
-    financial_result = snapshot.get("financial_result")
-    if financial_result is not None:
-        lines.extend(
-            [
-                "",
-                "Conditional financial result",
-                f"{financial_result['label']}: {financial_result['ratio']} ratio; "
-                f"{financial_result['percent']} percent; {financial_result['currency']}",
-                f"Class: {financial_result['class']}",
-                f"Method: {financial_result['method_revision']}",
-            ]
-        )
-        for field, value in sorted((financial_result.get("method") or {}).items()):
-            lines.append(f"{field.replace('_', ' ').capitalize()}: {value}")
-        for field, value in sorted((financial_result.get("provenance") or {}).items()):
-            lines.append(f"{field.replace('_', ' ').capitalize()}: {value}")
+    lines.extend(row.as_pdf_line() for row in projection.rows)
     return lines
 
 
