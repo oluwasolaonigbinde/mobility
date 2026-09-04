@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 306
+plan_revision: 307
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 436
+last_event_sequence: 437
 ---
 
 # Cardvert audit remediation programme
@@ -205,14 +205,14 @@ visible top-level Mobility tasks.
 | S28 | R59 — TST-002 | integrated real-stack browser journey | cross-stack release/security; Sol/xhigh | all predecessor contracts integrated; local real-stack evidence only |
 | S29 | R60 — GOV-009 | final architecture/progress/decision synchronization | cross-package closure; Sol/high | no product implementation; reconcile all 115 candidates, integrated gates and final minimal-change review |
 
-Current justified writer capacity is **2**, assigned exactly to S02/R05 and
-S21/R49. R03 and R48 are accepted and their workflow/generated-contract and
+Current justified writer capacity is **1**, assigned exactly to S21/R49. R03 and
+R48 are accepted and their workflow/generated-contract and
 report-projection leases are released. R49 exclusively owns bounded report-
-issuance claim/reclaim/failure behavior and focused worker tests. R05 exclusively owns savepoint-safe real-
-PostgreSQL conflict translation and focused tests; it owns the database-
-concurrency lane but no migration or generated-contract files. The three leases
-were write-disjoint; the two remaining leases are also write-disjoint and controller
-documents remain serialized.
+issuance claim/reclaim/failure behavior and focused worker tests. R05 is accepted;
+R06's fresh bounded plan review runs without a mutation lease; only after PASS will
+it exclusively own the historical governed-downgrade migration lane across revisions
+0010, 0014 and 0016 plus focused downgrade guards. Controller documents remain
+serialized.
 
 ## Executable slice map
 
@@ -225,8 +225,8 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R02 | GOV-003, TST-001, DB-005 | ACCEPTED | R01, R04; control/branch authority | R02-P; R02-M; DB+DEP; R02-CP-CONTROL; commit `09c0b17`; 2,541 composed passing executions, zero skips | accepted exactly once; runner lease released; R05 dependency-ready and R03 remains lane-held behind R47 |
 | R03 | GOV-004 | ACCEPTED | R02; control/contracts | R03-P/M; CONTRACT; R03-CP-CONTROL; commit `60af07d` | accepted exactly once; workflow/generated-contract lease released |
 | R04 | DB-004 | ACCEPTED | database opener | R04-P; R04-M; R04-CP-DB; exact PostgreSQL/PostGIS catalog and constraint-timing red/green | complete |
-| R05 | DB-001, TST-012, ONB-010 | ACTIVE | R02, R04 | R05-P; reviewed savepoint/conflict contract | begin in a fresh visible Sol/high session; exact database-concurrency lease, no migration/generated-contract files |
-| R06 | DB-002 | WAITING | R02, R04, R05; historical migration authority | owner/developer approved the reviewed narrow development-time downgrade safety exception | wait for R02/R05, then repeat bounded plan review and serialize migration lane |
+| R05 | DB-001, TST-012, ONB-010 | ACCEPTED | R02, R04 | R05-P/M; DB+MNY; R05-CP-DB; commit `954d9a4` | accepted exactly once; database-concurrency lease released |
+| R06 | DB-002 | PLAN-REVIEW | R02, R04, R05; historical migration authority | owner/developer approved the reviewed narrow development-time downgrade safety exception | fresh Sol/high owner repeats bounded plan review, then implements only on PASS in the exclusive migration lane |
 | R07 | DB-003 | WAITING | R02, R04, R06 | R07-P; reviewed database immutability contract | wait for R06 policy/dependency and serialized migration lane |
 | R08 | GOV-005 | ACCEPTED | security opener | R08-P; R08-M; R08-SEC; R08-CP-SECURITY; lock-removal red and real PostgreSQL green | complete |
 | R09 | GOV-007, AUT-001, AUT-002 | COMPLETE | R10 | R09-P/M; SEC; CP-SECURITY; exact `5b0a3f68...` freeze; five focused real-PostgreSQL refresh passes | accepted exactly once; authentication lease released |
@@ -890,3 +890,4 @@ verification is complete.
 | 434 | 304 | 1 | PARALLEL_FRONTIER_EXPANDED | R05/DB-001,TST-012,ONB-010 joins R03 and R48 as a third dependency-ready, write-disjoint implementation slice. | R05 owns savepoint-safe real-PostgreSQL uniqueness/conflict translation in trip, disbursement and vehicle-onboarding services plus focused tests; no migration, generated-contract, workflow, report-rendering or controller-document lease; fresh Sol/high session because transaction rollback and concurrent uniqueness races are the packet's hardest boundary |
 | 435 | 305 | 1 | CONTRACT_SLICE_ACCEPTED | R03/GOV-004 accepted deterministic equality across runtime FastAPI OpenAPI, both JSON baselines and generated TypeScript, then released its workflow/generated-contract lease. | commit `60af07d`; exact three-file implementation; red stale-root-JSON oracle then 2 focused tests PASS; deterministic generator `--check`, runtime/JSON/type parity, workflow/static/lint/diff and independent R03-M/CONTRACT/CP-CONTROL PASS; R05/R48 remain active |
 | 436 | 306 | 1 | REPORT_PROJECTION_ACCEPTED | R48/REP-003 accepted one typed frozen projection across screen, CSV and PDF, then released its report-projection lease and promoted R49. | commit `b17d1e7`; 7 backend and 9 frontend focused tests PASS; Unicode PDF extraction, UTC/exact-value/hash/uncertainty/ROI/currency parity, repeat deterministic render, lint/type/format/diff and independent R48-M/CONTRACT/CP-REPORTING PASS; R05 remains active |
+| 437 | 307 | 1 | DATABASE_CONFLICT_SLICE_ACCEPTED | R05/DB-001,TST-012,ONB-010 accepted savepoint-safe PostgreSQL conflict translation and released the database lane to R06. | commit `954d9a4`; exact eight-file implementation; meaningful 1-pass/3-fail red including the lost trip outer marker, then 9 exact, 48 integrity/conflict, 59 integrity/exclusivity and 30 payout/vehicle real-PostgreSQL passes; OpenAPI, Ruff, compile and diff PASS; independent R05-M, DB+MNY and R05-CP-DB PASS |

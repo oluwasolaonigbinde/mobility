@@ -45,14 +45,15 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R05, R49`
+**Current justified remediation writer capacity:** `1`
+**Current capacity assignment:** `R49`
 **Current capacity justification:** R03 and R48 are accepted and their workflow,
 generated-contract and report-projection leases are released. R49 exclusively owns
-bounded report-issuance claim/reclaim/failure behavior and focused worker tests. R05 exclusively owns savepoint-safe real-PostgreSQL
-conflict translation across trip, disbursement and vehicle-onboarding services and
-their focused tests; it owns the database-concurrency lane but no migration or
-generated-contract files. Controller documents remain serialized.
+bounded report-issuance claim/reclaim/failure behavior and focused worker tests.
+R05 is accepted. R06's fresh bounded plan review may run concurrently but does not
+become a writer until that review passes; it then exclusively owns the historical
+governed-downgrade migration lane across revisions 0010, 0014 and 0016 plus focused
+downgrade guards. Controller documents remain serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -84,8 +85,8 @@ authority. The active queue now prioritizes locally executable product and
 engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
-**Current checkpoint:** `PKG-10 / R05` — R02 is accepted at `09c0b17`, R47 at
-`419414a`, R03 at `60af07d`, and R48 at `b17d1e7`; R05 and R49 are the assigned remediation slices. AUT-006 is accepted at
+**Current checkpoint:** `PKG-10 / R06` — R02 is accepted at `09c0b17`, R47 at
+`419414a`, R03 at `60af07d`, R48 at `b17d1e7`, and R05 at `954d9a4`; R06 and R49 are the assigned remediation slices. AUT-006 is accepted at
 `a4c9de2`.
 Every repository failure group
 discovered by R02's complete 1,772-test authority run is now accepted: V11
@@ -106,9 +107,10 @@ is accepted at `09c0b17`: the composed immutable authority is 2,541 passing
 executions with zero skips, and R02-M, DB+DEP and R02-CP-CONTROL all pass. R47 is
 accepted at `419414a` with complete caveated measurement facts, source/calibration
 provenance, frozen ROI methodology and screen/CSV/PDF parity; R47-M and
-R47-CP-REPORTING pass. Its released contract lane promotes R03 and its reporting
-dependency promotes R48; their leases are explicitly disjoint. R05 remains
-dependency-ready and is assigned the independent database-concurrency lane. R17 remains parked in
+R47-CP-REPORTING pass. Its released contract lane promoted R03 and its reporting
+dependency promoted R48; both are accepted. R05 is accepted at `954d9a4`,
+releasing the exclusive database lane to R06 while R49 continues on its disjoint
+reporting-worker lease. R17 remains parked in
 `to-do.md`.
 
 ## Direct owner requests outside the package queue
@@ -1574,7 +1576,7 @@ durable ledger before changing a row.
 | R02 | GOV-003, TST-001, DB-005 | R01, R04 | COMPLETE | PASS — R02-P | PASS — R02-M | CP-CONTROL PASS — R02-CP-CONTROL |
 | R03 | GOV-004 | R02 | COMPLETE | PASS — R03-P | PASS — R03-M | CP-CONTROL PASS — R03-CP-CONTROL |
 | R04 | DB-004 | none | COMPLETE | PASS — R04-P | PASS — R04-M | CP-DB PASS — R04-CP-DB |
-| R05 | DB-001, TST-012, ONB-010 | R02, R04 | ACTIVE | PASS — R05-P | PENDING | CP-DB PENDING |
+| R05 | DB-001, TST-012, ONB-010 | R02, R04 | COMPLETE | PASS — R05-P | PASS — R05-M | CP-DB PASS — R05-CP-DB |
 | R06 | DB-002 | R02, R04, R05 | QUEUED | PENDING | PENDING | CP-DB PENDING |
 | R07 | DB-003 | R02, R04, R06 | QUEUED | PASS — R07-P | PENDING | CP-DB PENDING |
 | R08 | GOV-005 | none | COMPLETE | PASS — R08-P | PASS — R08-M | CP-SECURITY PASS — R08-CP-SECURITY |
