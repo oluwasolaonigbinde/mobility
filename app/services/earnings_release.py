@@ -316,10 +316,18 @@ async def post_confirmed_fraud_reversal(
     ).one_or_none()
     if authority is None:
         return None
+    from app.services.disbursements import (
+        apply_confirmed_fraud_payout_recovery,
+        lock_payout_chains_for_trip,
+    )
     from app.services.payout_debt import lock_driver_currency_debt_scope
 
-    # Provider finality takes this scope before the ledger row. Keep the same
-    # global order so paid-fraud confirmation cannot deadlock reconciliation.
+    chain_authority = await lock_payout_chains_for_trip(
+        session,
+        trip_id=flag.trip_session_id,
+    )
+    # The trip and complete payout chain precede the debt and ledger locks,
+    # matching provider reconciliation and replacement authorization.
     await lock_driver_currency_debt_scope(
         session,
         driver_profile_id=authority.driver_profile_id,
@@ -363,9 +371,14 @@ async def post_confirmed_fraud_reversal(
     )
     session.add(reversal)
     await session.flush()
-    from app.services.payout_debt import record_reversal_obligation
-
-    await record_reversal_obligation(session, reversal_entry=reversal)
+    await apply_confirmed_fraud_payout_recovery(
+        session,
+        flag=flag,
+        reversal=reversal,
+        actor_user_id=actor_user_id,
+        resolved_at=occurred_at,
+        chain_authority=chain_authority,
+    )
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,

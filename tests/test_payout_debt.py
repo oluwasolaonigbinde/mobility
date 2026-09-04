@@ -293,9 +293,7 @@ def test_debt_projection_keeps_economic_provenance_separate_from_settlement(
     async def exercise():
         async with db_sessionmaker() as session:
             paid = _ledger(graph, amount="100.00", status="paid")
-            reversal = _ledger(
-                graph, amount="60.00", status="available", entry_type="reversal"
-            )
+            reversal = _ledger(graph, amount="60.00", status="available", entry_type="reversal")
             credit = _ledger(graph, amount="150.00", status="available")
             credit.trip_session_id = trip_two.id
             credit.occurred_at = trip_two.ended_at
@@ -673,6 +671,10 @@ def test_admin_debt_balance_and_allocation_api(db_client, db_sessionmaker) -> No
     assert before.status_code == 200
     assert before.json()["carry_forward_debt"] == "25.00"
     assert before.json()["batch_payable"] == "15.00"
+    assert before.json()["released_available"] == "40.00"
+    assert before.json()["reserved"] == "0.00"
+    assert before.json()["in_flight"] == "0.00"
+    assert before.json()["terminal_failed"] == "0.00"
     assert driver_summary.status_code == 200
     driver_total = driver_summary.json()["totals_by_currency"][0]
     assert driver_total["carry_forward_debt_amount"] == "25.00"
@@ -680,6 +682,7 @@ def test_admin_debt_balance_and_allocation_api(db_client, db_sessionmaker) -> No
     assert allocated.status_code == 200
     assert allocated.json()["balance"]["carry_forward_debt"] == "0.00"
     assert allocated.json()["balance"]["batch_payable"] == "15.00"
+    assert allocated.json()["balance"]["released_available"] == "15.00"
     assert len(allocated.json()["settlement_ids"]) == 1
 
 

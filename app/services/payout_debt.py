@@ -1,5 +1,6 @@
 import hashlib
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID, uuid4
 
@@ -10,10 +11,16 @@ from app.core.errors import AppError
 from app.models.disbursement import (
     DriverCurrencyDebtAccount,
     PayoutBatchLine,
+    PayoutBatchLineStatus,
     PayoutDebtAllocation,
     PayoutDebtObligation,
     PayoutDebtPaidSource,
     PayoutDebtSettlement,
+    PayoutRecoveryIncident,
+    PayoutRecoveryIncidentKind,
+    PayoutRecoveryIncidentStatus,
+    PayoutSubmissionIntent,
+    PayoutSubmissionIntentState,
 )
 from app.models.driver import DriverProfile
 from app.models.payout import (
@@ -36,6 +43,9 @@ class DriverMoneyBalance:
     currency: str
     earned_net: Decimal
     released_available: Decimal
+    reserved: Decimal
+    in_flight: Decimal
+    terminal_failed: Decimal
     cash_paid: Decimal
     carry_forward_debt: Decimal
     batch_payable: Decimal
@@ -46,6 +56,230 @@ class DebtAllocationResult:
     balance: DriverMoneyBalance
     settlement_ids: tuple[UUID, ...]
     remainder_entry_ids: tuple[UUID, ...]
+
+
+def _recovery_incident_key(*parts: object) -> str:
+    return hashlib.sha256(":".join(str(part) for part in parts).encode()).hexdigest()
+
+
+async def get_or_create_recovery_incident(
+    session: AsyncSession,
+    *,
+    kind: PayoutRecoveryIncidentKind,
+    ledger_entry: EarningsLedgerEntry,
+    amount: Decimal,
+    exposure_line_id: UUID,
+    chain_root_line_id: UUID,
+    created_by_user_id: UUID,
+    dedupe_parts: tuple[object, ...],
+    source_fraud_flag_id: UUID | None = None,
+    source_reversal_entry_id: UUID | None = None,
+) -> PayoutRecoveryIncident:
+    normalized_amount = _money(amount)
+    dedupe_key = _recovery_incident_key("cardvert-recovery-v1", *dedupe_parts)
+    incident = await session.scalar(
+        select(PayoutRecoveryIncident)
+        .where(PayoutRecoveryIncident.dedupe_key == dedupe_key)
+        .with_for_update()
+    )
+    expected = (
+        kind.value,
+        ledger_entry.id,
+        normalized_amount,
+        ledger_entry.currency,
+        exposure_line_id,
+        chain_root_line_id,
+        source_fraud_flag_id,
+        source_reversal_entry_id,
+        created_by_user_id,
+    )
+    if incident is not None:
+        actual = (
+            incident.kind,
+            incident.ledger_entry_id,
+            incident.amount,
+            incident.currency,
+            incident.exposure_line_id,
+            incident.chain_root_line_id,
+            incident.source_fraud_flag_id,
+            incident.source_reversal_entry_id,
+            incident.created_by_user_id,
+        )
+        if actual != expected:
+            raise RuntimeError("Recovery incident replay conflicts with immutable authority")
+        return incident
+    incident = PayoutRecoveryIncident(
+        ledger_entry_id=ledger_entry.id,
+        chain_root_line_id=chain_root_line_id,
+        exposure_line_id=exposure_line_id,
+        source_fraud_flag_id=source_fraud_flag_id,
+        source_reversal_entry_id=source_reversal_entry_id,
+        created_by_user_id=created_by_user_id,
+        kind=kind.value,
+        status=PayoutRecoveryIncidentStatus.CONTINGENT.value,
+        amount=normalized_amount,
+        currency=ledger_entry.currency,
+        dedupe_key=dedupe_key,
+    )
+    session.add(incident)
+    await session.flush()
+    return incident
+
+
+async def activate_recovery_incident_debt(
+    session: AsyncSession,
+    *,
+    incident: PayoutRecoveryIncident,
+    resolved_at: datetime,
+) -> PayoutDebtObligation:
+    obligation = await session.scalar(
+        select(PayoutDebtObligation).where(PayoutDebtObligation.recovery_incident_id == incident.id)
+    )
+    if obligation is not None:
+        return obligation
+    ledger = await session.get(EarningsLedgerEntry, incident.ledger_entry_id)
+    if ledger is None:
+        raise RuntimeError("Recovery incident lost its ledger authority")
+    account = await _locked_debt_account(
+        session,
+        driver_profile_id=ledger.driver_profile_id,
+        driver_user_id=ledger.driver_user_id,
+        currency=incident.currency,
+    )
+    if account is None:
+        raise RuntimeError("Recovery debt account could not be created")
+    obligation = PayoutDebtObligation(
+        debt_account_id=account.id,
+        source_reversal_entry_id=incident.source_reversal_entry_id,
+        recovery_incident_id=incident.id,
+        correction_order_id=None,
+        currency=incident.currency,
+        original_amount=incident.amount,
+        outstanding_amount=incident.amount,
+    )
+    session.add(obligation)
+    await session.flush()
+    if ledger.status == EarningsLedgerEntryStatus.PAID.value:
+        session.add(
+            PayoutDebtPaidSource(
+                debt_obligation_id=obligation.id,
+                paid_ledger_entry_id=ledger.id,
+            )
+        )
+    account.outstanding_amount = _money(account.outstanding_amount + incident.amount)
+    account.lifetime_incurred_amount = _money(account.lifetime_incurred_amount + incident.amount)
+    incident.status = PayoutRecoveryIncidentStatus.DEBT_ACTIVATED.value
+    incident.resolved_at = resolved_at
+    await session.flush()
+    return obligation
+
+
+async def close_recovery_incident(
+    session: AsyncSession,
+    *,
+    incident: PayoutRecoveryIncident,
+    resolved_at: datetime,
+) -> None:
+    if incident.status == PayoutRecoveryIncidentStatus.CLOSED.value:
+        return
+    incident.status = PayoutRecoveryIncidentStatus.CLOSED.value
+    incident.resolved_at = resolved_at
+    await session.flush()
+
+
+async def settle_recovery_incident_from_credit(
+    session: AsyncSession,
+    *,
+    incident: PayoutRecoveryIncident,
+    credit: EarningsLedgerEntry,
+    actor_user_id: UUID,
+    resolved_at: datetime,
+    preserve_credit_authority: bool = False,
+) -> PayoutDebtSettlement:
+    existing = await session.scalar(
+        select(PayoutDebtSettlement).where(PayoutDebtSettlement.source_credit_entry_id == credit.id)
+    )
+    if existing is not None:
+        obligation = await session.scalar(
+            select(PayoutDebtObligation).where(
+                PayoutDebtObligation.recovery_incident_id == incident.id
+            )
+        )
+        if obligation is not None and obligation.outstanding_amount == 0:
+            await close_recovery_incident(session, incident=incident, resolved_at=resolved_at)
+        return existing
+    if credit.status != EarningsLedgerEntryStatus.AVAILABLE.value:
+        raise RuntimeError("Recovery netting requires an available source credit")
+    obligation = await activate_recovery_incident_debt(
+        session,
+        incident=incident,
+        resolved_at=resolved_at,
+    )
+    allocated = _money(min(credit.amount, obligation.outstanding_amount))
+    if allocated <= 0:
+        raise RuntimeError("Recovery netting has no positive allocation")
+    settlement_id = uuid4()
+    remainder_amount = _money(credit.amount - allocated)
+    remainder: EarningsLedgerEntry | None = None
+    if remainder_amount > 0:
+        remainder = EarningsLedgerEntry(
+            id=uuid4(),
+            payout_calculation_id=None,
+            driver_profile_id=credit.driver_profile_id,
+            driver_user_id=credit.driver_user_id,
+            campaign_id=credit.campaign_id,
+            trip_session_id=credit.trip_session_id,
+            vehicle_id=credit.vehicle_id,
+            entry_type=EarningsLedgerEntryType.DEBT_REMAINDER.value,
+            status=EarningsLedgerEntryStatus.AVAILABLE.value,
+            amount=remainder_amount,
+            currency=credit.currency,
+            description="Credit remaining after recovery netting",
+            occurred_at=credit.occurred_at,
+            release_at=None,
+            ledger_metadata={
+                "recovery_remainder": True,
+                "source_credit_entry_id": str(credit.id),
+                "recovery_incident_id": str(incident.id),
+            },
+        )
+        session.add(remainder)
+    settlement = PayoutDebtSettlement(
+        id=settlement_id,
+        source_credit_entry_id=credit.id,
+        remainder_entry_id=remainder.id if remainder is not None else None,
+        original_credit_amount=credit.amount,
+        allocated_amount=allocated,
+        idempotency_key=_recovery_incident_key("cardvert-recovery-net-v1", incident.id, credit.id),
+        created_by_user_id=actor_user_id,
+    )
+    session.add(settlement)
+    if remainder is not None:
+        await session.flush([remainder])
+    await session.flush([settlement])
+    session.add(
+        PayoutDebtAllocation(
+            settlement_id=settlement.id,
+            debt_obligation_id=obligation.id,
+            amount=allocated,
+        )
+    )
+    if not preserve_credit_authority:
+        credit.status = EarningsLedgerEntryStatus.REVERSED.value
+    obligation.outstanding_amount = _money(obligation.outstanding_amount - allocated)
+    account = await session.get(DriverCurrencyDebtAccount, obligation.debt_account_id)
+    if account is None:
+        raise RuntimeError("Recovery debt account was not found")
+    account.outstanding_amount = _money(account.outstanding_amount - allocated)
+    account.lifetime_allocated_amount = _money(account.lifetime_allocated_amount + allocated)
+    if obligation.outstanding_amount == 0:
+        await close_recovery_incident(
+            session,
+            incident=incident,
+            resolved_at=resolved_at,
+        )
+    await session.flush()
+    return settlement
 
 
 async def lock_driver_currency_debt_scope(
@@ -119,7 +353,8 @@ async def record_reversal_obligation(
         raise ValueError("Reversal authority does not match the driver profile")
     existing = await session.scalar(
         select(PayoutDebtObligation).where(
-            PayoutDebtObligation.source_reversal_entry_id == reversal_entry.id
+            PayoutDebtObligation.source_reversal_entry_id == reversal_entry.id,
+            PayoutDebtObligation.recovery_incident_id.is_(None),
         )
     )
     if existing is not None:
@@ -180,6 +415,7 @@ async def record_reversal_obligation(
     obligation = PayoutDebtObligation(
         debt_account_id=account.id,
         source_reversal_entry_id=reversal_entry.id,
+        recovery_incident_id=None,
         correction_order_id=correction_order_id,
         currency=reversal_entry.currency,
         original_amount=amount,
@@ -234,22 +470,6 @@ async def driver_money_balance(
                     func.sum(
                         case(
                             (
-                                (EarningsLedgerEntry.status == EarningsLedgerEntryStatus.AVAILABLE)
-                                & (
-                                    EarningsLedgerEntry.entry_type
-                                    != EarningsLedgerEntryType.REVERSAL
-                                ),
-                                EarningsLedgerEntry.amount,
-                            ),
-                            else_=0,
-                        )
-                    ),
-                    0,
-                ),
-                func.coalesce(
-                    func.sum(
-                        case(
-                            (
                                 (EarningsLedgerEntry.status == EarningsLedgerEntryStatus.PAID)
                                 & (
                                     EarningsLedgerEntry.entry_type
@@ -274,20 +494,98 @@ async def driver_money_balance(
             DriverCurrencyDebtAccount.currency == normalized,
         )
     )
+    available_credits = tuple(
+        (
+            await session.execute(
+                select(EarningsLedgerEntry.id, EarningsLedgerEntry.amount).where(
+                    EarningsLedgerEntry.driver_profile_id == driver_profile_id,
+                    EarningsLedgerEntry.currency == normalized,
+                    EarningsLedgerEntry.status == EarningsLedgerEntryStatus.AVAILABLE,
+                    EarningsLedgerEntry.entry_type != EarningsLedgerEntryType.REVERSAL,
+                    ~exists(
+                        select(PayoutDebtSettlement.id).where(
+                            PayoutDebtSettlement.source_credit_entry_id == EarningsLedgerEntry.id
+                        )
+                    ),
+                )
+            )
+        ).all()
+    )
+    credit_ids = tuple(row.id for row in available_credits)
+    line_rows = (
+        tuple(
+            (
+                await session.execute(
+                    select(PayoutBatchLine, PayoutSubmissionIntent)
+                    .outerjoin(
+                        PayoutSubmissionIntent,
+                        PayoutSubmissionIntent.payout_batch_line_id == PayoutBatchLine.id,
+                    )
+                    .where(PayoutBatchLine.ledger_entry_id.in_(credit_ids))
+                    .order_by(PayoutBatchLine.created_at, PayoutBatchLine.id)
+                )
+            ).all()
+        )
+        if credit_ids
+        else ()
+    )
+    lines_by_credit: dict[UUID, list[tuple[PayoutBatchLine, PayoutSubmissionIntent | None]]] = {}
+    for line, intent in line_rows:
+        lines_by_credit.setdefault(line.ledger_entry_id, []).append((line, intent))
+
+    released = Decimal("0.00")
+    reserved = Decimal("0.00")
+    in_flight = Decimal("0.00")
+    terminal_failed = Decimal("0.00")
+    for credit_id, raw_amount in available_credits:
+        amount = _money(raw_amount)
+        history = lines_by_credit.get(credit_id, [])
+        active = [(line, intent) for line, intent in history if line.reservation_active]
+        if active:
+            line, intent = active[0]
+            unknown = line.status == PayoutBatchLineStatus.SUBMITTED.value or (
+                line.status == PayoutBatchLineStatus.RESERVED.value
+                and intent is not None
+                and intent.state
+                in {
+                    PayoutSubmissionIntentState.CLAIMED.value,
+                    PayoutSubmissionIntentState.QUERY_ONLY.value,
+                }
+            )
+            if unknown:
+                in_flight += amount
+            else:
+                reserved += amount
+            continue
+        predecessor_ids = {
+            line.predecessor_line_id for line, _ in history if line.predecessor_line_id is not None
+        }
+        leaves = [line for line, _ in history if line.id not in predecessor_ids]
+        if any(line.status == PayoutBatchLineStatus.FAILED.value for line in leaves):
+            terminal_failed += amount
+        else:
+            released += amount
+
     earned_net = _money(row[0])
-    released = _money(row[1])
-    paid = _money(row[2])
+    released = _money(released)
+    reserved = _money(reserved)
+    in_flight = _money(in_flight)
+    terminal_failed = _money(terminal_failed)
+    paid = _money(row[1])
     outstanding = _money(debt or 0)
     # This is a settlement projection, not an entry-selection rule. Whole-entry
     # reservation still refuses a gross source while debt is outstanding, but
     # the public balance must expose the economic amount that will remain after
     # deterministic allocation.
-    batch_payable = _money(max(released - outstanding, Decimal("0.00")))
+    batch_payable = _money(max(released + terminal_failed - outstanding, Decimal("0.00")))
     return DriverMoneyBalance(
         driver_profile_id=driver_profile_id,
         currency=normalized,
         earned_net=earned_net,
         released_available=released,
+        reserved=reserved,
+        in_flight=in_flight,
+        terminal_failed=terminal_failed,
         cash_paid=paid,
         carry_forward_debt=outstanding,
         batch_payable=batch_payable,

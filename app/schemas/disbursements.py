@@ -40,6 +40,9 @@ class DriverMoneyBalanceRead(BaseModel):
     currency: str
     earned_net: Decimal
     released_available: Decimal
+    reserved: Decimal
+    in_flight: Decimal
+    terminal_failed: Decimal
     cash_paid: Decimal
     carry_forward_debt: Decimal
     batch_payable: Decimal
@@ -47,6 +50,9 @@ class DriverMoneyBalanceRead(BaseModel):
     @field_serializer(
         "earned_net",
         "released_available",
+        "reserved",
+        "in_flight",
+        "terminal_failed",
         "cash_paid",
         "carry_forward_debt",
         "batch_payable",
@@ -66,6 +72,7 @@ class PayoutBatchLineRead(BaseModel):
 
     id: UUID
     ledger_entry_id: UUID
+    predecessor_line_id: UUID | None
     payee_version_id: UUID
     bank_account_version_id: UUID
     amount: Decimal

@@ -9470,8 +9470,20 @@
             "title": "Earned Net",
             "type": "string"
           },
+          "in_flight": {
+            "title": "In Flight",
+            "type": "string"
+          },
           "released_available": {
             "title": "Released Available",
+            "type": "string"
+          },
+          "reserved": {
+            "title": "Reserved",
+            "type": "string"
+          },
+          "terminal_failed": {
+            "title": "Terminal Failed",
             "type": "string"
           }
         },
@@ -9480,6 +9492,9 @@
           "currency",
           "earned_net",
           "released_available",
+          "reserved",
+          "in_flight",
+          "terminal_failed",
           "cash_paid",
           "carry_forward_debt",
           "batch_payable"
@@ -15227,6 +15242,18 @@
             "title": "Payee Version Id",
             "type": "string"
           },
+          "predecessor_line_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predecessor Line Id"
+          },
           "provider_transfer_reference": {
             "anyOf": [
               {
@@ -15273,6 +15300,7 @@
         "required": [
           "id",
           "ledger_entry_id",
+          "predecessor_line_id",
           "payee_version_id",
           "bank_account_version_id",
           "amount",

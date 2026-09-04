@@ -7600,8 +7600,14 @@ export interface components {
             driver_profile_id: string;
             /** Earned Net */
             earned_net: string;
+            /** In Flight */
+            in_flight: string;
             /** Released Available */
             released_available: string;
+            /** Reserved */
+            reserved: string;
+            /** Terminal Failed */
+            terminal_failed: string;
         };
         /** DriverNotificationRead */
         DriverNotificationRead: {
@@ -9977,6 +9983,8 @@ export interface components {
              * Format: uuid
              */
             payee_version_id: string;
+            /** Predecessor Line Id */
+            predecessor_line_id: string | null;
             /** Provider Transfer Reference */
             provider_transfer_reference: string | null;
             /** Reconciled At */

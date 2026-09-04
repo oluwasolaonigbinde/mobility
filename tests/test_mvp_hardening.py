@@ -14,7 +14,7 @@ from app.main import create_app
 from app.models.user import UserRole
 
 SNAPSHOT_PATH = Path("docs/api/openapi.snapshot.json")
-EXPECTED_ALEMBIC_HEAD = "0083_payout_submission_intents"
+EXPECTED_ALEMBIC_HEAD = "0084_payout_conservation"
 EXPECTED_MIGRATIONS = {
     "0001_enable_extensions.py",
     "0002_identity_and_organizations.py",
@@ -99,6 +99,7 @@ EXPECTED_MIGRATIONS = {
     "0081_payout_money_authority.py",
     "0082_report_publication_intents.py",
     "0083_payout_submission_intents.py",
+    "0084_payout_conservation.py",
 }
 MAJOR_CONTRACT_PATHS = {
     "health": "/api/v1/health",

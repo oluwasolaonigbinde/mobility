@@ -51,6 +51,7 @@ class PayoutSubmissionIntentState(StrEnum):
     CLAIMED = "claimed"
     QUERY_ONLY = "query_only"
     RESOLVED = "resolved"
+    CANCELLED = "cancelled"
 
 
 class PayoutSubmissionClaimAction(StrEnum):
@@ -63,6 +64,17 @@ class PayoutSubmissionObservationOutcome(StrEnum):
     FOUND = "found"
     NOT_FOUND = "not_found"
     UNKNOWN = "unknown"
+
+
+class PayoutRecoveryIncidentKind(StrEnum):
+    CONFIRMED_FRAUD = "confirmed_fraud"
+    DUPLICATE_CASH = "duplicate_cash"
+
+
+class PayoutRecoveryIncidentStatus(StrEnum):
+    CONTINGENT = "contingent"
+    DEBT_ACTIVATED = "debt_activated"
+    CLOSED = "closed"
 
 
 class PayoutBatch(Base):
@@ -130,9 +142,13 @@ class PayoutBatchLine(Base):
             name="ck_payout_batch_lines_provider_state",
         ),
         CheckConstraint(
-            "(status = 'void' AND reservation_active = false) OR "
-            "(status <> 'void' AND reservation_active = true)",
+            "(status IN ('reserved', 'submitted') AND reservation_active = true) OR "
+            "(status IN ('succeeded', 'failed', 'void') AND reservation_active = false)",
             name="ck_payout_batch_lines_active_state",
+        ),
+        CheckConstraint(
+            "predecessor_line_id IS NULL OR predecessor_line_id <> id",
+            name="ck_payout_batch_lines_predecessor_not_self",
         ),
         Index("ix_payout_batch_lines_batch_id", "batch_id"),
         Index("ix_payout_batch_lines_ledger_entry_id", "ledger_entry_id"),
@@ -150,6 +166,13 @@ class PayoutBatchLine(Base):
             sqlite_where=text("provider_transfer_reference IS NOT NULL"),
             postgresql_where=text("provider_transfer_reference IS NOT NULL"),
         ),
+        Index(
+            "uq_payout_batch_lines_predecessor",
+            "predecessor_line_id",
+            unique=True,
+            sqlite_where=text("predecessor_line_id IS NOT NULL"),
+            postgresql_where=text("predecessor_line_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -160,6 +183,9 @@ class PayoutBatchLine(Base):
     )
     ledger_entry_id: Mapped[UUID] = mapped_column(
         ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT"), nullable=False
+    )
+    predecessor_line_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("payout_batch_lines.id", ondelete="RESTRICT")
     )
     payee_version_id: Mapped[UUID] = mapped_column(
         ForeignKey("payee_versions.id", ondelete="RESTRICT"), nullable=False
@@ -206,7 +232,7 @@ class PayoutSubmissionIntent(Base):
             name="ck_payout_submission_intents_idempotency_key",
         ),
         CheckConstraint(
-            "state IN ('pending', 'claimed', 'query_only', 'resolved')",
+            "state IN ('pending', 'claimed', 'query_only', 'resolved', 'cancelled')",
             name="ck_payout_submission_intents_state",
         ),
         CheckConstraint(
@@ -223,6 +249,9 @@ class PayoutSubmissionIntent(Base):
             "AND provider_transfer_reference IS NULL AND resolved_at IS NULL) OR "
             "(state = 'resolved' AND claim_token IS NULL AND claim_action IS NULL "
             "AND claim_expires_at IS NULL AND provider_transfer_reference IS NOT NULL "
+            "AND resolved_at IS NOT NULL) OR "
+            "(state = 'cancelled' AND claim_token IS NULL AND claim_action IS NULL "
+            "AND claim_expires_at IS NULL AND provider_transfer_reference IS NULL "
             "AND resolved_at IS NOT NULL)",
             name="ck_payout_submission_intents_state_fields",
         ),
@@ -421,6 +450,7 @@ _SUBMISSION_INTENT_TRANSITIONS = frozenset(
             PayoutSubmissionIntentState.QUERY_ONLY.value,
         ),
         (PayoutSubmissionIntentState.CLAIMED.value, PayoutSubmissionIntentState.RESOLVED.value),
+        (PayoutSubmissionIntentState.PENDING.value, PayoutSubmissionIntentState.CANCELLED.value),
     }
 )
 
@@ -429,8 +459,7 @@ _SUBMISSION_INTENT_TRANSITIONS = frozenset(
 def validate_payout_submission_intent_update(_mapper, _connection, target) -> None:
     state = inspect(target)
     if any(
-        state.attrs[field].history.has_changes()
-        for field in _SUBMISSION_INTENT_IDENTITY_FIELDS
+        state.attrs[field].history.has_changes() for field in _SUBMISSION_INTENT_IDENTITY_FIELDS
     ):
         raise ValueError("payout submission intent identity is immutable")
     state_history = state.attrs.state.history
@@ -441,9 +470,7 @@ def validate_payout_submission_intent_update(_mapper, _connection, target) -> No
     generation_history = state.attrs.generation.history
     generation_changed = generation_history.has_changes()
     old_generation = (
-        generation_history.deleted[0]
-        if generation_history.deleted
-        else target.generation
+        generation_history.deleted[0] if generation_history.deleted else target.generation
     )
     entering_claimed = after == PayoutSubmissionIntentState.CLAIMED.value and (
         before
@@ -453,19 +480,21 @@ def validate_payout_submission_intent_update(_mapper, _connection, target) -> No
             PayoutSubmissionIntentState.CLAIMED.value,
         }
     )
-    leaving_claimed = (
-        before == PayoutSubmissionIntentState.CLAIMED.value
-        and after
-        in {
-            PayoutSubmissionIntentState.PENDING.value,
-            PayoutSubmissionIntentState.QUERY_ONLY.value,
-            PayoutSubmissionIntentState.RESOLVED.value,
-        }
-    )
+    leaving_claimed = before == PayoutSubmissionIntentState.CLAIMED.value and after in {
+        PayoutSubmissionIntentState.PENDING.value,
+        PayoutSubmissionIntentState.QUERY_ONLY.value,
+        PayoutSubmissionIntentState.RESOLVED.value,
+    }
     if entering_claimed:
         if not generation_changed or target.generation != old_generation + 1:
             raise ValueError("payout submission intent generation is not monotonic")
     elif leaving_claimed:
+        if generation_changed:
+            raise ValueError("payout submission intent generation is not monotonic")
+    elif (
+        before == PayoutSubmissionIntentState.PENDING.value
+        and after == PayoutSubmissionIntentState.CANCELLED.value
+    ):
         if generation_changed:
             raise ValueError("payout submission intent generation is not monotonic")
     else:
@@ -521,6 +550,122 @@ class PayoutLineReconciliationEvent(Base):
     )
 
 
+class PayoutRecoveryIncident(Base):
+    __tablename__ = "payout_recovery_incidents"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('confirmed_fraud', 'duplicate_cash')",
+            name="ck_payout_recovery_incidents_kind",
+        ),
+        CheckConstraint(
+            "status IN ('contingent', 'debt_activated', 'closed')",
+            name="ck_payout_recovery_incidents_status",
+        ),
+        CheckConstraint("amount > 0", name="ck_payout_recovery_incidents_amount_positive"),
+        CheckConstraint("length(currency) = 3", name="ck_payout_recovery_incidents_currency"),
+        CheckConstraint("length(dedupe_key) = 64", name="ck_payout_recovery_incidents_dedupe_key"),
+        CheckConstraint(
+            "(kind = 'confirmed_fraud' AND source_fraud_flag_id IS NOT NULL "
+            "AND source_reversal_entry_id IS NOT NULL) OR "
+            "(kind = 'duplicate_cash' AND source_fraud_flag_id IS NULL "
+            "AND source_reversal_entry_id IS NULL)",
+            name="ck_payout_recovery_incidents_source",
+        ),
+        CheckConstraint(
+            "(status = 'contingent' AND exposure_line_id IS NOT NULL "
+            "AND resolved_at IS NULL) OR "
+            "(status IN ('debt_activated', 'closed') AND resolved_at IS NOT NULL)",
+            name="ck_payout_recovery_incidents_resolution",
+        ),
+        Index("ix_payout_recovery_incidents_ledger", "ledger_entry_id", "created_at"),
+        Index("ix_payout_recovery_incidents_exposure", "exposure_line_id", "status"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    ledger_entry_id: Mapped[UUID] = mapped_column(
+        ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT"), nullable=False
+    )
+    chain_root_line_id: Mapped[UUID] = mapped_column(
+        ForeignKey("payout_batch_lines.id", ondelete="RESTRICT"), nullable=False
+    )
+    exposure_line_id: Mapped[UUID] = mapped_column(
+        ForeignKey("payout_batch_lines.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_fraud_flag_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("fraud_flags.id", ondelete="RESTRICT")
+    )
+    source_reversal_entry_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT")
+    )
+    created_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    dedupe_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+_RECOVERY_INCIDENT_IDENTITY_FIELDS = frozenset(
+    {
+        "ledger_entry_id",
+        "chain_root_line_id",
+        "exposure_line_id",
+        "source_fraud_flag_id",
+        "source_reversal_entry_id",
+        "created_by_user_id",
+        "kind",
+        "amount",
+        "currency",
+        "dedupe_key",
+        "created_at",
+    }
+)
+
+
+@event.listens_for(PayoutRecoveryIncident, "before_update")
+def validate_payout_recovery_incident_update(_mapper, _connection, target) -> None:
+    state = inspect(target)
+    if any(
+        state.attrs[field].history.has_changes() for field in _RECOVERY_INCIDENT_IDENTITY_FIELDS
+    ):
+        raise ValueError("payout recovery incident identity is immutable")
+    status_history = state.attrs.status.history
+    before = status_history.deleted[0] if status_history.deleted else target.status
+    after = status_history.added[0] if status_history.added else target.status
+    if status_history.has_changes() and (before, after) not in {
+        (
+            PayoutRecoveryIncidentStatus.CONTINGENT.value,
+            PayoutRecoveryIncidentStatus.DEBT_ACTIVATED.value,
+        ),
+        (
+            PayoutRecoveryIncidentStatus.CONTINGENT.value,
+            PayoutRecoveryIncidentStatus.CLOSED.value,
+        ),
+        (
+            PayoutRecoveryIncidentStatus.DEBT_ACTIVATED.value,
+            PayoutRecoveryIncidentStatus.CLOSED.value,
+        ),
+        (
+            PayoutRecoveryIncidentStatus.CLOSED.value,
+            PayoutRecoveryIncidentStatus.DEBT_ACTIVATED.value,
+        ),
+    }:
+        raise ValueError("payout recovery incident state transition is invalid")
+
+
+@event.listens_for(PayoutRecoveryIncident, "before_delete")
+def reject_payout_recovery_incident_delete(_mapper, _connection, _target) -> None:
+    raise ValueError("payout recovery incidents are append-only")
+
+
 class DriverCurrencyDebtAccount(Base):
     __tablename__ = "driver_currency_debt_accounts"
     __table_args__ = (
@@ -539,9 +684,7 @@ class DriverCurrencyDebtAccount(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     driver_profile_id: Mapped[UUID] = mapped_column(
         ForeignKey("driver_profiles.id", ondelete="RESTRICT"), nullable=False
     )
@@ -569,19 +712,33 @@ class PayoutDebtObligation(Base):
             "AND outstanding_amount <= original_amount",
             name="ck_payout_debt_obligations_amounts",
         ),
+        CheckConstraint(
+            "source_reversal_entry_id IS NOT NULL OR recovery_incident_id IS NOT NULL",
+            name="ck_payout_debt_obligations_source",
+        ),
         Index("ix_payout_debt_obligations_account", "debt_account_id", "created_at"),
+        UniqueConstraint(
+            "recovery_incident_id",
+            name="uq_payout_debt_obligations_recovery_incident",
+        ),
+        Index(
+            "uq_payout_debt_obligations_direct_reversal",
+            "source_reversal_entry_id",
+            unique=True,
+            sqlite_where=text("recovery_incident_id IS NULL"),
+            postgresql_where=text("recovery_incident_id IS NULL"),
+        ),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     debt_account_id: Mapped[UUID] = mapped_column(
         ForeignKey("driver_currency_debt_accounts.id", ondelete="RESTRICT"), nullable=False
     )
-    source_reversal_entry_id: Mapped[UUID] = mapped_column(
+    source_reversal_entry_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT"),
-        nullable=False,
-        unique=True,
+    )
+    recovery_incident_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("payout_recovery_incidents.id", ondelete="RESTRICT")
     )
     correction_order_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("payout_correction_orders.id", ondelete="RESTRICT")
@@ -604,9 +761,7 @@ class PayoutDebtPaidSource(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     debt_obligation_id: Mapped[UUID] = mapped_column(
         ForeignKey("payout_debt_obligations.id", ondelete="RESTRICT"), nullable=False
     )
@@ -633,9 +788,7 @@ class PayoutDebtSettlement(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     source_credit_entry_id: Mapped[UUID] = mapped_column(
         ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT"),
         nullable=False,
@@ -666,9 +819,7 @@ class PayoutDebtAllocation(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     settlement_id: Mapped[UUID] = mapped_column(
         ForeignKey("payout_debt_settlements.id", ondelete="RESTRICT"), nullable=False
     )
