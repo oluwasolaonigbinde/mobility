@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 322
+plan_revision: 323
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 452
+last_event_sequence: 453
 ---
 
 # Cardvert audit remediation programme
@@ -238,7 +238,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | ACCEPTED | provider-boundary opener | R16-P/M/CONTRACT/CP-CONTROL; structural and behavioral evidence | complete |
 | R17 | TST-007 | PARKED | R02, R03; coverage policy | no authoritative floor/path/base/ratchet policy; not a demonstrated product-runtime defect | retained in `to-do.md` for a later developer policy decision; does not consume active remediation capacity |
-| R18 | MON-005, MON-006 | ACTIVE | R04, R06, R07 | R18-P; reviewed frozen-money-authority contract | fresh Sol/xhigh task after separate R07 admission; exclusive money/migration/contract lane; required-currency fixture compatibility explicitly includes the revisions-panel test; may continue R19 after separate admission |
+| R18 | MON-005, MON-006 | ACTIVE | R04, R06, R07 | R18-P; reviewed frozen-money-authority contract | fresh Sol/xhigh task after separate R07 admission; exclusive money/migration/contract lane; required-currency fixture and canonical migration-head compatibility explicitly included; may continue R19 after separate admission |
 | R19 | MON-002 | WAITING | R18 | R19-P; reviewed Lagos-day predecessor-order contract | wait for R18 |
 | R20 | MON-001, DB-007, MON-008 | WAITING | R05, R18 | R20-P; reviewed durable per-line provider-intent contract | wait for predecessors and migration/worker lane |
 | R21 | MON-003 | WAITING | R20 | R21-P; reviewed final pre-provider authorization contract | wait for R20 |
@@ -906,3 +906,4 @@ verification is complete.
 | 450 | 320 | 1 | PACKET_SCOPE_AMENDED | R18 may keep direct synthetic constructors truthful after adding required frozen currency to payout-rule revisions and assignment bindings. | add only `tests/conftest.py`, `tests/test_data_subject_inventory_registry.py`, `tests/test_trips.py`, and `tests/test_campaign_changes.py`; pass explicit authoritative `NGN` at the four inventoried constructors only; no defaults, nullable relaxation, assertion changes or further behavior expansion |
 | 451 | 321 | 1 | OPUS_PACKET_DISPATCHED | A fresh Claude Opus 5 Extra worktree task began R51's fenced publication and orphan-recovery Phase A while R18 retains the migration and generated-contract lane. | worktree `.claude/worktrees/fenced-report-publication-recovery-167eec` at `7233438`; exact report-issuance model/service/worker/test lease; no migration or generated-contract writes until R18 admission; terminal callback to `scratchpad/r51-controller-callback.md`; no duplicate owner |
 | 452 | 322 | 1 | PACKET_SCOPE_AMENDED | R18 may keep the revisions-panel synthetic fixture truthful after regenerated contracts make payout-rule revision currency required. | add only `frontend/src/app/admin/payouts/rules/revisions-panel.test.tsx`; supply `currency: "NGN"` in the synthetic revision fixture; no product behavior or assertion changes |
+| 453 | 323 | 1 | PACKET_SCOPE_AMENDED | R18 may synchronize the canonical migration-chain gate with the accepted 0080 migration and its new 0081 money-authority head. | add only `tests/test_mvp_hardening.py`; advance `EXPECTED_ALEMBIC_HEAD` to `0081_payout_money_authority`, add the 0080/0081 filenames, preserve all other gate semantics, and rerun the exact gate |
