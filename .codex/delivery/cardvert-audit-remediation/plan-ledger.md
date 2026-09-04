@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 354
+plan_revision: 355
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 484
+last_event_sequence: 485
 ---
 
 # Cardvert audit remediation programme
@@ -940,3 +940,4 @@ verification is complete.
 | 482 | 352 | 1 | PACKET_DISPATCHED | R59/TST-002 begins the accepted isolated real-stack browser release journey now that every predecessor is integrated. | task `01a06ecd-5d61-7ad2-b222-1efb1976e133`; GPT-5.6 Sol/xhigh required by accepted S28 for cross-stack authentication, money, privacy, Redis/ARQ recovery and release authority; exact eight-path CI/Playwright/Compose/wrapper/static-guard/doc lease; local synthetic evidence only, no product/API/migration/provider/deploy mutation; direct terminal callback and stop before R60 |
 | 483 | 353 | 1 | PLAN_PACKET_STARTED | R60-P begins read-only closure planning and maps the parked R17 coverage-policy decision while R59 remains the only implementation writer. | task `01a06ece-05ab-79c3-beb2-983fe278a233`; GPT-5.6 Sol/high for cross-program contract/control reconciliation without xhigh planning cost; no mutation or completion authority; exact 115-disposition reconciliation, R59 resume facts and two-to-three bounded R17 policy options; direct terminal planning callback |
 | 484 | 354 | 1 | DUPLICATE_RESULT_FENCED | The delayed first R58 setup returned a distinct terminal three-file candidate after `f07cb54` was accepted; it is not admitted or merged while a clean comparison reviews its production cron `max_tries=1` and next-occurrence recovery semantics against the accepted generic `max_tries=5` harness. | duplicate task `01a06d5d-245b-74f2-a9dd-b6fb915604b1`, worktree `f125`, exact base `a93c2f2`; accepted R58 remains authoritative; comparison task `01a06ed2-b178-7290-8148-e49b2176484a` uses GPT-5.6 Sol/medium read-only because this is worker/money/privacy evidence review; no mutation or duplicate acceptance before KEEP/REPLACE/MERGE verdict |
+| 485 | 355 | 1 | PACKET_RESUMED | R59's visible task was interrupted after confirming the pre-change structural red and before any leased-path write; the same owner resumed from preserved state without duplicate dispatch. | task `01a06ecd-5d61-7ad2-b222-1efb1976e133`; GPT-5.6 Sol/xhigh unchanged; current HEAD differs only by controller-ledger commits, exact R59 product base and eight-path lease unchanged; continue red/green, isolated journey, review and terminal callback |
