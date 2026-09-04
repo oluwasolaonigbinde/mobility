@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from decimal import Decimal
 from pathlib import Path
 
@@ -8,6 +9,23 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_PATH = ROOT / "docs" / "measurement-methodology.json"
 FIXTURE_DIR = ROOT / "tests" / "fixtures" / "measurement"
 ADVERTISER_DIR = ROOT / "frontend" / "src" / "app" / "advertiser"
+SHARED_COMPONENTS_DIR = ROOT / "frontend" / "src" / "components"
+COPY_SOURCE_DIRS = (ADVERTISER_DIR, SHARED_COMPONENTS_DIR)
+COPY_SOURCE_SUFFIXES = {".ts", ".tsx"}
+
+
+def advertiser_reachable_copy() -> str:
+    return "\n".join(
+        path.read_text()
+        for source_dir in COPY_SOURCE_DIRS
+        for path in sorted(source_dir.rglob("*"))
+        if path.suffix in COPY_SOURCE_SUFFIXES and ".test." not in path.name
+    )
+
+
+def prohibited_claim_pattern(claim: str) -> re.Pattern[str]:
+    phrase = re.sub(r"\\\s+", r"\\s+", re.escape(claim.strip()))
+    return re.compile(rf"(?<!\w){phrase}(?!\w)", re.IGNORECASE)
 
 
 def read_json(path: Path) -> dict:
@@ -151,26 +169,23 @@ def test_roi_fixture_is_complete_synthetic_evidence_only() -> None:
 
 
 def test_advertiser_copy_uses_safe_measurement_terms() -> None:
-    copy = "\n".join(
-        path.read_text()
-        for path in ADVERTISER_DIR.rglob("*")
-        if path.suffix in {".ts", ".tsx"}
-    )
+    contract = read_json(CONTRACT_PATH)
+    copy = advertiser_reachable_copy()
+
     assert "Campaign Performance Analysis" in copy
     assert "Modelled potential contacts" in copy
     assert "Model confidence diagnostic" in copy
     assert "not a statistical confidence interval" in copy
-    for prohibited in (
-        "Attribution report",
-        "GPS-verified exposure",
-        "Where was the campaign most likely seen?",
-        "Estimated impressions · daily",
-        'label="Est. impressions"',
-        'label="Avg confidence"',
-        "Exposure map",
-        "Exposure heatmap",
-        "Where your campaign was seen",
-        "premium exposure",
-        "Pay premium for attention",
-    ):
-        assert prohibited not in copy
+    prohibited_claims = contract["prohibited_claims"]
+    assert prohibited_claims
+    for prohibited in prohibited_claims:
+        assert not prohibited_claim_pattern(prohibited).search(copy), prohibited
+
+
+def test_prohibited_claim_patterns_are_case_insensitive_whole_phrases() -> None:
+    pattern = prohibited_claim_pattern("verified exposure")
+
+    assert pattern.search("VERIFIED EXPOSURE")
+    assert pattern.search("verified\n exposure")
+    assert not pattern.search("unverified exposure")
+    assert not pattern.search("verified exposures")
