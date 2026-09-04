@@ -1435,10 +1435,24 @@ def test_v3_cap_truncation_is_chronological_across_tiers(postgis_db_sessionmaker
     assert calculation.final_payout == Decimal("500.00")  # 900 s at 2000/h
 
 
-def build_mixed_engine_day(postgis_db_sessionmaker, settings, tag: str, *, cap: str):
+def build_mixed_engine_day(
+    postgis_db_sessionmaker,
+    settings,
+    tag: str,
+    *,
+    cap: str,
+    earlier_rate: str = "1200.00",
+    later_rate: str = "1200.00",
+    trip2_started_at: datetime | None = None,
+):
     """One driver/campaign/Lagos-day with a v2 trip (unbound assignment) and
     a v3 trip (bound assignment on a second vehicle)."""
-    graph = build_v2_graph(postgis_db_sessionmaker, tag, daily_cap_hours=cap)
+    graph = build_v2_graph(
+        postgis_db_sessionmaker,
+        tag,
+        hourly_rate=earlier_rate,
+        daily_cap_hours=cap,
+    )
     vehicle2 = create_test_vehicle(
         postgis_db_sessionmaker,
         driver_profile_id=graph.profile.id,
@@ -1458,7 +1472,7 @@ def build_mixed_engine_day(postgis_db_sessionmaker, settings, tag: str, *, cap: 
         campaign_id=graph.campaign.id,
         rule_id=graph.rule.id,
         created_by_user_id=graph.admin.id,
-        base="1200.00",
+        base=later_rate,
         premium=None,
         cap=cap,
     )
@@ -1468,7 +1482,7 @@ def build_mixed_engine_day(postgis_db_sessionmaker, settings, tag: str, *, cap: 
         assignment_id=assignment2.id,
         revision=revision,
     )
-    trip2_start = TRIP_START + timedelta(hours=1)
+    trip2_start = trip2_started_at or TRIP_START + timedelta(hours=1)
     trip2 = create_signed_v2_test_trip_session(
         postgis_db_sessionmaker,
         settings,
@@ -1519,35 +1533,165 @@ def test_mixed_v2_v3_trips_share_one_day_cap_pool(postgis_db_sessionmaker, setti
     assert v3_calc.final_payout == Decimal("300.00")  # 900 s at 1200/h
 
 
-def test_mixed_v2_v3_cap_race_never_exceeds_day_cap(postgis_db_sessionmaker, settings) -> None:
-    """PR5 race: whichever engine wins the advisory lock, the shared pool
-    never exceeds the D4 cap in any serialization."""
-    from app.services.trip_processing import process_ended_trip
+@pytest.mark.parametrize(
+    ("earlier_rate", "later_rate"),
+    (("1000.00", "1800.00"), ("1800.00", "1000.00")),
+)
+def test_mixed_v2_v3_cap_race_allocates_in_trip_start_order(
+    postgis_db_sessionmaker,
+    settings,
+    monkeypatch,
+    earlier_rate,
+    later_rate,
+) -> None:
+    """MON-002: even when the later trip owns the campaign transaction
+    first, the earlier trip receives the shared daily capacity first."""
+    from app.services import trip_processing
 
-    graph = build_mixed_engine_day(postgis_db_sessionmaker, settings, "v3-pool-race", cap="0.75")
+    tag = f"v3-order-{earlier_rate[:2]}-{later_rate[:2]}"
+    graph = build_mixed_engine_day(
+        postgis_db_sessionmaker,
+        settings,
+        tag,
+        cap="0.50",
+        earlier_rate=earlier_rate,
+        later_rate=later_rate,
+    )
+
+    acquire_campaign_terms_lock = trip_processing.acquire_campaign_terms_lock
+    later_has_lock = asyncio.Event()
+    earlier_attempted_lock = asyncio.Event()
+    release_later = asyncio.Event()
+    later_barrier_used = False
+
+    async def controlled_campaign_lock(session, campaign_id):
+        nonlocal later_barrier_used
+        task = asyncio.current_task()
+        if task is not None and task.get_name() == "earlier":
+            earlier_attempted_lock.set()
+        await acquire_campaign_terms_lock(session, campaign_id)
+        if task is not None and task.get_name() == "later" and not later_barrier_used:
+            later_barrier_used = True
+            later_has_lock.set()
+            await release_later.wait()
+
+    monkeypatch.setattr(
+        trip_processing,
+        "acquire_campaign_terms_lock",
+        controlled_campaign_lock,
+    )
 
     async def process(trip_id):
         async with postgis_db_sessionmaker() as session:
-            result = await process_ended_trip(session, trip_id=trip_id, settings=settings)
+            result = await trip_processing.process_ended_trip(
+                session,
+                trip_id=trip_id,
+                settings=settings,
+            )
             await session.commit()
             return result
 
     async def race():
-        return await asyncio.gather(process(graph.trip.id), process(graph.trip2.id))
+        later = asyncio.create_task(process(graph.trip2.id), name="later")
+        await asyncio.wait_for(later_has_lock.wait(), timeout=5)
+        earlier = asyncio.create_task(process(graph.trip.id), name="earlier")
+        await asyncio.wait_for(earlier_attempted_lock.wait(), timeout=5)
+        release_later.set()
+        return await asyncio.gather(later, earlier)
 
     results = asyncio.run(race())
     assert {result.overall for result in results} == {"completed"}
 
     day_key = graph.trip.started_at.date().isoformat()
-    calculations = fetch_payout_calculations(postgis_db_sessionmaker)
-    assert len(calculations) == 2
-    allocations = sorted(
-        int((calc.payable_seconds_by_day or {}).get(day_key, 0)) for calc in calculations
+    calculations = {
+        calculation.trip_session_id: calculation
+        for calculation in fetch_payout_calculations(postgis_db_sessionmaker)
+    }
+    earlier = calculations[graph.trip.id]
+    later = calculations[graph.trip2.id]
+    assert earlier.payable_seconds_by_day == {day_key: 1800}
+    assert earlier.final_payout == Decimal(earlier_rate) / 2
+    assert later.payable_seconds_by_day == {}
+    assert later.final_payout == Decimal("0.00")
+    assert earlier.payable_seconds + later.payable_seconds == 1800
+
+
+def test_direct_calculation_refuses_equal_start_higher_id_before_lower_id(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_mixed_engine_day(
+        postgis_db_sessionmaker,
+        settings,
+        "v3-order-id",
+        cap="0.50",
+        trip2_started_at=TRIP_START,
     )
-    # One serialization gives (1800, 900), the other (900, 1800); the pool
-    # total equals the cap and can never exceed it.
-    assert allocations == [900, 1800]
-    assert sum(allocations) == 2700
+    predecessor_id, current_id = sorted((graph.trip.id, graph.trip2.id))
+
+    from app.services.impressions import estimate_trip_impressions
+    from app.services.trip_analytics import recompute_trip_analytics
+
+    async def calculate_current_first() -> None:
+        async with postgis_db_sessionmaker() as session:
+            await recompute_trip_analytics(
+                session,
+                trip_id=current_id,
+                metadata={"source": "test"},
+                settings=settings,
+            )
+            await estimate_trip_impressions(
+                session,
+                trip_id=current_id,
+                traffic_density_profile_id=None,
+                metadata={"source": "test"},
+                settings=settings,
+            )
+            with pytest.raises(AppError) as error:
+                await payouts.calculate_trip_payout(
+                    session,
+                    trip_id=current_id,
+                    payout_rule_id=None,
+                    metadata={"source": "test"},
+                    settings=settings,
+                )
+            assert error.value.code == "PAYOUT_DAY_PREDECESSOR_UNPROCESSED"
+            assert error.value.status_code == 409
+            assert error.value.details == {"predecessor_trip_id": str(predecessor_id)}
+
+    asyncio.run(calculate_current_first())
+
+
+def test_worker_leaves_later_payout_retryable_when_predecessor_cannot_progress(
+    postgis_db_sessionmaker,
+    settings,
+    monkeypatch,
+) -> None:
+    graph = build_mixed_engine_day(
+        postgis_db_sessionmaker,
+        settings,
+        "v3-order-blocked",
+        cap="0.50",
+    )
+
+    from app.services import trip_processing
+
+    verify_manifest_receipt = trip_processing.verify_manifest_receipt
+    monkeypatch.setattr(
+        trip_processing,
+        "verify_manifest_receipt",
+        lambda trip, active_settings: (
+            trip.id != graph.trip.id and verify_manifest_receipt(trip, active_settings)
+        ),
+    )
+    result = run_pipeline(postgis_db_sessionmaker, graph.trip2.id, settings)
+
+    assert result.overall == "partial"
+    assert result.stages[-1].stage == "payout"
+    assert result.stages[-1].outcome == "blocked"
+    assert result.stages[-1].reason == "payout_day_predecessor_unprocessed"
+    assert result.stages[-1].row_ids == {"predecessor_trip_id": str(graph.trip.id)}
+    assert fetch_payout_calculations(postgis_db_sessionmaker) == []
 
 
 def test_v3_midnight_spanning_trip_allocates_per_day(postgis_db_sessionmaker, settings) -> None:

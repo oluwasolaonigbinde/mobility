@@ -206,6 +206,62 @@ async def acquire_paycap_lock(session: AsyncSession, lock_key: int) -> None:
     await session.execute(text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": lock_key})
 
 
+async def require_paycap_predecessors_processed(
+    session: AsyncSession,
+    *,
+    trip: TripSession,
+    lagos_days: list[date],
+) -> None:
+    """Refuse arrival-order allocation while an earlier overlapping trip is unresolved.
+
+    Callers hold every listed day lock. A calculation of any status or formula
+    is authoritative for ordering purposes; the shared-cap reader separately
+    decides whether that authority consumes payable seconds.
+    """
+    overlap_clauses = []
+    for day in lagos_days:
+        day_start_utc, day_end_utc = lagos_day_utc_range(day)
+        overlap_clauses.append(
+            and_(
+                TripSession.started_at < day_end_utc,
+                func.coalesce(TripSession.ended_at, TripSession.started_at) >= day_start_utc,
+            )
+        )
+    calculation_exists = (
+        select(PayoutCalculation.id)
+        .where(PayoutCalculation.trip_session_id == TripSession.id)
+        .correlate(TripSession)
+        .exists()
+    )
+    predecessor = await session.scalar(
+        select(TripSession.id)
+        .where(
+            TripSession.driver_profile_id == trip.driver_profile_id,
+            TripSession.campaign_id == trip.campaign_id,
+            TripSession.status == TripSessionStatus.SEALED.value,
+            TripSession.ended_at.is_not(None),
+            or_(
+                TripSession.started_at < trip.started_at,
+                and_(
+                    TripSession.started_at == trip.started_at,
+                    TripSession.id < trip.id,
+                ),
+            ),
+            or_(*overlap_clauses),
+            ~calculation_exists,
+        )
+        .order_by(TripSession.started_at, TripSession.id)
+        .limit(1)
+    )
+    if predecessor is not None:
+        raise AppError(
+            "PAYOUT_DAY_PREDECESSOR_UNPROCESSED",
+            "An earlier trip overlapping this payout day must be processed first",
+            status_code=status.HTTP_409_CONFLICT,
+            details={"predecessor_trip_id": str(predecessor)},
+        )
+
+
 @dataclass(frozen=True)
 class DriverCurrencyEarnings:
     currency: str
@@ -1995,6 +2051,11 @@ async def calculate_trip_payout_v2(
         await acquire_paycap_lock(
             session, paycap_lock_key(trip.driver_profile_id, trip.campaign_id, day)
         )
+    await require_paycap_predecessors_processed(
+        session,
+        trip=trip,
+        lagos_days=lagos_days,
+    )
 
     if (
         analytics.status == TripAnalyticsStatus.INSUFFICIENT_DATA.value
@@ -2256,6 +2317,11 @@ async def calculate_trip_payout_v3(
         await acquire_paycap_lock(
             session, paycap_lock_key(trip.driver_profile_id, trip.campaign_id, day)
         )
+    await require_paycap_predecessors_processed(
+        session,
+        trip=trip,
+        lagos_days=lagos_days,
+    )
 
     if (
         analytics.status == TripAnalyticsStatus.INSUFFICIENT_DATA.value

@@ -419,35 +419,72 @@ async def process_ended_trip(
             )
         ).scalars()
     )
-    try:
-        calculation, ledger, calculation_created = await calculate_trip_payout(
-            session,
-            trip_id=trip.id,
-            payout_rule_id=None,
-            metadata=dict(WORKER_METADATA),
-            settings=settings,
-            now=processing_now,
-            # payout_v2 rows are write-once: input drift never auto-recomputes
-            # money in the pipeline; the admin recompute-day tool corrects.
-            strict_staleness=False,
-        )
-    except AppError as exc:
-        # Expected non-progression only; raised before any payout write, so the
-        # session stays healthy and earlier stages commit with the caller.
-        if exc.code != "PAYOUT_RULE_NOT_FOUND":
-            raise
-        stages.append(
-            StageResult(stage="payout", outcome="blocked", reason="no_active_payout_rule")
-        )
-        if repaired_ledger_ids or assessment_result.changed:
-            await _audit_processing_writes(
+    while True:
+        try:
+            calculation, ledger, calculation_created = await calculate_trip_payout(
                 session,
-                trip=trip,
-                stages=stages,
-                created_ledger_ids=repaired_ledger_ids,
-                repaired_ledger_ids=repaired_ledger_ids,
+                trip_id=trip.id,
+                payout_rule_id=None,
+                metadata=dict(WORKER_METADATA),
+                settings=settings,
+                now=processing_now,
+                # payout_v2 rows are write-once: input drift never auto-recomputes
+                # money in the pipeline; the admin recompute-day tool corrects.
+                strict_staleness=False,
             )
-        return TripProcessingResult(trip_id=trip.id, overall="partial", stages=stages)
+            break
+        except AppError as exc:
+            # The calculation gate owns the invariant for direct calls too.
+            # A worker can make forward progress while retaining the same
+            # campaign/day transaction by processing the named predecessor.
+            if exc.code == "PAYOUT_DAY_PREDECESSOR_UNPROCESSED":
+                predecessor_id = UUID(exc.details["predecessor_trip_id"])
+                await process_ended_trip(
+                    session,
+                    trip_id=predecessor_id,
+                    settings=settings,
+                    now=processing_now,
+                )
+                predecessor_calculation_id = await session.scalar(
+                    select(PayoutCalculation.id)
+                    .where(PayoutCalculation.trip_session_id == predecessor_id)
+                    .limit(1)
+                )
+                if predecessor_calculation_id is not None:
+                    continue
+                stages.append(
+                    StageResult(
+                        stage="payout",
+                        outcome="blocked",
+                        reason="payout_day_predecessor_unprocessed",
+                        row_ids={"predecessor_trip_id": str(predecessor_id)},
+                    )
+                )
+                if repaired_ledger_ids or assessment_result.changed:
+                    await _audit_processing_writes(
+                        session,
+                        trip=trip,
+                        stages=stages,
+                        created_ledger_ids=repaired_ledger_ids,
+                        repaired_ledger_ids=repaired_ledger_ids,
+                    )
+                return TripProcessingResult(trip_id=trip.id, overall="partial", stages=stages)
+            # Expected non-progression only; raised before any payout write,
+            # so the session stays healthy and earlier stages commit.
+            if exc.code != "PAYOUT_RULE_NOT_FOUND":
+                raise
+            stages.append(
+                StageResult(stage="payout", outcome="blocked", reason="no_active_payout_rule")
+            )
+            if repaired_ledger_ids or assessment_result.changed:
+                await _audit_processing_writes(
+                    session,
+                    trip=trip,
+                    stages=stages,
+                    created_ledger_ids=repaired_ledger_ids,
+                    repaired_ledger_ids=repaired_ledger_ids,
+                )
+            return TripProcessingResult(trip_id=trip.id, overall="partial", stages=stages)
 
     ledger_created = ledger is not None and ledger.id not in prior_ledger_ids
     payout_row_ids = {"payout_calculation_id": str(calculation.id)}
