@@ -17,12 +17,13 @@ from app.adapters.disbursement import (
 )
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
-from app.models.disbursement import PayoutBatch, PayoutBatchLine
+from app.models.disbursement import PayoutBatch, PayoutBatchLine, PayoutSubmissionIntent
 from app.models.payout import EarningsLedgerEntry
 from app.models.trip_analytics import FraudFlag
 from app.services.disbursements import (
     approve_payout_batch,
     create_payout_batch_draft,
+    process_payout_submission_intent,
     reserve_payout_batch,
     submit_payout_batch,
 )
@@ -71,7 +72,7 @@ async def _seed_authority(session, graph, *, amount="100.00"):
     return entry
 
 
-def test_batch_reservation_approval_submission_and_retry_are_frozen(db_sessionmaker) -> None:
+def test_batch_submission_commits_frozen_intent_without_provider_io(db_sessionmaker) -> None:
     graph = build_graph(db_sessionmaker, f"batch-{uuid4().hex[:8]}")
     checker = type(graph.admin)(
         email=f"batch-checker-{uuid4().hex}@example.com",
@@ -123,17 +124,37 @@ def test_batch_reservation_approval_submission_and_retry_are_frozen(db_sessionma
                 )
                 or 0
             )
+            queued_audits = int(
+                await session.scalar(
+                    select(func.count(AuditEvent.id)).where(
+                        AuditEvent.action == "admin.payout_batch.submission_queued",
+                        AuditEvent.entity_id == str(batch.id),
+                    )
+                )
+                or 0
+            )
+            intents = int(
+                await session.scalar(
+                    select(func.count(PayoutSubmissionIntent.id)).where(
+                        PayoutSubmissionIntent.payout_batch_line_id == lines[0].id
+                    )
+                )
+                or 0
+            )
             await session.commit()
-            return batch, lines[0], frozen, submitted_audits
+            return batch, lines[0], frozen, submitted_audits, queued_audits, intents
 
-    batch, line, frozen, submitted_audits = asyncio.run(exercise())
-    assert batch.status == "submitted"
+    batch, line, frozen, submitted_audits, queued_audits, intents = asyncio.run(
+        exercise()
+    )
+    assert batch.status == "reserved"
     assert batch.total_amount == Decimal("100.00")
     assert line.instruction == frozen[0]
     assert line.idempotency_key == frozen[1]
-    assert len(fake.calls) == 2
-    assert fake.calls[0][1] == fake.calls[1][1]
-    assert submitted_audits == 1
+    assert fake.calls == []
+    assert submitted_audits == 0
+    assert queued_audits == 1
+    assert intents == 1
 
 
 def test_multi_line_reservation_freezes_exact_total_hashes_and_keys(db_sessionmaker) -> None:
@@ -536,6 +557,7 @@ def test_postgres_duplicate_provider_reference_preserves_outer_write(
             )
 
     async def exercise():
+        adapter = FixedReferenceAdapter()
         async with postgis_db_sessionmaker() as session:
             session.add(checker)
             await session.flush()
@@ -557,13 +579,38 @@ def test_postgres_duplicate_provider_reference_preserves_outer_write(
                     actor_user_id=checker.id,
                 )
                 batches.append(batch)
-            await submit_payout_batch(
-                session,
-                batch_id=batches[0].id,
-                actor_user_id=graph.admin.id,
-                adapter=FixedReferenceAdapter(),
-            )
+            for batch in batches:
+                await submit_payout_batch(
+                    session,
+                    batch_id=batch.id,
+                    actor_user_id=graph.admin.id,
+                    adapter=adapter,
+                )
+            intent_by_batch = {
+                batch_id: intent_id
+                for intent_id, batch_id in (
+                    await session.execute(
+                        select(PayoutSubmissionIntent.id, PayoutBatchLine.batch_id)
+                    .join(
+                        PayoutBatchLine,
+                        PayoutBatchLine.id
+                        == PayoutSubmissionIntent.payout_batch_line_id,
+                    )
+                    .where(PayoutBatchLine.batch_id.in_([batch.id for batch in batches]))
+                    )
+                )
+            }
+            intent_ids = tuple(intent_by_batch[batch.id] for batch in batches)
             await session.commit()
+
+        assert (
+            await process_payout_submission_intent(
+                postgis_db_sessionmaker,
+                intent_id=intent_ids[0],
+                adapter=adapter,
+            )
+            == "resolved"
+        )
 
         async with postgis_db_sessionmaker() as session:
             session.add(
@@ -575,15 +622,12 @@ def test_postgres_duplicate_provider_reference_preserves_outer_write(
                     event_metadata={},
                 )
             )
-            with pytest.raises(AppError) as duplicate:
-                await submit_payout_batch(
-                    session,
-                    batch_id=batches[1].id,
-                    actor_user_id=graph.admin.id,
-                    adapter=FixedReferenceAdapter(),
-                )
-            assert duplicate.value.code == "DISBURSEMENT_PROVIDER_REFERENCE_DUPLICATE"
             await session.commit()
+        duplicate = await process_payout_submission_intent(
+            postgis_db_sessionmaker,
+            intent_id=intent_ids[1],
+            adapter=adapter,
+        )
 
         async with postgis_db_sessionmaker() as session:
             stored = await session.get(PayoutBatch, batches[1].id)
@@ -605,13 +649,14 @@ def test_postgres_duplicate_provider_reference_preserves_outer_write(
                 or 0
             )
             assert stored is not None
-            return stored.status, lines, markers
+            return stored.status, lines, markers, duplicate
 
-    status_value, lines, markers = asyncio.run(exercise())
+    status_value, lines, markers, duplicate = asyncio.run(exercise())
     assert status_value == "reserved"
     assert all(line.status == "reserved" for line in lines)
     assert all(line.provider_transfer_reference is None for line in lines)
     assert markers == 1
+    assert duplicate == "query_only"
 
 
 def test_postgres_hold_creation_serializes_before_reservation(

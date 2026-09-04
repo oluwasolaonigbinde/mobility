@@ -16,6 +16,10 @@ from app.jobs.data_lifecycle import (
     premake_ping_partitions,
     purge_expired_ping_partitions,
 )
+from app.jobs.disbursements import (
+    process_disbursement_intent_job,
+    sweep_disbursement_intents,
+)
 from app.jobs.disclosure_retention import purge_expired_disclosure_query_history
 from app.jobs.earnings_release import sweep_earnings_release_reviews
 from app.jobs.email_delivery import sweep_email_notifications
@@ -98,6 +102,11 @@ class WorkerSettings:
             name="process_payment_gateway_event",
             keep_result=0,
         ),
+        func(
+            process_disbursement_intent_job,
+            name="process_disbursement_intent",
+            keep_result=0,
+        ),
     ]
     cron_jobs: list = [
         cron(
@@ -174,6 +183,11 @@ class WorkerSettings:
         ),
         cron(purge_orphaned_file_uploads, hour={5}, minute={50}, unique=True),
         cron(purge_expired_file_kyc, hour={6}, minute={0}, unique=True),
+        cron(
+            sweep_disbursement_intents,
+            minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
+            unique=True,
+        ),
     ]
     # Worker-level too: finish_failed_job stores max-retries failures under the
     # deterministic job id using this value (func-level keep_result not consulted).

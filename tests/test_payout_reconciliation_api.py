@@ -4,12 +4,26 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from conftest import auth_headers, create_test_user
+from sqlalchemy import select
 from test_mny03a_earnings_release import build_graph
 from test_payout_batches import _seed_authority
 
 from app.adapters.disbursement import FakeDisbursementAdapter
 from app.api.v1.disbursements import get_disbursement_adapter
+from app.models.disbursement import PayoutSubmissionIntent
 from app.models.user import UserRole
+from app.services.disbursements import process_payout_submission_intent
+
+
+async def _run_submission_worker(db_sessionmaker, fake) -> None:
+    async with db_sessionmaker() as session:
+        intent_id = await session.scalar(select(PayoutSubmissionIntent.id))
+    assert (
+        await process_payout_submission_intent(
+            db_sessionmaker, intent_id=intent_id, adapter=fake
+        )
+        == "resolved"
+    )
 
 
 def test_reconciliation_api_enforces_separation_and_verified_line_finality(
@@ -62,7 +76,12 @@ def test_reconciliation_api_enforces_separation_and_verified_line_finality(
         f"/api/v1/admin/payout-batches/{batch_id}/submit", headers=maker_headers
     )
     assert submitted.status_code == 200
-    line = submitted.json()["lines"][0]
+    assert submitted.json()["lines"][0]["status"] == "reserved"
+    assert fake.calls == []
+    asyncio.run(_run_submission_worker(db_sessionmaker, fake))
+    line = db_client.get(
+        f"/api/v1/admin/payout-batches/{batch_id}", headers=maker_headers
+    ).json()["lines"][0]
     assert line["status"] == "submitted"
     fake.set_poll_result(
         provider_transfer_reference=line["provider_transfer_reference"],
@@ -124,8 +143,13 @@ def test_webhook_api_rejects_forgery_and_accepts_signed_fake_evidence(
         json={"ledger_entry_ids": [str(entry_id)]},
     )
     db_client.post(f"/api/v1/admin/payout-batches/{batch_id}/approve", headers=checker_headers)
-    line = db_client.post(
+    queued_line = db_client.post(
         f"/api/v1/admin/payout-batches/{batch_id}/submit", headers=maker_headers
+    ).json()["lines"][0]
+    assert queued_line["status"] == "reserved"
+    asyncio.run(_run_submission_worker(db_sessionmaker, fake))
+    line = db_client.get(
+        f"/api/v1/admin/payout-batches/{batch_id}", headers=maker_headers
     ).json()["lines"][0]
     payload = json.dumps(
         {

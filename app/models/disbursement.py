@@ -10,12 +10,16 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
     UniqueConstraint,
+    event,
     func,
+    inspect,
     text,
 )
 from sqlalchemy.dialects import postgresql
@@ -40,6 +44,25 @@ class PayoutBatchLineStatus(StrEnum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     VOID = "void"
+
+
+class PayoutSubmissionIntentState(StrEnum):
+    PENDING = "pending"
+    CLAIMED = "claimed"
+    QUERY_ONLY = "query_only"
+    RESOLVED = "resolved"
+
+
+class PayoutSubmissionClaimAction(StrEnum):
+    SUBMIT = "submit"
+    QUERY = "query"
+
+
+class PayoutSubmissionObservationOutcome(StrEnum):
+    SUBMITTED = "submitted"
+    FOUND = "found"
+    NOT_FOUND = "not_found"
+    UNKNOWN = "unknown"
 
 
 class PayoutBatch(Base):
@@ -169,6 +192,301 @@ class PayoutBatchLine(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class PayoutSubmissionIntent(Base):
+    __tablename__ = "payout_submission_intents"
+    __table_args__ = (
+        CheckConstraint(
+            "length(instruction_fingerprint) = 64",
+            name="ck_payout_submission_intents_instruction_fingerprint",
+        ),
+        CheckConstraint(
+            "length(idempotency_key) = 64",
+            name="ck_payout_submission_intents_idempotency_key",
+        ),
+        CheckConstraint(
+            "state IN ('pending', 'claimed', 'query_only', 'resolved')",
+            name="ck_payout_submission_intents_state",
+        ),
+        CheckConstraint(
+            "claim_action IS NULL OR claim_action IN ('submit', 'query')",
+            name="ck_payout_submission_intents_claim_action",
+        ),
+        CheckConstraint("generation >= 0", name="ck_payout_submission_intents_generation"),
+        CheckConstraint(
+            "(state IN ('pending', 'query_only') AND claim_token IS NULL "
+            "AND claim_action IS NULL AND claim_expires_at IS NULL "
+            "AND provider_transfer_reference IS NULL AND resolved_at IS NULL) OR "
+            "(state = 'claimed' AND generation > 0 AND claim_token IS NOT NULL "
+            "AND claim_action IS NOT NULL AND claim_expires_at IS NOT NULL "
+            "AND provider_transfer_reference IS NULL AND resolved_at IS NULL) OR "
+            "(state = 'resolved' AND claim_token IS NULL AND claim_action IS NULL "
+            "AND claim_expires_at IS NULL AND provider_transfer_reference IS NOT NULL "
+            "AND resolved_at IS NOT NULL)",
+            name="ck_payout_submission_intents_state_fields",
+        ),
+        Index(
+            "ix_payout_submission_intents_due",
+            "state",
+            "claim_expires_at",
+            "updated_at",
+        ),
+        Index(
+            "uq_payout_submission_intents_provider_transfer_reference",
+            "provider_transfer_reference",
+            unique=True,
+            sqlite_where=text("provider_transfer_reference IS NOT NULL"),
+            postgresql_where=text("provider_transfer_reference IS NOT NULL"),
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    payout_batch_line_id: Mapped[UUID] = mapped_column(
+        ForeignKey("payout_batch_lines.id", ondelete="RESTRICT"), nullable=False, unique=True
+    )
+    provider_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    instruction: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
+    )
+    instruction_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    requested_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    state: Mapped[str] = mapped_column(
+        String(16),
+        default=PayoutSubmissionIntentState.PENDING,
+        server_default=text("'pending'"),
+        nullable=False,
+    )
+    generation: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
+    claim_token: Mapped[UUID | None] = mapped_column(unique=True)
+    claim_action: Mapped[str | None] = mapped_column(String(16))
+    claim_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    provider_submission_reference: Mapped[str | None] = mapped_column(Text)
+    provider_transfer_reference: Mapped[str | None] = mapped_column(Text)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class PayoutSubmissionAttempt(Base):
+    __tablename__ = "payout_submission_attempts"
+    __table_args__ = (
+        CheckConstraint("generation > 0", name="ck_payout_submission_attempts_generation"),
+        CheckConstraint(
+            "action IN ('submit', 'query')", name="ck_payout_submission_attempts_action"
+        ),
+        CheckConstraint(
+            "length(idempotency_key) = 64",
+            name="ck_payout_submission_attempts_idempotency_key",
+        ),
+        CheckConstraint(
+            "length(instruction_fingerprint) = 64",
+            name="ck_payout_submission_attempts_instruction_fingerprint",
+        ),
+        UniqueConstraint(
+            "intent_id", "generation", name="uq_payout_submission_attempts_intent_generation"
+        ),
+        UniqueConstraint("claim_token", name="uq_payout_submission_attempts_claim_token"),
+        UniqueConstraint(
+            "id",
+            "intent_id",
+            "generation",
+            "idempotency_key",
+            "instruction_fingerprint",
+            name="uq_payout_submission_attempts_observation_binding",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    intent_id: Mapped[UUID] = mapped_column(
+        ForeignKey("payout_submission_intents.id", ondelete="RESTRICT"), nullable=False
+    )
+    generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    claim_token: Mapped[UUID] = mapped_column(nullable=False)
+    action: Mapped[str] = mapped_column(String(16), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    instruction_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class PayoutSubmissionObservation(Base):
+    __tablename__ = "payout_submission_observations"
+    __table_args__ = (
+        CheckConstraint("generation > 0", name="ck_payout_submission_observations_generation"),
+        CheckConstraint(
+            "outcome IN ('submitted', 'found', 'not_found', 'unknown')",
+            name="ck_payout_submission_observations_outcome",
+        ),
+        CheckConstraint(
+            "length(idempotency_key) = 64",
+            name="ck_payout_submission_observations_idempotency_key",
+        ),
+        CheckConstraint(
+            "length(instruction_fingerprint) = 64",
+            name="ck_payout_submission_observations_instruction_fingerprint",
+        ),
+        CheckConstraint(
+            "length(evidence_fingerprint) = 64",
+            name="ck_payout_submission_observations_evidence_fingerprint",
+        ),
+        CheckConstraint(
+            "(outcome IN ('submitted', 'found') "
+            "AND provider_transfer_reference IS NOT NULL) OR "
+            "(outcome IN ('not_found', 'unknown') "
+            "AND provider_transfer_reference IS NULL)",
+            name="ck_payout_submission_observations_provider_reference",
+        ),
+        ForeignKeyConstraint(
+            [
+                "attempt_id",
+                "intent_id",
+                "generation",
+                "idempotency_key",
+                "instruction_fingerprint",
+            ],
+            [
+                "payout_submission_attempts.id",
+                "payout_submission_attempts.intent_id",
+                "payout_submission_attempts.generation",
+                "payout_submission_attempts.idempotency_key",
+                "payout_submission_attempts.instruction_fingerprint",
+            ],
+            ondelete="RESTRICT",
+            name="fk_payout_submission_observations_attempt_binding",
+        ),
+        UniqueConstraint("attempt_id", name="uq_payout_submission_observations_attempt"),
+        UniqueConstraint(
+            "intent_id",
+            "generation",
+            name="uq_payout_submission_observations_intent_generation",
+        ),
+        Index("ix_payout_submission_observations_intent", "intent_id", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    attempt_id: Mapped[UUID] = mapped_column(nullable=False)
+    intent_id: Mapped[UUID] = mapped_column(nullable=False)
+    generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    instruction_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False)
+    provider_submission_reference: Mapped[str | None] = mapped_column(Text)
+    provider_transfer_reference: Mapped[str | None] = mapped_column(Text)
+    evidence_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+_SUBMISSION_INTENT_IDENTITY_FIELDS = frozenset(
+    {
+        "payout_batch_line_id",
+        "provider_name",
+        "idempotency_key",
+        "instruction",
+        "instruction_fingerprint",
+        "requested_by_user_id",
+        "created_at",
+    }
+)
+_SUBMISSION_INTENT_TRANSITIONS = frozenset(
+    {
+        (PayoutSubmissionIntentState.PENDING.value, PayoutSubmissionIntentState.CLAIMED.value),
+        (
+            PayoutSubmissionIntentState.QUERY_ONLY.value,
+            PayoutSubmissionIntentState.CLAIMED.value,
+        ),
+        (PayoutSubmissionIntentState.CLAIMED.value, PayoutSubmissionIntentState.PENDING.value),
+        (
+            PayoutSubmissionIntentState.CLAIMED.value,
+            PayoutSubmissionIntentState.QUERY_ONLY.value,
+        ),
+        (PayoutSubmissionIntentState.CLAIMED.value, PayoutSubmissionIntentState.RESOLVED.value),
+    }
+)
+
+
+@event.listens_for(PayoutSubmissionIntent, "before_update")
+def validate_payout_submission_intent_update(_mapper, _connection, target) -> None:
+    state = inspect(target)
+    if any(
+        state.attrs[field].history.has_changes()
+        for field in _SUBMISSION_INTENT_IDENTITY_FIELDS
+    ):
+        raise ValueError("payout submission intent identity is immutable")
+    state_history = state.attrs.state.history
+    before = state_history.deleted[0] if state_history.deleted else target.state
+    after = state_history.added[0] if state_history.added else target.state
+    if state_history.has_changes() and (before, after) not in _SUBMISSION_INTENT_TRANSITIONS:
+        raise ValueError("payout submission intent state transition is invalid")
+    generation_history = state.attrs.generation.history
+    generation_changed = generation_history.has_changes()
+    old_generation = (
+        generation_history.deleted[0]
+        if generation_history.deleted
+        else target.generation
+    )
+    entering_claimed = after == PayoutSubmissionIntentState.CLAIMED.value and (
+        before
+        in {
+            PayoutSubmissionIntentState.PENDING.value,
+            PayoutSubmissionIntentState.QUERY_ONLY.value,
+            PayoutSubmissionIntentState.CLAIMED.value,
+        }
+    )
+    leaving_claimed = (
+        before == PayoutSubmissionIntentState.CLAIMED.value
+        and after
+        in {
+            PayoutSubmissionIntentState.PENDING.value,
+            PayoutSubmissionIntentState.QUERY_ONLY.value,
+            PayoutSubmissionIntentState.RESOLVED.value,
+        }
+    )
+    if entering_claimed:
+        if not generation_changed or target.generation != old_generation + 1:
+            raise ValueError("payout submission intent generation is not monotonic")
+    elif leaving_claimed:
+        if generation_changed:
+            raise ValueError("payout submission intent generation is not monotonic")
+    else:
+        raise ValueError("payout submission intent state transition is invalid")
+
+
+@event.listens_for(PayoutSubmissionIntent, "before_delete")
+def reject_payout_submission_intent_delete(_mapper, _connection, _target) -> None:
+    raise ValueError("payout submission intents are append-only")
+
+
+@event.listens_for(PayoutSubmissionAttempt, "before_update")
+@event.listens_for(PayoutSubmissionAttempt, "before_delete")
+def reject_payout_submission_attempt_mutation(_mapper, _connection, _target) -> None:
+    raise ValueError("payout submission attempts are append-only")
+
+
+@event.listens_for(PayoutSubmissionObservation, "before_update")
+@event.listens_for(PayoutSubmissionObservation, "before_delete")
+def reject_payout_submission_observation_mutation(_mapper, _connection, _target) -> None:
+    raise ValueError("payout submission observations are append-only")
 
 
 class PayoutLineReconciliationEvent(Base):

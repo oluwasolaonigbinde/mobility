@@ -121,10 +121,11 @@ def test_on_shutdown_tolerates_missing_engine() -> None:
 def test_worker_settings_importable_without_broker_or_database() -> None:
     assert {registered.name for registered in WorkerSettings.functions} == {
         "materialize_exposure_segment",
+        "process_disbursement_intent",
         "process_payment_gateway_event",
         "process_trip",
     }
-    assert len(WorkerSettings.cron_jobs) == 19
+    assert len(WorkerSettings.cron_jobs) == 20
     assert WorkerSettings.keep_result == 0
     assert WorkerSettings.on_startup is worker.on_startup
     assert WorkerSettings.on_shutdown is worker.on_shutdown

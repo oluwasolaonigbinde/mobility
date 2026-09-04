@@ -1,17 +1,20 @@
 import hashlib
 import json
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status
 
 from app.adapters.disbursement import (
     DisbursementAdapter,
     DisbursementInstruction,
+    DisbursementProviderCapabilities,
+    ProviderLookupStatus,
     VerifiedLineEvidence,
 )
 from app.adapters.disbursement.provider import DisbursementUnavailableError
@@ -23,6 +26,12 @@ from app.models.disbursement import (
     PayoutBatchLineStatus,
     PayoutBatchStatus,
     PayoutLineReconciliationEvent,
+    PayoutSubmissionAttempt,
+    PayoutSubmissionClaimAction,
+    PayoutSubmissionIntent,
+    PayoutSubmissionIntentState,
+    PayoutSubmissionObservation,
+    PayoutSubmissionObservationOutcome,
 )
 from app.models.payee import (
     Payee,
@@ -41,6 +50,29 @@ from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.fraud_holds import fraud_hold_active_clause, lock_fraud_hold_scope
 from app.services.payout_debt import lock_driver_currency_debt_scope
+
+DISBURSEMENT_CLAIM_LEASE = timedelta(minutes=2)
+
+
+@dataclass(frozen=True, slots=True)
+class ClaimedDisbursementIntent:
+    intent_id: UUID
+    batch_id: UUID
+    line_id: UUID
+    generation: int
+    claim_token: UUID
+    action: PayoutSubmissionClaimAction
+    idempotency_key: str
+    instruction: dict[str, str]
+    instruction_fingerprint: str
+
+
+@dataclass(frozen=True, slots=True)
+class DisbursementClaimObservation:
+    outcome: PayoutSubmissionObservationOutcome
+    provider_submission_reference: str | None = None
+    provider_transfer_reference: str | None = None
+    error_code: str | None = None
 
 
 def _error(code: str, message: str, *, http_status: int = status.HTTP_409_CONFLICT) -> AppError:
@@ -415,79 +447,435 @@ async def submit_payout_batch(
     if batch.approved_by_user_id is None or batch.approved_at is None:
         raise _error("PAYOUT_BATCH_NOT_APPROVED", "A separate admin must approve the batch")
     _assert_frozen(batch, lines)
-    instructions = tuple(
-        DisbursementInstruction(
-            line_id=str(line.id),
-            idempotency_key=line.idempotency_key,
-            instruction={str(key): str(value) for key, value in line.instruction.items()},
-        )
-        for line in lines
-    )
-    await session.flush()
-    try:
-        receipt = await adapter.submit_batch(batch_id=str(batch.id), instructions=instructions)
-    except DisbursementUnavailableError as exc:
-        raise _error(
-            "DISBURSEMENT_PROVIDER_UNAVAILABLE",
-            "Automated disbursement submission is not configured",
-            http_status=status.HTTP_503_SERVICE_UNAVAILABLE,
-        ) from exc
-    if batch.provider_submission_reference not in {None, receipt.provider_reference}:
-        raise _error(
-            "DISBURSEMENT_PROVIDER_REPLAY_CONFLICT",
-            "The provider returned a conflicting submission reference",
-        )
-    expected_line_ids = {str(line.id) for line in lines}
-    if set(receipt.line_references) != expected_line_ids or len(
-        set(receipt.line_references.values())
-    ) != len(lines):
-        raise _error(
-            "DISBURSEMENT_PROVIDER_RESPONSE_INVALID",
-            "The provider did not return one unique reference per payout line",
-            http_status=status.HTTP_502_BAD_GATEWAY,
-        )
-    replay = batch.status == PayoutBatchStatus.SUBMITTED
-    try:
-        async with session.begin_nested():
-            for line in lines:
-                provider_reference = receipt.line_references[str(line.id)]
-                if not provider_reference or line.provider_transfer_reference not in {
-                    None,
-                    provider_reference,
-                }:
-                    raise _error(
-                        "DISBURSEMENT_PROVIDER_REPLAY_CONFLICT",
-                        "The provider returned a conflicting line reference",
+    capabilities = _submission_capabilities(adapter)
+    existing = {
+        intent.payout_batch_line_id: intent
+        for intent in (
+            await session.scalars(
+                select(PayoutSubmissionIntent).where(
+                    PayoutSubmissionIntent.payout_batch_line_id.in_(
+                        [line.id for line in lines]
                     )
-                line.provider_transfer_reference = provider_reference
-                if line.status == PayoutBatchLineStatus.RESERVED:
-                    line.status = PayoutBatchLineStatus.SUBMITTED
-            batch.status = PayoutBatchStatus.SUBMITTED
-            batch.provider_submission_reference = receipt.provider_reference
-            batch.submitted_at = batch.submitted_at or datetime.now(UTC)
-            await session.flush()
-    except IntegrityError as exc:
-        constraint = integrity_constraint_name(exc)
-        if constraint != "uq_payout_batch_lines_provider_transfer_reference":
-            raise
-        raise _error(
-            "DISBURSEMENT_PROVIDER_REFERENCE_DUPLICATE",
-            "The provider transfer reference is already bound to another payout line",
-        ) from exc
-    if not replay:
+                )
+            )
+        ).all()
+    }
+    created = 0
+    for line in lines:
+        intent = existing.get(line.id)
+        if intent is not None:
+            if (
+                intent.provider_name != capabilities.provider_name
+                or intent.idempotency_key != line.idempotency_key
+                or intent.instruction != line.instruction
+                or intent.instruction_fingerprint != line.instruction_fingerprint
+            ):
+                raise _error(
+                    "PAYOUT_SUBMISSION_INTENT_CONFLICT",
+                    "The durable payout submission intent conflicts with the frozen line",
+                )
+            continue
+        if line.status != PayoutBatchLineStatus.RESERVED:
+            raise _error(
+                "PAYOUT_SUBMISSION_INTENT_MISSING",
+                "A provider-visible payout line has no durable submission intent",
+            )
+        session.add(
+            PayoutSubmissionIntent(
+                payout_batch_line_id=line.id,
+                provider_name=capabilities.provider_name,
+                idempotency_key=line.idempotency_key,
+                instruction=dict(line.instruction),
+                instruction_fingerprint=line.instruction_fingerprint,
+                requested_by_user_id=actor_user_id,
+            )
+        )
+        created += 1
+    await session.flush()
+    if created:
         await create_audit_event(
             session,
             actor_user_id=actor_user_id,
-            action="admin.payout_batch.submitted",
+            action="admin.payout_batch.submission_queued",
             entity_type="payout_batch",
             entity_id=str(batch.id),
-            metadata={"line_count": len(lines)},
+            metadata={"line_count": created},
         )
     return batch, lines
 
 
+def _submission_capabilities(
+    adapter: DisbursementAdapter,
+) -> DisbursementProviderCapabilities:
+    capabilities = adapter.capabilities
+    if not (
+        capabilities.provider_name
+        and capabilities.lookup_by_idempotency_key
+        and capabilities.semantic_same_key_idempotency
+    ):
+        raise _error(
+            "DISBURSEMENT_PROVIDER_UNAVAILABLE",
+            "Automated disbursement requires same-key idempotency and durable-key lookup",
+            http_status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    return capabilities
+
+
 def _aware_utc(value: datetime) -> datetime:
     return (value.replace(tzinfo=UTC) if value.tzinfo is None else value).astimezone(UTC)
+
+
+async def find_due_payout_submission_intent_ids(
+    session: AsyncSession, *, limit: int = 100
+) -> tuple[UUID, ...]:
+    return tuple(
+        (
+            await session.scalars(
+                select(PayoutSubmissionIntent.id)
+                .where(
+                    or_(
+                        PayoutSubmissionIntent.state.in_(
+                            [
+                                PayoutSubmissionIntentState.PENDING.value,
+                                PayoutSubmissionIntentState.QUERY_ONLY.value,
+                            ]
+                        ),
+                        (
+                            PayoutSubmissionIntent.state
+                            == PayoutSubmissionIntentState.CLAIMED.value
+                        )
+                        & (PayoutSubmissionIntent.claim_expires_at <= func.now()),
+                    )
+                )
+                .order_by(
+                    PayoutSubmissionIntent.updated_at,
+                    PayoutSubmissionIntent.id,
+                )
+                .limit(limit)
+            )
+        ).all()
+    )
+
+
+async def claim_payout_submission_intent(
+    sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    intent_id: UUID,
+    adapter: DisbursementAdapter,
+) -> ClaimedDisbursementIntent | None:
+    capabilities = _submission_capabilities(adapter)
+    async with sessionmaker() as session:
+        stub = (
+            await session.execute(
+                select(
+                    PayoutSubmissionIntent.payout_batch_line_id,
+                    PayoutBatchLine.batch_id,
+                )
+                .join(
+                    PayoutBatchLine,
+                    PayoutBatchLine.id == PayoutSubmissionIntent.payout_batch_line_id,
+                )
+                .where(PayoutSubmissionIntent.id == intent_id)
+            )
+        ).one_or_none()
+        if stub is None:
+            return None
+        batch, lines = await _locked_batch_with_lines(session, stub.batch_id)
+        intent = await session.scalar(
+            select(PayoutSubmissionIntent)
+            .where(PayoutSubmissionIntent.id == intent_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if intent is None:
+            return None
+        line = next(item for item in lines if item.id == intent.payout_batch_line_id)
+        if (
+            intent.state == PayoutSubmissionIntentState.RESOLVED.value
+            or line.status != PayoutBatchLineStatus.RESERVED.value
+        ):
+            return None
+        if intent.provider_name != capabilities.provider_name:
+            raise _error(
+                "DISBURSEMENT_PROVIDER_CHANGED",
+                "The configured provider does not own this durable submission intent",
+                http_status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        now = _aware_utc(await session.scalar(select(func.now())))
+        if intent.state == PayoutSubmissionIntentState.CLAIMED.value:
+            if (
+                intent.claim_expires_at is not None
+                and _aware_utc(intent.claim_expires_at) > now
+            ):
+                return None
+            action = PayoutSubmissionClaimAction.QUERY
+        elif intent.state == PayoutSubmissionIntentState.QUERY_ONLY.value:
+            action = PayoutSubmissionClaimAction.QUERY
+        elif intent.state == PayoutSubmissionIntentState.PENDING.value:
+            action = PayoutSubmissionClaimAction.SUBMIT
+        else:
+            return None
+        claim_token = uuid4()
+        intent.state = PayoutSubmissionIntentState.CLAIMED.value
+        intent.generation += 1
+        intent.claim_token = claim_token
+        intent.claim_action = action.value
+        intent.claim_expires_at = now + DISBURSEMENT_CLAIM_LEASE
+        attempt = PayoutSubmissionAttempt(
+            intent_id=intent.id,
+            generation=intent.generation,
+            claim_token=claim_token,
+            action=action.value,
+            idempotency_key=intent.idempotency_key,
+            instruction_fingerprint=intent.instruction_fingerprint,
+        )
+        session.add(attempt)
+        await session.commit()
+        return ClaimedDisbursementIntent(
+            intent_id=intent.id,
+            batch_id=batch.id,
+            line_id=line.id,
+            generation=intent.generation,
+            claim_token=claim_token,
+            action=action,
+            idempotency_key=intent.idempotency_key,
+            instruction={str(key): str(value) for key, value in intent.instruction.items()},
+            instruction_fingerprint=intent.instruction_fingerprint,
+        )
+
+
+def _clear_disbursement_claim(intent: PayoutSubmissionIntent) -> None:
+    intent.claim_token = None
+    intent.claim_action = None
+    intent.claim_expires_at = None
+
+
+def _submission_observation_fingerprint(
+    claim: ClaimedDisbursementIntent,
+    observation: DisbursementClaimObservation,
+) -> str:
+    return _fingerprint(
+        {
+            "intent_id": str(claim.intent_id),
+            "generation": claim.generation,
+            "claim_token": str(claim.claim_token),
+            "idempotency_key": claim.idempotency_key,
+            "instruction_fingerprint": claim.instruction_fingerprint,
+            "outcome": observation.outcome.value,
+            "provider_submission_reference": observation.provider_submission_reference,
+            "provider_transfer_reference": observation.provider_transfer_reference,
+            "error_code": observation.error_code,
+        }
+    )
+
+
+def _provider_reference_lock_id(provider_transfer_reference: str) -> int:
+    raw = hashlib.sha256(provider_transfer_reference.encode()).digest()[:8]
+    return int.from_bytes(raw, byteorder="big", signed=True)
+
+
+async def _resolve_payout_submission_claim(
+    sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    claim: ClaimedDisbursementIntent,
+    observation: DisbursementClaimObservation,
+) -> str:
+    async with sessionmaker() as session:
+        batch, lines = await _locked_batch_with_lines(session, claim.batch_id)
+        intent = await session.scalar(
+            select(PayoutSubmissionIntent)
+            .where(PayoutSubmissionIntent.id == claim.intent_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if intent is None:
+            return "stale"
+        now = _aware_utc(await session.scalar(select(func.now())))
+        if (
+            intent.state != PayoutSubmissionIntentState.CLAIMED.value
+            or intent.generation != claim.generation
+            or intent.claim_token != claim.claim_token
+            or intent.claim_action != claim.action.value
+            or intent.claim_expires_at is None
+            or _aware_utc(intent.claim_expires_at) <= now
+        ):
+            return "stale"
+        attempt = await session.scalar(
+            select(PayoutSubmissionAttempt).where(
+                PayoutSubmissionAttempt.intent_id == claim.intent_id,
+                PayoutSubmissionAttempt.generation == claim.generation,
+                PayoutSubmissionAttempt.claim_token == claim.claim_token,
+            )
+        )
+        if attempt is None:
+            raise RuntimeError("A committed disbursement claim has no durable attempt")
+        line = next(item for item in lines if item.id == intent.payout_batch_line_id)
+        final_observation = observation
+        resolved = observation.outcome in {
+            PayoutSubmissionObservationOutcome.SUBMITTED,
+            PayoutSubmissionObservationOutcome.FOUND,
+        }
+        if resolved:
+            provider_reference = observation.provider_transfer_reference
+            if not provider_reference or not observation.provider_submission_reference:
+                resolved = False
+                final_observation = DisbursementClaimObservation(
+                    outcome=PayoutSubmissionObservationOutcome.UNKNOWN,
+                    error_code="provider_response_invalid",
+                )
+            else:
+                if session.bind is not None and session.bind.dialect.name == "postgresql":
+                    await session.execute(
+                        select(
+                            func.pg_advisory_xact_lock(
+                                _provider_reference_lock_id(provider_reference)
+                            )
+                        )
+                    )
+                conflicting_line_id = await session.scalar(
+                    select(PayoutBatchLine.id).where(
+                        PayoutBatchLine.provider_transfer_reference == provider_reference,
+                        PayoutBatchLine.id != line.id,
+                    )
+                )
+                if conflicting_line_id is not None:
+                    resolved = False
+                    final_observation = DisbursementClaimObservation(
+                        outcome=observation.outcome,
+                        provider_submission_reference=(
+                            observation.provider_submission_reference
+                        ),
+                        provider_transfer_reference=provider_reference,
+                        error_code="provider_transfer_reference_duplicate",
+                    )
+        observed_at = now
+        session.add(
+            PayoutSubmissionObservation(
+                attempt_id=attempt.id,
+                intent_id=intent.id,
+                generation=intent.generation,
+                idempotency_key=intent.idempotency_key,
+                instruction_fingerprint=intent.instruction_fingerprint,
+                outcome=final_observation.outcome.value,
+                provider_submission_reference=(
+                    final_observation.provider_submission_reference
+                ),
+                provider_transfer_reference=final_observation.provider_transfer_reference,
+                evidence_fingerprint=_submission_observation_fingerprint(
+                    claim, final_observation
+                ),
+                error_code=final_observation.error_code,
+                observed_at=observed_at,
+            )
+        )
+        first_provider_resolution = batch.submitted_at is None
+        if resolved:
+            intent.state = PayoutSubmissionIntentState.RESOLVED.value
+            intent.provider_submission_reference = (
+                final_observation.provider_submission_reference
+            )
+            intent.provider_transfer_reference = final_observation.provider_transfer_reference
+            intent.resolved_at = observed_at
+            line.provider_transfer_reference = final_observation.provider_transfer_reference
+            line.status = PayoutBatchLineStatus.SUBMITTED.value
+            batch.provider_submission_reference = (
+                batch.provider_submission_reference
+                or final_observation.provider_submission_reference
+            )
+            batch.submitted_at = batch.submitted_at or observed_at
+            batch.status = _derive_batch_status(lines).value
+        elif final_observation.outcome == PayoutSubmissionObservationOutcome.NOT_FOUND:
+            intent.state = PayoutSubmissionIntentState.PENDING.value
+        else:
+            intent.state = PayoutSubmissionIntentState.QUERY_ONLY.value
+        _clear_disbursement_claim(intent)
+        await session.flush()
+        if resolved and first_provider_resolution:
+            await create_audit_event(
+                session,
+                actor_user_id=intent.requested_by_user_id,
+                action="admin.payout_batch.submitted",
+                entity_type="payout_batch",
+                entity_id=str(batch.id),
+                metadata={"line_count": len(lines)},
+            )
+        await session.commit()
+        return intent.state
+
+
+async def process_payout_submission_intent(
+    sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    intent_id: UUID,
+    adapter: DisbursementAdapter,
+) -> str:
+    claim = await claim_payout_submission_intent(
+        sessionmaker,
+        intent_id=intent_id,
+        adapter=adapter,
+    )
+    if claim is None:
+        return "skipped"
+    if claim.action == PayoutSubmissionClaimAction.SUBMIT:
+        try:
+            receipt = await adapter.submit_batch(
+                batch_id=str(claim.batch_id),
+                instructions=(
+                    DisbursementInstruction(
+                        line_id=str(claim.line_id),
+                        idempotency_key=claim.idempotency_key,
+                        instruction=claim.instruction,
+                        instruction_fingerprint=claim.instruction_fingerprint,
+                    ),
+                ),
+            )
+            provider_transfer_reference = receipt.line_references.get(str(claim.line_id))
+            if (
+                not receipt.provider_reference
+                or set(receipt.line_references) != {str(claim.line_id)}
+                or not provider_transfer_reference
+            ):
+                raise ValueError("Provider did not return the claimed line reference")
+            observation = DisbursementClaimObservation(
+                outcome=PayoutSubmissionObservationOutcome.SUBMITTED,
+                provider_submission_reference=receipt.provider_reference,
+                provider_transfer_reference=provider_transfer_reference,
+            )
+        except Exception as exc:
+            observation = DisbursementClaimObservation(
+                outcome=PayoutSubmissionObservationOutcome.UNKNOWN,
+                error_code=type(exc).__name__.lower(),
+            )
+    else:
+        try:
+            lookup = await adapter.lookup_line(
+                idempotency_key=claim.idempotency_key,
+                instruction_fingerprint=claim.instruction_fingerprint,
+            )
+            if lookup.status == ProviderLookupStatus.FOUND:
+                observation = DisbursementClaimObservation(
+                    outcome=PayoutSubmissionObservationOutcome.FOUND,
+                    provider_submission_reference=lookup.provider_submission_reference,
+                    provider_transfer_reference=lookup.provider_transfer_reference,
+                )
+            elif lookup.status == ProviderLookupStatus.NOT_FOUND:
+                observation = DisbursementClaimObservation(
+                    outcome=PayoutSubmissionObservationOutcome.NOT_FOUND
+                )
+            else:
+                observation = DisbursementClaimObservation(
+                    outcome=PayoutSubmissionObservationOutcome.UNKNOWN
+                )
+        except Exception as exc:
+            observation = DisbursementClaimObservation(
+                outcome=PayoutSubmissionObservationOutcome.UNKNOWN,
+                error_code=type(exc).__name__.lower(),
+            )
+    return await _resolve_payout_submission_claim(
+        sessionmaker,
+        claim=claim,
+        observation=observation,
+    )
 
 
 def _derive_batch_status(lines: tuple[PayoutBatchLine, ...]) -> PayoutBatchStatus:
@@ -695,25 +1083,40 @@ async def poll_payout_line(
     actor_user_id: UUID,
     adapter: DisbursementAdapter,
 ) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...], PayoutLineReconciliationEvent]:
+    if session.new or session.dirty or session.deleted:
+        raise RuntimeError("Provider polling requires a clean database unit of work")
     await require_active_admin(session, actor_user_id)
-    stub = await session.get(PayoutBatchLine, line_id)
-    if stub is None or stub.provider_transfer_reference is None:
+    authority = (
+        await session.execute(
+            select(
+                PayoutBatchLine.provider_transfer_reference,
+                PayoutBatch.created_by_user_id,
+                PayoutBatch.approved_by_user_id,
+            )
+            .join(PayoutBatch, PayoutBatch.id == PayoutBatchLine.batch_id)
+            .where(PayoutBatchLine.id == line_id)
+        )
+    ).one_or_none()
+    if authority is None or authority.provider_transfer_reference is None:
         raise _error(
             "PAYOUT_PROVIDER_LINE_NOT_FOUND",
             "The payout line has no provider reference",
             http_status=status.HTTP_404_NOT_FOUND,
         )
-    batch, lines = await _locked_batch_with_lines(session, stub.batch_id)
-    line = next(item for item in lines if item.id == line_id)
-    if actor_user_id in {batch.created_by_user_id, batch.approved_by_user_id}:
+    if actor_user_id in {
+        authority.created_by_user_id,
+        authority.approved_by_user_id,
+    }:
         raise _error(
             "PAYOUT_RECONCILER_SEPARATION_REQUIRED",
             "The reconciler must differ from the batch maker and approver",
             http_status=status.HTTP_403_FORBIDDEN,
         )
+    provider_transfer_reference = authority.provider_transfer_reference
+    await session.rollback()
     try:
         evidence = await adapter.poll_line(
-            provider_transfer_reference=line.provider_transfer_reference
+            provider_transfer_reference=provider_transfer_reference
         )
     except DisbursementUnavailableError as exc:
         raise _error(
@@ -745,48 +1148,11 @@ async def retry_failed_payout_lines(
     if not failed_lines:
         raise _error("PAYOUT_FAILED_LINES_MISSING", "The batch has no failed lines to retry")
     _assert_frozen(batch, lines)
-    instructions = tuple(
-        DisbursementInstruction(
-            line_id=str(line.id),
-            idempotency_key=line.idempotency_key,
-            instruction={str(key): str(value) for key, value in line.instruction.items()},
-        )
-        for line in failed_lines
+    _submission_capabilities(adapter)
+    raise _error(
+        "PAYOUT_RESOLVED_LINES_NOT_RETRYABLE",
+        "Provider-resolved failed lines cannot be replayed; create a governed replacement",
     )
-    try:
-        receipt = await adapter.submit_batch(batch_id=str(batch.id), instructions=instructions)
-    except DisbursementUnavailableError as exc:
-        raise _error(
-            "DISBURSEMENT_PROVIDER_UNAVAILABLE",
-            "Automated disbursement submission is not configured",
-            http_status=status.HTTP_503_SERVICE_UNAVAILABLE,
-        ) from exc
-    if set(receipt.line_references) != {str(line.id) for line in failed_lines}:
-        raise _error(
-            "DISBURSEMENT_PROVIDER_RESPONSE_INVALID",
-            "The provider did not return every retried payout line",
-            http_status=status.HTTP_502_BAD_GATEWAY,
-        )
-    for line in failed_lines:
-        if receipt.line_references[str(line.id)] != line.provider_transfer_reference:
-            raise _error(
-                "DISBURSEMENT_PROVIDER_REPLAY_CONFLICT",
-                "A retry changed the frozen provider line reference",
-            )
-        line.status = PayoutBatchLineStatus.SUBMITTED
-        line.reconciled_by_user_id = None
-        line.reconciled_at = None
-    batch.status = PayoutBatchStatus.SUBMITTED
-    await session.flush()
-    await create_audit_event(
-        session,
-        actor_user_id=actor_user_id,
-        action="admin.payout_batch.failed_lines_retried",
-        entity_type="payout_batch",
-        entity_id=str(batch.id),
-        metadata={"line_count": len(failed_lines)},
-    )
-    return batch, lines
 
 
 async def void_payout_batch(
@@ -794,11 +1160,19 @@ async def void_payout_batch(
 ) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...]]:
     await require_active_admin(session, actor_user_id)
     batch, lines = await _locked_batch_with_lines(session, batch_id)
+    submission_intents = int(
+        await session.scalar(
+            select(func.count(PayoutSubmissionIntent.id)).where(
+                PayoutSubmissionIntent.payout_batch_line_id.in_([line.id for line in lines])
+            )
+        )
+        or 0
+    )
     if batch.status != PayoutBatchStatus.RESERVED or any(
         line.status != PayoutBatchLineStatus.RESERVED
         or line.provider_transfer_reference is not None
         for line in lines
-    ):
+    ) or submission_intents:
         raise _error(
             "PAYOUT_BATCH_VOID_UNSAFE",
             "Only a pre-provider reserved batch can be voided",

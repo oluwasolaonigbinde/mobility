@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from conftest import create_test_user
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import async_sessionmaker
 from test_mny03a_earnings_release import build_graph
 from test_payout_batches import _seed_authority
 
@@ -18,13 +19,16 @@ from app.models.disbursement import (
     PayoutBatch,
     PayoutBatchLine,
     PayoutLineReconciliationEvent,
+    PayoutSubmissionIntent,
 )
 from app.models.payout import EarningsLedgerEntry
 from app.models.user import UserRole
 from app.services.disbursements import (
     approve_payout_batch,
     create_payout_batch_draft,
+    get_payout_batch,
     poll_payout_line,
+    process_payout_submission_intent,
     reconcile_payout_webhook,
     reserve_payout_batch,
     retry_failed_payout_lines,
@@ -66,10 +70,26 @@ async def _submitted_batch(session, graph, checker, fake, *, line_count=1):
         actor_user_id=graph.admin.id,
         adapter=fake,
     )
+    intent_ids = tuple(
+        await session.scalars(
+            select(PayoutSubmissionIntent.id).where(
+                PayoutSubmissionIntent.payout_batch_line_id.in_([line.id for line in lines])
+            )
+        )
+    )
+    await session.commit()
+    worker_sessions = async_sessionmaker(session.bind, expire_on_commit=False)
+    for intent_id in intent_ids:
+        await process_payout_submission_intent(
+            worker_sessions, intent_id=intent_id, adapter=fake
+        )
+    batch, lines = await get_payout_batch(session, batch.id)
     return batch, lines, entries
 
 
-def test_line_level_partial_reconciliation_retry_and_paid_finality(db_sessionmaker) -> None:
+def test_line_level_partial_reconciliation_preserves_paid_and_failed_finality(
+    db_sessionmaker,
+) -> None:
     graph = build_graph(db_sessionmaker, f"partial-{uuid4().hex[:8]}")
     checker, reconciler = _admins(db_sessionmaker, "partial")
     fake = FakeDisbursementAdapter()
@@ -102,6 +122,7 @@ def test_line_level_partial_reconciliation_retry_and_paid_finality(db_sessionmak
             assert first_ledger.status == "paid"
             assert second_ledger.status == "available"
             assert batch.status == "submitted"
+            await session.commit()
 
             fake.set_poll_result(
                 provider_transfer_reference=second.provider_transfer_reference,
@@ -118,37 +139,33 @@ def test_line_level_partial_reconciliation_retry_and_paid_finality(db_sessionmak
                 )
             assert maker_denied.value.code == "PAYOUT_RECONCILER_SEPARATION_REQUIRED"
             assert fake.poll_calls == []
-            await poll_payout_line(
+            second_id = second.id
+            second_ledger_entry_id = second.ledger_entry_id
+            frozen_retry = (second.idempotency_key, second.provider_transfer_reference)
+            batch, lines, _ = await poll_payout_line(
                 session,
-                line_id=second.id,
+                line_id=second_id,
                 actor_user_id=reconciler.id,
                 adapter=fake,
+            )
+            second = next(line for line in lines if line.id == second_id)
+            second_ledger = await session.get(
+                EarningsLedgerEntry, second_ledger_entry_id
             )
             assert batch.status == "reconciled"
             assert fake.poll_calls == [second.provider_transfer_reference]
             assert second.status == "failed"
             assert second_ledger.status == "available"
-            frozen_retry = (second.idempotency_key, second.provider_transfer_reference)
-            await retry_failed_payout_lines(
-                session,
-                batch_id=batch.id,
-                actor_user_id=graph.admin.id,
-                adapter=fake,
-            )
-            assert second.status == "submitted"
+            with pytest.raises(AppError) as resolved:
+                await retry_failed_payout_lines(
+                    session,
+                    batch_id=batch.id,
+                    actor_user_id=graph.admin.id,
+                    adapter=fake,
+                )
+            assert resolved.value.code == "PAYOUT_RESOLVED_LINES_NOT_RETRYABLE"
+            assert second.status == "failed"
             assert (second.idempotency_key, second.provider_transfer_reference) == frozen_retry
-            fake.set_poll_result(
-                provider_transfer_reference=second.provider_transfer_reference,
-                provider_event_id="evt-success-second",
-                outcome="succeeded",
-                occurred_at=now + timedelta(minutes=1),
-            )
-            await poll_payout_line(
-                session,
-                line_id=second.id,
-                actor_user_id=reconciler.id,
-                adapter=fake,
-            )
             await session.commit()
             return (
                 batch.id,
@@ -177,10 +194,10 @@ def test_line_level_partial_reconciliation_retry_and_paid_finality(db_sessionmak
             return batch, lines, ledgers, events
 
     batch, lines, ledgers, event_count = asyncio.run(verify())
-    assert batch.status == "completed"
-    assert [line.status for line in lines] == ["succeeded", "succeeded"]
-    assert [ledger.status for ledger in ledgers] == ["paid", "paid"]
-    assert event_count == 3
+    assert batch.status == "reconciled"
+    assert [line.status for line in lines] == ["succeeded", "failed"]
+    assert [ledger.status for ledger in ledgers] == ["paid", "available"]
+    assert event_count == 2
 
 
 def test_signed_webhook_duplicate_reordered_and_forged_evidence(db_sessionmaker) -> None:
@@ -191,7 +208,9 @@ def test_signed_webhook_duplicate_reordered_and_forged_evidence(db_sessionmaker)
 
     async def exercise():
         async with db_sessionmaker() as session:
-            batch, lines, _entries = await _submitted_batch(session, graph, checker, fake)
+            batch, lines, _entries = await _submitted_batch(
+                session, graph, checker, fake
+            )
             line = lines[0]
             success_payload = json.dumps(
                 {
@@ -222,21 +241,34 @@ def test_signed_webhook_duplicate_reordered_and_forged_evidence(db_sessionmaker)
                 signature=fake.sign_webhook(success_payload),
                 adapter=fake,
             )
+            first_event_id = first[2].id
+            duplicate_event_id = duplicate[2].id
+            line_id = line.id
+            ledger_entry_id = line.ledger_entry_id
+            await session.commit()
             fake.set_poll_result(
                 provider_transfer_reference=line.provider_transfer_reference,
                 provider_event_id="older-failure",
                 outcome="failed",
                 occurred_at=now - timedelta(minutes=1),
             )
-            _, _, ignored = await poll_payout_line(
+            batch, lines, ignored = await poll_payout_line(
                 session,
-                line_id=line.id,
+                line_id=line_id,
                 actor_user_id=reconciler.id,
                 adapter=fake,
             )
+            line = next(item for item in lines if item.id == line_id)
             await session.commit()
-            ledger = await session.get(EarningsLedgerEntry, line.ledger_entry_id)
-            return batch, line, ledger, first[2].id, duplicate[2].id, ignored.applied
+            ledger = await session.get(EarningsLedgerEntry, ledger_entry_id)
+            return (
+                batch,
+                line,
+                ledger,
+                first_event_id,
+                duplicate_event_id,
+                ignored.applied,
+            )
 
     batch, line, ledger, first_event, duplicate_event, ignored_applied = asyncio.run(exercise())
     assert batch.status == "completed"
@@ -246,7 +278,9 @@ def test_signed_webhook_duplicate_reordered_and_forged_evidence(db_sessionmaker)
     assert ignored_applied is False
 
 
-def test_provider_must_return_one_unique_reference_per_line(db_sessionmaker) -> None:
+def test_duplicate_provider_reference_is_isolated_to_conflicting_line(
+    db_sessionmaker,
+) -> None:
     graph = build_graph(db_sessionmaker, f"duplicate-ref-{uuid4().hex[:8]}")
     checker, _ = _admins(db_sessionmaker, "duplicate-ref")
 
@@ -260,6 +294,7 @@ def test_provider_must_return_one_unique_reference_per_line(db_sessionmaker) -> 
             )
 
     async def exercise():
+        adapter = DuplicateReferenceAdapter()
         async with db_sessionmaker() as session:
             entries = [await _seed_authority(session, graph) for _ in range(2)]
             batch = await create_payout_batch_draft(
@@ -272,19 +307,52 @@ def test_provider_must_return_one_unique_reference_per_line(db_sessionmaker) -> 
                 actor_user_id=graph.admin.id,
             )
             await approve_payout_batch(session, batch_id=batch.id, actor_user_id=checker.id)
-            with pytest.raises(AppError) as invalid:
-                await submit_payout_batch(
-                    session,
-                    batch_id=batch.id,
-                    actor_user_id=graph.admin.id,
-                    adapter=DuplicateReferenceAdapter(),
+            await submit_payout_batch(
+                session,
+                batch_id=batch.id,
+                actor_user_id=graph.admin.id,
+                adapter=adapter,
+            )
+            intent_ids = tuple(
+                await session.scalars(
+                    select(PayoutSubmissionIntent.id)
+                    .where(
+                        PayoutSubmissionIntent.payout_batch_line_id.in_(
+                            [line.id for line in lines]
+                        )
+                    )
+                    .order_by(PayoutSubmissionIntent.payout_batch_line_id)
                 )
-            assert invalid.value.code == "DISBURSEMENT_PROVIDER_RESPONSE_INVALID"
-            return lines
+            )
+            await session.commit()
+        outcomes = []
+        for intent_id in intent_ids:
+            outcomes.append(
+                await process_payout_submission_intent(
+                    db_sessionmaker, intent_id=intent_id, adapter=adapter
+                )
+            )
+        async with db_sessionmaker() as session:
+            stored_lines = tuple(
+                await session.scalars(
+                    select(PayoutBatchLine)
+                    .where(PayoutBatchLine.batch_id == batch.id)
+                    .order_by(PayoutBatchLine.id)
+                )
+            )
+            intents = tuple(
+                await session.scalars(
+                    select(PayoutSubmissionIntent)
+                    .where(PayoutSubmissionIntent.id.in_(intent_ids))
+                    .order_by(PayoutSubmissionIntent.payout_batch_line_id)
+                )
+            )
+            return outcomes, stored_lines, intents
 
-    lines = asyncio.run(exercise())
-    assert all(line.status == "reserved" for line in lines)
-    assert all(line.provider_transfer_reference is None for line in lines)
+    outcomes, lines, intents = asyncio.run(exercise())
+    assert outcomes == ["resolved", "query_only"]
+    assert [line.status for line in lines] == ["submitted", "reserved"]
+    assert [intent.state for intent in intents] == ["resolved", "query_only"]
 
 
 def test_void_releases_only_pre_provider_reservations(db_sessionmaker) -> None:
@@ -398,10 +466,10 @@ def test_postgres_submit_and_void_serialize_to_one_safe_winner(
         assert line.reservation_active is False
         assert line.provider_transfer_reference is None
     else:
-        assert batch.status == "submitted"
-        assert line.status == "submitted"
+        assert batch.status == "reserved"
+        assert line.status == "reserved"
         assert line.reservation_active is True
-        assert line.provider_transfer_reference is not None
+        assert line.provider_transfer_reference is None
 
 
 def test_postgres_webhook_and_poll_converge_to_one_paid_transition(
@@ -414,7 +482,9 @@ def test_postgres_webhook_and_poll_converge_to_one_paid_transition(
 
     async def exercise():
         async with postgis_db_sessionmaker() as session:
-            batch, lines, entries = await _submitted_batch(session, graph, checker, fake)
+            batch, lines, entries = await _submitted_batch(
+                session, graph, checker, fake
+            )
             batch_id = batch.id
             line_id = lines[0].id
             ledger_entry_id = entries[0].id

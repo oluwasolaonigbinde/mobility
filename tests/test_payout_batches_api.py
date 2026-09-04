@@ -2,12 +2,15 @@ import asyncio
 from uuid import uuid4
 
 from conftest import auth_headers, create_test_user
+from sqlalchemy import select
 from test_mny03a_earnings_release import build_graph
 from test_payout_batches import _seed_authority
 
 from app.adapters.disbursement import FakeDisbursementAdapter
 from app.api.v1.disbursements import get_disbursement_adapter
+from app.models.disbursement import PayoutSubmissionIntent
 from app.models.user import UserRole
+from app.services.disbursements import process_payout_submission_intent
 
 
 def test_admin_batch_api_runs_fake_provider_flow_and_default_fails_closed(
@@ -70,9 +73,23 @@ def test_admin_batch_api_runs_fake_provider_flow_and_default_fails_closed(
         f"/api/v1/admin/payout-batches/{batch_id}/submit", headers=maker_headers
     )
     assert submitted.status_code == replayed.status_code == 200
-    assert submitted.json()["status"] == "submitted"
-    assert len(fake.calls) == 2
-    assert fake.calls[0][1] == fake.calls[1][1]
+    assert submitted.json()["status"] == "reserved"
+    assert fake.calls == []
+
+    async def run_worker():
+        async with db_sessionmaker() as session:
+            intent_id = await session.scalar(select(PayoutSubmissionIntent.id))
+        return await process_payout_submission_intent(
+            db_sessionmaker, intent_id=intent_id, adapter=fake
+        )
+
+    assert asyncio.run(run_worker()) == "resolved"
+    stored = db_client.get(
+        f"/api/v1/admin/payout-batches/{batch_id}", headers=maker_headers
+    )
+    assert stored.status_code == 200
+    assert stored.json()["status"] == "submitted"
+    assert len(fake.calls) == 1
 
 
 def test_payout_batch_api_is_admin_only(db_client, db_sessionmaker) -> None:

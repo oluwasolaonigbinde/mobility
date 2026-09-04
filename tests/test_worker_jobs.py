@@ -29,6 +29,7 @@ from app.jobs import assignment_activity as assignment_activity_jobs
 from app.jobs import budget_enforcement as budget_enforcement_jobs
 from app.jobs import campaign_assignments as campaign_assignment_jobs
 from app.jobs import data_lifecycle as data_lifecycle_jobs
+from app.jobs import disbursements as disbursement_jobs
 from app.jobs import disclosure_retention as disclosure_retention_jobs
 from app.jobs import earnings_release as earnings_release_jobs
 from app.jobs import email_delivery as email_delivery_jobs
@@ -74,7 +75,7 @@ def make_ctx(sessionmaker, settings) -> dict:
 
 
 def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
-    assert len(WorkerSettings.functions) == 3
+    assert len(WorkerSettings.functions) == 4
     registered = WorkerSettings.functions[0]
     assert isinstance(registered, Function)
     assert registered.name == "process_trip"
@@ -88,8 +89,13 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert isinstance(gateway, Function)
     assert gateway.name == "process_payment_gateway_event"
     assert gateway.keep_result_s == 0
+    disbursement = WorkerSettings.functions[3]
+    assert isinstance(disbursement, Function)
+    assert disbursement.name == "process_disbursement_intent"
+    assert disbursement.coroutine is disbursement_jobs.process_disbursement_intent_job
+    assert disbursement.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 19
+    assert len(WorkerSettings.cron_jobs) == 20
     cron_job = WorkerSettings.cron_jobs[0]
     assert isinstance(cron_job, CronJob)
     assert cron_job.coroutine is jobs.process_unprocessed_trips
@@ -154,7 +160,9 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert report_sweep.coroutine is report_issuance_jobs.sweep_report_issuances
     assert report_sweep.unique is True
 
-    lifecycle_crons = {cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[12:]}
+    lifecycle_crons = {
+        cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[12:-1]
+    }
     assert set(lifecycle_crons) == {
         data_lifecycle_jobs.premake_ping_partitions,
         data_lifecycle_jobs.check_ping_partition_coverage,
@@ -172,6 +180,12 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
         # Daily, staggered hours so lifecycle DDL never stacks.
         assert len(cron_job.hour) == 1
     assert len({next(iter(job.hour)) for job in lifecycle_crons.values()}) == 6
+    disbursement_sweep = WorkerSettings.cron_jobs[-1]
+    assert disbursement_sweep.coroutine is disbursement_jobs.sweep_disbursement_intents
+    assert disbursement_sweep.unique is True
+    assert disbursement_sweep.minute == sweep_cron_minutes(
+        get_settings().worker_sweep_interval_minutes
+    )
 
 
 def test_email_sweep_selects_bounded_due_ids_and_delegates_once_each(
