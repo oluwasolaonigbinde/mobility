@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 334
+plan_revision: 336
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 464
+last_event_sequence: 466
 ---
 
 # Cardvert audit remediation programme
@@ -207,14 +207,12 @@ visible top-level Mobility tasks.
 | S28 | R59 — TST-002 | integrated real-stack browser journey | cross-stack release/security; Sol/xhigh | all predecessor contracts integrated; local real-stack evidence only |
 | S29 | R60 — GOV-009 | final architecture/progress/decision synchronization | cross-package closure; Sol/high | no product implementation; reconcile all 115 candidates, integrated gates and final minimal-change review |
 
-Current justified writer capacity is **2**, assigned exactly to S02/R07 and
-S21/R50. R03 and
-R48 are accepted and their workflow/generated-contract and
-report-projection leases are released. R49 is accepted and R50 owns the reachable
-report-reissue lineage plus focused status/panel tests. R05 is accepted;
-R33 and R06 are accepted. R07 exclusively owns database-enforced purge-audit
-immutability and focused database tests, while R50 owns the disjoint report-reissue
-lineage. Controller documents remain serialized.
+Current justified writer capacity is **2**, assigned exactly to S13/R20 and
+S24/R55. R31, R51 and R52 are accepted. R20 owns the disbursement/provider/worker
+and sole 0083 migration lane, while R55 owns release-contract,
+release/recovery/rehearsal scripts, focused release tests and the serialized
+evidence-signing configuration inherited from R54. Their product, test and local
+integration surfaces are disjoint; controller documents remain serialized.
 
 ## Executable slice map
 
@@ -274,10 +272,10 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R49 | REP-004 | ACCEPTED | R47, R48 | R49-P/M; DB; R49-CP-REPORTING; commit `a315a59` | accepted exactly once; worker lease released |
 | R50 | REP-005 | COMPLETE | R47, R49 | R50-P/M; PRV; CP-REPORTING; exact `dd461cf1...` freeze; focused backend/PostgreSQL/frontend/contract evidence | accepted exactly once; reporting lease released, while R51 waits for R18's migration/contract lane |
 | R51 | REP-006 | COMPLETE | R43, R49, R50 | R51-P/M; DB+PRV; CP-REPORTING; commit `2f52c3e`; migration 0082 and PostgreSQL/MinIO evidence | accepted exactly once; reporting publication and migration lanes released |
-| R52 | MET-006 | ACTIVE | R51 | R52-P; reviewed methodology-derived copy-guard contract | fresh Terra/high task owns only the focused guard test; methodology contract and advertiser/shared sources are read-only |
+| R52 | MET-006 | COMPLETE | R51 | R52-P/M; CONTRACT; CP-REPORTING; commit `cab745c`; six focused tests and scoped lint/format/diff | accepted exactly once; measurement-copy guard lease released |
 | R53 | REL-005 | ACCEPTED | release opener | R53-P; R53-M; R53-RELEASE; R53-CP-RELEASE; real Docker red/green | complete |
 | R54 | REL-006 | WAITING | R12, R16, R53 | R54-P; reviewed fail-closed environment-template contract | wait for accepted R12 and R14; central lease order R12 → R14 → R54 |
-| R55 | REL-004 | WAITING | R03, R18, R48, R51, R54 | R55-P; reviewed mechanically generated compatibility receipt contract | wait for predecessors and exclusive release lane |
+| R55 | REL-004 | ACTIVE | R03, R18, R48, R51, R54 | R55-P; reviewed mechanically generated compatibility receipt contract | fresh Sol/xhigh worktree task owns the release/recovery/receipt lane; synthetic local evidence only |
 | R56 | TST-005 | WAITING | R09, R11, R14, R40 | R56-P; reviewed generated authorization-denial matrix | wait for predecessors and audit-route fixture release |
 | R57 | TST-008 | WAITING | R19, R27, R49, R55 | R57-P; reviewed deterministic clock boundary contract | wait for predecessors and shared auth/release fixtures |
 | R58 | TST-011 | WAITING | R15, R20, R21, R43, R49, R51 | R58-P; reviewed real worker termination/restart contract | wait for registered predecessor jobs and worker lane release |
@@ -920,3 +918,5 @@ verification is complete.
 | 462 | 332 | 1 | CAMPAIGN_WINDOW_SLICE_ACCEPTED | R31/CAM-004 accepted serialized frozen-window trip eligibility and released its campaign lease. | commit `eb59a84`; exact four-file integration and digest `506651c9...`; 35 leased plus 3 adjacent passes, two controller PostgreSQL checks, and R31-M/CP-CAMPAIGN PASS |
 | 463 | 333 | 1 | PACKET_DISPATCHED | R20/MON-001,DB-007,MON-008 begins in a fresh worktree task on the accepted 0082 head. | GPT-5.6 Sol/xhigh is necessary for provider side-effect ambiguity, exactly-once money concurrency and a PostgreSQL migration; exact disbursement/provider/worker/API/schema/tests and sole 0083 migration lease; direct terminal callback; R21→R22 predeclared but separately admitted |
 | 464 | 334 | 1 | PACKET_DISPATCHED | R52/MET-006 begins in parallel on a disjoint focused copy-governance guard. | GPT-5.6 Terra/high for ordinary bounded test implementation; write lease only `tests/test_measurement_methodology.py`, with methodology JSON and advertiser/shared frontend sources read-only; direct terminal callback |
+| 465 | 335 | 1 | MEASUREMENT_COPY_GUARD_ACCEPTED | R52/MET-006 accepted a contract-derived advertiser copy guard across advertiser and shared production sources. | commit `cab745c`; exact one-file integration; six focused passes, scoped Ruff/format/diff and independent R52-M/CONTRACT/CP-REPORTING PASS; no production copy or methodology contract changed |
+| 466 | 336 | 1 | PACKET_DISPATCHED | R55/REL-004 begins in a fresh worktree task after R52 releases the second writer slot. | GPT-5.6 Sol/xhigh retained by accepted R55-P because cross-version image/schema compatibility, signed evidence and atomic release/recovery acceptance are difficult release-authority boundaries; exact release-contract/scripts/tests and inherited R54 signing-configuration lease; local synthetic evidence only; direct terminal callback |

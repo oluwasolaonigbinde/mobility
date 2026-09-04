@@ -46,15 +46,14 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R20, R52`
+**Current capacity assignment:** `R20, R55`
 **Current capacity justification:** R31 and R51 are accepted and their campaign
 and reporting-publication leases are released. R20 owns the disbursement intent,
 provider, worker, money-service, focused-test and sole 0083 migration surfaces.
-R52 owns only the measurement-methodology copy guard while treating methodology
-JSON and advertiser/shared frontend sources as read-only inputs. Their write and
-test surfaces are disjoint; R52 has no migration, money, provider, worker,
-generated-contract or production-frontend authority. Controller documents remain
-serialized.
+R55 owns release-contract, release/recovery/rehearsal scripts, focused release
+tests and serialized evidence-signing configuration inherited from R54. Their
+write and test surfaces are disjoint; R55 has no disbursement/provider/worker,
+money-schema or product-API authority. Controller documents remain serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -90,7 +89,7 @@ policy, external inputs and evidence-triggered observations are parked in
 `419414a`, R03 at `60af07d`, R48 at `b17d1e7`, R05 at `954d9a4`, R49 at
 `a315a59`, R33 at `14f155a`, R06 at `05b4901`, R07 at `84cb94e`, and R50 at
 `bb8c13e`, R18 at `5c2d60a`, R19 at `3c7b678`, R51 at `2f52c3e`, and R31 at
-`eb59a84`; R20 and R52 are the assigned disjoint writers.
+`eb59a84`, and R52 at `cab745c`; R20 and R55 are the assigned disjoint writers.
 AUT-006 is accepted at
 `a4c9de2`.
 Every repository failure group
@@ -1629,10 +1628,10 @@ durable ledger before changing a row.
 | R49 | REP-004 | R47, R48 | COMPLETE | PASS — R49-P | PASS — R49-M | CP-REPORTING PASS — R49-CP-REPORTING |
 | R50 | REP-005 | R47, R49 | COMPLETE | PASS — R50-P | PASS — R50-M | CP-REPORTING PASS — R50-CP-REPORTING |
 | R51 | REP-006 | R43, R49, R50 | COMPLETE | PASS — R51-P | PASS — R51-M | CP-REPORTING PASS — R51-CP-REPORTING |
-| R52 | MET-006 | R51 | ACTIVE | PASS — R52-P | PENDING | CP-REPORTING PENDING |
+| R52 | MET-006 | R51 | COMPLETE | PASS — R52-P | PASS — R52-M | CP-REPORTING PASS — R52-CP-REPORTING |
 | R53 | REL-005 | none | COMPLETE | PASS — R53-P | PASS — R53-M | CP-RELEASE PASS — R53-CP-RELEASE |
 | R54 | REL-006 | R12, R16, R53 | COMPLETE | PASS — R54-P | PASS — R54-M | CP-RELEASE PASS — R54-CP-RELEASE |
-| R55 | REL-004 | R03, R18, R48, R51, R54 | QUEUED | PASS — R55-P | PENDING | CP-RELEASE PENDING |
+| R55 | REL-004 | R03, R18, R48, R51, R54 | ACTIVE | PASS — R55-P | PENDING | CP-RELEASE PENDING |
 | R56 | TST-005 | R09, R11, R14, R40 | COMPLETE | PASS — R56-P | PASS — R56-M | CP-SECURITY PASS — R56-CP-SECURITY |
 | R57 | TST-008 | R19, R27, R49, R55 | QUEUED | PASS — R57-P | PENDING | CP-RELEASE PENDING |
 | R58 | TST-011 | R15, R20, R21, R43, R49, R51 | QUEUED | PASS — R58-P | PENDING | CP-WORKERS PENDING |
