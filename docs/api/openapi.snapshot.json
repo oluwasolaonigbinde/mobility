@@ -13384,6 +13384,13 @@
             "title": "Rejected Count",
             "type": "integer"
           },
+          "sample_results": {
+            "items": {
+              "$ref": "#/components/schemas/PingSampleResult"
+            },
+            "title": "Sample Results",
+            "type": "array"
+          },
           "submitted_count": {
             "title": "Submitted Count",
             "type": "integer"
@@ -16308,6 +16315,58 @@
           "note"
         ],
         "title": "PhysicalSpotCheckResolve",
+        "type": "object"
+      },
+      "PingSampleResult": {
+        "description": "One sample's disposition, in request order (OFF-005).",
+        "properties": {
+          "index": {
+            "minimum": 0.0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "rejection_code": {
+            "anyOf": [
+              {
+                "enum": [
+                  "INVALID_RECORDED_AT",
+                  "INVALID_ASSIGNMENT_AUTHORITY",
+                  "INVALID_ACCURACY",
+                  "INVALID_SPEED"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejection Code"
+          },
+          "sequence_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sequence Number"
+          },
+          "status": {
+            "enum": [
+              "accepted",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "status"
+        ],
+        "title": "PingSampleResult",
         "type": "object"
       },
       "PresignedPostRead": {
@@ -19757,6 +19816,30 @@
       },
       "TripEvidenceReconcileResponse": {
         "properties": {
+          "adjudicated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjudicated At"
+          },
+          "adjudication_outcome": {
+            "anyOf": [
+              {
+                "const": "incomplete_grace_expired",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjudication Outcome"
+          },
           "duplicate": {
             "title": "Duplicate",
             "type": "boolean"
@@ -19770,9 +19853,16 @@
             "type": "string"
           },
           "manifest_verified_at": {
-            "format": "date-time",
-            "title": "Manifest Verified At",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manifest Verified At"
           },
           "receipt_format_version": {
             "title": "Receipt Format Version",
@@ -19800,7 +19890,6 @@
           "status",
           "manifest_root_sha256",
           "manifest_complete",
-          "manifest_verified_at",
           "receipt_format_version",
           "receipt_key_version",
           "receipt_signature",

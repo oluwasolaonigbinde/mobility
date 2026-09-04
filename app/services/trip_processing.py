@@ -58,7 +58,11 @@ from app.services.trip_analytics import (
     load_ordered_pings,
     recompute_trip_analytics,
 )
-from app.services.trip_evidence import verify_manifest_receipt
+from app.services.trip_evidence import (
+    manifest_completeness,
+    sign_adjudication_receipt,
+    verify_manifest_receipt,
+)
 from app.services.trips import trip_not_found
 
 WORKER_METADATA = {"source": "worker"}
@@ -895,5 +899,25 @@ async def seal_due_trips(
             entity_id=str(trip.id),
             metadata={"evidence_protocol_version": trip.evidence_protocol_version},
         )
+        if (
+            trip.evidence_protocol_version == 2
+            and trip.evidence_manifest_root_sha256 is not None
+            and not (await manifest_completeness(session, trip, settings)).complete
+        ):
+            trip.evidence_adjudicated_at = processing_now
+            trip.evidence_adjudication_outcome = "incomplete_grace_expired"
+            sign_adjudication_receipt(trip, settings)
+            await create_audit_event(
+                session,
+                actor_user_id=None,
+                action="trip.evidence_adjudicated_incomplete",
+                entity_type="trip_session",
+                entity_id=str(trip.id),
+                metadata={
+                    "outcome": trip.evidence_adjudication_outcome,
+                    "manifest_root_sha256": trip.evidence_manifest_root_sha256,
+                    "evidence_protocol_version": trip.evidence_protocol_version,
+                },
+            )
         marked_ids.append(trip.id)
     return marked_ids

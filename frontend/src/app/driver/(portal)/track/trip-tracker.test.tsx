@@ -498,6 +498,33 @@ describe("end watermark honesty (finding 5)", () => {
     expect(await screen.findByRole("button", { name: /Reconcile trip/ })).toBeEnabled();
   });
 
+  it("finishes End without deleting retained evidence after terminal adjudication", async () => {
+    const queue = fakeQueue({
+      deadLetterCount: vi.fn().mockResolvedValue(1),
+      unsyncedCount: vi.fn().mockResolvedValue(0),
+    });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    grantWebLock();
+    actions.getCurrentTripAction
+      .mockResolvedValueOnce({ trip: TRIP, outcome: "started" })
+      .mockResolvedValueOnce({ outcome: "failed" });
+    actions.endTripAction.mockResolvedValue({ outcome: "ended", status: "ended" });
+    actions.reconcileTripEvidenceAction.mockResolvedValue({
+      outcome: "ended",
+      status: "ended",
+      adjudication: "incomplete_grace_expired",
+    });
+    render(<TripTracker assignment={ASSIGNMENT} initialTrip={TRIP} driverId={DRIVER_ID} />);
+
+    const endButton = screen.getByRole("button", { name: /End trip/ });
+    await waitFor(() => expect(endButton).toBeEnabled());
+    await userEvent.click(endButton);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /Start trip/ })).toBeVisible());
+    expect(queue.forgetTrip).not.toHaveBeenCalled();
+    expect(actions.reconcileTripEvidenceAction).toHaveBeenCalledWith(TRIP_ID);
+  });
+
   it("forgets complete receipts when End authoritatively returns sealed", async () => {
     const queue = fakeQueue();
     pingQueue.openPingQueue.mockResolvedValue(queue);
@@ -624,6 +651,45 @@ describe("end watermark honesty (finding 5)", () => {
     await waitFor(() => expect(actions.endTripAction).toHaveBeenCalledTimes(1));
 
     expect(queue.acknowledgeBatch).not.toHaveBeenCalled();
+    expect(actions.endTripAction).toHaveBeenCalledWith(
+      TRIP_ID,
+      expect.objectContaining({ complete: false }),
+    );
+  });
+
+  it("holds a deactivated-assignment batch instead of dead-lettering it (OFF-006)", async () => {
+    const queue = fakeQueue({
+      listBatches: vi
+        .fn()
+        .mockResolvedValueOnce([BATCH])
+        .mockResolvedValueOnce([BATCH])
+        .mockResolvedValue([]),
+      deadLetterCount: vi.fn().mockResolvedValue(0),
+      unsyncedCount: vi.fn().mockResolvedValue(1),
+    });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    grantWebLock();
+    actions.endTripAction.mockResolvedValue({ outcome: "ended", status: "ended" });
+    actions.sendPingBatchAction
+      .mockResolvedValueOnce({
+        error: "Campaign assignment must be active for trip tracking",
+        acknowledged: false,
+        retryable: true,
+        deferred: true,
+      })
+      .mockResolvedValueOnce({ acknowledged: true, acceptedCount: 1, receipt: RECEIPT });
+    render(<TripTracker assignment={ASSIGNMENT} initialTrip={TRIP} driverId={DRIVER_ID} />);
+
+    const endButton = screen.getByRole("button", { name: /End trip/ });
+    await waitFor(() => expect(endButton).toBeEnabled());
+    await userEvent.click(endButton);
+    await waitFor(() => expect(actions.endTripAction).toHaveBeenCalledTimes(1));
+
+    // The evidence stays queued through End, then the ended-policy authority
+    // accepts the exact declared batch without any terminal dead letter.
+    expect(queue.dropBatch).not.toHaveBeenCalled();
+    await waitFor(() => expect(actions.sendPingBatchAction).toHaveBeenCalledTimes(2));
+    expect(queue.acknowledgeBatch).toHaveBeenCalledWith(BATCH, RECEIPT);
     expect(actions.endTripAction).toHaveBeenCalledWith(
       TRIP_ID,
       expect.objectContaining({ complete: false }),
@@ -973,49 +1039,79 @@ describe("unreadable retained evidence (OFF-003)", () => {
 });
 
 describe("recovery termination and fault containment (OFF-002)", () => {
-  it("reports a terminally incomplete trip once instead of retrying it every minute", async () => {
+  it("retries an incomplete trip until the server signs its final adjudication", async () => {
     vi.useFakeTimers();
     try {
       grantWebLock();
-      const RETRYABLE_TRIP = "88888888-8888-4888-8888-888888888888";
       const listBatches = vi.fn().mockResolvedValue([]);
       const queue = fakeQueue({
-        tripsWithLeftovers: vi.fn().mockResolvedValue([TRIP_ID, RETRYABLE_TRIP]),
+        tripsWithLeftovers: vi.fn().mockResolvedValue([TRIP_ID]),
         listBatches,
-        // Only TRIP_ID is deadletter-only; RETRYABLE_TRIP stays undrained, so it
-        // proves the recovery interval is still alive rather than silently dead.
-        unsyncedCount: vi.fn().mockImplementation(async (id: string) => (id === TRIP_ID ? 0 : 1)),
-        deadLetterCount: vi.fn().mockImplementation(async (id: string) => (id === TRIP_ID ? 1 : 0)),
+        unsyncedCount: vi.fn().mockResolvedValue(0),
+        deadLetterCount: vi.fn().mockResolvedValue(1),
       });
       pingQueue.openPingQueue.mockResolvedValue(queue);
       actions.getTripEvidenceAuthorityAction.mockResolvedValue({
         protocolVersion: 2,
         status: "ended",
       });
-      // A rejected batch leaves the server manifest permanently incomplete.
-      actions.reconcileTripEvidenceAction.mockResolvedValue({
-        outcome: "failed",
-        error: "Trip evidence is incomplete",
-      });
+      actions.reconcileTripEvidenceAction
+        .mockResolvedValueOnce({
+          outcome: "unknown",
+          error: "Trip evidence is incomplete",
+        })
+        .mockResolvedValueOnce({
+          outcome: "ended",
+          status: "ended",
+          adjudication: "incomplete_grace_expired",
+        });
 
       render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
 
       await vi.waitFor(() => expect(actions.reconcileTripEvidenceAction).toHaveBeenCalledTimes(1));
-      await vi.waitFor(() =>
-        expect(screen.getByRole("alert")).toHaveTextContent(
-          /could not be delivered, so this trip's record stays incomplete/i,
-        ),
-      );
-      const drainsAfterFirstPass = listBatches.mock.calls.length;
-      await act(() => vi.advanceTimersByTimeAsync(61_000));
       await act(() => vi.advanceTimersByTimeAsync(61_000));
 
-      // Retrying cannot help, so it must not be retried, and never forgotten.
-      expect(actions.reconcileTripEvidenceAction).toHaveBeenCalledTimes(1);
+      await vi.waitFor(() => expect(actions.reconcileTripEvidenceAction).toHaveBeenCalledTimes(2));
       expect(queue.forgetTrip).not.toHaveBeenCalled();
       expect(actions.sendPingBatchAction).not.toHaveBeenCalled();
-      // …but the loop itself must still be running for the retryable trip.
-      expect(listBatches.mock.calls.length).toBeGreaterThan(drainsAfterFirstPass);
+      expect(listBatches).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("retains diagnostic evidence after the server's final adjudication (OFF-006)", async () => {
+    vi.useFakeTimers();
+    try {
+      grantWebLock();
+      const queue = fakeQueue({
+        tripsWithLeftovers: vi.fn().mockResolvedValue([TRIP_ID]),
+        listBatches: vi.fn().mockResolvedValue([]),
+        unsyncedCount: vi.fn().mockResolvedValue(0),
+        deadLetterCount: vi.fn().mockResolvedValue(1),
+      });
+      pingQueue.openPingQueue.mockResolvedValue(queue);
+      actions.getTripEvidenceAuthorityAction.mockResolvedValue({
+        protocolVersion: 2,
+        status: "ended",
+      });
+      // The server closed its own grace window and stated the outcome; the
+      // client never decides this for itself and never resends the evidence.
+      actions.reconcileTripEvidenceAction.mockResolvedValue({
+        outcome: "ended",
+        status: "ended",
+        adjudication: "incomplete_grace_expired",
+      });
+
+      render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
+
+      await vi.waitFor(() =>
+        expect(screen.getByRole("alert")).toHaveTextContent(
+          /closed that trip's record as incomplete/i,
+        ),
+      );
+      expect(queue.forgetTrip).not.toHaveBeenCalled();
+      expect(actions.sendPingBatchAction).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }

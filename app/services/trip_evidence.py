@@ -34,6 +34,26 @@ MANIFEST_ENTRY_DOMAIN = b"cardvert.trip-manifest-entry.v2\x00"
 MANIFEST_DOMAIN = b"cardvert.trip-manifest.v2\x00"
 BATCH_RECEIPT_DOMAIN = b"cardvert.trip-receipt.v2\x00"
 MANIFEST_RECEIPT_DOMAIN = b"cardvert.trip-manifest-receipt.v2\x00"
+REJECTION_MANIFEST_DOMAIN = b"cardvert.trip-batch-rejection.v1\x00"
+ADJUDICATION_RECEIPT_DOMAIN = b"cardvert.trip-adjudication-receipt.v2\x00"
+REJECTION_MANIFEST_VERSION = 1
+
+# The closed set of per-sample rejection codes an ingest adjudication may use.
+# A batch disposition is only meaningful if its codes are constrained: an
+# open-ended string would let a caller (or a later refactor) smuggle an
+# unreviewed reason into signed, immutable evidence.
+PING_REJECTION_CODES = (
+    "INVALID_RECORDED_AT",
+    "INVALID_ASSIGNMENT_AUTHORITY",
+    "INVALID_ACCURACY",
+    "INVALID_SPEED",
+)
+
+# OFF-006: the closed set of final evidence adjudications. An adjudication is
+# the server's terminal statement about a trip whose declared evidence can no
+# longer arrive. It is deliberately NOT a seal: D25 keeps `sealed` the sole
+# money trigger and forbids grace expiry from sealing a v2 trip.
+EVIDENCE_ADJUDICATION_OUTCOMES = ("incomplete_grace_expired",)
 
 
 @dataclass(frozen=True)
@@ -210,8 +230,53 @@ def verify_signature(domain: bytes, value: dict[str, Any], key: bytes, signature
     return hmac.compare_digest(_signature(domain, value, key), signature)
 
 
+def rejection_manifest_document(
+    dispositions: list[tuple[int | None, str | None]],
+) -> dict[str, Any]:
+    """Build the ordered, immutable per-sample disposition of one batch.
+
+    `dispositions` is the request order: (sequence_number, rejection code or
+    None). Every sample is recorded, not only the rejected ones, so the exact
+    acknowledgement can be replayed from the stored row alone.
+    """
+    results: list[dict[str, Any]] = []
+    for index, (sequence_number, code) in enumerate(dispositions):
+        if code is not None and code not in PING_REJECTION_CODES:
+            raise ValueError(f"unconstrained ping rejection code: {code}")
+        results.append(
+            {
+                "index": index,
+                "sequence_number": sequence_number,
+                "status": "accepted" if code is None else "rejected",
+                "rejection_code": code,
+            }
+        )
+    return {"version": REJECTION_MANIFEST_VERSION, "results": results}
+
+
+def rejection_manifest_digest(document: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        REJECTION_MANIFEST_DOMAIN + canonical_bytes(document)
+    ).hexdigest()
+
+
+def manifest_sample_results(document: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """The ordered acknowledgement rows for a stored disposition document."""
+    if not document:
+        return []
+    return [
+        {
+            "index": result["index"],
+            "sequence_number": result["sequence_number"],
+            "status": result["status"],
+            "rejection_code": result["rejection_code"],
+        }
+        for result in document["results"]
+    ]
+
+
 def batch_receipt_value(batch: LocationPingBatch) -> dict[str, Any]:
-    return {
+    value = {
         "format_version": RECEIPT_FORMAT_VERSION,
         "trip_id": str(batch.trip_session_id),
         "batch_sequence": batch.batch_sequence,
@@ -224,6 +289,13 @@ def batch_receipt_value(batch: LocationPingBatch) -> dict[str, Any]:
         "outcome": batch.receipt_outcome,
         "evidence_scope": batch.evidence_scope,
     }
+    # Counts alone cannot say *which* sample was refused, so a batch that
+    # carries a disposition binds its exact digest. The key is omitted when the
+    # row has none, which keeps every receipt signed before this protocol
+    # verifiable byte-for-byte instead of silently re-signing sealed evidence.
+    if batch.rejection_digest is not None:
+        value["rejection_digest"] = batch.rejection_digest
+    return value
 
 
 def sign_batch_receipt(batch: LocationPingBatch, settings: Settings) -> SignedReceipt:
@@ -344,6 +416,59 @@ def verify_manifest_receipt(trip: TripSession, settings: Settings) -> bool:
         manifest_receipt_value(trip),
         key,
         trip.evidence_manifest_receipt_signature,
+    )
+
+
+def adjudication_receipt_value(trip: TripSession) -> dict[str, Any]:
+    adjudicated_at = trip.evidence_adjudicated_at
+    if adjudicated_at is None:
+        raise ValueError("an adjudication receipt requires an adjudication timestamp")
+    if adjudicated_at.tzinfo is None:
+        adjudicated_at = adjudicated_at.replace(tzinfo=UTC)
+    return {
+        "format_version": RECEIPT_FORMAT_VERSION,
+        "trip_id": str(trip.id),
+        "manifest_version": trip.evidence_manifest_version,
+        "manifest_root_sha256": trip.evidence_manifest_root_sha256,
+        "batch_count": trip.evidence_manifest_batch_count,
+        "ping_count": trip.evidence_manifest_ping_count,
+        "manifest_complete": False,
+        "outcome": trip.evidence_adjudication_outcome,
+        "adjudicated_at_ms": epoch_milliseconds(adjudicated_at),
+    }
+
+
+def sign_adjudication_receipt(trip: TripSession, settings: Settings) -> SignedReceipt:
+    if trip.evidence_adjudication_outcome not in EVIDENCE_ADJUDICATION_OUTCOMES:
+        raise ValueError("unconstrained trip evidence adjudication outcome")
+    key_version, key = signing_key(settings)
+    trip.evidence_adjudication_receipt_format_version = RECEIPT_FORMAT_VERSION
+    trip.evidence_adjudication_receipt_key_version = key_version
+    trip.evidence_adjudication_receipt_signature = _signature(
+        ADJUDICATION_RECEIPT_DOMAIN, adjudication_receipt_value(trip), key
+    )
+    return SignedReceipt(
+        RECEIPT_FORMAT_VERSION,
+        key_version,
+        trip.evidence_adjudication_receipt_signature,
+        trip.evidence_adjudication_outcome,
+    )
+
+
+def verify_adjudication_receipt(trip: TripSession, settings: Settings) -> bool:
+    if (
+        trip.evidence_adjudication_receipt_format_version != RECEIPT_FORMAT_VERSION
+        or trip.evidence_adjudication_receipt_key_version is None
+        or trip.evidence_adjudication_receipt_signature is None
+        or trip.evidence_adjudicated_at is None
+    ):
+        return False
+    _, key = signing_key(settings, trip.evidence_adjudication_receipt_key_version)
+    return verify_signature(
+        ADJUDICATION_RECEIPT_DOMAIN,
+        adjudication_receipt_value(trip),
+        key,
+        trip.evidence_adjudication_receipt_signature,
     )
 
 

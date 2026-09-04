@@ -9168,6 +9168,8 @@ export interface components {
              * @default 0
              */
             rejected_count: number;
+            /** Sample Results */
+            sample_results?: components["schemas"]["PingSampleResult"][];
             /** Submitted Count */
             submitted_count: number;
             /**
@@ -10392,6 +10394,23 @@ export interface components {
              * @enum {string}
              */
             outcome: "passed" | "failed";
+        };
+        /**
+         * PingSampleResult
+         * @description One sample's disposition, in request order (OFF-005).
+         */
+        PingSampleResult: {
+            /** Index */
+            index: number;
+            /** Rejection Code */
+            rejection_code?: ("INVALID_RECORDED_AT" | "INVALID_ASSIGNMENT_AUTHORITY" | "INVALID_ACCURACY" | "INVALID_SPEED") | null;
+            /** Sequence Number */
+            sequence_number?: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "accepted" | "rejected";
         };
         /** PresignedPostRead */
         PresignedPostRead: {
@@ -11709,17 +11728,18 @@ export interface components {
         };
         /** TripEvidenceReconcileResponse */
         TripEvidenceReconcileResponse: {
+            /** Adjudicated At */
+            adjudicated_at?: string | null;
+            /** Adjudication Outcome */
+            adjudication_outcome?: "incomplete_grace_expired" | null;
             /** Duplicate */
             duplicate: boolean;
             /** Manifest Complete */
             manifest_complete: boolean;
             /** Manifest Root Sha256 */
             manifest_root_sha256: string;
-            /**
-             * Manifest Verified At
-             * Format: date-time
-             */
-            manifest_verified_at: string;
+            /** Manifest Verified At */
+            manifest_verified_at?: string | null;
             /** Receipt Format Version */
             receipt_format_version: number;
             /** Receipt Key Version */

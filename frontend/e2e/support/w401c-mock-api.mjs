@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { createHash } from "node:crypto";
 
 const port = 38100;
 const w403bSynthetic = process.env.W403B_SYNTHETIC === "1";
@@ -12,6 +13,100 @@ const ids = {
   trip: "10000000-0000-4000-8000-000000000006",
 };
 const trips = new Map();
+
+const encoder = new TextEncoder();
+const batchDomain = encoder.encode("cardvert.trip-batch.v2\0");
+
+class CanonicalFloat {
+  constructor(value) {
+    this.value = value;
+  }
+}
+
+function concat(...parts) {
+  const result = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    result.set(part, offset);
+    offset += part.length;
+  }
+  return result;
+}
+
+function u32(value) {
+  const result = new Uint8Array(4);
+  new DataView(result.buffer).setUint32(0, value, false);
+  return result;
+}
+
+function i64(value) {
+  const result = new Uint8Array(8);
+  new DataView(result.buffer).setBigInt64(0, BigInt(value), false);
+  return result;
+}
+
+function binary64(value) {
+  const result = new Uint8Array(8);
+  new DataView(result.buffer).setFloat64(0, Object.is(value, -0) ? 0 : value, false);
+  return result;
+}
+
+function compareBytes(left, right) {
+  for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
+    if (left[index] !== right[index]) return left[index] - right[index];
+  }
+  return left.length - right.length;
+}
+
+function canonicalBytes(value) {
+  if (value === null) return encoder.encode("n");
+  if (value === false) return encoder.encode("f");
+  if (value === true) return encoder.encode("t");
+  if (value instanceof CanonicalFloat) return concat(encoder.encode("d"), binary64(value.value));
+  if (typeof value === "number")
+    return Number.isInteger(value)
+      ? concat(encoder.encode("i"), i64(value))
+      : concat(encoder.encode("d"), binary64(value));
+  if (typeof value === "string") {
+    const encoded = encoder.encode(value);
+    return concat(encoder.encode("s"), u32(encoded.length), encoded);
+  }
+  if (Array.isArray(value))
+    return concat(
+      encoder.encode("a"),
+      u32(value.length),
+      ...value.map((item) => canonicalBytes(item)),
+    );
+  const entries = Object.entries(value).sort(([left], [right]) =>
+    compareBytes(encoder.encode(left), encoder.encode(right)),
+  );
+  return concat(
+    encoder.encode("o"),
+    u32(entries.length),
+    ...entries.flatMap(([key, item]) => [canonicalBytes(key), canonicalBytes(item)]),
+  );
+}
+
+function batchPayloadHash(pings) {
+  const value = {
+    pings: pings.map((ping) => ({
+      recorded_at_ms: Date.parse(ping.recorded_at),
+      lat: new CanonicalFloat(ping.lat),
+      lon: new CanonicalFloat(ping.lon),
+      accuracy_m: ping.accuracy_m === null ? null : new CanonicalFloat(ping.accuracy_m),
+      speed_mps: ping.speed_mps === null ? null : new CanonicalFloat(ping.speed_mps),
+      heading_degrees:
+        ping.heading_degrees === null ? null : new CanonicalFloat(ping.heading_degrees),
+      altitude_m: null,
+      sequence_number: ping.sequence_number,
+      metadata: {},
+    })),
+    metadata: {},
+  };
+  return createHash("sha256")
+    .update(concat(batchDomain, canonicalBytes(value)))
+    .digest("hex");
+}
 
 function send(response, status, body) {
   response.writeHead(status, {
@@ -163,28 +258,52 @@ const server = createServer(async (request, response) => {
   if (request.method === "GET" && url.pathname === "/api/v1/driver/trips/current") {
     const activeTrip = trips.get(authToken);
     return send(response, 200, {
-      trip: activeTrip?.status === "active" ? { id: ids.trip, status: "active" } : null,
+      trip:
+        activeTrip?.status === "active"
+          ? { id: ids.trip, status: "active", evidence_protocol_version: 2 }
+          : null,
     });
   }
   if (request.method === "POST" && url.pathname === "/api/v1/driver/trips/start") {
     trips.set(authToken, { status: "active", pingBatches: 0 });
-    return send(response, 201, { id: ids.trip, status: "active", assignment_id: ids.assignment });
+    return send(response, 201, {
+      id: ids.trip,
+      status: "active",
+      assignment_id: ids.assignment,
+      evidence_protocol_version: 2,
+    });
   }
   if (request.method === "GET" && url.pathname === `/api/v1/driver/trips/${ids.trip}`) {
     return trips.get(authToken)?.status === "active"
-      ? send(response, 200, { id: ids.trip, status: "active" })
+      ? send(response, 200, { id: ids.trip, status: "active", evidence_protocol_version: 2 })
       : fail(response, 404, "TRIP_NOT_FOUND", "Trip was not found");
   }
   if (request.method === "POST" && url.pathname === `/api/v1/driver/trips/${ids.trip}/pings`) {
     const payload = await body(request);
     const current = trips.get(authToken);
     if (current) current.pingBatches += 1;
+    const pings = payload.pings ?? [];
     return send(response, 200, {
       batch_id: "10000000-0000-4000-8000-000000000009",
       trip_id: ids.trip,
-      accepted_count: payload.pings?.length ?? 0,
+      batch_sequence: payload.batch_sequence,
+      payload_hash_version: 2,
+      payload_hash: batchPayloadHash(pings),
+      submitted_count: pings.length,
+      accepted_count: pings.length,
+      rejected_count: 0,
+      outcome: "accepted",
+      receipt_format_version: 2,
+      receipt_key_version: 1,
+      receipt_signature: "w403b-synthetic-signed-receipt",
       duplicate: false,
       quarantined: false,
+      sample_results: pings.map((ping, index) => ({
+        index,
+        sequence_number: ping.sequence_number ?? null,
+        status: "accepted",
+        rejection_code: null,
+      })),
     });
   }
   if (request.method === "POST" && url.pathname === `/api/v1/driver/trips/${ids.trip}/end`) {

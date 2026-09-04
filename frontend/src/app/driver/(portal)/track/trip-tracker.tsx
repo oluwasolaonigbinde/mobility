@@ -362,6 +362,21 @@ export function TripTracker({
               pings: batch.pings,
             });
             if (result.error) {
+              if (result.deferred) {
+                // OFF-006: already captured evidence refused only because the
+                // assignment was deactivated. End commits its manifest and the
+                // ended-policy authority accepts this exact batch, so it stays
+                // queued — dead-lettering it here would destroy valid evidence.
+                // Capture stops here though: new points need active authority.
+                // Only for the trip actually being tracked — draining an older
+                // trip must never halt the current one's capture.
+                if (tripRef.current?.id === tripId) stopWatch();
+                if (mountedRef.current)
+                  setError(
+                    "This campaign was deactivated. Captured GPS evidence is held and uploads when you end the trip.",
+                  );
+                break;
+              }
               if (result.retryable === false) {
                 await queue.dropBatch(batch.key, {
                   status: result.terminalStatus,
@@ -502,9 +517,19 @@ export function TripTracker({
           const authority = await getTripEvidenceAuthorityAction(leftoverTripId);
           if (authority?.protocolVersion === 2) {
             const reconciled = await reconcileTripEvidenceAction(leftoverTripId);
-            if (reconciled.outcome === "ended") await queue.forgetTrip(leftoverTripId);
-            // A rejected batch keeps the server manifest permanently incomplete, so
-            // retrying cannot help. Report it once instead of looping every minute.
+            if (reconciled.outcome === "ended") {
+              if (reconciled.adjudication) {
+                terminalLeftoversRef.current.add(leftoverTripId);
+                if (mountedRef.current)
+                  setError(
+                    "Earlier GPS evidence could not be delivered, so Cardvert closed that trip's record as incomplete.",
+                  );
+              } else {
+                await queue.forgetTrip(leftoverTripId);
+              }
+            }
+            // Retrying cannot help while the server still refuses to settle,
+            // so report it once instead of looping every minute.
             else if (reconciled.outcome === "failed") {
               terminalLeftoversRef.current.add(leftoverTripId);
               if (mountedRef.current)
@@ -800,6 +825,11 @@ export function TripTracker({
           : undefined;
         if (endedTripId && protocolVersion === 2) {
           const reconciled = await reconcileTripEvidenceAction(endedTripId);
+          if (reconciled.outcome === "ended" && reconciled.adjudication) {
+            terminalLeftoversRef.current.add(endedTripId);
+            await finishEndedTrip(false);
+            return;
+          }
           if (reconciled.outcome === "ended" && reconciled.status === "sealed") {
             await finishEndedTrip(complete);
             return;
@@ -893,7 +923,10 @@ export function TripTracker({
         return;
       }
       if (result.status === "sealed") await finishEndedTrip(complete);
-      else await reconcileAfterEnd(complete);
+      else {
+        await flush(activeTrip.id);
+        await reconcileAfterEnd(complete);
+      }
     })().finally(() => {
       if (mountedRef.current) setBusy(false);
     });

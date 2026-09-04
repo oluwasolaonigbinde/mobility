@@ -13,6 +13,7 @@ from app.schemas.trips import (
     CurrentTripResponse,
     LocationPingBatchCreate,
     LocationPingBatchResponse,
+    PingSampleResult,
     QuarantineApplyResponse,
     QuarantinedPingBatchListResponse,
     QuarantinedPingBatchRead,
@@ -24,6 +25,7 @@ from app.schemas.trips import (
 )
 from app.services.audit import create_audit_event
 from app.services.privacy_authority import require_collection_authority
+from app.services.trip_evidence import manifest_sample_results
 from app.services.trips import (
     TripSummary,
     apply_quarantined_ping_batch,
@@ -186,6 +188,11 @@ async def driver_ingest_location_pings(
         receipt_key_version=row.receipt_key_version,
         receipt_signature=row.receipt_signature,
         duplicate=result.duplicate,
+        # Replayed from the stored manifest, so a retry of a partially
+        # accepted batch returns byte-identical dispositions.
+        sample_results=[
+            PingSampleResult(**entry) for entry in manifest_sample_results(row.rejection_manifest)
+        ],
     )
 
 
@@ -251,19 +258,47 @@ async def driver_reconcile_trip_evidence(
         trip_id=trip_id,
         settings=settings,
     )
-    await session.commit()
-    if not result.duplicate:
-        await enqueuer.enqueue_trip_processing(trip_id)
     trip = result.trip
+    if result.adjudicated and not result.duplicate:
+        await create_audit_event(
+            session,
+            actor_user_id=current_user.id,
+            action="trip.evidence_adjudicated_incomplete",
+            entity_type="trip_session",
+            entity_id=str(trip.id),
+            metadata={
+                "outcome": trip.evidence_adjudication_outcome,
+                "manifest_root_sha256": trip.evidence_manifest_root_sha256,
+                "evidence_protocol_version": trip.evidence_protocol_version,
+            },
+        )
+    await session.commit()
+    # An adjudicated trip is never sealed, so there is no money chain to run.
+    if not result.duplicate and not result.adjudicated:
+        await enqueuer.enqueue_trip_processing(trip_id)
     return TripEvidenceReconcileResponse(
         trip_id=trip.id,
         status=trip.status,
         manifest_root_sha256=trip.evidence_manifest_root_sha256,
         manifest_complete=trip.evidence_manifest_complete,
         manifest_verified_at=trip.evidence_manifest_verified_at,
-        receipt_format_version=trip.evidence_manifest_receipt_format_version,
-        receipt_key_version=trip.evidence_manifest_receipt_key_version,
-        receipt_signature=trip.evidence_manifest_receipt_signature,
+        adjudication_outcome=trip.evidence_adjudication_outcome,
+        adjudicated_at=trip.evidence_adjudicated_at,
+        receipt_format_version=(
+            trip.evidence_adjudication_receipt_format_version
+            if result.adjudicated
+            else trip.evidence_manifest_receipt_format_version
+        ),
+        receipt_key_version=(
+            trip.evidence_adjudication_receipt_key_version
+            if result.adjudicated
+            else trip.evidence_manifest_receipt_key_version
+        ),
+        receipt_signature=(
+            trip.evidence_adjudication_receipt_signature
+            if result.adjudicated
+            else trip.evidence_manifest_receipt_signature
+        ),
         duplicate=result.duplicate,
     )
 

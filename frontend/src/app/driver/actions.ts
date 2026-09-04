@@ -157,6 +157,12 @@ const evidenceManifestSchema = z.object({
 export interface EndTripResult extends DriverActionState {
   outcome: "ended" | "failed" | "unknown";
   status?: "ended" | "sealed";
+  /**
+   * Set when the server finally adjudicated a trip whose declared evidence can
+   * no longer arrive. The trip is not sealed and no money is opened, but the
+   * disposition is terminal and server-authorized (OFF-006).
+   */
+  adjudication?: "incomplete_grace_expired";
 }
 
 export async function endTripAction(
@@ -258,6 +264,20 @@ const legacyPingBatchAckSchema = z.object({
   quarantined: z.boolean(),
 });
 
+const sampleResultSchema = z.object({
+  index: z.number().int().nonnegative(),
+  sequence_number: z.number().int().nonnegative().nullable(),
+  status: z.enum(["accepted", "rejected"]),
+  rejection_code: z
+    .enum([
+      "INVALID_RECORDED_AT",
+      "INVALID_ASSIGNMENT_AUTHORITY",
+      "INVALID_ACCURACY",
+      "INVALID_SPEED",
+    ])
+    .nullable(),
+});
+
 const pingBatchAckSchema = legacyPingBatchAckSchema.extend({
   batch_sequence: z.number().int().nonnegative(),
   payload_hash_version: z.literal(2),
@@ -266,7 +286,16 @@ const pingBatchAckSchema = legacyPingBatchAckSchema.extend({
   receipt_format_version: z.number().int().positive(),
   receipt_key_version: z.number().int().positive(),
   receipt_signature: z.string().min(1),
+  sample_results: z.array(sampleResultSchema).default([]),
 });
+
+/**
+ * Rejections the ended-policy authority may still accept. Evidence already
+ * captured under a since-deactivated assignment is refused while the trip is
+ * active, but the exact same batch lands once End commits its manifest — so
+ * dead-lettering it here would destroy valid evidence the server would take.
+ */
+const DEFERRABLE_REJECTION_CODES = new Set(["CAMPAIGN_ASSIGNMENT_NOT_ACTIVE"]);
 
 export interface PingBatchResult extends DriverActionState {
   /** True only when the backend returned its complete D15/D16 ACK envelope. */
@@ -282,8 +311,21 @@ export interface PingBatchResult extends DriverActionState {
    * must drop the batch instead of head-of-line-blocking its queue forever.
    */
   retryable?: boolean;
+  /**
+   * True when the rejection is retryable only because a later lifecycle step
+   * (ending the trip) can still accept this exact batch. The caller must keep
+   * the batch queued and must not dead-letter it (OFF-006).
+   */
+  deferred?: boolean;
   terminalStatus?: number;
   terminalCode?: string;
+  /** Per-sample disposition of a durably acknowledged batch (OFF-005). */
+  sampleResults?: Array<{
+    index: number;
+    sequence_number: number | null;
+    status: "accepted" | "rejected";
+    rejection_code: string | null;
+  }>;
 }
 
 export async function sendPingBatchAction(
@@ -326,7 +368,11 @@ export async function sendPingBatchAction(
       acknowledgement.data.trip_id === parsed.data.tripId &&
       (acknowledgement.data.duplicate ||
         acknowledgement.data.quarantined ||
-        acknowledgement.data.accepted_count === parsed.data.pings.length);
+        // A partially accepted batch is still durably settled: the server
+        // adjudicated every sample and signed the disposition, so resending
+        // it would only replay the same answer (OFF-005).
+        (acknowledgement.data.submitted_count === parsed.data.pings.length &&
+          acknowledgement.data.sample_results.length === parsed.data.pings.length));
     if (!positiveAck) {
       return {
         error: "Cardvert could not confirm the GPS batch acknowledgement.",
@@ -339,6 +385,7 @@ export async function sendPingBatchAction(
       acceptedCount: acknowledgement.data.accepted_count,
       duplicate: acknowledgement.data.duplicate,
       quarantined: acknowledgement.data.quarantined,
+      sampleResults: acknowledgement.data.sample_results,
       receipt: {
         tripId: acknowledgement.data.trip_id,
         batchId: acknowledgement.data.batch_id,
@@ -357,11 +404,13 @@ export async function sendPingBatchAction(
     };
   } catch (error) {
     if (error instanceof ApiError) {
-      const terminal = [400, 409, 422].includes(error.status);
+      const deferred = DEFERRABLE_REJECTION_CODES.has(error.code ?? "");
+      const terminal = !deferred && [400, 409, 422].includes(error.status);
       return {
         error: error.message,
         acknowledged: false,
         retryable: !terminal,
+        deferred,
         terminalStatus: terminal ? error.status : undefined,
         terminalCode: terminal ? error.code : undefined,
       };
@@ -378,10 +427,26 @@ export async function reconcileTripEvidenceAction(tripId: string): Promise<EndTr
     const { data } = await api.POST("/api/v1/driver/trips/{trip_id}/evidence/reconcile", {
       params: { path: { trip_id: tripId } },
     });
-    return data?.status === "sealed"
-      ? { outcome: "ended", status: "sealed" }
-      : { error: "Trip evidence is not sealed.", outcome: "unknown" };
+    if (data?.status === "sealed") return { outcome: "ended", status: "sealed" };
+    if (data?.adjudication_outcome === "incomplete_grace_expired" && data.receipt_signature) {
+      return {
+        outcome: "ended",
+        status: "ended",
+        adjudication: "incomplete_grace_expired",
+      };
+    }
+    return { error: "Trip evidence is not sealed.", outcome: "unknown" };
   } catch (error) {
+    if (
+      error instanceof ApiError &&
+      error.status === 409 &&
+      error.code === "TRIP_EVIDENCE_INCOMPLETE"
+    ) {
+      // The server's recovery window is still open. This is neither success
+      // nor a terminal refusal: recovery must retry until the server verifies
+      // the manifest or signs its final incomplete adjudication (OFF-006).
+      return { ...toState(error), outcome: "unknown" };
+    }
     const outcome =
       error instanceof ApiError && [400, 403, 404, 409, 422].includes(error.status)
         ? "failed"

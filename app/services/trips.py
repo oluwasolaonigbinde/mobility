@@ -15,7 +15,12 @@ from app.core.config import Settings
 from app.core.errors import AppError
 from app.db.integrity import integrity_constraint_name
 from app.models.campaign import Campaign, CampaignStatus
-from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
+from app.models.campaign_assignment import (
+    CampaignActivationEvent,
+    CampaignActivationEventType,
+    CampaignAssignment,
+    CampaignAssignmentStatus,
+)
 from app.models.driver import DriverProfile
 from app.models.payout import PayoutCalculation
 from app.models.trip import (
@@ -56,11 +61,15 @@ from app.services.trip_evidence import (
     batch_payload_hash,
     manifest_completeness,
     manifest_root,
+    rejection_manifest_digest,
+    rejection_manifest_document,
+    sign_adjudication_receipt,
     sign_batch_receipt,
     sign_manifest_receipt,
     sign_quarantine_receipt,
     signing_key,
     validate_manifest,
+    verify_adjudication_receipt,
     verify_batch_receipt,
     verify_manifest_receipt,
     verify_quarantine_receipt,
@@ -115,6 +124,9 @@ class TripEndResult:
 class TripEvidenceReconcileResult:
     trip: TripSession
     duplicate: bool
+    # True when the outcome is a final incomplete adjudication rather than a
+    # verified manifest seal (OFF-006).
+    adjudicated: bool = False
 
 
 def utc_now() -> datetime:
@@ -696,28 +708,103 @@ def ensure_ping_batch_size(payload: LocationPingBatchCreate, settings: Settings)
         )
 
 
-def ensure_ping_bounds(
+@dataclass(frozen=True)
+class PingRejection:
+    """One sample's constrained rejection code plus its whole-batch wording."""
+
+    code: str
+    message: str
+    details: dict[str, Any] | None = None
+
+    def as_error(self) -> AppError:
+        return AppError(
+            self.code,
+            self.message,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            details=self.details,
+        )
+
+
+async def capture_authority_lapses(
+    session: AsyncSession,
+    assignment: CampaignAssignment | None,
+) -> list[tuple[datetime, datetime | None]]:
+    """Return every persisted deactivate/reactivate interval for an assignment."""
+    if assignment is None or assignment.deactivated_at is None:
+        return []
+    events = list(
+        (
+            await session.execute(
+                select(CampaignActivationEvent)
+                .where(
+                    CampaignActivationEvent.assignment_id == assignment.id,
+                    CampaignActivationEvent.event_type.in_(
+                        (
+                            CampaignActivationEventType.DEACTIVATED.value,
+                            CampaignActivationEventType.ACTIVATED.value,
+                        )
+                    ),
+                )
+                .order_by(
+                    CampaignActivationEvent.occurred_at.asc(),
+                    CampaignActivationEvent.id.asc(),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    lapses: list[tuple[datetime, datetime | None]] = []
+    lapsed_at: datetime | None = None
+    for event in events:
+        occurred_at = as_aware_utc(event.occurred_at)
+        if event.event_type == CampaignActivationEventType.DEACTIVATED.value:
+            lapsed_at = occurred_at
+        elif lapsed_at is not None and occurred_at >= lapsed_at:
+            lapses.append((lapsed_at, occurred_at))
+            lapsed_at = None
+    if lapsed_at is not None:
+        lapses.append((lapsed_at, None))
+    if lapses:
+        return lapses
+
+    fallback_start = as_aware_utc(assignment.deactivated_at)
+    fallback_end = (
+        as_aware_utc(assignment.activated_at)
+        if assignment.activated_at is not None
+        and as_aware_utc(assignment.activated_at) >= fallback_start
+        else None
+    )
+    return [(fallback_start, fallback_end)]
+
+
+def classify_ping(
     *,
     trip: TripSession,
     ping: LocationPingCreate,
     now: datetime,
     settings: Settings,
-) -> None:
+    authority_lapses: list[tuple[datetime, datetime | None]] | None = None,
+) -> PingRejection | None:
+    """Adjudicate one sample, returning its rejection or None when ingestible.
+
+    The check order is fixed so a wholly invalid batch still reports exactly
+    the code and wording the all-or-nothing gate reported before partial
+    acknowledgement existed.
+    """
     recorded_at = as_aware_utc(ping.recorded_at)
     if recorded_at > now + timedelta(seconds=settings.location_ping_future_skew_seconds):
-        raise AppError(
+        return PingRejection(
             "INVALID_RECORDED_AT",
             "Location ping recorded_at is too far in the future",
-            status_code=status.HTTP_400_BAD_REQUEST,
         )
     earliest = as_aware_utc(trip.started_at) - timedelta(
         seconds=settings.location_ping_start_skew_seconds
     )
     if recorded_at < earliest:
-        raise AppError(
+        return PingRejection(
             "INVALID_RECORDED_AT",
             "Location ping recorded_at is before the allowed trip start skew",
-            status_code=status.HTTP_400_BAD_REQUEST,
         )
     if trip.ended_at is not None:
         # Late (post-end) delivery window: only points recorded during the
@@ -727,25 +814,34 @@ def ensure_ping_bounds(
             seconds=settings.location_ping_end_skew_seconds
         )
         if recorded_at > latest:
-            raise AppError(
+            return PingRejection(
                 "INVALID_RECORDED_AT",
                 "Location ping recorded_at is after the trip ended",
-                status_code=status.HTTP_400_BAD_REQUEST,
             )
+    if authority_lapses:
+        # D25/OFF-006: delivering evidence after deactivation is permitted, but
+        # *capturing* it is not. A sample recorded inside the lapse never had
+        # authority, so no later lifecycle step — the ended-trip descriptor
+        # window or a reactivation — may launder it in.
+        for lapsed_at, resumed_at in authority_lapses:
+            if recorded_at >= lapsed_at and (resumed_at is None or recorded_at < resumed_at):
+                return PingRejection(
+                    "INVALID_ASSIGNMENT_AUTHORITY",
+                    "Location ping was recorded while the campaign assignment held no authority",
+                )
     if ping.accuracy_m is not None and ping.accuracy_m > settings.max_location_accuracy_m:
-        raise AppError(
+        return PingRejection(
             "INVALID_ACCURACY",
             "Location ping accuracy exceeds the configured maximum",
-            status_code=status.HTTP_400_BAD_REQUEST,
-            details={"max_location_accuracy_m": settings.max_location_accuracy_m},
+            {"max_location_accuracy_m": settings.max_location_accuracy_m},
         )
     if ping.speed_mps is not None and ping.speed_mps > settings.max_location_speed_mps:
-        raise AppError(
+        return PingRejection(
             "INVALID_SPEED",
             "Location ping speed exceeds the configured maximum",
-            status_code=status.HTTP_400_BAD_REQUEST,
-            details={"max_location_speed_mps": settings.max_location_speed_mps},
+            {"max_location_speed_mps": settings.max_location_speed_mps},
         )
+    return None
 
 
 def point_value(session: AsyncSession, *, lon: float, lat: float):
@@ -780,10 +876,10 @@ async def ingest_location_ping_batch(
     if trip is None:
         raise trip_not_found()
     financial_cutoff = await campaign_financial_cutoff(session, trip.campaign_id)
+    assignment = await session.get(CampaignAssignment, trip.assignment_id)
+    if assignment is None:
+        raise trip_not_found()
     if trip.status == TripSessionStatus.ACTIVE.value:
-        assignment = await session.get(CampaignAssignment, trip.assignment_id)
-        if assignment is None:
-            raise trip_not_found()
         if financial_cutoff is None:
             ensure_assignment_active(assignment)
     # `ended` = the RM3 recovery window: late batches are accepted, and the
@@ -841,7 +937,13 @@ async def ingest_location_ping_batch(
     ensure_ping_batch_size(payload, settings)
     received_at = utc_now()
 
-    if trip.status == TripSessionStatus.SEALED.value:
+    if (
+        trip.status == TripSessionStatus.SEALED.value
+        or trip.evidence_adjudicated_at is not None
+    ):
+        # A finally adjudicated trip is closed to live delivery for the same
+        # reason a sealed one is: its authority is settled. The payload is
+        # still preserved, never discarded, and stays admin-reviewable.
         return await quarantine_ping_batch(
             session,
             trip=trip,
@@ -871,14 +973,50 @@ async def ingest_location_ping_batch(
                 status_code=status.HTTP_409_CONFLICT,
             )
 
-    for ping in payload.pings:
-        ensure_ping_bounds(trip=trip, ping=ping, now=received_at, settings=settings)
+    # OFF-005 partial acknowledgement: adjudicate every sample, then keep the
+    # valid ones. A wholly invalid batch is still refused outright, so an
+    # all-valid, all-invalid and replayed batch each stay deterministic; only
+    # a genuinely mixed v2 batch takes the partial path.
+    authority_lapses = await capture_authority_lapses(session, assignment)
+    rejections = [
+        classify_ping(
+            trip=trip,
+            ping=ping,
+            now=received_at,
+            settings=settings,
+            authority_lapses=authority_lapses,
+        )
+        for ping in payload.pings
+    ]
+    accepted_pings = [
+        ping for ping, rejection in zip(payload.pings, rejections, strict=True) if rejection is None
+    ]
+    partial_allowed = trip.evidence_protocol_version == 2
+    first_rejection = next((rejection for rejection in rejections if rejection is not None), None)
+    if first_rejection is not None and (not accepted_pings or not partial_allowed):
+        raise first_rejection.as_error()
+
+    rejection_manifest = (
+        rejection_manifest_document(
+            [
+                (ping.sequence_number, rejection.code if rejection else None)
+                for ping, rejection in zip(payload.pings, rejections, strict=True)
+            ]
+        )
+        if partial_allowed
+        else None
+    )
+    rejection_digest = (
+        rejection_manifest_digest(rejection_manifest) if rejection_manifest is not None else None
+    )
 
     batch_metadata = dict(payload.metadata)
     if financial_cutoff is not None:
         batch_metadata["financial_cutoff_at"] = financial_cutoff.isoformat()
+        # Rejected samples never become pings, so they never become money
+        # inputs and must not be counted against the cutoff either.
         batch_metadata["post_cutoff_ping_count"] = sum(
-            1 for ping in payload.pings if as_aware_utc(ping.recorded_at) > financial_cutoff
+            1 for ping in accepted_pings if as_aware_utc(ping.recorded_at) > financial_cutoff
         )
     batch = LocationPingBatch(
         trip_session_id=trip.id,
@@ -887,16 +1025,18 @@ async def ingest_location_ping_batch(
         payload_hash_version=hash_version,
         payload_hash=digest,
         pings_submitted=len(payload.pings),
-        pings_accepted=len(payload.pings),
-        pings_rejected=0,
+        pings_accepted=len(accepted_pings),
+        pings_rejected=len(payload.pings) - len(accepted_pings),
         evidence_scope=("manifest" if trip.evidence_protocol_version == 2 else "legacy"),
         received_at=received_at,
+        rejection_manifest=rejection_manifest,
+        rejection_digest=rejection_digest,
         batch_metadata=batch_metadata,
     )
     session.add(batch)
     await session.flush()
 
-    for ping in payload.pings:
+    for ping in accepted_pings:
         session.add(
             LocationPing(
                 trip_session_id=trip.id,
@@ -1030,18 +1170,40 @@ async def reconcile_trip_evidence(
                 status_code=status.HTTP_409_CONFLICT,
             )
         return TripEvidenceReconcileResult(trip=trip, duplicate=True)
+    if trip.evidence_adjudicated_at is not None:
+        if not verify_adjudication_receipt(trip, settings):
+            raise AppError(
+                "TRIP_EVIDENCE_RECEIPT_INVALID",
+                "Trip evidence adjudication receipt is invalid",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+        return TripEvidenceReconcileResult(trip=trip, duplicate=True, adjudicated=True)
     completeness: ManifestCompleteness = await manifest_completeness(session, trip, settings)
     if not completeness.complete:
-        raise AppError(
-            "TRIP_EVIDENCE_INCOMPLETE",
-            "Trip evidence is incomplete",
-            status_code=status.HTTP_409_CONFLICT,
-            details={
-                "missing_batch_count": completeness.missing_count,
-                "mismatched_batch_count": completeness.mismatch_count,
-                "undeclared_batch_count": completeness.undeclared_count,
-            },
-        )
+        if trip.grace_expired_at is None:
+            # The recovery window is still open, so the client must keep its
+            # retained evidence and keep trying rather than be told it is final.
+            raise AppError(
+                "TRIP_EVIDENCE_INCOMPLETE",
+                "Trip evidence is incomplete",
+                status_code=status.HTTP_409_CONFLICT,
+                details={
+                    "missing_batch_count": completeness.missing_count,
+                    "mismatched_batch_count": completeness.mismatch_count,
+                    "undeclared_batch_count": completeness.undeclared_count,
+                },
+            )
+        # OFF-006: the server-owned grace marker has closed the window, so the
+        # server — never the client — states the terminal outcome. The trip
+        # keeps its `ended` status and unauthenticated manifest, so no money is
+        # opened; late evidence is still preserved through quarantine.
+        now = utc_now()
+        trip.evidence_adjudicated_at = now
+        trip.evidence_adjudication_outcome = "incomplete_grace_expired"
+        sign_adjudication_receipt(trip, settings)
+        await session.flush()
+        await session.refresh(trip)
+        return TripEvidenceReconcileResult(trip=trip, duplicate=False, adjudicated=True)
     now = utc_now()
     trip.evidence_manifest_complete = True
     trip.evidence_manifest_verified_at = now
@@ -1204,8 +1366,23 @@ async def apply_quarantined_ping_batch(
             )
     ensure_ping_batch_size(payload, settings)
     now = utc_now()
+    # Admin reopen stays all-or-nothing: an operator applies one preserved
+    # payload as a whole, so a partial application would silently change what
+    # the audited decision was taken over.
+    authority_lapses = await capture_authority_lapses(
+        session,
+        await session.get(CampaignAssignment, trip.assignment_id),
+    )
     for ping in payload.pings:
-        ensure_ping_bounds(trip=trip, ping=ping, now=now, settings=settings)
+        rejection = classify_ping(
+            trip=trip,
+            ping=ping,
+            now=now,
+            settings=settings,
+            authority_lapses=authority_lapses,
+        )
+        if rejection is not None:
+            raise rejection.as_error()
 
     batch = LocationPingBatch(
         trip_session_id=trip.id,

@@ -45,8 +45,8 @@ client-device, deployment and other high-risk checkpoints receive specialist
 review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
-**Current justified remediation writer capacity:** `3`
-**Current capacity assignment:** `R02, R36, R47`
+**Current justified remediation writer capacity:** `2`
+**Current capacity assignment:** `R02, R47`
 **Current capacity justification:** R36→R37 owns the shared-checkout offline
 protocol/migration lane, while R47 owns a separate reporting/disclosure worktree.
 Their exact leases are disjoint. R02's immutable integration gate is held on the
@@ -86,7 +86,7 @@ authority. The active queue now prioritizes locally executable product and
 engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
-**Current checkpoint:** `PKG-10 / R36` — AUT-006 is accepted at `a4c9de2`.
+**Current checkpoint:** `PKG-10 / R47` — AUT-006 is accepted at `a4c9de2`.
 Every repository failure group
 discovered by R02's complete 1,772-test authority run is now accepted: V11
 historical migration fixtures, V12 signed-v2 payout fixtures, V13 reversal
@@ -100,8 +100,10 @@ Both Opus correction packets are accepted at `aa7ff02` and `bce94ad`, and R46
 is accepted at `1c89f16`. R02's complete immutable run and focused complement are
 preserved, but the focused W403B browser journey exposed a real trip-end protocol
 failure now owned by R36→R37; R02 will resume only after that packet is accepted.
-R47 independently owns the now-ready reporting disclosure slice. R17 remains parked
-in `to-do.md`.
+R36→R37 is accepted with migration 0080, signed mixed-batch disposition and
+server-owned grace-expiry adjudication; its W403B trip-end journey is green. R02 may
+now resume its final focused integration closure. R47 independently owns the active
+reporting disclosure slice. R17 remains parked in `to-do.md`.
 
 ## Direct owner requests outside the package queue
 
@@ -1596,8 +1598,8 @@ durable ledger before changing a row.
 | R33 | ONB-006 | R05, R32 | QUEUED | PASS — R33-P | PENDING | CP-ONBOARDING PENDING |
 | R34 | OFF-001 | R04 | COMPLETE | PASS — R34-P | PASS — R34-M | CP-OFFLINE PASS — R34-CP-OFFLINE |
 | R35 | OFF-002, OFF-003 | R34 | COMPLETE | PASS — R35-P | PASS — R35-M | CP-OFFLINE PASS — R35-CP-OFFLINE |
-| R36 | OFF-005 | R35 | ACTIVE | PASS — R36-P | PENDING | CP-OFFLINE PENDING |
-| R37 | OFF-006 | R36 | QUEUED | PASS — R37-P | PENDING | CP-OFFLINE PENDING |
+| R36 | OFF-005 | R35 | COMPLETE | PASS — R36-P | PASS — R36-M | CP-OFFLINE PASS — R36-CP-OFFLINE |
+| R37 | OFF-006 | R36 | COMPLETE | PASS — R37-P | PASS — R37-M | CP-OFFLINE PASS — R37-CP-OFFLINE |
 | R38 | PRV-001, PRV-002 | R13 | COMPLETE | PASS — R38-P | PASS — R38-M | CP-PRIVACY PASS — R38-CP-PRIVACY |
 | R39 | PRV-003 | R38 | COMPLETE | PASS — R39-P | PASS — R39-M | CP-PRIVACY PASS — R39-CP-PRIVACY |
 | R40 | PRV-004, AUD-001, AUD-002 | R16, R39 | COMPLETE | PASS — R40-P | PASS — R40-M | CP-PRIVACY PASS — R40-CP-PRIVACY |

@@ -95,6 +95,26 @@ class TripSession(Base):
             "OR evidence_manifest_verified_at IS NOT NULL",
             name="ck_trip_sessions_v2_sealed_manifest_verified",
         ),
+        CheckConstraint(
+            "(evidence_adjudicated_at IS NULL AND "
+            "evidence_adjudication_outcome IS NULL AND "
+            "evidence_adjudication_receipt_format_version IS NULL AND "
+            "evidence_adjudication_receipt_key_version IS NULL AND "
+            "evidence_adjudication_receipt_signature IS NULL) OR "
+            "(evidence_adjudicated_at IS NOT NULL AND "
+            "evidence_adjudication_outcome = 'incomplete_grace_expired' AND "
+            "evidence_adjudication_receipt_format_version = 2 AND "
+            "evidence_adjudication_receipt_key_version IS NOT NULL AND "
+            "evidence_adjudication_receipt_signature IS NOT NULL)",
+            name="ck_trip_sessions_adjudication_cluster",
+        ),
+        # A trip is either verified complete or adjudicated incomplete. Holding
+        # both would let an incomplete adjudication be laundered into the
+        # verified-manifest authority the money chain reads.
+        CheckConstraint(
+            "evidence_adjudicated_at IS NULL OR evidence_manifest_verified_at IS NULL",
+            name="ck_trip_sessions_adjudication_excludes_verification",
+        ),
         Index("ix_trip_sessions_assignment_id", "assignment_id"),
         Index("ix_trip_sessions_campaign_id", "campaign_id"),
         Index("ix_trip_sessions_driver_profile_id", "driver_profile_id"),
@@ -172,6 +192,14 @@ class TripSession(Base):
     evidence_manifest_receipt_format_version: Mapped[int | None] = mapped_column(Integer)
     evidence_manifest_receipt_key_version: Mapped[int | None] = mapped_column(Integer)
     evidence_manifest_receipt_signature: Mapped[str | None] = mapped_column(Text)
+    # OFF-006 final adjudication: the server's signed terminal statement that a
+    # v2 trip's declared evidence can no longer arrive. It never seals and never
+    # authenticates a manifest, so the money chain stays closed (D25).
+    evidence_adjudicated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    evidence_adjudication_outcome: Mapped[str | None] = mapped_column(String(32))
+    evidence_adjudication_receipt_format_version: Mapped[int | None] = mapped_column(Integer)
+    evidence_adjudication_receipt_key_version: Mapped[int | None] = mapped_column(Integer)
+    evidence_adjudication_receipt_signature: Mapped[str | None] = mapped_column(Text)
     grace_expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sealed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     seal_reason: Mapped[str | None] = mapped_column(Text)
@@ -217,6 +245,17 @@ class LocationPingBatch(Base):
             "(receipt_format_version = 2 AND receipt_key_version IS NOT NULL AND "
             "receipt_signature IS NOT NULL AND receipt_outcome IS NOT NULL)",
             name="ck_location_ping_batches_receipt_cluster",
+        ),
+        # A disposition and its digest travel together or not at all: a digest
+        # without its manifest could not be replayed, and a manifest without a
+        # digest could not be bound into the signed receipt.
+        CheckConstraint(
+            "(rejection_manifest IS NULL) = (rejection_digest IS NULL)",
+            name="ck_location_ping_batches_rejection_cluster",
+        ),
+        CheckConstraint(
+            "rejection_digest IS NULL OR length(rejection_digest) = 64",
+            name="ck_location_ping_batches_rejection_digest_length",
         ),
         UniqueConstraint(
             "trip_session_id",
@@ -271,6 +310,18 @@ class LocationPingBatch(Base):
     receipt_key_version: Mapped[int | None] = mapped_column(Integer)
     receipt_signature: Mapped[str | None] = mapped_column(Text)
     receipt_outcome: Mapped[str | None] = mapped_column(String(32))
+    # OFF-005: the ordered, immutable per-sample disposition of this batch and
+    # its digest. `batch_metadata` is mutable operational context; a partial
+    # acknowledgement is evidence, so it lives in its own columns and is bound
+    # into the signed receipt. Rows written before this protocol keep NULL.
+    rejection_manifest: Mapped[dict[str, Any] | None] = mapped_column(
+        # `none_as_null` keeps an absent disposition a real SQL NULL rather
+        # than the JSON scalar `null`, which the cluster constraint relies on.
+        JSON(none_as_null=True).with_variant(
+            postgresql.JSONB(none_as_null=True), "postgresql"
+        )
+    )
+    rejection_digest: Mapped[str | None] = mapped_column(String(64))
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     batch_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",

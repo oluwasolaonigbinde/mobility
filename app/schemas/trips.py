@@ -125,6 +125,23 @@ class CurrentTripResponse(BaseModel):
     trip: TripRead | None
 
 
+class PingSampleResult(BaseModel):
+    """One sample's disposition, in request order (OFF-005)."""
+
+    index: int = Field(ge=0)
+    sequence_number: int | None = None
+    status: Literal["accepted", "rejected"]
+    rejection_code: (
+        Literal[
+            "INVALID_RECORDED_AT",
+            "INVALID_ASSIGNMENT_AUTHORITY",
+            "INVALID_ACCURACY",
+            "INVALID_SPEED",
+        ]
+        | None
+    ) = None
+
+
 class LocationPingBatchResponse(BaseModel):
     batch_id: UUID
     trip_id: UUID
@@ -143,6 +160,10 @@ class LocationPingBatchResponse(BaseModel):
     # quarantine (batch_id is the quarantine row) and no pings were inserted.
     # The client must treat this as an ACK and drop the batch from its queue.
     quarantined: bool = False
+    # Ordered per-sample disposition replayed from the batch's immutable
+    # rejection manifest. Empty for legacy-v1 and quarantined batches, which
+    # carry no per-sample adjudication.
+    sample_results: list[PingSampleResult] = Field(default_factory=list)
 
 
 class TripEvidenceReconcileResponse(BaseModel):
@@ -150,7 +171,15 @@ class TripEvidenceReconcileResponse(BaseModel):
     status: TripSessionStatus
     manifest_root_sha256: str
     manifest_complete: bool
-    manifest_verified_at: datetime
+    # Set only when the manifest was verified complete and the trip sealed.
+    manifest_verified_at: datetime | None = None
+    # OFF-006: set instead of `manifest_verified_at` when the server finally
+    # adjudicated a trip whose declared evidence can no longer arrive. The trip
+    # stays `ended` and unauthenticated, so no money is opened.
+    adjudication_outcome: Literal["incomplete_grace_expired"] | None = None
+    adjudicated_at: datetime | None = None
+    # The signed receipt for whichever outcome above is set: the manifest
+    # receipt when verified, the adjudication receipt when adjudicated.
     receipt_format_version: int
     receipt_key_version: int
     receipt_signature: str

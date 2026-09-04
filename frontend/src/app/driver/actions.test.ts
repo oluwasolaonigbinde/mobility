@@ -38,6 +38,7 @@ const ACK_FIELDS = {
   receipt_format_version: 2,
   receipt_key_version: 1,
   receipt_signature: "signed-receipt",
+  sample_results: [{ index: 0, sequence_number: 0, status: "accepted", rejection_code: null }],
 };
 
 function rawOpen(name: string): Promise<IDBDatabase> {
@@ -327,7 +328,136 @@ describe("driver trip BFF actions", () => {
       new ApiError(409, { code: "TRIP_EVIDENCE_INCOMPLETE", message: "incomplete" }),
     );
     await expect(reconcileTripEvidenceAction(TRIP_ID)).resolves.toMatchObject({
-      outcome: "failed",
+      outcome: "unknown",
+      error: "incomplete",
+    });
+  });
+
+  it("treats a durably adjudicated partial batch as a settled acknowledgement", async () => {
+    // OFF-005: the server kept the valid samples, refused the invalid one and
+    // signed the disposition. Resending would only replay the same answer.
+    mocks.post.mockResolvedValueOnce({
+      data: {
+        batch_id: "44444444-4444-4444-8444-444444444444",
+        trip_id: TRIP_ID,
+        ...ACK_FIELDS,
+        submitted_count: 2,
+        accepted_count: 1,
+        rejected_count: 1,
+        duplicate: false,
+        quarantined: false,
+        sample_results: [
+          { index: 0, sequence_number: 0, status: "accepted", rejection_code: null },
+          { index: 1, sequence_number: 1, status: "rejected", rejection_code: "INVALID_SPEED" },
+        ],
+      },
+    });
+
+    await expect(
+      sendPingBatchAction({
+        tripId: TRIP_ID,
+        evidenceProtocolVersion: 2,
+        idempotencyKey: "partial-batch-key",
+        batchSequence: 0,
+        pings: [
+          {
+            recorded_at: "2026-08-25T00:00:00.000Z",
+            lat: 6.45,
+            lon: 3.39,
+            accuracy_m: 10,
+            speed_mps: 5,
+            heading_degrees: 90,
+            sequence_number: 0,
+          },
+          {
+            recorded_at: "2026-08-25T00:00:01.000Z",
+            lat: 6.45,
+            lon: 3.39,
+            accuracy_m: 10,
+            speed_mps: 100000,
+            heading_degrees: 90,
+            sequence_number: 1,
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({
+      acknowledged: true,
+      acceptedCount: 1,
+      sampleResults: [
+        { index: 0, status: "accepted", rejection_code: null },
+        { index: 1, status: "rejected", rejection_code: "INVALID_SPEED" },
+      ],
+    });
+  });
+
+  it("defers a deactivated-assignment rejection instead of making it terminal", async () => {
+    // OFF-006: this batch holds evidence captured while the assignment was
+    // still active. Ending the trip lets the server accept it, so the client
+    // must keep it queued rather than dead-letter it.
+    mocks.post.mockRejectedValueOnce(
+      new ApiError(400, {
+        code: "CAMPAIGN_ASSIGNMENT_NOT_ACTIVE",
+        message: "Campaign assignment must be active for trip tracking",
+      }),
+    );
+
+    await expect(
+      sendPingBatchAction({
+        tripId: TRIP_ID,
+        evidenceProtocolVersion: 2,
+        idempotencyKey: "captured-before-deactivation",
+        batchSequence: 0,
+        pings: [
+          {
+            recorded_at: "2026-08-25T00:00:00.000Z",
+            lat: 6.45,
+            lon: 3.39,
+            accuracy_m: 10,
+            speed_mps: 5,
+            heading_degrees: 90,
+            sequence_number: 0,
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({
+      acknowledged: false,
+      retryable: true,
+      deferred: true,
+      terminalStatus: undefined,
+      terminalCode: undefined,
+    });
+  });
+
+  it("reports a signed final incomplete adjudication as a terminal server outcome", async () => {
+    mocks.post.mockResolvedValueOnce({
+      data: {
+        status: "ended",
+        manifest_complete: false,
+        manifest_verified_at: null,
+        adjudication_outcome: "incomplete_grace_expired",
+        adjudicated_at: "2026-08-25T00:10:00.000Z",
+        receipt_signature: "signed-adjudication",
+      },
+    });
+
+    await expect(reconcileTripEvidenceAction(TRIP_ID)).resolves.toEqual({
+      outcome: "ended",
+      status: "ended",
+      adjudication: "incomplete_grace_expired",
+    });
+  });
+
+  it("does not treat an unsigned adjudication claim as authority", async () => {
+    mocks.post.mockResolvedValueOnce({
+      data: {
+        status: "ended",
+        adjudication_outcome: "incomplete_grace_expired",
+        receipt_signature: null,
+      },
+    });
+
+    await expect(reconcileTripEvidenceAction(TRIP_ID)).resolves.toMatchObject({
+      outcome: "unknown",
     });
   });
 
