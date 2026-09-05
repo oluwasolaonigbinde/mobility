@@ -52,9 +52,11 @@ money/migration and worker-recovery test leases and satisfying R59's final
 dependencies. R59 owns only the integrated real-stack Playwright configuration,
 journey, deterministic seed/reset/teardown, and local synthetic release evidence.
 No live provider, payment, deployment or personal-data authority is granted.
-R60 remains dependency-held until R59 and the parked R17 coverage-policy
-decision are resolved. No second implementation slice is currently ready;
-controller documents remain serialized.
+R60 remains dependency-held until R59 and R17 are accepted. The owner has
+selected R17 Option A, so its read-only plan/review may run beside R59; R17
+implementation remains serialized behind R59 because both own the central CI
+workflow. No second implementation writer is currently ready; controller
+documents remain serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -116,13 +118,15 @@ provenance, frozen ROI methodology and screen/CSV/PDF parity; R47-M and
 R47-CP-REPORTING pass. Its released contract lane promoted R03 and its reporting
 dependency promoted R48; both are accepted. R05 is accepted at `954d9a4`,
 releasing the exclusive database lane to R06 while accepted R49 promotes R50 on
-its disjoint report-reissue lease. R17 remains parked in
-`to-do.md`.
+its disjoint report-reissue lease. The owner has now selected R17 Option A;
+R17 planning is ready, while implementation waits for R59 to release the
+central CI workflow lease.
 
 ## Direct owner requests outside the package queue
 
 | Date | Item | Authority | Scope boundary | Queue effect |
 | --- | --- | --- | --- | --- |
+| 5 Sep 2026 | **Adopt R17 Option A: a changed-code coverage ratchet with at least 90% line and 80% branch coverage, plus no regression from exact current global and named-critical baselines.** | Direct project-owner choice “A” in the active remediation controller, 5 Sep 2026 | R17 must select its comparison base deterministically for PRs, pushes and local runs; fail closed to an explicit merge-base rule; exclude generated code, tests, fixtures, migrations, build output and vendor code. It may add only the minimum backend/frontend coverage tooling, policy tests, workflow wiring and a D27(e)-superseding decision row after an independent plan review. It must inventory and reuse existing tooling and must not duplicate R59's real-stack journey or evidence. | Clears the R17 policy block and authorizes read-only R17 planning now. Implementation remains serialized until R59 releases `.github/workflows/ci.yml`; R60 remains dependency-held until both R17 and R59 are accepted. |
 | 4 Sep 2026 | **Require an explicit controller callback after every slice, and predeclare compatible multi-slice session lanes where they reduce repeated setup.** | Direct project-owner instruction in the active remediation controller, 4 Sep 2026 | Every controller-created task must call `send_message_to_thread` for controller task `01a05de2-0b5d-73f0-ae3d-0e979b734658` with its terminal receipt; ending only in the worker task is insufficient. One visible task may retain its original model and continue a predeclared dependency-ordered lane only when the slices share a domain, risk class and compatible ownership. It must return a separate receipt after each slice and wait for controller admission plus the next explicit packet. Cross-domain work, overlapping leases, migrations/generated contracts owned elsewhere, or a changed model require a fresh task. | Applies to all current and future controller dispatches. R07 and R50 remain standalone because their successors require different risk/model gates; R18→R19 and R20→R21→R22 are the first compatible reusable lanes. Missing callback delivery triggers one state reconciliation and adoption of existing work, never a duplicate implementation owner. |
 | 4 Sep 2026 | **Use fresh visible sessions for new work; use GPT-5.6 Luna/max with fast mode for simple bounded tasks and reserve Sol for genuinely complex work.** | Direct project-owner instruction in the active remediation controller, 4 Sep 2026 | Do not use internal subagents as the execution owner for new slices. Before dispatch, apply the repository model gate to the task's actual hardest boundary: Luna/max fast is preferred for simple low-risk bounded work, Terra remains available for ordinary implementation, and Sol is used only for difficult money, security, migration, concurrency or cross-contract authority. Never reuse an older session under a changed model. | Applies to all future dispatches. Existing completed reconciliation workers are closed; R03 and R48 must begin in separate fresh visible sessions with proportional verification and terminal-only callbacks. |
 | 4 Sep 2026 | **Use otherwise-idle disjoint capacity for the smallest verified controller-audit follow-up while the main remediation frontier is dependency-held.** | Direct project-owner instruction to maximize useful parallel execution, 4 Sep 2026; controller-selected FU-06 from the recovered row-385 audits | FU-06 may verify and, if current, correct mobile-width reachability of existing logout and change-password controls only. It owns the shell/account-control component and focused responsive tests; AUT-004 logout/session semantics, APIs, schemas, routes, generated contracts, R36/R37, R47 and user-owned design/theme work remain unchanged. | Adds one bounded side packet outside R01–R60 without moving the active PKG-10 pointer. Its exact disjoint lease and proportional verification must be recorded before dispatch. |

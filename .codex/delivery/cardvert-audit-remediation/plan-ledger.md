@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 358
+plan_revision: 359
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 488
+last_event_sequence: 489
 ---
 
 # Cardvert audit remediation programme
@@ -239,7 +239,7 @@ after repository authority, dependencies, reviews, capacity, and leases agree.
 | R14 | SEC-002, TST-004 | WAITING | R12 | R14-P; reviewed deployed edge/browser security contract | wait for accepted R12; serialize central configuration before R54 |
 | R15 | GOV-006 | ACCEPTED | worker opener | R15-P; R15-M; R15-CP-WORKERS; mutation red and real PostgreSQL green | complete |
 | R16 | GOV-008 | ACCEPTED | provider-boundary opener | R16-P/M/CONTRACT/CP-CONTROL; structural and behavioral evidence | complete |
-| R17 | TST-007 | PARKED | R02, R03; coverage policy | no authoritative floor/path/base/ratchet policy; not a demonstrated product-runtime defect | retained in `to-do.md` for a later developer policy decision; does not consume active remediation capacity |
+| R17 | TST-007 | QUEUED | R02, R03; R59 central-workflow lease | owner selected Option A: changed executable code ≥90% line/≥80% branch with no regression from exact current global and named-critical baselines | run read-only plan/review beside R59; implement once after R59 releases `.github/workflows/ci.yml`; do not duplicate R59 journey evidence |
 | R18 | MON-005, MON-006 | COMPLETE | R04, R06, R07 | R18-P/M; DB+MNY; CONTRACT; CP-MONEY; exact `e36f7fed...` freeze; focused PostgreSQL, payout, correction, frontend and contract evidence | accepted exactly once at `5c2d60a`; money/migration/generated-contract lane released; task may continue R19 only after separate packet |
 | R19 | MON-002 | COMPLETE | R18 | R19-P/M; DB+MNY; CP-MONEY; exact `870f1dfb...` freeze; forced-overlap PostgreSQL and focused payout evidence | accepted exactly once at `3c7b678`; payout-day ordering lease released |
 | R20 | MON-001, DB-007, MON-008 | COMPLETE | R05, R18 | R20-P/M; DB+MNY; CP-MONEY; commit `d8cd891`; migration 0083 and real PostgreSQL crash/concurrency evidence | accepted exactly once; disbursement intent/migration lease released to R21 |
@@ -426,11 +426,12 @@ those revisions. The owner must authorize a narrow historical-downgrade-safety
 exception, architecture amendment and D15-superseding decision before R06-P or
 any write lease; no forward-only migration can protect downgrade code after
 that newer migration removes itself.
-R17/TST-007 is plan-blocked because current sources provide no authoritative
-backend/frontend path maps, metric types and numeric floors, PR/push changed-
-code base behavior, new/rename/delete/no-change/merge/fork/shallow handling,
-exclusion/ratchet policy, or exact coverage tooling/report paths. The owner must
-adopt that enforcement policy before R17-P can be corrected and re-reviewed.
+R17/TST-007's policy block is cleared by the owner's 5 Sep 2026 selection of
+Option A: changed executable code must meet at least 90% line and 80% branch
+coverage, with no regression from exact current global and named-critical
+baselines. R17-P must now make base selection, path maps, exclusions and tooling
+deterministic without duplicating R59; implementation waits for R59 to release
+the shared CI workflow lease.
 
 ## Next scheduler action
 
@@ -944,3 +945,4 @@ verification is complete.
 | 486 | 356 | 1 | DUPLICATE_RESULT_MERGE_AUTHORIZED | Clean comparison selected the late R58 candidate's production-faithful cron `max_tries=1`/next-occurrence semantics and added only three fsync durability hunks from the accepted harness. | comparison task `01a06ed2-b178-7290-8148-e49b2176484a` verdict MERGE_MINIMAL; resume duplicate owner `01a06d5d-245b-74f2-a9dd-b6fb915604b1` on GPT-5.6 Sol/medium for exact three-file correction, eight-test real-service rerun and clean commit; disjoint from R59; `f07cb54` remains authoritative until corrected candidate admission |
 | 487 | 357 | 1 | PLAN_REVIEW_PASSED | R60-P accepted the minimal final current-state inventory/drift and 115-disposition closure contract while preserving R17 as an explicit owner policy decision and keeping repository-wide external gates separate from PKG-10 completion. | task `01a06ece-05ab-79c3-beb2-983fe278a233`; GPT-5.6 Sol/high read-only plan and independent review; exact R60 three-file implementation lease plus controller-only ledger updates; CONTRACT/CP-CONTROL PASS; R59 receipt gate, R58 ambiguity fence, two bounded R17 options and final PAUSED external-pointer semantics recorded; no mutation |
 | 488 | 358 | 1 | WORKER_RECOVERY_EVIDENCE_CORRECTED | R58's accepted three-file evidence was replaced by the independently selected production-faithful ARQ harness: cron jobs retain `max_tries=1` and recover on the next scheduled occurrence, ordinary payout replays the same job, and all durable receipts/provider bytes are fsync-backed. | commit `0c1d525`; exact three-path replacement from corrected candidate `9cf004f`; eight isolated real PostgreSQL/Redis SIGKILL tests PASS in 149.47s, cleanup clean, controller registration smoke and Ruff/format/diff PASS; MERGE_MINIMAL comparison and final Sol/medium correction review PASS; `f07cb54` evidence superseded, R58 remains COMPLETE |
+| 489 | 359 | 1 | OWNER_DECISION_RECORDED | R17 Option A is adopted: changed executable code must meet at least 90% line and 80% branch coverage, with no regression from exact current global and named-critical baselines. | direct owner choice “A”, 5 Sep 2026; deterministic PR/push/local base selection and stated generated/test/fixture/migration/build/vendor exclusions required; R17-P may run read-only beside R59, but implementation is serialized behind R59's `.github/workflows/ci.yml` lease; no R59 evidence duplication |
