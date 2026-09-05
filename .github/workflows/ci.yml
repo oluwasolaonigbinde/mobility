@@ -301,3 +301,37 @@ jobs:
           name: playwright-report
           path: frontend/test-results
           retention-days: 7
+
+  r59_real_stack:
+    name: R59 real-stack release journey
+    runs-on: ubuntu-latest
+    needs: quality
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact candidate SHA
+        run: |
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          actual="$(git rev-parse HEAD)"
+          test "$expected" = "$actual"
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Run the isolated real-stack release journey
+        run: ./scripts/run_r59_real_stack.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: r59-real-stack
+          path: frontend/test-results/r59-real-stack
+          retention-days: 14

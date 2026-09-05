@@ -1,4 +1,6 @@
-# PKG-07 W4-01D release rehearsal evidence
+# PKG-07 W4-01D UI-only synthetic rehearsal evidence
+
+This is a UI-only synthetic rehearsal and is not real-stack release authority.
 
 - Date: 2026-08-28
 - Base: `43b98940298e2002f22365d2bf7da06a7d0d05c0`
@@ -61,7 +63,7 @@ an iPhone 13/WebKit profile. Chromium additionally performs the real offline
 navigation and blocked-mutation check; Playwright WebKit's offline network toggle
 returns an internal engine error, so that is not reported as WebKit offline proof.
 
-## Reproducible rehearsal
+## Reproducible UI-only rehearsal
 
 From `frontend/`:
 
@@ -72,8 +74,8 @@ W401D_SYNTHETIC=1 npx playwright test e2e/w401d-release-rehearsal.spec.ts --proj
 
 `W401D_SYNTHETIC=1` builds the standalone production app, starts a local
 provider-neutral authority simulator on loopback, and runs isolated per-project
-driver sessions. The simulator uses only synthetic identifiers and `.invalid`
-contact data.
+driver sessions. It is not real-stack release authority. The simulator uses only
+synthetic identifiers and `.invalid` contact data.
 
 ## Closure and external gates
 

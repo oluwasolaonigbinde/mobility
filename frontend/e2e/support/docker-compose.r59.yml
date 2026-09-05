@@ -1,0 +1,66 @@
+services:
+  db:
+    ports: !reset []
+
+  redis:
+    ports: !reset []
+
+  minio:
+    ports: !reset []
+
+  clamav:
+    ports: !reset []
+
+  mailpit:
+    ports: !reset []
+
+  api:
+    image: "${R59_PROJECT}-backend:${R59_GIT_SHA}"
+    build:
+      context: .
+      args:
+        VCS_REF: "${R59_GIT_SHA}"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    volumes: !reset []
+    ports: !override
+      - "127.0.0.1:${R59_API_PORT:-48159}:8000"
+    environment: &r59-backend-environment
+      ENVIRONMENT: test
+      ALLOW_DEMO_SEED: "true"
+      F7_SEED_MAX_TRIPS_PER_DAY: "1"
+      INSTALLATION_EVIDENCE_UPLOADER_ROLES: driver,admin
+      INSTALLATION_EVIDENCE_REQUIRED_VIEWS: front
+      INSTALLATION_EVIDENCE_VALIDITY_HOURS: "24"
+      DISPLAY_PROOF_CHALLENGE_TTL_SECONDS: "300"
+      DISPLAY_PROOF_VALIDITY_SECONDS: "3600"
+      TRIP_EVIDENCE_SIGNING_KEYRING_B64: '{"1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}'
+      TRIP_EVIDENCE_SIGNING_KEY_VERSION: "1"
+      PRIVACY_COLLECTION_SYNTHETIC_TEST_MODE: "true"
+      PRIVACY_COLLECTION_LIVE_AUTHORIZED: "false"
+      PRIVACY_DISCLOSURE_LIVE_AUTHORIZED: "false"
+      MEASUREMENT_LIVE_ISSUANCE_AUTHORIZED: "false"
+      BUDGET_POLICY_EXTERNAL_APPROVED: "false"
+      PHONE_OPERATOR_EXTERNAL_APPROVED: "false"
+
+  worker:
+    image: "${R59_PROJECT}-backend:${R59_GIT_SHA}"
+    build:
+      context: .
+      args:
+        VCS_REF: "${R59_GIT_SHA}"
+    command: arq app.jobs.worker_entry.WorkerSettings
+    volumes: !reset []
+    environment: *r59-backend-environment
+
+  frontend:
+    image: "${R59_PROJECT}-frontend:${R59_GIT_SHA}"
+    build:
+      context: ./frontend
+      args:
+        VCS_REF: "${R59_GIT_SHA}"
+    ports: !override
+      - "127.0.0.1:${R59_FRONTEND_PORT:-34159}:3000"
+    environment:
+      API_BASE_URL: http://api:8000
+      SESSION_COOKIE_NAME: mobility_session
+      NODE_ENV: production
