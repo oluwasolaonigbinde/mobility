@@ -1,514 +1,824 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
+import json
 import os
-from dataclasses import asdict
+import signal
+import subprocess
+import sys
+import threading
+import time
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID, uuid4
 
 import pytest
-from redis import Redis
-from sqlalchemy import func, select, update
-from worker_recovery_harness import (
-    DurableStorageProvider,
-    WorkerProcessHarness,
+import redis
+from arq.connections import RedisSettings, create_pool
+from sqlalchemy import func, select, text, update
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
 )
-
-from app.adapters.disbursement import FakeDisbursementAdapter
-from app.models.audit import AuditEvent
-from app.models.disbursement import (
-    PayoutBatchLine,
-    PayoutSubmissionAttempt,
-    PayoutSubmissionIntent,
-    PayoutSubmissionObservation,
-)
-from app.models.notification import Notification
-from app.models.payout import EarningsLedgerEntry, PayoutCalculation
-from app.models.report_issuance import (
-    ReportArtifact,
-    ReportIssuance,
-    ReportPublicationIntent,
-)
-from app.models.stored_file import StoredObjectDeletion
-from app.services.fraud_holds import lock_fraud_hold_scope
-from app.services.stored_object_deletions import ensure_stored_object_deletion
-from app.services.trip_processing import AUDIT_ACTION_TRIP_PROCESSING
-from tests.test_disbursement_worker import _prepare_batch
-from tests.test_mny03a_earnings_release import (
+from sqlalchemy.pool import NullPool
+from test_measurement_runs import create_measurement_graph, issue_payload
+from test_mny03a_earnings_release import (
     build_graph as build_release_graph,
 )
-from tests.test_mny03a_earnings_release import (
+from test_mny03a_earnings_release import (
     create_ledger,
     seed_assessment_authority,
 )
-from tests.test_report_issuances import issue_run, request_issuance
-from tests.test_trip_processing import (
-    BASE_TIME,
+from test_payout_batches import _seed_authority
+from test_trip_processing import (
     add_pings,
     create_test_payout_rule,
     moving_points,
 )
-from tests.test_trip_processing import (
+from test_trip_processing import (
     build_graph as build_trip_graph,
 )
+from worker_recovery_harness import (
+    PersistentStorageProvider,
+    RecoveryReceipt,
+    read_provider_events,
+)
 
-RECEIPT_FIELDS = {
-    "scenario",
-    "pid",
-    "signal",
-    "job",
-    "idempotency_key",
-    "queue_state",
-    "db_state",
-    "external_effect_state",
-    "cursor_deadletter_state",
-    "terminal_convergence",
-}
+from app.adapters.disbursement import FakeDisbursementAdapter
+from app.core.config import Settings
+from app.db.base import Base
+from app.models.audit import AuditEvent
+from app.models.disbursement import (
+    PayoutBatchLine,
+    PayoutSubmissionIntent,
+    PayoutSubmissionIntentState,
+)
+from app.models.payout import EarningsLedgerEntry, PayoutCalculation
+from app.models.report_issuance import (
+    ReportArtifact,
+    ReportIssuance,
+    ReportIssuanceStatus,
+    ReportPublicationIntent,
+)
+from app.models.stored_file import StoredObjectDeletion
+from app.models.trip import TripSession
+from app.models.user import User, UserRole, UserStatus
+from app.schemas.measurement import MeasurementRunCreate
+from app.schemas.report_issuances import ReportIssuanceCreate
+from app.services.disbursements import (
+    approve_payout_batch,
+    create_payout_batch_draft,
+    reserve_payout_batch,
+    submit_payout_batch,
+)
+from app.services.measurement import issue_measurement_run
+from app.services.report_issuances import (
+    REPORT_MAX_ATTEMPTS,
+    request_report_issuance,
+)
+from app.services.stored_object_deletions import ensure_stored_object_deletion
+
+WORKER_SCRIPT = Path(__file__).with_name("worker_recovery_harness.py")
+JOB_KEY_PREFIX = "arq:job:"
+IN_PROGRESS_KEY_PREFIX = "arq:in-progress:"
+
+
+def _integration_required() -> bool:
+    return os.environ.get("CI") == "true" or os.environ.get("REQUIRE_REAL_INTEGRATIONS") == "1"
+
+
+def _require_integration_url(name: str) -> str:
+    value = os.environ.get(name)
+    if value:
+        return value
+    message = f"{name} is required for real worker-process recovery evidence"
+    if _integration_required():
+        pytest.fail(message)
+    pytest.skip(message)
+
+
+def _redis_url_for_recovery(base_url: str) -> str:
+    parsed = urlsplit(base_url)
+    configured = os.environ.get("R58_REDIS_DB")
+    database = int(configured) if configured is not None else 14
+    return urlunsplit((parsed.scheme, parsed.netloc, f"/{database}", parsed.query, parsed.fragment))
+
+
+async def _create_database(base_url: str, database_name: str) -> str:
+    parsed = make_url(base_url)
+    maintenance_url = parsed.set(database="postgres").render_as_string(hide_password=False)
+    database_url = parsed.set(database=database_name).render_as_string(hide_password=False)
+    maintenance = create_async_engine(
+        maintenance_url,
+        isolation_level="AUTOCOMMIT",
+        poolclass=NullPool,
+    )
+    try:
+        async with maintenance.connect() as connection:
+            await connection.execute(text(f'CREATE DATABASE "{database_name}"'))
+    finally:
+        await maintenance.dispose()
+
+    try:
+        engine = create_async_engine(database_url, poolclass=NullPool)
+        try:
+            async with engine.begin() as connection:
+                await connection.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto"))
+                await connection.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
+                await connection.run_sync(Base.metadata.create_all)
+        finally:
+            await engine.dispose()
+    except Exception:
+        await _drop_database(base_url, database_name)
+        raise
+    return database_url
+
+
+async def _drop_database(base_url: str, database_name: str) -> None:
+    parsed = make_url(base_url)
+    maintenance_url = parsed.set(database="postgres").render_as_string(hide_password=False)
+    maintenance = create_async_engine(
+        maintenance_url,
+        isolation_level="AUTOCOMMIT",
+        poolclass=NullPool,
+    )
+    try:
+        async with maintenance.connect() as connection:
+            await connection.execute(
+                text(
+                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                    "WHERE datname = :database_name AND pid <> pg_backend_pid()"
+                ),
+                {"database_name": database_name},
+            )
+            await connection.execute(text(f'DROP DATABASE IF EXISTS "{database_name}"'))
+    finally:
+        await maintenance.dispose()
+
+
+@dataclass(slots=True)
+class RecoveryEnvironment:
+    database_url: str
+    redis_url: str
+    queue_name: str
+    state_root: Path
+    sessionmaker: async_sessionmaker[AsyncSession]
+    engine: AsyncEngine
+    processes: list[subprocess.Popen] = field(default_factory=list)
+
+    @property
+    def redis(self) -> redis.Redis:
+        return redis.Redis.from_url(self.redis_url, decode_responses=True)
+
+    def start_worker(self, cut_point: str = "") -> subprocess.Popen:
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "R58_DATABASE_URL": self.database_url,
+                "R58_REDIS_URL": self.redis_url,
+                "R58_QUEUE_NAME": self.queue_name,
+                "R58_STATE_ROOT": str(self.state_root),
+                "R58_CUT_POINT": cut_point,
+                "R58_IN_PROGRESS_SECONDS": "0.5",
+                "PAYOUT_CRYPTO_KEYRING_B64": (
+                    '{"1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}'
+                ),
+                "PYTHONPATH": os.pathsep.join(
+                    filter(None, (str(WORKER_SCRIPT.parent.parent), environment.get("PYTHONPATH")))
+                ),
+            }
+        )
+        log_path = self.state_root / "worker-logs" / f"{cut_point or 'restart'}-{uuid4()}.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open("wb") as stream:
+            process = subprocess.Popen(
+                [sys.executable, str(WORKER_SCRIPT)],
+                cwd=WORKER_SCRIPT.parent.parent,
+                env=environment,
+                stdout=stream,
+                stderr=subprocess.STDOUT,
+            )
+        process.r58_log_path = log_path  # type: ignore[attr-defined]
+        self.processes.append(process)
+        return process
+
+    def marker(self, cut_point: str) -> Path:
+        return self.state_root / "markers" / f"{cut_point}.json"
+
+    def wait_for_marker(self, process: subprocess.Popen, cut_point: str) -> dict:
+        marker = self.marker(cut_point)
+        self.wait_until(lambda: marker.exists(), process=process)
+        return json.loads(marker.read_text(encoding="utf-8"))
+
+    def wait_until(self, predicate, *, process: subprocess.Popen | None = None) -> None:
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            if predicate():
+                return
+            if process is not None and process.poll() is not None:
+                log_path = process.r58_log_path  # type: ignore[attr-defined]
+                pytest.fail(
+                    f"worker {process.pid} exited {process.returncode} before the boundary:\n"
+                    f"{log_path.read_text(encoding='utf-8')}"
+                )
+            time.sleep(0.02)
+        detail = ""
+        if process is not None:
+            log_path = process.r58_log_path  # type: ignore[attr-defined]
+            detail = f"\nworker log:\n{log_path.read_text(encoding='utf-8')}"
+        pytest.fail(f"timed out waiting for worker recovery boundary{detail}")
+
+    def kill(self, process: subprocess.Popen) -> int:
+        os.kill(process.pid, signal.SIGKILL)
+        return_code = process.wait(timeout=10)
+        assert return_code == -signal.SIGKILL
+        return -return_code
+
+    def stop(self, process: subprocess.Popen) -> None:
+        if process.poll() is not None:
+            return
+        process.terminate()
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=10)
+
+    def stop_all(self) -> None:
+        for process in self.processes:
+            self.stop(process)
+
+    def queue_state(self, job_id: str) -> dict[str, object]:
+        client = self.redis
+        try:
+            retry_count = client.get(f"arq:retry:{job_id}")
+            return {
+                "queued": client.zscore(self.queue_name, job_id) is not None,
+                "in_progress": bool(client.exists(f"{IN_PROGRESS_KEY_PREFIX}{job_id}")),
+                "job_definition": bool(client.exists(f"{JOB_KEY_PREFIX}{job_id}")),
+                "retry_count": int(retry_count) if retry_count is not None else None,
+            }
+        finally:
+            client.close()
+
+    def wait_for_ack(self, process: subprocess.Popen, job_id: str) -> None:
+        def acknowledged() -> bool:
+            state = self.queue_state(job_id)
+            return all(
+                not state[field]
+                for field in ("queued", "in_progress", "job_definition", "retry_count")
+            )
+
+        self.wait_until(
+            acknowledged,
+            process=process,
+        )
+
+    def cleanup_queue(self) -> None:
+        client = self.redis
+        try:
+            job_ids = client.zrange(self.queue_name, 0, -1)
+            if job_ids:
+                client.zrem(self.queue_name, *job_ids)
+                keys = [
+                    key
+                    for job_id in job_ids
+                    for key in (
+                        f"{JOB_KEY_PREFIX}{job_id}",
+                        f"{IN_PROGRESS_KEY_PREFIX}{job_id}",
+                        f"arq:retry:{job_id}",
+                    )
+                ]
+                client.delete(*keys)
+            client.delete(
+                self.queue_name,
+                f"{self.queue_name}:health-check",
+                "worker:trip-processing:sweep-cursor:v1",
+            )
+        finally:
+            client.close()
 
 
 @pytest.fixture
-def r58_redis_url() -> str:
-    redis_url = os.environ.get("ARQ_TEST_REDIS_URL")
-    authority = os.environ.get("REQUIRE_REAL_INTEGRATIONS") == "1" or bool(os.environ.get("CI"))
-    if not redis_url:
-        if authority:
-            pytest.fail("ARQ_TEST_REDIS_URL is required by the R58 CI recovery lane")
-        pytest.skip("R58 real Redis is not configured")
-    client = Redis.from_url(redis_url)
+def recovery_environment(tmp_path: Path):
+    database_base = _require_integration_url("TEST_DATABASE_URL")
+    redis_base = _require_integration_url("ARQ_TEST_REDIS_URL")
+    database_name = f"r58_{uuid4().hex}"
+    redis_url = _redis_url_for_recovery(redis_base)
+    database_created = False
     try:
-        client.ping()
+        database_url = asyncio.run(_create_database(database_base, database_name))
+        database_created = True
+        client = redis.Redis.from_url(redis_url)
+        try:
+            client.ping()
+        finally:
+            client.close()
     except Exception as exc:
-        pytest.fail(f"R58 real Redis is unavailable: {type(exc).__name__}: {exc}")
-    finally:
-        client.close()
-    return redis_url
+        if database_created:
+            asyncio.run(_drop_database(database_base, database_name))
+        if _integration_required():
+            pytest.fail(f"R58 requires reachable PostgreSQL and Redis: {exc!r}")
+        pytest.skip(f"R58 PostgreSQL/Redis services are unavailable: {exc!r}")
 
-
-def _database_coordinates(sessionmaker) -> tuple[str, str]:
-    engine = sessionmaker.kw["bind"]
-    database_url = engine.url.render_as_string(hide_password=False)
-    schema_name = engine.get_execution_options()["schema_translate_map"][None]
-    return database_url, schema_name
-
-
-def _harness(*, tmp_path, redis_url, sessionmaker, settings, scenario) -> WorkerProcessHarness:
-    database_url, schema_name = _database_coordinates(sessionmaker)
-    return WorkerProcessHarness(
-        tmp_path=tmp_path,
-        redis_url=redis_url,
+    engine = create_async_engine(database_url, poolclass=NullPool)
+    environment = RecoveryEnvironment(
         database_url=database_url,
-        schema_name=schema_name,
-        settings=settings,
-        scenario=scenario,
+        redis_url=redis_url,
+        queue_name=f"arq:r58:{uuid4().hex}",
+        state_root=tmp_path / "r58-state",
+        sessionmaker=async_sessionmaker(engine, expire_on_commit=False),
+        engine=engine,
+    )
+    try:
+        yield environment
+    finally:
+        try:
+            environment.stop_all()
+        finally:
+            try:
+                environment.cleanup_queue()
+            finally:
+                try:
+                    asyncio.run(engine.dispose())
+                finally:
+                    asyncio.run(_drop_database(database_base, database_name))
+
+
+def _runtime_settings(
+    base: Settings,
+    environment: RecoveryEnvironment,
+    *,
+    batch_size: int = 25,
+) -> Settings:
+    return base.model_copy(
+        update={
+            "database_url": environment.database_url,
+            "redis_url": environment.redis_url,
+            "privacy_disclosure_synthetic_test_mode": True,
+            "privacy_collection_synthetic_test_mode": True,
+            "privacy_min_vehicles_per_cell": 1,
+            "privacy_min_trips_per_cell": 1,
+            "privacy_min_days_per_cell": 1,
+            "privacy_max_contributor_share": 1.0,
+            "privacy_min_resolution_m": 50,
+            "worker_sweep_batch_size": batch_size,
+        }
     )
 
 
-def _assert_crashed_queue(queue_state: dict) -> None:
-    assert queue_state["queued"] is True
-    assert queue_state["in_progress"] is True
-    assert queue_state["payload_present"] is True
-    assert queue_state["retry_count"] >= 1
-    assert queue_state["result_present"] is False
-
-
-def _assert_terminal_queue(queue_state: dict) -> None:
-    assert queue_state == {
-        "queued": False,
-        "in_progress": False,
-        "payload_present": False,
-        "retry_count": 0,
-        "result_present": False,
-    }
-
-
-def _assert_receipt(receipt: dict, *, scenario: str) -> None:
-    assert set(receipt) == RECEIPT_FIELDS
-    assert receipt["scenario"] == scenario
-    assert receipt["pid"] > 0
-    assert receipt["signal"] == "SIGKILL"
-    assert receipt["job"]
-    assert receipt["idempotency_key"]
-    assert receipt["terminal_convergence"]["converged"] is True
-
-
-async def _earnings_state(sessionmaker, trip_ids: list[UUID]) -> dict:
-    async with sessionmaker() as session:
-        statuses = dict(
-            (
-                await session.execute(
-                    select(
-                        EarningsLedgerEntry.trip_session_id,
-                        EarningsLedgerEntry.status,
-                    ).where(EarningsLedgerEntry.trip_session_id.in_(trip_ids))
-                )
-            ).all()
+def _enqueue(
+    environment: RecoveryEnvironment,
+    function: str,
+    job_id: str,
+    *args: object,
+) -> None:
+    async def enqueue() -> None:
+        pool = await create_pool(
+            RedisSettings.from_dsn(environment.redis_url),
+            default_queue_name=environment.queue_name,
         )
-        audits = {
-            trip_id: int(
+        try:
+            job = await pool.enqueue_job(
+                function,
+                *args,
+                _job_id=job_id,
+                _queue_name=environment.queue_name,
+            )
+            assert job is not None
+        finally:
+            await pool.aclose()
+
+    asyncio.run(enqueue())
+
+
+def _enqueue_next_cron_occurrence(
+    environment: RecoveryEnvironment,
+    function: str,
+    interrupted_job_id: str,
+) -> str:
+    recovery_job_id = f"{interrupted_job_id}:next:{uuid4()}"
+    _enqueue(environment, function, recovery_job_id)
+    return recovery_job_id
+
+
+def _effect_count(environment: RecoveryEnvironment, event: str, **match: object) -> int:
+    return sum(
+        1
+        for item in read_provider_events(environment.state_root)
+        if item["event"] == event and all(item.get(key) == value for key, value in match.items())
+    )
+
+
+def _write_receipt(
+    environment: RecoveryEnvironment,
+    *,
+    cut_point: str,
+    process: subprocess.Popen,
+    exit_signal: int,
+    job_id: str,
+    idempotency_key: str,
+    queue_state: dict[str, object],
+    database_state: dict[str, object],
+    provider_effect_count: int,
+    cursor_state: dict[str, object] | None = None,
+    dead_letter_state: dict[str, object] | None = None,
+    post_restart_convergence: dict[str, object],
+) -> None:
+    receipt = RecoveryReceipt(
+        cut_point=cut_point,
+        process_pid=process.pid,
+        exit_signal=exit_signal,
+        job_id=job_id,
+        idempotency_key=idempotency_key,
+        queue_state=queue_state,
+        database_state=database_state,
+        provider_effect_count=provider_effect_count,
+        cursor_state=cursor_state or {},
+        dead_letter_state=dead_letter_state or {},
+        post_restart_convergence=post_restart_convergence,
+    )
+    receipt_path = environment.state_root / "receipts" / f"{cut_point}.json"
+    receipt.write(receipt_path)
+    assert json.loads(receipt_path.read_text(encoding="utf-8")) == asdict(receipt)
+
+
+def test_earnings_release_recovers_after_claim_and_between_committed_members(
+    recovery_environment: RecoveryEnvironment,
+    settings: Settings,
+) -> None:
+    runtime = _runtime_settings(settings, recovery_environment)
+    claim_graph = build_release_graph(
+        recovery_environment.sessionmaker, f"r58-claim-{uuid4().hex[:8]}"
+    )
+    seed_assessment_authority(recovery_environment.sessionmaker, claim_graph, runtime)
+    claim_entry = create_ledger(recovery_environment.sessionmaker, claim_graph)
+    claim_job_id = f"r58:earnings:claim:{claim_graph.trip.id}"
+    _enqueue(
+        recovery_environment,
+        "cron:sweep_earnings_release_reviews",
+        claim_job_id,
+    )
+    claimed_worker = recovery_environment.start_worker("earnings_after_claim")
+    marker = recovery_environment.wait_for_marker(claimed_worker, "earnings_after_claim")
+    claimed_queue = recovery_environment.queue_state(claim_job_id)
+
+    async def claim_state() -> str:
+        async with recovery_environment.sessionmaker() as session:
+            return (await session.get(EarningsLedgerEntry, claim_entry.id)).status
+
+    assert marker["pid"] == claimed_worker.pid
+    assert claimed_queue == {
+        "queued": True,
+        "in_progress": True,
+        "job_definition": True,
+        "retry_count": 1,
+    }
+    assert asyncio.run(claim_state()) == "pending"
+    exit_signal = recovery_environment.kill(claimed_worker)
+    restarted = recovery_environment.start_worker()
+    recovery_environment.wait_for_ack(restarted, claim_job_id)
+    assert asyncio.run(claim_state()) == "pending"
+    assert _effect_count(recovery_environment, "job_started", job_id=claim_job_id) == 1
+    claim_recovery_job_id = _enqueue_next_cron_occurrence(
+        recovery_environment,
+        "cron:sweep_earnings_release_reviews",
+        claim_job_id,
+    )
+    recovery_environment.wait_for_ack(restarted, claim_recovery_job_id)
+    assert _effect_count(recovery_environment, "job_started", job_id=claim_recovery_job_id) == 1
+    assert asyncio.run(claim_state()) == "available"
+    _write_receipt(
+        recovery_environment,
+        cut_point="earnings_after_claim",
+        process=claimed_worker,
+        exit_signal=exit_signal,
+        job_id=claim_job_id,
+        idempotency_key=claim_job_id,
+        queue_state=claimed_queue,
+        database_state={"ledger_status": "pending"},
+        provider_effect_count=0,
+        post_restart_convergence={
+            "recovery_job_id": claim_recovery_job_id,
+            "ledger_status": "available",
+            "stranded": False,
+        },
+    )
+    recovery_environment.stop(restarted)
+
+    graphs = [
+        build_release_graph(
+            recovery_environment.sessionmaker,
+            f"r58-member-{index}-{uuid4().hex[:8]}",
+        )
+        for index in range(2)
+    ]
+    entries = []
+    for graph in graphs:
+        seed_assessment_authority(recovery_environment.sessionmaker, graph, runtime)
+        entries.append(create_ledger(recovery_environment.sessionmaker, graph))
+    ordered = sorted(zip(graphs, entries, strict=True), key=lambda item: item[0].trip.id)
+    first_graph, first_entry = ordered[0]
+    second_graph, second_entry = ordered[1]
+    lock_ready = threading.Event()
+    release_lock = threading.Event()
+
+    def hold_second_trip() -> None:
+        async def hold() -> None:
+            async with recovery_environment.sessionmaker() as session:
+                async with session.begin():
+                    await session.execute(
+                        select(TripSession.id)
+                        .where(TripSession.id == second_graph.trip.id)
+                        .with_for_update()
+                    )
+                    lock_ready.set()
+                    await asyncio.to_thread(release_lock.wait)
+
+        asyncio.run(hold())
+
+    lock_thread = threading.Thread(target=hold_second_trip, daemon=True)
+    lock_thread.start()
+    assert lock_ready.wait(timeout=10)
+    member_job_id = f"r58:earnings:members:{uuid4()}"
+    _enqueue(
+        recovery_environment,
+        "cron:sweep_earnings_release_reviews",
+        member_job_id,
+    )
+    member_worker = recovery_environment.start_worker()
+
+    async def member_states() -> tuple[str, str]:
+        async with recovery_environment.sessionmaker() as session:
+            first = await session.get(EarningsLedgerEntry, first_entry.id)
+            second = await session.get(EarningsLedgerEntry, second_entry.id)
+            return first.status, second.status
+
+    recovery_environment.wait_until(
+        lambda: asyncio.run(member_states()) == ("available", "pending"),
+        process=member_worker,
+    )
+    member_queue = recovery_environment.queue_state(member_job_id)
+    member_signal = recovery_environment.kill(member_worker)
+    release_lock.set()
+    lock_thread.join(timeout=10)
+    assert not lock_thread.is_alive()
+    member_restart = recovery_environment.start_worker()
+    recovery_environment.wait_for_ack(member_restart, member_job_id)
+    assert asyncio.run(member_states()) == ("available", "pending")
+    assert _effect_count(recovery_environment, "job_started", job_id=member_job_id) == 1
+    member_recovery_job_id = _enqueue_next_cron_occurrence(
+        recovery_environment,
+        "cron:sweep_earnings_release_reviews",
+        member_job_id,
+    )
+    recovery_environment.wait_for_ack(member_restart, member_recovery_job_id)
+    assert _effect_count(recovery_environment, "job_started", job_id=member_recovery_job_id) == 1
+    assert asyncio.run(member_states()) == ("available", "available")
+
+    async def release_audits() -> int:
+        async with recovery_environment.sessionmaker() as session:
+            return int(
                 await session.scalar(
                     select(func.count(AuditEvent.id)).where(
                         AuditEvent.action == "worker.earnings.released",
-                        AuditEvent.entity_id == str(trip_id),
+                        AuditEvent.entity_id.in_(
+                            [str(first_graph.trip.id), str(second_graph.trip.id)]
+                        ),
                     )
                 )
                 or 0
             )
-            for trip_id in trip_ids
-        }
-        notices = int(
-            await session.scalar(
-                select(func.count(Notification.id)).where(
-                    Notification.payload["trip_session_id"]
-                    .as_string()
-                    .in_([str(trip_id) for trip_id in trip_ids])
+
+    assert asyncio.run(release_audits()) == 2
+    _write_receipt(
+        recovery_environment,
+        cut_point="earnings_after_one_committed_member",
+        process=member_worker,
+        exit_signal=member_signal,
+        job_id=member_job_id,
+        idempotency_key=member_job_id,
+        queue_state=member_queue,
+        database_state={"first": "available", "second": "pending"},
+        provider_effect_count=0,
+        post_restart_convergence={
+            "recovery_job_id": member_recovery_job_id,
+            "first": "available",
+            "second": "available",
+            "release_audits": 2,
+            "duplicate_release": False,
+        },
+    )
+
+
+def _seed_payout_intent(
+    environment: RecoveryEnvironment,
+    tag: str,
+) -> tuple[UUID, str, UUID]:
+    graph = build_release_graph(environment.sessionmaker, tag)
+
+    async def seed() -> tuple[UUID, str, UUID]:
+        checker = User(
+            email=f"r58-checker-{uuid4().hex}@example.com",
+            password_hash=graph.admin.password_hash,
+            full_name="R58 payout checker",
+            role=UserRole.ADMIN,
+            status=UserStatus.ACTIVE,
+        )
+        async with environment.sessionmaker() as session:
+            session.add(checker)
+            await session.flush()
+            entry = await _seed_authority(session, graph)
+            batch = await create_payout_batch_draft(
+                session,
+                currency="NGN",
+                actor_user_id=graph.admin.id,
+            )
+            _, lines = await reserve_payout_batch(
+                session,
+                batch_id=batch.id,
+                ledger_entry_ids=(entry.id,),
+                actor_user_id=graph.admin.id,
+            )
+            await approve_payout_batch(
+                session,
+                batch_id=batch.id,
+                actor_user_id=checker.id,
+            )
+            await submit_payout_batch(
+                session,
+                batch_id=batch.id,
+                actor_user_id=graph.admin.id,
+                adapter=FakeDisbursementAdapter(),
+            )
+            intent = await session.scalar(
+                select(PayoutSubmissionIntent).where(
+                    PayoutSubmissionIntent.payout_batch_line_id == lines[0].id
                 )
             )
-            or 0
-        )
-        return {
-            "statuses": {str(key): value for key, value in statuses.items()},
-            "release_audits": {str(key): value for key, value in audits.items()},
-            "release_notices": notices,
-        }
+            await session.commit()
+            return intent.id, intent.idempotency_key, lines[0].id
+
+    return asyncio.run(seed())
 
 
-def test_earnings_release_recovers_after_claim_and_after_one_committed_item(
-    postgis_db_sessionmaker,
-    settings,
-    r58_redis_url,
-    tmp_path,
+def test_payout_submission_recovers_provider_acceptance_and_committed_ack_boundary(
+    recovery_environment: RecoveryEnvironment,
 ) -> None:
-    claimed_graph = build_release_graph(postgis_db_sessionmaker, "r58-claimed")
-    seed_assessment_authority(postgis_db_sessionmaker, claimed_graph, settings)
-    claimed_entry = create_ledger(postgis_db_sessionmaker, claimed_graph)
-    claimed = _harness(
-        tmp_path=tmp_path / "after-claim",
-        redis_url=r58_redis_url,
-        sessionmaker=postgis_db_sessionmaker,
-        settings=settings,
-        scenario="earnings-after-claim",
-    )
-    try:
-        claimed.enqueue(
-            "r58_earnings_release",
-            job_id=f"r58-earnings-claim-{uuid4().hex}",
-        )
-        claimed.start(barrier_point="earnings_after_claim")
-        claimed.wait_for("earnings_after_claim")
-        claimed_pid = claimed.kill()
-        crashed_queue = asdict(claimed.queue_state())
-        _assert_crashed_queue(crashed_queue)
-        pending_state = asyncio.run(
-            _earnings_state(postgis_db_sessionmaker, [claimed_graph.trip.id])
-        )
-        assert pending_state["statuses"] == {str(claimed_graph.trip.id): "pending"}
-        claimed.unlock_dead_worker()
-        claimed.finish()
-        final_queue = asdict(claimed.queue_state())
-        _assert_terminal_queue(final_queue)
-        final_state = asyncio.run(_earnings_state(postgis_db_sessionmaker, [claimed_graph.trip.id]))
-        assert final_state == {
-            "statuses": {str(claimed_graph.trip.id): "available"},
-            "release_audits": {str(claimed_graph.trip.id): 1},
-            "release_notices": 1,
-        }
-        receipt = claimed.persist_receipt(
-            name="earnings_after_claim",
-            pid=claimed_pid,
-            idempotency_key=str(claimed_entry.id),
-            queue_state={"after_kill": crashed_queue, "terminal": final_queue},
-            db_state={"after_kill": pending_state, "terminal": final_state},
-            cursor_deadletter_state={"deadlettered": False, "cursor": None},
-            terminal_convergence={"converged": True, "duplicate_releases": 0},
-        )
-        _assert_receipt(receipt, scenario="earnings_after_claim")
-    finally:
-        claimed.close()
+    async def payout_state(intent_id: UUID, line_id: UUID) -> dict[str, object]:
+        async with recovery_environment.sessionmaker() as session:
+            intent = await session.get(PayoutSubmissionIntent, intent_id)
+            line = await session.get(PayoutBatchLine, line_id)
+            return {
+                "intent": intent.state,
+                "generation": intent.generation,
+                "line": line.status,
+                "provider_reference": line.provider_transfer_reference,
+            }
 
-    committed_graphs = sorted(
-        [
-            build_release_graph(postgis_db_sessionmaker, "r58-first-commit"),
-            build_release_graph(postgis_db_sessionmaker, "r58-tail-commit"),
-        ],
-        key=lambda graph: graph.trip.id,
+    intent_id, idempotency_key, line_id = _seed_payout_intent(
+        recovery_environment,
+        f"r58-provider-{uuid4().hex[:8]}",
     )
-    for graph in committed_graphs:
-        seed_assessment_authority(postgis_db_sessionmaker, graph, settings)
-        create_ledger(postgis_db_sessionmaker, graph)
-    first, tail = committed_graphs
-    committed = _harness(
-        tmp_path=tmp_path / "after-one-commit",
-        redis_url=r58_redis_url,
-        sessionmaker=postgis_db_sessionmaker,
-        settings=settings,
-        scenario="earnings-after-one-commit",
+    provider_job_id = f"r58:payout:provider:{intent_id}"
+    _enqueue(
+        recovery_environment,
+        "process_disbursement_intent",
+        provider_job_id,
+        str(intent_id),
     )
-    committed.enqueue(
-        "r58_earnings_release",
-        job_id=f"r58-earnings-commit-{uuid4().hex}",
+    provider_worker = recovery_environment.start_worker("payout_after_provider_acceptance")
+    recovery_environment.wait_for_marker(
+        provider_worker,
+        "payout_after_provider_acceptance",
     )
+    before_restart = asyncio.run(payout_state(intent_id, line_id))
+    provider_queue = recovery_environment.queue_state(provider_job_id)
+    assert before_restart["intent"] == PayoutSubmissionIntentState.CLAIMED.value
+    assert before_restart["line"] == "reserved"
+    assert (
+        _effect_count(
+            recovery_environment,
+            "disbursement_accepted",
+            idempotency_key=idempotency_key,
+        )
+        == 1
+    )
+    provider_signal = recovery_environment.kill(provider_worker)
 
-    async def crash_between_commits() -> tuple[int, dict, dict]:
-        async with postgis_db_sessionmaker() as lock_session:
-            await lock_fraud_hold_scope(lock_session, tail.trip.id)
-            committed.start(barrier_point=None)
-            committed.wait_for("broker_claimed")
-            async with asyncio.timeout(30):
-                while True:
-                    state = await _earnings_state(
-                        postgis_db_sessionmaker,
-                        [first.trip.id, tail.trip.id],
-                    )
-                    if state["statuses"].get(str(first.trip.id)) == "available":
-                        break
-            assert state["statuses"][str(tail.trip.id)] == "pending"
-            pid = committed.kill()
-            queue = asdict(committed.queue_state())
-            await lock_session.rollback()
-            return pid, queue, state
-
-    try:
-        committed_pid, committed_queue, one_committed_state = asyncio.run(crash_between_commits())
-        _assert_crashed_queue(committed_queue)
-        committed.unlock_dead_worker()
-        committed.finish()
-        committed_final_queue = asdict(committed.queue_state())
-        _assert_terminal_queue(committed_final_queue)
-        committed_final_state = asyncio.run(
-            _earnings_state(
-                postgis_db_sessionmaker,
-                [first.trip.id, tail.trip.id],
+    async def expire_claim() -> None:
+        async with recovery_environment.sessionmaker() as session:
+            await session.execute(
+                update(PayoutSubmissionIntent)
+                .where(PayoutSubmissionIntent.id == intent_id)
+                .values(claim_expires_at=datetime.now(UTC) - timedelta(seconds=1))
             )
+            await session.commit()
+
+    asyncio.run(expire_claim())
+    provider_restart = recovery_environment.start_worker()
+    recovery_environment.wait_for_ack(provider_restart, provider_job_id)
+    assert _effect_count(recovery_environment, "job_started", job_id=provider_job_id) == 2
+    provider_final = asyncio.run(payout_state(intent_id, line_id))
+    assert provider_final["intent"] == PayoutSubmissionIntentState.RESOLVED.value
+    assert provider_final["line"] == "submitted"
+    assert (
+        _effect_count(
+            recovery_environment,
+            "disbursement_accepted",
+            idempotency_key=idempotency_key,
         )
-        assert set(committed_final_state["statuses"].values()) == {"available"}
-        assert set(committed_final_state["release_audits"].values()) == {1}
-        assert committed_final_state["release_notices"] == 2
-        receipt = committed.persist_receipt(
-            name="earnings_after_one_commit",
-            pid=committed_pid,
-            idempotency_key=f"{first.trip.id}:{tail.trip.id}",
-            queue_state={
-                "after_kill": committed_queue,
-                "terminal": committed_final_queue,
-            },
-            db_state={
-                "after_kill": one_committed_state,
-                "terminal": committed_final_state,
-            },
-            cursor_deadletter_state={"deadlettered": False, "cursor": None},
-            terminal_convergence={"converged": True, "duplicate_releases": 0},
+        == 1
+    )
+    assert (
+        _effect_count(
+            recovery_environment,
+            "disbursement_lookup_found",
+            idempotency_key=idempotency_key,
         )
-        _assert_receipt(receipt, scenario="earnings_after_one_commit")
-    finally:
-        committed.close()
+        == 1
+    )
+    _write_receipt(
+        recovery_environment,
+        cut_point="payout_after_provider_acceptance",
+        process=provider_worker,
+        exit_signal=provider_signal,
+        job_id=provider_job_id,
+        idempotency_key=idempotency_key,
+        queue_state=provider_queue,
+        database_state=before_restart,
+        provider_effect_count=1,
+        post_restart_convergence={
+            **provider_final,
+            "job_start_count": 2,
+            "duplicate_provider_effect": False,
+        },
+    )
+    recovery_environment.stop(provider_restart)
 
-
-async def _payout_state(sessionmaker, intent_id: UUID, line_id: UUID) -> dict:
-    async with sessionmaker() as session:
-        intent = await session.get(PayoutSubmissionIntent, intent_id)
-        line = await session.get(PayoutBatchLine, line_id)
-        attempts = int(
-            await session.scalar(
-                select(func.count(PayoutSubmissionAttempt.id)).where(
-                    PayoutSubmissionAttempt.intent_id == intent_id
-                )
-            )
-            or 0
+    committed_intent, committed_key, committed_line = _seed_payout_intent(
+        recovery_environment,
+        f"r58-commit-{uuid4().hex[:8]}",
+    )
+    committed_job_id = f"r58:payout:commit:{committed_intent}"
+    _enqueue(
+        recovery_environment,
+        "process_disbursement_intent",
+        committed_job_id,
+        str(committed_intent),
+    )
+    committed_worker = recovery_environment.start_worker("payout_after_commit")
+    recovery_environment.wait_for_marker(committed_worker, "payout_after_commit")
+    committed_before = asyncio.run(payout_state(committed_intent, committed_line))
+    committed_queue = recovery_environment.queue_state(committed_job_id)
+    assert committed_before["intent"] == PayoutSubmissionIntentState.RESOLVED.value
+    assert committed_before["line"] == "submitted"
+    committed_signal = recovery_environment.kill(committed_worker)
+    committed_restart = recovery_environment.start_worker()
+    recovery_environment.wait_for_ack(committed_restart, committed_job_id)
+    assert _effect_count(recovery_environment, "job_started", job_id=committed_job_id) == 2
+    committed_final = asyncio.run(payout_state(committed_intent, committed_line))
+    assert committed_final == committed_before
+    assert (
+        _effect_count(
+            recovery_environment,
+            "disbursement_accepted",
+            idempotency_key=committed_key,
         )
-        observations = int(
-            await session.scalar(
-                select(func.count(PayoutSubmissionObservation.id)).where(
-                    PayoutSubmissionObservation.intent_id == intent_id
-                )
-            )
-            or 0
-        )
-        return {
-            "intent_state": intent.state,
-            "intent_generation": intent.generation,
-            "line_state": line.status,
-            "attempts": attempts,
-            "observations": observations,
-            "idempotency_key": intent.idempotency_key,
-        }
+        == 1
+    )
+    _write_receipt(
+        recovery_environment,
+        cut_point="payout_after_commit_before_broker_ack",
+        process=committed_worker,
+        exit_signal=committed_signal,
+        job_id=committed_job_id,
+        idempotency_key=committed_key,
+        queue_state=committed_queue,
+        database_state=committed_before,
+        provider_effect_count=1,
+        post_restart_convergence={
+            **committed_final,
+            "job_start_count": 2,
+            "duplicate_provider_effect": False,
+        },
+    )
 
 
-async def _expire_payout_claim(sessionmaker, intent_id: UUID) -> None:
-    async with sessionmaker() as session:
-        await session.execute(
-            update(PayoutSubmissionIntent)
-            .where(PayoutSubmissionIntent.id == intent_id)
-            .values(claim_expires_at=datetime.now(UTC) - timedelta(seconds=1))
-        )
-        await session.commit()
-
-
-def test_payout_recovers_provider_acceptance_and_post_commit_broker_orphan(
-    postgis_db_sessionmaker,
-    settings,
-    r58_redis_url,
-    tmp_path,
+def test_external_deletion_recovers_from_provider_not_found_without_false_finality(
+    recovery_environment: RecoveryEnvironment,
 ) -> None:
-    graph = build_release_graph(postgis_db_sessionmaker, f"r58-payout-{uuid4().hex[:8]}")
-    _, line_ids, intent_ids = asyncio.run(
-        _prepare_batch(
-            postgis_db_sessionmaker,
-            graph,
-            FakeDisbursementAdapter(),
-        )
-    )
-    intent_id, line_id = intent_ids[0], line_ids[0]
-    before_commit = _harness(
-        tmp_path=tmp_path / "provider-before-commit",
-        redis_url=r58_redis_url,
-        sessionmaker=postgis_db_sessionmaker,
-        settings=settings,
-        scenario="payout-provider-before-commit",
-    )
-    try:
-        before_commit.enqueue(
-            "r58_payout_submission",
-            str(intent_id),
-            job_id=f"r58-payout-provider-{uuid4().hex}",
-        )
-        before_commit.start(barrier_point="payout_after_provider_acceptance")
-        before_commit.wait_for("payout_after_provider_acceptance")
-        provider_pid = before_commit.kill()
-        provider_queue = asdict(before_commit.queue_state())
-        _assert_crashed_queue(provider_queue)
-        provider_db = asyncio.run(_payout_state(postgis_db_sessionmaker, intent_id, line_id))
-        assert provider_db["intent_state"] == "claimed"
-        assert provider_db["line_state"] == "reserved"
-        assert provider_db["attempts"] == 1
-        assert provider_db["observations"] == 0
-        assert len(before_commit.effects()["payout_effects"]) == 1
-
-        asyncio.run(_expire_payout_claim(postgis_db_sessionmaker, intent_id))
-        before_commit.unlock_dead_worker()
-        before_commit.finish()
-        provider_final_queue = asdict(before_commit.queue_state())
-        _assert_terminal_queue(provider_final_queue)
-        provider_final_db = asyncio.run(_payout_state(postgis_db_sessionmaker, intent_id, line_id))
-        assert provider_final_db["intent_state"] == "resolved"
-        assert provider_final_db["line_state"] == "submitted"
-        effects = before_commit.effects()
-        assert len(effects["payout_effects"]) == 1
-        assert effects["payout_submit_requests"] == 1
-        assert effects["payout_lookup_requests"] == 1
-        receipt = before_commit.persist_receipt(
-            name="payout_provider_before_commit",
-            pid=provider_pid,
-            idempotency_key=provider_db["idempotency_key"],
-            queue_state={
-                "after_kill": provider_queue,
-                "terminal": provider_final_queue,
-            },
-            db_state={"after_kill": provider_db, "terminal": provider_final_db},
-            cursor_deadletter_state={"deadlettered": False, "cursor": None},
-            terminal_convergence={"converged": True, "cash_effect_count": 1},
-        )
-        _assert_receipt(receipt, scenario="payout_provider_before_commit")
-    finally:
-        before_commit.close()
-
-    committed_graph = build_release_graph(
-        postgis_db_sessionmaker, f"r58-payout-ack-{uuid4().hex[:8]}"
-    )
-    _, committed_lines, committed_intents = asyncio.run(
-        _prepare_batch(
-            postgis_db_sessionmaker,
-            committed_graph,
-            FakeDisbursementAdapter(),
-        )
-    )
-    committed_intent, committed_line = committed_intents[0], committed_lines[0]
-    before_ack = _harness(
-        tmp_path=tmp_path / "commit-before-ack",
-        redis_url=r58_redis_url,
-        sessionmaker=postgis_db_sessionmaker,
-        settings=settings,
-        scenario="payout-commit-before-ack",
-    )
-    try:
-        before_ack.enqueue(
-            "r58_payout_submission",
-            str(committed_intent),
-            job_id=f"r58-payout-ack-{uuid4().hex}",
-        )
-        before_ack.start(barrier_point="payout_after_local_commit")
-        before_ack.wait_for("payout_after_local_commit")
-        ack_pid = before_ack.kill()
-        ack_queue = asdict(before_ack.queue_state())
-        _assert_crashed_queue(ack_queue)
-        ack_db = asyncio.run(
-            _payout_state(postgis_db_sessionmaker, committed_intent, committed_line)
-        )
-        assert ack_db["intent_state"] == "resolved"
-        assert ack_db["line_state"] == "submitted"
-        before_ack.unlock_dead_worker()
-        before_ack.finish()
-        ack_final_queue = asdict(before_ack.queue_state())
-        _assert_terminal_queue(ack_final_queue)
-        ack_final_db = asyncio.run(
-            _payout_state(postgis_db_sessionmaker, committed_intent, committed_line)
-        )
-        assert ack_final_db == ack_db
-        ack_effects = before_ack.effects()
-        assert len(ack_effects["payout_effects"]) == 1
-        assert ack_effects["payout_submit_requests"] == 1
-        assert ack_effects["payout_lookup_requests"] == 0
-        receipt = before_ack.persist_receipt(
-            name="payout_commit_before_ack",
-            pid=ack_pid,
-            idempotency_key=ack_db["idempotency_key"],
-            queue_state={"after_kill": ack_queue, "terminal": ack_final_queue},
-            db_state={"after_kill": ack_db, "terminal": ack_final_db},
-            cursor_deadletter_state={"deadlettered": False, "cursor": None},
-            terminal_convergence={"converged": True, "cash_effect_count": 1},
-        )
-        _assert_receipt(receipt, scenario="payout_commit_before_ack")
-    finally:
-        before_ack.close()
-
-
-async def _deletion_state(sessionmaker, intent_id: UUID) -> dict:
-    async with sessionmaker() as session:
-        intent = await session.get(StoredObjectDeletion, intent_id)
-        return {
-            "state": intent.state,
-            "attempts": intent.attempts,
-            "provider_deleted": intent.provider_deleted_at is not None,
-            "completed": intent.completed_at is not None,
-            "request_fingerprint": intent.request_fingerprint,
-        }
-
-
-def test_deletion_recovers_after_object_delete_before_metadata_finality(
-    postgis_db_sessionmaker,
-    settings,
-    r58_redis_url,
-    tmp_path,
-) -> None:
-    harness = _harness(
-        tmp_path=tmp_path,
-        redis_url=r58_redis_url,
-        sessionmaker=postgis_db_sessionmaker,
-        settings=settings,
-        scenario="deletion-object-before-finality",
-    )
-    storage_key = f"managed/r58/{uuid4().hex}/private-object"
-    content = b"r58 private deletion evidence"
-    checksum = hashlib.sha256(content).hexdigest()
-    storage_config = {
-        "effect_root": str(harness.effect_root),
-        "redis_url": r58_redis_url,
-        "event_key": harness.event_key,
-        "release_key": harness.release_key,
-        "barrier_point": None,
-    }
+    storage = PersistentStorageProvider(recovery_environment.state_root / "storage")
+    storage_key = f"r58/deletion/{uuid4()}"
+    content = b"R58 private object"
+    checksum = __import__("hashlib").sha256(content).hexdigest()
     asyncio.run(
-        DurableStorageProvider(storage_config).put(
+        storage.put(
             object_key=storage_key,
             content_type="application/octet-stream",
             data=content,
@@ -516,71 +826,135 @@ def test_deletion_recovers_after_object_delete_before_metadata_finality(
         )
     )
 
-    async def seed() -> tuple[UUID, str]:
-        async with postgis_db_sessionmaker() as session:
+    async def seed() -> UUID:
+        async with recovery_environment.sessionmaker() as session:
             intent = await ensure_stored_object_deletion(
                 session,
                 storage_key=storage_key,
                 object_checksum_sha256=checksum,
-                reason="r58_worker_recovery",
-                owner_type="r58_synthetic_private_object",
+                reason="r58_recovery",
+                owner_type="synthetic_test",
                 owner_id=uuid4(),
                 organization_id=uuid4(),
                 subject_user_id=None,
             )
             await session.commit()
-            return intent.id, intent.request_fingerprint
+            return intent.id
 
-    intent_id, request_fingerprint = asyncio.run(seed())
-    try:
-        harness.enqueue(
-            "r58_object_deletion",
-            job_id=f"r58-deletion-{uuid4().hex}",
+    intent_id = asyncio.run(seed())
+    job_id = f"r58:deletion:{intent_id}"
+    _enqueue(
+        recovery_environment,
+        "cron:recover_stored_object_deletions",
+        job_id,
+    )
+    worker = recovery_environment.start_worker("deletion_after_provider_delete")
+    recovery_environment.wait_for_marker(worker, "deletion_after_provider_delete")
+    queue_state = recovery_environment.queue_state(job_id)
+
+    async def deletion_state() -> dict[str, object]:
+        async with recovery_environment.sessionmaker() as session:
+            intent = await session.get(StoredObjectDeletion, intent_id)
+            return {
+                "state": intent.state,
+                "attempts": intent.attempts,
+                "provider_deleted_at": (
+                    intent.provider_deleted_at.isoformat() if intent.provider_deleted_at else None
+                ),
+                "completed_at": intent.completed_at.isoformat() if intent.completed_at else None,
+            }
+
+    assert storage_key not in storage.keys()
+    before_restart = asyncio.run(deletion_state())
+    assert before_restart["state"] == "pending"
+    assert _effect_count(recovery_environment, "object_deleted", object_key=storage_key) == 1
+    exit_signal = recovery_environment.kill(worker)
+    restarted = recovery_environment.start_worker()
+    recovery_environment.wait_for_ack(restarted, job_id)
+    assert asyncio.run(deletion_state()) == before_restart
+    assert _effect_count(recovery_environment, "job_started", job_id=job_id) == 1
+    assert (
+        _effect_count(recovery_environment, "object_delete_not_found", object_key=storage_key) == 0
+    )
+    recovery_job_id = _enqueue_next_cron_occurrence(
+        recovery_environment,
+        "cron:recover_stored_object_deletions",
+        job_id,
+    )
+    recovery_environment.wait_for_ack(restarted, recovery_job_id)
+    assert _effect_count(recovery_environment, "job_started", job_id=recovery_job_id) == 1
+    final = asyncio.run(deletion_state())
+    assert final["state"] == "completed"
+    assert final["provider_deleted_at"] is not None
+    assert final["completed_at"] is not None
+    assert _effect_count(recovery_environment, "object_deleted", object_key=storage_key) == 1
+    assert (
+        _effect_count(
+            recovery_environment,
+            "object_delete_not_found",
+            object_key=storage_key,
         )
-        harness.start(barrier_point="deletion_after_object_delete")
-        harness.wait_for("deletion_after_object_delete")
-        pid = harness.kill()
-        queue = asdict(harness.queue_state())
-        _assert_crashed_queue(queue)
-        crashed_db = asyncio.run(_deletion_state(postgis_db_sessionmaker, intent_id))
-        assert crashed_db["state"] == "pending"
-        assert not harness.effects()["objects"]
-        assert harness.effects()["delete_effects"] == 1
-
-        harness.unlock_dead_worker()
-        harness.finish()
-        final_queue = asdict(harness.queue_state())
-        _assert_terminal_queue(final_queue)
-        final_db = asyncio.run(_deletion_state(postgis_db_sessionmaker, intent_id))
-        assert final_db["state"] == "completed"
-        assert final_db["provider_deleted"] is True
-        assert final_db["completed"] is True
-        effects = harness.effects()
-        assert effects["objects"] == {}
-        assert effects["delete_effects"] == 1
-        assert effects["delete_requests"] == 2
-        receipt = harness.persist_receipt(
-            name="deletion_object_before_finality",
-            pid=pid,
-            idempotency_key=request_fingerprint,
-            queue_state={"after_kill": queue, "terminal": final_queue},
-            db_state={"after_kill": crashed_db, "terminal": final_db},
-            cursor_deadletter_state={"deadlettered": False, "cursor": None},
-            terminal_convergence={
-                "converged": True,
-                "object_leaked": False,
-                "false_finality": False,
-            },
-        )
-        _assert_receipt(receipt, scenario="deletion_object_before_finality")
-    finally:
-        harness.close()
+        == 1
+    )
+    _write_receipt(
+        recovery_environment,
+        cut_point="deletion_after_provider_delete",
+        process=worker,
+        exit_signal=exit_signal,
+        job_id=job_id,
+        idempotency_key=str(intent_id),
+        queue_state=queue_state,
+        database_state=before_restart,
+        provider_effect_count=1,
+        post_restart_convergence={
+            "recovery_job_id": recovery_job_id,
+            **final,
+            "provider_not_found_observed": True,
+            "false_success": False,
+        },
+    )
 
 
-async def _report_state(sessionmaker, issuance_id: UUID) -> dict:
-    async with sessionmaker() as session:
+def _seed_report_issuance(
+    environment: RecoveryEnvironment,
+    settings: Settings,
+    tag: str,
+) -> UUID:
+    admin, advertiser, campaign = create_measurement_graph(
+        environment.sessionmaker,
+        identity_tag=tag,
+        identity_domain="example.com",
+    )
+
+    async def seed() -> UUID:
+        async with environment.sessionmaker() as session:
+            run = await issue_measurement_run(
+                session,
+                actor_user_id=admin.id,
+                payload=MeasurementRunCreate.model_validate(issue_payload(campaign.id)),
+                settings=settings,
+            )
+            issuance = await request_report_issuance(
+                session,
+                actor_user_id=advertiser.id,
+                measurement_run_id=run.id,
+                payload=ReportIssuanceCreate(client_request_id=uuid4()),
+                settings=settings,
+                admin=False,
+            )
+            await session.commit()
+            return issuance.id
+
+    return asyncio.run(seed())
+
+
+async def _report_state(
+    environment: RecoveryEnvironment,
+    issuance_id: UUID,
+) -> dict[str, object]:
+    async with environment.sessionmaker() as session:
         issuance = await session.get(ReportIssuance, issuance_id)
-        intents = list(
+        publications = list(
             await session.scalars(
                 select(ReportPublicationIntent)
                 .where(ReportPublicationIntent.report_issuance_id == issuance_id)
@@ -595,311 +969,338 @@ async def _report_state(sessionmaker, issuance_id: UUID) -> dict:
             )
             or 0
         )
+        failed_audit_count = int(
+            await session.scalar(
+                select(func.count(AuditEvent.id)).where(
+                    AuditEvent.action == "report_issuance.failed",
+                    AuditEvent.entity_type == "report_issuance",
+                    AuditEvent.entity_id == str(issuance_id),
+                )
+            )
+            or 0
+        )
         return {
-            "issuance_state": issuance.status,
-            "worker_attempts": issuance.worker_attempts,
+            "status": issuance.status,
+            "attempts": issuance.worker_attempts,
+            "last_error_code": issuance.last_error_code,
+            "publication_states": [row.state for row in publications],
             "artifact_count": artifact_count,
-            "publication_states": [intent.state for intent in intents],
-            "publication_generations": [intent.generation for intent in intents],
+            "failed_audit_count": failed_audit_count,
         }
 
 
-async def _expire_report_leases(sessionmaker, issuance_id: UUID) -> None:
+async def _expire_report_leases(
+    environment: RecoveryEnvironment,
+    issuance_id: UUID,
+) -> None:
     expired = datetime.now(UTC) - timedelta(seconds=1)
-    async with sessionmaker() as session:
-        issuance = await session.get(ReportIssuance, issuance_id)
-        issuance.lease_expires_at = expired
-        intents = list(
-            await session.scalars(
-                select(ReportPublicationIntent).where(
-                    ReportPublicationIntent.report_issuance_id == issuance_id
-                )
-            )
+    async with environment.sessionmaker() as session:
+        await session.execute(
+            update(ReportIssuance)
+            .where(ReportIssuance.id == issuance_id)
+            .values(lease_expires_at=expired)
         )
-        for intent in intents:
-            if intent.state in {"prepared", "publishing", "cleaning"}:
-                intent.lease_expires_at = expired
+        await session.execute(
+            update(ReportPublicationIntent)
+            .where(ReportPublicationIntent.report_issuance_id == issuance_id)
+            .values(lease_expires_at=expired)
+        )
         await session.commit()
 
 
-def _queued_report(postgis_db_client, postgis_db_sessionmaker) -> UUID:
-    _, advertiser, _, run = issue_run(postgis_db_client, postgis_db_sessionmaker)
-    response = request_issuance(postgis_db_client, advertiser, run["id"])
-    assert response.status_code == 202, response.text
-    return UUID(response.json()["id"])
-
-
-def test_report_publication_recovers_first_artifact_and_cleanup_transition(
-    postgis_db_client,
-    postgis_db_sessionmaker,
-    settings,
-    r58_redis_url,
-    tmp_path,
+def test_report_publication_recovers_partial_artifact_and_cleans_abandoned_generation(
+    recovery_environment: RecoveryEnvironment,
+    settings: Settings,
 ) -> None:
-    issuance_id = _queued_report(postgis_db_client, postgis_db_sessionmaker)
-    harness = _harness(
-        tmp_path=tmp_path,
-        redis_url=r58_redis_url,
-        sessionmaker=postgis_db_sessionmaker,
-        settings=settings,
-        scenario="report-artifact-and-cleanup",
+    runtime = _runtime_settings(settings, recovery_environment)
+    issuance_id = _seed_report_issuance(
+        recovery_environment,
+        runtime,
+        f"r58-report-partial-{uuid4().hex[:8]}",
     )
-    try:
-        harness.enqueue(
-            "r58_report_publication",
-            job_id=f"r58-report-orphan-{uuid4().hex}",
-        )
-        harness.start(barrier_point="report_after_first_artifact")
-        harness.wait_for("report_after_first_artifact")
-        artifact_pid = harness.kill()
-        artifact_queue = asdict(harness.queue_state())
-        _assert_crashed_queue(artifact_queue)
-        artifact_db = asyncio.run(_report_state(postgis_db_sessionmaker, issuance_id))
-        assert artifact_db["issuance_state"] == "processing"
-        assert artifact_db["artifact_count"] == 0
-        assert artifact_db["publication_states"] == ["publishing"]
-        assert len(harness.effects()["objects"]) == 1
-
-        asyncio.run(_expire_report_leases(postgis_db_sessionmaker, issuance_id))
-        harness.unlock_dead_worker()
-        harness.start(barrier_point="report_during_cleanup")
-        harness.wait_for("report_during_cleanup")
-        cleanup_pid = harness.kill()
-        cleanup_queue = asdict(harness.queue_state())
-        _assert_crashed_queue(cleanup_queue)
-        cleanup_db = asyncio.run(_report_state(postgis_db_sessionmaker, issuance_id))
-        assert cleanup_db["issuance_state"] == "processing"
-        assert cleanup_db["publication_states"] == ["cleaning"]
-        assert harness.effects()["objects"] == {}
-
-        asyncio.run(_expire_report_leases(postgis_db_sessionmaker, issuance_id))
-        harness.unlock_dead_worker()
-        harness.finish()
-        final_queue = asdict(harness.queue_state())
-        _assert_terminal_queue(final_queue)
-        final_db = asyncio.run(_report_state(postgis_db_sessionmaker, issuance_id))
-        assert final_db["issuance_state"] == "ready"
-        assert final_db["artifact_count"] == 2
-        assert final_db["publication_states"] == ["cleaned", "complete"]
-        assert final_db["publication_generations"] == [1, 2]
-        assert len(harness.effects()["objects"]) == 2
-
-        artifact_receipt = harness.persist_receipt(
-            name="report_after_first_artifact",
-            pid=artifact_pid,
-            idempotency_key=str(issuance_id),
-            queue_state={"after_kill": artifact_queue, "terminal": final_queue},
-            db_state={"after_kill": artifact_db, "terminal": final_db},
-            cursor_deadletter_state={
-                "after_kill": ["publishing"],
-                "terminal": ["cleaned", "complete"],
-            },
-            terminal_convergence={"converged": True, "orphan_count": 0},
-        )
-        _assert_receipt(artifact_receipt, scenario="report_after_first_artifact")
-        cleanup_receipt = harness.persist_receipt(
-            name="report_during_cleanup",
-            pid=cleanup_pid,
-            idempotency_key=str(issuance_id),
-            queue_state={"after_kill": cleanup_queue, "terminal": final_queue},
-            db_state={"after_kill": cleanup_db, "terminal": final_db},
-            cursor_deadletter_state={
-                "after_kill": ["cleaning"],
-                "terminal": ["cleaned", "complete"],
-            },
-            terminal_convergence={"converged": True, "orphan_count": 0},
-        )
-        _assert_receipt(cleanup_receipt, scenario="report_during_cleanup")
-    finally:
-        harness.close()
-
-
-def test_report_publication_commit_survives_broker_ack_loss(
-    postgis_db_client,
-    postgis_db_sessionmaker,
-    settings,
-    r58_redis_url,
-    tmp_path,
-) -> None:
-    issuance_id = _queued_report(postgis_db_client, postgis_db_sessionmaker)
-    harness = _harness(
-        tmp_path=tmp_path,
-        redis_url=r58_redis_url,
-        sessionmaker=postgis_db_sessionmaker,
-        settings=settings,
-        scenario="report-commit-before-ack",
+    job_id = f"r58:report:partial:{issuance_id}"
+    _enqueue(recovery_environment, "cron:sweep_report_issuances", job_id)
+    worker = recovery_environment.start_worker("report_after_first_artifact")
+    recovery_environment.wait_for_marker(worker, "report_after_first_artifact")
+    queue_state = recovery_environment.queue_state(job_id)
+    before_restart = asyncio.run(_report_state(recovery_environment, issuance_id))
+    storage = PersistentStorageProvider(recovery_environment.state_root / "storage")
+    assert before_restart["status"] == "processing"
+    assert before_restart["publication_states"] == ["publishing"]
+    assert len(storage.keys()) == 1
+    exit_signal = recovery_environment.kill(worker)
+    asyncio.run(_expire_report_leases(recovery_environment, issuance_id))
+    restarted = recovery_environment.start_worker()
+    recovery_environment.wait_for_ack(restarted, job_id)
+    assert asyncio.run(_report_state(recovery_environment, issuance_id)) == before_restart
+    assert _effect_count(recovery_environment, "job_started", job_id=job_id) == 1
+    recovery_job_id = _enqueue_next_cron_occurrence(
+        recovery_environment,
+        "cron:sweep_report_issuances",
+        job_id,
     )
-    try:
-        harness.enqueue(
-            "r58_report_publication",
-            job_id=f"r58-report-commit-{uuid4().hex}",
-        )
-        harness.start(barrier_point="report_after_publication_commit")
-        harness.wait_for("report_after_publication_commit")
-        pid = harness.kill()
-        queue = asdict(harness.queue_state())
-        _assert_crashed_queue(queue)
-        committed_db = asyncio.run(_report_state(postgis_db_sessionmaker, issuance_id))
-        assert committed_db["issuance_state"] == "ready"
-        assert committed_db["artifact_count"] == 2
-        assert committed_db["publication_states"] == ["complete"]
-        committed_effects = harness.effects()
-        assert len(committed_effects["objects"]) == 2
-
-        harness.unlock_dead_worker()
-        harness.finish()
-        final_queue = asdict(harness.queue_state())
-        _assert_terminal_queue(final_queue)
-        final_db = asyncio.run(_report_state(postgis_db_sessionmaker, issuance_id))
-        assert final_db == committed_db
-        assert harness.effects()["objects"] == committed_effects["objects"]
-        receipt = harness.persist_receipt(
-            name="report_commit_before_ack",
-            pid=pid,
-            idempotency_key=str(issuance_id),
-            queue_state={"after_kill": queue, "terminal": final_queue},
-            db_state={"after_kill": committed_db, "terminal": final_db},
-            cursor_deadletter_state={"deadlettered": False, "publications": ["complete"]},
-            terminal_convergence={"converged": True, "duplicate_artifacts": 0},
-        )
-        _assert_receipt(receipt, scenario="report_commit_before_ack")
-    finally:
-        harness.close()
+    recovery_environment.wait_for_ack(restarted, recovery_job_id)
+    assert _effect_count(recovery_environment, "job_started", job_id=recovery_job_id) == 1
+    final = asyncio.run(_report_state(recovery_environment, issuance_id))
+    assert final["status"] == "ready"
+    assert final["publication_states"] == ["cleaned", "complete"]
+    assert final["artifact_count"] == 2
+    assert len(storage.keys()) == 2
+    report_puts = [
+        event
+        for event in read_provider_events(recovery_environment.state_root)
+        if event["event"] == "object_put" and "/reports/" in event["object_key"]
+    ]
+    assert len(report_puts) == 3
+    assert len({event["object_key"] for event in report_puts}) == 3
+    _write_receipt(
+        recovery_environment,
+        cut_point="report_after_first_artifact",
+        process=worker,
+        exit_signal=exit_signal,
+        job_id=job_id,
+        idempotency_key=str(issuance_id),
+        queue_state=queue_state,
+        database_state=before_restart,
+        provider_effect_count=3,
+        dead_letter_state={"abandoned_generation": "cleaned"},
+        post_restart_convergence={
+            "recovery_job_id": recovery_job_id,
+            **final,
+            "live_objects": len(storage.keys()),
+            "orphaned_objects": 0,
+            "duplicate_object_keys": False,
+        },
+    )
 
 
-async def _cursor_state(redis_url: str) -> str | None:
-    from redis.asyncio import Redis as AsyncRedis
-
-    from app.jobs.trip_processing import SWEEP_CURSOR_KEY
-
-    redis = AsyncRedis.from_url(redis_url, decode_responses=True)
-    try:
-        return await redis.get(SWEEP_CURSOR_KEY)
-    finally:
-        await redis.aclose()
-
-
-async def _trip_processing_state(sessionmaker, trip_ids: list[UUID]) -> dict:
-    async with sessionmaker() as session:
-        calculation_counts = {
-            trip_id: int(
-                await session.scalar(
-                    select(func.count(PayoutCalculation.id)).where(
-                        PayoutCalculation.trip_session_id == trip_id
-                    )
-                )
-                or 0
-            )
-            for trip_id in trip_ids
-        }
-        ledger_counts = {
-            trip_id: int(
-                await session.scalar(
-                    select(func.count(EarningsLedgerEntry.id)).where(
-                        EarningsLedgerEntry.trip_session_id == trip_id
-                    )
-                )
-                or 0
-            )
-            for trip_id in trip_ids
-        }
-        audit_counts = {
-            trip_id: int(
-                await session.scalar(
-                    select(func.count(AuditEvent.id)).where(
-                        AuditEvent.action == AUDIT_ACTION_TRIP_PROCESSING,
-                        AuditEvent.entity_id == str(trip_id),
-                    )
-                )
-                or 0
-            )
-            for trip_id in trip_ids
-        }
-        return {
-            "calculations": {str(key): value for key, value in calculation_counts.items()},
-            "ledger_entries": {str(key): value for key, value in ledger_counts.items()},
-            "processing_audits": {str(key): value for key, value in audit_counts.items()},
-        }
-
-
-def test_cursor_persistence_restart_reaches_tail_without_skips(
-    postgis_db_sessionmaker,
-    settings,
-    r58_redis_url,
-    tmp_path,
+def test_report_publication_commit_replays_before_broker_ack_without_duplicate_objects(
+    recovery_environment: RecoveryEnvironment,
+    settings: Settings,
 ) -> None:
-    batch_settings = settings.model_copy(update={"worker_sweep_batch_size": 2})
+    runtime = _runtime_settings(settings, recovery_environment)
+    issuance_id = _seed_report_issuance(
+        recovery_environment,
+        runtime,
+        f"r58-report-commit-{uuid4().hex[:8]}",
+    )
+    job_id = f"r58:report:commit:{issuance_id}"
+    _enqueue(recovery_environment, "cron:sweep_report_issuances", job_id)
+    worker = recovery_environment.start_worker("report_after_publication_commit")
+    recovery_environment.wait_for_marker(worker, "report_after_publication_commit")
+    queue_state = recovery_environment.queue_state(job_id)
+    before_restart = asyncio.run(_report_state(recovery_environment, issuance_id))
+    storage = PersistentStorageProvider(recovery_environment.state_root / "storage")
+    assert before_restart["status"] == "ready"
+    assert before_restart["artifact_count"] == 2
+    assert len(storage.keys()) == 2
+    exit_signal = recovery_environment.kill(worker)
+    restarted = recovery_environment.start_worker()
+    recovery_environment.wait_for_ack(restarted, job_id)
+    assert asyncio.run(_report_state(recovery_environment, issuance_id)) == before_restart
+    assert _effect_count(recovery_environment, "job_started", job_id=job_id) == 1
+    recovery_job_id = _enqueue_next_cron_occurrence(
+        recovery_environment,
+        "cron:sweep_report_issuances",
+        job_id,
+    )
+    recovery_environment.wait_for_ack(restarted, recovery_job_id)
+    assert _effect_count(recovery_environment, "job_started", job_id=recovery_job_id) == 1
+    final = asyncio.run(_report_state(recovery_environment, issuance_id))
+    assert final == before_restart
+    assert len(storage.keys()) == 2
+    assert _effect_count(recovery_environment, "object_put") == 2
+    _write_receipt(
+        recovery_environment,
+        cut_point="report_after_publication_commit_before_broker_ack",
+        process=worker,
+        exit_signal=exit_signal,
+        job_id=job_id,
+        idempotency_key=str(issuance_id),
+        queue_state=queue_state,
+        database_state=before_restart,
+        provider_effect_count=2,
+        post_restart_convergence={
+            "recovery_job_id": recovery_job_id,
+            **final,
+            "live_objects": len(storage.keys()),
+            "duplicate_objects": False,
+        },
+    )
+
+
+def test_report_expired_lease_dead_letter_survives_worker_kill_before_ack(
+    recovery_environment: RecoveryEnvironment,
+    settings: Settings,
+) -> None:
+    runtime = _runtime_settings(settings, recovery_environment)
+    issuance_id = _seed_report_issuance(
+        recovery_environment,
+        runtime,
+        f"r58-report-dead-{uuid4().hex[:8]}",
+    )
+
+    async def exhaust() -> None:
+        async with recovery_environment.sessionmaker() as session:
+            issuance = await session.get(ReportIssuance, issuance_id)
+            issuance.status = ReportIssuanceStatus.PROCESSING.value
+            issuance.worker_attempts = REPORT_MAX_ATTEMPTS
+            issuance.processing_token = uuid4()
+            issuance.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+            issuance.next_attempt_at = None
+            issuance.last_error_code = None
+            issuance.ready_at = None
+            await session.commit()
+
+    asyncio.run(exhaust())
+    job_id = f"r58:report:dead-letter:{issuance_id}"
+    _enqueue(recovery_environment, "cron:sweep_report_issuances", job_id)
+    worker = recovery_environment.start_worker("report_after_dead_letter")
+    recovery_environment.wait_for_marker(worker, "report_after_dead_letter")
+    queue_state = recovery_environment.queue_state(job_id)
+    before_restart = asyncio.run(_report_state(recovery_environment, issuance_id))
+    assert before_restart["status"] == "failed"
+    assert before_restart["last_error_code"] == "worker_lease_expired"
+    assert before_restart["failed_audit_count"] == 1
+    exit_signal = recovery_environment.kill(worker)
+    restarted = recovery_environment.start_worker()
+    recovery_environment.wait_for_ack(restarted, job_id)
+    assert asyncio.run(_report_state(recovery_environment, issuance_id)) == before_restart
+    assert _effect_count(recovery_environment, "job_started", job_id=job_id) == 1
+    recovery_job_id = _enqueue_next_cron_occurrence(
+        recovery_environment,
+        "cron:sweep_report_issuances",
+        job_id,
+    )
+    recovery_environment.wait_for_ack(restarted, recovery_job_id)
+    assert _effect_count(recovery_environment, "job_started", job_id=recovery_job_id) == 1
+    final = asyncio.run(_report_state(recovery_environment, issuance_id))
+    assert final == before_restart
+    assert final["failed_audit_count"] == 1
+    _write_receipt(
+        recovery_environment,
+        cut_point="report_dead_letter_after_expired_lease_before_broker_ack",
+        process=worker,
+        exit_signal=exit_signal,
+        job_id=job_id,
+        idempotency_key=str(issuance_id),
+        queue_state=queue_state,
+        database_state={"status": "processing", "attempts": REPORT_MAX_ATTEMPTS},
+        provider_effect_count=0,
+        dead_letter_state=before_restart,
+        post_restart_convergence={
+            "recovery_job_id": recovery_job_id,
+            **final,
+            "duplicate_transition": False,
+        },
+    )
+
+
+def test_cursor_persists_across_kill_and_reaches_every_tail_item_once(
+    recovery_environment: RecoveryEnvironment,
+) -> None:
     graphs = []
-    for index in range(3):
+    for index in range(5):
         graph = build_trip_graph(
-            postgis_db_sessionmaker,
-            f"r58c{index}-{uuid4().hex[:6]}",
-            ended_at=BASE_TIME + timedelta(minutes=30 + index),
+            recovery_environment.sessionmaker,
+            f"c{index}-{uuid4().hex[:7]}",
+            ended_at=datetime(2026, 8, 1, 12, index, tzinfo=UTC),
         )
         create_test_payout_rule(
-            postgis_db_sessionmaker,
+            recovery_environment.sessionmaker,
             campaign_id=graph.campaign.id,
             created_by_user_id=graph.admin.id,
             base_rate_per_km=10,
         )
         add_pings(
-            postgis_db_sessionmaker,
+            recovery_environment.sessionmaker,
             trip_id=graph.trip.id,
             points=moving_points(),
             idempotency_key=f"r58-cursor-{index}",
         )
         graphs.append(graph)
-    trip_ids = [graph.trip.id for graph in graphs]
-    harness = _harness(
-        tmp_path=tmp_path,
-        redis_url=r58_redis_url,
-        sessionmaker=postgis_db_sessionmaker,
-        settings=batch_settings,
-        scenario="cursor-persist-before-ack",
-    )
-    try:
-        harness.enqueue(
-            "r58_cursor_sweep",
-            job_id=f"r58-cursor-{uuid4().hex}",
-        )
-        harness.start(barrier_point="cursor_after_persist")
-        event = harness.wait_for("cursor_after_persist")
-        assert event["detail"] == {"processed": 2, "selected": 2}
-        pid = harness.kill()
-        queue = asdict(harness.queue_state())
-        _assert_crashed_queue(queue)
-        cursor_after_kill = asyncio.run(_cursor_state(r58_redis_url))
-        assert cursor_after_kill is not None
-        partial_db = asyncio.run(_trip_processing_state(postgis_db_sessionmaker, trip_ids))
-        assert sorted(partial_db["calculations"].values()) == [0, 1, 1]
 
-        harness.unlock_dead_worker()
-        harness.finish()
-        final_queue = asdict(harness.queue_state())
-        _assert_terminal_queue(final_queue)
-        assert asyncio.run(_cursor_state(r58_redis_url)) is None
-        final_db = asyncio.run(_trip_processing_state(postgis_db_sessionmaker, trip_ids))
-        assert set(final_db["calculations"].values()) == {1}
-        assert set(final_db["ledger_entries"].values()) == {1}
-        assert set(final_db["processing_audits"].values()) == {1}
-        receipt = harness.persist_receipt(
-            name="cursor_persist_before_ack",
-            pid=pid,
-            idempotency_key=harness.job_id or "",
-            queue_state={"after_kill": queue, "terminal": final_queue},
-            db_state={"after_kill": partial_db, "terminal": final_db},
-            cursor_deadletter_state={
-                "after_kill": cursor_after_kill,
-                "terminal": None,
-                "deadlettered": False,
-            },
-            terminal_convergence={
-                "converged": True,
-                "tail_items": 1,
-                "skipped_items": 0,
-                "duplicate_money_rows": 0,
-            },
-        )
-        _assert_receipt(receipt, scenario="cursor_persist_before_ack")
+    first_job_id = f"r58:cursor:first:{uuid4()}"
+    _enqueue(recovery_environment, "cron:process_unprocessed_trips", first_job_id)
+    environment = os.environ
+    previous_batch_size = environment.get("R58_SWEEP_BATCH_SIZE")
+    environment["R58_SWEEP_BATCH_SIZE"] = "2"
+    try:
+        worker = recovery_environment.start_worker("cursor_after_write")
     finally:
-        harness.close()
+        if previous_batch_size is None:
+            environment.pop("R58_SWEEP_BATCH_SIZE", None)
+        else:
+            environment["R58_SWEEP_BATCH_SIZE"] = previous_batch_size
+    recovery_environment.wait_for_marker(worker, "cursor_after_write")
+    queue_state = recovery_environment.queue_state(first_job_id)
+    redis_client = recovery_environment.redis
+    try:
+        cursor_before = redis_client.get("worker:trip-processing:sweep-cursor:v1")
+    finally:
+        redis_client.close()
+    assert cursor_before is not None
+
+    async def calculation_counts() -> dict[str, int]:
+        async with recovery_environment.sessionmaker() as session:
+            rows = await session.execute(
+                select(PayoutCalculation.trip_session_id, func.count(PayoutCalculation.id))
+                .where(PayoutCalculation.trip_session_id.in_([graph.trip.id for graph in graphs]))
+                .group_by(PayoutCalculation.trip_session_id)
+            )
+            return {str(trip_id): int(count) for trip_id, count in rows}
+
+    first_counts = asyncio.run(calculation_counts())
+    assert sum(first_counts.values()) == 2
+    exit_signal = recovery_environment.kill(worker)
+    restart = recovery_environment.start_worker()
+    recovery_environment.wait_for_ack(restart, first_job_id)
+    assert asyncio.run(calculation_counts()) == first_counts
+    assert _effect_count(recovery_environment, "job_started", job_id=first_job_id) == 1
+    redis_client = recovery_environment.redis
+    try:
+        assert redis_client.get("worker:trip-processing:sweep-cursor:v1") == cursor_before
+    finally:
+        redis_client.close()
+    recovery_job_id = _enqueue_next_cron_occurrence(
+        recovery_environment,
+        "cron:process_unprocessed_trips",
+        first_job_id,
+    )
+    recovery_environment.wait_for_ack(restart, recovery_job_id)
+    assert _effect_count(recovery_environment, "job_started", job_id=recovery_job_id) == 1
+    recovery_environment.stop(restart)
+
+    for index in range(1):
+        tail_job_id = f"r58:cursor:tail:{index}:{uuid4()}"
+        _enqueue(recovery_environment, "cron:process_unprocessed_trips", tail_job_id)
+        tail_worker = recovery_environment.start_worker()
+        recovery_environment.wait_for_ack(tail_worker, tail_job_id)
+        recovery_environment.stop(tail_worker)
+
+    final_counts = asyncio.run(calculation_counts())
+    assert final_counts == {str(graph.trip.id): 1 for graph in graphs}
+    redis_client = recovery_environment.redis
+    try:
+        cursor_after = redis_client.get("worker:trip-processing:sweep-cursor:v1")
+    finally:
+        redis_client.close()
+    assert cursor_after is None
+    _write_receipt(
+        recovery_environment,
+        cut_point="cursor_after_write_before_broker_ack",
+        process=worker,
+        exit_signal=exit_signal,
+        job_id=first_job_id,
+        idempotency_key=first_job_id,
+        queue_state=queue_state,
+        database_state={"processed_once": sorted(first_counts)},
+        provider_effect_count=0,
+        cursor_state={"before_kill": cursor_before, "after_convergence": cursor_after},
+        post_restart_convergence={
+            "recovery_job_id": recovery_job_id,
+            "trip_calculation_counts": final_counts,
+            "tail_reached": True,
+            "duplicates": False,
+        },
+    )

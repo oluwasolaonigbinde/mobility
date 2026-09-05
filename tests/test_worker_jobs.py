@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -22,10 +21,7 @@ from test_trip_processing import (
     seed_analytics,
     table_counts,
 )
-from worker_recovery_harness import (
-    RECOVERY_JOB_TARGETS,
-    REQUIRED_PRODUCT_REGISTRATIONS,
-)
+from worker_recovery_harness import RECOVERY_JOB_REGISTRATIONS, registered_recovery_jobs
 
 from app.adapters.messaging import EmailMessage, EmailSubmission
 from app.core.config import get_settings
@@ -192,24 +188,15 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
         get_settings().worker_sweep_interval_minutes
     )
 
-
-def test_r58_recovery_targets_are_registered_in_the_real_service_ci_lane() -> None:
-    registered_functions = {job.name for job in WorkerSettings.functions}
-    registered_crons = {job.coroutine.__name__ for job in WorkerSettings.cron_jobs}
-    for target, registration_kind in REQUIRED_PRODUCT_REGISTRATIONS.items():
-        registered = registered_functions if registration_kind == "function" else registered_crons
-        assert target in registered
-
-    assert set(RECOVERY_JOB_TARGETS.values()).issubset(REQUIRED_PRODUCT_REGISTRATIONS)
-    recovery_suite = Path(__file__).with_name("test_worker_process_recovery.py")
-    assert recovery_suite.is_file()
-
-    workflow = Path(__file__).parents[1] / ".github" / "workflows" / "ci.yml"
-    source = workflow.read_text(encoding="utf-8")
-    assert "ARQ_TEST_REDIS_URL: redis://localhost:6379/8" in source
-    assert "TEST_DATABASE_URL: postgresql+asyncpg://" in source
-    assert 'REQUIRE_REAL_INTEGRATIONS: "1"' in source
-    assert "- run: pytest\n" in source
+    registered_recovery = registered_recovery_jobs()
+    assert {
+        registration.name: registered_recovery[registration.name].coroutine
+        for registration in RECOVERY_JOB_REGISTRATIONS
+    } == {registration.name: registration.coroutine for registration in RECOVERY_JOB_REGISTRATIONS}
+    assert {
+        registration.name: registered_recovery[registration.name].max_tries
+        for registration in RECOVERY_JOB_REGISTRATIONS
+    } == {registration.name: registration.max_tries for registration in RECOVERY_JOB_REGISTRATIONS}
 
 
 def test_email_sweep_selects_bounded_due_ids_and_delegates_once_each(
