@@ -46,17 +46,19 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R59`
+**Current capacity assignment:** `R17, R59`
 **Current capacity justification:** R22 and R58 are accepted, releasing the
 money/migration and worker-recovery test leases and satisfying R59's final
 dependencies. R59 owns only the integrated real-stack Playwright configuration,
 journey, deterministic seed/reset/teardown, and local synthetic release evidence.
 No live provider, payment, deployment or personal-data authority is granted.
 R60 remains dependency-held until R59 and R17 are accepted. The owner has
-selected R17 Option A, so its read-only plan/review may run beside R59; R17
-implementation remains serialized behind R59 because both own the central CI
-workflow. No second implementation writer is currently ready; controller
-documents remain serialized.
+selected R17 Option A and R17-P passes. R17 Phase A may therefore implement its
+disjoint coverage tooling, configuration, policy tests and decision record while
+R59 runs; `.github/workflows/ci.yml` and the final `coverage/baseline.json` remain
+withheld until R59 is accepted. R60 remains serialized because its current-state
+inventory must include both accepted results; controller documents remain
+serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -1599,7 +1601,7 @@ durable ledger before changing a row.
 | R14 | SEC-002, TST-004 | R12 | COMPLETE | PASS — R14-P | PASS — R14-M | CP-SECURITY PASS — R14-CP-SECURITY |
 | R15 | GOV-006 | none | COMPLETE | PASS — R15-P | PASS — R15-M | CP-WORKERS PASS — R15-CP-WORKERS |
 | R16 | GOV-008 | none | COMPLETE | PASS — R16-P | PASS — R16-M | CP-CONTROL PASS — R16-CP-CONTROL |
-| R17 | TST-007 | R02, R03 | QUEUED | PASS — R17-P | PENDING | CP-CONTROL PENDING |
+| R17 | TST-007 | R02, R03 | ACTIVE | PASS — R17-P | PENDING | CP-CONTROL PENDING |
 | R18 | MON-005, MON-006 | R04, R06, R07 | COMPLETE | PASS — R18-P | PASS — R18-M | CP-MONEY PASS — R18-CP-MONEY |
 | R19 | MON-002 | R18 | COMPLETE | PASS — R19-P | PASS — R19-M | CP-MONEY PASS — R19-CP-MONEY |
 | R20 | MON-001, DB-007, MON-008 | R05, R18 | COMPLETE | PASS — R20-P | PASS — R20-M | CP-MONEY PASS — R20-CP-MONEY |
