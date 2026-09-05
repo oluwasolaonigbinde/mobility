@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 373
+plan_revision: 374
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 503
+last_event_sequence: 504
 ---
 
 # Cardvert audit remediation programme
@@ -960,3 +960,4 @@ verification is complete.
 | 501 | 371 | 1 | COVERAGE_POLICY_SLICE_ACCEPTED | R17/TST-007 accepted pinned backend/frontend coverage reporting, deterministic changed-code 90% line/80% branch gates, immutable global/named-critical baselines and fail-closed PR/push/local base authority. | Phase A `7c88cda`, Phase B `7b24c75`, admission correction `c78b5dc`; controller exact file-set, Ruff and nine policy tests PASS; owner one-time full captures, 493-test frontend green, baseline validation and independent minimal/CONTRACT/CP-CONTROL review PASS after parser, merge-base and import-order corrections; no product behavior change |
 | 502 | 372 | 1 | PACKET_DISPATCH_AUTHORIZED | R60/GOV-009 is promoted as the terminal remediation slice after accepted R59 and R17 freeze the repository state. | fresh GPT-5.6 Sol/high task required because final 115-disposition and cross-program architecture/control reconciliation is a difficult authority boundary; exact three-file architecture/inventory/sentinel lease, controller docs withheld until admission, no product behavior or stale count reuse, terminal callback required |
 | 503 | 373 | 1 | PACKET_DISPATCHED | R60/GOV-009 implementation began in a fresh visible task from the accepted terminal architecture-inventory contract. | task `01a070d3-20bf-7113-be66-c6723a640f29`; GPT-5.6 Sol/high confirmed before dispatch for cross-system architecture/control reconciliation; exact write lease `docs/architecture.md`, `scripts/update_architecture_inventory.py`, `tests/test_architecture_current_state.py`; no product, migration, generated-contract, decision, progress or controller-ledger writes; direct terminal callback required |
+| 504 | 374 | 1 | SELF_CONFLICT_FALSE_POSITIVE_CLEARED | R60 paused after attributing its own earlier three-file mutation to another writer; local session provenance proved there is one owner and the exact timestamps belong to that task's own file-change events. | task `01a070d3-20bf-7113-be66-c6723a640f29` remains sole R60 owner; resume the current combined candidate without discard or duplicate dispatch; exact lease and review/verification gates unchanged; UI/product prompt programme remains paused by direct owner instruction |
