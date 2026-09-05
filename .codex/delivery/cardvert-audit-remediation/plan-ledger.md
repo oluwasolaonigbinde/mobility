@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 357
+plan_revision: 358
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 487
+last_event_sequence: 488
 ---
 
 # Cardvert audit remediation programme
@@ -943,3 +943,4 @@ verification is complete.
 | 485 | 355 | 1 | PACKET_RESUMED | R59's visible task was interrupted after confirming the pre-change structural red and before any leased-path write; the same owner resumed from preserved state without duplicate dispatch. | task `01a06ecd-5d61-7ad2-b222-1efb1976e133`; GPT-5.6 Sol/xhigh unchanged; current HEAD differs only by controller-ledger commits, exact R59 product base and eight-path lease unchanged; continue red/green, isolated journey, review and terminal callback |
 | 486 | 356 | 1 | DUPLICATE_RESULT_MERGE_AUTHORIZED | Clean comparison selected the late R58 candidate's production-faithful cron `max_tries=1`/next-occurrence semantics and added only three fsync durability hunks from the accepted harness. | comparison task `01a06ed2-b178-7290-8148-e49b2176484a` verdict MERGE_MINIMAL; resume duplicate owner `01a06d5d-245b-74f2-a9dd-b6fb915604b1` on GPT-5.6 Sol/medium for exact three-file correction, eight-test real-service rerun and clean commit; disjoint from R59; `f07cb54` remains authoritative until corrected candidate admission |
 | 487 | 357 | 1 | PLAN_REVIEW_PASSED | R60-P accepted the minimal final current-state inventory/drift and 115-disposition closure contract while preserving R17 as an explicit owner policy decision and keeping repository-wide external gates separate from PKG-10 completion. | task `01a06ece-05ab-79c3-beb2-983fe278a233`; GPT-5.6 Sol/high read-only plan and independent review; exact R60 three-file implementation lease plus controller-only ledger updates; CONTRACT/CP-CONTROL PASS; R59 receipt gate, R58 ambiguity fence, two bounded R17 options and final PAUSED external-pointer semantics recorded; no mutation |
+| 488 | 358 | 1 | WORKER_RECOVERY_EVIDENCE_CORRECTED | R58's accepted three-file evidence was replaced by the independently selected production-faithful ARQ harness: cron jobs retain `max_tries=1` and recover on the next scheduled occurrence, ordinary payout replays the same job, and all durable receipts/provider bytes are fsync-backed. | commit `0c1d525`; exact three-path replacement from corrected candidate `9cf004f`; eight isolated real PostgreSQL/Redis SIGKILL tests PASS in 149.47s, cleanup clean, controller registration smoke and Ruff/format/diff PASS; MERGE_MINIMAL comparison and final Sol/medium correction review PASS; `f07cb54` evidence superseded, R58 remains COMPLETE |

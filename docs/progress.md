@@ -90,7 +90,7 @@ policy, external inputs and evidence-triggered observations are parked in
 `419414a`, R03 at `60af07d`, R48 at `b17d1e7`, R05 at `954d9a4`, R49 at
 `a315a59`, R33 at `14f155a`, R06 at `05b4901`, R07 at `84cb94e`, and R50 at
 `bb8c13e`, R18 at `5c2d60a`, R19 at `3c7b678`, R51 at `2f52c3e`, and R31 at
-`eb59a84`, R52 at `cab745c`, R20 at `d8cd891`, R21 at `ee43b10`, R22 at `7835ba8`, R55 at `662077a`, R57 at `2599b87`, and R58 at `f07cb54`; R59 is the
+`eb59a84`, R52 at `cab745c`, R20 at `d8cd891`, R21 at `ee43b10`, R22 at `7835ba8`, R55 at `662077a`, R57 at `2599b87`, and corrected R58 at `0c1d525`; R59 is the
 only dependency-ready implementation slice.
 AUT-006 is accepted at
 `a4c9de2`.
