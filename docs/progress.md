@@ -46,15 +46,11 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R60`
-**Current capacity justification:** R59 and R17 are accepted, satisfying R60's
-last dependencies and freezing the product/tooling state for final inventory.
-R60 owns only `docs/architecture.md`, new
-`scripts/update_architecture_inventory.py`, and new
-`tests/test_architecture_current_state.py`; it may update truthful current-state
-counts and the deterministic drift sentinel but no product behavior, public
-contract, migration, decision, progress or controller-ledger bytes. Controller
-documents remain serialized until R60 admission.
+**Current capacity assignment:** ``
+**Current capacity justification:** All 60 remediation slices are accepted and
+the 86 FIX / 29 non-executable disposition reconciliation is closed. No further
+remediation writer is authorized; the repository returns to its first unresolved
+external checkpoint.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -80,19 +76,15 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 
 ### Current control pointer
 
-**Controller state:** `ACTIVE`
-**Control package:** `PKG-10` — R01 established truthful repository execution
-authority. The active queue now prioritizes locally executable product and
-engineering defects; unresolved client/business/legal choices, later developer
-policy, external inputs and evidence-triggered observations are parked in
-`to-do.md` without being claimed complete or blocking independent fixes.
-**Current checkpoint:** `PKG-10 / R60` — R02 is accepted at `09c0b17`, R47 at
+**Controller state:** `PAUSED — EXT-PAYMENT-PROVIDER`
+**Control package:** `PKG-03` — all provider-neutral commercial work is complete;
+the remaining payment-provider checkpoint requires registered external authority.
+**Current checkpoint:** `PKG-03 / W2-01C` — PKG-10 remediation is complete. R02 is accepted at `09c0b17`, R47 at
 `419414a`, R03 at `60af07d`, R48 at `b17d1e7`, R05 at `954d9a4`, R49 at
 `a315a59`, R33 at `14f155a`, R06 at `05b4901`, R07 at `84cb94e`, and R50 at
 `bb8c13e`, R18 at `5c2d60a`, R19 at `3c7b678`, R51 at `2f52c3e`, and R31 at
 `eb59a84`, R52 at `cab745c`, R20 at `d8cd891`, R21 at `ee43b10`, R22 at `7835ba8`, R55 at `662077a`, R57 at `2599b87`, corrected R58 at `0c1d525`, R59 at
-`fcba0dc`, and R17 at `c78b5dc`; R60 is the terminal dependency-ready
-implementation slice.
+`fcba0dc`, R17 at `c78b5dc`, and terminal R60 at `fc0cb3a`.
 AUT-006 is accepted at
 `a4c9de2`.
 Every repository failure group
@@ -170,7 +162,7 @@ central CI workflow lease.
 | 7 | **PKG-07 — production driver PWA** | **DONE** | The installable pilot PWA safely tracks, syncs and completes the governed onboarding, campaign, earnings and dispute journey; physical-device/live release evidence remains explicitly deferred. | none — checklist DAG gates entry |
 | 8 | **PKG-08 — governed reporting and pilot readiness** | **BLOCKED** | Provider-neutral reporting, release preparation and synthetic pilot acceptance are reviewed and complete; only registered external deployment, provider, approval, device and pilot evidence remains. | none — checklist DAG gates entry |
 | 9 | **PKG-09 — controlled pilot, training and handover** | **BLOCKED** | Provider-neutral training, pilot-operations and handover preparation is integrated and reviewed; only rehearsed training, controlled-pilot evidence, named-owner acceptance and protected handover remain. | none — checklist DAG gates entry |
-| 10 | **PKG-10 — admitted Cardvert audit remediation** | **IN PROGRESS** | Deliver and verify all 86 admitted FIX candidates once through the exact R01–R60 dependency graph while preserving all 29 non-executable dispositions. | none — remediation DAG gates entry |
+| 10 | **PKG-10 — admitted Cardvert audit remediation** | **DONE** | All 86 admitted FIX candidates are delivered and verified once through the exact R01–R60 dependency graph; all 29 non-executable dispositions remain preserved. | none — remediation DAG gates entry |
 
 ## Executable package contracts
 
@@ -1641,7 +1633,7 @@ durable ledger before changing a row.
 | R57 | TST-008 | R19, R27, R49, R55 | COMPLETE | PASS — R57-P | PASS — R57-M | CP-RELEASE PASS — R57-CP-RELEASE |
 | R58 | TST-011 | R15, R20, R21, R43, R49, R51 | COMPLETE | PASS — R58-P | PASS — R58-M | CP-WORKERS PASS — R58-CP-WORKERS |
 | R59 | TST-002 | R22, R31, R33, R37, R41, R44, R48, R50, R51, R56, R57, R58 | COMPLETE | PASS — R59-P | PASS — R59-M | CP-RELEASE PASS — R59-CP-RELEASE |
-| R60 | GOV-009 | R03, R17, R18, R22, R27, R31, R33, R37, R43, R44, R52, R55, R56, R59 | ACTIVE | PASS — R60-P | PENDING | CP-CONTROL PENDING |
+| R60 | GOV-009 | R03, R17, R18, R22, R27, R31, R33, R37, R43, R44, R52, R55, R56, R59 | COMPLETE | PASS — R60-P | PASS — R60-M | CP-CONTROL PASS — R60-CP-CONTROL |
 
 ## Architecture traceability — non-executable parent groups
 

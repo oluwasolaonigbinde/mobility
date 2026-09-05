@@ -1,10 +1,10 @@
 ---
 schema_version: 1
 program_id: cardvert-audit-remediation
-program_status: EXECUTING
-plan_revision: 375
+program_status: COMPLETE
+plan_revision: 376
 controller_generation: 1
-controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
+controller_owner: none
 controller_nonce: car-remediation-g1-20260901
 authoritative_root: /Users/oluwasolaonigbinde/Projects/mobility
 authoritative_ref: master
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 505
+last_event_sequence: 506
 ---
 
 # Cardvert audit remediation programme
@@ -962,3 +962,4 @@ verification is complete.
 | 503 | 373 | 1 | PACKET_DISPATCHED | R60/GOV-009 implementation began in a fresh visible task from the accepted terminal architecture-inventory contract. | task `01a070d3-20bf-7113-be66-c6723a640f29`; GPT-5.6 Sol/high confirmed before dispatch for cross-system architecture/control reconciliation; exact write lease `docs/architecture.md`, `scripts/update_architecture_inventory.py`, `tests/test_architecture_current_state.py`; no product, migration, generated-contract, decision, progress or controller-ledger writes; direct terminal callback required |
 | 504 | 374 | 1 | SELF_CONFLICT_FALSE_POSITIVE_CLEARED | R60 paused after attributing its own earlier three-file mutation to another writer; local session provenance proved there is one owner and the exact timestamps belong to that task's own file-change events. | task `01a070d3-20bf-7113-be66-c6723a640f29` remains sole R60 owner; resume the current combined candidate without discard or duplicate dispatch; exact lease and review/verification gates unchanged; UI/product prompt programme remains paused by direct owner instruction |
 | 505 | 375 | 1 | DUPLICATE_PROVENANCE_CORRECTED | Deeper session-log reconciliation supersedes event 504: the controller execution itself had already produced the initial R60 checker/tests and architecture narrative before the visible Sol task was launched; the later visible task independently replaced the two new files, then detected the shared architecture bytes and stopped. | controller ceased all R60 leased-path mutation; visible task `01a070d3-20bf-7113-be66-c6723a640f29` is the sole surviving owner and must review/verify the combined three-file diff; preserve both candidates' surviving bytes, report provenance, and admit at most one integrated result; no further R60 dispatch |
+| 506 | 376 | 1 | REMEDIATION_PROGRAMME_COMPLETED | R60/GOV-009 accepted the final repository-derived architecture inventory and deterministic drift sentinel, completing all 60 slices and closing the 86 FIX / 9 DEFER / 12 OWNER DECISION / 8 EXTERNAL INPUT programme exactly once. | R60 commit `fc0cb3a`; exact three-file lease and callback digests matched; controller checker, Ruff, format, focused eight-test aggregate and diff checks PASS; owner red/green, 48 control tests, contract parity and independent minimal/CONTRACT/CP-CONTROL review PASS; PKG-10 DONE; remediation ledger COMPLETE with no active owner; repository-wide controller returns to `PAUSED — EXT-PAYMENT-PROVIDER` at `PKG-03 / W2-01C`; UI/product prompt programme remains paused |
