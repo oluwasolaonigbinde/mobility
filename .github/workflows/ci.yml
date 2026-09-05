@@ -178,7 +178,13 @@ jobs:
             sleep 5
           done
 
-      - run: pytest
+      - run: coverage run -m pytest
+      - run: coverage lcov
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r17-backend-lcov
+          path: coverage/backend.lcov
+          if-no-files-found: error
       - name: Pre-production static verification
         run: scripts/verify_preprod.sh
 
@@ -210,7 +216,14 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm run test
+      - run: npm run test -- --coverage
+        env:
+          NODE_OPTIONS: --localstorage-file=${{ runner.temp }}/r17-vitest-localstorage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r17-frontend-lcov
+          path: ${{ github.workspace }}/coverage/frontend/lcov.info
+          if-no-files-found: error
 
       # Contract drift: regenerate types from the committed openapi.json —
       # if the generated schema differs from what's checked in, the backend
@@ -223,10 +236,86 @@ jobs:
 
       - run: npm run build
 
+  coverage:
+    name: changed-code coverage policy
+    runs-on: ubuntu-latest
+    needs: [backend, quality]
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: r17-backend-lcov
+          path: coverage/artifacts/backend
+      - uses: actions/download-artifact@v4
+        with:
+          name: r17-frontend-lcov
+          path: coverage/artifacts/frontend
+      - name: Resolve an explicit ancestor base
+        id: base
+        run: |
+          event_base="${{ github.event.pull_request.base.sha || github.event.before }}"
+          case "$event_base" in [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;; *) echo "::error::missing explicit base SHA"; exit 1;; esac
+          git fetch --no-tags origin "$event_base"
+          git cat-file -e "$event_base^{commit}"
+          if [ "${{ github.event_name }}" = pull_request ]; then base="$(git merge-base "$event_base" HEAD)"; else base="$event_base"; fi
+          git cat-file -e "$base^{commit}"
+          git merge-base --is-ancestor "$base" HEAD || { echo "::error::base is not an ancestor"; exit 1; }
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+      - name: Validate immutable baseline and exact ratios
+        run: |
+          python - <<'PY'
+          import hashlib, importlib.util, json, subprocess, sys
+          from pathlib import Path
+          root = Path.cwd(); baseline = json.loads((root / 'coverage/baseline.json').read_text())
+          spec = importlib.util.spec_from_file_location('coverage_policy', root / 'scripts/check_changed_coverage.py')
+          policy = importlib.util.module_from_spec(spec); sys.modules[spec.name] = policy; spec.loader.exec_module(policy)
+          backend = policy._parse_lcov(root / 'coverage/artifacts/backend/backend.lcov', root, root)
+          frontend = policy._parse_lcov(root / 'coverage/artifacts/frontend/lcov.info', root / 'frontend', root)
+          records = backend | frontend
+          groups = {'backend': sorted(path for path in backend if policy._eligible(path)), 'frontend': sorted(path for path in frontend if policy._eligible(path))}
+          inventory = groups['backend'] + groups['frontend']
+          assert baseline['version'] == 1
+          assert baseline['eligible_inventory_sha256'] == hashlib.sha256(('\n'.join(inventory) + '\n').encode()).hexdigest()
+          digest = hashlib.sha256()
+          for path in ('scripts/check_changed_coverage.py', 'pyproject.toml', 'frontend/package.json', 'frontend/package-lock.json', 'frontend/vitest.config.ts'):
+              digest.update(path.encode()); digest.update(b'\0'); digest.update((root / path).read_bytes())
+          assert baseline['policy_sha256'] == digest.hexdigest()
+          def check(label, actual, expected):
+              for metric in ('line', 'branch'):
+                  covered, total = actual[f'{metric}_covered'], actual[f'{metric}_total']
+                  base_covered, base_total = expected[f'{metric}_covered'], expected[f'{metric}_total']
+                  assert covered * base_total >= base_covered * total, f'{label} {metric} coverage regressed'
+          check('global', policy._metrics(records.values()), baseline['global'])
+          for name, paths in groups.items():
+              expected = baseline['critical'][name]
+              assert expected['paths'] == paths, f'{name} source inventory changed'
+              check(name, policy._metrics(records[path] for path in paths), expected)
+          PY
+          base="${{ steps.base.outputs.base }}"
+          if ! git diff --quiet "$base" -- coverage/baseline.json; then
+            parent="$(git rev-parse HEAD^)"
+            expected="$(python -c 'import json; print(json.load(open("coverage/baseline.json"))["source_parent_sha"])')"
+            changed="$(git diff --name-only HEAD^ HEAD)"
+            if [ "${{ github.event_name }}" != push ] || [ "$parent" != "$expected" ] || [ "$changed" != $'.github/workflows/ci.yml\ncoverage/baseline.json\nscripts/check_changed_coverage.py\ntests/test_changed_coverage_policy.py' ]; then
+              echo "::error::coverage baseline is immutable after its one bootstrap commit"; exit 1
+            fi
+          fi
+      - name: Enforce changed-code coverage
+        run: python scripts/check_changed_coverage.py --base "${{ steps.base.outputs.base }}" --backend-lcov coverage/artifacts/backend/backend.lcov --frontend-lcov coverage/artifacts/frontend/lcov.info --baseline coverage/baseline.json
+
   e2e:
     name: e2e against the real stack
     runs-on: ubuntu-latest
-    needs: quality
+    needs: [quality, coverage]
     steps:
       # Check out the candidate commit itself. On pull_request the default ref is a
       # synthetic merge commit, so a green run would be evidence for a SHA that

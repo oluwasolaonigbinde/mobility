@@ -26,7 +26,7 @@ class PolicyError(ValueError):
 @dataclass
 class CoverageRecord:
     lines: dict[int, int] = field(default_factory=dict)
-    branches: dict[tuple[int, int, int], int | None] = field(default_factory=dict)
+    branches: dict[tuple[int, int, str], int | None] = field(default_factory=dict)
     declared_line_total: int | None = None
     declared_line_covered: int | None = None
     declared_branch_total: int | None = None
@@ -136,12 +136,14 @@ def _parse_record_line(record: CoverageRecord, line: str) -> None:
         return
     if line.startswith("BRDA:"):
         try:
-            number, block, branch, taken = line.removeprefix("BRDA:").split(",")
-            key = (int(number), int(block), int(branch))
+            number, block, branch_id, taken = line.removeprefix("BRDA:").split(",")
+            if not branch_id.strip():
+                raise ValueError("empty branch identifier")
+            key = (int(number), int(block), branch_id)
             value = None if taken == "-" else int(taken)
         except ValueError as error:
             raise PolicyError(f"malformed LCOV branch coverage: {line!r}") from error
-        invalid_key = key[0] <= 0 or key[1] < 0 or key[2] < 0
+        invalid_key = key[0] <= 0 or key[1] < 0
         if invalid_key or (value is not None and value < 0) or key in record.branches:
             raise PolicyError(f"conflicting LCOV branch coverage: {line!r}")
         record.branches[key] = value
@@ -327,6 +329,8 @@ def _matches(path: str, patterns: object, label: str) -> bool:
     )
     if not valid_patterns:
         raise PolicyError(f"baseline {label}.paths must be a non-empty string list")
+    if path in patterns:
+        return True
     candidates = set(patterns)
     pending = list(candidates)
     while pending:

@@ -3,11 +3,25 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import subprocess
 import sys
 from pathlib import Path
 
 CHECKER = Path(__file__).parents[1] / "scripts" / "check_changed_coverage.py"
+
+
+def test_exact_critical_paths_support_next_dynamic_segments() -> None:
+    spec = importlib.util.spec_from_file_location("coverage_policy", CHECKER)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    assert module._matches(
+        "frontend/src/app/advertiser/[campaignId]/page.tsx",
+        ["frontend/src/app/advertiser/[campaignId]/page.tsx"],
+        "critical.frontend",
+    )
 
 
 def _run(command: list[str], cwd: Path) -> str:
@@ -133,6 +147,25 @@ def test_rejects_changed_code_below_the_branch_floor(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "changed branch coverage" in result.stderr
+
+
+def test_accepts_coverage_py_descriptive_branch_identifier(tmp_path: Path) -> None:
+    repo, base, backend, frontend, coverage = _repository(tmp_path)
+    coverage.mkdir()
+    backend_lcov = coverage / "backend.lcov"
+    frontend_lcov = coverage / "frontend.lcov"
+    backend_lcov.write_text(
+        f"SF:{backend}\nDA:1,1\nDA:2,1\nDA:3,1\nDA:4,1\n"
+        "BRDA:2,0,jump to line 3,1\nend_of_record\n"
+    )
+    _write_lcov(frontend_lcov, {str(frontend): ({1: 1}, {})})
+    baseline = coverage / "baseline.json"
+    _baseline(baseline)
+
+    result = _check(repo, base, backend_lcov, frontend_lcov, baseline)
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["changed"]["branch_percent"] == 100.0
 
 
 def test_renamed_file_is_checked_and_deleted_file_is_reported(tmp_path: Path) -> None:
