@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.55 — 2026-08-26. Canonical source of truth: current state AND target state.**
+**Version 1.84 — 2026-09-05. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -24,8 +24,8 @@
 > diverge in either direction. Narrower scope claims in older docs (notably
 > `docs/build-loop/`) are historical.
 
-This document defines both **what exists** (Part II, verified against commit
-**`301519d`** on branch `f7-hardening`) and **the architecture the
+This document defines both **what exists** (Part II, verified against integrated
+pre-R60 commit **`163961343754c17702eb4c1032ee5a7b871e2354`**) and **the architecture the
 finished product should have**. Future development — human or AI agent —
 conforms to Part III (target) while respecting Part II (current) as the
 verified starting point.
@@ -57,7 +57,7 @@ Every architectural claim below is tagged:
 
 | Tag | Meaning | What you may do |
 |-----|---------|-----------------|
-| **[BUILT]** | Verified against commit `301519d` (the Part II pin). | Rely on it. If the code no longer matches, the doc is stale — flag it. |
+| **[BUILT]** | Verified against commit `163961343754c17702eb4c1032ee5a7b871e2354` (the Part II pin), or against the later delivery evidence named in the relevant changelog row. | Rely on it. If the code no longer matches, the doc is stale — flag it. |
 | **[PLANNED-F7]** | Historical tag for the F7 hardening plan. F7 is delivered — remaining occurrences mark F7 items that deliberately did **not** ship (e.g. staging deploy, which stayed research-only). | Treat like [TARGET]: do not build ad hoc. |
 | **[TARGET]** | The designed end-state architecture for functionality not yet built. Structure is decided; some parameters may still be [OPEN]. | Build **toward** it. New features must fit these boundaries. Do not implement a [TARGET] component ad hoc — it gets its own planned build phase. |
 | **[OPEN]** | An execution parameter/artifact the client or an external owner has not yet supplied. **Since D18–D20 (14 Aug 2026), Q1–Q34 product directions and the three implementation clarifications are client-confirmed in `docs/decisions-log.md` Part 2**; older Q-referencing `[OPEN]`/“Blocked-by” prose has no force where those rows answer it. | Do not invent missing provider credentials, legal wording, statutory facts, permit evidence, policy thresholds or commercial values. Build provider-neutrally where the registered live-use gate permits. |
@@ -158,25 +158,29 @@ clarification). Summary with build status:
 
 | # | Decision | Status vs code |
 |---|----------|----------------|
-| D1 | **Operator-led onboarding** — no self-serve signup; admin creates users/orgs. *Narrowed by Q13: applies to advertisers/orgs; drivers get self-registration ([TARGET] §23)* | [BUILT] matches (§6.3); driver self-registration is CONFIRMED, unbuilt |
-| D2 | **Driver pay = fixed hourly rate** (naira/hour × verified payable time; D18 adds base/premium zone tiers) | [BUILT] §16.1 `payout_v2` history; [TARGET] `payout_v3` under D18. v1/v2 history is frozen; never extend v1's per-km components or reprice old work |
-| D3 | **Screen-on pilot tracking** — installable PWA, phone mounted; native app later, identical backend contract. D18/Q10 reconfirms D3 and supersedes D11's native-in-MVP timing. | [BUILT] interim PWA contract matches (§8.6); production PWA hardening is [TARGET] W4; native client is post-pilot (§23/§31) |
-| D4 | **Payable-hours cap** per campaign/driver/day, shown in driver's offer | [BUILT] in v2 and preserved in target v3 (§16) |
-| D5 | **Hold-and-review fraud posture** — flags hold earnings for admin review; multipliers become secondary | Flags + multipliers are [BUILT]; the hold/review/dispute workflow is [TARGET] §17 |
-| D6 | **Retargeting is in the MVP** (shape confirmed by D18/Q11, scope extended by D11) | [TARGET] §22; privacy boundary fixed now |
-| D7 | **In-platform creative upload** (Q18 confirmed) | [TARGET] §19; creatives stay metadata-only until built |
-| D11 | **The 5-month client MVP proposal established the scope baseline** — retargeting at full Module G scope, CSV/PDF export and pilot deployment remain in scope; D18/D20 later supersede its native-app timing and any other conflict. | [TARGET] §22/§31; interpreted through D18/D20 |
-| D17 | **One encryption-provider boundary and ciphertext schema** spans pilot bank data and later KYC/national identifiers; W2-02D upgrades custody, not the data shape | [TARGET] §16.3/§19.3; MNY-10A then W2-02D |
-| D18 | **Somto's final Q1-Q34 answer is the direct client authority, later clarified for Q11/Q24/Q30 by D20** — production screen-on PWA for the pilot, `payout_v3` base/premium zone pricing, clean-immediate/flagged-seven-day review, automated pilot transfers, 24-hour refund eligibility, Cardvert/Terrax Media and the Abuja pilot shape | [TARGET] amendments across §15–§25/§31/§35; Part 2 of the decision log is binding |
-| D20 | **The client approved the three implementation clarifications** — Q11 activation uses geography/time/context only and never person-level route retargeting; Q24 standard production waits 24 hours unless an advertiser requests expedited production and accepts an immutable refund waiver; Q30 defaults to Campaign Performance Analysis and includes true ROI only with conversion/revenue inputs plus an approved reproducible method | [TARGET] §15/§22/§27/§32/§35; existing slice contracts only, with no package or dependency expansion |
+| D1 | **Operator-led onboarding** — no self-serve signup; admin creates users/orgs. *Narrowed by Q13: applies to advertisers/orgs; drivers get self-registration (§23).* | [BUILT] advertiser/admin creation and public driver application/onboarding routes coexist behind approval-before-work |
+| D2 | **Driver pay = fixed hourly rate** (naira/hour × verified payable time; D18 adds base/premium zone tiers) | [BUILT] §16.1 preserves `payout_v2` history and binds accepted work to immutable `payout_v3` base/premium terms; v1/v2 history is never repriced |
+| D3 | **Screen-on pilot tracking** — installable PWA, phone mounted; native app later, identical backend contract. D18/Q10 reconfirms D3 and supersedes D11's native-in-MVP timing. | [BUILT] provider-neutral production PWA (§8.6/§23); representative physical-device and live-route evidence remains an external pilot gate |
+| D4 | **Payable-hours cap** per campaign/driver/day, shown in driver's offer | [BUILT] in v2 and preserved in the accepted-work-bound v3 terms (§16) |
+| D5 | **Hold-and-review fraud posture** — flags hold earnings for admin review; multipliers become secondary | [BUILT] §17 holds, review/dispute state, release gating, and explanations share one governed chain |
+| D6 | **Retargeting is in the MVP** (shape confirmed by D18/Q11, scope extended by D11) | [BUILT] provider-neutral aggregate source/link/segment/approval/delivery boundary (§22); legal and live-platform gates remain |
+| D7 | **In-platform creative upload** (Q18 confirmed) | [BUILT] managed-file upload, malware scanning, review, and activation evidence boundary (§19); live storage/scanner authority remains environment-gated |
+| D11 | **The 5-month client MVP proposal established the scope baseline** — retargeting at full Module G scope, CSV/PDF export and pilot deployment remain in scope; D18/D20 later supersede its native-app timing and any other conflict. | [BUILT] provider-neutral retargeting, report export, and release-preparation surfaces; approved staging/pilot execution remains external (§22/§27/§31) |
+| D17 | **One encryption-provider boundary and ciphertext schema** spans pilot bank data and later KYC/national identifiers; W2-02D upgrades custody, not the data shape | [BUILT] §16.3/§19.3 provider-neutral custody boundary and shared ciphertext shape; production KMS/vault remains external |
+| D18 | **Somto's final Q1-Q34 answer is the direct client authority, later clarified for Q11/Q24/Q30 by D20** — production screen-on PWA for the pilot, `payout_v3` base/premium zone pricing, clean-immediate/flagged-seven-day review, automated pilot transfers, 24-hour refund eligibility, Cardvert/Terrax Media and the Abuja pilot shape | [BUILT] provider-neutral product and control surfaces across §15–§25; live provider, legal, permit, method, device, staging, and pilot evidence remains gated |
+| D20 | **The client approved the three implementation clarifications** — Q11 activation uses geography/time/context only and never person-level route retargeting; Q24 standard production waits 24 hours unless an advertiser requests expedited production and accepts an immutable refund waiver; Q30 defaults to Campaign Performance Analysis and includes true ROI only with conversion/revenue inputs plus an approved reproducible method | [BUILT] governed aggregate activation inputs, immutable waiver/production authority, and performance-only/conditional-ROI projections; live-use gates remain (§15/§22/§27/§35) |
 
 Hard constraints (violating any of these is an architecture change, not a feature):
 
 - **No realtime web push** — no WebSockets/SSE ([BUILT] §6.5; reaffirmed for
   target, §14.4). The MVP PWA polls; any later native push adapter does not
   relax this constraint.
-- **No file upload/storage pipeline** until §19 is built as a phase (Q18 is confirmed; the pipeline still arrives only as its planned phase).
-- **Operator-led** — no self-serve registration of any kind today (driver self-registration is confirmed by Q13 but arrives only as its planned §23 phase).
+- **Managed files only** — uploads use the §19 stored-file, scan, purpose,
+  authorization, and private-object boundary; never add container-file or raw
+  database-blob shortcuts.
+- **Approval before driver work** — public driver self-registration/onboarding
+  is built, but no applicant may receive work authority before the governed
+  identity, payee, vehicle, and administrator approval chain completes (§23).
 - **Browser never calls FastAPI** (§8.2). Native apps will (§23) — browsers never.
 - **Raw location data never leaves the analytics domain** (§22.2) — new, binding now.
 - Every build phase implementing a decision references its D-number in the commit
@@ -251,7 +255,7 @@ to conflict, the earlier-numbered principle wins.
         └───────────────┬───────────────┘
                         │  Authorization: Bearer <JWT>, internal network
         ┌───────────────▼───────────────┐
-        │  FastAPI  (app/)              │  /api/v1 — 81 operations
+        │  FastAPI  (app/)              │  /api/v1 — 265 operations
         │  SQLAlchemy 2 async + Alembic │  request/response + worker
         │  services layer, audit trail  │  enqueue (§6.5); no WebSockets
         └───────┬───────────────┬───────┘
@@ -259,15 +263,54 @@ to conflict, the earlier-numbered principle wins.
    ┌────────────▼─────────┐   ┌─▼──────────────────────────┐
    │ PostgreSQL 16 +      │   │ Redis 7                    │
    │ PostGIS 3.4          │   │ [BUILT] login rate-limit   │
-   │ 21 tables, geometry  │   │ counters (F7) + arq queue  │
-   │ (Point/MultiPolygon) │   │ (§6.5); both fail-open /   │
-   └──────────────────────┘   │ disposable                 │
+   │ 120 mapped tables,   │   │ counters (F7) + arq queue  │
+   │ (Point/MultiPolygon) │   │ (§6.5); disposable queue,  │
+   └──────────────────────┘   │ fail-closed auth buckets   │
                               └────────────────────────────┘
 ```
 
 Not boxed above: the arq `worker` container (§6.5, §14) shares the FastAPI
 codebase/image and sits on the same Redis + Postgres. The target-state version
 of this diagram is §13.
+
+<!-- architecture-current-state:start -->
+<!-- Generated by scripts/update_architecture_inventory.py; do not edit this block. -->
+
+Current OpenAPI: **266 operations across 238 paths**; **265 operations under `/api/v1`** plus root `/health`.
+
+| Prefix | Operations | Paths |
+|--------|-----------:|------:|
+| `/api/v1/admin/*` | 143 | 130 |
+| `/api/v1/advertiser/*` | 59 | 46 |
+| `/api/v1/auth/*` | 12 | 12 |
+| `/api/v1/driver/*` | 41 | 39 |
+| `/api/v1/health*` | 3 | 3 |
+| `/api/v1/me` | 1 | 1 |
+| `/api/v1/notifications/*` | 5 | 5 |
+| `/api/v1/webhooks/*` | 1 | 1 |
+| `/health` | 1 | 1 |
+
+SQLAlchemy metadata contains **120 mapped tables**.
+Alembic contains **84 linear revisions**, from base `0001_enable_extensions` to the single head `0084_payout_conservation`.
+
+Required public driver-onboarding paths:
+
+- `/api/v1/auth/driver-application-status/{reference}`
+- `/api/v1/auth/driver-onboarding/files/uploads`
+- `/api/v1/auth/driver-onboarding/files/uploads/{upload_id}/confirm`
+- `/api/v1/auth/driver-onboarding/files/{file_id}/status`
+- `/api/v1/auth/driver-onboarding/person-payee`
+- `/api/v1/auth/driver-onboarding/vehicle`
+- `/api/v1/auth/register-driver`
+
+Required administrator DSR paths:
+
+- `/api/v1/admin/privacy/dsr-requests`
+- `/api/v1/admin/privacy/dsr-requests/{request_id}/complete`
+- `/api/v1/admin/privacy/dsr-requests/{request_id}/inventory`
+- `/api/v1/admin/privacy/dsr-requests/{request_id}/locations/{location}`
+- `/api/v1/admin/privacy/dsr-requests/{request_id}/verify-identity`
+<!-- architecture-current-state:end -->
 
 ## 6. Backend architecture
 
@@ -280,7 +323,7 @@ app/
 ├── core/              # config.py (pydantic-settings), security.py (JWT/argon2),
 │                      # errors.py (AppError + envelope), middleware.py (request-ID)
 ├── db/                # base.py (DeclarativeBase), session.py (async engine/session)
-├── models/            # SQLAlchemy models — 21 tables (see §7)
+├── models/            # SQLAlchemy models — 120 mapped tables (see §7)
 ├── schemas/           # Pydantic request/response models, incl. pagination + decimal mixins
 ├── services/          # all business logic; routers stay thin
 └── seeds/demo.py      # demo seed CLI (python -m app.seeds.demo) — NOT an endpoint
@@ -292,29 +335,17 @@ this tree: §29.1.)
 
 ### 6.2 API surface **[BUILT]**
 
-82 operations total: **81 under `/api/v1`** plus a root `/health` liveness check.
-<!-- verified 2026-07-20: grep -Eh "@router\.(get|post|put|patch|delete)" app/api/v1/*.py | wc -l → 81;
-     openapi.json paths walk → 82 ops / 66 paths incl. root /health -->
+The generated current-state inventory above is the count and prefix-group
+authority for the FastAPI surface.
 
-Grouped by URL prefix (operation counts from `openapi.json`):
-
-| Prefix | Ops | Domain areas (router modules) |
-|--------|-----|-------------------------------|
-| `/api/v1/admin/*` | 35 | users, advertiser-organizations, drivers (profiles + onboarding), vehicles, campaigns (read), campaign-assignments (+cancel), payout-rules, payout-calculations, trips (analytics / recompute / estimate-impressions / calculate-payout), fraud-flags, traffic-density-profiles, impression-estimates, heatmap, audit-events (F7) |
-| `/api/v1/advertiser/*` | 22 | organization, dashboard summary, campaigns CRUD (+status), creatives, zones CRUD, campaign heatmap, reports (summary, daily-metrics, trips, report, impressions summary, cost summary) |
-| `/api/v1/driver/*` | 18 | profile, vehicles (read), campaign-assignments (accept/activate/deactivate), trips (start/end/current/pings), analytics summary, earnings (summary + ledger) |
-| `/api/v1/auth/*` | 3 public | login, refresh (sliding session), change-password; the BFF also uses one schema-hidden logout transport for global revocation |
-| `/api/v1/me` | 1 | current user + advertiser-organization context; the route-guard endpoint |
-| `/api/v1/health`, `/api/v1/health/ready` | 2 | liveness + readiness |
-| `/health` (root) | 1 | container liveness |
-
-The role split **is** the URL split: every business endpoint lives under exactly
-one of `/admin`, `/advertiser`, `/driver` and is guarded by the matching role
-dependency (`AdminUserDependency`, `AdvertiserUserDependency`,
-`DriverUserDependency` in `app/api/v1/dependencies.py`). **Invariant:** new
-endpoints follow this prefix-per-role pattern; no mixed-role endpoints outside
-`/me`. **[TARGET] planned exception:** `/api/v1/webhooks/*` (§15.4) — machine
-callers authenticated by signature, not JWT; nothing else may join that namespace.
+Role-specific business endpoints live under `/admin`, `/advertiser`, or
+`/driver` and use the matching dependency (`AdminUserDependency`,
+`AdvertiserUserDependency`, `DriverUserDependency` in
+`app/api/v1/dependencies.py`). The deliberate exceptions are public/session
+`/auth`, user-scoped `/me` and `/notifications`, operational `/health`, and
+signature-authenticated machine `/webhooks`. New endpoints use one of those
+existing authority shapes; they do not create an unclassified mixed-role
+namespace.
 
 **There is no seed endpoint.** Demo data is seeded by CLI only
 (`python -m app.seeds.demo`), gated by `ALLOW_DEMO_SEED` (default `false`).
@@ -404,7 +435,9 @@ callers authenticated by signature, not JWT; nothing else may join that namespac
   disabled before the target lock resolves leave the target unchanged and write
   no success audit. Role no-ops and changes that do not enter `admin` retain
   their prior behavior. No per-device session state or migration is added.
-- **No self-registration.** Users are created by admins (`POST /api/v1/admin/users`).
+- Advertiser/admin users are created by admins (`POST /api/v1/admin/users`);
+  drivers enter through the public, non-enumerating application/onboarding
+  routes and remain unable to work until the governed approval chain completes.
   Config guards: JWT secret must be changed and ≥32 chars outside local/test
   environments; wildcard CORS origins refused outside local/test.
 - Do not add other claims named `sv`. MVP auth evolution beyond F7 is password
@@ -502,9 +535,11 @@ queues/realtime ad hoc — §14 remains the one sanctioned design.
 
 ## 7. Data model
 
-### 7.1 Entities **[BUILT]** — 28 tables
+### 7.1 Entities **[BUILT]** — 120 mapped tables
 
-<!-- verified 2026-08-21: rg -o "__tablename__" app/models/*.py | wc -l → 28 -->
+The groups below describe selected load-bearing entities rather than an
+exhaustive table catalogue. SQLAlchemy metadata and the generated sentinel
+are authoritative for the complete mapped-table count.
 
 Identity & orgs:
 
@@ -574,21 +609,14 @@ Notes:
   → fraud_flags → fraud_assessments, impression_estimates) → payout_calculations →
   earnings_ledger_entries**; each step stores enough context to be queried
   independently.
-- Target-state table additions (billing, notifications, files, audience, jobs)
-  are specified in their Part III sections and indexed in §30.
+- Additional built billing, notification, file, audience, privacy, measurement,
+  reporting and payout-execution tables follow the boundaries specified in
+  their Part III sections and indexed in §30.
 
 ### 7.2 Migration policy **[BUILT]**
 
-- Alembic, 24 linear migrations `0001`–`0024` (extensions → identity/orgs →
-  drivers/vehicles → campaigns/creatives → zones → assignments → trip tracking →
-  analytics/fraud → impressions → payouts → F7 password management → F7 audit
-  indexes → S1 payout v2 → S4 ping partitioning + purge evidence → RM1 payout-day
-  allocation → RM3 trip seal protocol + quarantine → seal review hardening →
-  immutable payout revisions/bindings/corrections → current fraud assessments →
-  indexed route-replay signatures).
-  <!-- verified 2026-08-21: ls alembic/versions → 24; alembic heads → single head 0024_fraud_review_holds -->
-  (Pre-existing doc drift note: this row still said "12" after S1 shipped
-  0013 — corrected here in the S4 commit.)
+- Alembic has **84 linear revisions**, from base `0001_enable_extensions` to the single head `0084_payout_conservation`.
+  <!-- verified by scripts/update_architecture_inventory.py from Alembic's ScriptDirectory -->
 - `0001` enables `pgcrypto` + `postgis`.
 - Shipped migrations are frozen history: schema changes come as **new**
   migrations, never edits to existing ones (per-slice migration tests
@@ -667,14 +695,16 @@ frontend/src/
 ├── app/
 │   ├── layout.tsx, page.tsx, login/, error.tsx, not-found.tsx
 │   ├── change-password/        # forced password change (advertiser/admin) (F7)
-│   ├── advertiser/             # portal: layout (requireRole("advertiser")), dashboard,
-│   │                           # campaigns list/new-wizard/detail/zones editor/map+heatmap/report
-│   ├── admin/                  # console: layout (requireRole("admin")), users, drivers,
-│   │                           # vehicles, assignments, fraud, payouts(+rules), traffic,
-│   │                           # audit (F7 audit-trail viewer)
+│   ├── apply/                  # public driver application entry point
+│   ├── api/                    # same-origin route handlers for application, file,
+│   │                           # notification, evidence and report-download flows
+│   ├── advertiser/             # portal: campaigns/maps/reports, billing/company,
+│   │                           # planning sources and governed notification preferences
+│   ├── admin/                  # console: identity/onboarding, campaigns/assignments,
+│   │                           # billing, payouts, fraud, planning, measurement and audit
 │   └── driver/                 # Cardvert Driver PWA
 │       ├── (portal)/           # guarded route group: layout (requireRole("driver")),
-│       │                       # home, assignments, track (GPS tracker), earnings, profile
+│       │                       # home, assignments, track, earnings, profile, capabilities
 │       ├── change-password/    # forced driver password change, inside PWA scope (F7)
 │       ├── keepalive/          # cookie-rotation GET for the tracking surface (F7)
 │       └── manifest.webmanifest/route.ts   # scoped PWA manifest (route handler)
@@ -806,17 +836,25 @@ One workflow: `.github/workflows/ci.yml` (push triggers on every branch subject
 to path filters; paths include product code, tests, contracts, deployment and
 delivery-control files; matching pull requests use the same path filters).
 
-- Job `backend` (F7): **postgis/postgis:16-3.4 + redis:7-alpine service
-  containers**, `pip install -e ".[dev]"` → `ruff check .` → full `pytest` with
-  `TEST_DATABASE_URL` and `RATE_LIMIT_TEST_REDIS_URL` set, so the
-  service-gated PostGIS and Redis tests actually execute.
-- Job `quality`: `npm ci` → lint → typecheck → vitest → **contract-drift gate** →
-  build.
+- Job `backend`: **postgis/postgis:16-3.4 + redis:7-alpine services** plus real
+  MinIO and ClamAV, exact candidate-SHA verification, delivery/OpenAPI drift
+  checks, Ruff, the full no-skip integration-authority suite, backend LCOV and
+  pre-production static verification.
+- Job `quality`: exact candidate-SHA verification, `npm ci`, lint, typecheck,
+  coverage-enabled Vitest, generated-client **contract-drift gate**, and build.
+- Job `coverage` (R17/TST-007): consumes both LCOV artifacts, resolves an
+  explicit ancestor base, rejects global or named-critical baseline regression,
+  and enforces at least 90% line / 80% branch coverage on changed executable
+  code with generated, test, fixture, migration, build and vendor exclusions.
 - Job `e2e`: boots the **real stack** (compose `api`+`db`+`redis` from
   `.env.example` with `ALLOW_DEMO_SEED=true`, relaxed login rate-limit
   thresholds, `F7_SEED_MAX_TRIPS_PER_DAY=1`, waits for `/api/v1/health`,
   `alembic upgrade head`, `python -m app.seeds.demo`), then Playwright against
   it in two projects (`chromium` desktop + `mobile-chrome` Pixel 7).
+- Job `r59_real_stack`: runs the isolated mutating release journey against its
+  own production-path API, worker, frontend, PostGIS and Redis topology and
+  uploads only the sanitized R59 evidence receipt. It is local/synthetic release
+  evidence, not a live-provider, deployment or pilot claim.
 
 ### 10.4 Deploy **[BUILT / deferred staging]**
 
@@ -2591,15 +2629,15 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 | Retention purge | §24 | `services/data_lifecycle.py` + `jobs/data_lifecycle.py` | location_pings partitions (drop), location_ping_batches (zero-ping delete), data_purge_audit (append) | aggregates, trip_sessions | [BUILT] S4 (Q31 param ⚙ PING_RETENTION_MONTHS) |
 | Ping partitioning | §24.2 | migration `0014` + premake/coverage jobs + `/health/partitions` | location_pings | frozen migrations, default partitions | [BUILT] S4 |
 | Purge evidence (data_purge_audit) | §24.2.4 | `models/data_purge.py` + `services/data_lifecycle.py` | data_purge_audit (append-only) | updates to existing rows | [BUILT] S4 |
-| Data-subject requests (NDPR) | §24.2.6 | ops runbook (no code at pilot) | — | ledger/audit deletes | Q31, counsel |
+| Data-subject requests (NDPR) | §24.2.6 | `services/data_subject_requests.py`, `services/data_subject_inventory.py`, `api/v1/privacy_dsr.py`, `jobs/data_lifecycle.py` + ops runbook | data_subject_requests, per-location assessments, governed object deletion work | money/audit deletion; unverified completion or external-erasure claims | [BUILT] provider-neutral DSR inventory/completion authority; legal retention and external-processor facts remain gated |
 | Per-campaign custom quotation / accepted external deal record | §15 | `services/billing.py` | commercial_terms, invoices | launch package catalogue; report logic | Q1/Q14 confirmed |
 | Advertiser company profile | §6/§15/§27 | advertiser organization service + advertiser/admin pages | advertiser_organizations | invoice-company identity, tenant ownership | D11 proposal Module B |
 | Campaign cancellation / refunds and production authority | §15 | `services/billing.py` + campaign status | commercial terms, production-authority events, invoices, payments | mutable waivers; production before authority; ledger edits | Q24/D20 |
 | Driver bank account / BVN capture | §16.3 | `driver_profiles` + KYC flow (§19.3) | driver_profiles | plaintext storage of BVN — treat as sensitive PII (P7) | Q26, Q27 |
 | Password reset (advertiser/admin) | §23 | `services/auth.py` | users | — | post-F7; needs email channel (§20) |
 | WhatsApp opt-in / phone verification | §20 | `services/notifications.py` | users/driver_profiles phone fields | — | Q34 |
-| Driver self-registration | §23 | `services/users.py` + new auth endpoint | users, driver_profiles | approval-before-work invariant | Q13 confirmed |
-| Driver vehicle profile / evidence review | §19/§21/§23 | driver/vehicle service + driver/admin APIs | vehicles, versioned vehicle evidence, stored_files | self-approval, mutable approved evidence, assignment bypass | Q26 + proposal Module C; W3-04C |
+| Driver self-registration | §23 | `services/driver_onboarding.py`, `api/v1/auth.py` + `/apply` | users, driver applications, approval-gated onboarding records | enumeration; credential/work authority before approval | [BUILT W3-04A/B/C] Q13; legal/privacy artifacts remain a live-use gate |
+| Driver vehicle profile / evidence review | §19/§21/§23 | `services/driver_onboarding.py`, vehicle/KYC/evidence services + driver/admin APIs | vehicles, versioned vehicle evidence, stored_files | self-approval, mutable approved evidence, assignment bypass | [BUILT W3-04B/C] Q26 + proposal Module C; physical/legal evidence remains external |
 | Production driver PWA | §23 | existing Next.js driver surface + trip queue/seal/auth | IndexedDB/Web Locks, PWA manifest/service worker | public bearer API; native-only assumptions | D18: W4 pilot client |
 | Driver mobile app (native) | §23 | React Native/Flutter client + auth + notifications | refresh tokens/secure storage (new) | driver API contract breaks | D18: Phase 2 after pilot |
 | New admin/advertiser/driver page | §27 | `frontend/src/app/{role}/` | — | BFF invariant, raw hex | backend feature |
@@ -2778,6 +2816,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.84 | 2026-09-05 | **R60/GOV-009 final current-state architecture inventory.** Part II is re-pinned to the accepted pre-R60 integrated commit `163961343754c17702eb4c1032ee5a7b871e2354`. A deterministic generated sentinel now derives 266 OpenAPI operations across 238 paths (265 under `/api/v1`), stable prefix counts, 120 SQLAlchemy mapped tables, the 84-revision Alembic graph from `0001_enable_extensions` to single head `0084_payout_conservation`, and the required driver-onboarding and administrator-DSR routes. Current build-state, frontend entry-point, CI and placement prose is reconciled without rewriting historical design/provenance. R17's changed-code coverage gate and R59's isolated synthetic real-stack journey are recorded as built controls; no product behavior, API/schema/migration baseline, decision, external/live gate or controller state changes. The authoritative remediation arithmetic remains 86 unique FIX candidates in R01–R60 plus 9 DEFER, 12 OWNER DECISION and 8 EXTERNAL INPUT dispositions (115 total); controller-only closure follows independent admission. |
 | v1.83 | 2026-09-02 | **AUT-006 administrator elevation reauthentication and global revocation (D27).** Under the existing target-user `FOR UPDATE` authority, active non-admin→admin changes require the acting administrator's current password after the actor is locked and rechecked for active admin role and the presented session version. Password guesses share the fail-closed login buckets; wrong guesses consume their reservation, correct proof refunds it and unavailable limiter storage prevents verification. Success rotates the target `session_version` exactly once and records the existing immutable actor/target audit, invalidating every older bearer, refresh and password-reset capability. Missing/wrong proof, stale/contained actors and disable-first target races fail before mutation or success audit; elevation-first and combined status/role changes serialize and rotate once per real transition. Role no-ops and non-elevation mutations remain unchanged. The existing PATCH body gains one optional write-only proof field; synchronized OpenAPI/type baselines move, with no migration, per-device session model, route or response change. |
 | v1.82 | 2026-09-02 | **R14 deployed security and bundled data-plane boundary delivered (SEC-002, TST-004, REL-007 partial).** Caddy now sends a deny-by-default CSP, framing denial and capability-preserving Permissions Policy; forged standard/vendor forwarding identities are discarded and upstreams receive the socket-derived client IP plus generated request ID. Production app creation prewarms the cached password timing equalizer. Release preflight accepts provider-neutral authenticated verified-TLS PostgreSQL/Redis URLs, but explicitly stops managed URLs behind `MANAGED_DATA_RELEASE_ADAPTER_REQUIRED` until a managed release/recovery adapter exists. The bundled Compose adapter requires externally supplied CA/cert/key files, validates chain/SAN/key/mode, materializes keys as 0600 in tmpfs, enforces PostgreSQL TLS with controlled HBA and Redis TLS-only, and uses verified health/smoke probes. Focused wrong-CA/SAN/key/mode tests, disposable real PostGIS/Redis plaintext/auth denial simulations, forged-edge-header capture and a five-case built-image browser matrix covering CSP/PWA capabilities, status-path headers, cross-origin Server Actions and hardened cookies pass. A cold built-edge timing oracle keeps randomized known-wrong/unique-unknown trimmed-mean and p95 ratios within 0.80–1.25 and fails when prewarming is removed; a negative server-only import mutation and built-static-asset scan guard secret separation. No provider, host, secret, deployment, migration or §9 contract baseline moved by this slice. |
 | v1.81 | 2026-09-02 | **D30/D31 onboarding decisions synchronized without taking the active migration/contract lane.** New driver applications must fail closed and non-revealing when NIN, normalized phone or payout bank account matches an existing driver; current source checks only email at application creation, stores optional phone without that uniqueness check and receives encrypted NIN/bank data later without cross-driver deterministic uniqueness authority, so D30 remains a privacy-preserving migration/service/API follow-on. Vehicle approval already requires an explicit admin-entered future `valid_until` after required document reads, permits dates beyond document expiry without a 12-month cap, retains date/actor immutably and expires into a new approval requirement, so D31 is no product change. |
