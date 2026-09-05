@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 359
+plan_revision: 360
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 489
+last_event_sequence: 490
 ---
 
 # Cardvert audit remediation programme
@@ -946,3 +946,4 @@ verification is complete.
 | 487 | 357 | 1 | PLAN_REVIEW_PASSED | R60-P accepted the minimal final current-state inventory/drift and 115-disposition closure contract while preserving R17 as an explicit owner policy decision and keeping repository-wide external gates separate from PKG-10 completion. | task `01a06ece-05ab-79c3-beb2-983fe278a233`; GPT-5.6 Sol/high read-only plan and independent review; exact R60 three-file implementation lease plus controller-only ledger updates; CONTRACT/CP-CONTROL PASS; R59 receipt gate, R58 ambiguity fence, two bounded R17 options and final PAUSED external-pointer semantics recorded; no mutation |
 | 488 | 358 | 1 | WORKER_RECOVERY_EVIDENCE_CORRECTED | R58's accepted three-file evidence was replaced by the independently selected production-faithful ARQ harness: cron jobs retain `max_tries=1` and recover on the next scheduled occurrence, ordinary payout replays the same job, and all durable receipts/provider bytes are fsync-backed. | commit `0c1d525`; exact three-path replacement from corrected candidate `9cf004f`; eight isolated real PostgreSQL/Redis SIGKILL tests PASS in 149.47s, cleanup clean, controller registration smoke and Ruff/format/diff PASS; MERGE_MINIMAL comparison and final Sol/medium correction review PASS; `f07cb54` evidence superseded, R58 remains COMPLETE |
 | 489 | 359 | 1 | OWNER_DECISION_RECORDED | R17 Option A is adopted: changed executable code must meet at least 90% line and 80% branch coverage, with no regression from exact current global and named-critical baselines. | direct owner choice “A”, 5 Sep 2026; deterministic PR/push/local base selection and stated generated/test/fixture/migration/build/vendor exclusions required; R17-P may run read-only beside R59, but implementation is serialized behind R59's `.github/workflows/ci.yml` lease; no R59 evidence duplication |
+| 490 | 360 | 1 | PLAN_PACKET_STARTED | R17-P began a read-only current-source coverage-policy plan and independent review while R59 remains the sole implementation writer. | task `01a07082-3291-75b3-9cbd-252ed0db79b8`; GPT-5.6 Terra/high because this is ordinary cross-stack CI policy design with no money/security/migration/concurrency ownership; exact owner-approved Option A, no mutation lease, R59 workflow and journey excluded, terminal callback required |
