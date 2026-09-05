@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 366
+plan_revision: 367
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 496
+last_event_sequence: 497
 ---
 
 # Cardvert audit remediation programme
@@ -953,3 +953,4 @@ verification is complete.
 | 494 | 364 | 1 | PACKET_CHECKPOINT_ACCEPTED | R17 Phase A accepted the disjoint coverage tooling, pinned reporters, fail-closed policy checker, focused regression suite and D32 decision; the slice remains ACTIVE for CI wiring and the final baseline only. | commit `7c88cda`; exact eight-path integration; controller Ruff, seven policy tests, pin/lock assertion, diff and baseline-withheld checks PASS; owner red/green, frontend type/lint/coverage and independent minimal/CONTRACT/CP-CONTROL PASS after three fail-closed corrections; R59 bytes untouched and now stable for its final receipt refresh |
 | 495 | 365 | 1 | REAL_STACK_JOURNEY_ACCEPTED | R59/TST-002 accepted an exact-candidate isolated real-stack browser release journey proving outage/reload recovery and exactly-once analytics, fraud, impression, payout, ledger and worker-audit convergence. | commit `fcba0dc`; exact eight-path integration; controller file-set, seven static contracts, shell syntax and merged Compose checks PASS; owner headed Playwright journey PASS with sealed three-ping manifest, NGN 2.00 persisted payout, immutable receipt, exact teardown and no remaining R59 processes; minimal/SEC+DB+MNY+PRV+WORKERS+DEP/CP-RELEASE PASS |
 | 496 | 366 | 1 | PACKET_PHASE_RESUMED | R17 Phase B is authorized after R59 released the central workflow; the existing R17 task may add only final CI wiring and the immutable current baseline, then return the complete slice callback. | task `01a07093-99d9-7e82-a4fb-a3d25a732e9a`; GPT-5.6 Terra/high retained; exact lease `.github/workflows/ci.yml` and `coverage/baseline.json`; reconcile accepted R59 commit `fcba0dc`, preserve all other bytes, run final targeted policy/CI/baseline checks and consolidated delta review; terminal callback required before R60 |
+| 497 | 367 | 1 | VERIFICATION_SCOPE_CORRECTED | R17 may run one complete instrumented backend pytest capture and one complete instrumented frontend Vitest capture because no authoritative LCOV artifacts or prior baseline exist and focused outputs cannot truthfully establish the approved global/named-critical ratchet. | same task/model/two-path write lease; one-time baseline establishment only, reuse the resulting LCOV values for `coverage/baseline.json`, retain 90%/80% changed-code floors and fail-closed semantics, no R59 rerun or product change; focused-only prohibition corrected without broadening the approved outcome |
