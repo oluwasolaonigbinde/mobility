@@ -2,7 +2,7 @@
 schema_version: 1
 program_id: cardvert-audit-remediation
 program_status: EXECUTING
-plan_revision: 363
+plan_revision: 364
 controller_generation: 1
 controller_owner: 01a05de2-0b5d-73f0-ae3d-0e979b734658
 controller_nonce: car-remediation-g1-20260901
@@ -12,7 +12,7 @@ source_revision: 38094d605830ccce111bcb0773ec1a249fed2d58
 authoritative_output: shared master checkout
 approval: owner delegation from 01a001ce-d025-7531-a84c-7498cd819eda, 1 Sep 2026
 approved_writer_capacity: 3
-last_event_sequence: 493
+last_event_sequence: 494
 ---
 
 # Cardvert audit remediation programme
@@ -950,3 +950,4 @@ verification is complete.
 | 491 | 361 | 1 | PLAN_REVIEW_PASSED | R17-P accepted a minimum fail-closed backend/frontend changed-code coverage contract without editing the repository or duplicating R59. | task `01a07082-3291-75b3-9cbd-252ed0db79b8`; exact deferred lease for pinned coverage tooling, LCOV gate, policy tests, immutable baseline, D32 and CI wiring; deterministic PR/push/local base authority, 90% line/80% branch changed-code floors, global/named-critical non-regression and stated exclusions; independent minimal/CONTRACT/CP-CONTROL PASS; implementation remains held on R59's workflow lease |
 | 492 | 362 | 1 | PACKET_PHASE_SPLIT_AUTHORIZED | R17 implementation is split to use the second writer slot without overlapping active R59: Phase A may build disjoint tooling/configuration/tests/decision bytes now, while Phase B alone owns CI wiring and final baseline after R59 admission. | direct owner throughput instruction, 5 Sep 2026; Phase A exact lease `.gitignore`, `pyproject.toml`, `frontend/package.json`, `frontend/package-lock.json`, `frontend/vitest.config.ts`, `scripts/check_changed_coverage.py`, `tests/test_changed_coverage_policy.py`, `docs/decisions-log.md`; `.github/workflows/ci.yml` and `coverage/baseline.json` withheld; no R59 Playwright/Compose/wrapper/evidence or controller-document overlap; R60 remains dependency-held on final accepted state |
 | 493 | 363 | 1 | PACKET_DISPATCHED | R17 Phase A began in a fresh visible task beside R59 on the predeclared disjoint tooling/configuration/tests/decision lease. | task `01a07093-99d9-7e82-a4fb-a3d25a732e9a`; GPT-5.6 Terra/high because this is ordinary coverage-policy implementation; exact eight-path Phase A lease, CI workflow and final baseline withheld, R59 paths and generated outputs excluded, verified-feature-delivery and terminal callback required |
+| 494 | 364 | 1 | PACKET_CHECKPOINT_ACCEPTED | R17 Phase A accepted the disjoint coverage tooling, pinned reporters, fail-closed policy checker, focused regression suite and D32 decision; the slice remains ACTIVE for CI wiring and the final baseline only. | commit `7c88cda`; exact eight-path integration; controller Ruff, seven policy tests, pin/lock assertion, diff and baseline-withheld checks PASS; owner red/green, frontend type/lint/coverage and independent minimal/CONTRACT/CP-CONTROL PASS after three fail-closed corrections; R59 bytes untouched and now stable for its final receipt refresh |
