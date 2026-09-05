@@ -46,19 +46,16 @@ review before integration; one consolidated independent package review closes
 the owner-facing cycle.
 
 **Current justified remediation writer capacity:** `2`
-**Current capacity assignment:** `R17, R59`
+**Current capacity assignment:** `R17`
 **Current capacity justification:** R22 and R58 are accepted, releasing the
 money/migration and worker-recovery test leases and satisfying R59's final
 dependencies. R59 owns only the integrated real-stack Playwright configuration,
 journey, deterministic seed/reset/teardown, and local synthetic release evidence.
 No live provider, payment, deployment or personal-data authority is granted.
-R60 remains dependency-held until R59 and R17 are accepted. The owner has
-selected R17 Option A and R17-P passes. R17 Phase A may therefore implement its
-disjoint coverage tooling, configuration, policy tests and decision record while
-R59 runs; `.github/workflows/ci.yml` and the final `coverage/baseline.json` remain
-withheld until R59 is accepted. R60 remains serialized because its current-state
-inventory must include both accepted results; controller documents remain
-serialized.
+R59 is accepted, releasing the central CI workflow to R17. R17 Phase A is
+accepted at `7c88cda`; Phase B now owns only `.github/workflows/ci.yml` and the
+final `coverage/baseline.json`. R60 remains serialized because its current-state
+inventory must include accepted R17; controller documents remain serialized.
 
 `Controller state` is `COMPLETE` only after all ten packages are `DONE`, all 71
 original checklist items are `DONE`, and all 60 remediation slices are
@@ -90,12 +87,12 @@ authority. The active queue now prioritizes locally executable product and
 engineering defects; unresolved client/business/legal choices, later developer
 policy, external inputs and evidence-triggered observations are parked in
 `to-do.md` without being claimed complete or blocking independent fixes.
-**Current checkpoint:** `PKG-10 / R59` — R02 is accepted at `09c0b17`, R47 at
+**Current checkpoint:** `PKG-10 / R17` — R02 is accepted at `09c0b17`, R47 at
 `419414a`, R03 at `60af07d`, R48 at `b17d1e7`, R05 at `954d9a4`, R49 at
 `a315a59`, R33 at `14f155a`, R06 at `05b4901`, R07 at `84cb94e`, and R50 at
 `bb8c13e`, R18 at `5c2d60a`, R19 at `3c7b678`, R51 at `2f52c3e`, and R31 at
-`eb59a84`, R52 at `cab745c`, R20 at `d8cd891`, R21 at `ee43b10`, R22 at `7835ba8`, R55 at `662077a`, R57 at `2599b87`, and corrected R58 at `0c1d525`; R59 is the
-only dependency-ready implementation slice.
+`eb59a84`, R52 at `cab745c`, R20 at `d8cd891`, R21 at `ee43b10`, R22 at `7835ba8`, R55 at `662077a`, R57 at `2599b87`, corrected R58 at `0c1d525`, and R59 at
+`fcba0dc`; R17 is the only dependency-ready implementation slice.
 AUT-006 is accepted at
 `a4c9de2`.
 Every repository failure group
@@ -1643,8 +1640,8 @@ durable ledger before changing a row.
 | R56 | TST-005 | R09, R11, R14, R40 | COMPLETE | PASS — R56-P | PASS — R56-M | CP-SECURITY PASS — R56-CP-SECURITY |
 | R57 | TST-008 | R19, R27, R49, R55 | COMPLETE | PASS — R57-P | PASS — R57-M | CP-RELEASE PASS — R57-CP-RELEASE |
 | R58 | TST-011 | R15, R20, R21, R43, R49, R51 | COMPLETE | PASS — R58-P | PASS — R58-M | CP-WORKERS PASS — R58-CP-WORKERS |
-| R59 | TST-002 | R22, R31, R33, R37, R41, R44, R48, R50, R51, R56, R57, R58 | ACTIVE | PASS — R59-P | PENDING | CP-RELEASE PENDING |
-| R60 | GOV-009 | R03, R17, R18, R22, R27, R31, R33, R37, R43, R44, R52, R55, R56, R59 | QUEUED | PENDING | PENDING | CP-CONTROL PENDING |
+| R59 | TST-002 | R22, R31, R33, R37, R41, R44, R48, R50, R51, R56, R57, R58 | COMPLETE | PASS — R59-P | PASS — R59-M | CP-RELEASE PASS — R59-CP-RELEASE |
+| R60 | GOV-009 | R03, R17, R18, R22, R27, R31, R33, R37, R43, R44, R52, R55, R56, R59 | QUEUED | PASS — R60-P | PENDING | CP-CONTROL PENDING |
 
 ## Architecture traceability — non-executable parent groups
 
