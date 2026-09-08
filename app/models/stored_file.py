@@ -339,16 +339,29 @@ def reject_reference_to_deleting_stored_object(session, _flush_context, _instanc
         for item in session.new.union(session.dirty)
         if type(item).__name__ in _STORED_FILE_REFERENCE_MODELS
         and getattr(item, "stored_file_id", None) is not None
-        and (
-            item in session.new
-            or inspect(item).attrs.stored_file_id.history.has_changes()
-        )
+        and (item in session.new or inspect(item).attrs.stored_file_id.history.has_changes())
     ]
+    # Retention locks a KYC parent before its files; ORM hooks must use that same order.
+    parents = {
+        (
+            "driver_kyc_submissions"
+            if type(item).__name__ == "DriverKycDocument"
+            else "vehicle_evidence_submissions",
+            item.submission_id,
+        )
+        for item in candidates
+        if type(item).__name__ in {"DriverKycDocument", "VehicleEvidenceDocument"}
+    }
+    for table_name, parent_id in sorted(parents, key=lambda value: (value[0], str(value[1]))):
+        table = Base.metadata.tables[table_name]
+        retired_at = session.scalar(
+            select(table.c.purged_at).where(table.c.id == parent_id).with_for_update()
+        )
+        if retired_at is not None:
+            raise ValueError("purged KYC submission cannot accept documents")
     for item in candidates:
         session.execute(
-            select(StoredFile.id)
-            .where(StoredFile.id == item.stored_file_id)
-            .with_for_update()
+            select(StoredFile.id).where(StoredFile.id == item.stored_file_id).with_for_update()
         ).first()
         active = session.execute(
             select(StoredObjectDeletion.id)

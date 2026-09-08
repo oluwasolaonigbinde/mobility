@@ -354,8 +354,10 @@ def test_cross_account_time_shift_flag_has_bounded_redacted_evidence(
             )
 
     group_flags = asyncio.run(inspect_group_flags())
-    assert len(group_flags) == 1
-    assert group_flags[0].trip_session_id == latest_trip.id
+    assert {flag.trip_session_id for flag in group_flags} == {later_trip.id, latest_trip.id}
+    retained = next(flag for flag in group_flags if flag.trip_session_id == later_trip.id)
+    assert retained.id == second.replay_flag.id
+    assert retained.evidence == evidence
     assert third.replay_flag is not None
     assert third.replay_flag.evidence["total_match_count"] == 2
     assert third.replay_flag.evidence["cross_account_match_count"] == 2
@@ -590,10 +592,10 @@ def test_latest_member_departure_promotes_latest_remaining_group_member(
             )
 
     flags = asyncio.run(inspect())
-    assert len(flags) == 1
-    assert flags[0].trip_session_id == graphs[1][0].id
-    assert flags[0].evidence["total_match_count"] == 1
-    assert flags[0].evidence["sampled_matched_trip_ids"] == [str(graphs[0][0].id)]
+    assert {flag.trip_session_id for flag in flags} == {graphs[1][0].id, departing_trip.id}
+    remaining = next(flag for flag in flags if flag.trip_session_id == graphs[1][0].id)
+    assert remaining.evidence["total_match_count"] == 1
+    assert remaining.evidence["sampled_matched_trip_ids"] == [str(graphs[0][0].id)]
 
 
 def test_large_group_counts_all_matches_but_bounds_evidence_sample(
@@ -659,7 +661,7 @@ def test_evaluation_failure_is_sanitized_and_persisted(
     assert "secret" not in str(result.signature.__dict__)
 
 
-def test_distinct_route_removes_only_current_open_replay_flag(
+def test_distinct_route_preserves_current_open_replay_flag(
     db_sessionmaker,
     settings,
 ) -> None:
@@ -710,8 +712,70 @@ def test_distinct_route_removes_only_current_open_replay_flag(
             )
 
     assert result.replay_flag is None
-    assert asyncio.run(count_open()) == 0
+    assert asyncio.run(count_open()) == 1
 
+
+@pytest.mark.parametrize("transition", ["newest_member", "distinct_route", "insufficient_data"])
+def test_postgres_regrouping_retains_unresolved_flag_and_money_hold(
+    postgis_db_sessionmaker, settings, transition
+) -> None:
+    first, first_analytics = create_graph(
+        postgis_db_sessionmaker, "hold-first", ended_at=BASE_TIME + timedelta(hours=1)
+    )
+    flagged, flagged_analytics = create_graph(
+        postgis_db_sessionmaker, "hold-flagged", ended_at=BASE_TIME + timedelta(hours=2)
+    )
+    count = settings.route_replay_min_valid_pings
+    run_detection(
+        postgis_db_sessionmaker,
+        trip=first,
+        analytics=first_analytics,
+        points=[ping(i) for i in range(count)],
+        settings=settings,
+        now=BASE_TIME + timedelta(hours=3),
+    )
+    result = run_detection(
+        postgis_db_sessionmaker,
+        trip=flagged,
+        analytics=flagged_analytics,
+        points=[ping(i, shifted_seconds=3600) for i in range(count)],
+        settings=settings,
+        now=BASE_TIME + timedelta(hours=3, minutes=1),
+    )
+    original = result.replay_flag
+    assert original is not None
+    if transition == "newest_member":
+        target, analytics = create_graph(
+            postgis_db_sessionmaker, "hold-newest", ended_at=BASE_TIME + timedelta(hours=4)
+        )
+        points = [ping(i, shifted_seconds=7200) for i in range(count)]
+    else:
+        target, analytics = flagged, flagged_analytics
+        points = (
+            []
+            if transition == "insufficient_data"
+            else [ping(i, latitude_offset=0.03) for i in range(count)]
+        )
+    run_detection(
+        postgis_db_sessionmaker,
+        trip=target,
+        analytics=analytics,
+        points=points,
+        settings=settings,
+        now=BASE_TIME + timedelta(hours=5),
+    )
+
+    async def inspect():
+        async with postgis_db_sessionmaker() as session:
+            retained = await session.get(FraudFlag, original.id)
+            assert retained is not None
+            assert retained.status == "open"
+            assert retained.evidence == original.evidence
+            assert retained.detected_at == original.detected_at
+            assert retained.trip_analytics_id == original.trip_analytics_id
+            assert (await fraud_hold_counts(session, flagged.id))["high"] == 1
+
+    asyncio.run(inspect())
 
 def test_postgres_concurrent_reverse_processing_flags_only_latest_trip(
     postgis_db_sessionmaker,
@@ -892,7 +956,10 @@ def test_postgres_reconciliation_waits_for_other_trip_money_hold(
             )
 
     flags = asyncio.run(inspect_final_flags())
-    assert {flag.trip_session_id for flag in flags} == {incoming_trip.id}
+    assert {flag.trip_session_id for flag in flags} == {held_trip.id, incoming_trip.id}
+    retained = next(flag for flag in flags if flag.trip_session_id == held_trip.id)
+    assert retained.id == detected.replay_flag.id
+    assert retained.evidence == detected.replay_flag.evidence
 
 
 def test_postgres_concurrent_old_to_new_group_transition_reconciles_both_groups(

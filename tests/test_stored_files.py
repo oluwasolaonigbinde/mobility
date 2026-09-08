@@ -37,7 +37,175 @@ from app.services.stored_object_deletions import (
 PASSWORD = "long-secure-password"
 
 
+def test_generated_object_put_has_no_hidden_sdk_retry():
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    from app.adapters.storage import S3StorageProvider, StorageWriteUncertain
+
+    writes = []
+
+    class UncertainStorage(BaseHTTPRequestHandler):
+        def log_message(self, *_args):
+            pass
+
+        def do_GET(self):
+            self.respond(404, "NoSuchKey")
+
+        def do_PUT(self):
+            self.rfile.read(int(self.headers["Content-Length"]))
+            writes.append(self.path)
+            self.respond(503, "ServiceUnavailable")
+
+        def respond(self, status, code):
+            body = f"<Error><Code>{code}</Code></Error>".encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/xml")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), UncertainStorage)
+    thread = threading.Thread(target=server.serve_forever)
+    thread.start()
+    endpoint = f"http://127.0.0.1:{server.server_port}"
+    provider = S3StorageProvider(
+        endpoint_url=endpoint,
+        public_endpoint_url=endpoint,
+        region="us-east-1",
+        bucket="synthetic",
+        access_key_id="synthetic-local",
+        secret_access_key="synthetic-local",
+    )
+    try:
+        with pytest.raises(StorageWriteUncertain):
+            asyncio.run(
+                provider.put(
+                    object_key="managed/report.csv",
+                    content_type="text/csv",
+                    data=b"synthetic",
+                    checksum_sha256=hashlib.sha256(b"synthetic").hexdigest(),
+                )
+            )
+        assert writes == ["/synthetic/managed/report.csv"]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+@pytest.mark.parametrize("destination_exists", [False, True])
+def test_s3_promotion_keeps_temporary_source(destination_exists):
+    from unittest.mock import Mock
+
+    from app.adapters.storage.s3 import S3StorageProvider
+
+    provider = object.__new__(S3StorageProvider)
+    provider._bucket = "synthetic"
+    provider._client = Mock()
+    metadata = ObjectMetadata("managed/exact", 68, "image/png", "a" * 64)
+    provider._stat_sync = Mock(
+        side_effect=[metadata]
+        if destination_exists
+        else [StorageObjectNotFound("missing"), metadata]
+    )
+    assert provider._promote_sync("temporary/exact", "managed/exact") == metadata
+    provider._client.delete_object.assert_not_called()
+    assert provider._client.copy_object.call_count == int(not destination_exists)
+
+
+@pytest.mark.parametrize("purpose", ["driver_kyc", "vehicle_evidence"])
+@pytest.mark.parametrize("applicant", [False, True])
+def test_protected_upload_intent_requires_collection_authority(
+    db_sessionmaker, settings, purpose, applicant
+):
+    from app.core.errors import AppError
+    from app.models.user import UserStatus
+    from app.schemas.stored_files import FileUploadCreate
+    from app.services.stored_files import (
+        create_application_driver_upload_intent,
+        create_driver_upload_intent,
+    )
+
+    user = create_test_user(
+        db_sessionmaker,
+        email="blocked-file@example.com",
+        role=UserRole.DRIVER,
+        user_status=UserStatus.INVITED if applicant else UserStatus.ACTIVE,
+    )
+    create_test_driver_profile(db_sessionmaker, user_id=user.id)
+    storage = FakeStorageProvider()
+    blocked = settings.model_copy(
+        update={
+            "privacy_collection_synthetic_test_mode": False,
+            "privacy_collection_live_authorized": False,
+            "privacy_legal_approval_reference": "",
+        }
+    )
+    create = create_application_driver_upload_intent if applicant else create_driver_upload_intent
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            with pytest.raises(AppError) as denied:
+                await create(
+                    session,
+                    actor_user_id=user.id,
+                    payload=FileUploadCreate(**upload_payload(purpose=purpose)),
+                    storage=storage,
+                    settings=blocked,
+                )
+            assert denied.value.code == "PRIVACY_COLLECTION_BLOCKED"
+            assert not storage.presigned
+            assert await session.scalar(select(func.count()).select_from(FileUploadIntent)) == 0
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("purpose", ["driver_kyc", "vehicle_evidence"])
+@pytest.mark.parametrize("already_confirmed", [False, True])
+def test_protected_confirmation_rechecks_collection_authority_before_provider_or_retry(
+    db_client, db_sessionmaker, storage, settings, purpose, already_confirmed
+):
+    from app.core.config import get_settings
+
+    user = create_test_user(
+        db_sessionmaker,
+        email="revoked-collection@example.com",
+        password=PASSWORD,
+        role=UserRole.DRIVER,
+    )
+    create_test_driver_profile(db_sessionmaker, user_id=user.id)
+    headers = auth_headers(db_client, user.email, PASSWORD)
+    created = db_client.post(
+        "/api/v1/driver/files/uploads", headers=headers, json=upload_payload(purpose=purpose)
+    )
+    assert created.status_code == 201
+    info = created.json()
+    key = info["upload"]["fields"]["key"]
+    storage.objects[key] = ObjectMetadata(key, 68, "image/png", "a" * 64)
+    url = f"/api/v1/driver/files/uploads/{info['upload_id']}/confirm"
+    if already_confirmed:
+        assert db_client.post(url, headers=headers).status_code == 201
+    storage.unavailable = True
+    blocked = settings.model_copy(
+        update={
+            "privacy_collection_synthetic_test_mode": False,
+            "privacy_collection_live_authorized": False,
+            "privacy_legal_approval_reference": "",
+        }
+    )
+    db_client.app.dependency_overrides[get_settings] = lambda: blocked
+    denied = db_client.post(url, headers=headers)
+    assert denied.status_code == 503
+    assert denied.json()["error"]["code"] == "PRIVACY_COLLECTION_BLOCKED"
+
+
 class FakeStorageProvider(StorageProvider):
+    async def delete_all_versions(self, object_key: str) -> None:
+        await self.delete(object_key)
+        if object_key in self.objects:
+            raise StorageObjectConflict("Private object remains after deletion")
+
     def __init__(self) -> None:
         self.objects: dict[str, ObjectMetadata] = {}
         self.contents: dict[str, bytes] = {}
@@ -138,17 +306,15 @@ class FakeStorageProvider(StorageProvider):
         if self.unavailable:
             raise StorageUnavailable("storage is unavailable")
         if destination_key in self.objects:
-            self.objects.pop(source_key, None)
-            self.contents.pop(source_key, None)
             return self.objects[destination_key]
         try:
-            metadata = self.objects.pop(source_key)
+            metadata = self.objects[source_key]
         except KeyError:
             raise StorageObjectNotFound(source_key) from None
         promoted = replace(metadata, object_key=destination_key)
         self.objects[destination_key] = promoted
         if source_key in self.contents:
-            self.contents[destination_key] = self.contents.pop(source_key)
+            self.contents[destination_key] = self.contents[source_key]
         return promoted
 
     async def delete(self, object_key: str) -> None:
@@ -201,6 +367,73 @@ def create_upload(db_client, email: str, payload=None):
         headers=auth_headers(db_client, email, PASSWORD),
         json=payload or upload_payload(),
     )
+
+
+@pytest.mark.parametrize("remove_source", [False, True])
+def test_confirmation_retry_adopts_promoted_bytes_after_database_rollback(
+    postgis_db_sessionmaker, settings, remove_source
+):
+    from app.schemas.stored_files import FileUploadCreate
+    from app.services.stored_files import confirm_advertiser_upload, create_advertiser_upload_intent
+
+    actor, _ = advertiser_with_org(postgis_db_sessionmaker, "rollback-upload@example.com")
+    storage = FakeStorageProvider()
+
+    async def exercise():
+        async with postgis_db_sessionmaker() as session:
+            intent, _ = await create_advertiser_upload_intent(
+                session,
+                actor_user_id=actor.id,
+                payload=FileUploadCreate(**upload_payload()),
+                storage=storage,
+                settings=settings,
+            )
+            await session.commit()
+            upload_id, source_key = intent.id, intent.object_key
+        storage.objects[source_key] = ObjectMetadata(
+            object_key=source_key, size_bytes=68, content_type="image/png", checksum_sha256="a" * 64
+        )
+        async with postgis_db_sessionmaker() as session:
+            first = await confirm_advertiser_upload(
+                session,
+                actor_user_id=actor.id,
+                upload_id=upload_id,
+                storage=storage,
+                settings=settings,
+            )
+            destination = first.storage_key
+            await session.rollback()
+        if remove_source:
+            await storage.delete(source_key)
+        async with postgis_db_sessionmaker() as session:
+            retried = await confirm_advertiser_upload(
+                session,
+                actor_user_id=actor.id,
+                upload_id=upload_id,
+                storage=storage,
+                settings=settings,
+            )
+            await session.commit()
+            assert retried.storage_key == destination
+            again = await confirm_advertiser_upload(
+                session,
+                actor_user_id=actor.id,
+                upload_id=upload_id,
+                storage=storage,
+                settings=settings,
+            )
+            assert again.id == retried.id
+            assert await session.scalar(select(func.count()).select_from(StoredFile)) == 1
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(AuditEvent)
+                    .where(AuditEvent.action == "stored_file.confirmed")
+                )
+                == 1
+            )
+
+    asyncio.run(exercise())
 
 
 def test_driver_uploads_are_subject_scoped_and_role_purpose_bound(
@@ -347,8 +580,9 @@ def test_confirmation_promotes_exact_object_once_and_keeps_it_private(
     assert body["organization_id"] == str(organization.id)
     assert body["scan_status"] == "pending"
     assert "url" not in body and "bucket" not in body and "storage_key" not in body
-    managed_key = next(iter(storage.objects))
+    managed_key = next(key for key in storage.objects if key.startswith("managed/"))
     assert managed_key.startswith(f"managed/{organization.id}/")
+    assert created["upload"]["fields"]["key"] in storage.objects
 
     async def inspect() -> None:
         async with db_sessionmaker() as session:
@@ -372,14 +606,17 @@ def test_confirmation_promotes_exact_object_once_and_keeps_it_private(
         ({"checksum_sha256": "b" * 64}, "FILE_UPLOAD_CHECKSUM_MISMATCH"),
     ],
 )
+@pytest.mark.parametrize("already_promoted", [False, True])
 def test_confirmation_rejects_server_observed_mismatch_without_creating_file(
-    db_client, db_sessionmaker, storage, metadata_change, error_code
+    db_client, db_sessionmaker, storage, metadata_change, error_code, already_promoted
 ) -> None:
-    advertiser, _ = advertiser_with_org(
+    advertiser, organization = advertiser_with_org(
         db_sessionmaker, f"mismatch-{error_code.lower()}@example.com"
     )
     created = create_upload(db_client, advertiser.email).json()
     object_key = created["upload"]["fields"]["key"]
+    if already_promoted:
+        object_key = f"managed/{organization.id}/{created['upload_id']}"
     expected = {
         "object_key": object_key,
         "size_bytes": 68,
@@ -504,9 +741,7 @@ def test_postgres_overlapping_orphan_cleaners_claim_one_owner(
 ) -> None:
     sessionmaker = postgis_db_sessionmaker
     storage = FakeStorageProvider()
-    advertiser, organization = advertiser_with_org(
-        sessionmaker, "cleanup-overlap@example.com"
-    )
+    advertiser, organization = advertiser_with_org(sessionmaker, "cleanup-overlap@example.com")
 
     async def scenario() -> None:
         async with sessionmaker() as session:

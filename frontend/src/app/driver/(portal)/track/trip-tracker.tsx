@@ -23,6 +23,13 @@ import { DRIVER_SESSION_CHANNEL } from "@/components/driver/logout-button";
 import { Panel } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 
+const REJECTION_LABELS: Record<string, string> = {
+  INVALID_SPEED: "GPS speed exceeded the limit",
+  INVALID_ACCURACY: "GPS accuracy exceeded the limit",
+  INVALID_RECORDED_AT: "GPS time was outside the permitted trip window",
+  INVALID_ASSIGNMENT_AUTHORITY: "Capture lacked active assignment authority",
+};
+
 type GpsState = "idle" | "granted" | "denied" | "unavailable";
 type WakeSentinel = EventTarget & { release(): Promise<void>; released?: boolean };
 type NavigatorWithRuntime = Navigator & {
@@ -78,6 +85,9 @@ export function TripTracker({
   const [syncedCount, setSyncedCount] = useState(0);
   const [bufferedCount, setBufferedCount] = useState(0);
   const [deadLetterCount, setDeadLetterCount] = useState(0);
+  const [rejectedSampleCount, setRejectedSampleCount] = useState(0);
+  const [quarantinedSampleCount, setQuarantinedSampleCount] = useState(0);
+  const [rejectionCodes, setRejectionCodes] = useState<string[]>([]);
   const [lastFix, setLastFix] = useState<GeolocationPosition | null>(null);
   const [error, setError] = useState<string>();
   const [storageReady, setStorageReady] = useState<boolean | null>(null);
@@ -87,6 +97,8 @@ export function TripTracker({
   const [authorityUncertain, setAuthorityUncertain] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  const endPhaseRef = useRef<"capturing" | "preparing" | "submitted">("capturing");
+  const captureGenerationRef = useRef(0);
   const runtimeRef = useRef(runtime);
   const queueRef = useRef<PingQueue | null>(null);
   const watchRef = useRef<number | null>(null);
@@ -116,6 +128,7 @@ export function TripTracker({
   const assessment = useMemo(() => assessPilotPwa(runtime), [runtime]);
 
   const stopWatch = useCallback(() => {
+    captureGenerationRef.current += 1;
     if (watchRef.current !== null) {
       navigator.geolocation?.clearWatch(watchRef.current);
       watchRef.current = null;
@@ -320,13 +333,33 @@ export function TripTracker({
   const refreshCounts = useCallback(async (tripId: string) => {
     const queue = queueRef.current;
     if (!queue || !identityValidRef.current) return;
-    const [meta, unsynced, deadLetters] = await Promise.all([
+    const [meta, unsynced, deadLetters, receipts] = await Promise.all([
       queue.meta(tripId),
       queue.unsyncedCount(tripId),
       queue.listDeadLetters(tripId),
+      queue.listReceipts(tripId),
     ]);
     const rejectedPings = deadLetters.reduce((sum, deadLetter) => sum + deadLetter.pings.length, 0);
-    setSyncedCount(Math.max(0, meta.pingsRecorded - unsynced - rejectedPings));
+    const rejected = receipts
+      .filter((r) => r.outcome !== "quarantined")
+      .reduce((sum, receipt) => sum + receipt.rejectedCount, 0);
+    const quarantined = receipts
+      .filter((r) => r.outcome === "quarantined")
+      .reduce((sum, receipt) => sum + receipt.submitted_count, 0);
+    setRejectedSampleCount(rejected);
+    setQuarantinedSampleCount(quarantined);
+    setRejectionCodes([
+      ...new Set(
+        receipts.flatMap((r) =>
+          (r.sampleResults ?? []).flatMap((result) =>
+            result.rejection_code ? [result.rejection_code] : [],
+          ),
+        ),
+      ),
+    ]);
+    setSyncedCount(
+      Math.max(0, meta.pingsRecorded - unsynced - rejectedPings - rejected - quarantined),
+    );
     setBufferedCount(unsynced);
     setDeadLetterCount(deadLetters.length);
   }, []);
@@ -430,10 +463,18 @@ export function TripTracker({
 
   const beginWatch = useCallback(
     (tripId: string) => {
-      if (watchRef.current !== null || !assessPilotPwa(runtimeRef.current).actions.capture) return;
+      if (
+        endPhaseRef.current !== "capturing" ||
+        watchRef.current !== null ||
+        !assessPilotPwa(runtimeRef.current).actions.capture
+      )
+        return;
+      const generation = captureGenerationRef.current;
       if (!("geolocation" in navigator)) return;
       watchRef.current = navigator.geolocation.watchPosition(
         (position) => {
+          if (generation !== captureGenerationRef.current || endPhaseRef.current !== "capturing")
+            return;
           if (!assessPilotPwa(runtimeRef.current).actions.capture) {
             stopWatch();
             return;
@@ -449,13 +490,21 @@ export function TripTracker({
               accuracy_m: position.coords.accuracy ?? null,
               speed_mps: position.coords.speed ?? null,
               heading_degrees:
-                position.coords.heading !== null && !Number.isNaN(position.coords.heading)
+                position.coords.heading !== null &&
+                Number.isFinite(position.coords.heading) &&
+                position.coords.heading >= 0 &&
+                position.coords.heading < 360
                   ? position.coords.heading
                   : null,
             })
             .then(async () => {
               // Acknowledge the capture only once the durable write has committed.
-              if (mountedRef.current) setLastFix(position);
+              if (
+                mountedRef.current &&
+                generation === captureGenerationRef.current &&
+                endPhaseRef.current === "capturing"
+              )
+                setLastFix(position);
               const pending = await queue.pendingCount(tripId);
               if (pending >= FLUSH_AT_COUNT) await flush(tripId);
               else await refreshCounts(tripId);
@@ -485,7 +534,11 @@ export function TripTracker({
 
   const prepareCapture = useCallback(
     async (validate: boolean) => {
+      const generation = captureGenerationRef.current;
+      if (endPhaseRef.current !== "capturing") return false;
       await observeInstallability();
+      if (generation !== captureGenerationRef.current || endPhaseRef.current !== "capturing")
+        return false;
       const installability = assessPilotPwa(runtimeRef.current).results.find(
         (result) => result.id === "installability",
       );
@@ -496,9 +549,13 @@ export function TripTracker({
       }
       const [locationReady, wakeReady] = await Promise.all([probeLocation(), acquireWake()]);
       if (validate) await validateSession();
+      if (generation !== captureGenerationRef.current || endPhaseRef.current !== "capturing") {
+        await releaseWake();
+        return false;
+      }
       return locationReady && wakeReady && assessPilotPwa(runtimeRef.current).actions.capture;
     },
-    [acquireWake, observeInstallability, patchRuntime, probeLocation, validateSession],
+    [acquireWake, observeInstallability, patchRuntime, probeLocation, releaseWake, validateSession],
   );
 
   const drainLeftovers = useCallback(
@@ -525,7 +582,38 @@ export function TripTracker({
                     "Earlier GPS evidence could not be delivered, so Cardvert closed that trip's record as incomplete.",
                   );
               } else {
-                await queue.forgetTrip(leftoverTripId);
+                const receipts = await queue.listReceipts(leftoverTripId);
+                if (
+                  receipts.some(
+                    (receipt) => receipt.rejectedCount > 0 || receipt.outcome === "quarantined",
+                  )
+                ) {
+                  terminalLeftoversRef.current.add(leftoverTripId);
+                  if (mountedRef.current) {
+                    const rejected = receipts
+                      .filter((r) => r.outcome !== "quarantined")
+                      .reduce((sum, r) => sum + r.rejectedCount, 0);
+                    const quarantined = receipts
+                      .filter((r) => r.outcome === "quarantined")
+                      .reduce((sum, r) => sum + r.submitted_count, 0);
+                    const reasons = [
+                      ...new Set(
+                        receipts.flatMap((r) =>
+                          (r.sampleResults ?? []).flatMap((result) =>
+                            result.rejection_code
+                              ? [REJECTION_LABELS[result.rejection_code] ?? "GPS sample rejected"]
+                              : [],
+                          ),
+                        ),
+                      ),
+                    ];
+                    setError(
+                      `Earlier GPS samples need review: ${rejected} rejected, ${quarantined} awaiting review. ${reasons.join("; ")}. They remain on this device and will not be sent again.`,
+                    );
+                  }
+                } else {
+                  await queue.forgetTrip(leftoverTripId);
+                }
               }
             }
             // Retrying cannot help while the server still refuses to settle,
@@ -646,6 +734,16 @@ export function TripTracker({
           patchRuntime({ activeTrip: true });
           if (current.trip.id !== trip.id) setTrip(current.trip);
         }
+        const meta = await queueRef.current?.meta(tripRef.current?.id ?? trip.id);
+        if (meta?.endManifest || meta?.legacyEnd) {
+          endPhaseRef.current = "submitted";
+          authorityUncertainRef.current = true;
+          pendingEndCompleteRef.current =
+            meta.endManifest?.complete ?? meta.legacyEnd!.clientComplete;
+          setAuthorityUncertain(true);
+          stopWatch();
+          return;
+        }
         await drainLeftovers(tripRef.current?.id ?? null).catch(reportRecoveryFault);
         const ready = await prepareCapture(false);
         if (ready && !cancelled && tripRef.current) beginWatch(tripRef.current.id);
@@ -733,6 +831,9 @@ export function TripTracker({
         captureReady = await prepareCapture(true);
         if (!mountedRef.current || !identityValidRef.current || !releaseWriterRef.current) return;
         if (!captureReady) {
+          console.warn(
+            `TRACKING_START_BLOCKED=${JSON.stringify(assessPilotPwa(runtimeRef.current))}`,
+          );
           stopWatch();
           await releaseWake();
           releaseWriter();
@@ -758,6 +859,7 @@ export function TripTracker({
       }
       startUncertainRef.current = false;
       setStartUncertain(false);
+      endPhaseRef.current = "capturing";
       tripRef.current = result.trip;
       protocolByTripRef.current.set(result.trip.id, result.trip.evidenceProtocolVersion);
       reconciledTripRef.current = result.trip.id;
@@ -767,6 +869,9 @@ export function TripTracker({
       setSyncedCount(0);
       setBufferedCount(0);
       setDeadLetterCount(0);
+      setRejectedSampleCount(0);
+      setQuarantinedSampleCount(0);
+      setRejectionCodes([]);
       if (captureReady || (await prepareCapture(true))) beginWatch(result.trip.id);
     })().finally(() => {
       if (mountedRef.current) setBusy(false);
@@ -779,6 +884,8 @@ export function TripTracker({
       if (complete && activeTripId) {
         await queueRef.current?.forgetTrip(activeTripId).catch(() => undefined);
       }
+      stopWatch();
+      endPhaseRef.current = "capturing";
       tripRef.current = null;
       reconciledTripRef.current = null;
       authorityUncertainRef.current = false;
@@ -794,14 +901,29 @@ export function TripTracker({
       releaseWriter();
       if (mountedRef.current) router.refresh();
     },
-    [patchRuntime, releaseWake, releaseWriter, router],
+    [patchRuntime, releaseWake, releaseWriter, router, stopWatch],
   );
 
   const reconcileAfterEnd = useCallback(
     async (complete: boolean | null) => {
+      const endingTripId = tripRef.current?.id;
+      if (endingTripId && endPhaseRef.current === "submitted") await flush(endingTripId);
       const current = await getCurrentTripAction();
       if (!mountedRef.current || !identityValidRef.current || !releaseWriterRef.current) return;
+      if (current.trip && endPhaseRef.current === "submitted") {
+        stopWatch();
+        await releaseWake();
+        authorityUncertainRef.current = true;
+        pendingEndCompleteRef.current = complete;
+        setAuthorityUncertain(true);
+        setServerTripVerified(true);
+        setError(
+          "End is awaiting confirmation. Retry the same End request; capture remains stopped.",
+        );
+        return;
+      }
       if (current.trip) {
+        endPhaseRef.current = "capturing";
         tripRef.current = current.trip;
         reconciledTripRef.current = current.trip.id;
         authorityUncertainRef.current = false;
@@ -850,7 +972,7 @@ export function TripTracker({
       setServerTripVerified(false);
       setError("Cardvert could not reconcile trip authority; the writer remains reserved.");
     },
-    [beginWatch, finishEndedTrip, patchRuntime, prepareCapture, releaseWake, stopWatch],
+    [beginWatch, finishEndedTrip, flush, patchRuntime, prepareCapture, releaseWake, stopWatch],
   );
 
   function end() {
@@ -864,12 +986,30 @@ export function TripTracker({
     )
       return;
     setBusy(true);
+    if (endPhaseRef.current === "capturing") endPhaseRef.current = "preparing";
+    stopWatch();
     void (async () => {
       if (authorityUncertainRef.current) {
+        const meta = await queueRef.current?.meta(activeTrip.id);
+        if (meta?.endManifest || meta?.legacyEnd) {
+          endPhaseRef.current = "submitted";
+          let result;
+          let complete;
+          if (meta.endManifest) {
+            complete = meta.endManifest.complete;
+            result = await endTripAction(activeTrip.id, meta.endManifest);
+          } else {
+            complete = meta.legacyEnd!.clientComplete;
+            result = await endLegacyTripAction(activeTrip.id, meta.legacyEnd!);
+          }
+          if (result.outcome === "ended" && result.status === "sealed") {
+            await finishEndedTrip(complete);
+            return;
+          }
+        }
         await reconcileAfterEnd(pendingEndCompleteRef.current);
         return;
       }
-      stopWatch();
       const queue = queueRef.current;
       if (!queue) return;
       await flush(activeTrip.id);
@@ -884,12 +1024,18 @@ export function TripTracker({
           setError("End stopped because Cardvert can no longer vouch for the durable watermark.");
         return;
       }
-      const [unsynced, deadLetters, meta] = await Promise.all([
+      const [unsynced, deadLetters, receipts] = await Promise.all([
         queue.unsyncedCount(activeTrip.id),
         queue.deadLetterCount(activeTrip.id),
-        queue.meta(activeTrip.id),
+        queue.listReceipts(activeTrip.id),
       ]);
-      const complete = !storageBrokenRef.current && unsynced === 0 && deadLetters === 0;
+      const complete =
+        !storageBrokenRef.current &&
+        unsynced === 0 &&
+        deadLetters === 0 &&
+        receipts.every(
+          (receipt) => receipt.rejectedCount === 0 && receipt.outcome !== "quarantined",
+        );
       const message = complete
         ? "End this trip? Tracking stops and the trip is sent for analysis."
         : "Some GPS evidence is unsynced or diagnostically retained. End with an incomplete client watermark?";
@@ -902,17 +1048,16 @@ export function TripTracker({
         if (mountedRef.current) setError("Cardvert could not verify the trip evidence protocol.");
         return;
       }
+      const manifest =
+        protocolVersion === 2 ? await queue.freezeEnd(activeTrip.id, complete) : null;
+      endPhaseRef.current = "submitted";
       const result =
         protocolVersion === 1
-          ? await endLegacyTripAction(activeTrip.id, {
-              clientBatchCount: meta.batchesCut,
-              clientPingCount: meta.pingsRecorded,
-              clientComplete: complete,
-            })
-          : await endTripAction(
+          ? await endLegacyTripAction(
               activeTrip.id,
-              await queue.evidenceManifest(activeTrip.id, complete),
-            );
+              await queue.freezeLegacyEnd(activeTrip.id, complete),
+            )
+          : await endTripAction(activeTrip.id, manifest!);
       if (result.outcome !== "ended") {
         if (mountedRef.current)
           setError(result.error ?? "Cardvert could not confirm whether the trip ended.");
@@ -927,9 +1072,21 @@ export function TripTracker({
         await flush(activeTrip.id);
         await reconcileAfterEnd(complete);
       }
-    })().finally(() => {
-      if (mountedRef.current) setBusy(false);
-    });
+    })()
+      .catch(() => {
+        stopWatch();
+        storageBrokenRef.current = true;
+        patchRuntime({ indexedDb: "failed", durableQueue: "failed" });
+        if (mountedRef.current) {
+          setStorageReady(false);
+          setError(
+            "The End request could not be saved. GPS evidence remains on this device; reload after storage is available.",
+          );
+        }
+      })
+      .finally(() => {
+        if (mountedRef.current) setBusy(false);
+      });
   }
 
   if (!assignment && !trip) {
@@ -980,7 +1137,20 @@ export function TripTracker({
               </div>
               <div>
                 <p className="micro text-faint">Diagnostics</p>
-                <p className="text-sm">{deadLetterCount} retained</p>
+                <p className="text-sm">{deadLetterCount} retained batches</p>
+                {rejectedSampleCount > 0 && (
+                  <p className="text-sm">{rejectedSampleCount} rejected samples</p>
+                )}
+                {quarantinedSampleCount > 0 && (
+                  <p className="text-sm">{quarantinedSampleCount} quarantined samples</p>
+                )}
+                {rejectionCodes.length > 0 && (
+                  <p className="text-muted text-xs">
+                    {rejectionCodes
+                      .map((code) => REJECTION_LABELS[code] ?? "GPS sample rejected")
+                      .join("; ")}
+                  </p>
+                )}
               </div>
             </div>
           </Panel>

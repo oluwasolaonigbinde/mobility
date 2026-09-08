@@ -8,9 +8,13 @@ release_require_commands docker git gpg jq openssl python3 sha256sum tar
 cd "${RELEASE_REPO_ROOT}"
 
 readonly REVISION="$(git rev-parse HEAD)"
-readonly PREVIOUS_REVISION="26f5e2217302b60df472788c277d34977915f184"
-readonly PREVIOUS_ALEMBIC_REVISION="0071_report_issuances"
-readonly FORWARD_ALEMBIC_REVISION="0082_report_publication_intents"
+readonly PREVIOUS_REVISION="${REHEARSAL_PREVIOUS_REVISION:-26f5e2217302b60df472788c277d34977915f184}"
+[[ "${PREVIOUS_REVISION}" =~ ^[0-9a-f]{40}$ \
+  && "$(git rev-parse "${PREVIOUS_REVISION}^{commit}")" == "${PREVIOUS_REVISION}" \
+  && "${PREVIOUS_REVISION}" != "${REVISION}" ]] \
+  || { echo "ERROR: rehearsal requires a distinct exact predecessor commit" >&2; exit 2; }
+git cat-file -e "${PREVIOUS_REVISION}:app/operations/recovery_authority.py" 2>/dev/null \
+  || { echo "ERROR: predecessor lacks signed recovery capability; accepted-image rehearsal remains external" >&2; exit 2; }
 readonly PROJECT_NAME="cardvert-w403a-rehearsal"
 readonly MINIO_CONTAINER="${PROJECT_NAME}-minio"
 readonly SCANNER_CONTAINER="${PROJECT_NAME}-scanner"
@@ -67,8 +71,6 @@ previous_context="${TEMP_DIR}/previous-context"
 mkdir -p "${previous_context}"
 git archive "${PREVIOUS_REVISION}" | tar -x -C "${previous_context}"
 chmod -R u=rwX,go=rX "${previous_context}"
-install -m 644 Dockerfile requirements-production.txt "${previous_context}/"
-install -m 644 frontend/Dockerfile "${previous_context}/frontend/Dockerfile"
 docker build --build-arg "VCS_REF=${PREVIOUS_REVISION}" \
   -t "${PROJECT_NAME}-previous-backend-app:local" "${previous_context}" >/dev/null
 docker build --build-arg "VCS_REF=${PREVIOUS_REVISION}" \
@@ -99,6 +101,12 @@ docker build -t "${PROJECT_NAME}-previous-backend:local" "${trust_context}" >/de
 backend_image="$(docker image inspect "${PROJECT_NAME}-backend:local" --format '{{.Id}}')"
 previous_backend_image="$(docker image inspect "${PROJECT_NAME}-previous-backend:local" --format '{{.Id}}')"
 previous_frontend_image="$(docker image inspect "${PROJECT_NAME}-previous-frontend:local" --format '{{.Id}}')"
+
+PREVIOUS_ALEMBIC_REVISION="$(python3 scripts/recovery_authority.py --image-head \
+  --image "${previous_backend_image}" --revision "${PREVIOUS_REVISION}")"
+FORWARD_ALEMBIC_REVISION="$(python3 scripts/recovery_authority.py --image-head \
+  --image "${backend_image}" --revision "${REVISION}")"
+readonly PREVIOUS_ALEMBIC_REVISION FORWARD_ALEMBIC_REVISION
 
 database_password="Db-$(openssl rand -hex 24)"
 redis_password="Redis-$(openssl rand -hex 24)"

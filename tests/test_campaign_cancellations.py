@@ -230,7 +230,7 @@ def test_cash_cancellation_at_exact_standard_boundary_records_no_refund_due(
     assert response.json()["refundable_amount"] == "0.00"
 
 
-def test_post_cutoff_tracking_is_retained_as_non_economic_evidence(
+def test_cancellation_rejects_new_capture_and_retains_signed_batch_disposition(
     db_client,
     db_sessionmaker,
 ) -> None:
@@ -263,20 +263,39 @@ def test_post_cutoff_tracking_is_retained_as_non_economic_evidence(
     assert cancelled.status_code == 201, cancelled.text
     cutoff = datetime.fromisoformat(cancelled.json()["cutoff_at"].replace("Z", "+00:00"))
 
+    payload = ping_payload(
+        recorded_at=cutoff - timedelta(milliseconds=1),
+        idempotency_key="post-cancellation-evidence",
+    )
+    after = ping_payload(recorded_at=cutoff + timedelta(milliseconds=1))["pings"][0]
+    after["sequence_number"] = 2
+    payload["pings"].append(after)
+    endpoint = f"/api/v1/driver/trips/{started.json()['id']}/pings"
     batch = db_client.post(
-        f"/api/v1/driver/trips/{started.json()['id']}/pings",
+        endpoint,
         headers=auth_headers(db_client, "cancel-track-driver@example.com"),
-        json=ping_payload(
-            recorded_at=cutoff + timedelta(milliseconds=1),
-            idempotency_key="post-cancellation-evidence",
-        ),
+        json=payload,
     )
 
     assert batch.status_code == 200, batch.text
     assert batch.json()["accepted_count"] == 1
+    assert batch.json()["rejected_count"] == 1
+    assert [item["status"] for item in batch.json()["sample_results"]] == ["accepted", "rejected"]
+    assert batch.json()["sample_results"][1]["rejection_code"] == "INVALID_ASSIGNMENT_AUTHORITY"
+    assert batch.json()["receipt_signature"]
+    replay = db_client.post(
+        endpoint,
+        headers=auth_headers(db_client, "cancel-track-driver@example.com"),
+        json=payload,
+    )
+    assert replay.status_code == 200, replay.text
+    assert replay.json()["sample_results"] == batch.json()["sample_results"]
+    assert replay.json()["receipt_signature"] == batch.json()["receipt_signature"]
     stored = fetch_location_ping_batches(db_sessionmaker)
+    assert len(stored) == 1
+    assert stored[0].pings_submitted == 2 and stored[0].pings_rejected == 1
     assert stored[0].batch_metadata["financial_cutoff_at"] == cutoff.isoformat()
-    assert stored[0].batch_metadata["post_cutoff_ping_count"] == 1
+    assert stored[0].batch_metadata["post_cutoff_ping_count"] == 0
 
 
 def test_analytics_recompute_clips_at_the_same_immutable_cutoff(

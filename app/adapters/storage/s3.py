@@ -11,6 +11,7 @@ from app.adapters.storage.base import (
     StorageObjectConflict,
     StorageObjectNotFound,
     StorageUnavailable,
+    StorageWriteUncertain,
 )
 
 READ_CHUNK_BYTES = 1024 * 1024
@@ -45,6 +46,12 @@ class S3StorageProvider:
         }
         self._client = boto3.client(endpoint_url=endpoint_url, **common)
         self._public_client = boto3.client(endpoint_url=public_endpoint_url, **common)
+        # Each generated-object call has one durable write receipt. Hidden SDK retries
+        # could leave an earlier request in flight after a later request returned.
+        self._put_client = boto3.client(
+            endpoint_url=endpoint_url,
+            **{**common, "config": config.merge(Config(retries={"total_max_attempts": 1}))},
+        )
         self._bucket = bucket
 
     async def presign_post(
@@ -157,7 +164,7 @@ class S3StorageProvider:
             raise StorageObjectConflict("Immutable private object destination already exists")
         checksum_b64 = base64.b64encode(bytes.fromhex(checksum_sha256)).decode("ascii")
         try:
-            self._client.put_object(
+            self._put_client.put_object(
                 Bucket=self._bucket,
                 Key=object_key,
                 Body=data,
@@ -175,7 +182,7 @@ class S3StorageProvider:
                 if isinstance(error, dict):
                     code = error.get("Code")
             if code not in {"409", "412", "ConditionalRequestConflict", "PreconditionFailed"}:
-                raise StorageUnavailable("Private object storage is unavailable") from exc
+                raise StorageWriteUncertain("Private object write outcome is uncertain") from exc
         try:
             observed = self._stat_sync(object_key)
         except StorageObjectNotFound:
@@ -253,10 +260,6 @@ class S3StorageProvider:
                 raise
             except Exception as exc:
                 self._raise_provider_error(exc, source_key)
-        try:
-            self._client.delete_object(Bucket=self._bucket, Key=source_key)
-        except Exception as exc:
-            raise StorageUnavailable("Private object storage is unavailable") from exc
         return destination
 
     async def promote(self, *, source_key: str, destination_key: str) -> ObjectMetadata:
@@ -271,6 +274,35 @@ class S3StorageProvider:
             )
         except Exception as exc:
             raise StorageUnavailable("Private object storage is unavailable") from exc
+
+    def _exact_versions(self, object_key: str) -> list[dict[str, str]]:
+        versions = []
+        for page in self._client.get_paginator("list_object_versions").paginate(
+            Bucket=self._bucket, Prefix=object_key
+        ):
+            for item in (*page.get("Versions", []), *page.get("DeleteMarkers", [])):
+                if item["Key"] == object_key:
+                    versions.append({"Key": object_key, "VersionId": item["VersionId"]})
+        return versions
+
+    def _delete_all_versions_sync(self, object_key: str) -> None:
+        try:
+            for version in self._exact_versions(object_key):
+                self._client.delete_object(Bucket=self._bucket, **version)
+            if self._exact_versions(object_key):
+                raise StorageObjectConflict("Private object versions remain after deletion")
+            try:
+                self._stat_sync(object_key)
+            except StorageObjectNotFound:
+                return
+            raise StorageObjectConflict("Private object remains after deletion")
+        except (StorageUnavailable, StorageObjectConflict):
+            raise
+        except Exception as exc:
+            raise StorageUnavailable("Private object version cleanup is unavailable") from exc
+
+    async def delete_all_versions(self, object_key: str) -> None:
+        await asyncio.to_thread(self._delete_all_versions_sync, object_key)
 
     @staticmethod
     def _raise_provider_error(exc: Exception, object_key: str) -> None:

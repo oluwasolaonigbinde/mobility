@@ -948,38 +948,24 @@ def test_canonical_alembic_check_detects_visible_schema_drift(monkeypatch) -> No
 def test_exact_head_catalog_matches_pk_unique_check_and_geometry_metadata(monkeypatch) -> None:
     source_url = configured_postgres_url()
     migration_url = asyncio.run(create_database_from_url(source_url))
+    primary_table = "audit_event_subject_resolutions"
+    drop_primary = f"ALTER TABLE {primary_table} DROP CONSTRAINT {primary_table}_pkey"
+    add_primary = (
+        f"ALTER TABLE {primary_table} ADD CONSTRAINT {primary_table}_pkey PRIMARY KEY (id)"
+    )
     mutations = [
+        ("primary_keys", primary_table, drop_primary, add_primary),
         (
             "primary_keys",
-            "audit_events",
-            "ALTER TABLE audit_events DROP CONSTRAINT audit_events_pkey",
-            "ALTER TABLE audit_events ADD CONSTRAINT audit_events_pkey PRIMARY KEY (id)",
+            primary_table,
+            (drop_primary, add_primary + " DEFERRABLE INITIALLY DEFERRED"),
+            (drop_primary, add_primary),
         ),
         (
             "primary_keys",
-            "audit_events",
-            (
-                "ALTER TABLE audit_events DROP CONSTRAINT audit_events_pkey",
-                "ALTER TABLE audit_events ADD CONSTRAINT audit_events_pkey "
-                "PRIMARY KEY (id) DEFERRABLE INITIALLY DEFERRED",
-            ),
-            (
-                "ALTER TABLE audit_events DROP CONSTRAINT audit_events_pkey",
-                "ALTER TABLE audit_events ADD CONSTRAINT audit_events_pkey PRIMARY KEY (id)",
-            ),
-        ),
-        (
-            "primary_keys",
-            "audit_events",
-            (
-                "ALTER TABLE audit_events DROP CONSTRAINT audit_events_pkey",
-                "ALTER TABLE audit_events ADD CONSTRAINT audit_events_pkey "
-                "PRIMARY KEY (id) INCLUDE (actor_user_id)",
-            ),
-            (
-                "ALTER TABLE audit_events DROP CONSTRAINT audit_events_pkey",
-                "ALTER TABLE audit_events ADD CONSTRAINT audit_events_pkey PRIMARY KEY (id)",
-            ),
+            primary_table,
+            (drop_primary, add_primary + " INCLUDE (subject_user_id)"),
+            (drop_primary, add_primary),
         ),
         (
             "unique_constraints",

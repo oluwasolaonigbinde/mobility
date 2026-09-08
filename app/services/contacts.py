@@ -4,9 +4,10 @@ import re
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 from starlette import status
 
 from app.core.config import Settings
@@ -90,6 +91,7 @@ async def _locked_driver_context(
             .join(User, User.id == DriverProfile.user_id)
             .where(DriverProfile.user_id == user_id)
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
     ).first()
     if row is None:
@@ -111,7 +113,7 @@ async def _latest_phone_version(
         .limit(1)
     )
     if lock:
-        query = query.with_for_update()
+        query = query.with_for_update().execution_options(populate_existing=True)
     return await session.scalar(query)
 
 
@@ -578,32 +580,22 @@ async def create_manual_driver_contact_task(
     event_key: str,
     purpose: str,
 ) -> ManualDriverContactTask | None:
+    authority = await _manual_contact_authority(
+        session, driver_profile_id=driver_profile_id, purpose=purpose
+    )
+    if authority is None:
+        return None
+    phone, consent = authority
     existing = await session.scalar(
-        select(ManualDriverContactTask).where(
+        select(ManualDriverContactTask)
+        .where(
             ManualDriverContactTask.driver_profile_id == driver_profile_id,
             ManualDriverContactTask.event_key == event_key,
         )
+        .execution_options(populate_existing=True)
     )
     if existing is not None:
-        return existing
-    phone = await _latest_phone_version(session, driver_profile_id=driver_profile_id, lock=True)
-    consent = await session.scalar(
-        select(WhatsappConsent)
-        .where(
-            WhatsappConsent.driver_profile_id == driver_profile_id,
-            WhatsappConsent.withdrawn_at.is_(None),
-        )
-        .order_by(WhatsappConsent.version.desc())
-        .limit(1)
-        .with_for_update()
-    )
-    if (
-        phone is None
-        or phone.verified_at is None
-        or consent is None
-        or consent.phone_version_id != phone.id
-    ):
-        return None
+        return existing if _task_matches_authority(existing, phone, consent, purpose) else None
     now = await database_clock(session)
     task = ManualDriverContactTask(
         driver_profile_id=driver_profile_id,
@@ -620,14 +612,16 @@ async def create_manual_driver_contact_task(
             await session.flush()
     except IntegrityError:
         concurrent = await session.scalar(
-            select(ManualDriverContactTask).where(
+            select(ManualDriverContactTask)
+            .where(
                 ManualDriverContactTask.driver_profile_id == driver_profile_id,
                 ManualDriverContactTask.event_key == event_key,
             )
+            .execution_options(populate_existing=True)
         )
         if concurrent is None:
             raise
-        return concurrent
+        return concurrent if _task_matches_authority(concurrent, phone, consent, purpose) else None
     await create_audit_event(
         session,
         actor_user_id=None,
@@ -643,6 +637,55 @@ async def create_manual_driver_contact_task(
         },
     )
     return task
+
+
+def _task_matches_authority(
+    task: ManualDriverContactTask,
+    phone: DriverPhoneVersion,
+    consent: WhatsappConsent,
+    purpose: str,
+) -> bool:
+    return (
+        task.phone_version_id == phone.id
+        and task.consent_id == consent.id
+        and task.purpose == purpose == consent.purpose
+    )
+
+
+async def _manual_contact_authority(
+    session: AsyncSession, *, driver_profile_id: UUID, purpose: str
+) -> tuple[DriverPhoneVersion, WhatsappConsent] | None:
+    # Phone replacement and withdrawal already hold this profile lock. Keep
+    # profile -> phone -> consent -> task order across contact mutations.
+    profile = await session.scalar(
+        select(DriverProfile)
+        .where(DriverProfile.id == driver_profile_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if profile is None:
+        return None
+    phone = await _latest_phone_version(session, driver_profile_id=driver_profile_id, lock=True)
+    consent = await session.scalar(
+        select(WhatsappConsent)
+        .where(
+            WhatsappConsent.driver_profile_id == driver_profile_id,
+            WhatsappConsent.withdrawn_at.is_(None),
+        )
+        .order_by(WhatsappConsent.version.desc())
+        .limit(1)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if (
+        phone is None
+        or phone.verified_at is None
+        or consent is None
+        or consent.phone_version_id != phone.id
+        or consent.purpose != purpose
+    ):
+        return None
+    return phone, consent
 
 
 async def current_driver_contact_state(
@@ -662,18 +705,45 @@ async def current_driver_contact_state(
 async def list_manual_driver_contact_tasks(
     session: AsyncSession, *, limit: int, offset: int
 ) -> tuple[list[tuple[ManualDriverContactTask, DriverPhoneVersion]], int]:
-    total = int(
-        await session.scalar(select(func.count()).select_from(ManualDriverContactTask)) or 0
+    newer_phone = aliased(DriverPhoneVersion)
+    has_newer_phone = (
+        select(newer_phone.id)
+        .where(
+            newer_phone.driver_profile_id == ManualDriverContactTask.driver_profile_id,
+            newer_phone.version > DriverPhoneVersion.version,
+        )
+        .correlate(ManualDriverContactTask, DriverPhoneVersion)
+        .exists()
     )
+    current_authority = (
+        select(WhatsappConsent.id)
+        .where(
+            WhatsappConsent.id == ManualDriverContactTask.consent_id,
+            WhatsappConsent.driver_profile_id == ManualDriverContactTask.driver_profile_id,
+            WhatsappConsent.phone_version_id == ManualDriverContactTask.phone_version_id,
+            WhatsappConsent.purpose == ManualDriverContactTask.purpose,
+            WhatsappConsent.withdrawn_at.is_(None),
+        )
+        .correlate(ManualDriverContactTask)
+        .exists()
+    )
+    visible = or_(
+        ManualDriverContactTask.status == ManualContactTaskStatus.COMPLETED.value,
+        and_(current_authority, ~has_newer_phone, DriverPhoneVersion.verified_at.is_not(None)),
+    )
+    base = (
+        select(ManualDriverContactTask, DriverPhoneVersion)
+        .join(
+            DriverPhoneVersion,
+            DriverPhoneVersion.id == ManualDriverContactTask.phone_version_id,
+        )
+        .where(visible)
+    )
+    total = int(await session.scalar(select(func.count()).select_from(base.subquery())) or 0)
     rows = list(
         (
             await session.execute(
-                select(ManualDriverContactTask, DriverPhoneVersion)
-                .join(
-                    DriverPhoneVersion,
-                    DriverPhoneVersion.id == ManualDriverContactTask.phone_version_id,
-                )
-                .order_by(
+                base.order_by(
                     ManualDriverContactTask.created_at.desc(),
                     ManualDriverContactTask.id.desc(),
                 )
@@ -701,10 +771,23 @@ async def complete_manual_driver_contact_task(
             "A valid outcome and nonblank operator note are required",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+    identity = (
+        await session.execute(
+            select(
+                ManualDriverContactTask.driver_profile_id, ManualDriverContactTask.purpose
+            ).where(ManualDriverContactTask.id == task_id)
+        )
+    ).first()
+    if identity is None:
+        raise AppError("CONTACT_TASK_NOT_FOUND", "Contact task was not found", status_code=404)
+    authority = await _manual_contact_authority(
+        session, driver_profile_id=identity.driver_profile_id, purpose=identity.purpose
+    )
     task = await session.scalar(
         select(ManualDriverContactTask)
         .where(ManualDriverContactTask.id == task_id)
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if task is None:
         raise AppError("CONTACT_TASK_NOT_FOUND", "Contact task was not found", status_code=404)
@@ -718,6 +801,12 @@ async def complete_manual_driver_contact_task(
         raise AppError(
             "CONTACT_TASK_COMPLETION_CONFLICT",
             "Contact task already has different completion evidence",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if authority is None or not _task_matches_authority(task, *authority, task.purpose):
+        raise AppError(
+            "CONTACT_TASK_AUTHORITY_INACTIVE",
+            "The task no longer has current consent for its purpose and phone",
             status_code=status.HTTP_409_CONFLICT,
         )
     now = await database_clock(session)

@@ -13,18 +13,20 @@ from conftest import (
     create_test_vehicle,
     fetch_user_by_email,
 )
-from sqlalchemy import select
+from sqlalchemy import func, select
 from test_campaign_assignments import create_postgres_offer
 from test_payouts_v3 import create_revision_row
 from test_trips import PASSWORD, create_trip_ready_graph
 
 import app.services.campaign_assignments as assignments_service
 import app.services.campaign_changes as changes_service
+import app.services.trips as trips_service
 from app.core.errors import AppError
 from app.models.campaign import Campaign, CreativeStatus
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
 from app.models.payout import AssignmentRuleBinding, CampaignPayoutRuleRevision
+from app.models.trip import TripSession
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
 from app.schemas.campaign_assignments import CampaignAssignmentTransition
@@ -33,6 +35,55 @@ from app.schemas.trips import TripStartRequest
 from app.services.billing import reserve_assignment_liability
 from app.services.payout_rule_serialization import database_clock
 from app.services.trips import start_driver_trip
+
+
+@pytest.mark.parametrize("offset_microseconds", [-1, 0, 1])
+def test_frozen_start_survives_earlier_mutable_campaign_start(
+    postgis_db_sessionmaker, settings, monkeypatch, offset_microseconds
+) -> None:
+    frozen_start = datetime.now(UTC) + timedelta(minutes=5)
+    _, campaign, driver, _, _, assignment = create_trip_ready_graph(
+        postgis_db_sessionmaker,
+        start_at=frozen_start,
+        end_at=frozen_start + timedelta(days=1),
+        eligibility_settings=settings,
+    )
+    checked_at = frozen_start + timedelta(microseconds=offset_microseconds)
+
+    async def clock(_session):
+        return checked_at
+
+    monkeypatch.setattr(trips_service, "database_clock", clock)
+
+    async def exercise():
+        async with postgis_db_sessionmaker() as session:
+            current_campaign = await session.get(Campaign, campaign.id)
+            current_campaign.start_at = frozen_start - timedelta(days=1)
+            await session.commit()
+        async with postgis_db_sessionmaker() as session:
+            payload = TripStartRequest(assignment_id=assignment.id, evidence_protocol_version=2)
+            if offset_microseconds < 0:
+                with pytest.raises(AppError) as error:
+                    await start_driver_trip(
+                        session, user_id=driver.id, payload=payload, settings=settings
+                    )
+                assert error.value.code == "ASSIGNMENT_PAYOUT_WINDOW_NOT_STARTED"
+                assert error.value.status_code == 409
+                assert await session.scalar(select(func.count()).select_from(TripSession)) == 0
+            else:
+                trip = await start_driver_trip(
+                    session, user_id=driver.id, payload=payload, settings=settings
+                )
+                assert trip.started_at == checked_at
+                assert trip.status == "active"
+            binding = await session.scalar(
+                select(AssignmentRuleBinding).where(
+                    AssignmentRuleBinding.assignment_id == assignment.id
+                )
+            )
+            assert binding.campaign_window_start_at == frozen_start
+
+    asyncio.run(exercise())
 
 
 def test_campaign_extension_and_trip_start_serialize_on_frozen_assignment_window(

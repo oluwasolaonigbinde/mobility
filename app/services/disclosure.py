@@ -4,14 +4,17 @@ import hashlib
 import json
 from collections import Counter
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import and_, delete, or_, select, text
+from sqlalchemy import and_, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
+
+if TYPE_CHECKING:
+    from app.services.report_cohorts import ReportCohort
 
 from app.core.config import Settings
 from app.core.errors import AppError
@@ -398,20 +401,27 @@ async def trip_cohort_meets_disclosure_floor(
     route_id: str,
     settings: Settings,
     return_manifest: bool = False,
+    cohort: ReportCohort | None = None,
 ) -> bool | dict[str, Any]:
     filters = [Campaign.organization_id == tenant_id]
     if campaign_id is not None:
         filters.append(TripSession.campaign_id == campaign_id)
-    if start_at is not None:
+    if cohort is None and start_at is not None:
         filters.append(TripSession.started_at >= start_at)
-    if end_at is not None:
+    if cohort is None and end_at is not None:
         filters.append(TripSession.started_at <= end_at)
+    if cohort is not None:
+        filters.append(TripSession.id.in_(cohort.trip_ids))
     rows = (
         await session.execute(
             select(
                 TripSession.id,
                 TripSession.vehicle_id,
-                TripSession.started_at,
+                (
+                    TripSession.ended_at
+                    if cohort is not None and cohort.terminal_period
+                    else TripSession.started_at
+                ).label("started_at"),
                 TripSession.status,
             )
             .join(Campaign, Campaign.id == TripSession.campaign_id)
@@ -444,9 +454,7 @@ async def trip_cohort_meets_disclosure_floor(
         assignment_filters = [Campaign.organization_id == tenant_id]
         if campaign_id is not None:
             assignment_filters.append(CampaignAssignment.campaign_id == campaign_id)
-        assignments = list(
-            await session.scalars(assignment_statement.where(*assignment_filters))
-        )
+        assignments = list(await session.scalars(assignment_statement.where(*assignment_filters)))
         for assignment in assignments:
             _add_contribution(
                 contributions,
@@ -469,6 +477,8 @@ async def trip_cohort_meets_disclosure_floor(
                 )
             )
         )
+        if cohort is not None:
+            analytics = list(cohort.analytics)
         for row in analytics:
             for metric in (
                 "distance_m",
@@ -498,7 +508,7 @@ async def trip_cohort_meets_disclosure_floor(
         ImpressionEstimate.is_authoritative.is_(True),
     ]
     estimate_statement = select(ImpressionEstimate)
-    if daily_metrics:
+    if daily_metrics or cohort is not None:
         estimate_filters.append(ImpressionEstimate.trip_session_id.in_(trip_ids))
     else:
         if campaign_id is not None:
@@ -515,7 +525,11 @@ async def trip_cohort_meets_disclosure_floor(
     estimates = list(await session.scalars(estimate_statement.where(*estimate_filters)))
     from app.services.impressions import current_authoritative_estimates
 
-    estimates = await current_authoritative_estimates(session, estimates, settings=settings)
+    estimates = (
+        list(cohort.impressions)
+        if cohort is not None
+        else await current_authoritative_estimates(session, estimates, settings=settings)
+    )
     for row in estimates:
         group = f":{_utc_date(trip_rows[row.trip_session_id].started_at)}" if daily_metrics else ""
         _add_contribution(
@@ -549,7 +563,7 @@ async def trip_cohort_meets_disclosure_floor(
         from app.services.payouts import latest_payout_calculation_ids
 
         calculation_filters = []
-        if daily_metrics:
+        if daily_metrics or cohort is not None:
             calculation_filters.append(PayoutCalculation.trip_session_id.in_(trip_ids))
             latest_calculation_ids = latest_payout_calculation_ids(trip_ids=trip_ids)
         elif campaign_id is not None:
@@ -558,9 +572,9 @@ async def trip_cohort_meets_disclosure_floor(
         else:
             calculation_filters.append(Campaign.organization_id == tenant_id)
             latest_calculation_ids = latest_payout_calculation_ids(organization_id=tenant_id)
-        if not daily_metrics and start_at is not None:
+        if cohort is None and not daily_metrics and start_at is not None:
             calculation_filters.append(PayoutCalculation.calculated_at >= start_at)
-        if not daily_metrics and end_at is not None:
+        if cohort is None and not daily_metrics and end_at is not None:
             calculation_filters.append(PayoutCalculation.calculated_at <= end_at)
         calculation_statement = select(PayoutCalculation)
         if campaign_id is None and not daily_metrics:
@@ -575,6 +589,8 @@ async def trip_cohort_meets_disclosure_floor(
                 )
             )
         )
+        if cohort is not None:
+            calculations = list(cohort.payouts)
         for row in calculations:
             group = (
                 f":{_utc_date(trip_rows[row.trip_session_id].started_at)}" if daily_metrics else ""
@@ -584,7 +600,9 @@ async def trip_cohort_meets_disclosure_floor(
                     contributions,
                     f"cost:{row.currency}:{metric}{group}",
                     row.vehicle_id,
-                    getattr(row, metric),
+                    abs(cohort.final_cost(row))
+                    if cohort is not None and metric == "final_payout"
+                    else getattr(row, metric),
                 )
             if route_id != "advertiser.dashboard.summary" and not daily_metrics:
                 _add_contribution(
@@ -601,8 +619,13 @@ async def trip_cohort_meets_disclosure_floor(
                 )
             )
         )
+        if cohort is not None and cohort.ledger is not None:
+            ledger_rows = list(cohort.ledger)
+        calculation_by_trip = {row.trip_session_id: row for row in calculations}
         for ledger in ledger_rows:
-            calculation = calculation_ids[ledger.payout_calculation_id]
+            calculation = calculation_by_trip.get(ledger.trip_session_id)
+            if calculation is None:
+                continue
             group = (
                 f":{_utc_date(trip_rows[calculation.trip_session_id].started_at)}"
                 if daily_metrics
@@ -614,8 +637,20 @@ async def trip_cohort_meets_disclosure_floor(
                 calculation.vehicle_id,
                 1,
             )
+            if (
+                cohort is not None
+                and ledger.status != "voided"
+                and ledger.entry_type != "debt_remainder"
+            ):
+                direction = "reversal" if ledger.entry_type == "reversal" else "credit"
+                _add_contribution(
+                    contributions,
+                    f"cost:{ledger.currency}:{direction}{group}",
+                    calculation.vehicle_id,
+                    ledger.amount,
+                )
         fraud_filters = (
-            [FraudFlag.trip_session_id.in_(trip_ids)] if daily_metrics else []
+            [FraudFlag.trip_session_id.in_(trip_ids)] if daily_metrics or cohort is not None else []
         )
         fraud_statement = select(FraudFlag)
         if daily_metrics:
@@ -623,11 +658,9 @@ async def trip_cohort_meets_disclosure_floor(
         elif campaign_id is not None:
             fraud_filters.append(FraudFlag.campaign_id == campaign_id)
         else:
-            fraud_statement = fraud_statement.join(
-                Campaign, Campaign.id == FraudFlag.campaign_id
-            )
+            fraud_statement = fraud_statement.join(Campaign, Campaign.id == FraudFlag.campaign_id)
             fraud_filters.append(Campaign.organization_id == tenant_id)
-        if not daily_metrics:
+        if not daily_metrics and cohort is None:
             if start_at is not None:
                 fraud_filters.append(FraudFlag.detected_at >= start_at)
             if end_at is not None:
@@ -683,9 +716,7 @@ async def trip_cohort_meets_disclosure_floor(
                 "trip_count": len(trip_ids),
                 "day_count": len(days),
                 "contributions": {
-                    metric: {
-                        str(vehicle_id): str(value) for vehicle_id, value in values.items()
-                    }
+                    metric: {str(vehicle_id): str(value) for vehicle_id, value in values.items()}
                     for metric, values in sorted(contributions.items())
                 },
             }
@@ -787,10 +818,6 @@ async def record_disclosure(
         }
     )
     await _lock_disclosure_history(session)
-    now = datetime.now(UTC)
-    await session.execute(
-        delete(DisclosureQueryDecision).where(DisclosureQueryDecision.expires_at <= now)
-    )
     exact = await session.scalar(
         select(DisclosureQueryDecision).where(
             DisclosureQueryDecision.principal_hash == principal_hash,
@@ -827,7 +854,6 @@ async def record_disclosure(
         select(DisclosureQueryDecision.id)
         .where(
             overlap_scope,
-            DisclosureQueryDecision.expires_at > now,
             DisclosureQueryDecision.window_start <= window_end,
             DisclosureQueryDecision.window_end >= window_start,
         )
@@ -854,7 +880,7 @@ async def record_disclosure(
             reason=reason,
             window_start=window_start,
             window_end=window_end,
-            expires_at=now + timedelta(days=settings.privacy_query_history_retention_days),
+            expires_at=None,
         )
     )
     if decision == "suppressed" or commit_served:

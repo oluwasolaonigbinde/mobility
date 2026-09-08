@@ -242,7 +242,7 @@ const pingSchema = z.object({
   lon: z.number().min(-180).max(180),
   accuracy_m: z.number().nonnegative().nullable(),
   speed_mps: z.number().nonnegative().nullable(),
-  heading_degrees: z.number().min(0).max(360).nullable(),
+  heading_degrees: z.number().min(0).lt(360).nullable(),
   sequence_number: z.number().int().nonnegative(),
 });
 
@@ -400,6 +400,7 @@ export async function sendPingBatchAction(
         receiptFormatVersion: acknowledgement.data.receipt_format_version,
         receiptKeyVersion: acknowledgement.data.receipt_key_version,
         receiptSignature: acknowledgement.data.receipt_signature,
+        sampleResults: acknowledgement.data.sample_results,
       },
     };
   } catch (error) {

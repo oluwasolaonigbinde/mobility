@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { sessionCookieOptions } from "@/lib/auth/cookie-options";
 import { tokenNeedsRefresh } from "@/lib/auth/token";
+import { mutationBoundary } from "@/lib/api/mutation-boundary";
 
 const SESSION_COOKIE = process.env.SESSION_COOKIE_NAME ?? "mobility_session";
 
@@ -47,6 +48,9 @@ async function responseWithRefresh(request: NextRequest, response: NextResponse)
 }
 
 export default async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return (await mutationBoundary(request)) ?? NextResponse.next();
+  }
   const hasSession = request.cookies.has(SESSION_COOKIE);
   const { pathname } = request.nextUrl;
 
@@ -73,5 +77,12 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/advertiser/:path*", "/driver/:path*", "/admin/:path*", "/change-password", "/login"],
+  matcher: [
+    "/api/:path*",
+    "/advertiser/:path*",
+    "/driver/:path*",
+    "/admin/:path*",
+    "/change-password",
+    "/login",
+  ],
 };

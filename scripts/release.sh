@@ -254,62 +254,23 @@ if [[ ! -e "${COMPATIBILITY_EVIDENCE}" ]]; then
     report_schema_output="${PROBE_DIR}/report-schema.json"
     previous_compose=(docker compose -f "${RELEASE_COMPOSE_FILE}" \
       --env-file "${PREVIOUS_ENV_FILE}")
+    authority_overlay="${PROBE_DIR}/authority.json"
+    python3 scripts/recovery_authority.py --scope qualification \
+      --current-env-file "${ENV_FILE}" --previous-env-file "${PREVIOUS_ENV_FILE}" \
+      --forward-alembic-revision "${forward_alembic_revision}" --output "${authority_overlay}"
+    previous_compose+=(-f "${authority_overlay}")
     PREVIOUS_PROBE_OPEN=true
-    "${previous_compose[@]}" up -d --no-build --wait --wait-timeout 120 \
-      db redis api \
-      >/dev/null
-    "${previous_compose[@]}" exec -T api python - >"${readiness_output}" <<'PY'
-import asyncio
-import json
-import os
-from datetime import UTC, datetime
-from urllib.request import urlopen
-
-from sqlalchemy import text
-
-from app.db.session import get_engine
-
-
-async def main() -> None:
-    with urlopen("http://127.0.0.1:8000/api/v1/health/ready", timeout=5) as response:
-        if response.status != 200:
-            raise RuntimeError("previous-image readiness endpoint failed")
-    engine = get_engine()
-    try:
-        async with engine.connect() as connection:
-            row = (
-                await connection.execute(
-                    text(
-                        "SELECT (SELECT version_num FROM alembic_version), "
-                        "(SELECT extversion FROM pg_extension WHERE extname='postgis')"
-                    )
-                )
-            ).one()
-    finally:
-        await engine.dispose()
-    print(
-        json.dumps(
-            {
-                "event": "release_readiness",
-                "status": "ready",
-                "release_revision": os.environ["RELEASE_REVISION"],
-                "checked_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-                "checks": {
-                    "api": {"status": "ok"},
-                    "database": {
-                        "alembic_revision": row[0],
-                        "postgis_version": row[1],
-                    },
-                },
-            },
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-    )
-
-
-asyncio.run(main())
-PY
+    "${previous_compose[@]}" up -d --no-build db redis api >/dev/null
+    probe_passed=false
+    for attempt in 1 2 3 4 5; do
+      if "${previous_compose[@]}" exec -T api python -m app.operations.readiness \
+        --write-canary --compatibility qualification >"${readiness_output}"; then
+        probe_passed=true
+        break
+      fi
+      sleep 1
+    done
+    [[ "${probe_passed}" == true ]] || { echo "ERROR: compatibility probe failed" >&2; exit 1; }
     report_canary=("${previous_compose[@]}" run --rm -T --no-deps)
     if [[ "${RELEASE_COMPATIBILITY_BREAK_REPORT_CANARY:-false}" == true ]]; then
       [[ "${RELEASE_LOCAL_REHEARSAL:-false}" == true ]] || {

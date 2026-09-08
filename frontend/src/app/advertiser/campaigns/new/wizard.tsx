@@ -46,8 +46,15 @@ const stepFields: Record<number, FieldPath<CampaignWizardInput>[]> = {
   1: ["creatives"],
 };
 
-export function CampaignWizard({ currency }: { currency: string }) {
-  const [step, setStep] = useState(0);
+export function CampaignWizard({
+  currency,
+  existingCampaign,
+}: {
+  currency: string;
+  existingCampaign?: { id: string; name: string };
+}) {
+  const [campaignId, setCampaignId] = useState(existingCampaign?.id);
+  const [step, setStep] = useState(existingCampaign ? 1 : 0);
   const [result, setResult] = useState<CreateCampaignState>({});
   const [uploadState, setUploadState] = useState<
     Record<string, { phase?: CreativeUploadPhase; error?: string }>
@@ -59,7 +66,7 @@ export function CampaignWizard({ currency }: { currency: string }) {
     mode: "onTouched",
     defaultValues: {
       basics: {
-        name: "",
+        name: existingCampaign?.name ?? "",
         description: "",
         start_at: "",
         end_at: "",
@@ -112,7 +119,15 @@ export function CampaignWizard({ currency }: { currency: string }) {
     const raw = form.getValues();
     setResult({});
     startTransition(async () => {
-      const state = await createCampaignAction(raw);
+      const state = await createCampaignAction(raw, campaignId);
+      if (state.createdCampaignId) {
+        setCampaignId(state.createdCampaignId);
+        window.history.replaceState(
+          null,
+          "",
+          `/advertiser/campaigns/new?campaignId=${state.createdCampaignId}`,
+        );
+      }
       // On success the action redirects; reaching here means failure.
       setResult(state);
     });
@@ -131,24 +146,26 @@ export function CampaignWizard({ currency }: { currency: string }) {
     <form onSubmit={form.handleSubmit(submit)} noValidate className="pb-24">
       {/* Stepper */}
       <ol className="mb-6 flex items-center gap-2" aria-label="Progress">
-        {STEPS.map((label, i) => (
-          <li key={label} className="flex items-center gap-2">
-            <span
-              aria-current={i === step ? "step" : undefined}
-              className={cx(
-                "micro flex items-center gap-2 rounded-full border px-3 py-1.5",
-                i === step
-                  ? "border-amber/50 bg-amber/10 text-amber"
-                  : i < step
-                    ? "border-green/40 bg-green/10 text-green"
-                    : "border-edge text-faint",
-              )}
-            >
-              {i < step ? "✓" : i + 1} {label}
-            </span>
-            {i < STEPS.length - 1 ? <span className="text-faint">—</span> : null}
-          </li>
-        ))}
+        {STEPS.map((label, i) =>
+          campaignId && i === 0 ? null : (
+            <li key={label} className="flex items-center gap-2">
+              <span
+                aria-current={i === step ? "step" : undefined}
+                className={cx(
+                  "micro flex items-center gap-2 rounded-full border px-3 py-1.5",
+                  i === step
+                    ? "border-amber/50 bg-amber/10 text-amber"
+                    : i < step
+                      ? "border-green/40 bg-green/10 text-green"
+                      : "border-edge text-faint",
+                )}
+              >
+                {i < step ? "✓" : i + 1} {label}
+              </span>
+              {i < STEPS.length - 1 ? <span className="text-faint">—</span> : null}
+            </li>
+          ),
+        )}
       </ol>
 
       <Panel className="p-6 md:p-8">
@@ -383,7 +400,9 @@ export function CampaignWizard({ currency }: { currency: string }) {
 
         {step === 2 ? (
           <div className="flex max-w-xl flex-col gap-4">
-            <h2 className="font-display text-xl font-semibold">Review &amp; create</h2>
+            <h2 className="font-display text-xl font-semibold">
+              {campaignId ? "Review creative attachments" : "Review & create"}
+            </h2>
             <dl className="divide-edge/60 divide-y text-sm">
               {[
                 ["Name", values.basics.name || "—"],
@@ -404,7 +423,10 @@ export function CampaignWizard({ currency }: { currency: string }) {
                     ? `${currency} ${values.basics.daily_budget_amount}`
                     : "not set",
                 ],
-                ["Create as", "Draft"],
+                [
+                  campaignId ? "Campaign" : "Create as",
+                  campaignId ? "Existing campaign — details unchanged" : "Draft",
+                ],
                 [
                   "Creatives",
                   values.creatives.length ? `${values.creatives.length} attached` : "none",
@@ -441,7 +463,7 @@ export function CampaignWizard({ currency }: { currency: string }) {
 
       {/* Footer nav */}
       <div className="mt-5 flex items-center justify-between">
-        {step > 0 ? (
+        {step > (campaignId ? 1 : 0) ? (
           <Button type="button" variant="ghost" onClick={() => setStep((s) => s - 1)}>
             ← Back
           </Button>
@@ -451,12 +473,18 @@ export function CampaignWizard({ currency }: { currency: string }) {
           </Link>
         )}
         {step < STEPS.length - 1 ? (
-          <Button type="button" onClick={next}>
+          <Button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              void next();
+            }}
+          >
             Continue →
           </Button>
         ) : (
           <Button type="submit" disabled={submitting}>
-            {submitting ? "Creating…" : "Create campaign"}
+            {submitting ? "Saving…" : campaignId ? "Attach creatives" : "Create campaign"}
           </Button>
         )}
       </div>

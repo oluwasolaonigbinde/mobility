@@ -212,6 +212,7 @@ class ReportPublicationIntent(Base):
 
     __tablename__ = "report_publication_intents"
     __table_args__ = (
+        CheckConstraint("write_protocol IN (0, 1)", name="ck_report_publication_write_protocol"),
         CheckConstraint("generation > 0", name="ck_report_publication_intents_generation"),
         CheckConstraint(
             "state IN ('prepared', 'publishing', 'complete', 'abandoned', 'cleaning', 'cleaned')",
@@ -273,6 +274,7 @@ class ReportPublicationIntent(Base):
         ForeignKey("report_issuances.id", ondelete="RESTRICT"), nullable=False
     )
     generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    write_protocol: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     state: Mapped[str] = mapped_column(
         String(16),
         default=ReportPublicationState.PREPARED,
@@ -293,6 +295,57 @@ class ReportPublicationIntent(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+
+class ReportPublicationWrite(Base):
+    """One registered storage call; uncertain transport outcomes never imply settlement."""
+
+    __tablename__ = "report_publication_writes"
+    __table_args__ = (
+        UniqueConstraint("publication_intent_id", "format", name="uq_report_publication_write"),
+        CheckConstraint("format IN ('csv', 'pdf')", name="ck_report_publication_write_format"),
+        CheckConstraint(
+            "(state='registered' AND settled_at IS NULL AND error_code IS NULL) OR "
+            "(state='settled' AND settled_at IS NOT NULL) OR "
+            "(state='uncertain' AND settled_at IS NULL AND error_code IS NOT NULL)",
+            name="ck_report_publication_write_state",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    publication_intent_id: Mapped[UUID] = mapped_column(
+        ForeignKey("report_publication_intents.id", ondelete="RESTRICT"), nullable=False
+    )
+    format: Mapped[str] = mapped_column(String(8), nullable=False)
+    state: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="registered", server_default="registered"
+    )
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    registered_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+@event.listens_for(ReportPublicationWrite, "before_update")
+def reject_publication_write_restatement(_mapper, _connection, target):
+    attributes = inspect(target).attrs
+    changed = {item.key for item in attributes if item.history.has_changes()}
+    history = attributes.state.history
+    if (
+        changed - {"state", "settled_at", "error_code"}
+        or not history.has_changes()
+        or history.deleted != ["registered"]
+        or target.state not in {"settled", "uncertain"}
+    ):
+        raise ValueError("report publication write receipts cannot be restated")
+
+
+@event.listens_for(ReportPublicationWrite, "before_delete")
+def reject_publication_write_delete(_mapper, _connection, _target):
+    raise ValueError("report publication write receipts are append-only")
 
 
 _ISSUANCE_MUTABLE_FIELDS = frozenset(
@@ -333,6 +386,7 @@ _PUBLICATION_IDENTITY_FIELDS = frozenset(
     {
         "report_issuance_id",
         "generation",
+        "write_protocol",
         "csv_object_key",
         "pdf_object_key",
         "created_at",

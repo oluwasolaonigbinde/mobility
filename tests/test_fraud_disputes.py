@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 from conftest import auth_headers
 from sqlalchemy import func, select, update
-from test_fraud_assessments import build_graph, create_flag
+from test_fraud_assessments import NOW, build_graph, create_flag
 
 from app.models.audit import AuditEvent
 from app.models.fraud_dispute import FraudDispute
@@ -13,7 +13,7 @@ from app.models.trip_analytics import FraudFlag
 from app.services.fraud_disputes import create_driver_dispute, reply_to_dispute
 from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
 from app.services.notifications import create_fraud_hold_raised_notice
-from app.services.route_replay import _remove_open_replay_flag, _write_replay_flag
+from app.services.route_replay import _write_replay_flag, detect_route_replay
 from app.services.trip_analytics import AnalyticsMetrics, replace_open_fraud_flags
 
 PASSWORD = "long-secure-password"
@@ -415,7 +415,18 @@ def test_disputed_route_replay_flag_cannot_be_removed_or_rewritten(
                 )
             )
             await session.flush()
-            removed = await _remove_open_replay_flag(session, graph.trip.id)
+            await detect_route_replay(
+                session,
+                trip=graph.trip,
+                analytics=graph.analytics,
+                ordered_pings=[],
+                settings=settings,
+                now=NOW,
+            )
+            remaining_id = await session.scalar(
+                select(FraudFlag.id).where(FraudFlag.id == flag.id)
+            )
+            removed = remaining_id is None
             preserved, changed = await _write_replay_flag(
                 session,
                 target=SimpleNamespace(

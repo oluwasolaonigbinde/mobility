@@ -52,6 +52,13 @@ def _error(code: str, message: str, status_code: int) -> AppError:
     return AppError(code, message, status_code=status_code)
 
 
+def require_submission_payload(submission: DriverKycSubmission | VehicleEvidenceSubmission) -> None:
+    if submission.purged_at is not None:
+        raise _error(
+            "KYC_PAYLOAD_PURGED", "Submission payload is no longer available", status.HTTP_410_GONE
+        )
+
+
 def _purpose(value: str) -> str:
     normalized = value.strip().lower()
     if not PURPOSE_PATTERN.fullmatch(normalized):
@@ -240,6 +247,7 @@ async def submit_driver_kyc(
         )
     )
     if existing is not None:
+        require_submission_payload(existing)
         existing_docs = await _driver_documents(session, existing.id)
         try:
             existing_nin = crypto.decrypt(
@@ -353,6 +361,7 @@ async def validate_driver_kyc_for_approval(
 ) -> dict[str, UUID]:
     """Recheck current clean owned evidence and payee binding under caller locks."""
 
+    require_submission_payload(submission)
     documents = await _driver_documents(session, submission.id)
     required = {item.value for item in DriverKycDocumentType}
     if set(documents) != required:
@@ -395,7 +404,9 @@ async def submit_vehicle_evidence(
     vehicle_id: UUID,
     client_request_id: UUID,
     document_file_ids: dict[str, UUID],
+    settings: Settings,
 ) -> VehicleEvidenceView:
+    require_collection_authority(settings)
     required = {item.value for item in VehicleEvidenceDocumentType}
     if set(document_file_ids) != required:
         raise _error("VEHICLE_EVIDENCE_INVALID", "All vehicle evidence is required", 422)
@@ -414,6 +425,7 @@ async def submit_vehicle_evidence(
         )
     )
     if existing is not None:
+        require_submission_payload(existing)
         existing_docs = await _vehicle_documents(session, existing.id)
         if existing_docs != document_file_ids:
             raise _error(
@@ -507,9 +519,15 @@ async def reveal_driver_nin(
 ) -> str:
     await require_active_admin(session, actor_user_id)
     purpose = _purpose(purpose)
-    submission = await session.get(DriverKycSubmission, submission_id)
+    submission = await session.scalar(
+        select(DriverKycSubmission)
+        .where(DriverKycSubmission.id == submission_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if submission is None:
         raise _error("KYC_NOT_FOUND", "KYC submission was not found", status.HTTP_404_NOT_FOUND)
+    require_submission_payload(submission)
     profile = await session.get(DriverProfile, submission.driver_profile_id)
     if profile is None:  # pragma: no cover
         raise RuntimeError("KYC profile authority disappeared")
@@ -562,14 +580,18 @@ async def rewrap_driver_nin(
     )
     if profile is None:  # pragma: no cover
         raise RuntimeError("KYC profile authority disappeared")
+    await session.refresh(probe)
+    require_submission_payload(probe)
     current = await session.scalar(
         select(DriverKycSubmission)
         .where(DriverKycSubmission.driver_profile_id == profile.id)
         .order_by(DriverKycSubmission.version.desc())
         .limit(1)
+        .execution_options(populate_existing=True)
     )
     if current is None:  # pragma: no cover
         raise RuntimeError("KYC encryption chain disappeared")
+    require_submission_payload(current)
     if current.nin_record_id != probe.nin_record_id:
         raise _error(
             "KYC_REWRAP_STALE",

@@ -22,6 +22,7 @@ const createUserSchema = z
       .transform((v) => (v === "" ? null : v)),
     role: z.enum(["admin", "advertiser", "driver"]),
     password: z.string().min(12, "Password must be at least 12 characters"),
+    current_password: z.string().optional(),
     // Advertiser onboarding: optionally create the organization in the same step
     org_name: z
       .string()
@@ -37,6 +38,13 @@ const createUserSchema = z
       .pipe(z.string().length(3, "Use a 3-letter currency code").optional()),
   })
   .superRefine((data, ctx) => {
+    if (data.role === "admin" && !data.current_password) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["current_password"],
+        message: "Your current password is required",
+      });
+    }
     if (data.org_name && data.role !== "advertiser") {
       ctx.addIssue({
         code: "custom",
@@ -56,6 +64,7 @@ export async function createUserAction(
     phone: formData.get("phone") ?? "",
     role: formData.get("role"),
     password: formData.get("password"),
+    current_password: formData.get("current_password") ?? undefined,
     org_name: formData.get("org_name") ?? "",
     org_currency: formData.get("org_currency") ?? "",
   });
@@ -63,13 +72,13 @@ export async function createUserAction(
     const first = parsed.error.issues[0];
     return { error: first?.message ?? "Invalid input" };
   }
-  const { org_name, org_currency, ...user } = parsed.data;
+  const { org_name, org_currency, current_password, ...user } = parsed.data;
 
   const api = createApiClient(await getSessionToken());
   let userId: string;
   try {
     const { data } = await api.POST("/api/v1/admin/users", {
-      body: { ...user, status: "active" },
+      body: { ...user, status: "active", ...(user.role === "admin" ? { current_password } : {}) },
     });
     if (!data) return { error: "Unexpected empty response creating the user." };
     userId = data.id;
@@ -103,6 +112,7 @@ export async function createUserAction(
 const userStatusSchema = z.object({
   userId: z.string().uuid(),
   status: z.enum(["active", "invited", "suspended", "disabled"]),
+  current_password: z.string().min(1).optional(),
 });
 
 export async function updateUserStatusAction(
@@ -114,7 +124,12 @@ export async function updateUserStatusAction(
     const api = createApiClient(await getSessionToken());
     await api.PATCH("/api/v1/admin/users/{user_id}", {
       params: { path: { user_id: parsed.data.userId } },
-      body: { status: parsed.data.status },
+      body: {
+        status: parsed.data.status,
+        ...(parsed.data.current_password !== undefined
+          ? { current_password: parsed.data.current_password }
+          : {}),
+      },
     });
   } catch (error) {
     if (error instanceof ApiError) return { error: error.message };

@@ -383,6 +383,12 @@ describe("driver trip BFF actions", () => {
     ).resolves.toMatchObject({
       acknowledged: true,
       acceptedCount: 1,
+      receipt: {
+        sampleResults: [
+          { index: 0, status: "accepted", rejection_code: null },
+          { index: 1, status: "rejected", rejection_code: "INVALID_SPEED" },
+        ],
+      },
       sampleResults: [
         { index: 0, status: "accepted", rejection_code: null },
         { index: 1, status: "rejected", rejection_code: "INVALID_SPEED" },
@@ -605,4 +611,27 @@ describe("driver trip BFF actions", () => {
     });
     recovered.close();
   });
+});
+
+it("rejects heading 360 before relay while leaving valid peers in the caller's payload", async () => {
+  const pings = [360, 90].map((heading_degrees, sequence_number) => ({
+    recorded_at: "2026-08-25T00:00:00.000Z",
+    lat: 6.45,
+    lon: 3.39,
+    accuracy_m: 10,
+    speed_mps: 5,
+    heading_degrees,
+    sequence_number,
+  }));
+  const before = JSON.stringify(pings);
+  const result = await sendPingBatchAction({
+    tripId: TRIP_ID,
+    idempotencyKey: "old-invalid-heading",
+    batchSequence: 0,
+    evidenceProtocolVersion: 2,
+    pings,
+  });
+  expect(result).toMatchObject({ acknowledged: false, retryable: false });
+  expect(mocks.post).not.toHaveBeenCalled();
+  expect(JSON.stringify(pings)).toBe(before);
 });

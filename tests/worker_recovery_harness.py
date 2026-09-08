@@ -347,6 +347,14 @@ class PersistentStorageProvider:
             )
         )
 
+    async def delete_all_versions(self, object_key: str) -> None:
+        await self.delete(object_key)
+        try:
+            await self.stat(object_key)
+        except StorageObjectNotFound:
+            return
+        raise StorageObjectConflict("Persistent test object remains after deletion")
+
 
 def read_provider_events(root: Path) -> list[dict[str, Any]]:
     path = root / "provider-events.jsonl"

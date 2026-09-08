@@ -108,7 +108,9 @@ async def get_current_user(
             "Invalid authentication token",
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
-    if user.status in {UserStatus.SUSPENDED.value, UserStatus.DISABLED.value}:
+    if user.status in {UserStatus.SUSPENDED.value, UserStatus.DISABLED.value} or (
+        user.role == UserRole.ADMIN and user.status != UserStatus.ACTIVE
+    ):
         raise AppError(
             "USER_NOT_ACTIVE",
             "User account is not active",
@@ -141,6 +143,7 @@ async def get_current_user(
             "Password must be changed before continuing",
             status_code=status.HTTP_403_FORBIDDEN,
         )
+    request.state.authenticated_session_version = claims.session_version
     return user
 
 
@@ -152,6 +155,12 @@ def require_admin_user(user: CurrentUserDependency) -> User:
         raise AppError(
             "FORBIDDEN_ROLE",
             "Admin role is required",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+    if user.status != UserStatus.ACTIVE:
+        raise AppError(
+            "USER_NOT_ACTIVE",
+            "User account is not active",
             status_code=status.HTTP_403_FORBIDDEN,
         )
     return user

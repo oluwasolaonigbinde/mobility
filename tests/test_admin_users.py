@@ -9,9 +9,111 @@ from starlette import status as http_status
 
 from app.api.v1.dependencies import get_login_rate_limiter
 from app.core.rate_limit import RateLimitDecision
-from app.models.user import UserRole
+from app.models.user import UserRole, UserStatus
 
 PASSWORD = "long-secure-password"
+
+
+@pytest.mark.parametrize("proof", [None, "wrong-password", PASSWORD])
+@pytest.mark.parametrize("target_status", ["active", "invited"])
+def test_admin_creation_uses_current_password_proof(
+    db_client, db_sessionmaker, proof, target_status
+):
+    actor = create_test_user(db_sessionmaker, email="creator@example.com", password=PASSWORD)
+    headers = auth_headers(db_client, actor.email, PASSWORD)
+    limiter = ElevationProofLimiter()
+    db_client.app.dependency_overrides[get_login_rate_limiter] = lambda: limiter
+    payload = {
+        "email": "new-admin@example.com",
+        "password": PASSWORD,
+        "full_name": "New admin",
+        "role": "admin",
+        "status": target_status,
+    }
+    if proof is not None:
+        payload["current_password"] = proof
+    response = db_client.post("/api/v1/admin/users", headers=headers, json=payload)
+    assert response.status_code == (201 if proof == PASSWORD else 401)
+    assert len(limiter.reserve_calls) == 1
+    target = fetch_user_by_email(db_sessionmaker, payload["email"])
+    assert (target is not None) == (proof == PASSWORD)
+    events = [
+        event
+        for event in fetch_audit_events(db_sessionmaker)
+        if event.action == "admin.user.created"
+    ]
+    assert len(events) == (1 if proof == PASSWORD else 0)
+    assert "current_password" not in response.text
+
+
+def test_invited_admin_cannot_login_or_use_preexisting_token(db_client, db_sessionmaker, settings):
+    from app.core.security import create_access_token
+
+    invited = create_test_user(
+        db_sessionmaker,
+        email="invited-admin@example.com",
+        password=PASSWORD,
+        user_status=UserStatus.INVITED,
+    )
+    login = db_client.post(
+        "/api/v1/auth/login", json={"email": invited.email, "password": PASSWORD}
+    )
+    assert login.status_code == 403
+    token, _ = create_access_token(invited.id, settings, session_version=invited.session_version)
+    headers = {"Authorization": f"Bearer {token}"}
+    for method, path, body in [
+        ("GET", "/api/v1/admin/users", None),
+        ("PATCH", f"/api/v1/admin/users/{invited.id}", {"status": "active"}),
+    ]:
+        response = db_client.request(method, path, headers=headers, json=body)
+        assert response.status_code == 403
+        assert response.json()["error"]["code"] == "USER_NOT_ACTIVE"
+    assert fetch_user_by_email(db_sessionmaker, invited.email).status == UserStatus.INVITED
+
+
+@pytest.mark.parametrize("proof", [None, "wrong-password", PASSWORD])
+def test_preassigned_admin_activation_reauthenticates_and_revokes_once(
+    db_client,
+    db_sessionmaker,
+    settings,
+    proof,
+):
+    from app.core.security import create_access_token
+
+    actor = create_test_user(
+        db_sessionmaker, email="activation-admin@example.com", password=PASSWORD
+    )
+    target = create_test_user(
+        db_sessionmaker,
+        email="activation-target@example.com",
+        password=PASSWORD,
+        user_status=UserStatus.INVITED,
+    )
+    old_token, _ = create_access_token(target.id, settings, session_version=target.session_version)
+    headers = auth_headers(db_client, actor.email, PASSWORD)
+    limiter = ElevationProofLimiter()
+    db_client.app.dependency_overrides[get_login_rate_limiter] = lambda: limiter
+    payload = {"status": "active"}
+    if proof is not None:
+        payload["current_password"] = proof
+    response = db_client.patch(f"/api/v1/admin/users/{target.id}", headers=headers, json=payload)
+    assert response.status_code == (200 if proof == PASSWORD else 401)
+    assert len(limiter.reserve_calls) == 1
+    refreshed = fetch_user_by_email(db_sessionmaker, target.email)
+    assert refreshed.session_version == target.session_version + (proof == PASSWORD)
+    if proof == PASSWORD:
+        rejected = db_client.get("/api/v1/me", headers={"Authorization": f"Bearer {old_token}"})
+        assert rejected.status_code == 401
+        assert rejected.json()["error"]["code"] == "SESSION_REVOKED"
+        retry = db_client.patch(
+            f"/api/v1/admin/users/{target.id}", headers=headers, json={"status": "active"}
+        )
+        assert retry.status_code == 200
+        assert (
+            fetch_user_by_email(db_sessionmaker, target.email).session_version
+            == refreshed.session_version
+        )
+        assert len(limiter.reserve_calls) == 1
 
 
 class ElevationProofLimiter:

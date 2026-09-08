@@ -4,7 +4,7 @@
   "external_gate": "EXT-REPORT-METHOD",
   "live_report_issuance_authorized": false,
   "standard_deliverable": "Campaign Performance Analysis",
-  "method_revision": "measurement-contract-v1",
+  "method_revision": "measurement-contract-v2",
   "metric_hierarchy": [
     {
       "id": "verified_vehicle_movement",
@@ -58,8 +58,8 @@
       "display_label": "Driver campaign cost",
       "class": "measured_financial_fact",
       "unit": "currency amount",
-      "source": "immutable payout calculation and ledger facts",
-      "vintage": "payout rule/formula revision, currency, calculation revision, and report cutoff",
+      "source": "immutable payout calculation provenance and signed economic ledger facts; nonvoided credits less reversals, excluding debt-remainder settlement provenance",
+      "vintage": "payout rule/formula revision, currency, calculation revision, and ledger facts frozen under one locked report snapshot; corrections restate the original trip terminal period only in a newly issued v2 run",
       "uncertainty": "A campaign cost is not revenue, conversion value, incremental value, or ROI.",
       "missing_data": "Omit unavailable currency totals; never combine currencies or substitute zero."
     },

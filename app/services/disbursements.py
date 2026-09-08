@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import String, case, cast, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status
@@ -21,6 +21,7 @@ from app.adapters.disbursement.provider import DisbursementUnavailableError
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
 from app.db.integrity import integrity_constraint_name
+from app.models.audit import AuditEvent
 from app.models.disbursement import (
     PayoutBatch,
     PayoutBatchLine,
@@ -825,6 +826,23 @@ async def _final_payout_authority(
 async def find_due_payout_submission_intent_ids(
     session: AsyncSession, *, limit: int = 100
 ) -> tuple[UUID, ...]:
+    event_entity_id = AuditEvent.entity_id
+    if session.get_bind().dialect.name == "sqlite":
+        event_entity_id = func.replace(event_entity_id, "-", "")
+    last_failure_at = (
+        select(func.max(AuditEvent.created_at))
+        .where(
+            AuditEvent.action == "worker.payout_submission.failed",
+            AuditEvent.entity_type == "payout_submission_intent",
+            event_entity_id == cast(PayoutSubmissionIntent.id, String),
+        )
+        .correlate(PayoutSubmissionIntent)
+        .scalar_subquery()
+    )
+    last_visit_at = case(
+        (last_failure_at > PayoutSubmissionIntent.updated_at, last_failure_at),
+        else_=PayoutSubmissionIntent.updated_at,
+    )
     return tuple(
         (
             await session.scalars(
@@ -842,7 +860,7 @@ async def find_due_payout_submission_intent_ids(
                     )
                 )
                 .order_by(
-                    PayoutSubmissionIntent.updated_at,
+                    last_visit_at,
                     PayoutSubmissionIntent.id,
                 )
                 .limit(limit)

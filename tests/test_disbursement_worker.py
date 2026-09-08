@@ -3,8 +3,10 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
+import pytest
 from sqlalchemy import func, select, update
 
+import app.jobs.disbursements as disbursement_jobs
 from app.adapters.disbursement import (
     FakeDisbursementAdapter,
     ProviderLookup,
@@ -12,6 +14,7 @@ from app.adapters.disbursement import (
     ProviderSubmission,
 )
 from app.jobs.disbursements import sweep_disbursement_intents
+from app.models.audit import AuditEvent
 from app.models.disbursement import (
     PayoutBatch,
     PayoutBatchLine,
@@ -20,6 +23,7 @@ from app.models.disbursement import (
     PayoutSubmissionObservation,
 )
 from app.models.payout import EarningsLedgerEntry
+from app.models.user import User
 from app.services.disbursements import (
     approve_payout_batch,
     create_payout_batch_draft,
@@ -250,6 +254,91 @@ def test_unknown_intents_rotate_so_later_pending_lines_are_not_starved(
     assert second == {"selected": 100, "processed": 100, "failed": 0}
     assert pending_tail.state == "resolved"
     assert len(adapter.calls) == 1
+
+
+@pytest.mark.parametrize("fixture_name", ["postgis_db_sessionmaker", "db_sessionmaker"])
+@pytest.mark.parametrize("failure", ["revoked_admin", "unexpected"])
+def test_failed_oldest_prefix_does_not_starve_later_authorized_work(
+    request, fixture_name, failure, caplog, monkeypatch
+) -> None:
+    # In-process migration fileConfig disables previously imported worker loggers.
+    monkeypatch.setattr(disbursement_jobs.logger, "disabled", False)
+    sessionmaker = request.getfixturevalue(fixture_name)
+    denied_graph = build_graph(sessionmaker, f"denied-prefix-{uuid4().hex[:8]}")
+    ready_graph = build_graph(sessionmaker, f"ready-tail-{uuid4().hex[:8]}")
+    adapter = FakeDisbursementAdapter()
+
+    async def exercise():
+        _, _, denied_ids = await _prepare_batch(
+            sessionmaker, denied_graph, adapter, line_count=100
+        )
+        _, _, ready_ids = await _prepare_batch(sessionmaker, ready_graph, adapter)
+        if failure == "unexpected":
+            process = disbursement_jobs.process_disbursement_intent_job
+
+            async def fail_before_claim(ctx, intent_id):
+                if intent_id in {str(i) for i in denied_ids}:
+                    raise RuntimeError("private-provider-response-must-not-be-logged")
+                return await process(ctx, intent_id)
+
+            monkeypatch.setattr(
+                disbursement_jobs, "process_disbursement_intent_job", fail_before_claim
+            )
+        async with sessionmaker() as session:
+            await session.execute(
+                update(PayoutSubmissionIntent)
+                .where(PayoutSubmissionIntent.id.in_(denied_ids))
+                .values(updated_at=datetime(2020, 1, 1, tzinfo=UTC))
+            )
+            await session.execute(
+                update(PayoutSubmissionIntent)
+                .where(PayoutSubmissionIntent.id.in_(ready_ids))
+                .values(updated_at=datetime(2021, 1, 1, tzinfo=UTC))
+            )
+            await session.execute(
+                update(User).where(User.id == denied_graph.admin.id).values(status="disabled")
+            )
+            await session.commit()
+        ctx = {"sessionmaker": sessionmaker, "disbursement_adapter": adapter}
+        first = await sweep_disbursement_intents(ctx)
+        assert adapter.calls == []
+        second = await sweep_disbursement_intents(ctx)
+        async with sessionmaker() as session:
+            ready = await session.get(PayoutSubmissionIntent, ready_ids[0])
+            assert ready.state == "resolved"
+            denied = tuple(
+                await session.scalars(
+                    select(PayoutSubmissionIntent).where(PayoutSubmissionIntent.id.in_(denied_ids))
+                )
+            )
+            assert all(intent.state == "pending" and intent.generation == 0 for intent in denied)
+            assert all(intent.claim_token is None for intent in denied)
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(PayoutSubmissionAttempt)
+                    .where(PayoutSubmissionAttempt.intent_id.in_(denied_ids))
+                )
+                == 0
+            )
+            failures = tuple(
+                await session.scalars(
+                    select(AuditEvent).where(AuditEvent.action == "worker.payout_submission.failed")
+                )
+            )
+            assert len(failures) == 199
+            assert {event.entity_id for event in failures} == {str(i) for i in denied_ids}
+            assert all(event.actor_user_id is None for event in failures)
+            expected_code = "FORBIDDEN_ROLE" if failure == "revoked_admin" else "RuntimeError"
+            assert all(event.event_metadata == {"error_code": expected_code} for event in failures)
+        return first, second
+
+    first, second = asyncio.run(exercise())
+    assert first == {"selected": 100, "processed": 0, "failed": 100}
+    assert second == {"selected": 100, "processed": 1, "failed": 99}
+    assert len(adapter.calls) == 1
+    assert sum("Payout submission processing failed" in r.message for r in caplog.records) == 199
+    assert "private-provider-response" not in caplog.text
 
 
 def test_partial_batch_progress_is_per_line_and_duplicate_reference_never_replays(

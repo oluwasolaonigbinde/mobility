@@ -4,11 +4,16 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import fnmatch
+import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
+import tomllib
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,6 +22,13 @@ LINE_FLOOR = 90.0
 BRANCH_FLOOR = 80.0
 FULL_SHA = re.compile(r"[0-9a-f]{40}\Z")
 HUNK = re.compile(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+POLICY_FILES = (
+    "scripts/check_changed_coverage.py",
+    "pyproject.toml",
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/vitest.config.ts",
+)
 
 
 class PolicyError(ValueError):
@@ -290,8 +302,8 @@ def _load_baseline(path: Path) -> dict[str, object]:
         baseline = json.loads(path.read_text(encoding="utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise PolicyError(f"malformed baseline: {path}") from error
-    if not isinstance(baseline, dict) or baseline.get("version") != 1:
-        raise PolicyError("baseline must be a version 1 object")
+    if not isinstance(baseline, dict) or baseline.get("version") not in (1, 2):
+        raise PolicyError("baseline must be a version 1 or 2 object")
     has_sections = isinstance(baseline.get("global"), dict) and isinstance(
         baseline.get("critical"), dict
     )
@@ -314,6 +326,16 @@ def _required_percentages(scope: object, label: str) -> tuple[float, float]:
 
 def _assert_not_regressed(label: str, actual: dict[str, float | int], expected: object) -> None:
     expected_line, expected_branch = _required_percentages(expected, label)
+    assert isinstance(expected, dict)
+    for metric in ("line", "branch"):
+        covered, total = expected.get(f"{metric}_covered"), expected.get(f"{metric}_total")
+        if covered is None and total is None:
+            continue
+        if type(covered) is not int or type(total) is not int or not 0 <= covered <= total:
+            raise PolicyError(f"baseline {label}.{metric} counts are invalid")
+        numerator, denominator = (covered, total) if total else (1, 1)
+        if actual[f"{metric}_covered"] * denominator < numerator * actual[f"{metric}_total"]:
+            raise PolicyError(f"{label} {metric} coverage regressed from exact baseline ratio")
     if actual["line_percent"] < expected_line or actual["branch_percent"] < expected_branch:
         raise PolicyError(
             f"{label} coverage regressed: line {actual['line_percent']}% < {expected_line}% "
@@ -344,6 +366,217 @@ def _matches(path: str, patterns: object, label: str) -> bool:
     return any(fnmatch.fnmatchcase(path, pattern) for pattern in candidates)
 
 
+def _hash_files(repo_root: Path, paths: Iterable[str]) -> str:
+    digest = hashlib.sha256()
+    for path in paths:
+        digest.update(path.encode())
+        digest.update(b"\0")
+        try:
+            digest.update((repo_root / path).read_bytes())
+        except OSError as error:
+            raise PolicyError(f"missing provenance source: {path}") from error
+    return digest.hexdigest()
+
+
+def _complete_inventory(repo_root: Path, records: dict[str, CoverageRecord]) -> list[str]:
+    paths = _run_git(repo_root, "ls-files", "--cached", "--others", "--exclude-standard", "-z")
+    inventory = sorted(
+        {
+            path
+            for path in paths.split("\0")
+            if path and _eligible(path) and (repo_root / path).is_file()
+        }
+    )
+    for path in inventory:
+        if not (repo_root / path).resolve().is_relative_to(repo_root):
+            raise PolicyError(f"eligible source escapes repository: {path}")
+        if path in records:
+            continue
+        # coverage.py omits modules containing only a docstring or comments.
+        if path.endswith(".py"):
+            try:
+                body = ast.parse((repo_root / path).read_text(encoding="utf-8")).body
+            except (SyntaxError, UnicodeDecodeError) as error:
+                raise PolicyError(f"cannot classify uncovered source: {path}") from error
+            if not body or (
+                len(body) == 1
+                and isinstance(body[0], ast.Expr)
+                and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)
+            ):
+                records[path] = CoverageRecord()
+                continue
+        raise PolicyError(f"eligible source is absent from LCOV: {path}")
+    if set(records) != set(inventory):
+        raise PolicyError("LCOV inventory contains sources outside the eligible git inventory")
+    return inventory
+
+
+def _coverage_block(source: str) -> list[str]:
+    tokens = re.findall(
+        r""""(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|//[^\n]*|/\*[\s\S]*?\*/|\w+|[^\s]""", source
+    )
+    tokens = [token for token in tokens if not token.startswith(("//", "/*"))]
+    starts = [
+        index
+        for index in range(len(tokens) - 2)
+        if tokens[index : index + 3] == ["coverage", ":", "{"]
+    ]
+    if len(starts) != 1:
+        raise PolicyError("coverage instrumentation requires one static Vitest coverage block")
+    depth = 0
+    for end in range(starts[0] + 2, len(tokens)):
+        depth += (tokens[end] == "{") - (tokens[end] == "}")
+        if depth == 0:
+            return tokens[starts[0] : end + 1]
+    raise PolicyError("unterminated Vitest coverage instrumentation block")
+
+
+def _validate_instrumentation(repo_root: Path, base: str) -> None:
+    old_pyproject = _run_git(repo_root, "show", f"{base}:pyproject.toml")
+    try:
+        old = tomllib.loads(old_pyproject).get("tool", {}).get("coverage", {})
+        new = (
+            tomllib.loads((repo_root / "pyproject.toml").read_text())
+            .get("tool", {})
+            .get("coverage", {})
+        )
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as error:
+        raise PolicyError("coverage configuration must be valid TOML") from error
+    for section, keys in {
+        "run": ("branch", "source", "source_pkgs", "include", "omit", "plugins"),
+        "report": (
+            "exclude_lines",
+            "exclude_also",
+            "partial_branches",
+            "partial_also",
+            "include",
+            "omit",
+        ),
+    }.items():
+        for key in keys:
+            if old.get(section, {}).get(key) != new.get(section, {}).get(key):
+                raise PolicyError(
+                    f"coverage instrumentation drift requires D32 authority: {section}.{key}"
+                )
+    previous = _run_git(repo_root, "show", f"{base}:frontend/vitest.config.ts")
+    current = (repo_root / "frontend/vitest.config.ts").read_text()
+    if _coverage_block(previous) != _coverage_block(current):
+        raise PolicyError("coverage instrumentation drift requires D32 authority: vitest.coverage")
+
+
+def _trusted_baseline(
+    args: argparse.Namespace,
+    repo_root: Path,
+    records: dict[str, CoverageRecord],
+) -> tuple[dict[str, object], dict[str, object]]:
+    try:
+        relative = Path(args.baseline).resolve().relative_to(repo_root).as_posix()
+    except ValueError as error:
+        raise PolicyError("verified baseline must be inside the repository") from error
+    raw = _run_git(repo_root, "show", f"{args.base}:{relative}")
+    try:
+        trusted = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise PolicyError("trusted ancestor baseline is malformed") from error
+    if not isinstance(trusted, dict) or trusted.get("version") not in (1, 2):
+        raise PolicyError("trusted ancestor baseline has an unsupported version")
+    if not isinstance(trusted.get("critical"), dict) or set(trusted["critical"]) != {
+        "backend",
+        "frontend",
+    }:
+        raise PolicyError("trusted named critical groups must remain backend and frontend")
+    inventory = _complete_inventory(repo_root, records)
+    groups = {
+        "backend": sorted(path for path in inventory if path.startswith("app/")),
+        "frontend": sorted(path for path in inventory if path.startswith("frontend/")),
+    }
+    # Eligibility itself is D32 authority, not a configurable coverage exclusion.
+    old_source = _run_git(repo_root, "show", f"{args.base}:scripts/check_changed_coverage.py")
+    old_tree = ast.parse(old_source)
+    old_eligible = next(
+        (
+            node
+            for node in old_tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == "_eligible"
+        ),
+        None,
+    )
+    if old_eligible is None:
+        raise PolicyError("trusted source eligibility policy is missing")
+    namespace: dict[str, object] = {}
+    exec(
+        compile(ast.Module(body=[old_eligible], type_ignores=[]), "trusted eligibility", "exec"),
+        namespace,
+    )
+    previous_paths = _run_git(repo_root, "ls-tree", "-r", "--name-only", args.base).splitlines()
+    current_paths = _run_git(
+        repo_root, "ls-files", "--cached", "--others", "--exclude-standard", "-z"
+    ).split("\0")
+    for path in set(previous_paths + current_paths) - {""}:
+        if namespace["_eligible"](path) != _eligible(path):
+            raise PolicyError(f"source eligibility drift requires separate D32 authority: {path}")
+    if LINE_FLOOR < 90 or BRANCH_FLOOR < 80:
+        raise PolicyError("D32 changed-code floors cannot be lowered by baseline refresh")
+    _validate_instrumentation(repo_root, args.base)
+    actual = _metrics(records.values())
+    _assert_not_regressed("global", actual, trusted.get("global"))
+    critical = {}
+    for name, paths in groups.items():
+        if not paths:
+            raise PolicyError(f"critical coverage group has no eligible sources: {name}")
+        metrics = _metrics(records[path] for path in paths)
+        _assert_not_regressed(f"critical.{name}", metrics, trusted["critical"][name])
+        critical[name] = {**metrics, "paths": paths}
+    inventory_hash = hashlib.sha256(
+        ("\n".join(groups["backend"] + groups["frontend"]) + "\n").encode()
+    ).hexdigest()
+    policy_hash = _hash_files(repo_root, POLICY_FILES)
+    snapshot = {
+        "version": 2,
+        "source_parent_sha": args.base,
+        "eligible_inventory_sha256": inventory_hash,
+        "policy_sha256": policy_hash,
+        "source_sha256": _hash_files(repo_root, inventory),
+        "global": actual,
+        "critical": critical,
+        "refresh": {
+            "previous_baseline_sha256": hashlib.sha256(raw.encode()).hexdigest(),
+            "inventory_changes": {
+                "added": sorted(set(inventory) - {p for p in previous_paths if _eligible(p)}),
+                "removed": sorted({p for p in previous_paths if _eligible(p)} - set(inventory)),
+            },
+        },
+    }
+    candidate = _load_baseline(Path(args.baseline))
+    if args.refresh_baseline:
+        if not args.refresh_baseline.strip():
+            raise PolicyError("baseline refresh requires a reviewable reason")
+        snapshot["refresh"]["reason"] = args.refresh_baseline.strip()
+    elif candidate != trusted:
+        refresh = candidate.get("refresh")
+        reason = refresh.get("reason") if isinstance(refresh, dict) else None
+        if not isinstance(reason, str) or not reason.strip():
+            raise PolicyError("baseline refresh receipt requires a reviewable reason")
+        snapshot["refresh"]["reason"] = reason
+        if candidate != snapshot:
+            raise PolicyError("baseline refresh receipt differs from trusted/current evidence")
+    else:
+        if (
+            candidate.get("eligible_inventory_sha256") != inventory_hash
+            or candidate.get("policy_sha256") != policy_hash
+        ):
+            raise PolicyError("inventory or policy changed; controlled baseline refresh required")
+    # Apply the trusted ratios to current group membership, including additions and renames.
+    floors = {
+        **trusted,
+        "critical": {
+            name: {**trusted["critical"][name], "paths": paths} for name, paths in groups.items()
+        },
+    }
+    return floors, snapshot
+
+
 def _evaluate(args: argparse.Namespace) -> dict[str, object]:
     repo_root = Path(args.repo_root).resolve()
     if not (repo_root / ".git").exists():
@@ -356,6 +589,10 @@ def _evaluate(args: argparse.Namespace) -> dict[str, object]:
         raise PolicyError(f"conflicting backend/frontend LCOV source: {sorted(overlap)[0]}")
     records = backend | frontend
     baseline = _load_baseline(Path(args.baseline))
+    snapshot = None
+    if args.verify_baseline_provenance or args.refresh_baseline:
+        records = {path: record for path, record in records.items() if _eligible(path)}
+        baseline, snapshot = _trusted_baseline(args, repo_root, records)
 
     changes = _changes(repo_root, args.base)
     changed_records: list[CoverageRecord] = []
@@ -430,7 +667,7 @@ def _evaluate(args: argparse.Namespace) -> dict[str, object]:
         _assert_not_regressed(f"critical.{name}", metrics, definition)
         critical_results[name] = metrics
 
-    return {
+    result = {
         "base": args.base,
         "changed": {
             **changed_metrics,
@@ -448,6 +685,9 @@ def _evaluate(args: argparse.Namespace) -> dict[str, object]:
         "global": global_metrics,
         "critical": critical_results,
     }
+    if args.refresh_baseline:
+        result["refreshed_baseline"] = snapshot
+    return result
 
 
 def main() -> int:
@@ -457,9 +697,27 @@ def main() -> int:
     parser.add_argument("--backend-lcov", required=True)
     parser.add_argument("--frontend-lcov", required=True)
     parser.add_argument("--baseline", required=True)
+    parser.add_argument("--verify-baseline-provenance", action="store_true")
+    parser.add_argument(
+        "--refresh-baseline",
+        metavar="REASON",
+        help="write a reviewed refresh only after all trusted gates pass",
+    )
     args = parser.parse_args()
     try:
-        print(json.dumps(_evaluate(args), indent=2, sort_keys=True))
+        report = _evaluate(args)
+        if args.refresh_baseline:
+            baseline = Path(args.baseline)
+            content = json.dumps(report.pop("refreshed_baseline"), indent=2, sort_keys=True) + "\n"
+            with tempfile.NamedTemporaryFile(mode="w", dir=baseline.parent, delete=False) as output:
+                output.write(content)
+                name = output.name
+            try:
+                os.replace(name, baseline)
+            finally:
+                Path(name).unlink(missing_ok=True)
+            report["baseline_refreshed"] = True
+        print(json.dumps(report, indent=2, sort_keys=True))
     except PolicyError as error:
         print(f"coverage policy failed: {error}", file=sys.stderr)
         return 1

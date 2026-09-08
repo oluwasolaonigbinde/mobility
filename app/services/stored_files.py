@@ -42,6 +42,7 @@ from app.schemas.stored_files import FileUploadCreate
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.organizations import get_advertiser_organization_for_user
+from app.services.privacy_authority import require_collection_authority
 from app.services.stored_object_deletions import (
     delete_stored_object,
     ensure_stored_object_deletion,
@@ -328,6 +329,8 @@ async def _create_upload_intent(
     storage: StorageProvider,
     settings: Settings,
 ) -> tuple[FileUploadIntent, PresignedPost]:
+    if payload.purpose in {FilePurpose.DRIVER_KYC, FilePurpose.VEHICLE_EVIDENCE}:
+        require_collection_authority(settings)
     fingerprint = _fingerprint(payload)
     existing = await session.scalar(
         select(FileUploadIntent).where(
@@ -468,6 +471,7 @@ async def confirm_advertiser_upload(
     actor_user_id: UUID,
     upload_id: UUID,
     storage: StorageProvider,
+    settings: Settings,
 ) -> StoredFile:
     organization_id = await _advertiser_scope(session, actor_user_id=actor_user_id, write=True)
     return await _confirm_upload(
@@ -476,6 +480,7 @@ async def confirm_advertiser_upload(
         upload_id=upload_id,
         scope=_FileScope(organization_id=organization_id, subject_user_id=None),
         storage=storage,
+        settings=settings,
     )
 
 
@@ -485,6 +490,7 @@ async def confirm_driver_upload(
     actor_user_id: UUID,
     upload_id: UUID,
     storage: StorageProvider,
+    settings: Settings,
 ) -> StoredFile:
     scope = await _driver_scope(session, actor_user_id=actor_user_id, write=True)
     return await _confirm_upload(
@@ -493,6 +499,7 @@ async def confirm_driver_upload(
         upload_id=upload_id,
         scope=scope,
         storage=storage,
+        settings=settings,
     )
 
 
@@ -502,6 +509,7 @@ async def confirm_application_driver_upload(
     actor_user_id: UUID,
     upload_id: UUID,
     storage: StorageProvider,
+    settings: Settings,
 ) -> StoredFile:
     user = await session.scalar(select(User).where(User.id == actor_user_id))
     profile = await session.scalar(
@@ -520,6 +528,7 @@ async def confirm_application_driver_upload(
         upload_id=upload_id,
         scope=_FileScope(organization_id=None, subject_user_id=user.id),
         storage=storage,
+        settings=settings,
     )
 
 
@@ -588,6 +597,7 @@ async def confirm_admin_installation_upload(
         upload_id=upload_id,
         scope=scope,
         storage=storage,
+        settings=settings,
     )
 
 
@@ -598,6 +608,7 @@ async def _confirm_upload(
     upload_id: UUID,
     scope: _FileScope,
     storage: StorageProvider,
+    settings: Settings,
 ) -> StoredFile:
     intent = await session.scalar(
         select(FileUploadIntent)
@@ -606,11 +617,14 @@ async def _confirm_upload(
             *_scope_filters(FileUploadIntent, scope),
         )
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if intent is None:
         raise _error(
             "FILE_UPLOAD_NOT_FOUND", "File upload was not found", status.HTTP_404_NOT_FOUND
         )
+    if intent.purpose in {FilePurpose.DRIVER_KYC, FilePurpose.VEHICLE_EVIDENCE}:
+        require_collection_authority(settings)
     existing = await session.scalar(
         select(StoredFile).where(StoredFile.upload_intent_id == intent.id)
     )
@@ -620,25 +634,19 @@ async def _confirm_upload(
         UTC
     ):
         raise _error("FILE_UPLOAD_EXPIRED", "The upload request has expired", status.HTTP_410_GONE)
-    try:
-        observed = await storage.stat(intent.object_key)
-    except StorageObjectNotFound:
-        raise _error(
-            "FILE_UPLOAD_OBJECT_MISSING",
-            "The uploaded file was not found",
-            status.HTTP_409_CONFLICT,
-        ) from None
-    except StorageUnavailable:
-        raise _storage_unavailable() from None
-    mismatch = _metadata_error(intent, observed)
-    if mismatch is not None:
-        raise mismatch
     destination_key = f"managed/{scope.path}/{intent.id}"
     try:
-        promoted = await storage.promote(
-            source_key=intent.object_key,
-            destination_key=destination_key,
-        )
+        try:
+            promoted = await storage.stat(destination_key)
+        except StorageObjectNotFound:
+            observed = await storage.stat(intent.object_key)
+            mismatch = _metadata_error(intent, observed)
+            if mismatch is not None:
+                raise mismatch from None
+            promoted = await storage.promote(
+                source_key=intent.object_key,
+                destination_key=destination_key,
+            )
     except StorageObjectNotFound:
         raise _error(
             "FILE_UPLOAD_OBJECT_MISSING",

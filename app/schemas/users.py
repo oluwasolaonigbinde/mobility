@@ -14,6 +14,11 @@ class UserCreate(BaseModel):
     phone: str | None = Field(default=None, max_length=32)
     role: UserRole
     status: UserStatus
+    current_password: str | None = Field(
+        default=None,
+        min_length=1,
+        json_schema_extra={"writeOnly": True},
+    )
 
 
 class UserUpdate(BaseModel):

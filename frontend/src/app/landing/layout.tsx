@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { plexMono, poppins } from "./fonts";
+import { landingFontVariables } from "./fonts";
 import { TAGLINE, WHO_WE_ARE } from "./content";
 import "./terrax.css";
 
@@ -16,5 +16,9 @@ export const metadata: Metadata = {
  * (terrax.css) and no dependency on the switchable product themes.
  */
 export default function LandingLayout({ children }: { children: React.ReactNode }) {
-  return <div className={`${poppins.variable} ${plexMono.variable} tx-page`}>{children}</div>;
+  return (
+    <div className="tx-page" style={landingFontVariables}>
+      {children}
+    </div>
+  );
 }

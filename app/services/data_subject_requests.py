@@ -182,7 +182,11 @@ _LEGACY_DATABASE_COUNTS = {
         "(SELECT count(*) FROM notification_delivery_receipts r JOIN notifications n "
         "ON n.id = r.notification_id WHERE n.recipient_user_id = :subject_user_id)"
     ),
-    "audit_event": ("SELECT count(*) FROM audit_events WHERE actor_user_id = :subject_user_id"),
+    "audit_event": (
+        "SELECT count(*) FROM audit_events WHERE actor_user_id = :subject_user_id OR id IN "
+        "(SELECT audit_event_id FROM audit_event_subject_resolutions "
+        "WHERE subject_user_id = :subject_user_id AND outcome = 'resolved')"
+    ),
     "privacy_request_evidence": (
         "SELECT count(*) FROM data_subject_requests WHERE subject_user_id = :subject_user_id"
     ),
@@ -566,7 +570,14 @@ async def record_location_assessment(
         )
     )
     if existing is not None:
-        if existing.request_fingerprint != fingerprint:
+        replay_document = document
+        if location in {DataSubjectLocation.DATABASE, DataSubjectLocation.OBJECT_STORAGE}:
+            replay_document = {
+                **document,
+                "record_count": existing.record_count,
+                "data_class_counts": existing.data_class_counts,
+            }
+        if existing.request_fingerprint != _fingerprint(replay_document):
             raise _conflict(
                 "DSR_ASSESSMENT_CONFLICT",
                 "Location already has a different immutable assessment",

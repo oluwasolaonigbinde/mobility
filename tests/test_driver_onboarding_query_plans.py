@@ -21,7 +21,8 @@ def _assert_audit_query_uses_index(plan: object, *, expected_index: str) -> None
         node.get("Node Type") == "Seq Scan" and node.get("Relation Name") == "audit_events"
         for node in nodes
     )
-    assert any(node.get("Index Name") == expected_index for node in nodes)
+    indexes = [node["Index Name"] for node in nodes if "Index Name" in node]
+    assert expected_index in indexes, root
 
 
 def test_postgres_approval_evidence_queries_use_relevant_indexes_after_actor_history(
@@ -63,6 +64,22 @@ def test_postgres_approval_evidence_queries_use_relevant_indexes_after_actor_his
                 )
                 for _ in range(2000)
             )
+            # Make action selectivity distinct from entity selectivity instead of
+            # relying on a planner tie between two one-row index estimates.
+            for entity_type, entity_id, action in (
+                ("driver_kyc_submission", submission_id, "admin.kyc.nin_rewrapped"),
+                ("payee_bank_account", account_id, "admin.bank_account.rewrapped"),
+            ):
+                session.add_all(
+                    AuditEvent(
+                        actor_user_id=actor.id,
+                        action=action,
+                        entity_type=entity_type,
+                        entity_id=str(entity_id),
+                        event_metadata={"reason": "large_entity_history"},
+                    )
+                    for _ in range(100)
+                )
             session.add_all(
                 [
                     AuditEvent(

@@ -43,6 +43,7 @@ from app.jobs import trip_processing as jobs
 from app.jobs import vehicle_approvals as vehicle_approval_jobs
 from app.jobs.worker import WorkerSettings, sweep_cron_minutes
 from app.models.assignment_activity import AssignmentActivityFlag, AssignmentActivityFlagEvent
+from app.models.audit import AuditEvent
 from app.models.notification import (
     Notification,
     NotificationChannel,
@@ -161,9 +162,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert report_sweep.coroutine is report_issuance_jobs.sweep_report_issuances
     assert report_sweep.unique is True
 
-    lifecycle_crons = {
-        cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[12:-1]
-    }
+    lifecycle_crons = {cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[12:-1]}
     assert set(lifecycle_crons) == {
         data_lifecycle_jobs.premake_ping_partitions,
         data_lifecycle_jobs.check_ping_partition_coverage,
@@ -332,7 +331,7 @@ def test_email_sweep_selects_bounded_due_ids_and_delegates_once_each(
     asyncio.run(run())
 
 
-def test_email_sweep_reraises_unexpected_failure_and_preserves_partial_completion(
+def test_email_sweep_isolates_unexpected_failure_and_preserves_claim_recovery(
     postgis_db_sessionmaker, settings
 ) -> None:
     async def run() -> None:
@@ -412,10 +411,12 @@ def test_email_sweep_reraises_unexpected_failure_and_preserves_partial_completio
             "email_adapter": adapter,
         }
 
-        with pytest.raises(RuntimeError, match="unexpected email provider crash"):
-            await email_delivery_jobs.sweep_email_notifications(ctx, now=now)
+        assert await email_delivery_jobs.sweep_email_notifications(ctx, now=now) == {
+            "sent": 2,
+            "unexpected_failure": 1,
+        }
 
-        assert adapter.notification_ids == [str(first_id), str(second_id)]
+        assert adapter.notification_ids == [str(first_id), str(second_id), str(third_id)]
         claim_expires_at = now + timedelta(seconds=sweep_settings.email_delivery_claim_seconds)
         async with postgis_db_sessionmaker() as session:
             first = await session.get(Notification, first_id)
@@ -434,11 +435,20 @@ def test_email_sweep_reraises_unexpected_failure_and_preserves_partial_completio
             assert second.delivery_claim_token is not None
             assert second.delivery_claim_expires_at == claim_expires_at
             assert third is not None
-            assert third.status == NotificationStatus.PENDING.value
-            assert third.attempt_count == 0
-            assert third.provider_message_id is None
+            assert third.status == NotificationStatus.SENT.value
+            assert third.attempt_count == 1
+            assert third.provider_message_id == f"provider-{third_id}"
             assert third.delivery_claim_token is None
             assert third.delivery_claim_expires_at is None
+
+            failures = list(
+                await session.scalars(
+                    select(AuditEvent).where(AuditEvent.action == "worker.email_delivery.failed")
+                )
+            )
+            assert len(failures) == 1
+            assert failures[0].entity_id == str(second_id)
+            assert failures[0].event_metadata == {"error_code": "RuntimeError"}
 
         retry_ctx = {
             **ctx,
@@ -447,7 +457,12 @@ def test_email_sweep_reraises_unexpected_failure_and_preserves_partial_completio
         assert await email_delivery_jobs.sweep_email_notifications(
             retry_ctx, now=claim_expires_at
         ) == {"sent": 1}
-        assert adapter.notification_ids == [str(first_id), str(second_id), str(second_id)]
+        assert adapter.notification_ids == [
+            str(first_id),
+            str(second_id),
+            str(third_id),
+            str(second_id),
+        ]
 
         async with postgis_db_sessionmaker() as session:
             second = await session.get(Notification, second_id)
@@ -459,9 +474,9 @@ def test_email_sweep_reraises_unexpected_failure_and_preserves_partial_completio
             assert second.delivery_claim_token is None
             assert second.delivery_claim_expires_at is None
             assert third is not None
-            assert third.status == NotificationStatus.PENDING.value
-            assert third.attempt_count == 0
-            assert third.provider_message_id is None
+            assert third.status == NotificationStatus.SENT.value
+            assert third.attempt_count == 1
+            assert third.provider_message_id == f"provider-{third_id}"
             assert third.delivery_claim_token is None
             assert third.delivery_claim_expires_at is None
 

@@ -882,10 +882,21 @@ def _validate_compatibility_probe_outputs(
     )
     if (
         not isinstance(readiness_database, Mapping)
-        or
-        readiness.get("event") != "release_readiness"
+        or readiness.get("event") != "release_readiness"
         or readiness.get("status") != "ready"
+        or readiness.get("compatibility_capability") != "signed-forward-schema-v1"
+        or readiness.get("compatibility_scope") != "qualification"
+        or not SHA256_RE.fullmatch(str(readiness.get("authority_sha256")))
         or readiness_database.get("alembic_revision") != forward_alembic_revision
+        or not readiness_database.get("postgis_version")
+        or any(
+            not isinstance(readiness_checks.get(name), Mapping)
+            or readiness_checks[name].get("status") != expected
+            for name, expected in {
+                "api": "ok", "broker": "ok", "scanner": "ok", "trip_evidence_signing": "ok",
+                "storage": "private_read_write_delete_ok", "worker": "quiesced_for_qualification",
+            }.items()
+        )
     ):
         raise ContractError("Compatibility readiness output did not pass the forward schema")
 
@@ -937,7 +948,7 @@ def build_compatibility_receipt(
         raise ContractError("First-release compatibility must not invent predecessor probes")
 
     receipt: dict[str, Any] = {
-        "schema_version": 2,
+        "schema_version": 3,
         "evidence_type": "previous_image_forward_schema_compatibility",
         "result": "passed",
         "target_release_id": target_release_id,
@@ -1004,7 +1015,7 @@ def validate_compatibility_evidence(
     if set(value) != required_fields:
         raise ContractError("Compatibility receipt fields are incomplete or unsupported")
     expected = {
-        "schema_version": 2,
+        "schema_version": 3,
         "evidence_type": "previous_image_forward_schema_compatibility",
         "result": "passed",
         "target_release_id": target_release_id,

@@ -24,24 +24,51 @@ export function VehicleForm() {
     photo: crypto.randomUUID(),
   });
   const uploadedFileIds = useRef<[string, string, string] | null>(null);
+  const uploadContext = useRef<{ token: string; files: File[] } | null>(null);
+  const generation = useRef(0);
+
+  function changed() {
+    generation.current += 1;
+    submissionRequestId.current = crypto.randomUUID();
+    setResult(undefined);
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) return;
+    const selectedGeneration = generation.current;
+    const formElement = event.currentTarget;
     setPending(true);
     setError(undefined);
     setResult(undefined);
-    const form = new FormData(event.currentTarget);
+    const form = new FormData(formElement);
     try {
       const accessToken = String(form.get("application_access_token") ?? "").trim();
-      const registration = form.get("registration");
-      const insurance = form.get("insurance");
-      const photo = form.get("vehicle_photo");
+      const registration = (formElement.elements.namedItem("registration") as HTMLInputElement)
+        .files?.[0];
+      const insurance = (formElement.elements.namedItem("insurance") as HTMLInputElement)
+        .files?.[0];
+      const photo = (formElement.elements.namedItem("vehicle_photo") as HTMLInputElement)
+        .files?.[0];
       if (
         !(registration instanceof File) ||
         !(insurance instanceof File) ||
         !(photo instanceof File)
       ) {
         throw new Error("Registration, insurance and vehicle photo files are required.");
+      }
+      const files = [registration, insurance, photo];
+      if (
+        uploadContext.current?.token !== accessToken ||
+        files.some((file, index) => file !== uploadContext.current?.files[index])
+      ) {
+        uploadedFileIds.current = null;
+        uploadRequestIds.current = {
+          registration: crypto.randomUUID(),
+          insurance: crypto.randomUUID(),
+          photo: crypto.randomUUID(),
+        };
+        uploadContext.current = { token: accessToken, files };
       }
       const [registrationId, insuranceId, photoId] =
         uploadedFileIds.current ??
@@ -65,6 +92,7 @@ export function VehicleForm() {
             "vehicle_evidence",
           ),
         ]));
+      if (selectedGeneration !== generation.current) return;
       uploadedFileIds.current = [registrationId, insuranceId, photoId];
       const response = await fetch("/api/apply/onboarding/vehicle", {
         method: "POST",
@@ -85,7 +113,9 @@ export function VehicleForm() {
           vehicle_photo_file_id: photoId,
         }),
       });
-      setResult(await onboardingResponseJson<VehicleStage>(response));
+      const nextResult = await onboardingResponseJson<VehicleStage>(response);
+      if (selectedGeneration !== generation.current) return;
+      setResult(nextResult);
       submissionRequestId.current = crypto.randomUUID();
       uploadRequestIds.current = {
         registration: crypto.randomUUID(),
@@ -94,6 +124,7 @@ export function VehicleForm() {
       };
       uploadedFileIds.current = null;
     } catch (caught) {
+      if (selectedGeneration !== generation.current) return;
       setError(caught instanceof Error ? caught.message : "The vehicle request failed.");
     } finally {
       setPending(false);
@@ -108,7 +139,7 @@ export function VehicleForm() {
         Add the car you propose to drive. Any change to its identity or evidence creates a new
         review revision and immediately closes work eligibility until an administrator approves it.
       </p>
-      <form onSubmit={submit} className="grid gap-4" noValidate>
+      <form onSubmit={submit} onChange={changed} className="grid gap-4" noValidate>
         <Field
           label="Onboarding access code"
           name="application_access_token"

@@ -139,6 +139,7 @@ services:
       args:
         NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
     environment:
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:3000}
       API_BASE_URL: http://api:8000
       SESSION_COOKIE_NAME: mobility_session
       LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER: ${LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER:-false}

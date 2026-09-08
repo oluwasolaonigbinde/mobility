@@ -9,6 +9,7 @@ from app.adapters.storage.base import (
     StorageObjectNotFound,
     StorageProvider,
     StorageUnavailable,
+    StorageWriteUncertain,
 )
 from app.adapters.storage.s3 import S3StorageProvider
 from app.core.config import Settings
@@ -35,6 +36,9 @@ class UnconfiguredStorageProvider:
         raise StorageUnavailable("Private object storage is not configured")
 
     async def delete(self, object_key: str) -> None:
+        raise StorageUnavailable("Private object storage is not configured")
+
+    async def delete_all_versions(self, object_key: str) -> None:
         raise StorageUnavailable("Private object storage is not configured")
 
 
@@ -78,6 +82,7 @@ __all__ = [
     "StorageObjectNotFound",
     "StorageProvider",
     "StorageUnavailable",
+    "StorageWriteUncertain",
     "UnconfiguredStorageProvider",
     "build_storage_provider",
 ]

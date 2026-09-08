@@ -86,3 +86,57 @@ describe("createCampaignAction", () => {
     );
   });
 });
+
+it("retries attachments against the created campaign without creating another", async () => {
+  mocks.post.mockReset();
+  mocks.post
+    .mockResolvedValueOnce({ data: { id: CAMPAIGN_ID } })
+    .mockRejectedValueOnce(new Error("lost attachment response"));
+  const input = {
+    basics: {
+      name: "Recover me",
+      description: "",
+      start_at: "",
+      end_at: "",
+      budget_amount: "",
+      daily_budget_amount: "",
+    },
+    creatives: [
+      {
+        name: "Wrap",
+        creative_type: "image" as const,
+        placement: "vehicle_exterior" as const,
+        stored_file_id: "00000000-0000-4000-8000-000000000001",
+        original_filename: "wrap.png",
+      },
+    ],
+  };
+  const state = await createCampaignAction(input);
+  expect(state.createdCampaignId).toBe(CAMPAIGN_ID);
+  mocks.post.mockResolvedValue({ data: { id: "creative" } });
+  await createCampaignAction(input, state.createdCampaignId);
+  expect(
+    mocks.post.mock.calls.filter(([path]) => path === "/api/v1/advertiser/campaigns"),
+  ).toHaveLength(1);
+  expect(mocks.post.mock.calls.at(-1)?.[1].params.path.campaign_id).toBe(CAMPAIGN_ID);
+});
+
+it("rejects an invalid recovery target before any API mutation", async () => {
+  mocks.post.mockReset();
+  const result = await createCampaignAction(
+    {
+      basics: {
+        name: "Name",
+        description: "",
+        start_at: "",
+        end_at: "",
+        budget_amount: "",
+        daily_budget_amount: "",
+      },
+      creatives: [],
+    },
+    "not-an-id",
+  );
+  expect(result.error).toBeTruthy();
+  expect(mocks.post).not.toHaveBeenCalled();
+});

@@ -81,6 +81,15 @@ class DriverKycSubmission(Base):
             "length(nin_last_four) = 4",
             name="ck_driver_kyc_submissions_nin_last_four",
         ),
+        CheckConstraint(
+            "(purged_at IS NULL AND encrypted_nin IS NOT NULL AND encryption_algorithm IS NOT NULL "
+            "AND encryption_key_version IS NOT NULL AND nin_last_four IS NOT NULL) OR "
+            "(purged_at IS NOT NULL AND status IN ('rejected', 'expired') "
+            "AND encrypted_nin IS NULL "
+            "AND encryption_algorithm IS NULL AND encryption_key_version IS NULL "
+            "AND nin_last_four IS NULL)",
+            name="ck_driver_kyc_submissions_payload_retention",
+        ),
         UniqueConstraint(
             "driver_profile_id", "version", name="uq_driver_kyc_submissions_profile_version"
         ),
@@ -101,10 +110,13 @@ class DriverKycSubmission(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     client_request_id: Mapped[UUID] = mapped_column(nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
-    encrypted_nin: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    encryption_algorithm: Mapped[str] = mapped_column(String(32), nullable=False)
-    encryption_key_version: Mapped[int] = mapped_column(Integer, nullable=False)
-    nin_last_four: Mapped[str] = mapped_column(String(4), nullable=False)
+    encrypted_nin: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON(none_as_null=True), nullable=True
+    )
+    encryption_algorithm: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    encryption_key_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    nin_last_four: Mapped[str | None] = mapped_column(String(4), nullable=True)
+    purged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     bank_account_version_id: Mapped[UUID] = mapped_column(
         ForeignKey("payee_bank_account_versions.id", ondelete="RESTRICT"), nullable=False
     )
@@ -202,6 +214,18 @@ class VehicleEvidenceSubmission(Base):
             "status IN ('pending_review', 'approved', 'rejected', 'expired')",
             name="ck_vehicle_evidence_submissions_status",
         ),
+        CheckConstraint(
+            "(purged_at IS NULL AND plate_number_snapshot IS NOT NULL "
+            "AND plate_number_normalized_snapshot IS NOT NULL "
+            "AND plate_country_code_snapshot IS NOT NULL "
+            "AND vehicle_type_snapshot IS NOT NULL) OR "
+            "(purged_at IS NOT NULL AND status IN ('rejected', 'expired') "
+            "AND plate_number_snapshot IS NULL AND plate_number_normalized_snapshot IS NULL "
+            "AND plate_country_code_snapshot IS NULL AND vehicle_type_snapshot IS NULL "
+            "AND make_snapshot IS NULL AND model_snapshot IS NULL AND year_snapshot IS NULL "
+            "AND color_snapshot IS NULL)",
+            name="ck_vehicle_evidence_submissions_payload_retention",
+        ),
         UniqueConstraint(
             "vehicle_id", "version", name="uq_vehicle_evidence_submissions_vehicle_version"
         ),
@@ -229,14 +253,15 @@ class VehicleEvidenceSubmission(Base):
     snapshot_trusted: Mapped[bool] = mapped_column(
         nullable=False, default=True, server_default=text("false")
     )
-    plate_number_snapshot: Mapped[str] = mapped_column(String(32), nullable=False)
-    plate_number_normalized_snapshot: Mapped[str] = mapped_column(String(32), nullable=False)
-    plate_country_code_snapshot: Mapped[str] = mapped_column(String(2), nullable=False)
-    vehicle_type_snapshot: Mapped[str] = mapped_column(String(32), nullable=False)
+    plate_number_snapshot: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    plate_number_normalized_snapshot: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    plate_country_code_snapshot: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    vehicle_type_snapshot: Mapped[str | None] = mapped_column(String(32), nullable=True)
     make_snapshot: Mapped[str | None] = mapped_column(String(128))
     model_snapshot: Mapped[str | None] = mapped_column(String(128))
     year_snapshot: Mapped[int | None] = mapped_column(Integer)
     color_snapshot: Mapped[str | None] = mapped_column(String(64))
+    purged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_by_user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )

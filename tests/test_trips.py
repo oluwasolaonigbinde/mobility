@@ -25,7 +25,7 @@ from test_payouts_v2 import create_v2_rule
 from test_payouts_v3 import create_revision_row
 
 import app.services.trips as trips_service
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
 from app.models.billing import AcceptanceMethod, PaymentClass, QuoteRequestSource
@@ -53,6 +53,7 @@ from app.services.billing import (
     request_custom_quote,
     reserve_assignment_liability,
 )
+from app.services.campaign_assignments import resolved_eligibility_snapshot
 from app.services.trip_evidence import batch_payload_hash, manifest_root
 from app.services.trips import ingest_location_ping_batch, start_driver_trip
 
@@ -75,6 +76,7 @@ def create_trip_ready_graph(
     driver_email: str = "driver@example.com",
     plate_number: str = "ABC-123",
     with_financial_authority: bool = True,
+    eligibility_settings: Settings | None = None,
 ):
     admin = create_test_user(db_sessionmaker, email=admin_email, password=PASSWORD)
     advertiser = create_test_user(
@@ -139,7 +141,9 @@ def create_trip_ready_graph(
                     daily_payable_hours_cap=Decimal("1.00"),
                     currency="NGN",
                     eligibility_params={},
-                    resolved_eligibility_params={},
+                    resolved_eligibility_params=resolved_eligibility_snapshot(
+                        eligibility_settings, payout_revision.eligibility_params
+                    ) if eligibility_settings is not None else {},
                     formula_version="payout_v3",
                     premium_zone_ids=[],
                     premium_zone_geometry_hash=empty_geometry_hash,

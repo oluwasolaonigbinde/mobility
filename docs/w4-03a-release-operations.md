@@ -147,10 +147,26 @@ scripts/recover_release.sh \
   --compatibility-evidence /secure/previous-image-compatibility.json
 ```
 
-The current image performs the layered readiness probe against the
-forward-migrated database and the previous worker heartbeat. Public smoke then
-executes through the previous API/frontend while comparing the database to the
-explicit forward revision, not to the older image's Alembic head.
+The exact previous image must contain `signed-forward-schema-v1`; the host never
+copies current operator or application code into it. Qualification uses a signed,
+30-minute authority with the edge and writers stopped. It checks the exact target
+image head, PostGIS, broker, private storage, scanner, signing keys and API
+liveness, and records the worker as quiesced. The signed version 3 compatibility
+receipt binds those results and the report-model canary. Older receipt formats
+cannot authorize this recovery path.
+
+After checking the accepted receipt digest/HMAC against release state, the host
+writes a mode-0600 `recovery-authority-<target-release-id>.json` Compose overlay
+outside the repository. It contains sensitive signing material: restrict it like
+the deployment environment, retain it for this recovery, and never attach it to
+an evidence report. Only the API service receives the signed exact-image/schema
+scope and operator health check. That check now also requires a live worker.
+Smoke uses this same signed operator scope and the previous API/frontend.
+Ordinary public `/api/v1/health/ready` remains exact-schema and returns degraded
+on the forward schema; monitoring must distinguish the accepted recovery's private
+operator result. Do not change the public endpoint or use an unsigned bypass.
+Normal releases use the base Compose configuration and remove the recovery scope
+when recreating the API.
 
 It never runs `alembic downgrade`, destructive SQL, or an automatic database
 restore. If the previous image is not proven compatible, keep traffic stopped
@@ -253,16 +269,20 @@ recovery evidence, and rotation/follow-up owner. Never copy live payloads.
 
 ## Local rehearsal
 
-`scripts/rehearse_w403a.sh` creates a dedicated Compose project, private
-versioned MinIO, synthetic report object/row, exact labelled images, fresh
-PostGIS/Redis, and disposable secrets. It creates a populated exact predecessor
-at migration 0070, then runs the real release state machine through backup,
-0071 migration, compatibility, readiness and traffic. It exercises a
-same-authority release retry, a 100-request bounded load, repeated encrypted
-backup/isolated database-and-versioned-object restore, and real recovery to the
-distinct pre-0071 image while the database remains at 0071.
-It then induces a post-edge smoke failure and proves the edge is stopped.
-Its trap removes the dedicated
-containers, network, volumes, files, passphrases, and backup bundle on success
-or failure. It is strong repository preparation evidence, not
-`DV-STAGING-LIVE`.
+`scripts/rehearse_w403a.sh` requires a distinct exact predecessor commit containing
+the signed recovery capability. Its historical default is currently ineligible,
+so it stops before building images or creating infrastructure. Supply
+`REHEARSAL_PREVIOUS_REVISION` only for an actually accepted capable predecessor;
+this setting does not grant acceptance or deployment authority. Both images use
+their own archived application and packaging sources. Their actual single
+Alembic heads are derived after exact revision-label checks; no forward migration
+constant is authoritative.
+
+When that prerequisite and the normal external approvals exist, the script owns
+a dedicated Compose project, versioned private MinIO, fresh PostGIS/Redis,
+disposable secrets and distinct labelled images. It exercises the real release
+state machine, retries, bounded load, encrypted backup/isolated restore, and
+recovery while requiring the database to remain at the exact target image head.
+Its trap removes its dedicated resources. The positive accepted two-image run is
+still an external gate; historical rehearsal results do not prove this new path
+or `DV-STAGING-LIVE`.

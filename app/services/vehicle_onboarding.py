@@ -39,7 +39,7 @@ from app.services.driver_applications import (
     terminalize_driver_application,
 )
 from app.services.driver_onboarding import application_from_reference
-from app.services.kyc import _require_files
+from app.services.kyc import _require_files, require_submission_payload
 from app.services.payout_rule_serialization import database_clock
 from app.services.vehicles import ensure_unique_plate, normalize_plate_number
 
@@ -184,7 +184,7 @@ async def _vehicle_approved(
         and decision is not None
         and decision.decision == KycSubmissionStatus.APPROVED.value
         and decision.valid_until is not None
-        and decision.valid_until > now
+        and _aware_utc(decision.valid_until) > _aware_utc(now)
         and vehicle.vehicle_type == VehicleType.CAR.value
     )
     return approved, submission, decision
@@ -240,6 +240,28 @@ async def reconcile_driver_work_eligibility(
         )
     await session.flush()
     return eligible and profile.onboarding_status == DriverOnboardingStatus.ACTIVE.value
+
+
+async def reconcile_application_approval(
+    session: AsyncSession,
+    *,
+    application: DriverApplication,
+    actor_user_id: UUID,
+    source_entity_type: str,
+    source_entity_id: UUID,
+) -> None:
+    """Converge a locked application using current approvals, including exact retries."""
+    if await reconcile_driver_work_eligibility(
+        session, driver_profile_id=application.driver_profile_id
+    ):
+        await terminalize_driver_application(
+            session,
+            application=application,
+            terminal_status=DriverApplicationStatus.APPROVED,
+            actor_user_id=actor_user_id,
+            source_entity_type=source_entity_type,
+            source_entity_id=source_entity_id,
+        )
 
 
 async def ensure_current_driver_vehicle_eligibility(
@@ -355,6 +377,7 @@ async def submit_application_vehicle(
         )
     )
     if existing is not None:
+        require_submission_payload(existing)
         existing_documents = await _documents(session, existing.id)
         rendered_documents = {key: str(value) for key, value in existing_documents.items()}
         if not _submission_matches(existing, rendered_documents, facts):
@@ -646,9 +669,8 @@ async def review_application_vehicle(
         client_request_id=payload.client_request_id,
         fingerprint=fingerprint,
     )
-    if retry_view is not None:
-        return retry_view
-    _validate_decision(payload, now=now)
+    if retry_view is None:
+        _validate_decision(payload, now=now)
     application = await session.scalar(
         select(DriverApplication)
         .where(DriverApplication.id == application_id)
@@ -684,6 +706,21 @@ async def review_application_vehicle(
     )
     if profile is None or vehicle is None or submission is None:
         raise _error("VEHICLE_NOT_FOUND", "Vehicle was not found", status.HTTP_404_NOT_FOUND)
+    retry_view = await _decision_retry_view(
+        session,
+        submission_id=submission_id,
+        client_request_id=payload.client_request_id,
+        fingerprint=fingerprint,
+    )
+    if retry_view is not None:
+        await reconcile_application_approval(
+            session,
+            application=application,
+            actor_user_id=actor_user_id,
+            source_entity_type="vehicle_evidence_submission",
+            source_entity_id=submission.id,
+        )
+        return retry_view
     current = await _latest_submission(session, vehicle.id, lock=True)
     if current is None or current.id != submission.id:
         raise _error(
@@ -692,14 +729,7 @@ async def review_application_vehicle(
             status.HTTP_409_CONFLICT,
         )
     previous = await _latest_decision(session, submission.id, lock=True)
-    retry_view = await _decision_retry_view(
-        session,
-        submission_id=submission_id,
-        client_request_id=payload.client_request_id,
-        fingerprint=fingerprint,
-    )
-    if retry_view is not None:
-        return retry_view
+    require_submission_payload(submission)
     if previous is None:
         if submission.status != KycSubmissionStatus.PENDING_REVIEW.value:
             raise _error(
@@ -759,20 +789,13 @@ async def review_application_vehicle(
     session.add(decision)
     submission.status = payload.decision.value
     await session.flush()
-    eligible = await reconcile_driver_work_eligibility(
+    await reconcile_application_approval(
         session,
-        driver_profile_id=profile.id,
-        now=now,
+        application=application,
+        actor_user_id=actor_user_id,
+        source_entity_type="vehicle_evidence_submission",
+        source_entity_id=submission.id,
     )
-    if eligible:
-        await terminalize_driver_application(
-            session,
-            application=application,
-            terminal_status=DriverApplicationStatus.APPROVED,
-            actor_user_id=actor_user_id,
-            source_entity_type="vehicle_evidence_submission",
-            source_entity_id=submission.id,
-        )
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,

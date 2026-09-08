@@ -37,6 +37,13 @@ export interface QueuedBatch {
   pings: QueuedPing[];
 }
 
+export interface EvidenceSampleResult {
+  index: number;
+  sequence_number: number | null;
+  status: "accepted" | "rejected";
+  rejection_code: string | null;
+}
+
 export interface EvidenceReceipt extends EvidenceManifestEntry {
   tripId: string;
   batchId: string;
@@ -46,6 +53,13 @@ export interface EvidenceReceipt extends EvidenceManifestEntry {
   receiptFormatVersion: number;
   receiptKeyVersion: number;
   receiptSignature: string;
+  sampleResults?: EvidenceSampleResult[];
+}
+
+export interface LegacyEndWatermark {
+  clientBatchCount: number;
+  clientPingCount: number;
+  clientComplete: boolean;
 }
 
 export interface TripMeta {
@@ -53,6 +67,8 @@ export interface TripMeta {
   nextSeq: number;
   batchesCut: number;
   pingsRecorded: number;
+  endManifest?: EvidenceManifest;
+  legacyEnd?: LegacyEndWatermark;
 }
 
 export interface DeadLetter extends QueuedBatch {
@@ -421,6 +437,8 @@ export class PingQueue {
     ping: Omit<QueuedPing, "sequence_number">,
   ): Promise<QueuedPing> {
     const meta = await this.metaOrDefault(tripId);
+    if (meta.endManifest || meta.legacyEnd)
+      throw new Error("Capture is closed by the durable End boundary");
     const queued: QueuedPing = { ...ping, sequence_number: meta.nextSeq };
     const nextMeta = {
       ...meta,
@@ -518,14 +536,41 @@ export class PingQueue {
     await transactionDone(tx);
   }
 
-  async acknowledgeBatch(batch: QueuedBatch, receipt: EvidenceReceipt): Promise<void> {
+  acknowledgeBatch(batch: QueuedBatch, receipt: EvidenceReceipt): Promise<void> {
+    return this.serializeMutation(() => this.acknowledgeBatchMutation(batch, receipt));
+  }
+
+  private async acknowledgeBatchMutation(
+    batch: QueuedBatch,
+    receipt: EvidenceReceipt,
+  ): Promise<void> {
     if (
+      receipt.tripId !== batch.tripId ||
       receipt.idempotency_key !== batch.key ||
       receipt.batch_sequence !== batch.cutSeq ||
       receipt.payload_hash !== batch.payloadHash ||
-      receipt.submitted_count !== batch.pings.length
+      receipt.submitted_count !== batch.pings.length ||
+      receipt.acceptedCount + receipt.rejectedCount !== receipt.submitted_count ||
+      receipt.acceptedCount < 0 ||
+      receipt.rejectedCount < 0
     )
       throw new Error("server evidence receipt does not match the queued batch");
+    const results = receipt.sampleResults;
+    if (results?.length) {
+      if (
+        results.length !== batch.pings.length ||
+        results.some(
+          (result, index) =>
+            result.index !== index ||
+            result.sequence_number !== batch.pings[index]?.sequence_number ||
+            (result.status === "accepted") !== (result.rejection_code === null),
+        ) ||
+        results.filter((result) => result.status === "accepted").length !== receipt.acceptedCount
+      )
+        throw new Error("server sample dispositions do not match the queued batch");
+    } else if (receipt.rejectedCount > 0 && receipt.outcome !== "quarantined") {
+      throw new Error("partial receipt is missing its signed sample dispositions");
+    }
     const storageKey = recordKey(this.driverId, "receipt", batch.key);
     const encrypted = await encryptPayload(
       this.key,
@@ -545,6 +590,49 @@ export class PingQueue {
       rows.map((record) => decryptPayload<EvidenceReceipt>(this.key, record)),
     );
     return receipts.sort((left, right) => left.batch_sequence - right.batch_sequence);
+  }
+
+  freezeLegacyEnd(tripId: string, complete: boolean): Promise<LegacyEndWatermark> {
+    return this.serializeMutation(async () => {
+      const existing = await this.metaOrDefault(tripId);
+      if (existing.legacyEnd) return existing.legacyEnd;
+      if (existing.endManifest) throw new Error("End protocol cannot change");
+      while (await this.cutBatchMutation(tripId, 40)) {}
+      const meta = await this.metaOrDefault(tripId);
+      const request = {
+        clientBatchCount: meta.batchesCut,
+        clientPingCount: meta.pingsRecorded,
+        clientComplete: complete,
+      };
+      await this.persistEndMeta(tripId, { ...meta, legacyEnd: request });
+      return request;
+    });
+  }
+
+  private async persistEndMeta(tripId: string, meta: TripMeta): Promise<void> {
+    const storageKey = recordKey(this.driverId, "meta", tripId);
+    const encrypted = await encryptPayload(
+      this.key,
+      { storageKey, ownerDriverId: this.driverId, tripId, kind: "meta" },
+      meta,
+    );
+    const tx = this.db.transaction(RECORDS, "readwrite");
+    tx.objectStore(RECORDS).put(encrypted);
+    await transactionDone(tx);
+  }
+
+  freezeEnd(tripId: string, complete: boolean): Promise<EvidenceManifest> {
+    return this.serializeMutation(async () => {
+      const existing = await this.metaOrDefault(tripId);
+      if (existing.endManifest) return existing.endManifest;
+      if (existing.legacyEnd) throw new Error("End protocol cannot change");
+      // Declare even deferred, unsubmitted evidence before freezing the boundary.
+      while (await this.cutBatchMutation(tripId, 40)) {}
+      const manifest = await this.evidenceManifest(tripId, complete);
+      const meta = await this.metaOrDefault(tripId);
+      await this.persistEndMeta(tripId, { ...meta, endManifest: manifest });
+      return manifest;
+    });
   }
 
   async evidenceManifest(tripId: string, complete: boolean): Promise<EvidenceManifest> {
@@ -671,8 +759,17 @@ export class PingQueue {
    */
   async tripsWithLeftovers(): Promise<string[]> {
     const [rows, deadLetters] = await Promise.all([this.records(), this.deadLetterRecords()]);
+    const frozenTrips = await Promise.all(
+      rows
+        .filter((row) => row.kind === "meta")
+        .map(async (row) => {
+          const meta = await decryptPayload<TripMeta>(this.key, row);
+          return meta.endManifest || meta.legacyEnd ? row.tripId : null;
+        }),
+    );
     return [
       ...new Set([
+        ...frozenTrips.filter((id): id is string => id !== null),
         ...rows
           .filter((row) => row.kind === "pending" || row.kind === "batch" || row.kind === "receipt")
           .map((row) => row.tripId),

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
@@ -10,11 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status
 
 from app.adapters.storage import (
+    ObjectMetadata,
     PresignedGet,
     StorageObjectConflict,
     StorageObjectNotFound,
     StorageProvider,
     StorageUnavailable,
+    StorageWriteUncertain,
 )
 from app.core.config import Settings
 from app.core.errors import AppError
@@ -35,6 +38,7 @@ from app.models.report_issuance import (
     ReportIssuanceStatus,
     ReportPublicationIntent,
     ReportPublicationState,
+    ReportPublicationWrite,
 )
 from app.models.stored_file import FilePurpose, FileScanStatus, StoredFile
 from app.models.user import User, UserRole, UserStatus
@@ -64,6 +68,7 @@ REPORT_SCHEMA_VERSION = "campaign-performance-export-v1"
 REPORT_RENDERER_VERSION = "campaign-report-renderer-v1"
 REPORT_LEASE_SECONDS = 120
 REPORT_MAX_ATTEMPTS = 3
+logger = logging.getLogger(__name__)
 
 # Only these states may own an unpublished private object, so they are the only ones a
 # publisher may write under and the only ones cleanup must retire before deleting.
@@ -224,16 +229,23 @@ async def _authorize_scope(
     campaign_id: UUID,
     write: bool,
 ) -> User:
-    user = await session.scalar(select(User).where(User.id == actor_user_id).with_for_update())
+    user = await session.scalar(
+        select(User)
+        .where(User.id == actor_user_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     organization = await session.scalar(
         select(AdvertiserOrganization)
         .where(AdvertiserOrganization.id == organization_id)
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     campaign = await session.scalar(
         select(Campaign)
         .where(Campaign.id == campaign_id, Campaign.organization_id == organization_id)
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if (
         user is None
@@ -254,6 +266,7 @@ async def _authorize_scope(
             OrganizationMembership.organization_id == organization_id,
         )
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if membership is None or membership.status != MembershipStatus.ACTIVE:
         raise _not_found()
@@ -445,8 +458,8 @@ async def _compose_snapshot(
             "report_sha256": run.report_snapshot_sha256,
             "formula_version": run.formula_version,
             "method_revision": run.method_revision,
-            "period_start_at": run.period_start_at.isoformat(),
-            "period_end_at": run.period_end_at.isoformat(),
+            "period_start_at": _as_utc(run.period_start_at).isoformat(),
+            "period_end_at": _as_utc(run.period_end_at).isoformat(),
         },
         "metrics": _metric_snapshot(result),
         "exposure": exposure,
@@ -474,9 +487,8 @@ async def request_report_issuance(
     settings: Settings,
     admin: bool,
 ) -> ReportIssuance:
-    run = await session.scalar(
-        select(MeasurementRun).where(MeasurementRun.id == measurement_run_id).with_for_update()
-    )
+    # Measurement runs are immutable; only the mutable scope and lineage need locks.
+    run = await session.get(MeasurementRun, measurement_run_id)
     if run is None:
         raise _not_found()
     await _authorize_scope(
@@ -741,7 +753,7 @@ def _rendered_pair(issuance: ReportIssuance) -> tuple[_RenderedArtifact, _Render
             "version": issuance.version,
             "schema_version": issuance.schema_version,
             "renderer_version": issuance.renderer_version,
-            "created_at": issuance.created_at.isoformat(),
+            "created_at": _as_utc(issuance.created_at).isoformat(),
             "creation_authority": issuance.snapshot["creation_authority"],
         },
     }
@@ -993,6 +1005,7 @@ async def _claim_publication(
         if (
             intent is None
             or intent.state != ReportPublicationState.PREPARED
+            or intent.write_protocol != 1
             or intent.lease_expires_at is None
             or _as_utc(intent.lease_expires_at) <= now
         ):
@@ -1005,22 +1018,104 @@ async def _claim_publication(
         return publisher_token
 
 
-async def _publication_lease_held(
+async def _register_publication_write(
     sessionmaker: async_sessionmaker[AsyncSession],
     *,
     intent_id: UUID,
     publisher_token: UUID,
-) -> bool:
-    """Re-read the fence before each object write so an abandoned publisher stops."""
+    artifact_format: str,
+) -> UUID:
+    """Commit the one-call receipt under the same row lock used to retire a generation."""
     async with sessionmaker() as session:
-        intent = await session.get(ReportPublicationIntent, intent_id)
-        if intent is None or intent.lease_expires_at is None:
-            return False
-        return (
-            intent.state == ReportPublicationState.PUBLISHING
-            and intent.publisher_token == publisher_token
-            and _as_utc(intent.lease_expires_at) > await database_clock(session)
+        intent = await session.scalar(
+            select(ReportPublicationIntent)
+            .where(ReportPublicationIntent.id == intent_id)
+            .with_for_update()
         )
+        if (
+            intent is None
+            or intent.lease_expires_at is None
+            or intent.write_protocol != 1
+            or intent.state != ReportPublicationState.PUBLISHING
+            or intent.publisher_token != publisher_token
+            or _as_utc(intent.lease_expires_at) <= await database_clock(session)
+        ):
+            raise _publication_lost()
+        receipt = ReportPublicationWrite(publication_intent_id=intent_id, format=artifact_format)
+        session.add(receipt)
+        await session.commit()
+        return receipt.id
+
+
+async def _settle_publication_write(
+    sessionmaker: async_sessionmaker[AsyncSession], receipt_id: UUID, *, uncertain: bool
+) -> None:
+    async with sessionmaker() as session:
+        receipt = await session.scalar(
+            select(ReportPublicationWrite)
+            .where(ReportPublicationWrite.id == receipt_id)
+            .with_for_update()
+        )
+        if receipt is None or receipt.state != "registered":
+            raise _publication_lost()
+        receipt.state = "uncertain" if uncertain else "settled"
+        receipt.error_code = "storage_write_uncertain" if uncertain else None
+        receipt.settled_at = None if uncertain else await database_clock(session)
+        if uncertain:
+            intent = await session.get(ReportPublicationIntent, receipt.publication_intent_id)
+            await create_audit_event(
+                session,
+                actor_user_id=None,
+                action="report_publication.write_uncertain",
+                entity_type="report_issuance",
+                entity_id=str(intent.report_issuance_id),
+                metadata={"generation": intent.generation, "format": receipt.format},
+            )
+        await session.commit()
+
+
+async def _put_publication_artifact(
+    sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    storage: StorageProvider,
+    prepared: _PreparedPublication,
+    publisher_token: UUID,
+    artifact: _RenderedArtifact,
+    storage_key: str,
+) -> ObjectMetadata:
+    receipt_id = await _register_publication_write(
+        sessionmaker,
+        intent_id=prepared.intent_id,
+        publisher_token=publisher_token,
+        artifact_format=artifact.format.value,
+    )
+    try:
+        observed = await storage.put(
+            object_key=storage_key,
+            content_type=artifact.content_type,
+            data=artifact.content,
+            checksum_sha256=artifact.checksum_sha256,
+        )
+    except StorageWriteUncertain:
+        await _settle_publication_write(sessionmaker, receipt_id, uncertain=True)
+        raise
+    except (StorageUnavailable, StorageObjectConflict, StorageObjectNotFound):
+        await _settle_publication_write(sessionmaker, receipt_id, uncertain=False)
+        raise
+    # Cancellation or an unexpected exception leaves registered authority unresolved.
+    await _settle_publication_write(sessionmaker, receipt_id, uncertain=False)
+    return observed
+
+
+def _unsettled_publication_writes():
+    return (
+        select(ReportPublicationWrite.id)
+        .where(
+            ReportPublicationWrite.publication_intent_id == ReportPublicationIntent.id,
+            ReportPublicationWrite.state != "settled",
+        )
+        .exists()
+    )
 
 
 async def _complete_publication(
@@ -1040,8 +1135,31 @@ async def _complete_publication(
         (pdf_artifact, prepared.pdf_object_key),
     )
     async with sessionmaker() as session:
+        scope = (
+            await session.execute(
+                select(
+                    ReportIssuance.requested_by_user_id,
+                    ReportIssuance.organization_id,
+                    ReportIssuance.campaign_id,
+                ).where(ReportIssuance.id == issuance_id)
+            )
+        ).one_or_none()
+        if scope is None:
+            raise _publication_lost()
+        # Match request order: User -> Organization -> Campaign -> Membership ->
+        # Issuance -> PublicationIntent. These scope identifiers are immutable.
+        await _authorize_scope(
+            session,
+            actor_user_id=scope.requested_by_user_id,
+            organization_id=scope.organization_id,
+            campaign_id=scope.campaign_id,
+            write=True,
+        )
         issuance = await session.scalar(
-            select(ReportIssuance).where(ReportIssuance.id == issuance_id).with_for_update()
+            select(ReportIssuance)
+            .where(ReportIssuance.id == issuance_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         intent = await session.scalar(
             select(ReportPublicationIntent)
@@ -1060,6 +1178,16 @@ async def _complete_publication(
             or _as_utc(intent.lease_expires_at) <= now
         ):
             raise _publication_lost()
+        settled = set(
+            await session.scalars(
+                select(ReportPublicationWrite.format).where(
+                    ReportPublicationWrite.publication_intent_id == intent.id,
+                    ReportPublicationWrite.state == "settled",
+                )
+            )
+        )
+        if settled != {"csv", "pdf"}:
+            raise _publication_lost()
         run = await session.get(MeasurementRun, issuance.measurement_run_id)
         if run is None:
             raise _error(
@@ -1067,13 +1195,6 @@ async def _complete_publication(
                 "The frozen measurement run is unavailable",
                 status.HTTP_409_CONFLICT,
             )
-        await _authorize_scope(
-            session,
-            actor_user_id=issuance.requested_by_user_id,
-            organization_id=issuance.organization_id,
-            campaign_id=issuance.campaign_id,
-            write=True,
-        )
         if canonical_sha256(_authority_document(run, settings)) != issuance.authority_fingerprint:
             raise _error(
                 "REPORT_AUTHORITY_REVOKED",
@@ -1226,17 +1347,13 @@ async def _generate_and_publish(
             (rendered[0], prepared.csv_object_key),
             (rendered[1], prepared.pdf_object_key),
         ):
-            if not await _publication_lease_held(
+            observed = await _put_publication_artifact(
                 sessionmaker,
-                intent_id=prepared.intent_id,
+                storage=storage,
+                prepared=prepared,
                 publisher_token=publisher_token,
-            ):
-                raise _publication_lost()
-            observed = await storage.put(
-                object_key=storage_key,
-                content_type=artifact.content_type,
-                data=artifact.content,
-                checksum_sha256=artifact.checksum_sha256,
+                artifact=artifact,
+                storage_key=storage_key,
             )
             if (
                 observed.object_key != storage_key
@@ -1323,12 +1440,32 @@ async def sweep_report_publications(
 
     claims: list[tuple[UUID, UUID, str, str]] = []
     async with sessionmaker() as session:
+        unresolved = await session.scalar(
+            select(func.count())
+            .select_from(ReportPublicationWrite)
+            .join(
+                ReportPublicationIntent,
+                ReportPublicationIntent.id == ReportPublicationWrite.publication_intent_id,
+            )
+            .where(
+                ReportPublicationWrite.state != "settled",
+                ReportPublicationIntent.state.in_(["abandoned", "cleaning", "cleaned"]),
+            )
+        )
+        if unresolved:
+            logger.warning(
+                "Report cleanup waits for storage-write settlement",
+                extra={"unresolved_write_count": unresolved},
+            )
         now = await database_clock(session)
         rows = list(
             (
                 await session.scalars(
                     select(ReportPublicationIntent)
-                    .where(ReportPublicationIntent.state == ReportPublicationState.ABANDONED)
+                    .where(
+                        ReportPublicationIntent.state == ReportPublicationState.ABANDONED,
+                        ~_unsettled_publication_writes(),
+                    )
                     .order_by(ReportPublicationIntent.created_at, ReportPublicationIntent.id)
                     .limit(settings.worker_sweep_batch_size)
                     .with_for_update(skip_locked=True)
@@ -1349,13 +1486,15 @@ async def sweep_report_publications(
         failure_code: str | None = None
         try:
             for storage_key in registered_keys:
-                await storage.delete(storage_key)
+                await storage.delete_all_versions(storage_key)
             for storage_key in registered_keys:
                 try:
                     await storage.stat(storage_key)
                 except StorageObjectNotFound:
                     continue
                 failure_code = "publication_object_resurrected"
+        except StorageObjectConflict:
+            failure_code = "publication_object_resurrected"
         except StorageUnavailable:
             failure_code = "storage_unavailable"
         async with sessionmaker() as session:

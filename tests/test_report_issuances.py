@@ -14,7 +14,7 @@ from test_advertiser_reports import PASSWORD
 from test_measurement_runs import create_measurement_graph, issue_payload
 from test_stored_files import FakeStorageProvider
 
-from app.adapters.storage import StorageUnavailable
+from app.adapters.storage import StorageUnavailable, StorageWriteUncertain
 from app.api.v1.dependencies import get_storage_provider
 from app.core.config import get_settings
 from app.models.audit import AuditEvent
@@ -29,6 +29,7 @@ from app.models.report_issuance import (
     ReportIssuanceStatus,
     ReportPublicationIntent,
     ReportPublicationState,
+    ReportPublicationWrite,
 )
 from app.models.stored_file import StoredFile
 from app.models.user import UserRole
@@ -43,13 +44,71 @@ from app.services.report_issuances import (
 )
 
 
+@pytest.mark.parametrize(
+    "revocation",
+    ["user_status", "user_role", "organization", "membership_status", "membership_role"],
+)
+def test_locked_report_authorization_refreshes_preloaded_state(postgis_db_sessionmaker, revocation):
+    from conftest import create_test_campaign
+
+    from app.core.errors import AppError
+    from app.models.organization import AdvertiserOrganization
+    from app.models.user import User
+
+    actor = create_test_user(
+        postgis_db_sessionmaker, email=f"scope-{revocation}@example.com", role=UserRole.ADVERTISER
+    )
+    organization, membership = create_test_organization(
+        postgis_db_sessionmaker, owner_user_id=actor.id
+    )
+    campaign = create_test_campaign(
+        postgis_db_sessionmaker, organization_id=organization.id, created_by_user_id=actor.id
+    )
+
+    async def exercise():
+        async with postgis_db_sessionmaker() as reader:
+            # Retain strong references: SQLAlchemy's identity map otherwise permits collection.
+            cached = [
+                await reader.get(User, actor.id),
+                await reader.get(AdvertiserOrganization, organization.id),
+                await reader.get(OrganizationMembership, membership.id),
+            ]
+            model, identity, field, value = {
+                "user_status": (User, actor.id, "status", "disabled"),
+                "user_role": (User, actor.id, "role", "driver"),
+                "organization": (AdvertiserOrganization, organization.id, "status", "disabled"),
+                "membership_status": (OrganizationMembership, membership.id, "status", "disabled"),
+                "membership_role": (OrganizationMembership, membership.id, "role", "viewer"),
+            }[revocation]
+            async with postgis_db_sessionmaker() as writer:
+                row = await writer.get(model, identity)
+                setattr(row, field, value)
+                await writer.commit()
+            assert all(row is not None for row in cached)
+            with pytest.raises(AppError):
+                await report_issuance_service._authorize_scope(
+                    reader,
+                    actor_user_id=actor.id,
+                    organization_id=organization.id,
+                    campaign_id=campaign.id,
+                    write=True,
+                )
+
+    asyncio.run(exercise())
+
+
 def rendered_pdf_bytes(content: bytes) -> bytes:
-    """Reassemble a bounded PDF's drawn text so wrapped disclosure lines are searchable."""
+    """Read the embedded Unicode map and drawn text from the bounded PDF artifact."""
+    characters = {}
+    for block in re.findall(rb"beginbfchar\s+(.*?)\s+endbfchar", content, re.S):
+        for cid, encoded in re.findall(rb"<([0-9A-F]+)>\s+<([0-9A-F]+)>", block):
+            characters[int(cid, 16)] = bytes.fromhex(encoded.decode()).decode("utf-16-be")
     lines = [
-        line.replace(rb"\(", b"(").replace(rb"\)", b")").replace(rb"\\", b"\\")
-        for line in re.findall(rb"\((.*)\) Tj", content)
+        "".join(characters[int(encoded[i : i + 4], 16)] for i in range(0, len(encoded), 4))
+        for encoded in re.findall(rb"<([0-9A-F]+)> Tj", content)
     ]
-    return b" ".join(lines)
+    assert characters and lines
+    return " ".join(" ".join(lines).split()).encode()
 
 
 class ReportStorage(FakeStorageProvider):
@@ -175,11 +234,11 @@ def test_performance_issuance_replay_worker_download_and_tamper_fail_closed(
     csv_content = next(content for content in contents if content.startswith(b"section,"))
     pdf_content = next(content for content in contents if content.startswith(b"%PDF-1.4"))
     assert b"roi" not in csv_content.lower()
-    assert b"roi" not in pdf_content.lower()
+    assert b"roi" not in rendered_pdf_bytes(pdf_content).lower()
     assert first.json()["id"].encode() in csv_content
-    assert first.json()["id"].encode() in pdf_content
+    assert first.json()["id"].encode() in rendered_pdf_bytes(pdf_content)
     assert b"campaign-performance-export-v1" in csv_content
-    assert b"campaign-report-renderer-v1" in pdf_content
+    assert b"campaign-report-renderer-v1" in rendered_pdf_bytes(pdf_content)
     from app.services.measurement import (
         DENSITY_PARAMETER_CALIBRATION,
         DENSITY_PARAMETER_SOURCE,
@@ -200,7 +259,10 @@ def test_performance_issuance_replay_worker_download_and_tamper_fail_closed(
     ):
         # The wrapped PDF is searched through its drawn text, not its raw bytes.
         assert fact in b" ".join(csv_content.split()), fact
-        assert fact in rendered_pdf_bytes(pdf_content), fact
+        pdf_text = rendered_pdf_bytes(pdf_content)
+        if re.fullmatch(rb"[0-9a-f]{64}", fact):
+            pdf_text = pdf_text.replace(b" ", b"")
+        assert fact in pdf_text, fact
     movement = frozen_metrics["verified_vehicle_movement"]["completeness"]
     assert movement["denominator_trip_count"] >= movement["covered_trip_count"]
     assert movement["suppressed"] is False
@@ -936,6 +998,92 @@ def test_concurrent_identical_requests_converge_on_postgres(
     assert asyncio.run(count()) == 1
 
 
+def test_publication_waiting_for_request_scope_does_not_hold_issuance(
+    postgis_db_client, postgis_db_sessionmaker, settings, monkeypatch
+):
+    _, advertiser, campaign, run = issue_run(postgis_db_client, postgis_db_sessionmaker)
+    response = request_issuance(postgis_db_client, advertiser, run["id"])
+    assert response.status_code == 202
+    identity = UUID(response.json()["id"])
+    storage = ReportStorage()
+
+    async def exercise():
+        token = uuid4()
+        async with postgis_db_sessionmaker() as session:
+            issuance = await session.get(ReportIssuance, identity)
+            issuance.status = "processing"
+            issuance.processing_token = token
+            issuance.worker_attempts = 1
+            issuance.lease_expires_at = datetime.now(UTC) + timedelta(minutes=5)
+            rendered = report_issuance_service._rendered_pair(issuance)
+            await session.commit()
+        prepared = await report_issuance_service._prepare_publication(
+            postgis_db_sessionmaker, issuance_id=identity, token=token, rendered=rendered
+        )
+        publisher_token = await report_issuance_service._claim_publication(
+            postgis_db_sessionmaker, intent_id=prepared.intent_id
+        )
+        for artifact, key in zip(
+            rendered, (prepared.csv_object_key, prepared.pdf_object_key), strict=True
+        ):
+            await report_issuance_service._put_publication_artifact(
+                postgis_db_sessionmaker,
+                storage=storage,
+                prepared=prepared,
+                publisher_token=publisher_token,
+                artifact=artifact,
+                storage_key=key,
+            )
+        original = report_issuance_service._authorize_scope
+        entered = asyncio.Event()
+
+        async def observe(session, **kwargs):
+            entered.set()
+            return await original(session, **kwargs)
+
+        async with postgis_db_sessionmaker() as requester:
+            await original(
+                requester,
+                actor_user_id=advertiser.id,
+                organization_id=campaign.organization_id,
+                campaign_id=campaign.id,
+                write=True,
+            )
+            monkeypatch.setattr(report_issuance_service, "_authorize_scope", observe)
+            task = asyncio.create_task(
+                report_issuance_service._complete_publication(
+                    postgis_db_sessionmaker,
+                    storage=storage,
+                    settings=settings,
+                    issuance_id=identity,
+                    token=token,
+                    prepared=prepared,
+                    publisher_token=publisher_token,
+                    rendered=rendered,
+                )
+            )
+            try:
+                await asyncio.wait_for(entered.wait(), timeout=5)
+                with pytest.raises(TimeoutError):
+                    await asyncio.wait_for(asyncio.shield(task), timeout=0.2)
+                # Requests already hold the scope before they reach the issuance lineage.
+                assert (
+                    await requester.scalar(
+                        select(ReportIssuance.id)
+                        .where(ReportIssuance.id == identity)
+                        .with_for_update(nowait=True)
+                    )
+                    == identity
+                )
+            finally:
+                await requester.rollback()
+                await asyncio.wait_for(task, timeout=5)
+        async with postgis_db_sessionmaker() as session:
+            assert (await session.get(ReportIssuance, identity)).status == "ready"
+
+    asyncio.run(exercise())
+
+
 def test_concurrent_identical_reissues_converge_on_postgres(
     postgis_db_sessionmaker, settings
 ) -> None:
@@ -1186,11 +1334,141 @@ def test_crash_after_first_object_write_leaves_no_unregistered_orphan(
     run_worker(db_sessionmaker, settings, report_storage)
     assert report_storage.objects == {}
     assert sorted(report_storage.deleted) == sorted(orphan_keys)
+
     assert generations(db_sessionmaker, issuance_id)[0].state == ReportPublicationState.CLEANED
 
     # The tombstone is idempotent: a repeated cleanup claims and deletes nothing more.
     assert run_publication_cleanup(db_sessionmaker, settings, report_storage) == 0
     assert sorted(report_storage.deleted) == sorted(orphan_keys)
+
+
+@pytest.mark.parametrize("delayed_format", ["csv", "pdf"])
+def test_cleanup_waits_for_every_inflight_write_before_terminal_tombstone(
+    postgis_db_client, postgis_db_sessionmaker, settings, delayed_format
+):
+    _, advertiser, _, run = issue_run(postgis_db_client, postgis_db_sessionmaker)
+    response = request_issuance(postgis_db_client, advertiser, run["id"])
+    identity = UUID(response.json()["id"])
+
+    async def exercise():
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        class DelayedWrite(ReportStorage):
+            async def put(self, **kwargs):
+                if kwargs["object_key"].endswith(f".{delayed_format}"):
+                    entered.set()
+                    await release.wait()
+                return await super().put(**kwargs)
+
+        storage = DelayedWrite()
+        task = asyncio.create_task(
+            sweep_report_issuances(
+                {
+                    "sessionmaker": postgis_db_sessionmaker,
+                    "settings": settings,
+                    "storage": storage,
+                }
+            )
+        )
+        try:
+            await asyncio.wait_for(entered.wait(), timeout=10)
+            async with postgis_db_sessionmaker() as session:
+                intent = await session.scalar(
+                    select(ReportPublicationIntent).where(
+                        ReportPublicationIntent.report_issuance_id == identity
+                    )
+                )
+                intent.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+                await session.commit()
+            assert (
+                await sweep_report_publications(
+                    postgis_db_sessionmaker, storage=storage, settings=settings
+                )
+                == 0
+            )
+            assert storage.deleted == []
+        finally:
+            release.set()
+            await asyncio.wait_for(task, timeout=10)
+        assert (
+            await sweep_report_publications(
+                postgis_db_sessionmaker, storage=storage, settings=settings
+            )
+            == 1
+        )
+        assert storage.objects == {}
+        intent = (await read_generations(postgis_db_sessionmaker, identity))[0]
+        assert intent.state == "cleaned"
+        assert (
+            await sweep_report_publications(
+                postgis_db_sessionmaker, storage=storage, settings=settings
+            )
+            == 0
+        )
+
+    asyncio.run(exercise())
+
+
+def test_uncertain_write_stays_unverified_and_does_not_starve_later_cleanup(
+    postgis_db_client, postgis_db_sessionmaker, settings, caplog, monkeypatch
+):
+    # Earlier in-process Alembic runs disable existing module loggers.
+    monkeypatch.setattr(report_issuance_service.logger, "disabled", False)
+    _, advertiser, _, run = issue_run(postgis_db_client, postgis_db_sessionmaker)
+    response = request_issuance(postgis_db_client, advertiser, run["id"])
+    identity = UUID(response.json()["id"])
+    storage = ReportStorage()
+    original = storage.put
+    delayed = None
+
+    async def lose_reply(**kwargs):
+        nonlocal delayed
+        delayed = kwargs
+        raise StorageWriteUncertain("synthetic response loss")
+
+    storage.put = lose_reply
+    assert run_worker(postgis_db_sessionmaker, settings, storage) == 1
+    storage.put = original
+    assert run_publication_cleanup(postgis_db_sessionmaker, settings, storage) == 0
+    assert storage.deleted == []
+    asyncio.run(original(**delayed))
+    assert run_publication_cleanup(postgis_db_sessionmaker, settings, storage) == 0
+
+    # A later generation can fail definitively and be cleaned despite the older gap.
+    make_due(postgis_db_sessionmaker, identity)
+    storage.fail_pdf_once = True
+    assert run_worker(postgis_db_sessionmaker, settings, storage) == 1
+    assert run_publication_cleanup(postgis_db_sessionmaker, settings, storage) == 1
+    first, second = generations(postgis_db_sessionmaker, identity)
+    assert first.state == "abandoned"
+    assert second.state == "cleaned"
+    assert set(storage.objects) == {first.csv_object_key}
+    assert first.csv_object_key not in storage.deleted
+    assert "waits for storage-write settlement" in caplog.text
+
+    async def evidence():
+        async with postgis_db_sessionmaker() as session:
+            receipt = await session.scalar(
+                select(ReportPublicationWrite).where(
+                    ReportPublicationWrite.publication_intent_id == first.id
+                )
+            )
+            assert receipt.state == "uncertain"
+            assert receipt.error_code == "storage_write_uncertain"
+            assert receipt.settled_at is None
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(AuditEvent)
+                    .where(
+                        AuditEvent.action == "report_publication.write_uncertain",
+                        AuditEvent.entity_id == str(identity),
+                    )
+                )
+                == 1
+            )
+
+    asyncio.run(evidence())
 
 
 def test_retry_publishes_under_a_new_generation_and_new_keys(

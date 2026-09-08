@@ -64,6 +64,7 @@ from app.models.report_issuance import (
     ReportIssuance,
     ReportIssuanceStatus,
     ReportPublicationIntent,
+    ReportPublicationWrite,
 )
 from app.models.stored_file import StoredObjectDeletion
 from app.models.trip import TripSession
@@ -984,6 +985,16 @@ async def _report_state(
             "attempts": issuance.worker_attempts,
             "last_error_code": issuance.last_error_code,
             "publication_states": [row.state for row in publications],
+            "publication_write_states": [
+                list(
+                    await session.scalars(
+                        select(ReportPublicationWrite.state)
+                        .where(ReportPublicationWrite.publication_intent_id == row.id)
+                        .order_by(ReportPublicationWrite.format)
+                    )
+                )
+                for row in publications
+            ],
             "artifact_count": artifact_count,
             "failed_audit_count": failed_audit_count,
         }
@@ -1008,7 +1019,7 @@ async def _expire_report_leases(
         await session.commit()
 
 
-def test_report_publication_recovers_partial_artifact_and_cleans_abandoned_generation(
+def test_report_publication_recovers_without_cleaning_unsettled_crashed_write(
     recovery_environment: RecoveryEnvironment,
     settings: Settings,
 ) -> None:
@@ -1027,7 +1038,9 @@ def test_report_publication_recovers_partial_artifact_and_cleans_abandoned_gener
     storage = PersistentStorageProvider(recovery_environment.state_root / "storage")
     assert before_restart["status"] == "processing"
     assert before_restart["publication_states"] == ["publishing"]
+    assert before_restart["publication_write_states"] == [["registered"]]
     assert len(storage.keys()) == 1
+    unresolved_key = storage.keys()[0]
     exit_signal = recovery_environment.kill(worker)
     asyncio.run(_expire_report_leases(recovery_environment, issuance_id))
     restarted = recovery_environment.start_worker()
@@ -1043,9 +1056,11 @@ def test_report_publication_recovers_partial_artifact_and_cleans_abandoned_gener
     assert _effect_count(recovery_environment, "job_started", job_id=recovery_job_id) == 1
     final = asyncio.run(_report_state(recovery_environment, issuance_id))
     assert final["status"] == "ready"
-    assert final["publication_states"] == ["cleaned", "complete"]
+    assert final["publication_states"] == ["abandoned", "complete"]
+    assert final["publication_write_states"] == [["registered"], ["settled", "settled"]]
     assert final["artifact_count"] == 2
-    assert len(storage.keys()) == 2
+    assert len(storage.keys()) == 3
+    assert unresolved_key in storage.keys()
     report_puts = [
         event
         for event in read_provider_events(recovery_environment.state_root)
@@ -1063,12 +1078,13 @@ def test_report_publication_recovers_partial_artifact_and_cleans_abandoned_gener
         queue_state=queue_state,
         database_state=before_restart,
         provider_effect_count=3,
-        dead_letter_state={"abandoned_generation": "cleaned"},
+        dead_letter_state={"abandoned_generation": "awaiting_write_settlement"},
         post_restart_convergence={
             "recovery_job_id": recovery_job_id,
             **final,
             "live_objects": len(storage.keys()),
             "orphaned_objects": 0,
+            "registered_unsettled_objects": 1,
             "duplicate_object_keys": False,
         },
     )

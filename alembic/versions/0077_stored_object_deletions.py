@@ -213,6 +213,21 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Freeze the authority, its FK parents and the fenced reference writers before
+    # checking population. NOWAIT refuses busy cross-table transactions without
+    # acquiring these DDL locks in an order that can deadlock an application writer.
+    op.execute(
+        "LOCK TABLE campaign_creatives, display_proofs, driver_kyc_documents, "
+        "file_upload_intents, installation_evidence_photos, report_artifacts, "
+        "stored_files, stored_object_deletions, vehicle_evidence_documents "
+        "IN ACCESS EXCLUSIVE MODE NOWAIT"
+    )
+    if (
+        op.get_bind()
+        .execute(sa.text("SELECT EXISTS (SELECT 1 FROM stored_object_deletions)"))
+        .scalar_one()
+    ):
+        raise RuntimeError("0077 downgrade blocked: stored-object deletion authority exists")
     for table_name in (
         "campaign_creatives",
         "driver_kyc_documents",

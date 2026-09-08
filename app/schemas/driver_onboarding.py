@@ -68,6 +68,7 @@ class PersonPayeeStageRead(BaseModel):
     submission_id: UUID | None = None
     version: int | None = None
     masked_nin: str | None = None
+    purged_at: datetime | None = None
     bank_account_verified: bool = False
     reason_code: KycReviewReason | None = None
     created_at: datetime | None = None
@@ -119,6 +120,7 @@ class ApplicantVehicleSubmissionCreate(BaseModel):
 
 
 class VehicleStageRead(BaseModel):
+    purged_at: datetime | None = None
     status: str = "not_submitted"
     vehicle_id: UUID | None = None
     submission_id: UUID | None = None

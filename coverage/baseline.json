@@ -1,13 +1,14 @@
 {
   "critical": {
     "backend": {
-      "branch_covered": 4073,
-      "branch_percent": 61.7495,
-      "branch_total": 6596,
-      "line_covered": 20976,
-      "line_percent": 81.4823,
-      "line_total": 25743,
+      "branch_covered": 5240,
+      "branch_percent": 77.4003,
+      "branch_total": 6770,
+      "line_covered": 24079,
+      "line_percent": 91.6353,
+      "line_total": 26277,
       "paths": [
+        "app/__init__.py",
         "app/adapters/ad_platforms/__init__.py",
         "app/adapters/ad_platforms/provider.py",
         "app/adapters/budget/__init__.py",
@@ -26,6 +27,8 @@
         "app/adapters/storage/__init__.py",
         "app/adapters/storage/base.py",
         "app/adapters/storage/s3.py",
+        "app/api/__init__.py",
+        "app/api/v1/__init__.py",
         "app/api/v1/admin.py",
         "app/api/v1/advertiser_organizations.py",
         "app/api/v1/advertiser_reports.py",
@@ -62,6 +65,7 @@
         "app/api/v1/trip_analytics.py",
         "app/api/v1/trips.py",
         "app/api/v1/vehicles.py",
+        "app/core/__init__.py",
         "app/core/clock.py",
         "app/core/config.py",
         "app/core/errors.py",
@@ -71,9 +75,11 @@
         "app/core/rate_limit.py",
         "app/core/security.py",
         "app/core/trip_enqueue.py",
+        "app/db/__init__.py",
         "app/db/base.py",
         "app/db/integrity.py",
         "app/db/session.py",
+        "app/jobs/__init__.py",
         "app/jobs/assignment_activity.py",
         "app/jobs/budget_enforcement.py",
         "app/jobs/campaign_assignments.py",
@@ -131,7 +137,9 @@
         "app/models/trip_analytics.py",
         "app/models/user.py",
         "app/models/vehicle.py",
+        "app/operations/__init__.py",
         "app/operations/readiness.py",
+        "app/operations/recovery_authority.py",
         "app/operations/storage_snapshot.py",
         "app/schemas/audience_delivery.py",
         "app/schemas/audit.py",
@@ -148,6 +156,7 @@
         "app/schemas/driver_applications.py",
         "app/schemas/driver_onboarding.py",
         "app/schemas/drivers.py",
+        "app/schemas/errors.py",
         "app/schemas/evidence_verification.py",
         "app/schemas/exposure_scores.py",
         "app/schemas/exposure_segments.py",
@@ -171,7 +180,9 @@
         "app/schemas/users.py",
         "app/schemas/vehicles.py",
         "app/schemas/zone_insights.py",
+        "app/seeds/__init__.py",
         "app/seeds/demo.py",
+        "app/seeds/demo_authority.py",
         "app/seeds/rich.py",
         "app/services/account_recovery.py",
         "app/services/admin_authorization.py",
@@ -179,6 +190,7 @@
         "app/services/audience.py",
         "app/services/audience_delivery.py",
         "app/services/audit.py",
+        "app/services/audit_subjects.py",
         "app/services/auth.py",
         "app/services/billing.py",
         "app/services/campaign_assignments.py",
@@ -237,12 +249,12 @@
       ]
     },
     "frontend": {
-      "branch_covered": 2394,
-      "branch_percent": 46.0916,
-      "branch_total": 5194,
-      "line_covered": 2901,
-      "line_percent": 61.684,
-      "line_total": 4703,
+      "branch_covered": 2734,
+      "branch_percent": 50.2389,
+      "branch_total": 5442,
+      "line_covered": 3247,
+      "line_percent": 65.6889,
+      "line_total": 4943,
       "paths": [
         "frontend/src/app/admin/advertisers/[organizationId]/company/actions.ts",
         "frontend/src/app/admin/advertisers/[organizationId]/company/page.tsx",
@@ -442,6 +454,7 @@
         "frontend/src/instrumentation.ts",
         "frontend/src/lib/api/client.ts",
         "frontend/src/lib/api/errors.ts",
+        "frontend/src/lib/api/mutation-boundary.ts",
         "frontend/src/lib/api/route-response.ts",
         "frontend/src/lib/auth/actions.ts",
         "frontend/src/lib/auth/change-password-action.ts",
@@ -479,16 +492,31 @@
       ]
     }
   },
-  "eligible_inventory_sha256": "3e3d1666fb9f796702112996d85aa32e74c7273c59419f2392c21fc7bca9b69c",
+  "eligible_inventory_sha256": "5e0562850cc0aba7cdd8fd68bd498b5c4b848ebb2055d84fe06ab9c8276a850f",
   "global": {
-    "branch_covered": 6467,
-    "branch_percent": 54.8516,
-    "branch_total": 11790,
-    "line_covered": 23877,
-    "line_percent": 78.4241,
-    "line_total": 30446
+    "branch_covered": 7974,
+    "branch_percent": 65.2964,
+    "branch_total": 12212,
+    "line_covered": 27326,
+    "line_percent": 87.5272,
+    "line_total": 31220
   },
-  "policy_sha256": "dc8865bc4d7007bc909d2aad05b584832d354032800b813cc760ffb3c8475a44",
-  "source_parent_sha": "ccb67d0ee47af2b0546d651b435d5a7894ff49e8",
-  "version": 1
+  "policy_sha256": "2e4373de88ae36cc11a730fc08c4f078d1d2a32d33e725353c75df358763e5f2",
+  "refresh": {
+    "inventory_changes": {
+      "added": [
+        "app/operations/recovery_authority.py",
+        "app/schemas/errors.py",
+        "app/seeds/demo_authority.py",
+        "app/services/audit_subjects.py",
+        "frontend/src/lib/api/mutation-boundary.ts"
+      ],
+      "removed": []
+    },
+    "previous_baseline_sha256": "0c6da67a7e06eb521bbe36d7399dbd233579bd2010e20ccfeefb30cb9d9a1bce",
+    "reason": "Owner-approved C01-C37 correction programme: final eligible source inventory and measured integrated evidence; preserve all trusted D32 floors"
+  },
+  "source_parent_sha": "00918531b2bb37a1d184d1d4f917f659b9e4d80b",
+  "source_sha256": "051034ed30b8866d07423452558e413399128ff5e4137c657a44a2d713e1a8f9",
+  "version": 2
 }

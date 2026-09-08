@@ -57,6 +57,7 @@ from app.models.organization import (
     OrganizationStatus,
 )
 from app.models.payout import (
+    AssignmentRuleBinding,
     CampaignPayoutRule,
     CampaignPayoutRuleRevision,
     EarningsLedgerEntry,
@@ -1044,6 +1045,64 @@ def create_test_campaign_payout_revision(
             return revision
 
     return asyncio.run(create())
+
+
+def create_test_frozen_payout_binding(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    campaign: Campaign,
+    assignment: CampaignAssignment,
+    admin: User,
+) -> None:
+    async def latest_revision() -> CampaignPayoutRuleRevision | None:
+        async with db_sessionmaker() as session:
+            return await session.scalar(
+                select(CampaignPayoutRuleRevision)
+                .where(CampaignPayoutRuleRevision.campaign_id == campaign.id)
+                .order_by(CampaignPayoutRuleRevision.revision_number.desc())
+                .limit(1)
+            )
+
+    revision = asyncio.run(latest_revision())
+    if revision is None:
+        revision = create_test_campaign_payout_revision(
+            db_sessionmaker,
+            campaign_id=campaign.id,
+            created_by_user_id=admin.id,
+            hourly_rate_naira=1,
+            premium_hourly_rate_naira=None,
+            daily_payable_hours_cap=1,
+        )
+
+    async def bind() -> None:
+        async with db_sessionmaker() as session:
+            session.add(
+                AssignmentRuleBinding(
+                    assignment_id=assignment.id,
+                    revision_id=revision.id,
+                    hourly_rate_naira=revision.hourly_rate_naira,
+                    premium_hourly_rate_naira=revision.premium_hourly_rate_naira,
+                    daily_payable_hours_cap=revision.daily_payable_hours_cap,
+                    currency=revision.currency,
+                    eligibility_params=revision.eligibility_params or {},
+                    resolved_eligibility_params={},
+                    formula_version=revision.formula_version,
+                    premium_zone_ids=[],
+                    premium_zone_geometry_hash=hashlib.sha256(b"").hexdigest(),
+                    premium_zone_geometry_wkts=[],
+                    exclusion_zone_ids=[],
+                    exclusion_zone_geometry_hash=hashlib.sha256(b"").hexdigest(),
+                    exclusion_zone_geometry_wkts=[],
+                    stationary_policy_marker="stationary-rd-v1",
+                    campaign_window_start_at=campaign.start_at,
+                    campaign_window_end_at=campaign.end_at,
+                    campaign_window_frozen=True,
+                    bound_at=datetime.now(UTC),
+                )
+            )
+            await session.commit()
+
+    asyncio.run(bind())
 
 
 def create_test_campaign_zone(

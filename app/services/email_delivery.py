@@ -1,12 +1,14 @@
+import logging
 from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import String, case, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.adapters.messaging import EmailAdapter, EmailMessage, EmailSendError
 from app.core.config import Settings
+from app.models.audit import AuditEvent
 from app.models.contact import PasswordResetToken
 from app.models.driver_application import (
     DriverApplication,
@@ -27,6 +29,7 @@ from app.models.organization import (
     OrganizationStatus,
 )
 from app.models.user import User, UserRole, UserStatus
+from app.services.audit import create_audit_event
 from app.services.email_templates import render_email_template
 
 
@@ -262,3 +265,47 @@ async def process_email_notification(
                 result = "failed"
         await session.commit()
         return result
+
+
+logger = logging.getLogger(__name__)
+
+
+def email_sweep_visit_order(session: AsyncSession):
+    """Rotate durably failed prefixes without changing uncertain delivery claims."""
+    event_entity_id = AuditEvent.entity_id
+    if session.get_bind().dialect.name == "sqlite":
+        event_entity_id = func.replace(event_entity_id, "-", "")
+    last_failure_at = (
+        select(func.max(AuditEvent.created_at))
+        .where(
+            AuditEvent.action == "worker.email_delivery.failed",
+            AuditEvent.entity_type == "notification",
+            event_entity_id == cast(Notification.id, String),
+        )
+        .correlate(Notification)
+        .scalar_subquery()
+    )
+    return case(
+        (last_failure_at > Notification.created_at, last_failure_at),
+        else_=Notification.created_at,
+    )
+
+
+async def record_unexpected_email_failure(
+    sessionmaker: async_sessionmaker[AsyncSession], *, notification_id: UUID, error: Exception
+) -> None:
+    error_code = type(error).__name__
+    logger.warning(
+        "Email delivery item failed",
+        extra={"notification_id": str(notification_id), "error_code": error_code},
+    )
+    async with sessionmaker() as session:
+        await create_audit_event(
+            session,
+            actor_user_id=None,
+            action="worker.email_delivery.failed",
+            entity_type="notification",
+            entity_id=str(notification_id),
+            metadata={"error_code": error_code},
+        )
+        await session.commit()

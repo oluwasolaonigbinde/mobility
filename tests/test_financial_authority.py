@@ -7,6 +7,7 @@ from conftest import (
     create_test_campaign,
     create_test_campaign_assignment,
     create_test_driver_profile,
+    create_test_frozen_payout_binding,
     create_test_organization,
     create_test_user,
     create_test_vehicle,
@@ -675,6 +676,10 @@ def test_trip_start_fails_closed_for_commercial_campaign_without_authority(
         driver_email="commercial-guard-driver@example.com",
         plate_number="CG-001",
         with_financial_authority=False,
+    )
+
+    create_test_frozen_payout_binding(
+        db_sessionmaker, campaign=campaign, assignment=assignment, admin=admin
     )
 
     async def add_terms() -> None:

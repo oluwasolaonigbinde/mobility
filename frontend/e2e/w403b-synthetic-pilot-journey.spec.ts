@@ -1,6 +1,7 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 const correlationId = "w403b-abuja-pilot-001";
+test.use({ trace: "retain-on-failure" });
 
 async function installSession(context: BrowserContext) {
   await context.addCookies([
@@ -101,12 +102,27 @@ test("W4-03B Abuja PWA records only synthetic screen-on GPS evidence", async ({
   await installSession(context);
   await installAbujaForegroundCapabilities(page);
   page.on("dialog", (dialog) => dialog.accept());
+  const blockedAssessments: string[] = [];
+  page.on("console", (message) => {
+    if (message.text().startsWith("TRACKING_START_BLOCKED=")) {
+      blockedAssessments.push(message.text());
+    }
+  });
 
   await page.goto("/driver/profile");
   await expect(page.getByText(`Synthetic Abuja Campaign · ${correlationId}`)).toBeVisible();
   await page.goto("/driver/track");
   await page.getByRole("button", { name: "▶ Start trip" }).click();
-  await expect(page.getByTestId("tracking-health")).toContainText("active");
+  try {
+    await expect(page.getByTestId("tracking-health")).toContainText("active");
+  } catch (error) {
+    await testInfo.attach("start-capability-assessments", {
+      body: JSON.stringify(blockedAssessments),
+      contentType: "application/json",
+    });
+    console.log(`W403B_START_CAPABILITY_ASSESSMENTS=${JSON.stringify(blockedAssessments)}`);
+    throw error;
+  }
   await page.getByRole("button", { name: "■ End trip" }).click();
   await expect(page.getByRole("button", { name: "▶ Start trip" })).toBeVisible();
 

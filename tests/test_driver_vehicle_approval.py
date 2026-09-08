@@ -7,6 +7,7 @@ from conftest import (
     auth_headers,
     create_test_campaign,
     create_test_campaign_assignment,
+    create_test_frozen_payout_binding,
     create_test_organization,
     create_test_user,
 )
@@ -707,6 +708,9 @@ def test_vehicle_eligibility_opens_and_expiry_closes_assignment_and_trip(
         assignment_status="active",
         activated_at=datetime.now(UTC),
     )
+    create_test_frozen_payout_binding(
+        db_sessionmaker, campaign=campaign, assignment=assignment, admin=admin
+    )
     expired = db_client.post(
         _decision_path(
             application.id,
@@ -1129,6 +1133,9 @@ def test_postgres_nin_rewrap_and_trip_share_eligibility_before_profile_order(
         assigned_by_user_id=admin.id,
         assignment_status="active",
         activated_at=datetime.now(UTC),
+    )
+    create_test_frozen_payout_binding(
+        postgis_db_sessionmaker, campaign=campaign, assignment=assignment, admin=admin
     )
 
     async def current_kyc_id() -> UUID:

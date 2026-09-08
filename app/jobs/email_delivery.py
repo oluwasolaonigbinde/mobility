@@ -11,7 +11,11 @@ from app.models.notification import (
     NotificationChannel,
     NotificationStatus,
 )
-from app.services.email_delivery import process_email_notification
+from app.services.email_delivery import (
+    email_sweep_visit_order,
+    process_email_notification,
+    record_unexpected_email_failure,
+)
 
 
 async def sweep_email_notifications(
@@ -37,18 +41,24 @@ async def sweep_email_notifications(
                         Notification.delivery_claim_expires_at <= current,
                     ),
                 )
-                .order_by(Notification.created_at, Notification.id)
+                .order_by(email_sweep_visit_order(session), Notification.id)
                 .limit(settings.worker_sweep_batch_size)
             )
         )
     counts: dict[str, int] = {}
     for notification_id in ids:
-        result = await process_email_notification(
-            sessionmaker,
-            notification_id=notification_id,
-            settings=settings,
-            email_adapter=email_adapter,
-            now=current,
-        )
+        try:
+            result = await process_email_notification(
+                sessionmaker,
+                notification_id=notification_id,
+                settings=settings,
+                email_adapter=email_adapter,
+                now=current,
+            )
+        except Exception as exc:
+            await record_unexpected_email_failure(
+                sessionmaker, notification_id=notification_id, error=exc
+            )
+            result = "unexpected_failure"
         counts[result] = counts.get(result, 0) + 1
     return counts

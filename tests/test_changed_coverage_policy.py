@@ -8,7 +8,17 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 CHECKER = Path(__file__).parents[1] / "scripts" / "check_changed_coverage.py"
+
+
+def test_ci_routes_baseline_changes_through_the_reviewable_provenance_gate():
+    workflow = (CHECKER.parents[1] / ".github/workflows/ci.yml").read_text()
+    coverage_job = workflow.split("\n  coverage:\n", 1)[1].split("\n  e2e:\n", 1)[0]
+    assert "--verify-baseline-provenance" in coverage_job
+    assert "baseline is immutable after its one bootstrap commit" not in coverage_job
+    assert "--refresh-baseline" not in coverage_job
 
 
 def test_exact_critical_paths_support_next_dynamic_segments() -> None:
@@ -288,3 +298,242 @@ def test_singular_test_fixture_and_migration_directories_are_excluded(tmp_path: 
 
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["changed"]["modified"] == ["app/sample.py"]
+
+
+def _refresh_repository(tmp_path: Path):
+    repo, _, backend, frontend, coverage = _repository(tmp_path)
+    backend.write_text("def value(flag):\n    return 1\n")
+    (repo / "app" / "__init__.py").write_text('"""Package marker."""\n')
+    coverage.mkdir()
+    baseline = coverage / "baseline.json"
+    (repo / "scripts").mkdir()
+    (repo / "scripts" / CHECKER.name).write_bytes(CHECKER.read_bytes())
+    for name in (
+        "pyproject.toml",
+        "frontend/package.json",
+        "frontend/package-lock.json",
+        "frontend/vitest.config.ts",
+    ):
+        (repo / name).write_text("{}\n")
+    (repo / "pyproject.toml").write_text('[tool.coverage.run]\nbranch = true\nsource = ["app"]\n')
+    (repo / "frontend/vitest.config.ts").write_text(
+        'export default {coverage: {provider: "v8"}};\n'
+    )
+    metrics = {
+        "line_covered": 5,
+        "line_total": 5,
+        "line_percent": 100.0,
+        "branch_covered": 0,
+        "branch_total": 0,
+        "branch_percent": 100.0,
+    }
+    backend_metrics = {**metrics, "line_covered": 4, "line_total": 4}
+    frontend_metrics = {**metrics, "line_covered": 1, "line_total": 1}
+    baseline.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "global": metrics,
+                "critical": {
+                    "backend": {**backend_metrics, "paths": ["app/removed.py", "app/sample.py"]},
+                    "frontend": {**frontend_metrics, "paths": ["frontend/src/sample.ts"]},
+                },
+            }
+        )
+    )
+    _run(["git", "add", "."], repo)
+    _run(["git", "commit", "--quiet", "-m", "trusted coverage authority"], repo)
+    base = _run(["git", "rev-parse", "HEAD"], repo).strip()
+    backend_lcov, frontend_lcov = coverage / "backend.lcov", coverage / "frontend.lcov"
+
+    def reports(*, omit: str | None = None, uncovered: bool = False):
+        _write_lcov(
+            backend_lcov,
+            {
+                str(path): ({1: 1, 2: 0 if uncovered else 1}, {})
+                for path in (repo / "app").glob("*.py")
+                if path.name not in {"__init__.py", omit}
+            },
+        )
+        _write_lcov(frontend_lcov, {str(frontend): ({1: 1}, {})})
+
+    def check(*, refresh: bool = False, comparison_base: str | None = None):
+        command = [
+            sys.executable,
+            str(CHECKER),
+            "--repo-root",
+            str(repo),
+            "--base",
+            comparison_base or base,
+            "--backend-lcov",
+            str(backend_lcov),
+            "--frontend-lcov",
+            str(frontend_lcov),
+            "--baseline",
+            str(baseline),
+            "--verify-baseline-provenance",
+        ]
+        if refresh:
+            command += ["--refresh-baseline", "Reviewed source inventory correction"]
+        return subprocess.run(command, text=True, capture_output=True)
+
+    return repo, base, baseline, reports, check
+
+
+@pytest.mark.parametrize("change", ["add", "rename", "delete", "policy"])
+def test_controlled_refresh_accepts_inventory_and_policy_changes(tmp_path: Path, change: str):
+    repo, base, baseline, reports, check = _refresh_repository(tmp_path)
+    if change == "add":
+        (repo / "app" / "new.py").write_text("def new():\n    return 1\n")
+    elif change == "rename":
+        (repo / "app" / "removed.py").rename(repo / "app" / "renamed.py")
+    elif change == "delete":
+        (repo / "app" / "removed.py").unlink()
+    else:
+        (repo / "frontend" / "package-lock.json").write_text('{"lockfileVersion": 3}\n')
+    reports()
+    result = check(refresh=True)
+    assert result.returncode == 0, result.stderr
+    receipt = json.loads(baseline.read_text())
+    assert receipt["source_parent_sha"] == base
+    assert receipt["refresh"]["reason"] == "Reviewed source inventory correction"
+    assert "app/__init__.py" in receipt["critical"]["backend"]["paths"]
+    assert check().returncode == 0
+    assert json.loads(result.stdout)["baseline_refreshed"] is True
+
+
+def test_refresh_refuses_missing_unchanged_source_coverage(tmp_path: Path):
+    _, _, baseline, reports, check = _refresh_repository(tmp_path)
+    before = baseline.read_bytes()
+    reports(omit="removed.py")
+    result = check(refresh=True)
+    assert result.returncode == 1
+    assert "absent from LCOV" in result.stderr
+    assert baseline.read_bytes() == before
+
+
+def test_refresh_cannot_lower_trusted_ratchet_using_candidate_baseline(tmp_path: Path):
+    _, _, baseline, reports, check = _refresh_repository(tmp_path)
+    candidate = json.loads(baseline.read_text())
+    for scope in [candidate["global"], *candidate["critical"].values()]:
+        scope.update(line_percent=0, line_covered=0)
+    baseline.write_text(json.dumps(candidate))
+    reports(uncovered=True)
+    result = check(refresh=True)
+    assert result.returncode == 1
+    assert "coverage regressed" in result.stderr
+
+
+def test_refresh_rejects_an_existing_nonancestor_commit(tmp_path: Path):
+    repo, _, _, reports, check = _refresh_repository(tmp_path)
+    tree = _run(["git", "rev-parse", "HEAD^{tree}"], repo).strip()
+    unrelated = _run(["git", "commit-tree", tree, "-m", "unrelated authority"], repo).strip()
+    reports()
+    result = check(refresh=True, comparison_base=unrelated)
+    assert result.returncode == 1
+    assert "merge-base --is-ancestor" in result.stderr
+
+
+def test_refresh_rejects_candidate_source_eligibility_exclusion(tmp_path: Path, monkeypatch):
+    from argparse import Namespace
+
+    repo, base, baseline, reports, _ = _refresh_repository(tmp_path)
+    reports()
+    spec = importlib.util.spec_from_file_location("coverage_policy_exclusion", CHECKER)
+    policy = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = policy
+    spec.loader.exec_module(policy)
+    original = policy._eligible
+    monkeypatch.setattr(
+        policy, "_eligible", lambda path: path != "app/removed.py" and original(path)
+    )
+    with pytest.raises(policy.PolicyError, match="source eligibility drift"):
+        policy._evaluate(
+            Namespace(
+                repo_root=repo,
+                base=base,
+                backend_lcov=repo / "coverage/backend.lcov",
+                frontend_lcov=repo / "coverage/frontend.lcov",
+                baseline=baseline,
+                verify_baseline_provenance=True,
+                refresh_baseline="Reviewed refresh",
+            )
+        )
+
+
+@pytest.mark.parametrize("change", ["branch", "excluded_lines", "vitest", "empty_module"])
+def test_refresh_does_not_authorize_weaker_instrumentation(tmp_path: Path, change: str):
+    repo, _, _, reports, check = _refresh_repository(tmp_path)
+    if change == "branch":
+        path = repo / "pyproject.toml"
+        path.write_text(path.read_text().replace("branch = true", "branch = false"))
+    elif change == "excluded_lines":
+        with (repo / "pyproject.toml").open("a") as config:
+            config.write('\n[tool.coverage.report]\nexclude_lines = [".*"]\n')
+    elif change == "vitest":
+        (repo / "frontend/vitest.config.ts").write_text(
+            "export default {coverage: {enabled: false}};"
+        )
+    else:
+        (repo / "app/__init__.py").write_text("import os\n")
+    reports()
+    result = check(refresh=True)
+    assert result.returncode == 1
+    assert (
+        "absent from LCOV" if change == "empty_module" else "instrumentation drift"
+    ) in result.stderr
+
+
+@pytest.mark.parametrize("tamper", ["floor", "policy", "inventory", "base", "source"])
+def test_ci_verifies_refresh_receipt_against_current_evidence(tmp_path: Path, tamper: str):
+    repo, _, baseline, reports, check = _refresh_repository(tmp_path)
+    reports()
+    assert check(refresh=True).returncode == 0
+    receipt = json.loads(baseline.read_text())
+    if tamper == "floor":
+        receipt["global"]["line_covered"] -= 1
+    elif tamper == "policy":
+        receipt["policy_sha256"] = "0" * 64
+    elif tamper == "inventory":
+        receipt["critical"]["backend"]["paths"].remove("app/removed.py")
+    elif tamper == "base":
+        receipt["source_parent_sha"] = "0" * 40
+    else:
+        (repo / "app" / "sample.py").write_text("def value(flag):\n    return 2\n")
+    baseline.write_text(json.dumps(receipt))
+    result = check()
+    assert result.returncode == 1
+    assert "refresh" in result.stderr
+
+
+def test_unchanged_committed_refresh_allows_no_change_and_covered_edits(tmp_path: Path):
+    repo, _, baseline, reports, check = _refresh_repository(tmp_path)
+    reports()
+    assert check(refresh=True).returncode == 0
+    _run(["git", "add", str(baseline)], repo)
+    _run(["git", "commit", "--quiet", "-m", "reviewed baseline"], repo)
+    # The next comparison trusts the committed receipt, without requiring another refresh.
+    base = _run(["git", "rev-parse", "HEAD"], repo).strip()
+    for edit in (False, True):
+        if edit:
+            (repo / "app" / "sample.py").write_text("def value(flag):\n    return 2\n")
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(CHECKER),
+                "--repo-root",
+                str(repo),
+                "--base",
+                base,
+                "--backend-lcov",
+                str(repo / "coverage/backend.lcov"),
+                "--frontend-lcov",
+                str(repo / "coverage/frontend.lcov"),
+                "--baseline",
+                str(baseline),
+                "--verify-baseline-provenance",
+            ],
+            text=True,
+            capture_output=True,
+        )
+        assert result.returncode == 0, result.stderr

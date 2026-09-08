@@ -204,6 +204,12 @@ async def ensure_assignment_payout_window_open(
             "The frozen assignment payout window is invalid",
             status_code=status.HTTP_409_CONFLICT,
         )
+    if frozen_start is not None and now < as_aware_utc(frozen_start):
+        raise AppError(
+            "ASSIGNMENT_PAYOUT_WINDOW_NOT_STARTED",
+            "The accepted assignment payout window has not started",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     if now >= as_aware_utc(frozen_end):
         raise AppError(
             "ASSIGNMENT_PAYOUT_WINDOW_EXPIRED",
@@ -775,6 +781,23 @@ class PingRejection:
         )
 
 
+async def capture_cancellation_at(
+    session: AsyncSession, assignment: CampaignAssignment | None
+) -> datetime | None:
+    if assignment is None:
+        return None
+    event_at = await session.scalar(
+        select(func.min(CampaignActivationEvent.occurred_at)).where(
+            CampaignActivationEvent.assignment_id == assignment.id,
+            CampaignActivationEvent.event_type == CampaignActivationEventType.CANCELLED.value,
+        )
+    )
+    cutoffs = [
+        as_aware_utc(value) for value in (event_at, assignment.cancelled_at) if value is not None
+    ]
+    return min(cutoffs) if cutoffs else None
+
+
 async def capture_authority_lapses(
     session: AsyncSession,
     assignment: CampaignAssignment | None,
@@ -835,6 +858,7 @@ def classify_ping(
     now: datetime,
     settings: Settings,
     authority_lapses: list[tuple[datetime, datetime | None]] | None = None,
+    cancelled_at: datetime | None = None,
 ) -> PingRejection | None:
     """Adjudicate one sample, returning its rejection or None when ingestible.
 
@@ -868,6 +892,11 @@ def classify_ping(
                 "INVALID_RECORDED_AT",
                 "Location ping recorded_at is after the trip ended",
             )
+    if cancelled_at is not None and recorded_at >= cancelled_at:
+        return PingRejection(
+            "INVALID_ASSIGNMENT_AUTHORITY",
+            "Location ping was recorded after the campaign assignment was cancelled",
+        )
     if authority_lapses:
         # D25/OFF-006: delivering evidence after deactivation is permitted, but
         # *capturing* it is not. A sample recorded inside the lapse never had
@@ -1028,6 +1057,7 @@ async def ingest_location_ping_batch(
     # all-valid, all-invalid and replayed batch each stay deterministic; only
     # a genuinely mixed v2 batch takes the partial path.
     authority_lapses = await capture_authority_lapses(session, assignment)
+    cancelled_at = await capture_cancellation_at(session, assignment)
     rejections = [
         classify_ping(
             trip=trip,
@@ -1035,6 +1065,7 @@ async def ingest_location_ping_batch(
             now=received_at,
             settings=settings,
             authority_lapses=authority_lapses,
+            cancelled_at=cancelled_at,
         )
         for ping in payload.pings
     ]
@@ -1419,10 +1450,9 @@ async def apply_quarantined_ping_batch(
     # Admin reopen stays all-or-nothing: an operator applies one preserved
     # payload as a whole, so a partial application would silently change what
     # the audited decision was taken over.
-    authority_lapses = await capture_authority_lapses(
-        session,
-        await session.get(CampaignAssignment, trip.assignment_id),
-    )
+    assignment = await session.get(CampaignAssignment, trip.assignment_id)
+    authority_lapses = await capture_authority_lapses(session, assignment)
+    cancelled_at = await capture_cancellation_at(session, assignment)
     for ping in payload.pings:
         rejection = classify_ping(
             trip=trip,
@@ -1430,6 +1460,7 @@ async def apply_quarantined_ping_batch(
             now=now,
             settings=settings,
             authority_lapses=authority_lapses,
+            cancelled_at=cancelled_at,
         )
         if rejection is not None:
             raise rejection.as_error()

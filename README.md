@@ -242,6 +242,16 @@ $env:ALLOW_DEMO_SEED = "true"
 python -m app.seeds.demo
 ```
 
+The ordinary seed now includes explicitly synthetic frozen payout, funding,
+activation and installation/display-proof fixtures for `driver@demo.mobility.local`.
+Start still uses the application's production authority checks. Configure the
+local installation views/uploader roles and evidence/proof lifetimes consistently
+for both seed and API processes; absent policy remains fail-closed. These
+fixtures grant no real credit, provider verification, storage-object or physical
+installation evidence. Frozen financial/history records are preserved on rerun;
+expired local proof fixtures are appended, not rewritten. R59 checks this
+ordinary seed instead of adding a separate Start-authority repair.
+
 The demo seed is local/development only. It refuses production-like environments,
 does not run during application startup, does not run automatically in Docker
 Compose, and uses existing tables only. Demo credentials are for local demos only

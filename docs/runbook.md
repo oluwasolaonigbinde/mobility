@@ -414,10 +414,13 @@ detach, a widened retention window) is refused with an error log
 skips all destruction (partition sweep and batch purge) until an operator
 resolves it, because a pending partition is invisible through the parent
 and purging around it could cascade-delete retained pings. Standalone
-partition tables are dropped only when the evidence trail claims them and
-no `dropped` evidence already exists for the name (a conflict fails the run
-closed with `outcome=drop_refused`); an `orphan=... outcome=unclaimed_table`
-error log means a table the job refuses to touch: investigate manually.
+partition tables require consistent, complete month bounds reconstructed from
+the immutable trail and revalidated against current retention before DROP.
+Missing, conflicting or still-retained bounds block the whole run with
+`outcome=refused orphans=...` and `purge_blocked_reason=refused_detached_orphan`.
+Existing `dropped` evidence for a present table also fails closed. Investigate
+the table's identity and lawful retention authority before any recovery action;
+never fabricate or rewrite purge evidence to unblock deletion.
 
 **Backups respect retention (§24.2.5):** backup rotation must stay ≤ 35
 days so purged pings age out of backups automatically. The local
@@ -431,9 +434,9 @@ cross-store request procedure is in `docs/data-subject-request-runbook.md`.
 | Worker down for days | Coverage shrinks; `/health/partitions` 503s ~1 month before writes would fail | Start the worker; premake catches up idempotently (4-month horizon ≈ 3 months of headroom) |
 | `no partition of relation found for row` on ping insert | Coverage exhausted (both alarms ignored) | Start worker or run premake once; the insert path recovers immediately — no data was lost, the write was rejected |
 | Retention crash mid-run | `data_purge_audit` shows the interrupted state | Next daily run recovers (evidence-gated FINALIZE + evidenced-orphan drop); no manual SQL needed |
-| Purge job logs `pending_detach=... outcome=refused` | A pending detach lacks purge evidence or is no longer retention-expired | Destruction is paused (sweep + batch purge skipped). Investigate: if the detach is legitimate, `ALTER TABLE location_pings DETACH PARTITION <name> FINALIZE` manually and dispose of the table deliberately; never let a pending detach linger |
+| Purge job logs `pending_detach=... outcome=refused` | A pending detach lacks purge evidence or is no longer retention-expired | All destruction pauses. Reconcile exact catalog bounds, immutable evidence and current retention authority; preserve retained data and obtain an explicit recovery decision if those sources conflict. Manual FINALIZE alone does not authorize DROP. |
 | Purge job logs `outcome=drop_refused` (run fails) | `dropped` evidence already exists for a table that is present again | Manual investigation — the evidence cannot account for the table; the job fails closed and retries daily |
-| Purge job logs `outcome=unclaimed_table` | A standalone `location_pings_*` table exists without evidence | Investigate manually before any drop — the job will never touch it |
+| Purge job returns `refused_detached_orphan` | A standalone `location_pings_*` table has missing/conflicting bounds or remains within current retention | All destruction pauses. Resolve identity and retention authority without altering immutable evidence; a table name alone never authorizes deletion. |
 
 ## Local Playwright reset and overrides
 
@@ -497,16 +500,24 @@ POST /api/v1/admin/operations/file-kyc-retention
 Only rejected or expired submissions older than the configured cutoff are
 eligible. Pending and approved submissions remain untouched. The worker uses
 the same boundary once daily; without the setting it records
-`policy_configured=false` and deletes nothing. Execution removes document links
-before deleting an object, preserves any file still referenced by another KYC,
-vehicle-evidence or campaign record, and writes redacted submission/file/run
-audit events. A storage deletion error rolls the database transaction back and
-is safe to retry; the object store remains private throughout.
+`policy_configured=false` and deletes nothing. Execution commits payload clearing,
+document detachment, redacted audit authority and object-deletion receipts before
+calling storage. Immutable review decisions and their minimal submission identities
+remain. Shared files referenced by KYC, vehicle, campaign, installation, display
+proof or reports remain. Storage errors leave durable pending cleanup; they do
+not restore retired NIN or vehicle snapshots. Resume the stored-object deletion
+worker after recovery and reconcile every receipt to `completed`. Legacy KYC
+receipts whose payload has not retired wait for the current-policy retention
+sweep. Never manually mark a receipt completed or restore a purged payload.
+KYC object cleanup removes and verifies every exact-key version and delete
+marker. Remaining versions leave pending authority and a durable
+`storage_object_remains` failure for retry; a delete marker alone is insufficient.
+Migration 0087 downgrade refuses any retained purged identity.
 
 | Failure | Fail-closed effect | Recovery evidence and action |
 |---|---|---|
 | Scanner unavailable or timing out | File stays quarantined; confirmation, download, creative/KYC use and approval cannot treat it as clean | Restore the configured scanner, verify the worker records a successful clean scan for the same stored-file ID, then retry the blocked workflow. Never edit scan status manually. |
-| Private storage unavailable | Upload confirmation, reads and retention object deletion return unavailable; no public URL or database-only purge is allowed | Restore the configured storage endpoint/credentials, verify a private signed read and an unsigned denial, then rerun the bounded operation. A retention retry may encounter an already-absent object after a partial external deletion; deletion remains idempotent. |
+| Private storage unavailable | Upload confirmation, reads and retention object deletion return unavailable; no public URL or false completed-object receipt is allowed | Restore the configured storage endpoint/credentials, verify a private signed read and an unsigned denial, then resume the bounded deletion worker. Already-absent objects are idempotent successes; verify all durable receipts complete without restoring payloads. |
 | Active key unavailable or ciphertext authentication fails | NIN/bank reveal, new encryption and rewrap fail; masked records remain readable but plaintext is never substituted or logged | Restore the exact approved key version through the custody adapter and rerun a masked/reveal check under an audited purpose. If the key is irrecoverable, preserve the ciphertext and escalate to the privacy/security owner; do not overwrite it with guessed data or a new identity. |
 | Retention policy absent or invalid | Scheduled deletion is disabled and an execution request returns `FILE_KYC_RETENTION_POLICY_REQUIRED` | Obtain the missing legal/privacy decision, record its production configuration reference, configure the approved positive day count, run dry-run, then execute only after reconciliation. |
 | Concurrent retention run | One PostgreSQL advisory-lock holder proceeds; another reports `lock_acquired=false` and deletes nothing | Let the holder finish, inspect `file_kyc.retention_executed` audit counts, then rerun normally if eligible records remain. |
@@ -516,6 +527,27 @@ time window, observed error code, operator and recovery evidence. Do not include
 filenames, NIN, bank values, object credentials, ciphertext keys or scanned
 file contents. Whole-platform breach, ROPA and DSR handling remains owned by
 W3-00A/B.
+
+## Report publication cleanup
+
+New publication writes have durable receipts before any storage call. Cleanup must
+not run to completion while a receipt is `registered` or `uncertain`. A lease expiry,
+worker restart, successful later generation, empty GET or delete marker does not
+prove an earlier request cannot still write. The worker reports the unresolved count
+and continues safe cleanup of later generations. Restore storage for definitively
+settled calls and verify deletion of every version and marker of both exact keys.
+
+After migration 0088, inventory `report_publication_writes` where state is not
+`settled`, joined to `report_publication_intents`. `legacy_untracked_write` explicitly
+covers historical non-complete generations, even old `cleaned` claims; those claims
+are not verified absence. Preserve these receipts and the original publication
+history. Obtain provider request/transport settlement evidence and an independently
+reviewed reconciliation procedure before resolving any uncertainty. Do not edit
+receipt state, infer settlement from object absence, broaden bucket permissions or
+silently drop the receipt table. Populated downgrade is refused. Quiesce previous
+publishers during rollout: an older image does not implement the 0088 write contract
+and cannot insert the required, default-free write-protocol marker.
+Production versioning/IAM/CORS and real provider fault evidence remain release gates.
 
 ## Secret rotation
 

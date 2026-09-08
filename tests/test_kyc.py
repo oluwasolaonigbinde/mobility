@@ -370,6 +370,35 @@ def test_tampered_nin_fails_closed_without_read_audit(db_client, db_sessionmaker
     assert asyncio.run(count_reads()) == 0
 
 
+@pytest.mark.parametrize("retry", [False, True])
+def test_vehicle_evidence_binding_rechecks_collection_authority(
+    db_client, db_sessionmaker, settings, retry
+):
+    _, driver, profile, _, files = _seed_driver_authority(db_sessionmaker, suffix="vehicle-privacy")
+    vehicle = create_test_vehicle(db_sessionmaker, driver_profile_id=profile.id)
+    payload = {
+        "client_request_id": "e824dfb1-f6b9-4cae-b515-ebcd70d0371c",
+        "registration_file_id": str(files["registration"]),
+        "insurance_file_id": str(files["insurance"]),
+        "vehicle_photo_file_id": str(files["vehicle_photo"]),
+    }
+    headers = auth_headers(db_client, driver.email, PASSWORD)
+    url = f"/api/v1/driver/vehicles/{vehicle.id}/evidence-submissions"
+    if retry:
+        assert db_client.post(url, headers=headers, json=payload).status_code == 201
+    blocked = settings.model_copy(
+        update={
+            "privacy_collection_synthetic_test_mode": False,
+            "privacy_collection_live_authorized": False,
+            "privacy_legal_approval_reference": "",
+        }
+    )
+    db_client.app.dependency_overrides[get_settings] = lambda: blocked
+    response = db_client.post(url, headers=headers, json=payload)
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "PRIVACY_COLLECTION_BLOCKED"
+
+
 def test_vehicle_evidence_is_owned_versioned_and_idempotent(db_client, db_sessionmaker) -> None:
     _, driver, profile, _, files = _seed_driver_authority(db_sessionmaker, suffix="vehicle")
     vehicle = create_test_vehicle(db_sessionmaker, driver_profile_id=profile.id)

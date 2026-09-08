@@ -12,6 +12,9 @@ from scripts import run_w403b_load_reproducibility as harness
 def test_confirmed_cohort_and_frozen_inputs_are_exact() -> None:
     fixture = harness.load_frozen_fixture()
 
+    assert fixture["report_snapshot"]["measurement"]["input_sha256"] == harness.canonical_sha256(
+        fixture["measurement_input"]
+    )
     assert fixture["profile"]["city"] == "Abuja"
     assert fixture["profile"]["vehicles"] == 10
     assert fixture["profile"]["advertisers"] == 5

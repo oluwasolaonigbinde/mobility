@@ -39,7 +39,7 @@ def test_real_private_upload_scan_and_protected_kyc_binding(
     )
     scanner = ClamAVScanner(
         host=os.environ["LOCAL_CLAMAV_HOST"],
-        port=3310,
+        port=int(os.environ.get("LOCAL_CLAMAV_PORT", "3310")),
         timeout_seconds=30,
     )
     db_client.app.dependency_overrides[get_storage_provider] = lambda: storage

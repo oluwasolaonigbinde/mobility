@@ -16,6 +16,7 @@ from sqlalchemy import func, select
 from app.core.errors import AppError
 from app.db.base import Base
 from app.models.user import User, UserRole, UserStatus
+from app.schemas.measurement import MeasurementRunCreate
 from tests.conftest import create_test_user
 
 SERVICE_ROOT = Path(__file__).parents[1] / "app" / "services"
@@ -206,6 +207,14 @@ def _required_argument(
         return active_admin_id
     if name == "settings":
         return settings
+    if name == "payload" and function.__name__ == "issue_measurement_run":
+        now = datetime.now(UTC)
+        return MeasurementRunCreate(
+            campaign_id=uuid4(),
+            client_request_id=uuid4(),
+            period_start_at=now - timedelta(days=1),
+            period_end_at=now,
+        )
     if name == "source":
         return "poll" if function.__name__ == "_apply_verified_line_evidence" else object()
     if name in {"admin", "require_admin"}:

@@ -6,7 +6,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import and_, case, delete, func, or_, select, text
+from sqlalchemy import and_, case, func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -337,42 +337,6 @@ async def _nonterminal_replay_flag(
     )
 
 
-async def _cleanup_group_open_flags(
-    session: AsyncSession,
-    members,
-    *,
-    keep_trip_id: UUID | None,
-) -> bool:
-    conditions = [
-        FraudFlag.trip_session_id.in_(select(members.c.trip_id)),
-        FraudFlag.flag_type == FraudFlagType.ROUTE_REPLAY.value,
-        FraudFlag.status == FraudFlagStatus.OPEN.value,
-        ~select(FraudDispute.id).where(FraudDispute.fraud_flag_id == FraudFlag.id).exists(),
-    ]
-    if keep_trip_id is not None:
-        conditions.append(FraudFlag.trip_session_id != keep_trip_id)
-    result = await session.execute(
-        delete(FraudFlag)
-        .where(*conditions)
-        .execution_options(synchronize_session=False)
-    )
-    return bool(result.rowcount)
-
-
-async def _remove_open_replay_flag(session: AsyncSession, trip_id: UUID) -> bool:
-    result = await session.execute(
-        delete(FraudFlag)
-        .where(
-            FraudFlag.trip_session_id == trip_id,
-            FraudFlag.flag_type == FraudFlagType.ROUTE_REPLAY.value,
-            FraudFlag.status == FraudFlagStatus.OPEN.value,
-            ~select(FraudDispute.id).where(FraudDispute.fraud_flag_id == FraudFlag.id).exists(),
-        )
-        .execution_options(synchronize_session=False)
-    )
-    return bool(result.rowcount)
-
-
 async def _write_replay_flag(
     session: AsyncSession,
     *,
@@ -486,8 +450,7 @@ async def _reconcile_group(
     total_match_count = int(totals.total)
     cross_account_match_count = int(totals.cross_account)
     if total_match_count == 0 or cross_account_match_count == 0:
-        changed = await _cleanup_group_open_flags(session, members, keep_trip_id=None)
-        return _GroupResult(None, None, changed)
+        return _GroupResult(None, None, False)
 
     exact_match_exists = bool(
         await session.scalar(
@@ -510,9 +473,6 @@ async def _reconcile_group(
             )
         ).all()
     )
-    cleanup_changed = await _cleanup_group_open_flags(
-        session, members, keep_trip_id=target.trip_id
-    )
     flag, flag_changed = await _write_replay_flag(
         session,
         target=target,
@@ -522,7 +482,7 @@ async def _reconcile_group(
         sampled_trip_ids=sampled_trip_ids,
         settings=settings,
     )
-    return _GroupResult(flag, match_kind, cleanup_changed or flag_changed)
+    return _GroupResult(flag, match_kind, flag_changed)
 
 
 async def detect_route_replay(
@@ -562,7 +522,7 @@ async def detect_route_replay(
     except Exception:
         pass
 
-    # Cross-trip reconciliation can remove or replace another trip's replay
+    # Cross-trip reconciliation can raise or update another trip's replay
     # flag. Exclude ordinary review/money holders first, discover every old/new
     # group member while detector membership is stable, then lock all affected
     # trip scopes in one deterministic order before any signature/flag write.
@@ -627,8 +587,6 @@ async def detect_route_replay(
         if group_key == new_group:
             current_group_result = group_result
 
-    if fingerprints is None:
-        changed = await _remove_open_replay_flag(session, trip.id) or changed
     return RouteReplayResult(
         signature,
         current_group_result.replay_flag,

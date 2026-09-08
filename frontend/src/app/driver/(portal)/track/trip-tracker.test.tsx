@@ -91,7 +91,12 @@ function fakeQueue(overrides: Record<string, unknown> = {}) {
     acknowledgeLegacyBatch: vi.fn().mockResolvedValue(undefined),
     acknowledgeBatch: vi.fn().mockResolvedValue(undefined),
     listReceipts: vi.fn().mockResolvedValue([]),
-    evidenceManifest: vi.fn().mockImplementation((_tripId: string, complete: boolean) =>
+    freezeLegacyEnd: vi
+      .fn()
+      .mockImplementation((_tripId: string, complete: boolean) =>
+        Promise.resolve({ clientBatchCount: 2, clientPingCount: 3, clientComplete: complete }),
+      ),
+    freezeEnd: vi.fn().mockImplementation((_tripId: string, complete: boolean) =>
       Promise.resolve({
         version: 2,
         root_sha256: "a".repeat(64),
@@ -396,6 +401,26 @@ describe("single-writer lock fail-closed (finding 6)", () => {
 });
 
 describe("live runtime truth", () => {
+  it("records the refused Start assessment before releasing held capabilities", async () => {
+    installRuntime();
+    delete (navigator as { wakeLock?: unknown }).wakeLock;
+    pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /Start trip/ })).toBeEnabled());
+    await userEvent.click(screen.getByRole("button", { name: /Start trip/ }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Start is blocked"));
+    expect(actions.startTripAction).not.toHaveBeenCalled();
+    expect(warning).toHaveBeenCalledTimes(1);
+    const diagnostic = JSON.parse(String(warning.mock.calls[0]?.[0]).split("=", 2)[1]!);
+    expect(diagnostic.actions.start).toBe(false);
+    expect(diagnostic.blockingCodes).toContain("WAKE_LOCK_UNAVAILABLE");
+    expect(diagnostic.results).toContainEqual(
+      expect.objectContaining({ id: "web-locks", status: "supported" }),
+    );
+    expect(JSON.stringify(diagnostic)).not.toMatch(/driverId|latitude|longitude|cookie|token/i);
+  });
+
   it("does not claim active health without a currently held wake lock", async () => {
     pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
     grantWebLock();
@@ -754,7 +779,7 @@ describe("end watermark honesty (finding 5)", () => {
     expect(screen.getByText(/No active campaign/i)).toBeInTheDocument();
   });
 
-  it("resumes after an unknown End only when server authority still confirms active", async () => {
+  it("keeps the frozen End boundary while an unknown End still appears active", async () => {
     const runtime = installRuntime();
     pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
     actions.getCurrentTripAction.mockResolvedValue({ trip: TRIP, outcome: "started" });
@@ -770,8 +795,8 @@ describe("end watermark honesty (finding 5)", () => {
     await userEvent.click(endButton);
 
     await waitFor(() => expect(actions.getCurrentTripAction).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(2));
-    expect(screen.getByTestId("tracking-health")).toHaveTextContent("active");
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("button", { name: /Reconcile trip/ })).toBeEnabled();
   });
 
   it("keeps capture stopped and offers reconciliation while End authority is unavailable", async () => {
@@ -1177,3 +1202,268 @@ describe("recovery termination and fault containment (OFF-002)", () => {
     await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
   });
 });
+
+describe("correction End generation and current-trip recovery", () => {
+  it("flushes deferred current-trip evidence before reconciling a lost End response", async () => {
+    installRuntime();
+    let ended = false;
+    let settled = false;
+    const order: string[] = [];
+    const queue = fakeQueue({
+      listBatches: vi.fn(async () => (settled ? [] : [BATCH])),
+      acknowledgeBatch: vi.fn(async () => {
+        settled = true;
+        order.push("settled");
+      }),
+      unsyncedCount: vi.fn(async () => (settled ? 0 : 1)),
+    });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    actions.sendPingBatchAction.mockImplementation(async () =>
+      ended
+        ? { acknowledged: true, receipt: RECEIPT }
+        : { acknowledged: false, deferred: true, error: "deactivated" },
+    );
+    actions.endTripAction.mockImplementation(async () => {
+      ended = true;
+      return { outcome: "unknown", error: "response lost" };
+    });
+    actions.getCurrentTripAction.mockImplementation(async () =>
+      ended ? { outcome: "failed" } : { trip: TRIP, outcome: "started" },
+    );
+    actions.reconcileTripEvidenceAction.mockImplementation(async () => {
+      order.push("reconcile");
+      return settled ? { outcome: "ended", status: "sealed" } : { outcome: "unknown" };
+    });
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /End trip/ })).toBeEnabled());
+    await userEvent.click(screen.getByRole("button", { name: /End trip/ }));
+    await waitFor(() => expect(order).toContain("reconcile"));
+    expect(order).toEqual(["settled", "reconcile"]);
+    expect(screen.getByText(/No active campaign/i)).toBeInTheDocument();
+  });
+
+  it("fences a visibility preparation and an old GPS callback across End", async () => {
+    const runtime = installRuntime();
+    const queue = fakeQueue();
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    let finishResume!: (value: { scope: string }) => void;
+    let finishEnd!: (value: { outcome: string; status: string }) => void;
+    actions.endTripAction.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishEnd = resolve;
+        }),
+    );
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+    const oldCallback = runtime.watchPosition.mock.calls[0]![0] as PositionCallback;
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    vi.mocked(navigator.serviceWorker.getRegistration).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishResume = resolve as typeof finishResume;
+        }),
+    );
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await waitFor(() => expect(finishResume).toBeDefined());
+    await userEvent.click(screen.getByRole("button", { name: /End trip/ }));
+    await waitFor(() => expect(actions.endTripAction).toHaveBeenCalledTimes(1));
+    await act(async () => finishResume({ scope: "/driver/" }));
+    act(() =>
+      oldCallback({
+        timestamp: Date.now(),
+        coords: { latitude: 6.4, longitude: 3.4, accuracy: 5, speed: 2, heading: 90 },
+      } as GeolocationPosition),
+    );
+    expect(runtime.watchPosition).toHaveBeenCalledTimes(1);
+    expect(queue.addPing).not.toHaveBeenCalled();
+    await act(async () => finishEnd({ outcome: "ended", status: "sealed" }));
+  });
+});
+
+describe("signed partial acknowledgement display", () => {
+  it("excludes signed rejections from synced count and retains their End evidence", async () => {
+    const runtime = installRuntime();
+    const queue = fakeQueue({
+      listReceipts: vi.fn().mockResolvedValue([
+        {
+          ...RECEIPT,
+          submitted_count: 3,
+          acceptedCount: 2,
+          rejectedCount: 1,
+          sampleResults: [
+            { index: 0, sequence_number: 0, status: "accepted", rejection_code: null },
+            { index: 1, sequence_number: 1, status: "accepted", rejection_code: null },
+            { index: 2, sequence_number: 2, status: "rejected", rejection_code: "INVALID_SPEED" },
+          ],
+        },
+      ]),
+    });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+    act(() =>
+      (runtime.watchPosition.mock.calls[0]![0] as PositionCallback)({
+        timestamp: Date.now(),
+        coords: { latitude: 6.4, longitude: 3.4, accuracy: 5, speed: 2, heading: 90 },
+      } as GeolocationPosition),
+    );
+    await waitFor(() => expect(screen.getByTestId("pings-sent")).toHaveTextContent("2"));
+    expect(screen.getByText(/1 rejected samples/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /End trip/ }));
+    await waitFor(() => expect(queue.freezeEnd).toHaveBeenCalledWith(TRIP_ID, false));
+    expect(queue.forgetTrip).not.toHaveBeenCalled();
+  });
+
+  it.each([360, -1, Infinity])(
+    "normalizes invalid optional heading %s before enqueue",
+    async (heading) => {
+      const runtime = installRuntime();
+      const queue = fakeQueue();
+      pingQueue.openPingQueue.mockResolvedValue(queue);
+      render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+      await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+      act(() =>
+        (runtime.watchPosition.mock.calls[0]![0] as PositionCallback)({
+          timestamp: Date.now(),
+          coords: { latitude: 6.4, longitude: 3.4, accuracy: 5, speed: 2, heading },
+        } as GeolocationPosition),
+      );
+      await waitFor(() =>
+        expect(queue.addPing).toHaveBeenCalledWith(
+          TRIP_ID,
+          expect.objectContaining({ heading_degrees: null }),
+        ),
+      );
+    },
+  );
+});
+
+it("retains settled rejected-sample receipts when recovering an earlier trip", async () => {
+  grantWebLock();
+  const queue = fakeQueue({
+    tripsWithLeftovers: vi.fn().mockResolvedValue([TRIP_ID]),
+    listReceipts: vi.fn().mockResolvedValue([{ ...RECEIPT, acceptedCount: 0, rejectedCount: 1 }]),
+  });
+  pingQueue.openPingQueue.mockResolvedValue(queue);
+  actions.getTripEvidenceAuthorityAction.mockResolvedValue({
+    protocolVersion: 2,
+    status: "sealed",
+  });
+  render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
+  await waitFor(() => expect(actions.reconcileTripEvidenceAction).toHaveBeenCalledWith(TRIP_ID));
+  expect(queue.forgetTrip).not.toHaveBeenCalled();
+  expect(actions.sendPingBatchAction).not.toHaveBeenCalled();
+  await waitFor(() =>
+    expect(screen.getByRole("alert")).toHaveTextContent(/GPS samples need review/i),
+  );
+});
+
+it("restores a frozen End after reload without reopening capture and retries it identically", async () => {
+  const runtime = installRuntime();
+  const manifest = {
+    version: 2,
+    root_sha256: "a".repeat(64),
+    ping_count: 3,
+    complete: false,
+    entries: [],
+  };
+  const queue = fakeQueue({
+    meta: vi.fn().mockResolvedValue({
+      tripId: TRIP_ID,
+      nextSeq: 3,
+      batchesCut: 2,
+      pingsRecorded: 3,
+      endManifest: manifest,
+    }),
+  });
+  pingQueue.openPingQueue.mockResolvedValue(queue);
+  render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+  const button = await screen.findByRole("button", { name: /Reconcile trip/ });
+  await waitFor(() => expect(button).toBeEnabled());
+  expect(runtime.watchPosition).not.toHaveBeenCalled();
+  await userEvent.click(button);
+  expect(actions.endTripAction).toHaveBeenCalledExactlyOnceWith(TRIP_ID, manifest);
+  expect(queue.freezeEnd).not.toHaveBeenCalled();
+  expect(queue.forgetTrip).not.toHaveBeenCalled();
+});
+
+it("fails closed when the durable End marker cannot commit", async () => {
+  installRuntime();
+  const queue = fakeQueue({ freezeEnd: vi.fn().mockRejectedValue(new Error("quota")) });
+  pingQueue.openPingQueue.mockResolvedValue(queue);
+  render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+  await waitFor(() => expect(screen.getByRole("button", { name: /End trip/ })).toBeEnabled());
+  await userEvent.click(screen.getByRole("button", { name: /End trip/ }));
+  await waitFor(() =>
+    expect(screen.getByRole("alert")).toHaveTextContent(/End request could not be saved/),
+  );
+  expect(actions.endTripAction).not.toHaveBeenCalled();
+  expect(queue.forgetTrip).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: /End trip/ })).toBeDisabled();
+});
+
+it.each([1, 2])(
+  "finishes a restored protocol %s End without overstating completeness",
+  async (protocol) => {
+    const runtime = installRuntime();
+    const endManifest = {
+      version: 2,
+      root_sha256: "a".repeat(64),
+      ping_count: 3,
+      complete: false,
+      entries: [],
+    };
+    const legacyEnd = { clientBatchCount: 2, clientPingCount: 3, clientComplete: false };
+    const queue = fakeQueue({
+      meta: vi.fn().mockResolvedValue({
+        tripId: TRIP_ID,
+        nextSeq: 3,
+        batchesCut: 2,
+        pingsRecorded: 3,
+        ...(protocol === 2 ? { endManifest } : { legacyEnd }),
+      }),
+    });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    actions.endTripAction.mockResolvedValue({ outcome: "ended", status: "sealed" });
+    actions.endLegacyTripAction.mockResolvedValue({ outcome: "ended", status: "sealed" });
+    actions.getTripEvidenceAuthorityAction.mockResolvedValue({
+      protocolVersion: protocol,
+      status: "active",
+    });
+    actions.getCurrentTripAction.mockResolvedValue({
+      trip: { id: TRIP_ID, evidenceProtocolVersion: protocol },
+      outcome: "started",
+    });
+    render(
+      <TripTracker
+        assignment={null}
+        initialTrip={{
+          id: TRIP_ID,
+        }}
+        driverId={DRIVER_ID}
+      />,
+    );
+    const button = await screen.findByRole("button", { name: /Reconcile trip/ });
+    await waitFor(() => expect(button).toBeEnabled());
+    await userEvent.click(button);
+    const expectedAction = protocol === 2 ? actions.endTripAction : actions.endLegacyTripAction;
+    await waitFor(() =>
+      expect(expectedAction).toHaveBeenCalledExactlyOnceWith(
+        TRIP_ID,
+        protocol === 2 ? endManifest : legacyEnd,
+      ),
+    );
+    expect(
+      protocol === 2 ? actions.endLegacyTripAction : actions.endTripAction,
+    ).not.toHaveBeenCalled();
+    expect(actions.reconcileTripEvidenceAction).not.toHaveBeenCalled();
+    expect(queue.forgetTrip).not.toHaveBeenCalled();
+    expect(runtime.watchPosition).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /Reconcile trip/ })).not.toBeInTheDocument(),
+    );
+  },
+);

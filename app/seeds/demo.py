@@ -1662,7 +1662,7 @@ async def build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGra
         traffic_profile=traffic_profile,
     )
 
-    return DemoGraph(
+    graph = DemoGraph(
         admin=admin,
         advertiser=advertiser,
         viewer=viewer,
@@ -1677,6 +1677,11 @@ async def build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGra
         traffic_profile=traffic_profile,
         rich=rich,
     )
+
+    from app.seeds.demo_authority import ensure_demo_start_authority
+
+    await ensure_demo_start_authority(session, graph=graph, settings=settings)
+    return graph
 
 
 async def counts(session: AsyncSession, graph: DemoGraph) -> dict[str, int]:

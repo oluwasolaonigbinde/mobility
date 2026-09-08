@@ -38,11 +38,12 @@ from app.services.heatmaps import (
     AUTHORITATIVE_AUDIENCE_CELL_FORMULA_VERSION,
     authoritative_audience_trip_cell_counts,
 )
-from app.services.report_cohorts import select_report_cohort
+from app.services.payout_rule_serialization import acquire_campaign_terms_lock
+from app.services.report_cohorts import economic_ledger_amount, select_report_cohort
 from app.services.reports import build_dynamic_campaign_report
 
-MEASUREMENT_FORMULA_VERSION = "measurement-result-v1"
-MEASUREMENT_METHOD_REVISION = "measurement-contract-v1"
+MEASUREMENT_FORMULA_VERSION = "measurement-result-v2"
+MEASUREMENT_METHOD_REVISION = "measurement-contract-v2"
 
 # Frozen disclosure wording. Each constant reproduces one clause of
 # docs/measurement-methodology.json verbatim so a run stays reproducible from its
@@ -114,14 +115,7 @@ def _decimal(value: Any) -> Decimal:
 def _cohort_completeness(input_manifest: dict[str, Any]) -> dict[str, int]:
     """Freeze the R46 cohort's completeness denominator without reselecting it."""
     cohort = input_manifest.get("cohort") or []
-    period_end_at = datetime.fromisoformat(input_manifest["period"]["end_at"])
-    terminal = sum(
-        1
-        for trip in cohort
-        if str(trip.get("status", "")) in TERMINAL_COHORT_TRIP_STATUSES
-        and trip.get("terminal_at") is not None
-        and datetime.fromisoformat(str(trip["terminal_at"])) < period_end_at
-    )
+    terminal = len(_qualifying_trip_ids(input_manifest))
     return {
         "cohort_trip_count": len(cohort),
         "denominator_trip_count": terminal,
@@ -132,12 +126,17 @@ def _cohort_completeness(input_manifest: dict[str, Any]) -> dict[str, int]:
 def _qualifying_trip_ids(input_manifest: dict[str, Any]) -> set[str]:
     """Return only cohort trips that became terminal inside the half-open period."""
     period_end_at = datetime.fromisoformat(input_manifest["period"]["end_at"])
+    period_start_at = datetime.fromisoformat(input_manifest["period"]["start_at"])
     return {
         str(trip["trip_session_id"])
         for trip in input_manifest.get("cohort") or []
         if str(trip.get("status", "")) in TERMINAL_COHORT_TRIP_STATUSES
         and trip.get("terminal_at") is not None
         and datetime.fromisoformat(str(trip["terminal_at"])) < period_end_at
+        and (
+            input_manifest["formula_version"] == "measurement-result-v1"
+            or datetime.fromisoformat(str(trip["terminal_at"])) >= period_start_at
+        )
     }
 
 
@@ -209,10 +208,11 @@ def _trip_ids(rows: list[dict[str, Any]], *statuses: str) -> set[str]:
 
 
 def calculate_measurement_result(input_manifest: dict[str, Any]) -> dict[str, Any]:
+    version = input_manifest["formula_version"]
+    if version not in {"measurement-result-v1", "measurement-result-v2"}:
+        raise ValueError("Unsupported measurement formula")
     qualifying_trip_ids = _qualifying_trip_ids(input_manifest)
-    analytics = _qualifying_rows(
-        input_manifest["sources"]["trip_analytics"], qualifying_trip_ids
-    )
+    analytics = _qualifying_rows(input_manifest["sources"]["trip_analytics"], qualifying_trip_ids)
     impressions = _qualifying_rows(
         input_manifest["sources"]["impression_estimates"], qualifying_trip_ids
     )
@@ -223,10 +223,24 @@ def calculate_measurement_result(input_manifest: dict[str, Any]) -> dict[str, An
     estimated_rows = [row for row in impressions if row["status"] == "estimated"]
     calculated_rows = [row for row in payouts if row["status"] == "calculated"]
     costs: dict[str, Decimal] = {}
-    for row in calculated_rows:
-        costs[row["currency"]] = costs.get(row["currency"], Decimal("0")) + _decimal(
-            row["final_payout"]
+    if version == "measurement-result-v1":
+        for row in calculated_rows:
+            costs[row["currency"]] = costs.get(row["currency"], Decimal("0")) + _decimal(
+                row["final_payout"]
+            )
+    else:
+        ledger = _qualifying_rows(
+            input_manifest["sources"]["earnings_ledger_entries"], qualifying_trip_ids
         )
+        for payout in calculated_rows:
+            if not any(row["payout_calculation_id"] == payout["id"] for row in ledger):
+                raise ValueError("Calculated trip lacks frozen ledger authority")
+            costs.setdefault(payout["currency"], Decimal("0.00"))
+        for row in ledger:
+            amount = economic_ledger_amount(
+                row["entry_type"], row["status"], Decimal(row["amount"])
+            )
+            costs[row["currency"]] = costs.get(row["currency"], Decimal("0.00")) + amount
     cohort = _cohort_completeness(input_manifest)
     density_provenance, density_provenance_complete = _density_provenance(estimated_rows)
     movement_completeness = _metric_completeness(
@@ -563,6 +577,7 @@ async def issue_measurement_run(
     payload: MeasurementRunCreate,
     settings: Settings,
 ) -> MeasurementRun:
+    await acquire_campaign_terms_lock(session, payload.campaign_id)
     await require_active_admin(session, actor_user_id)
     _validate_issuance(payload, settings)
     await _lock_request(session, actor_user_id, payload.client_request_id)
@@ -582,9 +597,7 @@ async def issue_measurement_run(
                 status_code=status.HTTP_409_CONFLICT,
             )
         return replay
-    campaign = await session.scalar(
-        select(Campaign).where(Campaign.id == payload.campaign_id).with_for_update()
-    )
+    campaign = await session.scalar(select(Campaign).where(Campaign.id == payload.campaign_id))
     if campaign is None:
         raise AppError(
             "CAMPAIGN_NOT_FOUND", "Campaign was not found", status_code=status.HTTP_404_NOT_FOUND
@@ -594,13 +607,18 @@ async def issue_measurement_run(
         tenant_id=campaign.organization_id,
         campaign_id=campaign.id,
     )
+    await session.refresh(campaign)
     cohort = await select_report_cohort(
         session,
         campaign_id=campaign.id,
         start_at=payload.period_start_at,
         end_at=payload.period_end_at,
         settings=settings,
+        terminal_period=True,
     )
+    report_cohort = cohort.terminal_only(payload.period_end_at)
+    for payout in report_cohort.payouts:
+        report_cohort.final_cost(payout)
     analytics_rows = list(cohort.analytics)
     impression_rows = list(cohort.impressions)
     payout_rows = list(cohort.payouts)
@@ -617,11 +635,7 @@ async def issue_measurement_run(
         else settings.measurement_report_method_reference
     )
     measured_trip_ids = sorted(
-        {
-            row.trip_session_id
-            for row in analytics_rows
-            if row.status == "computed"
-        },
+        {row.trip_session_id for row in analytics_rows if row.status == "computed"},
         key=str,
     )
     audience_exposure_authority = await _audience_exposure_authority(
@@ -705,11 +719,30 @@ async def issue_measurement_run(
         )
         for row in payout_rows
     ]
+    ledger_sources = [
+        frozen_source(
+            {
+                "id": row.id,
+                "trip_session_id": row.trip_session_id,
+                "payout_calculation_id": row.payout_calculation_id,
+                "vehicle_id": row.vehicle_id,
+                "currency": row.currency,
+                "entry_type": row.entry_type,
+                "status": row.status,
+                "amount": row.amount,
+                "occurred_at": row.occurred_at,
+                "created_at": row.created_at,
+                "provenance": row.ledger_metadata,
+            }
+        )
+        for row in cohort.ledger or ()
+    ]
     sources_by_trip: dict[str, dict[str, list[dict[str, str]]]] = {
         str(trip.id): {
             "trip_analytics": [],
             "impression_estimates": [],
             "payout_calculations": [],
+            "earnings_ledger_entries": [],
         }
         for trip in cohort.trips
     }
@@ -717,6 +750,7 @@ async def issue_measurement_run(
         ("trip_analytics", analytics_sources),
         ("impression_estimates", impression_sources),
         ("payout_calculations", payout_sources),
+        ("earnings_ledger_entries", ledger_sources),
     ):
         for row in rows:
             sources_by_trip[row["trip_session_id"]][source_name].append(
@@ -735,7 +769,7 @@ async def issue_measurement_run(
         for trip in cohort.trips
     ]
     input_manifest: dict[str, Any] = {
-        "schema_version": "measurement-input-manifest-v1",
+        "schema_version": "measurement-input-manifest-v2",
         "campaign_id": str(campaign.id),
         "organization_id": str(campaign.organization_id),
         "mode": payload.mode.value,
@@ -753,6 +787,7 @@ async def issue_measurement_run(
             "trip_analytics": analytics_sources,
             "impression_estimates": impression_sources,
             "payout_calculations": payout_sources,
+            "earnings_ledger_entries": ledger_sources,
         },
         "roi": _json_value(payload.roi.model_dump()) if payload.roi is not None else None,
     }
@@ -782,7 +817,7 @@ async def issue_measurement_run(
         start_at=payload.period_start_at,
         end_at=payload.period_end_at,
         settings=settings.model_copy(update={"privacy_disclosure_synthetic_test_mode": True}),
-        cohort=cohort,
+        cohort=report_cohort,
     )
     report_snapshot = report.model_dump(
         mode="json",
@@ -818,6 +853,7 @@ async def issue_measurement_run(
         route_id="advertiser.campaign.report",
         settings=settings,
         return_manifest=True,
+        cohort=report_cohort,
     )
     assert isinstance(disclosure_authority, dict)
     daily_disclosure_authority = await trip_cohort_meets_disclosure_floor(
@@ -829,6 +865,7 @@ async def issue_measurement_run(
         route_id="advertiser.campaign.daily_metrics",
         settings=settings,
         return_manifest=True,
+        cohort=report_cohort,
     )
     if isinstance(daily_disclosure_authority, dict):
         disclosure_authority["passed"] = bool(
@@ -851,7 +888,7 @@ async def issue_measurement_run(
             key = str(vehicle_id)
             by_vehicle[key] = by_vehicle.get(key, Decimal("0")) + amount
 
-    for row in analytics_rows:
+    for row in report_cohort.analytics:
         if row.status != "computed":
             continue
         add_measurement("measurement:analytics:trip_count", row.vehicle_id, 1)
@@ -861,19 +898,19 @@ async def issue_measurement_run(
             row.vehicle_id,
             row.active_tracking_seconds,
         )
-    for row in impression_rows:
+    for row in report_cohort.impressions:
         if row.status == "estimated":
             add_measurement(
                 "measurement:estimated_impressions",
                 row.vehicle_id,
                 row.estimated_impressions,
             )
-    for row in payout_rows:
+    for row in report_cohort.payouts:
         if row.status == "calculated":
             add_measurement(
                 f"measurement:final_payout:{row.currency}",
                 row.vehicle_id,
-                row.final_payout,
+                abs(report_cohort.final_cost(row)),
             )
     disclosure_authority["contributions"].update(
         {

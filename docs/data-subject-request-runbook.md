@@ -64,6 +64,22 @@ nonnegative. It is the operator-verified number of affected records represented
 by the evidence pointer. A `not_found` outcome requires zero. Database and
 object counts are computed by Cardvert and reject an operator-supplied count.
 
+Audit inventory includes durable actor and typed subject links and counts an
+event once when both refer to the requester. The supporting
+`audit_event_subject_resolutions` rows are append-only and retain UUIDs after
+source deletion. A target with `outcome=unresolved` or an actor with
+`outcome=not_recorded` must not be assigned to a person by guessing from notes,
+tenant membership or nearby events. An authorized operator must retain these
+historical attribution gaps in the protected evidence review; zero attributed
+events alone does not prove that no historical event concerns the subject.
+No other tenant's event identifiers or unresolved-event counts belong in a
+subject response. Legal response and exception decisions remain external gates.
+
+Exact assessment retries retain the accepted database/object count snapshot;
+new self-audit events do not rewrite that assessment. Current erasure and
+absence checks still run. Changes to an operator-supplied external count or any
+other submitted fact conflict with the accepted assessment.
+
 ## Access, rectification and erasure dry runs
 
 - **Access:** use a synthetic account, verify identity, produce a protected

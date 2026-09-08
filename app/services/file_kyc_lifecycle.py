@@ -9,7 +9,6 @@ from starlette import status
 
 from app.adapters.storage import StorageProvider
 from app.core.errors import AppError
-from app.models.campaign import CampaignCreative
 from app.models.driver import DriverProfile
 from app.models.kyc import (
     DriverKycDocument,
@@ -20,12 +19,15 @@ from app.models.kyc import (
 )
 from app.models.stored_file import StoredFile, StoredObjectDeletion
 from app.models.vehicle import Vehicle
+from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.stored_object_deletions import (
+    _file_is_referenced,
     delete_stored_object,
     ensure_stored_object_deletion,
     finalize_stored_object_deletion,
 )
+from app.services.vehicle_onboarding import acquire_work_eligibility_lock
 
 FILE_KYC_RETENTION_LOCK = 0x46494C454B5943
 TERMINAL_RETENTION_STATUSES = {
@@ -97,6 +99,7 @@ async def _candidate_ids(
                 .where(
                     DriverKycSubmission.status.in_(TERMINAL_RETENTION_STATUSES),
                     DriverKycSubmission.created_at < cutoff,
+                    DriverKycSubmission.purged_at.is_(None),
                 )
                 .order_by(DriverKycSubmission.created_at, DriverKycSubmission.id)
                 .limit(limit)
@@ -113,6 +116,7 @@ async def _candidate_ids(
                     .where(
                         VehicleEvidenceSubmission.status.in_(TERMINAL_RETENTION_STATUSES),
                         VehicleEvidenceSubmission.created_at < cutoff,
+                        VehicleEvidenceSubmission.purged_at.is_(None),
                     )
                     .order_by(
                         VehicleEvidenceSubmission.created_at,
@@ -132,25 +136,12 @@ async def _file_is_referenced_outside_submission(
     driver_submission_id: UUID | None = None,
     vehicle_submission_id: UUID | None = None,
 ) -> bool:
-    checks = (
-        select(DriverKycDocument.id).where(
-            DriverKycDocument.stored_file_id == file_id,
-            DriverKycDocument.submission_id != driver_submission_id
-            if driver_submission_id is not None
-            else True,
-        ),
-        select(VehicleEvidenceDocument.id).where(
-            VehicleEvidenceDocument.stored_file_id == file_id,
-            VehicleEvidenceDocument.submission_id != vehicle_submission_id
-            if vehicle_submission_id is not None
-            else True,
-        ),
-        select(CampaignCreative.id).where(CampaignCreative.stored_file_id == file_id),
+    return await _file_is_referenced(
+        session,
+        file_id,
+        driver_submission_id=driver_submission_id,
+        vehicle_submission_id=vehicle_submission_id,
     )
-    for query in checks:
-        if await session.scalar(query.limit(1)) is not None:
-            return True
-    return False
 
 
 async def _prepare_file_deletions(
@@ -208,6 +199,7 @@ async def _purge_driver_submission(
     )
     if profile_id is None:
         return 0, 0
+    await acquire_work_eligibility_lock(session, driver_profile_id=profile_id)
     await session.scalar(
         select(DriverProfile.id).where(DriverProfile.id == profile_id).with_for_update()
     )
@@ -217,8 +209,10 @@ async def _purge_driver_submission(
             DriverKycSubmission.id == submission_id,
             DriverKycSubmission.status.in_(TERMINAL_RETENTION_STATUSES),
             DriverKycSubmission.created_at < cutoff,
+            DriverKycSubmission.purged_at.is_(None),
         )
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if submission is None:
         return 0, 0
@@ -241,40 +235,38 @@ async def _purge_driver_submission(
         owner_id=submission.id,
         driver_submission_id=submission.id,
     )
-    await session.commit()
-    for deletion in deletions:
-        await delete_stored_object(session, intent=deletion, storage=storage)
-
-    submission = await session.scalar(
-        select(DriverKycSubmission)
-        .where(
-            DriverKycSubmission.id == submission_id,
-            DriverKycSubmission.status.in_(TERMINAL_RETENTION_STATUSES),
-            DriverKycSubmission.created_at < cutoff,
-        )
-        .with_for_update()
-    )
-    if submission is None:
-        return 0, 0
-    documents = list(
-        await session.scalars(
-            select(DriverKycDocument)
-            .where(DriverKycDocument.submission_id == submission.id)
-            .order_by(DriverKycDocument.stored_file_id)
-            .with_for_update()
-        )
-    )
     for document in documents:
         await session.delete(document)
     await session.flush()
-    await session.delete(submission)
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="driver_kyc_submission.payload_purge_authorized",
+        entity_type="driver_kyc_submission",
+        entity_id=str(submission.id),
+        metadata={
+            "reason": reason,
+            "cutoff": cutoff.isoformat(),
+            "detached_documents": len(documents),
+            "object_deletions": len(deletions),
+        },
+    )
+    submission.encrypted_nin = None
+    submission.encryption_algorithm = None
+    submission.encryption_key_version = None
+    submission.nin_last_four = None
+    submission.purged_at = datetime.now(UTC)
     await session.flush()
+    await session.commit()
+    for deletion in deletions:
+        await delete_stored_object(session, intent=deletion, storage=storage)
     purged_files = 0
     for deletion in deletions:
         refreshed = await session.scalar(
             select(StoredObjectDeletion)
             .where(StoredObjectDeletion.id == deletion.id)
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if refreshed is not None and await finalize_stored_object_deletion(
             session,
@@ -282,14 +274,15 @@ async def _purge_driver_submission(
             actor_user_id=actor_user_id,
         ):
             purged_files += 1
-    await create_audit_event(
-        session,
-        actor_user_id=actor_user_id,
-        action="driver.kyc.purged",
-        entity_type="driver_kyc_submission",
-        entity_id=str(submission.id),
-        metadata={"status": submission.status, "version": submission.version, "reason": reason},
-    )
+    if not deletions:
+        await create_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action="driver.kyc.purged",
+            entity_type="driver_kyc_submission",
+            entity_id=str(submission.id),
+            metadata={"status": submission.status, "version": submission.version, "reason": reason},
+        )
     return 1, purged_files
 
 
@@ -312,6 +305,7 @@ async def _purge_vehicle_submission(
     if ownership is None:
         return 0, 0
     vehicle_id, profile_id = ownership
+    await acquire_work_eligibility_lock(session, driver_profile_id=profile_id)
     await session.scalar(
         select(DriverProfile.id).where(DriverProfile.id == profile_id).with_for_update()
     )
@@ -322,8 +316,10 @@ async def _purge_vehicle_submission(
             VehicleEvidenceSubmission.id == submission_id,
             VehicleEvidenceSubmission.status.in_(TERMINAL_RETENTION_STATUSES),
             VehicleEvidenceSubmission.created_at < cutoff,
+            VehicleEvidenceSubmission.purged_at.is_(None),
         )
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if submission is None:
         return 0, 0
@@ -346,40 +342,42 @@ async def _purge_vehicle_submission(
         owner_id=submission.id,
         vehicle_submission_id=submission.id,
     )
-    await session.commit()
-    for deletion in deletions:
-        await delete_stored_object(session, intent=deletion, storage=storage)
-
-    submission = await session.scalar(
-        select(VehicleEvidenceSubmission)
-        .where(
-            VehicleEvidenceSubmission.id == submission_id,
-            VehicleEvidenceSubmission.status.in_(TERMINAL_RETENTION_STATUSES),
-            VehicleEvidenceSubmission.created_at < cutoff,
-        )
-        .with_for_update()
-    )
-    if submission is None:
-        return 0, 0
-    documents = list(
-        await session.scalars(
-            select(VehicleEvidenceDocument)
-            .where(VehicleEvidenceDocument.submission_id == submission.id)
-            .order_by(VehicleEvidenceDocument.stored_file_id)
-            .with_for_update()
-        )
-    )
     for document in documents:
         await session.delete(document)
     await session.flush()
-    await session.delete(submission)
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="vehicle_evidence_submission.payload_purge_authorized",
+        entity_type="vehicle_evidence_submission",
+        entity_id=str(submission.id),
+        metadata={
+            "reason": reason,
+            "cutoff": cutoff.isoformat(),
+            "detached_documents": len(documents),
+            "object_deletions": len(deletions),
+        },
+    )
+    submission.plate_number_snapshot = None
+    submission.plate_number_normalized_snapshot = None
+    submission.plate_country_code_snapshot = None
+    submission.vehicle_type_snapshot = None
+    submission.make_snapshot = None
+    submission.model_snapshot = None
+    submission.year_snapshot = None
+    submission.color_snapshot = None
+    submission.purged_at = datetime.now(UTC)
     await session.flush()
+    await session.commit()
+    for deletion in deletions:
+        await delete_stored_object(session, intent=deletion, storage=storage)
     purged_files = 0
     for deletion in deletions:
         refreshed = await session.scalar(
             select(StoredObjectDeletion)
             .where(StoredObjectDeletion.id == deletion.id)
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
         if refreshed is not None and await finalize_stored_object_deletion(
             session,
@@ -387,14 +385,15 @@ async def _purge_vehicle_submission(
             actor_user_id=actor_user_id,
         ):
             purged_files += 1
-    await create_audit_event(
-        session,
-        actor_user_id=actor_user_id,
-        action="driver.vehicle_evidence.purged",
-        entity_type="vehicle_evidence_submission",
-        entity_id=str(submission.id),
-        metadata={"status": submission.status, "version": submission.version, "reason": reason},
-    )
+    if not deletions:
+        await create_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action="driver.vehicle_evidence.purged",
+            entity_type="vehicle_evidence_submission",
+            entity_id=str(submission.id),
+            metadata={"status": submission.status, "version": submission.version, "reason": reason},
+        )
     return 1, purged_files
 
 
@@ -425,6 +424,8 @@ async def purge_terminal_file_kyc(
         return result
     if retention_days < 1:
         raise ValueError("File/KYC retention days must be positive")
+    if actor_user_id is not None:
+        await require_active_admin(session, actor_user_id)
     now = now or datetime.now(UTC)
     cutoff = now - timedelta(days=retention_days)
     driver_ids, vehicle_ids = await _candidate_ids(session, cutoff=cutoff, limit=limit)

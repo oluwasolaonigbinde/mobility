@@ -153,6 +153,12 @@ else
   compose=(docker compose -f "${COMPOSE_PRODUCTION_FILE}" --env-file "${COMPOSE_ENV_FILE}")
 fi
 
+if [[ -n "${COMPOSE_RECOVERY_FILE:-}" ]]; then
+  [[ -n "${EXPECTED_DATABASE_REVISION}" && -r "${COMPOSE_RECOVERY_FILE}" ]] \
+    || { echo "ERROR: recovery smoke requires its signed overlay and exact revision" >&2; exit 2; }
+  compose+=(-f "${COMPOSE_RECOVERY_FILE}")
+fi
+
 echo "Checking public edge/frontend..."
 curl_args=(--fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 1)
 if [[ "${RELEASE_LOCAL_REHEARSAL:-false}" == true ]]; then
@@ -164,9 +170,14 @@ grep -Eiq '^strict-transport-security:.*max-age=31536000' <<<"${headers}" \
 curl "${curl_args[@]}" --output /dev/null "${SMOKE_BASE_URL%/}/health"
 
 echo "Checking private API readiness..."
-"${compose[@]}" exec -T api python -c \
-  'from urllib.request import urlopen; r=urlopen("http://127.0.0.1:8000/api/v1/health/ready",timeout=5); raise SystemExit(0 if r.status == 200 else 1)' \
-  >/dev/null
+if [[ -n "${COMPOSE_RECOVERY_FILE:-}" ]]; then
+  "${compose[@]}" exec -T api python -m app.operations.readiness \
+    --write-canary --compatibility recovery >/dev/null
+else
+  "${compose[@]}" exec -T api python -c \
+    'from urllib.request import urlopen; r=urlopen("http://127.0.0.1:8000/api/v1/health/ready",timeout=5); raise SystemExit(0 if r.status == 200 else 1)' \
+    >/dev/null
+fi
 
 echo "Checking database migration revision..."
 heads_output="$("${compose[@]}" exec -T api alembic heads)"

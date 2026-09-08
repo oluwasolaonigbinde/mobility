@@ -117,6 +117,7 @@ central CI workflow lease.
 
 | Date | Item | Authority | Scope boundary | Queue effect |
 | --- | --- | --- | --- | --- |
+| 6 Sep 2026 | **Execute the reviewed post-remediation correction programme, C01–C37 and H07.** | Owner's exact `APPROVE IMPLEMENTATION OF THE REVIEWED PACKETS` in the existing Astra controller, following aggregate contract V3 plan-review PASS and the frozen two-macro-phase execution amendment | The existing Astra controller implements directly; no implementation subagents or initial handoff. Exactly two further Sol/medium review-only subagents: one complete Macro-Phase A review, then one fresh final specialist/consolidated review. This explicit owner amendment replaces intermediate specialist dispatches and earlier concurrency/model preferences for this programme only. No commit, push, merge, deployment or external-system contact is authorized. | Authorizes the bounded correction register below without changing the ten-package queue, original checklist, R01–R60 history or PKG-03 external pause. |
 | 5 Sep 2026 | **Adopt R17 Option A: a changed-code coverage ratchet with at least 90% line and 80% branch coverage, plus no regression from exact current global and named-critical baselines.** | Direct project-owner choice “A” in the active remediation controller, 5 Sep 2026 | R17 must select its comparison base deterministically for PRs, pushes and local runs; fail closed to an explicit merge-base rule; exclude generated code, tests, fixtures, migrations, build output and vendor code. It may add only the minimum backend/frontend coverage tooling, policy tests, workflow wiring and a D27(e)-superseding decision row after an independent plan review. It must inventory and reuse existing tooling and must not duplicate R59's real-stack journey or evidence. | Clears the R17 policy block and authorizes read-only R17 planning now. Implementation remains serialized until R59 releases `.github/workflows/ci.yml`; R60 remains dependency-held until both R17 and R59 are accepted. |
 | 4 Sep 2026 | **Require an explicit controller callback after every slice, and predeclare compatible multi-slice session lanes where they reduce repeated setup.** | Direct project-owner instruction in the active remediation controller, 4 Sep 2026 | Every controller-created task must call `send_message_to_thread` for controller task `01a05de2-0b5d-73f0-ae3d-0e979b734658` with its terminal receipt; ending only in the worker task is insufficient. One visible task may retain its original model and continue a predeclared dependency-ordered lane only when the slices share a domain, risk class and compatible ownership. It must return a separate receipt after each slice and wait for controller admission plus the next explicit packet. Cross-domain work, overlapping leases, migrations/generated contracts owned elsewhere, or a changed model require a fresh task. | Applies to all current and future controller dispatches. R07 and R50 remain standalone because their successors require different risk/model gates; R18→R19 and R20→R21→R22 are the first compatible reusable lanes. Missing callback delivery triggers one state reconciliation and adoption of existing work, never a duplicate implementation owner. |
 | 4 Sep 2026 | **Use fresh visible sessions for new work; use GPT-5.6 Luna/max with fast mode for simple bounded tasks and reserve Sol for genuinely complex work.** | Direct project-owner instruction in the active remediation controller, 4 Sep 2026 | Do not use internal subagents as the execution owner for new slices. Before dispatch, apply the repository model gate to the task's actual hardest boundary: Luna/max fast is preferred for simple low-risk bounded work, Terra remains available for ordinary implementation, and Sol is used only for difficult money, security, migration, concurrency or cross-contract authority. Never reuse an older session under a changed model. | Applies to all future dispatches. Existing completed reconciliation workers are closed; R03 and R48 must begin in separate fresh visible sessions with proportional verification and terminal-only callbacks. |
@@ -148,6 +149,1105 @@ central CI workflow lease.
 | 28 Aug 2026 | **Repository instruction normalization** — make root and nested `AGENTS.md` the only active repository instruction sources and remove the legacy lowercase `agent.md`. | Direct project-owner request, 28 Aug 2026 | Owns repository instruction wiring only: root `AGENTS.md`, `CLAUDE.md`, and removal of `agent.md`. Historical `docs/build-loop/**` evidence remains unchanged. Adds no product code, API, data-model, workflow, architecture, or decision change. | None. The completed controller state and terminal evidence pointer remain unchanged. |
 | 25 Aug 2026 | **Terrax Media public landing page** at `/landing` — brand-grounded marketing page for the OOH vehicle-advertising product, built from `docs/brand/terrax-media/` and the D18 Q1–Q34 confirmed answers. | Direct project-owner request, 25 Aug 2026 | Owns only `frontend/src/app/landing/**` and `frontend/public/brand/terrax/**`. It does not alter API, data-model, business-logic or package authority. | None. The public marketing surface is outside the 71-item MVP checklist. |
 | 25–26 Aug 2026 | **Visual directions 7–9** for the demo/pitch theme system. **7 “Terra Grain”** and **8 “Coverage”** are grounded in `docs/brand/terrax-media/`; **9 “Broadside”** is adapted from the owner-supplied Terrax landing page. | Direct project-owner request, 25–26 Aug 2026 | Owns the shared direction surface: `frontend/src/app/globals.css`, `frontend/src/lib/themes.ts`, `frontend/src/lib/fonts.ts`, `frontend/src/app/layout.tsx`, `frontend/src/lib/map/config.ts`, `frontend/public/themes/**`, theme tests and `docs/design/**`. Adds no API, data-model, business-logic or workflow change. | None. The switchable design directions are a demo/pitch affordance outside the 71-item MVP checklist. |
+
+### Approved post-remediation correction register
+
+**Correction authority:** aggregate contract V3, source-validated and independently
+reviewed by Sol/high in this controller task; exact implementation approval on
+6 Sep 2026. The owner then froze direct Astra implementation and two Sol/medium
+implementation reviews. This register is the executable direct-owner exception;
+historical audit files and chats create no additional scope.
+
+**Entry state:** HEAD and local `origin/feat/post-remediation-audit-baseline` both
+`00918531b2bb37a1d184d1d4f917f659b9e4d80b`; branch `master`; no tracked/staged
+changes. Preserve the four files in the pre-existing untracked
+`.codex/delivery/cardvert-audit-reconciliation/`, the four `cardvert-*-38094d6.zip`
+archives and `tests/test_audit_route_coverage.py.orig`. All nine initial hashes
+were rechecked unchanged before approval. Never reset or substitute the baseline.
+
+**Implementation owner:** this existing Astra session, exclusively. Migrations,
+generated contracts and shared files are serialized. No implementation subagents
+or simultaneous Astra owners. Current correction work: **Local A+B implementation accepted; execution/external gates remain open**.
+
+| Macro phase | Dependency-ordered packet TODOs | Acceptance/review trigger |
+| --- | --- | --- |
+| A — DONE (local acceptance; external gates retained) | P01 C09; P02 C36; P03 C10/C11/C13/C16/C18; P04 C01/C02/C03/C07/C08/C12/C14/C15/C17; P05 C04/C05; P09 C35/H07; P10 C34/C37 | Sole Sol/medium review PASS after bounded browser and coverage resolution, 8 Sep. C34 remains an external gate; the six standard-image cases subsequently passed under the bounded owner amendment below. This is not release/deployment acceptance. |
+| B — DONE (local acceptance) | P06 C06/C19/C20/C21/C22/C23; P07 C24/C25/C26/C27/C28; P08 C29/C30/C31/C32/C33 | Corrected final Sol/medium review PASS received. Existing Astra implemented and verified P06, then P07, then P08 directly, without implementation agents or handoff. Integrated evidence and external/execution gates are retained below. |
+| Integrated closure — LOCAL PASS / GATES OPEN | All C IDs and H07 reconciled; contracts, recovery-head validation and integrated evidence reviewed | The one reserved fresh Sol/medium reviewer returned corrected PASS/no findings over both phases, full diff, red/green, deterministic/browser/local-stack evidence and exact external gates. No third implementation review dispatch; release/deployment closure remains blocked by those gates. |
+
+P02 establishes controlled refresh tooling first; actual coverage baselines move
+only against stabilized measured evidence without weakening D32. Every public
+shape change synchronizes `openapi.json`, `docs/api/openapi.snapshot.json` and
+`frontend/src/lib/api/schema.d.ts` immediately and reruns R14-B fixtures. New
+schema changes are additive after 0084 in one linear chain; only the specifically
+approved 0077/0082 downgrade guards may amend historical migration code.
+
+**Accepted decisions and limits:** C15 retains minimal disclosure protection
+indefinitely and removes TTL deletion because no governed source-retirement
+authority exists; live legal approval stays closed. C17 preserves open/completed
+history, hides blocked open tasks from actionable work and rejects completion.
+C22/C23 use signed economic ledger facts and terminal-period membership for new
+versioned runs, following `docs/measurement-methodology.json`; historical
+calculations/manifests/issued reports remain immutable. C31 recovers only failed
+or remaining creative work on the existing campaign under existing edit limits.
+C34's incapable historical predecessor remains ineligible: implement the signed
+capability and negatives, but no usable rollback or positive accepted-image
+rehearsal claim until a genuinely compatible accepted predecessor exists.
+
+**Admission rule:** each material behavioral test needs observed baseline red or
+the smallest safe isolated mutation, then green. After each packet run focused
+deterministic tests, inspect scope, record evidence/risks and update each owned
+ID independently. Use real PostgreSQL for lock/race/serialization/migration and
+money authority; local MinIO/S3 faults for promotion/deletion/delayed writes and
+versions; real browsers for hostile same-site origins, End/visibility/IndexedDB,
+partial acknowledgements and ordinary user journeys. Do not claim skipped jobs,
+compiled code or a focused green check as aggregate proof. Preserve immutable
+review/audit/financial/report history, D27 security, accepted payout terms,
+screen-on PWA behavior and local evidence. No CASCADE, wildcard origins/CSP,
+untracked provider attempts, blanket database-ahead readiness or weaker tests.
+
+| Canonical ID | Disposition | Required behavior / evidence target |
+| --- | --- | --- |
+| C01 | VALID / IMPLEMENTED | Both KYC submission shells survive immutable decisions; one-way complete payload purge and reference fence commit before provider deletion. Preserve shared files; test restrictive FKs, concurrent binding and every crash boundary. |
+| C02 | VALID / IMPLEMENTED | Exact orphan evidence reconstructs trustworthy bounds; current horizon rechecked before DDL; ambiguous recovery blocks destruction. |
+| C03 | VALID / IMPLEMENTED | Confirmation adopts only exact matching promoted destination after rollback/lost response; source not deleted before durable authority. Local PostgreSQL/MinIO fault evidence below; live-provider gates remain. |
+| C04 | VALID / IMPLEMENTED | Every issued write including transport retries must resolve; every version/delete marker adjudicated before CLEANED. Unknown outcomes stay nonterminal and visible. |
+| C05 | VALID / IMPLEMENTED | Fresh User → Organization → Campaign → Membership locks precede ReportIssuance → PublicationIntent; real PostgreSQL request/completion inversion regression. |
+| C06 | VALID / IMPLEMENTED | Due ordering includes durable worker-failure audit time, so a full failed prefix rotates without changing intent state or fabricating provider attempts. PostgreSQL/SQLite red-green plus preserved claim/finality races pass; evidence below. |
+| C07 | VALID / IMPLEMENTED | 0077/0082 downgrade population checks and DDL serialize writers; populated deletion authority and unsafe publication states fail closed. |
+| C08 | VALID / IMPLEMENTED | Calendar subtraction clamps short months while preserving UTC time; all retention surfaces share the correct cutoff. |
+| C09 | VALID / IMPLEMENTED | Only the R59 contract test's import ordering changes; focused Ruff red/green, no skipped-CI implication. |
+| C10 | VALID / IMPLEMENTED | Administrator creation requires D27 active actor/current-password/session proof and fail-closed limiter. |
+| C11 | VALID / IMPLEMENTED | Invited admins cannot exercise admin authority/self-activate; all effective admin grants get reauthentication and correct global target revocation. |
+| C12 | VALID / IMPLEMENTED | Collection authority before protected intent and again before confirmation/exact retry and protected vehicle evidence binding. Protected driver/applicant routes and binding regressions pass. |
+| C13 | VALID / IMPLEMENTED | Locked report authorization refreshes stale ORM user/org/campaign/membership state; PostgreSQL revocation race. |
+| C14 | VALID / IMPLEMENTED | Append-only typed actor/subject resolutions survive target/user deletion without users FK; distinct event counts and exact assignment/proof ownership exclude unrelated subjects. Migration 0086 preserves audit bytes and explicitly records unresolved targets/unrecorded actors. |
+| C15 | VALID / IMPLEMENTED | Minimal disclosure history survives old TTL and delayed differencing; migration 0085 backfills absent expiry, blocks lossy downgrade; no invented retirement authority or live approval. |
+| C16 | VALID / IMPLEMENTED | Shared unsafe BFF Origin/Fetch Metadata/media boundary before parsing/relay; full route inventory plus hostile same-site browser proof. |
+| C17 | VALID / IMPLEMENTED | Purpose-matched active consent/current contact checked at creation, exact retry, actionable listing and completion; PostgreSQL withdrawal races preserve history and OPEN/COMPLETED states. |
+| C18 | VALID / IMPLEMENTED | Exact configured storage origin in production CSP; real approved/hostile upload-origin checks; no wildcards. |
+| C19 | VALID / IMPLEMENTED | New group members, signature changes and insufficient evidence retain existing unresolved replay flags and their money holds. Only governed review resolves them; 78 fraud/replay/earnings checks pass. |
+| C20 | VALID / IMPLEMENTED | Earlier ended/unsealed payable predecessors block later cap allocation until chronological processing; shared-day and midnight conservation. |
+| C21 | VALID / IMPLEMENTED | Frozen accepted start and end both govern admission despite mutable campaign edits. |
+| C22 | VALID / IMPLEMENTED | New versioned reports freeze nonvoided signed ledger economics and coherent cutoff; no debt/settlement double count or missing-ledger fallback. |
+| C23 | VALID / IMPLEMENTED | New denominator uses ended_at in the half-open period; active-at-boundary separately disclosed; no missing/double-counted cross-period trips. |
+| C24 | VALID / IMPLEMENTED | Durable identical End request; current-trip flush precedes reconciliation across same-page/reload lost responses. |
+| C25 | VALID / IMPLEMENTED | One End generation fences every asynchronous watcher/resume/write/manifest/flush/release boundary; no capture after End is sent. |
+| C26 | VALID / IMPLEMENTED | Cancellation remains a distinct terminal historical capture cutoff, including quarantine adjudication. |
+| C27 | VALID / IMPLEMENTED | Heading [0,360), optional invalid sensor readings normalized before immutable queue/hash; valid peers and old retained evidence preserved. |
+| C28 | VALID / IMPLEMENTED | Atomic encrypted signed receipt/dispositions; accepted/rejected/settled counts truthful across reload; no settled-batch resend. |
+| C29 | VALID / IMPLEMENTED | Upload cache binds exact selected file/purpose/access context; replacement and stale async completion cannot reuse wrong IDs. |
+| C30 | VALID / IMPLEMENTED | Application convergence from both approval orders and exact retries with one audit/decision outcome; D28 activation stays separate. |
+| C31 | VALID / IMPLEMENTED | Recover failed creative attachment on already-created campaign across retry/reload without duplicates or edit-authority bypass. |
+| C32 | VALID / IMPLEMENTED | Ordinary idempotent demo seed establishes real production Start authority; normal persona completes the trip flow without R59-only repairs. |
+| C33 | VALID / IMPLEMENTED | Per-item unexpected email failures isolated, observable and durably recoverable with fair traversal. Expired uncertain claims recover above handled attempt cap using stable provider key. |
+| C34 | EXTERNAL VERIFICATION REQUIRED | Local signed qualification/accepted-recovery capability and negative tests implemented; ordinary exact-schema/worker readiness preserved. Accepted capable predecessor and positive distinct-image forward-schema rehearsal unavailable. |
+| C35 | VALID / IMPLEMENTED | Runtime 422 envelope, OpenAPI/snapshot/TypeScript agree; rejected inputs stay private; R14-B fixtures rerun. |
+| C36 | VALID / IMPLEMENTED | Controlled trusted-ancestor inventory/policy refresh supports add/rename/delete without reducing D32 floors or accepting missing evidence. |
+| C37 | VALID / IMPLEMENTED | Both image heads and signed predecessor identity derived/validated; final DB head exact; stale/multiple heads rejected. |
+| H07 | Documentation correction implemented | Architecture §6.5 authentication limiter wording becomes fail-closed; runtime unchanged. |
+
+**Audit accounting:** 37 canonical corrections + six duplicate entries + H07 =
+44. Security X-01 maps to C18/H02; Security X-02, Money PA-X01, Workflow F11 and
+Horizontal H01 map to C09; Money PA-M06 maps to C04. No duplicate implementation.
+
+**Evidence at admission:** exact refs/worktree and nine untracked hashes PASS;
+`scripts/validate_progress.py` PASS; tracked/staged diff checks PASS; focused
+`ruff check --no-cache tests/test_r59_real_stack_contract.py` FAIL, one I001.
+Both OpenAPI artifacts advertise 239 HTTPValidationError validation responses.
+No behavioral suite, migration, browser, provider or recovery rehearsal ran in
+planning. V3 independent review PASS resolved six findings: both KYC payloads,
+all storage attempts/versions, durable actor/subject links, no invented disclosure
+retirement, incapable predecessor gate, and both authoritative image heads.
+
+**Packet evidence (uncommitted working tree, not exact-SHA CI):**
+
+- P01/C09: baseline Ruff I001 observed; the single blank-line correction passes
+  focused Ruff and all seven `tests/test_r59_real_stack_contract.py` tests.
+- P02/C36: 28 coverage-policy tests plus the seven R59 contract tests pass
+  (35 total). Twelve initial refresh tests failed against the missing baseline
+  capability; the CI-wiring regression also failed against the bootstrap-only
+  workflow. Deliberately disabling ratio/inventory/receipt/instrumentation guards
+  produced 11 expected failures; disabling ancestry/eligibility guards produced
+  two expected failures. Both temporary mutations were restored before the
+  final 35-pass run. Tests use isolated temporary Git repositories; no Mobility
+  commit was created. Actual `coverage/baseline.json` is unchanged and its final
+  refresh remains an integrated evidence obligation. No remote CI run is claimed.
+- P03 in progress: ten new administrator API cases failed before the grant
+  correction; all 25 administrator tests now pass. Five real-PostgreSQL stale
+  report-scope cases failed before fresh locked reads and pass afterward.
+  Administrator frontend tests demonstrated four failures before the password
+  flow and now pass five cases. The shared BFF boundary demonstrated 15 denial
+  failures before correction; all 21 boundary/proxy cases now pass. All three
+  public contract artifacts are synchronized; 115 preserved PWA/session/queue/
+  tracker fixtures pass and TypeScript passes. The combined authentication-race
+  and report run returned 62 passes, five report failures, no skips. Those five
+  reach the renderer with SQLite's timezone-less issuance timestamp; an
+  in-memory baseline authorization substitution reproduced the same failure.
+  P05 must resolve the test-environment mismatch and demonstrate publication on
+  real PostgreSQL before accepting its integrated evidence. No renderer checks
+  or immutable report timestamps may be weakened to bypass this failure.
+
+- P03 accepted for local packet progression: four additional PostgreSQL
+  creation/activation versus actor-revocation interleavings pass; bypassing the
+  session-version comparison in memory made both containment-first cases fail,
+  and the restored run passes all four. Eight live Caddy/browser checks pass;
+  the three positive exact-origin cases failed under the baseline CSP, and the
+  browser upload test also failed under an in-memory baseline Caddy substitution.
+  The configured origin receives one synthetic multipart upload; the other
+  origin receives none. A running Next/Chromium same-host, different-port
+  hostile-origin POST returns 403 with zero backend calls; the same-origin
+  bodyless POST returns 200 with exactly one backend call. This exposed Next's
+  empty body stream, now covered by byte-based empty/nonempty stream tests.
+  All 28 focused frontend tests, TypeScript, scoped ESLint/Ruff, contract
+  regeneration check, progress validation and diff whitespace checks pass.
+  OpenAPI/deployed-boundary/release-preparation tests pass 462 cases. P03 diff
+  reviewed for scope. Provider MinIO/IAM/versioning/CORS verification remains
+  part of integrated storage evidence; no live-provider or deployment claim.
+
+- P04/C08: five short-month/timezone cases failed before correction; all seven
+  calendar-cutoff cases now pass. C02: five migrated PostgreSQL orphan-recovery
+  tests failed before correction; the 26-case lifecycle suite passes, followed
+  by 12 affected detach/recovery cases after moving the global refusal gate
+  ahead of all destruction. Recovered receipts retain exact reconstructed
+  bounds; incomplete/conflicting/unclaimed/currently retained orphans stop the
+  run, and current settings are rechecked at the drop boundary. C07: all three
+  populated 0077 states and both check-to-DDL writer races failed before guards;
+  all 13 guard/0077/0082 migration tests now pass, including empty down/up and
+  schema drift checks. NOWAIT locks include authority, FK parents and fenced
+  reference tables so busy cross-table writers make downgrade fail closed.
+  Focused Ruff passes; these are isolated local databases, not live retention.
+
+- P04/C03/C12: the upload/KYC/person-payee/vehicle/installation suite passes
+  68 tests. Baseline failures cover four protected intent cases, four protected
+  confirmation cases, two vehicle binding cases, two S3 source-preservation
+  cases and two PostgreSQL confirmation rollbacks. Removing the collection gate
+  in memory makes both applicant confirmation/retry tests return 201 instead of
+  the required privacy denial; restored tests pass. Two actual local MinIO
+  copy-response-loss/database-rollback recoveries pass, including source expiry
+  simulation. Disabling destination adoption in memory makes both fail and
+  three adopted-object metadata tests return the wrong disposition; restored
+  tests pass. Temporary objects remain under the existing unconfirmed lifecycle;
+  no production lifecycle/IAM/provider authority is asserted.
+  A broader driver-approval run exposed two frozen-binding fixture failures
+  before the intended eligibility assertions. Baseline-source reproduction and
+  fixture correction remain integrated-verification obligations; do not weaken
+  production trip admission. The initial applicant test configuration omitted
+  registration enablement; it was corrected before recording useful red/green.
+
+- P04/C15: all three delayed-query/scheduled-retention cases failed on the old
+  TTL behavior. All 32 disclosure/composition/0045/0085 checks pass with real
+  PostgreSQL enabled and no skips. Omitting 0085's expiry backfill in memory
+  fails the migration preservation assertion; restored migration passes. The
+  migration retains every other history field and refuses populated downgrade.
+  Live legal approval remains absent; no source-retirement authority is invented.
+- P04/C17: ten of twelve withdrawn, purpose-mismatched and superseded-phone
+  cases failed against baseline. The 22-case contacts/notifications suite now
+  passes, including both PostgreSQL completion/withdrawal orders. Restoring the
+  baseline contact functions in memory demonstrates premature completion while
+  withdrawal holds authority; the corrected path waits and then denies. Tasks
+  remain OPEN when blocked, completed evidence stays visible/replayable, and
+  neither consent nor task history is deleted. Focused Ruff passes.
+  Both broader driver-approval fixture failures were reproduced with all `app`
+  Python modules loaded from exact baseline Git blobs in memory; they remain
+  local integrated-verification obligations rather than corrected behavior.
+
+- P04/C14: target-aware DSR count was zero on baseline instead of the two
+  subject-targeted case events. Corrected inventory counts actor/target overlap
+  once and excludes foreign-subject events. The 86-case audit/migration/DSR/
+  contacts/payee aggregate passes with real PostgreSQL enabled and no skips;
+  the separate owned 0085/0086 schema comparison also passes. Atomic attribution
+  survives profile/actor deletion and rolls back with its event. Compound
+  measurement/report links use proof-bound subjects; campaign events use only
+  the exact matching assignment. Payee, bank account, batch/line/intent and
+  correction-trip ownership are exercised without provider execution.
+  Restoring actor-only resolution in memory fails all 34 missing-target cases
+  plus atomic attribution; separate corrected-fixture runs fail compound
+  proof, money and frozen-migration attribution assertions. Removing backfill
+  source locks lets concurrent profile deletion cross the migration boundary;
+  restored migration serializes it and retains attribution. The migration
+  leaves audit bytes unchanged, refuses populated downgrade, and rejects
+  resolution update/delete/truncate. It never guesses unresolved historical
+  identities. These gaps remain explicit operator/legal evidence obligations.
+  The new subject-aware self-audit count exposed assessment-retry drift; exact
+  system-count retries now preserve accepted counts while current absence/
+  erasure checks remain. A changed external-count test caught over-broad retry
+  handling (201); the narrowed system-only handling returns the required 409.
+  Public response schemas are unchanged; no new privacy response wording or
+  live DSR approval is claimed. Next P04 work is C01's durable KYC purge shells.
+
+**Deferred closure obligations:** after A review PASS assess session health before
+B; after all bytes stabilize complete the one fresh final review and reconcile
+all IDs. Actual provider IAM/CORS/versioning, legal/privacy/report methodology,
+physical-device GPS/battery, accepted recovery images, staging/production and
+pilot evidence remain open when unavailable. Exact-new-SHA CI requires separately
+authorized commit/external CI: never attribute uncommitted corrections to HEAD.
+Final report must identify SHA/worktree, individual dispositions/H07, actual
+red/green and integrated evidence, reviews, risks, and distinct behavioral-clean,
+release-ready and deployment-ready verdicts. No completion by association.
+
+- **P04 / C01 — locally demonstrated:** migration 0087 retains both submission
+  identities and restrictive immutable-review links. Complete NIN/vehicle-payload
+  clearing, document detachment, audit authorization and object-deletion receipts
+  commit before provider calls. One-way database guards reject partial/unaudited
+  retirement, restoration, identity changes and new document bindings. ORM and SQL
+  writers take the parent before the file; legacy unretired deletion owners stay
+  blocked while current-policy retirement supplies authority. Shared files survive;
+  payload consumers return 410 and sanitized reads expose null payloads/purge time.
+  Five migrated tests cover both decision chains, failed commit, reveal/rewrap,
+  document-binding serialization, empty/live-payload upgrade/downgrade, populated
+  refusal and writer locking; focused retention/KYC/person-payee/OpenAPI aggregate
+  **41 passed**, including the nine updated lifecycle invariants. The baseline
+  driver/vehicle boundary tests were red before implementation. In-memory removal
+  of the 0087 guards makes both unauthorized-clear cases fail, and removing ORM
+  parent-first locking makes the real race fail on the held file row; restored
+  tests pass. Actual local MinIO delete-then-lost-reply recovery passes: all three
+  receipts complete, the retired payload stays absent, and three peer objects
+  survive. Restoring both baseline deletion entry points in memory makes this
+  MinIO test fail because the payload was not durably retired; restored test passes.
+  All three generated contracts are synchronized; 115 preserved queue/session/PWA/
+  tracker fixtures, TypeScript and scoped Ruff pass. Architecture §19.4 and the
+  incident runbook now describe durable cleanup rather than rollback resurrection.
+  Inspected the C01 diff; no review/financial/audit history is cascaded away. Live
+  retention authorization and production storage/versioning/IAM/CORS remain open
+  external gates. The two pre-existing frozen-binding fixture failures remain an
+  integrated obligation. P04 is locally demonstrated; next is P05 C04/C05.
+
+- **P05 / C04, C05 — locally demonstrated:** request and publication completion
+  use User → Organization → Campaign → Membership → Issuance → Intent order;
+  immutable measurement runs no longer take an overlapping row lock. The real
+  PostgreSQL scope-versus-publication test fails before the change because the
+  publisher owns the issuance while waiting for scope, and passes afterward.
+  Migration 0088 adds per-call registered/settled/uncertain write receipts and a
+  required default-free generation protocol marker. Registration and retirement
+  serialize on the intent; cleanup skips unresolved calls before its batch limit;
+  both settled calls are required for publication. The S3 generated-write client
+  issues exactly one SDK request and distinguishes uncertain transport failure.
+  Cleanup deletes/verifies every exact-key version and marker, preserving peers.
+  Existing non-complete generation history, including old cleaned claims, stays
+  unchanged apart from an explicit legacy protocol classification and linked
+  unknown-write evidence. Old publishers cannot create new untracked generations.
+  No timeout, empty read or later successful generation establishes settlement.
+  Unresolved legacy/provider calls require external evidence and a separately
+  reviewed reconciliation procedure; no receipt rewrite or invented proof exists.
+  CSV/PDF delayed-call tests were red (cleanup returned 1 prematurely), then pass.
+  Falsely settling uncertainty makes both the service and real-MinIO late-write
+  tests fail; omitting migration backfill fails all five affected legacy states;
+  disabling receipt guards or adding an unsafe marker default fails their tests.
+  Restoring SDK retries makes a local HTTP fault server observe five PUTs instead
+  of one; restoring ordinary delete leaves versioned MinIO bytes/markers behind.
+  All mutations were process-local; the owned fault-test bucket was cleaned.
+  Final report/storage/OpenAPI/inventory aggregate **82 passed**, including nine
+  real-MinIO cases; final 0088/0082/0077 downgrade/serialization aggregate **17
+  passed**. Earlier report/renderer/migration/inventory aggregate passed 61.
+  The five inherited SQLite report failures are resolved without weakening the
+  renderer: UTC database timestamps are serialized with their zone when freezing
+  new snapshots/render metadata. Two previously unreachable PDF test assertions
+  now decode the embedded Unicode map and retain every disclosure/hash assertion
+  across layout wrapping. Published/frozen historical bytes are not rewritten.
+  Scoped Ruff and diff whitespace checks pass; inspected P05 source/migration/test
+  diff. Architecture §27 and the operations runbook describe settlement, lock
+  order and unknown/legacy gates. P09 C35/H07 is next; Macro A review remains
+  reserved until all A packets and integrated verification stabilize.
+
+- **P09 / C35, H07 — locally demonstrated:** FastAPI's shared 422 response now
+  uses the project's `ErrorResponse`/`ErrorDetail` schema. Existing exception
+  handlers, codes, messages, details and input redaction are unchanged. Both new
+  contract tests failed against the prior HTTPValidationError contract and now
+  pass, including actual path/query/body validation and request-ID preservation.
+  OpenAPI, snapshot and generated TypeScript are synchronized; backend error/
+  OpenAPI suite **25 passed**, all 115 preserved queue/session/PWA/tracker fixtures
+  pass, TypeScript passes, and scoped Ruff plus byte-stability checks pass. One
+  initial command named a nonexistent contract-test file and collected no tests;
+  the corrected command produced the reported 25-pass result. Architecture §9
+  documents the common envelope. H07 changes only §6.5's obsolete limiter wording
+  to D27/R12 fail-closed behavior; queue-loss recovery remains unchanged. Inspected
+  the contract/documentation diff. P10 C34/C37 is next; accepted distinct-image
+  recovery evidence remains explicitly external, never supplied by a modified
+  copy of the historical previous image.
+
+**P10 local evidence (C34/C37):** 521 readiness/release/authority tests pass,
+including real PostgreSQL exact-forward/multiple-row rejection, public-readiness
+isolation with a signed token present, and actual isolated Compose/container
+preservation of signed values containing dollar characters. Baseline unsigned
+`--allow-database-ahead` accepted authority (red); it is now rejected. In-memory
+signature bypass produces five red cases; bypassing recovery worker checks one;
+restoring the baseline incomplete qualification validator six; removing the
+recovery health override one; skipping exact image-label validation one; using
+the baseline rehearsal's obsolete head one. All restored checks pass. The real
+historical-predecessor script negative exits before any build/infrastructure
+command; no application or packaging code is copied into the predecessor.
+Version 3 receipts and separate qualification/recovery scopes replace the broken
+public-readiness recovery assumption. Full Ruff, shell syntax, progress validator
+and whitespace checks pass. Source/configuration/doc diff inspected. C34 remains
+`EXTERNAL VERIFICATION REQUIRED`: no accepted capable predecessor, signed positive
+two-image rehearsal or deployment evidence is claimed. Next: finish aggregate
+Macro-A verification and inspect its complete diff before the sole Macro-A review.
+
+
+**Macro-A integration in progress, 7 Sep 2026:**
+
+- KYC retirement now uses the shared exact-key all-version deletion capability.
+  Actual versioned MinIO reproduced the old error: completed deletion receipts
+  while prior object versions survived. Versioned and unversioned loss-of-reply
+  recovery plus KYC suites pass **24 cases**. A separate provider-remains test
+  verifies durable pending authority, retry count and error evidence; replacing
+  version deletion with ordinary deletion in memory makes it fail, and the
+  restored test passes. Peer objects and immutable review shells survive.
+- Seven existing trip fixtures lacked accepted payout bindings. The baseline
+  application reproduces the early admission failure; explicit fixture bindings
+  restore the original intended assertions, without changing trip authority.
+  The complete affected vehicle/exclusivity/financial-authority files pass
+  **41 tests**. Historical migration tests are being reconciled separately;
+  no production downgrade guard is relaxed.
+- All **518 frontend tests in 94 files** pass with coverage, followed by passing
+  TypeScript, ESLint and production build. Pinned Node 26 exposes native global
+  Web Storage inside Vitest workers; `execArgv` disables that experimental global
+  so the configured jsdom storage works. The unchanged six report-panel tests
+  failed before this runner correction. No test assertions or package scripts
+  were weakened; this configuration change belongs in the controlled C36 receipt.
+- Historical migration rechecks pass **13 cases**: target 0030/0031/0069
+  backfill/downgrade assertions now run at their named revision, while empty
+  full-head cycles and head schema checks remain. The three money fixture
+  failures also reproduce on the baseline 0084 chain. Catalog drift mutations
+  use a leaf primary key now that audit events have a restrictive subject FK;
+  all eight mutation/restore assertions remain. Exact head/inventory obligations
+  include all four approved migrations. Evidence: migration baseline/recheck/
+  green logs under `/tmp/mobility-macro-a-*`.
+- The administrator creation UI additionally demonstrates masked required proof,
+  exact form submission, clearing after a rejected submission, and removing the
+  proof field when selecting an ordinary role. Removing the proof field causes
+  an observed regression failure; the restored UI test and TypeScript pass.
+- All nine pre-existing untracked hashes were rechecked unchanged on 7 Sep;
+  all 37 canonical rows occur exactly once, both refs remain at the required
+  baseline, and the index remains empty.
+- Current architecture inventory is **122 tables / 88 linear migrations** ending
+  at 0088. P10's additional CLI/component/authority cases pass **60 tests**;
+  the preceding readiness/architecture complement passed 70. Cached predecessor
+  image labels resolve to actual heads 0082 and 0071, not current 0088; neither is
+  accepted as a capable previous-image recovery rehearsal.
+- Sole controller owns synthetic local services `mobility-correction-postgres`
+  (60268), `mobility-correction-minio` (64252), and isolated Redis/ClamAV through
+  `mobility-correction-relay` (58126/58125). Redis/ClamAV use the internal
+  `mobility-correction-services` network; ClamAV updates are disabled and cached
+  images/signatures are used. The two scanner integration tests accept an
+  explicit local port, retaining default 3310. At programme closure remove only
+  these task-owned services/network; never touch unrelated services. Evidence:
+  `/tmp/mobility-correction-test-env.sh`, `/tmp/mobility-macro-a-*.log`.
+- The 333-case backend focus run measured current product code: 332 pass,
+  one already-collected publication warning assertion fails because in-process
+  Alembic disabled its logger. The corrected test passes when deliberately
+  starting with that logger disabled. No cleanup assertion changed. Full
+  frontend coverage now passes **519 tests / 95 files**; changed frontend
+  coverage is 92.7273% line / 87.3016% branch.
+- Stable full verification is divided into two disjoint test-file sets:
+  `test_migration*.py` uses its isolated disposable databases; all other files
+  retain the complete PostgreSQL/Redis/MinIO/ClamAV integration configuration.
+  Both run under coverage against the same unchanged product files, then their
+  data is combined by coverage.py. This changes neither collection obligations
+  nor instrumentation and creates no additional implementation owner. Evidence
+  inventories/logs are `/tmp/mobility-macro-a-migration-files.txt` and
+  `/tmp/mobility-macro-a-verified-*.log`. The earlier exploratory run remains a
+  failure inventory, not final coverage authority.
+- The exploratory full run finished **2,686 passed / 24 failed / zero skips**
+  in 53 minutes. Its application modules and tests were collected before several
+  recorded fixture corrections; its coverage is not final authority. The final
+  failure inventory also exposed two incomplete trip-payout fixtures, a stale
+  pilot test-node reference, a missing synthetic report input hash, the owned
+  browser server's build lock, and a crash test's obsolete cleanup expectation.
+- The two trip tests and three load-harness failures reproduce against baseline
+  application source. Trip tests now use full financial authority and explicitly
+  frozen classifier settings, with PostgreSQL for payout processing; old
+  authorization bypasses and duplicate rule creation are removed. All **10 trip
+  seal tests pass**, retaining quarantine/tamper, audit, day and recomputation
+  assertions. The synthetic report fixture gains its actual canonical input
+  hash and a recalculated fixture seal; the renderer, cohort and amounts are
+  unchanged. A new input-hash assertion failed before correction. Pilot
+  preparation references the existing renamed paid/failed-finality test, keeping
+  node-existence validation. Load/preparation checks pass in the 27-pass focused
+  complement; no live evidence or historical report is changed.
+- The process-kill report test now demonstrates the C04-required outcome: one
+  registered unsettled object survives, later generation reaches READY with two
+  settled receipts, and no object key is duplicated. An in-memory child-worker
+  mutation settling before the call fails the new receipt assertion; restored
+  crash and commit-replay checks pass. The persistent synthetic provider now
+  supplies verified single-version deletion for the shared storage contract.
+- The task-owned Next server on 34217 was identified and stopped through its
+  original tool session, releasing its build lock. The complete W403B correlated
+  synthetic browser journey then passes; unrelated frontend service 3100 was
+  untouched. Evidence: `/tmp/mobility-macro-a-w403b-browser.log`.
+- All **195 migration tests pass** under fresh coverage in 11 minutes. The
+  complete inventory is **231 files = 78 migration + 153 other**, disjoint with
+  no omissions. The other-file run is active against stable product bytes with
+  every local integration required. Fresh data files are
+  `/tmp/mobility-A-verified-migrations.data` and
+  `/tmp/mobility-A-verified-other.data`; combine only these completed green runs.
+- The query-plan failure showed PostgreSQL selecting the equally selective
+  entity index instead of the expected action index. Adding repeated historical
+  actions on the same two entities makes the intended selectivity distinct; all
+  exact index and result assertions remain. Five consecutive PostgreSQL runs
+  pass after the observed failure. Evidence: query-plan-repeat-26 (red) and
+  query-plan-stable (green) logs. Stable non-migration verification, combined
+  coverage/provenance and the Macro-A independent review remain pending.
+
+
+**Verification recovery, 8 Sep 2026:** On resumption, both required refs still
+match 00918531 and the index is empty; the correction diff remains present.
+The prior `/tmp/mobility-*` evidence and service leases are unavailable. The
+interrupted non-migration run has no verifiable completion outcome and is not
+accepted. Prior observed red/green results remain recorded above, but their
+missing raw temporary logs cannot be supplied to the reviewer. Fresh full
+verification is rerunning both disjoint shards, with durable logs, exit codes,
+source hashes and coverage under ignored `coverage/correction-sep8/`; never
+substitute the older `coverage/.coverage` or stale backend LCOV. Frontend coverage
+is being renewed there as well. No product change is required by this restart.
+The sole controller owns new `mobility-correction-sep8-{postgres,minio,redis,
+clamav,relay}` containers and the internal `mobility-correction-sep8` network.
+Ports are PostgreSQL 60329, MinIO 60332, Redis 60341 and scanner 60340; synthetic
+configuration is `coverage/correction-sep8/test-env.sh`. Cached images only;
+scanner updates disabled. PostgreSQL, Redis and scanner readiness passed, and
+the owned private bucket was created. The differently configured, stopped
+`mobility-correction-postgres` container and unrelated running services were
+left untouched. At closure clean only the new owned leases, retaining evidence.
+Fresh frontend verification passes 519 tests/95 files, TypeScript, ESLint and
+production build. All nine pre-existing untracked hashes still match. The final
+runbook inspection corrected C02's obsolete orphan log name and manual recovery
+wording: reconstructed bounds and current retention authority govern DROP;
+manual FINALIZE alone cannot authorize destruction. Runtime source is unchanged.
+Preserved W401C browser checks pass separately without skipped cases: Pixel 7
+Start/End with durable synthetic evidence, and iPhone-sized degraded authority
+preventing Start. These are browser simulations, not physical-device proof.
+Source/test hashes still match the verification-entry fingerprint.
+The fresh migration shard passes **195 tests / zero skips** in 674 seconds,
+with one existing TestClient deprecation warning. Its exit-code file is zero and
+coverage is durable at `coverage/correction-sep8/migrations.data`. The other
+shard contains 2,526 tests; together they match all 2,721 collected cases.
+The non-migration shard finishes **2,525 passed / one failed / zero skips** in
+2,359.91 seconds. The one failure is W403B browser Start blocked by a live
+capability check. The unchanged correlated journey then passes once under
+coverage and three more times individually. Its aggregate-only cause remains
+unresolved and is explicitly submitted as a review risk, not hidden by a claim
+that the aggregate itself passed. No capability check or test assertion changed.
+Fresh coverage combines the migration shard, full other shard and focused
+browser recheck; every one of the 2,721 collected tests has an observed pass.
+The controlled C36 refresh passes: changed **94.2804% line / 88.6076% branch**,
+global **87.1623% / 64.0758%**, backend **91.5705% / 77.2131%**, frontend
+**62.9941% / 47.3424%**. Trusted floors and instrumentation remain unchanged.
+The refreshed receipt and separate provenance verification pass. Post-browser
+product/test fingerprints match; Ruff and diff checks pass. Evidence is in
+`coverage/correction-sep8/{other,browser-recheck,browser-repeat-*,coverage-refresh,
+coverage-provenance}.log`, with fresh coverage data alongside.
+The sole Macro-A reviewer is **GPT-5.6 Sol / medium**, explicitly selected by the
+owner for this multidisciplinary review; the owner amendment supersedes the
+usual high-reasoning preference. Its ownership is read-only assessment of the
+complete Macro-A diff, contract and evidence; it may not edit or spawn agents.
+The review also covers the unavailable prior raw red/green logs and unresolved
+aggregate-only browser failure. Macro B remains unstarted until review findings
+are resolved and affected verification passes.
+
+
+**Macro-A independent review — Sol/medium, 8 Sep: FIX (one P1).** The sole
+reviewer checked all 120 entry hashes, all Macro-A IDs, the integrated security,
+privacy, storage, migration, concurrency, publication, contract and recovery
+boundaries. No material product defect, unsafe shortcut, unjustified file or
+Macro-B implementation was found. The one P1 is the non-green aggregate browser
+journey: four isolated passes do not explain the missing live capability. The
+reviewer requires exact failure assessment/trace and a faithful rerun of only
+the non-migration shard. Lost earlier raw red/green transcripts remain a disclosed
+provenance limitation; the reviewer did not require recreating every mutation.
+C34 and the existing external gates remain open.
+
+The controller's bounded review fix adds a privacy-safe browser-console
+assessment exactly when Start refuses, before its normal lock cleanup changes
+the diagnostic state. It includes capability codes/results/actions, never
+identity, GPS, tokens or credentials. This is verification observability only;
+no Macro-B behavior or tracking decision is implemented. The W403B test retains
+its exact active-health assertion, attaches the assessment on failure, rethrows
+the failure and retains a browser trace. A new regression first failed because
+no warning existed, then all **43 tracker tests pass**. A temporary test-only
+missing-service-worker mutation fails that same browser assertion and captures
+`SERVICE_WORKER_NOT_REGISTERED` plus the trace; the fixture was restored before
+verification. TypeScript and changed-file formatting pass. Evidence:
+`coverage/correction-sep8/start-diagnostic-{red,green,browser-mutation}.log` and
+`start-diagnostic-mutation-trace.zip`.
+
+The complete refreshed frontend suite passes **520 tests / 95 files**, and
+ESLint passes. The ordinary build retry failed in unchanged Next/Google Font
+loading when a font download timed out. No external retry is authorized. The
+exact cached font binaries and source-map CSS are preserved with hashes under
+`coverage/correction-sep8/cached-fonts/`; a separate production build **passes** using Next's font-response injection
+and those exact assets served on loopback, with OS-level non-local outbound
+network denial. This is explicitly cached-font build evidence, not a claim that
+the ordinary external font-fetch dependency is available. Product font files,
+font choices and dependencies remain unchanged. The temporary loopback font
+server was stopped after the successful build.
+
+The initial diagnostic rerun was interrupted before completion to impose the
+same OS-level non-local outbound network denial; its partial log is retained as
+`other-review-partial.log` and is not acceptance evidence. The faithful
+153-file / 2,526-test rerun is active in the same order with that denial and
+the cached-font response map. The loopback-only font server was restarted for
+this run and must be stopped when it finishes. The original failed run is
+preserved as `other-first.{log,data,exit-code}`; current outputs are
+`other.{log,data,exit-code}`. The unchanged migration pass remains valid.
+Frontend coverage/lint and the cached-font production build now pass for the
+small diagnostic source change. `source-hashes-review-fix.json` binds the rerun
+entry. Reconcile coverage provenance after this stabilizes; do not use the
+previous receipt as evidence for changed diagnostic bytes. Resolve this finding
+within the same sole review cycle before Macro B; no new reviewer is authorized.
+
+The network-restricted full rerun finished: **2,509 passed, 11 failed, six
+setup errors**, with the W403B Start/End browser journey passing in its faithful
+aggregate position. Its immutable outputs are now
+`other-network-restricted.{log,data,exit-code}`. The runner's outbound restriction
+also denied local Unix sockets: Docker-dependent checks and GPG could not reach
+their local services. The corrected `local-only.sb` allows loopback IP and local
+Unix sockets while still denying other outbound network access. All **11 failed
+checks pass** unchanged under that corrected profile (`sandbox-socket.log`).
+An initial focused selector truncated one parameter containing a space; its
+collection error is retained separately and is not test evidence. The six
+frontend-image setup errors remain to be reverified; production/test bytes have
+not changed. The standard image build has no cached-font injection interface,
+so an explicitly offline image-build probe is checking available local build
+inputs before deciding whether external dependency access is mandatory.
+Do not claim a green full shard, refresh final coverage provenance, accept A,
+or start B from these partial/complementary results. The owner requested no
+continuous output polling; completion is awaited without repeated log reads.
+
+**Remaining mandatory local evidence / external-access decision:** the isolated
+standard-Dockerfile probe used the already-cached pinned Node image, the legacy
+local builder (avoiding registry metadata resolution), `--pull=false` and
+`--network=none`. It failed at `npm ci`: uncached pinned package downloads cannot
+resolve in that isolated build (`offline-image-probe.log`,
+`offline-image-npm.log`, repeated `EAI_AGAIN`). This does not claim that the
+separate BuildKit dependency cache is absent. The unchanged standard frontend
+build additionally needs Google Font responses, as the earlier normal-build
+failure demonstrated; only the explicitly injected cached-font build has
+passed for the new diagnostic bytes. The standard Dockerfile has no such
+injection. A read-only dependency-download allowance is therefore requested
+before running the standard image verification; the owner's prohibition on
+external contact remains in force until answered. No production, provider,
+publication or deployment action is requested. The stopped probe container and
+its two new intermediate images were removed; the owned loopback font server
+was stopped. Other task-owned local services and all evidence remain available.
+On allowance: verify the six image cases, complete the faithful corrected
+non-migration run, refresh coverage from accepted evidence, and obtain bounded
+resolution from the existing Sol/medium reviewer. A remains unaccepted, B
+unstarted, and no handoff or additional reviewer is authorized by this pause.
+
+**Owner amendment, 8 Sep — review evidence before download authorization:**
+Unrestricted internet access is not a default remedy. Present the aggregate-
+position browser pass and the corrected 11 local-socket passes to the existing
+Sol/medium reviewer in its same review cycle. Ask whether the original P1 is
+resolved and whether the six exact standard-Docker-image checks may remain an
+explicit external dependency-availability gate. Explain both the original Unix-
+socket setup failures and the separate offline npm/Google Font limitations;
+neither substitutes for a successful exact image rebuild. Do not construct
+substitute evidence, change product code or tests, or start B unless the reviewer
+accepts this treatment. If it requires a green exact shard, return to the owner
+for narrowly scoped, one-run download authorization. This supersedes the
+preceding proposed allowance-first next step. Dispatch remains **GPT-5.6 Sol /
+medium**, explicitly owner-selected for this same bounded review resolution;
+ownership is read-only and no additional agent may be created.
+
+**Future reproducibility candidate — outside this programme:** when separately
+authorized reproducibility work is planned, assess the standard frontend build's
+Google Font download dependency and an approved reproducible asset/cache policy.
+Evidence: `frontend/src/lib/fonts.ts`, `frontend/Dockerfile`, and
+`coverage/correction-sep8/build-review-fix.log`. This records a future candidate
+only; it authorizes no font, dependency, Dockerfile or product change in C01–C37
+or H07 and creates no new executable queue item.
+
+**Same-review resolution — Sol/medium, 8 Sep:** the reviewer explicitly resolved
+the original browser P1 using the diagnostic red/green and aggregate-position
+pass. It accepted the six unchanged exact standard-image cases as an external
+dependency-availability gate for Macro-A acceptance, without release/deployment
+readiness. It does not require another full non-migration run: 2,509 aggregate
+passes plus 11 corrected local-socket passes account for all other cases. Its
+remaining FIX was only the stale coverage/provenance receipt; no product change
+or substitute image evidence was requested. This replaces the earlier local
+requirement for a green exact shard; the image gate stays explicitly open.
+
+The controlled C36 receipt now uses only current accepted executions:
+`migrations.data`, `other-network-restricted.data`, `sandbox-socket.data` combined
+as `accepted-macro-a.data`, plus the current 520-test frontend LCOV. No earlier
+image result, interrupted run or synthetic coverage was substituted. Refresh
+and separate provenance verification both pass in
+`coverage-resolution-{refresh,provenance}.log`: changed **94.291% line /
+88.6076% branch**, global **87.1919% / 64.1092%**, backend **91.5781% /
+77.2429%**, frontend **63.149% / 47.3804%**. Trusted D32 floors, policy hash,
+eligible inventory and instrumentation remain unchanged by this resolution.
+Source fingerprints match except the generated Playwright result receipt;
+diff whitespace validation passes. The same reviewer receives this bounded
+receipt reconciliation for final acceptance; no new review agent or broad
+verification run is authorized or needed.
+
+**Macro-A accepted — same Sol/medium review PASS, 8 Sep:** all seven final
+receipt/input hashes matched; controlled refresh and independent provenance
+verification resolve the last FIX. The reviewer expressly requires no further
+exact non-migration run or local implementation change before B. Original
+browser P1 is resolved; six standard-image cases, C34 and existing external
+gates remain open. Exactly one implementation-review agent has been used;
+the one fresh final specialist/consolidated reviewer remains reserved after B.
+
+**Macro-B entry assessment:** the existing Astra controller retains the accepted
+source, contract, ownership and evidence pointers without unresolved repository
+conflict or missing product decision. Context and operating performance remain
+adequate for direct implementation; completed A alone is no handoff reason.
+Continue P06 here under the original reviewed acceptance contract. All sixteen
+Macro-B C IDs remain individually `VALID / PLANNED` until demonstrated. No
+implementation subagent, second Astra writer or external network allowance is
+created by this promotion.
+
+**P06 / C06 demonstrated:** one revoked-admin prefix regression failed against
+the original service, leaving the authorized 101st intent pending. Restoring
+only the baseline selector in memory makes all four PostgreSQL/SQLite ×
+revoked-admin/unexpected-error cases fail; the corrected 29-test worker/R20/R21
+suite passes, including durable claim-before-provider, uncertain recovery,
+concurrency, migration guards and final authorization. The first fixture used
+an invalid user status and was corrected before useful red evidence; its log is
+retained separately. Evidence is `coverage/correction-p06/c06-{red,
+selection-mutation-red,focused-green}.log`, with coverage in `c06.data`.
+The scheduler reuses immutable `worker.payout_submission.failed` audit events
+and sorts by the later of intent progress and failure time. It does not bypass
+the intent's database transition guard, add a migration, fabricate provider
+attempts or change claims/payment history. Failure metadata/logging includes
+only the error code/class, never exception contents; failure-journal persistence
+errors propagate rather than pretending durable progress. All four cases retain
+the 100 denied intents at generation zero, make no provider attempt for them,
+and process the later authorized intent on the next bounded sweep. Focused Ruff
+and scope inspection pass; final integrated coverage and specialist review
+remain reserved for stabilized Macro B. C19–C23 remain independently planned.
+
+**P06 / C19 demonstrated:** six baseline cases lose unresolved flags on newest-
+member regrouping, signature departure or insufficient evidence. Removing both
+automatic-deletion helpers preserves the original flag ID, evidence, detection
+time and authoritative money hold. A seventh baseline-source mutation fails the
+PostgreSQL money-lock race's strengthened retained-hold assertion. The corrected
+78-case replay/hold/assessment/earnings-release suite passes, including both
+existing cross-trip concurrency cases and governed dismissal/redetection.
+Evidence: `coverage/correction-p06/c19-{red,concurrency-red,accepted-green}.log`
+and `c19-accepted.data`. The intermediate 77-pass/one-failure run exposed one
+remaining old test expectation that required deleting the hold after the lock
+released; it now requires both exact hold owners and preservation of the original
+flag/evidence. No assertion was removed or concurrency barrier weakened.
+Latest-member detection, bounded/redacted evidence and review semantics remain;
+no migration, reconstruction of previously deleted history or new fraud policy.
+Scoped Ruff/diff inspection pass.
+
+**P06 / C20 and C21 demonstrated:** the completed payout/trip complement passes
+**99 tests** (`coverage/correction-p06/c20-c21-focused-green.log`, coverage
+`c20-c21.data`). C20's baseline produced three failures and one preserved
+boundary pass; the corrected four cases pass. Earlier ended/unsealed trips
+retain chronological daily-cap authority across mixed prices; an end exactly
+at Lagos midnight does not consume the next day. C21's baseline admitted the
+pre-start trip (one failure, two boundary passes); frozen-start minus one
+microsecond now rejects without creating a trip, while exact start and later
+admit through the full production authority. Existing v2/v3 calculations,
+correction conservation, exclusive end and mutable campaign checks remain.
+Evidence: `c20-{red,green}.log`, `c21-red.log` in the same directory. Focused
+Ruff and complete four-file scope inspection pass; no migration or API shape
+change. C22/C23 remain individually planned.
+
+**Owner amendment — one bounded standard-image verification execution:** run
+only the six existing cases in `tests/test_rel005_frontend_image.py` and their
+ordinary image build, with dependency access limited to the pinned base image,
+locked npm packages and existing Google Fonts. No dependency changes, substitute
+build, font redesign, publication or deployment. Record command, exact revision
+and worktree, available image/dependency identities, downloads, complete log
+and result. If unavailable dependencies still block the build, retain the exact
+failure and six-case external gate; do not bypass assertions or retry beyond
+this one-run authority. The separate Google Font reproducibility candidate
+remains outside this programme. Host test execution retains the local-only
+network sandbox; only the ordinary Docker build's dependency retrieval is
+permitted. Final review remains the one reserved fresh Sol/medium agent after
+Macro B and integrated evidence stabilize.
+
+**Bounded ordinary Docker verification — PASS:** the six existing cases in
+`tests/test_rel005_frontend_image.py` passed, with no skips, in **24.84s**.
+This is one configured production-image build and six cases, not six images.
+Compiled map/revision survive; runtime map override cannot replace the artifact;
+all four missing/changed expected map/revision checks reject. The unchanged
+ordinary Dockerfile ran npm build; no font mock, alternate Dockerfile, dependency
+change or test substitution. Complete evidence: `coverage/correction-docker/`:
+`command.txt` records the exact command, `entry.json` the unchanged baseline SHA
+and full entry worktree plus input hashes, `tests.log` the six results, and
+`docker-complete.log` every Docker command, complete build output, image inspect,
+history and fixture cleanup. `locked-dependencies.json` preserves every available
+resolved npm version/URL/integrity from the lockfile.
+
+Base identity remains
+`node@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32`;
+BuildKit resolved registry metadata and reused its base and npm-ci layers.
+No uncached npm packages or base layers were downloaded in this run. Fresh
+Next 16.2.10 production compilation passed with the existing Google Font
+arrangement; the log does not expose individual font HTTP requests/cache hits,
+so a per-font download inventory is unavailable. The build excludes host
+`.next` and `node_modules`; no host font cache or mock was injected.
+Output image index
+`sha256:b1b4b4ee00e885a2cbca423d6f44330dbdd48757eab4ef3a7c6703687e52d94a`,
+platform manifest
+`sha256:613392d7c67d49c935d4a479a5ba05d860d4564a1343486fe71deb10999e6500`.
+The fixture removed its image. A nonfatal existing Big Shoulders fallback-font
+warning remains in the complete log. This closes the six-case execution gate
+for these audited inputs; subsequent frontend changes require their affected
+checks. It grants no deployment/release acceptance. The one-run download
+authorization is consumed; unrelated outbound activity remains blocked and
+Google Font reproducibility remains a separately deferred candidate.
+
+**P06 / C22 and C23 demonstrated — P06 locally accepted:** all **108** focused
+report/measurement/privacy/publication/adjacent-day correction cases pass,
+including real PostgreSQL report-first and correction-first overlap. The
+127 preserved queue/protocol/PWA/tracker/BFF fixtures also pass; OpenAPI's two
+JSON artifacts remain byte-synchronized, with no public DTO shape change.
+New runs freeze signed ledger facts, retain original gross-calculation
+provenance, and use terminal-period membership consistently in metrics,
+daily totals, frozen reports and privacy contributor history. Credits/reversals
+remain separately privacy-bounded; voided entries and debt-remainder provenance
+cannot double-count cost. Missing calculated-trip ledger authority blocks.
+Historical v1 formula reproduction, issued runs and original calculations remain
+unchanged; exact retry/repeated source hashes converge.
+
+Three initial PostgreSQL cases reproduced the original correction/cross-period
+failures. Seven tests fail with the baseline measurement module restored only
+in memory; restoring the baseline report module as well reproduces the eighth,
+missing-ledger failure. Added overlap evidence exposed Campaign/Trip inversion
+when a correction writer owns Trip before its ledger insert acquires Campaign
+FK authority. New issuance takes the existing campaign-terms lock before active
+admin and disclosure snapshot locks, matching the production money writer's
+ordering. Both directions now finish within the bounded barrier and expose
+exactly one old/new ledger position. No lock was weakened, migration added,
+financial history edited or external method approval invented.
+
+Evidence: `coverage/correction-p06/c22-c23-{red,authority-mutation-red,
+accepted-green}.log`, `c22-missing-ledger-red.log`,
+`c22-c23-accepted.data`, `pwa-contract-green.log`, `openapi-check.log`.
+Intermediate logs retain the discovered deadlock, a corrected missing test
+import, and the initial 102-pass complement; only the final 108-pass run is
+accepted for these inputs. Scoped Ruff and diff whitespace/scope inspection
+pass. Final integrated coverage and the reserved consolidated specialist
+review remain outstanding. All six P06 IDs are independently demonstrated;
+P07 now owns C24–C28, and P08 remains unstarted.
+
+### P07 — C24–C28 locally demonstrated (8 September)
+
+C24/C25 persist one exact End manifest (or legacy watermark) before sending,
+serialize it with queue writes and receipts, and fence capture preparation,
+visibility callbacks and late GPS callbacks by End phase and generation.
+Same-page ambiguous End flushes the current trip before reconciliation; reload
+retries the durable End without reopening capture. Failed durable End storage
+retains evidence and fails closed. C26 reconstructs cancellation independently
+from immutable cancellation events and the assignment cutoff; before-cutoff
+samples survive, exact/after-cutoff samples cannot enter through ingestion or
+quarantine review. No deactivation history is invented.
+
+C27 uses heading [0,360) in the BFF and normalizes invalid optional sensor values
+before enqueue/hash, preserving valid peers. C28 stores signed per-sample
+results atomically with batch settlement, validates their counts/identity,
+shows accepted/rejected/quarantined evidence separately and retains diagnostic
+receipts across reload without retransmitting settled batches.
+
+Evidence in `coverage/correction-p07/`: `end-red.log` (3 reproduced failures),
+`partial-heading-red.log` (5), `legacy-end-red.log`, `partial-reload-red.log`,
+`unit-boundary-red.log` (4 minimal-mutation failures with source restored),
+`c26-precise-history-red.log` (3 baseline failures), and
+`browser-mutation-red.log` (all 3 browser regressions fail under restored unsafe
+boundaries). Green: `final-pwa.log` **141 passed**, `c26-final-green.log`
+**63 passed**, `browser-final-green.log` **3 passed**, plus type/lint, scoped
+Ruff and diff checks. `browser-partial-retained.png` visually inspected.
+Browser cases use actual Next/IndexedDB/WebCrypto/Web Locks with explicitly
+synthetic GPS/server receipts; PostgreSQL tests exercise real backend receipt
+and cancellation authority. No physical GPS, device or provider claim follows.
+No migration or public contract shape changes. P07 diff reviewed for scope;
+A's accepted diagnostic source remains preserved. P08 now owns C29–C33.
+Final integrated coverage and the reserved fresh Sol/medium review remain due.
+
+### P08 — C29–C33 locally demonstrated; integrated verification open (8 September)
+
+C29's two forms bind uploaded IDs and upload request IDs to exact File objects
+and access context. Changed form generations reject stale async completion;
+unchanged retries retain the original request/body and cached IDs. Person-form
+success resets its captured form element safely after asynchronous work.
+C30 shares current-approval convergence under the locked application and work
+eligibility authority on person/payee and vehicle decisions and exact retries.
+Vehicle retry still replays its original immutable decision, but current
+eligibility alone controls convergence. Normal person-first submission remains;
+review-order tests use an explicitly seeded expired prior-person projection and
+an allowed replacement submission. No expiry worker is invented by that fixture.
+Approval does not activate the invited user or duplicate review/terminal audits.
+
+C31 keeps a successfully created campaign ID in the recovery URL. Retry uses
+only the existing creative-attachment API; exact managed-file retry already
+converges there. Reload and campaign detail expose creative-only recovery;
+basics cannot be reopened for editing through this flow. After reload, reselect
+only missing creative files; already attached items remain on campaign detail.
+An actual browser also exposed Continue's button-type transition submitting the
+form before explicit review confirmation. Preventing that default click action
+preserves the explicit Create/Attach step; no broader wizard redesign was added.
+
+C32 supplies the ordinary local demo's frozen legacy-compatible payout binding,
+synthetic financial reservation, immutable activation snapshot and time-limited
+installation/display-proof records. It consumes the unchanged production Start
+checks; no auth, evidence or money bypass was added. Fictional identity/account
+values use actual configured envelope encryption. These records are explicitly
+synthetic fixtures, not real bank verification, provider objects, credit approval
+or physical installation evidence. Existing frozen/history rows survive reruns.
+The R59-only authority insertion block is removed; its existing preflight now
+checks the ordinary seed. Live gates and normal configured evidence-policy
+requirements remain. No external provider connection is made by this seed work.
+
+C33 isolates unexpected email-item failures with sanitized warning/audit evidence.
+Due ordering includes the durable last unexpected failure so a persistently
+failing oldest prefix rotates. Uncertain claims remain untouched until expiry,
+then recover even above the normal handled-failure cap with the same provider
+key. A failed failure-journal commit propagates. The job remains selection and
+composition only; domain helpers own failure history and its ordering expression.
+The architecture test retains its exact import and forbidden-write checks with
+the two newly required domain helper names. Notification audit targets resolve
+to the exact recipient under C14 without importing another tenant's events.
+
+Evidence under `coverage/correction-p08/`: C29 `c29-red.log` (7 failures/1 pass),
+`c29-green.log` **9 passed**; C30 `c30-final-red.log` (3 failures/1 pass),
+`c30-final-green.log` **31 passed**; C31 action/UI red logs (2 failures each)
+and `c31-first-green.log` **6 passed**; C32 `c32-red.log` reproduces production
+Start rejection and `c32-full-green.log` **22 passed**, including migrated
+immutable guards, rerun preservation and ordinary API Start/End; C33
+`c33-final-red.log` (4 reproduced unexpected exceptions) and
+`c33-final-green.log` **68 passed**, including PostgreSQL/SQLite fairness,
+claim recovery, durable recipient relationships and worker process recovery.
+`browser-mutation-red.log` reproduces all three C29/C31 scenarios against the
+unsafe boundaries; all source is restored and `browser-final-green.log` reports
+**3 passed**. Initial fixture mistakes and the caught architecture-placement
+failure remain in their original logs and are not accepted evidence.
+
+P08 introduces no migration or public API shape change. Type/lint and focused
+Ruff pass before final integration. `coverage/correction-final/` records fresh
+input hashes, exact commands and full logs for the aggregate backend/frontend
+checks. The six Docker cases retain their already-recorded bounded six-pass
+receipt; that earlier image does not contain subsequent B frontend edits, and
+no second dependency-enabled image build has been authorized. No final review,
+release or deployment acceptance is claimed yet. The sole reserved fresh
+Sol/medium final specialist/consolidated review may start only after integrated
+evidence stabilizes; all substantive findings must be resolved in this session.
+
+
+### Integrated verification — in progress (8 September)
+
+Fresh migrations: **195 passed** in `coverage/correction-final/migrations.log`;
+exact command, input hashes and coverage data are adjacent. The remaining backend
+aggregate initially stopped at collection because a pre-existing dispute test
+imported C19's deleted automatic-removal helper. That test now invokes the detector
+and still asserts preservation of the exact disputed flag and its evidence;
+`disputes-final-green.log` passes all 8 dispute tests. The original collection
+failure is retained as `other-collection-failure-other.log`. The full aggregate
+is running again without omitting that module or reducing an assertion.
+
+Frontend: **554 passed / 98 files** in `frontend-final-green.log`, with final type
+check passing. Two added frozen-End protocol regressions fail under the isolated
+missing-retry mutation (`tracker-restored-final-red.log`) and pass with the exact
+implementation. C31's recovery-page authorization/unavailability regression adds
+5 observed baseline failures plus the unchanged normal-create case
+(`coverage/correction-p08/c31-page-red.log`). The initial V8 LCOV contained a
+negative branch count and was rejected by the unchanged coverage checker; its
+raw input is retained in `frontend-first-invalid.lcov`. Explicitly pairing the
+selected End protocol's request with its completeness value removes that
+instrumentation ambiguity; the measured LCOV now parses strictly. No coverage
+count was rewritten, branch excluded or floor weakened. Final lint, regenerated
+OpenAPI byte check and repository Ruff pass; final combined coverage remains due.
+
+Integration complements now pass: **28** dispute/cancellation/payout-worker/email
+cases (`integration-complement.log`) and **9** R08 authorization cases
+(`r08-integration-green.log`). C26's older cancellation test now proves one valid
+pre-cutoff sample plus one signed post-cancellation rejection, exact receipt
+retry and preserved historical financial cutoff; omitting cancellation authority
+makes it fail (`c26-integration-red.log`). The current architecture distinguishes
+previously retained non-economic evidence from newly unauthorized capture.
+The two C06/C33 logging probes reproduce Alembic fileConfig's disabled imported
+logger state (2 failures in `logging-isolation-red.log`); each test now restores
+only its own logger with scoped monkeypatching, and the same probe passes both
+(`logging-isolation-green.log`). Product logging and all fairness/audit assertions
+remain unchanged. R08's measurement argument is now a valid typed request so it
+can acquire the required campaign-terms lock before active-admin authority;
+all 44 call sites, denied-without-mutation checks and the three PostgreSQL
+serialization directions remain covered without weaker barriers/assertions.
+The accepted final tracker also passes all three real-browser fault scenarios
+(`offline-browser-final.log`); coverage, request signatures and receipts remain
+unaltered by the diagnostic/mutation harnesses. The full backend shard finished with **2,542 passed / 12 failed** in 42m01s,
+with no skips. Its 12 failures are exactly the older C26/C33 expectations,
+C06/C33 imported-logger isolation and R08's untyped measurement placeholder
+recorded above; all affected complete modules now pass in the **28 + 9 + 41**
+integration complements. The final 41-case worker/email complement also retains
+first/third-item completion, uncertain second-item claim and same-key expiry
+recovery; baseline email-sweep restoration fails that regression
+(`email-worker-red.log`). No product safeguard was weakened to satisfy an old
+expectation. This is a completed aggregate with resolved focused complements,
+not a claim that the raw 2,554-case shard was entirely green in one invocation.
+The aggregate-position W4 browser and local-socket cases pass in that same shard.
+
+Final combined coverage (`coverage-verified.json`): changed **95.4325% lines /
+87.8623% branches**, global **87.5272% / 65.2964%**, backend **91.6353% /
+77.4003%**, frontend **65.6889% / 50.2389%**. C36's controlled refresh records the
+current complete inventory and source/policy hashes only after the trusted
+ancestor floors and unchanged 90/80 changed-code ratchet pass; a second strict
+provenance check passes. The complete measured inputs and combine/refresh logs
+are retained under `coverage/correction-final/` rather than pasted here.
+
+The ordinary host production build was attempted with outbound access blocked
+and failed retrieving the existing Google Fonts (`frontend-build.log`). No font
+substitute, dependency change or additional download permission was used. The
+already-accepted six Docker cases remain tied to their earlier exact input
+manifest, not to later B frontend changes. Final-image execution, C34 and the
+existing live/device/provider/legal/release gates remain explicit for the final
+review. All nine pre-existing untracked file hashes remain unchanged
+(`preexisting-preservation.json`); HEAD and baseline remote ref are unchanged,
+branch `master`, staged index empty. The controller has inspected the complete integrated diff scope. The reserved
+fresh Sol/medium final specialist/consolidated review is now admissible; its
+verdict and any remediation remain due.
+
+
+**Reserved final review dispatched:** `/root/final_integrated_review`, fresh
+GPT-5.6 Sol / medium, 8 September. The owner explicitly mandates this model and
+reasoning for the complete security/privacy/money/migration/concurrency/storage/
+recovery specialist and consolidated review. Ownership is read-only over the
+unchanged approved contract, full integrated diff, 170-file manifest, evidence
+and gates; no implementation or nested agents. The controller remains the sole
+Astra writer. This uses the second and final implementation-review slot; any
+substantive remediation returns to this same reviewer, not another dispatch.
+`coverage/correction-final/` holds the exact review packet and final provenance
+receipt. Only this review-status ledger entry changed after dispatch; no product
+or acceptance criterion changed. The first returned report stated PASS/no implementation findings and accepted
+the explicit final-image/C34 release gates, but several canonical descriptions
+were misassigned (including C13, C22–C25, C28, C37 and H07) and five artifact
+paths were inaccurate. The controller withheld acceptance of that written
+record and returned it to the **same Sol/medium reviewer** for source/test-cited
+C01–C37/H07 and exact 30-artifact reconciliation. This continues the same final
+review cycle; no new agent or product edit is authorized or created by it.
+The corrected source/test-cited response is **PASS, no findings, no local
+acceptance-blocking verification gap**. It individually reconciles all C01–C37
+and H07 and the exact 30 added paths/consumers/lifecycles. The corrected record
+supersedes the initial labels; condensed receipt is
+`coverage/correction-final/final-review.md`. The reviewer explicitly accepts
+final-source image/dependency availability and C34 as release/external gates,
+not local defects, and requires no additional local implementation or shard
+before acceptance. No third implementation-review slot was used.
+
+
+**Local implementation acceptance — 8 September:** Macro A's accepted Sol/medium
+PASS and Macro B's corrected final specialist/consolidated Sol/medium PASS are
+preserved. Every canonical row above is reconciled: C01–C33 and C35–C37 are
+`VALID / IMPLEMENTED`; C34 is `EXTERNAL VERIFICATION REQUIRED`; H07 is implemented.
+The six duplicates create no additional work. All owned local behavior is
+demonstrated and no actionable review finding remains. This does not mark the
+entire correction programme, original executable queue, release or deployment
+complete. The original queue/controller authority is unchanged.
+
+Confirmed invariants remain: immutable financial/review/audit/issued-report
+history, active-admin/password/session authority, current privacy/consent,
+exact storage origins, ordinary fail-closed readiness, stable provider claim
+keys, accepted payout windows and screen-on-only evidence capture. No unresolved
+local evidence is discarded. No dependency, font family/theme or Dockerfile
+change, external provider action, commit, push, merge, PR, release or deployment
+has been performed. Nine pre-existing untracked hashes remain unchanged.
+Final scope is **140 tracked changed files + 30 new owned files**, with the nine
+original untracked artifacts excluded. HEAD and origin baseline remain
+`00918531b2bb37a1d184d1d4f917f659b9e4d80b`, branch `master`, empty staged index.
+
+Remaining gates: exact final-source image and normal Google Font-dependent host
+build; accepted capable predecessor/positive forward-schema rehearsal for C34;
+separately owner-authorized commit/exact-SHA CI/final R59 execution; real device/
+GPS, live provider/IAM/CORS, legal, staging and pilot evidence. The bounded six-
+case Docker receipt remains valid only for its recorded earlier inputs. No new
+unrestricted or dependency-enabled network permission is inferred. Google Font
+reproducibility is the separately deferred candidate, requiring future owner
+prioritization; font consolidation, theme selection and redesign remain outside
+this programme. Local behavior is reviewed with no known actionable defects;
+release-ready **NO**, deployment-ready **NO** while these gates remain.
+
+**Direct owner authorization — post-remediation finalization (8 September
+2026, recorded before any edit):** the owner directly authorizes, outside the
+Executable package queue and without reprioritizing it: complete the deferred
+frontend font/build reproducibility correction without changing approved visual
+behavior; verify the ordinary final-source host and Docker builds; commit the
+accepted programme; push `master` only as a verified non-force fast-forward;
+then obtain exact-SHA CI and final R59 evidence. Dependency-enabled access is
+limited to exact pinned lockfile dependencies, pinned base images and
+acquisition of exact retained font assets with compatible licensing. The nine
+pre-existing untracked provenance artifacts stay untouched and unstaged. C34 and
+the live device/provider/legal/staging/pilot gates remain external and are not
+owned here. No deployment, release, PR merge or production infrastructure change
+is authorized.
+
+**Font/build reproducibility correction — evidence (8 September 2026):** the
+frontend production build no longer contacts Google Fonts. All seven Google
+families remain retained because `globals.css` maps each to a retained theme
+(Inter to daylight-ops and broadside, Fraunces to ivory-ledger, Bricolage to
+danfo, Archivo to hi-vis, Poppins to terra-grain and the Terrax landing, Big
+Shoulders to broadside, IBM Plex Mono to the base mono role and coverage), so no
+family, weight or style was dropped and no theme was selected. `next/font/google`
+treats `subsets` as a preload filter only, so the approved output is 46 faces;
+all 46 exact binaries already existed under
+`coverage/correction-sep8/cached-fonts/`, every sha256 re-verified against
+`hashes.json`, and all 46 independently re-fetched from `fonts.gstatic.com` and
+found byte-identical (`live-refetch-comparison.json`). They are vendored to
+`frontend/src/fonts/google/` with per-family SIL OFL 1.1 texts under
+`google/licenses/` and `google/provenance.json` binding each file to its family,
+subset, weight, unicode-range, exact upstream URL and hash. Seven modules in
+`frontend/src/fonts/families/` declare them through `next/font/local`, one call
+per family and subset because `declarations` applies to every `src` entry; the
+root and landing layouts now set the same CSS variables inline. No dependency,
+font CDN, Dockerfile, `globals.css` token or theme changed, and
+`package.json`/`package-lock.json` are untouched.
+
+Verification: the guard `frontend/src/fonts/vendored-fonts.test.ts` fails 3 of 92
+at the pre-fix boundary and passes 92 of 92 after
+(`guard-red.log`, `guard-green.log` inside `static-checks.log`). Five one-at-a-time
+source mutations — a duplicated face name, a preloaded non-latin subset, a metric
+fallback added to Big Shoulders, a metric fallback removed from Fraunces and an
+altered Inter unicode-range — are each detected by the specific guard that names
+them, and every mutated file was restored byte-identically
+(`guard-mutations.log`). The ordinary production build passes with all outbound
+HTTP and HTTPS forced through a dead proxy (`frontend-build-offline.log`), and no
+`fonts.googleapis.com` or `fonts.gstatic.com` string remains anywhere in `.next`.
+A mechanical comparison of every built `@font-face` against the cached Google
+baseline, keyed by binary sha256, reports 46 of 46 faces emitted exactly once
+with zero drift in weight, style, `font-stretch`, `font-display` or
+`unicode-range`, zero family-name collisions and the same latin-only preload set
+(`face-tuple-comparison.log`). Eight metric-fallback faces are emitted — Clash,
+Satoshi and six vendored families; Big Shoulders correctly has none, matching
+`next/font/google`, whose metrics table has no entry for it, and Fraunces
+correctly keeps `local(Times New Roman)`. Those override values are now computed
+from the vendored binaries instead of Next's precalculated table, so they differ
+marginally; this affects pre-swap metrics only, not painted glyphs. Browser checks
+against the production server confirm each of the nine themes resolves to its own
+typeface, that hi-vis retains `font-stretch: 125%`, and that Yoruba and Hausa text
+under hi-vis lazily loads the Archivo latin-ext and vietnamese faces, which a
+latin-only vendoring would have lost. 99 frontend files and 646 tests, typecheck
+and lint pass. Two defects were found by verification and fixed: the first
+implementation reused subset const names across families, which `next/font` turns
+into one shared `@font-face` family and which merged all seven typefaces, and the
+first guard version accepted a missing metric fallback and a non-latin preload
+target. Both are now asserted and mutation-proven.
+
+Final-source image: the six `tests/test_rel005_frontend_image.py` cases pass
+against the frozen final source recorded in `final-source-identity.txt`
+(`rel005-final-source.log`), superseding the earlier image receipt, which is not
+represented as final-source evidence. A separate inspection build of that same
+source shows 52 woff2 in `/app/.next/static/media` — 46 vendored plus the six
+pre-existing local faces, 34 of them non-latin subsets — zero Google host
+references anywhere in `/app/.next`, and the P07/P08 frontend markers present
+(`image-content-inspection.log`). Base image `node:22-alpine`
+`sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32`,
+linux/arm64. The production CSP already sets `font-src 'self' data:` and
+`style-src-attr 'unsafe-inline'`, so the vendored faces and the inline variables
+are both permitted. No contract or generated-artifact input changed, so no
+architecture section 9 baseline or R14-B fixture rerun was required. An
+independent plan review and an independent post-build minimal-change review were
+both obtained and reconciled; the post-build review's P1 finding — that the
+typecheck and lint receipts predated the final source — was fixed by re-running
+both, which then surfaced three real type errors in the strengthened guard.
+Evidence logs are retained under `coverage/correction-fonts/` and are not
+committed. The nine pre-existing untracked artifacts remain untouched and
+unstaged.
 
 ## Executable package queue
 

@@ -33,9 +33,28 @@ from app.services.data_lifecycle import (
     month_start,
     premake_partitions,
     run_ping_retention,
+    subtract_calendar_months,
 )
 
 RETENTION_SETTINGS = {"ping_retention_months": 12, "partition_premake_months": 4}
+
+
+@pytest.mark.parametrize(
+    ("moment", "months", "expected"),
+    [
+        ("2026-03-31T14:25:36.123456+00:00", 1, "2026-02-28T14:25:36.123456+00:00"),
+        ("2024-03-31T14:25:36+00:00", 1, "2024-02-29T14:25:36+00:00"),
+        ("2024-02-29T14:25:36+00:00", 12, "2023-02-28T14:25:36+00:00"),
+        ("2026-05-31T14:25:36+00:00", 1, "2026-04-30T14:25:36+00:00"),
+        ("2026-01-15T14:25:36+00:00", 13, "2024-12-15T14:25:36+00:00"),
+        ("2026-04-01T00:25:36+01:00", 1, "2026-02-28T23:25:36+00:00"),
+        ("2026-03-31T14:25:36+00:00", 0, "2026-03-31T14:25:36+00:00"),
+    ],
+)
+def test_calendar_retention_clamps_short_months(moment, months, expected):
+    result = subtract_calendar_months(datetime.fromisoformat(moment), months)
+    assert result == datetime.fromisoformat(expected)
+    assert result.tzinfo is UTC
 
 
 def make_settings() -> Settings:
@@ -576,6 +595,77 @@ def seeded_migrated_db(monkeypatch) -> str:
 
 def expired_now():
     return add_months(month_start(datetime.now(UTC)), 13) + timedelta(days=1)
+
+
+@pytest.mark.parametrize("reason", ["current_horizon", "ambiguous", "incomplete", "unclaimed"])
+def test_detached_recovery_refuses_unproven_or_currently_retained_bounds(monkeypatch, reason):
+    migration_url = seeded_migrated_db(monkeypatch)
+    try:
+        if reason != "unclaimed":
+            insert_purge_started(
+                migration_url, "location_pings_legacy", complete=reason != "incomplete"
+            )
+        if reason == "ambiguous":
+            exec_sql(
+                migration_url,
+                """
+                INSERT INTO data_purge_audit
+                  (partition_name, range_from, range_to, event, row_count,
+                   retention_months, initiated_by, job_run_id)
+                SELECT partition_name, range_from - interval '1 day', range_to,
+                       event, row_count, retention_months, initiated_by, 'conflicting-run'
+                FROM data_purge_audit WHERE partition_name = 'location_pings_legacy'
+            """,
+            )
+        exec_sql(migration_url, "ALTER TABLE location_pings DETACH PARTITION location_pings_legacy")
+        before = asyncio.run(fetch_all(migration_url, "SELECT count(*) FROM location_pings_legacy"))
+        batches = asyncio.run(
+            fetch_all(migration_url, "SELECT count(*) FROM location_ping_batches")
+        )
+        result = run_retention_once(
+            migration_url, now=datetime.now(UTC) if reason == "current_horizon" else expired_now()
+        )
+        assert result["dropped"] == []
+        assert result["finalized"] == []
+        assert result["purge_blocked_reason"] == "refused_detached_orphan"
+        assert result["refused_orphans"] == ["location_pings_legacy"]
+        assert result["batches_purged"] == result["quarantines_purged"] == 0
+        assert (
+            asyncio.run(fetch_all(migration_url, "SELECT count(*) FROM location_pings_legacy"))
+            == before
+        )
+        assert (
+            asyncio.run(fetch_all(migration_url, "SELECT count(*) FROM location_ping_batches"))
+            == batches
+        )
+    finally:
+        asyncio.run(drop_database(migration_url))
+
+
+def test_detached_recovery_preserves_reconstructed_bounds_in_drop_receipt(monkeypatch):
+    migration_url = seeded_migrated_db(monkeypatch)
+    try:
+        insert_purge_started(migration_url, "location_pings_legacy")
+        bounds = asyncio.run(
+            fetch_all(
+                migration_url,
+                "SELECT range_from, range_to FROM data_purge_audit "
+                "WHERE partition_name = 'location_pings_legacy'",
+            )
+        )
+        exec_sql(migration_url, "ALTER TABLE location_pings DETACH PARTITION location_pings_legacy")
+        result = run_retention_once(migration_url, now=expired_now())
+        assert "location_pings_legacy" in result["dropped"]
+        receipt = asyncio.run(
+            fetch_all(
+                migration_url,
+                "SELECT range_from, range_to FROM data_purge_audit "
+                "WHERE partition_name = 'location_pings_legacy' AND event = 'dropped'",
+            )
+        )
+        assert receipt == bounds
+    finally:
+        asyncio.run(drop_database(migration_url))
 
 
 def test_authorized_expired_pending_detach_is_finalized_and_completed(monkeypatch) -> None:

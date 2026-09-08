@@ -70,6 +70,16 @@ export function CreateUserForm() {
         className="font-mono"
       />
 
+      {role === "admin" ? (
+        <Field
+          label="Your current password"
+          name="current_password"
+          type="password"
+          required
+          autoComplete="current-password"
+        />
+      ) : null}
+
       {role === "advertiser" ? (
         <div className="border-edge flex flex-col gap-4 rounded-xl border border-dashed p-4">
           <p className="micro text-muted">

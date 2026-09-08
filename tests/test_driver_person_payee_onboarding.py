@@ -259,8 +259,11 @@ def test_public_applicant_can_submit_person_payee_without_plaintext_projection(
     asyncio.run(inspect())
 
 
+@pytest.mark.parametrize(
+    "withdraw_collection", ["never", "before_confirmation", "after_confirmation"]
+)
 def test_public_application_access_scopes_shared_private_upload_flow(
-    db_client, db_sessionmaker, settings
+    db_client, db_sessionmaker, settings, withdraw_collection
 ) -> None:
     access_token, _ = _register(db_client, db_sessionmaker, settings, suffix="upload")
     storage = FakeStorageProvider()
@@ -287,10 +290,35 @@ def test_public_application_access_scopes_shared_private_upload_flow(
         content_type="image/png",
         checksum_sha256="a" * 64,
     )
+
+    def withdraw():
+        db_client.app.dependency_overrides[get_settings] = lambda: settings.model_copy(
+            update={
+                "privacy_collection_live_authorized": False,
+                "privacy_collection_synthetic_test_mode": False,
+                "driver_registration_enabled": True,
+            }
+        )
+
+    if withdraw_collection == "before_confirmation":
+        withdraw()
     confirmed = db_client.post(
         f"/api/v1/auth/driver-onboarding/files/uploads/{created.json()['upload_id']}/confirm",
         json={"application_access_token": access_token},
     )
+    if withdraw_collection == "before_confirmation":
+        assert confirmed.status_code == 503
+        assert confirmed.json()["error"]["code"] == "PRIVACY_COLLECTION_BLOCKED"
+        assert list(storage.objects) == [key]
+        return
+    if withdraw_collection == "after_confirmation":
+        withdraw()
+        replay = db_client.post(
+            f"/api/v1/auth/driver-onboarding/files/uploads/{created.json()['upload_id']}/confirm",
+            json={"application_access_token": access_token},
+        )
+        assert replay.status_code == 503
+        assert replay.json()["error"]["code"] == "PRIVACY_COLLECTION_BLOCKED"
     foreign = db_client.post(
         f"/api/v1/auth/driver-onboarding/files/uploads/{created.json()['upload_id']}/confirm",
         json={"application_access_token": "x" * 48},

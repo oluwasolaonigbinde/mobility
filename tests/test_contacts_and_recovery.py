@@ -33,14 +33,176 @@ from app.services.contacts import (
     complete_manual_driver_contact_task,
     create_manual_driver_contact_task,
     grant_whatsapp_consent,
+    list_manual_driver_contact_tasks,
     list_phone_verification_work,
     record_phone_challenge_sent,
     request_phone_verification,
     set_driver_phone,
     synthetic_phone_challenge_code,
     verify_phone_challenge,
+    withdraw_whatsapp_consent,
 )
 from app.services.email_delivery import process_email_notification
+
+
+@pytest.mark.parametrize("boundary", ["create", "retry", "list", "complete"])
+@pytest.mark.parametrize("revocation", ["withdrawn", "different_purpose", "new_phone"])
+def test_manual_contact_requires_current_purpose_matched_authority(
+    db_sessionmaker, settings, boundary, revocation
+):
+    admin = create_test_user(db_sessionmaker, email="contact-authority-admin@example.com")
+    driver = create_test_user(
+        db_sessionmaker, email="contact-authority-driver@example.com", role=UserRole.DRIVER
+    )
+    profile = create_test_driver_profile(db_sessionmaker, user_id=driver.id)
+
+    async def scenario():
+        async with db_sessionmaker() as session:
+            phone = await set_driver_phone(
+                session, user_id=driver.id, phone="+2348031234567", settings=settings
+            )
+            phone.verified_at = datetime.now(UTC)
+            await session.flush()
+            consent = await grant_whatsapp_consent(
+                session,
+                user_id=driver.id,
+                purpose="campaign_assignment_offer",
+                notice_version="synthetic-notice-v1",
+            )
+            # Preserve historical mismatches as stored evidence, never rewrite them.
+            task = ManualDriverContactTask(
+                driver_profile_id=profile.id,
+                phone_version_id=phone.id,
+                consent_id=consent.id,
+                purpose="other_purpose" if revocation == "different_purpose" else consent.purpose,
+                event_key="synthetic:offer:1",
+                status="open",
+                created_at=datetime.now(UTC),
+            )
+            session.add(task)
+            await session.flush()
+            if revocation == "withdrawn":
+                await withdraw_whatsapp_consent(session, user_id=driver.id)
+            elif revocation == "new_phone":
+                await set_driver_phone(
+                    session, user_id=driver.id, phone="+2348039990000", settings=settings
+                )
+            await session.commit()
+            if boundary in {"create", "retry"}:
+                result = await create_manual_driver_contact_task(
+                    session,
+                    driver_profile_id=profile.id,
+                    event_key="synthetic:offer:2" if boundary == "create" else task.event_key,
+                    purpose=task.purpose,
+                )
+                assert result is None
+            elif boundary == "list":
+                rows, total = await list_manual_driver_contact_tasks(session, limit=10, offset=0)
+                assert rows == []
+                assert total == 0
+            else:
+                with pytest.raises(AppError) as denied:
+                    await complete_manual_driver_contact_task(
+                        session,
+                        task_id=task.id,
+                        actor_user_id=admin.id,
+                        outcome="reached",
+                        note="Synthetic operator attempt",
+                    )
+                assert denied.value.code == "CONTACT_TASK_AUTHORITY_INACTIVE"
+            await session.refresh(task)
+            assert task.status == "open"
+            assert task.completed_at is None
+            assert await session.scalar(select(func.count()).select_from(WhatsappConsent)) == 1
+            assert (
+                await session.scalar(select(func.count()).select_from(ManualDriverContactTask)) == 1
+            )
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("withdraw_first", [False, True])
+def test_postgres_contact_completion_serializes_with_consent_withdrawal(
+    postgis_db_sessionmaker, settings, withdraw_first
+):
+    factory = postgis_db_sessionmaker
+    admin = create_test_user(factory, email="contact-race-admin@example.com")
+    driver = create_test_user(
+        factory, email="contact-race-driver@example.com", role=UserRole.DRIVER
+    )
+    profile = create_test_driver_profile(factory, user_id=driver.id)
+
+    async def scenario():
+        async with factory() as session:
+            phone = await set_driver_phone(
+                session, user_id=driver.id, phone="+2348031234567", settings=settings
+            )
+            phone.verified_at = datetime.now(UTC)
+            await session.flush()
+            await grant_whatsapp_consent(
+                session,
+                user_id=driver.id,
+                purpose="campaign_assignment_offer",
+                notice_version="synthetic-notice-v1",
+            )
+            task = await create_manual_driver_contact_task(
+                session,
+                driver_profile_id=profile.id,
+                event_key="synthetic:race:1",
+                purpose="campaign_assignment_offer",
+            )
+            assert task is not None
+            task_id = task.id
+            await session.commit()
+
+        async def complete(session):
+            try:
+                result = await complete_manual_driver_contact_task(
+                    session,
+                    task_id=task_id,
+                    actor_user_id=admin.id,
+                    outcome="reached",
+                    note="Synthetic contact evidence",
+                )
+                return result.status
+            except AppError as exc:
+                return exc.code
+
+        async def withdraw(session):
+            await withdraw_whatsapp_consent(session, user_id=driver.id)
+            return "withdrawn"
+
+        first, second = (withdraw, complete) if withdraw_first else (complete, withdraw)
+        async with factory() as first_session, factory() as second_session:
+            first_result = await first(first_session)
+            second_task = asyncio.create_task(second(second_session))
+            try:
+                with pytest.raises(TimeoutError):
+                    await asyncio.wait_for(asyncio.shield(second_task), timeout=0.1)
+                await first_session.commit()
+                second_result = await asyncio.wait_for(second_task, timeout=5)
+                await second_session.commit()
+            finally:
+                if not second_task.done():
+                    second_task.cancel()
+                    await asyncio.gather(second_task, return_exceptions=True)
+        completion = second_result if withdraw_first else first_result
+        assert completion == ("CONTACT_TASK_AUTHORITY_INACTIVE" if withdraw_first else "completed")
+        async with factory() as session:
+            task = await session.get(ManualDriverContactTask, task_id)
+            consent = await session.scalar(select(WhatsappConsent))
+            assert consent.withdrawn_at is not None
+            assert task.status == ("open" if withdraw_first else "completed")
+            rows, total = await list_manual_driver_contact_tasks(session, limit=10, offset=0)
+            assert total == (0 if withdraw_first else 1)
+            assert len(rows) == total
+            if not withdraw_first:
+                assert await complete(session) == "completed"
+            assert (
+                await session.scalar(select(func.count()).select_from(ManualDriverContactTask)) == 1
+            )
+
+    asyncio.run(scenario())
 
 
 def test_missing_manual_contact_task_returns_hidden_not_found(db_sessionmaker) -> None:
@@ -191,13 +353,13 @@ def test_verified_phone_consent_and_manual_contact_are_versioned_and_secret_safe
                 session,
                 driver_profile_id=profile.id,
                 event_key="synthetic:event:v1:123",
-                purpose="synthetic campaign operations",
+                purpose="campaign operations updates",
             )
             retry = await create_manual_driver_contact_task(
                 session,
                 driver_profile_id=profile.id,
                 event_key="synthetic:event:v1:123",
-                purpose="synthetic campaign operations",
+                purpose="campaign operations updates",
             )
             assert task is not None and retry is not None and task.id == retry.id
             completed = await complete_manual_driver_contact_task(

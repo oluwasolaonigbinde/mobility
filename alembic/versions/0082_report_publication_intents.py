@@ -144,6 +144,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Keep the empty/live-state check and DDL atomic against both publication
+    # inserts and their parent writes; a busy writer makes downgrade fail closed.
+    op.execute(
+        "LOCK TABLE report_issuances, report_publication_intents "
+        "IN ACCESS EXCLUSIVE MODE NOWAIT"
+    )
     # A generation in one of these states is the ONLY record of a private object that no
     # artifact references. Dropping the table would strand exactly the orphans this
     # migration exists to make recoverable. Completed generations are already covered by

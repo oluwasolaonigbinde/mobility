@@ -158,6 +158,7 @@ OPERATOR_AUTHORITY_EXCLUSIONS = frozenset(
         "report_artifacts",
         "report_issuances",
         "report_publication_intents",
+        "report_publication_writes",
         "retargeting_source_idempotency",
         "retargeting_source_link_events",
         "retargeting_source_link_idempotency",
@@ -173,6 +174,9 @@ PROCESS_EVIDENCE_EXCLUSIONS = frozenset({"data_subject_location_assessments"})
 
 def explicitly_excluded_subject_tables() -> dict[str, str]:
     return {
+        "audit_event_subject_resolutions": (
+            "durable attribution and unresolved gaps; linked events are counted once in audit_event"
+        ),
         **{
             table: "operator or shared business authority; actor linkage is covered by audit"
             for table in OPERATOR_AUTHORITY_EXCLUSIONS

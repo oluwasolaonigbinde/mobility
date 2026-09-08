@@ -32,7 +32,11 @@ from app.schemas.driver_onboarding import (
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.driver_applications import application_from_access_token, status_reference_hash
-from app.services.kyc import submit_driver_kyc, validate_driver_kyc_for_approval
+from app.services.kyc import (
+    require_submission_payload,
+    submit_driver_kyc,
+    validate_driver_kyc_for_approval,
+)
 from app.services.payees import (
     VerifiedBankAccountDetails,
     add_applicant_bank_account_version,
@@ -192,6 +196,7 @@ async def submit_application_person_payee(
     )
     applicant_capture_reference = f"driver-application-capture-v1:{payload.client_request_id}"
     if existing is not None:
+        require_submission_payload(existing)
         stored_details = await read_applicant_verified_bank_account(
             session,
             bank_account_version_id=existing.bank_account_version_id,
@@ -377,11 +382,7 @@ async def _require_exact_review_evidence(
             )
         ).all()
     )
-    if (
-        not nin_read
-        or not account_read
-        or not set(required_file_ids).issubset(reviewed_files)
-    ):
+    if not nin_read or not account_read or not set(required_file_ids).issubset(reviewed_files):
         raise _error(
             "PERSON_PAYEE_REVIEW_EVIDENCE_INCOMPLETE",
             "Approval requires exact current identity, account and document review evidence",
@@ -396,11 +397,16 @@ async def review_application_person_payee(
     actor_user_id: UUID,
     payload: PersonPayeeReviewDecisionCreate,
 ) -> PersonPayeeView:
+    from app.services.vehicle_onboarding import reconcile_application_approval
+
     await require_active_admin(session, actor_user_id)
     _validate_decision_facts(payload)
     fingerprint = _decision_fingerprint(application_id=application_id, payload=payload)
     application = await session.scalar(
-        select(DriverApplication).where(DriverApplication.id == application_id).with_for_update()
+        select(DriverApplication)
+        .where(DriverApplication.id == application_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if application is None:
         raise _error(
@@ -442,6 +448,13 @@ async def review_application_person_payee(
                 "The decision retry does not match the original request",
                 status.HTTP_409_CONFLICT,
             )
+        await reconcile_application_approval(
+            session,
+            application=application,
+            actor_user_id=actor_user_id,
+            source_entity_type="driver_kyc_submission",
+            source_entity_id=original_submission.id,
+        )
         return PersonPayeeView(
             original_submission,
             retry,
@@ -469,6 +482,7 @@ async def review_application_person_payee(
             "A complete current person/payee submission is required",
             status.HTTP_409_CONFLICT,
         )
+    require_submission_payload(submission)
     if submission.status != KycSubmissionStatus.PENDING_REVIEW:
         raise _error(
             "PERSON_PAYEE_ALREADY_DECIDED",
@@ -517,9 +531,13 @@ async def review_application_person_payee(
             "documents_readable_confirmed": payload.documents_readable_confirmed,
         },
     )
-    from app.services.vehicle_onboarding import reconcile_driver_work_eligibility
-
-    await reconcile_driver_work_eligibility(session, driver_profile_id=profile.id)
+    await reconcile_application_approval(
+        session,
+        application=application,
+        actor_user_id=actor_user_id,
+        source_entity_type="driver_kyc_submission",
+        source_entity_id=submission.id,
+    )
     return PersonPayeeView(
         submission,
         decision,

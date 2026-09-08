@@ -60,6 +60,7 @@ from app.models.payout import (
     PayoutCalculation,
     PayoutCalculationStatus,
 )
+from app.models.trip import TripSession
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
 from app.schemas.campaign_assignments import CampaignAssignmentCreate, CampaignAssignmentTransition
@@ -1661,6 +1662,99 @@ def test_direct_calculation_refuses_equal_start_higher_id_before_lower_id(
 
     asyncio.run(calculate_current_first())
 
+
+@pytest.mark.parametrize(
+    "earlier_rate,later_rate", [("1200.00", "4800.00"), ("4800.00", "1200.00")]
+)
+def test_ended_unsealed_predecessor_retains_chronological_cap_authority(
+    postgis_db_sessionmaker, settings, earlier_rate, later_rate
+) -> None:
+    graph = build_mixed_engine_day(
+        postgis_db_sessionmaker,
+        settings,
+        "unsealed-cap",
+        cap="0.50",
+        earlier_rate=earlier_rate,
+        later_rate=later_rate,
+    )
+
+    async def set_predecessor_seal(sealed):
+        async with postgis_db_sessionmaker() as session:
+            await session.execute(
+                update(TripSession)
+                .where(TripSession.id == graph.trip.id)
+                .values(
+                    status="sealed" if sealed else "ended",
+                    sealed_at=graph.trip.sealed_at if sealed else None,
+                    seal_reason=graph.trip.seal_reason if sealed else None,
+                )
+            )
+            await session.commit()
+
+    asyncio.run(set_predecessor_seal(False))
+    blocked = run_pipeline(postgis_db_sessionmaker, graph.trip2.id, settings)
+    assert blocked.overall == "partial"
+    assert blocked.stages[-1].reason == "payout_day_predecessor_unprocessed"
+    assert blocked.stages[-1].row_ids == {"predecessor_trip_id": str(graph.trip.id)}
+    assert fetch_payout_calculations(postgis_db_sessionmaker) == []
+    asyncio.run(set_predecessor_seal(True))
+    assert run_pipeline(postgis_db_sessionmaker, graph.trip2.id, settings).overall == "completed"
+    calculations = {
+        c.trip_session_id: c for c in fetch_payout_calculations(postgis_db_sessionmaker)
+    }
+    assert set(calculations) == {graph.trip.id, graph.trip2.id}
+    assert calculations[graph.trip.id].payable_seconds == 1800
+    assert calculations[graph.trip.id].final_payout == Decimal(earlier_rate) / 2
+    assert calculations[graph.trip2.id].payable_seconds == 0
+    assert calculations[graph.trip2.id].final_payout == Decimal("0.00")
+
+
+@pytest.mark.parametrize("predecessor_status", ["ended", "sealed"])
+def test_predecessor_ending_at_lagos_midnight_does_not_occupy_next_day(
+    postgis_db_sessionmaker, settings, predecessor_status
+) -> None:
+    midnight = datetime(2026, 7, 20, 23, tzinfo=UTC)
+    graph = build_v2_graph(
+        postgis_db_sessionmaker,
+        "midnight-predecessor",
+        started_at=midnight - timedelta(minutes=30),
+        ended_at=midnight,
+    )
+    current = create_signed_v2_test_trip_session(
+        postgis_db_sessionmaker,
+        settings,
+        assignment_id=graph.assignment.id,
+        campaign_id=graph.campaign.id,
+        driver_profile_id=graph.profile.id,
+        vehicle_id=graph.vehicle.id,
+        started_by_user_id=graph.driver.id,
+        started_at=midnight + timedelta(minutes=30),
+        ended_at=midnight + timedelta(hours=1),
+    )
+
+    async def check():
+        async with postgis_db_sessionmaker() as session:
+            if predecessor_status == "ended":
+                await session.execute(
+                    update(TripSession)
+                    .where(TripSession.id == graph.trip.id)
+                    .values(
+                        status="ended",
+                        sealed_at=None,
+                        seal_reason=None,
+                    )
+                )
+            day = (midnight + timedelta(hours=1)).date()
+            await payouts.acquire_paycap_lock(
+                session, payouts.paycap_lock_key(graph.profile.id, graph.campaign.id, day)
+            )
+            await payouts.require_paycap_predecessors_processed(
+                session,
+                trip=current,
+                lagos_days=[day],
+            )
+
+    asyncio.run(check())
 
 def test_worker_leaves_later_payout_retryable_when_predecessor_cannot_progress(
     postgis_db_sessionmaker,

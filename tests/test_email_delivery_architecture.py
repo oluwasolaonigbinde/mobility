@@ -40,7 +40,11 @@ def test_email_job_is_selection_and_composition_only() -> None:
         "NotificationChannel",
         "NotificationStatus",
     }
-    assert imports["app.services.email_delivery"] == {"process_email_notification"}
+    assert imports["app.services.email_delivery"] == {
+        "process_email_notification",
+        "email_sweep_visit_order",
+        "record_unexpected_email_failure",
+    }
 
     functions = [node for node in tree.body if isinstance(node, ast.AsyncFunctionDef)]
     assert [function.name for function in functions] == ["sweep_email_notifications"]
@@ -76,8 +80,7 @@ def test_email_service_exposes_only_the_composed_delivery_inputs() -> None:
     function = next(
         node
         for node in tree.body
-        if isinstance(node, ast.AsyncFunctionDef)
-        and node.name == "process_email_notification"
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "process_email_notification"
     )
 
     assert [argument.arg for argument in function.args.args] == ["sessionmaker"]

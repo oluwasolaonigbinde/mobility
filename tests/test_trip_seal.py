@@ -12,7 +12,7 @@ import re
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from conftest import create_test_payout_rule, create_test_trip_analytics
+from conftest import create_test_trip_analytics
 from sqlalchemy import select, update
 from starlette import status as http_status
 from test_trips import (
@@ -23,7 +23,6 @@ from test_trips import (
     update_assignment_status,
 )
 
-import app.services.trips as trips_service
 from app.models.audit import AuditEvent
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.trip import (
@@ -301,41 +300,39 @@ def test_post_seal_batch_is_quarantined_with_ack_semantics(db_client, db_session
 
 
 def test_admin_applies_quarantined_batch_with_audit_and_lagos_days(
-    db_client, db_sessionmaker, settings, monkeypatch
+    postgis_db_client, postgis_db_sessionmaker, settings
 ) -> None:
-    async def authorize_legacy_trip(*args, **kwargs) -> None:
-        return None
-
-    monkeypatch.setattr(trips_service, "assert_new_work_authorized", authorize_legacy_trip)
     admin, campaign, driver, profile, vehicle, assignment = create_trip_ready_graph(
-        db_sessionmaker, with_financial_authority=False
+        postgis_db_sessionmaker, eligibility_settings=settings
     )
-    trip_id = start_trip(db_client, assignment.id).json()["id"]
+    trip_id = start_trip(postgis_db_client, assignment.id).json()["id"]
     recorded = datetime.now(UTC)
-    end_trip(db_client, trip_id, watermark={"client_batch_count": 0, "client_complete": True})
-    late = send_batch(db_client, trip_id, "late-apply", recorded_at=recorded)
+    end_trip(
+        postgis_db_client, trip_id, watermark={"client_batch_count": 0, "client_complete": True}
+    )
+    late = send_batch(postgis_db_client, trip_id, "late-apply", recorded_at=recorded)
     quarantine_id = late.json()["batch_id"]
 
-    listing = db_client.get(
+    listing = postgis_db_client.get(
         "/api/v1/admin/trips/quarantined-batches",
-        headers=admin_headers(db_client),
+        headers=admin_headers(postgis_db_client),
     )
     assert listing.status_code == http_status.HTTP_200_OK
     assert listing.json()["total"] == 1
     assert listing.json()["items"][0]["id"] == quarantine_id
 
     # RBAC: drivers cannot review quarantine.
-    forbidden = db_client.post(
+    forbidden = postgis_db_client.post(
         f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply",
-        headers=driver_headers(db_client),
+        headers=driver_headers(postgis_db_client),
         json={"note": "nope"},
     )
     assert forbidden.status_code == http_status.HTTP_403_FORBIDDEN
 
     # Note is mandatory.
-    missing_note = db_client.post(
+    missing_note = postgis_db_client.post(
         f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply",
-        headers=admin_headers(db_client),
+        headers=admin_headers(postgis_db_client),
         json={},
     )
     assert missing_note.status_code == http_status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -343,25 +340,19 @@ def test_admin_applies_quarantined_batch_with_audit_and_lagos_days(
     # Apply is BLOCKED until the trip's initial (write-once) payout exists —
     # otherwise admin timing would decide whether the applied pings enter the
     # first computation or wait for recompute-day.
-    blocked = db_client.post(
+    blocked = postgis_db_client.post(
         f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply",
-        headers=admin_headers(db_client),
+        headers=admin_headers(postgis_db_client),
         json={"note": "too early"},
     )
     assert blocked.status_code == http_status.HTTP_409_CONFLICT
     assert blocked.json()["error"]["code"] == "QUARANTINE_APPLY_BLOCKED"
 
-    # Give the sealed trip its initial processing: rule + pre-seeded analytics
-    # (computed after the seal) let the pipeline produce the calculation.
-    create_test_payout_rule(
-        db_sessionmaker,
-        campaign_id=campaign.id,
-        created_by_user_id=admin.id,
-        base_rate_per_km=10,
-    )
+    # Post-seal analytics let the existing accepted payout authority produce
+    # the initial calculation before quarantine can be applied.
     create_test_trip_analytics(
-        db_sessionmaker,
-        trip_session_id=fetch_trip(db_sessionmaker, trip_id).id,
+        postgis_db_sessionmaker,
+        trip_session_id=fetch_trip(postgis_db_sessionmaker, trip_id).id,
         assignment_id=assignment.id,
         campaign_id=campaign.id,
         driver_profile_id=profile.id,
@@ -371,7 +362,7 @@ def test_admin_applies_quarantined_batch_with_audit_and_lagos_days(
     )
 
     async def process():
-        async with db_sessionmaker() as session:
+        async with postgis_db_sessionmaker() as session:
             result = await process_ended_trip(
                 session, trip_id=UUID(trip_id), settings=settings
             )
@@ -380,13 +371,13 @@ def test_admin_applies_quarantined_batch_with_audit_and_lagos_days(
 
     assert asyncio.run(process()).overall in {"completed", "partial"}
 
-    pings_before = len(fetch_all(db_sessionmaker, LocationPing))
-    original_payload = fetch_all(db_sessionmaker, QuarantinedPingBatch)[0].payload
+    pings_before = len(fetch_all(postgis_db_sessionmaker, LocationPing))
+    original_payload = fetch_all(postgis_db_sessionmaker, QuarantinedPingBatch)[0].payload
     tampered_payload = copy.deepcopy(original_payload)
     tampered_payload["pings"][0]["lat"] = 7.1
 
     async def replace_payload(payload: dict) -> None:
-        async with db_sessionmaker() as session:
+        async with postgis_db_sessionmaker() as session:
             await session.execute(
                 update(QuarantinedPingBatch)
                 .where(QuarantinedPingBatch.id == UUID(quarantine_id))
@@ -395,33 +386,33 @@ def test_admin_applies_quarantined_batch_with_audit_and_lagos_days(
             await session.commit()
 
     asyncio.run(replace_payload(tampered_payload))
-    tampered = db_client.post(
+    tampered = postgis_db_client.post(
         f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply",
-        headers=admin_headers(db_client),
+        headers=admin_headers(postgis_db_client),
         json={"note": "tampered payload must fail"},
     )
     assert tampered.status_code == http_status.HTTP_409_CONFLICT
     assert tampered.json()["error"]["code"] == "TRIP_EVIDENCE_RECEIPT_INVALID"
     asyncio.run(replace_payload(original_payload))
 
-    applied = db_client.post(
+    applied = postgis_db_client.post(
         f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply",
-        headers=admin_headers(db_client),
+        headers=admin_headers(postgis_db_client),
         json={"note": "verified GPS evidence from support ticket 42"},
     )
     assert applied.status_code == http_status.HTTP_200_OK
     body = applied.json()
     assert body["accepted_count"] == 1
     assert body["affected_lagos_days"], "must name the days for recompute-day"
-    assert len(fetch_all(db_sessionmaker, LocationPing)) == pings_before + 1
-    assert "admin.trip.quarantined_batch.applied" in audit_actions(db_sessionmaker)
+    assert len(fetch_all(postgis_db_sessionmaker, LocationPing)) == pings_before + 1
+    assert "admin.trip.quarantined_batch.applied" in audit_actions(postgis_db_sessionmaker)
     # Trip stays sealed; money is corrected via recompute-day, never here.
-    assert fetch_trip(db_sessionmaker, trip_id).status == TripSessionStatus.SEALED.value
+    assert fetch_trip(postgis_db_sessionmaker, trip_id).status == TripSessionStatus.SEALED.value
 
     # A resolved row cannot be re-applied or discarded.
-    again = db_client.post(
+    again = postgis_db_client.post(
         f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/discard",
-        headers=admin_headers(db_client),
+        headers=admin_headers(postgis_db_client),
         json={"note": "late"},
     )
     assert again.status_code == http_status.HTTP_409_CONFLICT
@@ -500,17 +491,13 @@ def test_ended_window_ingest_skips_assignment_active_gate(db_client, db_sessionm
 
 
 def test_preseal_analytics_is_recomputed_before_money(
-    postgis_db_client, postgis_db_sessionmaker, settings, monkeypatch
+    postgis_db_client, postgis_db_sessionmaker, settings
 ) -> None:
     """Finding: analytics computed during the recovery window (pre-seal) must
     never be reused for the write-once money chain — the sealed ping set may
     contain late batches the analytics never saw."""
-    async def authorize_legacy_trip(*args, **kwargs) -> None:
-        return None
-
-    monkeypatch.setattr(trips_service, "assert_new_work_authorized", authorize_legacy_trip)
     admin, campaign, driver, profile, vehicle, assignment = create_trip_ready_graph(
-        postgis_db_sessionmaker, with_financial_authority=False
+        postgis_db_sessionmaker, eligibility_settings=settings
     )
     trip_id = start_trip(postgis_db_client, assignment.id).json()["id"]
     recorded = datetime.now(UTC)
@@ -558,12 +545,6 @@ def test_preseal_analytics_is_recomputed_before_money(
     assert trip.status == TripSessionStatus.SEALED.value
     assert preseal_computed_at.replace(tzinfo=UTC) < trip.sealed_at.replace(tzinfo=UTC)
 
-    create_test_payout_rule(
-        postgis_db_sessionmaker,
-        campaign_id=campaign.id,
-        created_by_user_id=admin.id,
-        base_rate_per_km=10,
-    )
 
     async def process():
         async with postgis_db_sessionmaker() as session:

@@ -3,13 +3,19 @@ import json
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import case, delete, func, select
+from sqlalchemy import and_, case, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status
 
-from app.adapters.storage import StorageObjectNotFound, StorageProvider, StorageUnavailable
+from app.adapters.storage import (
+    StorageObjectConflict,
+    StorageObjectNotFound,
+    StorageProvider,
+    StorageUnavailable,
+)
 from app.core.errors import AppError
 from app.models.campaign import CampaignCreative
+from app.models.installation_evidence import DisplayProof, InstallationEvidencePhoto
 from app.models.kyc import (
     DriverKycDocument,
     DriverKycSubmission,
@@ -17,6 +23,7 @@ from app.models.kyc import (
     VehicleEvidenceDocument,
     VehicleEvidenceSubmission,
 )
+from app.models.report_issuance import ReportArtifact
 from app.models.stored_file import (
     FileUploadIntent,
     StoredFile,
@@ -103,14 +110,37 @@ async def delete_stored_object(
         StoredObjectDeletionState.COMPLETED.value,
     }:
         return
+    owner_model = {
+        "driver_kyc_submission": DriverKycSubmission,
+        "vehicle_evidence_submission": VehicleEvidenceSubmission,
+    }.get(intent.owner_type)
+    if (
+        owner_model is not None
+        and await session.scalar(
+            select(owner_model.purged_at).where(owner_model.id == intent.owner_id)
+        )
+        is None
+    ):
+        raise AppError(
+            "KYC_RETENTION_AUTHORITY_REQUIRED",
+            "KYC payload retirement must commit before object deletion",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     intent.attempts += 1
     intent.last_error_code = None
     try:
-        await storage.delete(intent.storage_key)
+        if owner_model is not None:
+            await storage.delete_all_versions(intent.storage_key)
+        else:
+            await storage.delete(intent.storage_key)
     except StorageObjectNotFound:
         pass
-    except StorageUnavailable:
-        intent.last_error_code = "storage_unavailable"
+    except (StorageUnavailable, StorageObjectConflict) as error:
+        intent.last_error_code = (
+            "storage_object_remains"
+            if isinstance(error, StorageObjectConflict)
+            else "storage_unavailable"
+        )
         await session.commit()
         raise AppError(
             "FILE_STORAGE_UNAVAILABLE",
@@ -122,11 +152,32 @@ async def delete_stored_object(
     await session.commit()
 
 
-async def _file_is_referenced(session: AsyncSession, file_id: UUID) -> bool:
+async def _file_is_referenced(
+    session: AsyncSession,
+    file_id: UUID,
+    *,
+    driver_submission_id: UUID | None = None,
+    vehicle_submission_id: UUID | None = None,
+) -> bool:
     checks = (
-        select(DriverKycDocument.id).where(DriverKycDocument.stored_file_id == file_id),
-        select(VehicleEvidenceDocument.id).where(VehicleEvidenceDocument.stored_file_id == file_id),
+        select(DriverKycDocument.id).where(
+            DriverKycDocument.stored_file_id == file_id,
+            DriverKycDocument.submission_id != driver_submission_id
+            if driver_submission_id
+            else True,
+        ),
+        select(VehicleEvidenceDocument.id).where(
+            VehicleEvidenceDocument.stored_file_id == file_id,
+            VehicleEvidenceDocument.submission_id != vehicle_submission_id
+            if vehicle_submission_id
+            else True,
+        ),
         select(CampaignCreative.id).where(CampaignCreative.stored_file_id == file_id),
+        select(InstallationEvidencePhoto.id).where(
+            InstallationEvidencePhoto.stored_file_id == file_id
+        ),
+        select(DisplayProof.id).where(DisplayProof.stored_file_id == file_id),
+        select(ReportArtifact.id).where(ReportArtifact.stored_file_id == file_id),
     )
     for statement in checks:
         if await session.scalar(statement.limit(1)) is not None:
@@ -180,6 +231,7 @@ async def _finalize_kyc_owner(
         .where(
             submission_model.id == intent.owner_id,
             submission_model.status.in_(_TERMINAL_KYC_STATUSES),
+            submission_model.purged_at.is_not(None),
         )
         .with_for_update()
     )
@@ -193,15 +245,10 @@ async def _finalize_kyc_owner(
             .with_for_update()
         )
     )
-    for document in documents:
-        await session.delete(document)
-    await session.flush()
-    await session.delete(submission)
-    await session.flush()
+    if documents:
+        return False
     upload_intent_ids = {
-        sibling.upload_intent_id
-        for sibling in siblings
-        if sibling.upload_intent_id is not None
+        sibling.upload_intent_id for sibling in siblings if sibling.upload_intent_id is not None
     }
     for sibling in siblings:
         if sibling.stored_file_id is None:
@@ -258,12 +305,12 @@ async def finalize_stored_object_deletion(
         return True
     if intent.state != StoredObjectDeletionState.PROVIDER_DELETED.value:
         return False
-    if await _finalize_kyc_owner(
-        session,
-        intent=intent,
-        actor_user_id=actor_user_id,
-    ):
-        return True
+    if intent.owner_type in {"driver_kyc_submission", "vehicle_evidence_submission"}:
+        return await _finalize_kyc_owner(
+            session,
+            intent=intent,
+            actor_user_id=actor_user_id,
+        )
     now = datetime.now(UTC)
     if intent.stored_file_id is not None:
         stored_file = await session.scalar(
@@ -299,10 +346,12 @@ async def finalize_stored_object_deletion(
     elif intent.upload_intent_id is not None:
         siblings = list(
             await session.scalars(
-                select(StoredObjectDeletion).where(
+                select(StoredObjectDeletion)
+                .where(
                     StoredObjectDeletion.owner_type == intent.owner_type,
                     StoredObjectDeletion.owner_id == intent.owner_id,
-                ).with_for_update()
+                )
+                .with_for_update()
             )
         )
         if any(
@@ -355,7 +404,30 @@ async def process_stored_object_deletions(
                             StoredObjectDeletionState.PENDING.value,
                             StoredObjectDeletionState.PROVIDER_DELETED.value,
                         ]
-                    )
+                    ),
+                    or_(
+                        StoredObjectDeletion.owner_type.not_in(
+                            ["driver_kyc_submission", "vehicle_evidence_submission"]
+                        ),
+                        and_(
+                            StoredObjectDeletion.owner_type == "driver_kyc_submission",
+                            select(DriverKycSubmission.id)
+                            .where(
+                                DriverKycSubmission.id == StoredObjectDeletion.owner_id,
+                                DriverKycSubmission.purged_at.is_not(None),
+                            )
+                            .exists(),
+                        ),
+                        and_(
+                            StoredObjectDeletion.owner_type == "vehicle_evidence_submission",
+                            select(VehicleEvidenceSubmission.id)
+                            .where(
+                                VehicleEvidenceSubmission.id == StoredObjectDeletion.owner_id,
+                                VehicleEvidenceSubmission.purged_at.is_not(None),
+                            )
+                            .exists(),
+                        ),
+                    ),
                 )
                 .order_by(
                     case(

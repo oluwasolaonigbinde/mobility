@@ -2,6 +2,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 from alembic.config import Config
@@ -731,9 +732,9 @@ def fetch_palmpay_market_snapshot(
                     )
                 ),
                 "target_zone_distance_m": await session.scalar(
-                    select(
-                        func.coalesce(func.sum(TripAnalytics.target_zone_distance_m), 0)
-                    ).where(TripAnalytics.trip_session_id.in_(trip_ids))
+                    select(func.coalesce(func.sum(TripAnalytics.target_zone_distance_m), 0)).where(
+                        TripAnalytics.trip_session_id.in_(trip_ids)
+                    )
                 ),
                 "estimates": int(
                     await session.scalar(
@@ -1002,9 +1003,7 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert second_palmpay_market["creatives"] == 1
     assert second_palmpay_market["zones"] == 2
     assert second_palmpay_market["trips"] == 3
-    assert len(second_palmpay_market["trip_keys"]) == len(
-        set(second_palmpay_market["trip_keys"])
-    )
+    assert len(second_palmpay_market["trip_keys"]) == len(set(second_palmpay_market["trip_keys"]))
     assert second_palmpay_market["batches"] == 3
     assert second_palmpay_market["pings"] == 18
     assert second_palmpay_market["analytics"] == 3
@@ -1236,3 +1235,51 @@ def test_rich_seed_later_rerun_only_appends_valid_rolling_trips(
     assert first["trip_keys"] < second["trip_keys"]
     assert asyncio.run(completed_trip_count()) == completed_before
     assert fetch_lifecycle_violation_count(postgis_db_sessionmaker) == 0
+
+
+def test_ordinary_demo_driver_can_start_and_end_using_production_authority(
+    postgis_db_client, postgis_db_sessionmaker, settings, monkeypatch
+):
+    from conftest import auth_headers
+
+    monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
+    graph = seed_demo_graph(postgis_db_sessionmaker, settings)
+    headers = auth_headers(
+        postgis_db_client, graph.driver.email, DEMO_PASSWORDS[graph.driver.email]
+    )
+    response = postgis_db_client.post(
+        "/api/v1/driver/trips/start",
+        headers=headers,
+        json={
+            "assignment_id": str(graph.assignment.id),
+            "evidence_protocol_version": 2,
+            "metadata": {"seed_start_check": True},
+        },
+    )
+    assert response.status_code == 201, response.text
+    trip_id = response.json()["id"]
+    ended = postgis_db_client.post(
+        f"/api/v1/driver/trips/{trip_id}/end",
+        headers=headers,
+        json={
+            "evidence_manifest": {
+                "version": 2,
+                "entries": [],
+                "ping_count": 0,
+                "complete": True,
+                "root_sha256": manifest_root(trip_id=UUID(trip_id), entries=[], ping_count=0),
+            }
+        },
+    )
+    assert ended.status_code == 200, ended.text
+    seed_demo_graph(postgis_db_sessionmaker, settings)
+    response = postgis_db_client.post(
+        "/api/v1/driver/trips/start",
+        headers=headers,
+        json={
+            "assignment_id": str(graph.assignment.id),
+            "evidence_protocol_version": 2,
+            "metadata": {},
+        },
+    )
+    assert response.status_code == 201, response.text

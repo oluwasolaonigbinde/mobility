@@ -100,8 +100,18 @@ async def admin_create_user(
     current_user: AdminUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
+    request: Request,
+    rate_limiter: RateLimiterDependency,
 ) -> UserRead:
-    user = await create_user(session, payload, settings)
+    user = await create_user(
+        session,
+        payload,
+        settings,
+        actor_user_id=current_user.id,
+        actor_session_version=request.state.authenticated_session_version,
+        rate_limiter=rate_limiter,
+        client_ip=login_client_ip(request, settings),
+    )
     await create_audit_event(
         session,
         actor_user_id=current_user.id,
@@ -236,7 +246,7 @@ async def admin_update_user(
         user_id,
         payload,
         actor_user_id=current_user.id,
-        actor_session_version=current_user.session_version,
+        actor_session_version=request.state.authenticated_session_version,
         rate_limiter=rate_limiter,
         client_ip=login_client_ip(request, settings),
     )

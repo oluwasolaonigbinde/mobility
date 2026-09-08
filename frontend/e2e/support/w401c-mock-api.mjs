@@ -13,6 +13,16 @@ const ids = {
   trip: "10000000-0000-4000-8000-000000000006",
 };
 const trips = new Map();
+const workflowCorrectionMode = process.env.P08_SYNTHETIC === "1";
+let workflowCampaign;
+let workflowCreates = 0;
+let workflowAttachmentAttempts = 0;
+const workflowCreatives = new Map();
+const correctionMode = process.env.P07_SYNTHETIC === "1";
+let correctionScenario = "";
+let releaseCorrectionEnd;
+const correctionEnds = [];
+let correctionPingAttempts = 0;
 
 const encoder = new TextEncoder();
 const batchDomain = encoder.encode("cardvert.trip-batch.v2\0");
@@ -153,6 +163,26 @@ const server = createServer(async (request, response) => {
   const degraded = authToken === "w401c-degraded";
 
   if (url.pathname === "/health") return send(response, 200, { status: "ok" });
+  if (correctionMode && url.pathname === "/__test__/p07") {
+    if (request.method === "POST") {
+      const input = await body(request);
+      if (input.release) {
+        releaseCorrectionEnd?.();
+        releaseCorrectionEnd = undefined;
+      } else {
+        correctionScenario = input.scenario;
+        correctionEnds.length = 0;
+        correctionPingAttempts = 0;
+        trips.clear();
+      }
+    }
+    return send(response, 200, {
+      scenario: correctionScenario,
+      ends: correctionEnds,
+      pingAttempts: correctionPingAttempts,
+      status: trips.get(`w403b-driver-${correlationId}`)?.status,
+    });
+  }
   if (url.pathname === "/__test__/state") {
     const current = trips.get(`w403b-driver-${correlationId}`);
     return send(response, 200, {
@@ -170,6 +200,83 @@ const server = createServer(async (request, response) => {
       live_payout_submissions: 0,
       live_ad_activations: 0,
     });
+  }
+  if (workflowCorrectionMode && url.pathname === "/__test__/p08") {
+    if (request.method === "POST") {
+      workflowCampaign = undefined;
+      workflowCreates = 0;
+      workflowAttachmentAttempts = 0;
+      workflowCreatives.clear();
+    }
+    return send(response, 200, {
+      creates: workflowCreates,
+      attempts: workflowAttachmentAttempts,
+      creatives: workflowCreatives.size,
+    });
+  }
+  if (workflowCorrectionMode && authToken === "p08-advertiser") {
+    if (url.pathname === "/api/v1/me")
+      return send(response, 200, {
+        user: {
+          id: ids.user,
+          email: "p08@example.invalid",
+          full_name: "Synthetic advertiser",
+          role: "advertiser",
+          status: "active",
+          must_change_password: false,
+        },
+        advertiser_organization: {
+          id: ids.profile,
+          name: "Synthetic organization",
+          currency: "NGN",
+          status: "active",
+          membership_role: "owner",
+        },
+      });
+    if (url.pathname === "/api/v1/advertiser/campaigns" && request.method === "POST") {
+      workflowCreates += 1;
+      workflowCampaign = { ...(await body(request)), id: ids.campaign, currency: "NGN" };
+      return send(response, 201, workflowCampaign);
+    }
+    if (url.pathname.startsWith(`/api/v1/advertiser/campaigns/${ids.campaign}`)) {
+      if (!workflowCampaign) return fail(response, 404, "CAMPAIGN_NOT_FOUND", "Campaign not found");
+      const tail = url.pathname.split(ids.campaign)[1];
+      if (tail === "/creatives" && request.method === "POST") {
+        const creative = await body(request);
+        workflowAttachmentAttempts += 1;
+        if (workflowAttachmentAttempts === 1)
+          return fail(
+            response,
+            503,
+            "ATTACHMENT_UNAVAILABLE",
+            "Attachment unavailable; retry on this campaign",
+          );
+        workflowCreatives.set(creative.stored_file_id, {
+          ...creative,
+          id: creative.stored_file_id,
+          asset_source: "managed_file",
+          scan_status: "clean",
+        });
+        return send(response, 201, workflowCreatives.get(creative.stored_file_id));
+      }
+      if (tail === "/creatives")
+        return send(response, 200, {
+          items: [...workflowCreatives.values()],
+          total: workflowCreatives.size,
+        });
+      if (tail === "/summary")
+        return send(response, 200, {
+          costs: { totals_by_currency: [] },
+          zones: {},
+          impressions: {},
+          route_analytics: {},
+          fraud_flags: {},
+          assignments: {},
+        });
+      if (tail === "/commercial") return send(response, 200, null);
+      if (tail) return send(response, 200, { items: [], total: 0 });
+      return send(response, 200, workflowCampaign);
+    }
   }
   if (!authToken) return fail(response, 401, "AUTH_REQUIRED", "Authentication required");
 
@@ -274,15 +381,27 @@ const server = createServer(async (request, response) => {
     });
   }
   if (request.method === "GET" && url.pathname === `/api/v1/driver/trips/${ids.trip}`) {
-    return trips.get(authToken)?.status === "active"
-      ? send(response, 200, { id: ids.trip, status: "active", evidence_protocol_version: 2 })
+    const current = trips.get(authToken);
+    return current && (current.status === "active" || correctionMode)
+      ? send(response, 200, { id: ids.trip, status: current.status, evidence_protocol_version: 2 })
       : fail(response, 404, "TRIP_NOT_FOUND", "Trip was not found");
   }
   if (request.method === "POST" && url.pathname === `/api/v1/driver/trips/${ids.trip}/pings`) {
     const payload = await body(request);
     const current = trips.get(authToken);
+    if (correctionMode) {
+      correctionPingAttempts += 1;
+      if (correctionScenario === "deferred_end" && current?.status === "active")
+        return fail(
+          response,
+          400,
+          "CAMPAIGN_ASSIGNMENT_NOT_ACTIVE",
+          "Synthetic capture authority revoked",
+        );
+    }
     if (current) current.pingBatches += 1;
     const pings = payload.pings ?? [];
+    const rejected = correctionMode && correctionScenario === "partial_ack" ? 1 : 0;
     return send(response, 200, {
       batch_id: "10000000-0000-4000-8000-000000000009",
       trip_id: ids.trip,
@@ -290,8 +409,8 @@ const server = createServer(async (request, response) => {
       payload_hash_version: 2,
       payload_hash: batchPayloadHash(pings),
       submitted_count: pings.length,
-      accepted_count: pings.length,
-      rejected_count: 0,
+      accepted_count: pings.length - rejected,
+      rejected_count: rejected,
       outcome: "accepted",
       receipt_format_version: 2,
       receipt_key_version: 1,
@@ -301,15 +420,39 @@ const server = createServer(async (request, response) => {
       sample_results: pings.map((ping, index) => ({
         index,
         sequence_number: ping.sequence_number ?? null,
-        status: "accepted",
-        rejection_code: null,
+        status: rejected && index === pings.length - 1 ? "rejected" : "accepted",
+        rejection_code: rejected && index === pings.length - 1 ? "INVALID_SPEED" : null,
       })),
     });
   }
   if (request.method === "POST" && url.pathname === `/api/v1/driver/trips/${ids.trip}/end`) {
     const current = trips.get(authToken);
+    if (correctionMode) {
+      correctionEnds.push(await body(request));
+      if (correctionScenario === "deferred_end") {
+        trips.set(authToken, { ...current, status: "ended" });
+        response.destroy();
+        return;
+      }
+      if (correctionScenario === "hold_end")
+        await new Promise((resolve) => {
+          releaseCorrectionEnd = resolve;
+        });
+    }
     trips.set(authToken, { status: "sealed", pingBatches: current?.pingBatches ?? 0 });
     return send(response, 200, { id: ids.trip, status: "sealed" });
+  }
+  if (
+    correctionMode &&
+    request.method === "POST" &&
+    url.pathname === `/api/v1/driver/trips/${ids.trip}/evidence/reconcile`
+  ) {
+    const current = trips.get(authToken);
+    if (current?.pingBatches > 0) {
+      current.status = "sealed";
+      return send(response, 200, { id: ids.trip, status: "sealed" });
+    }
+    return fail(response, 409, "TRIP_EVIDENCE_INCOMPLETE", "Synthetic manifest awaits its batches");
   }
   if (request.method === "GET" && url.pathname === "/api/v1/driver/earnings/ledger") {
     return send(response, 200, { items: [], total: 0, limit: 4, offset: 0 });

@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import os
 import sys
 import time
 from dataclasses import dataclass
@@ -24,6 +25,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from app.adapters.scanner import MalwareScanVerdict, build_malware_scanner
 from app.adapters.storage import build_storage_provider
 from app.core.config import LOCAL_ENVIRONMENTS, Settings, get_settings
+from app.operations.recovery_authority import CAPABILITY, validate_authority
 
 WORKER_HEALTH_KEY = "arq:queue:health-check"
 WORKER_HEALTH_MAX_TTL_SECONDS = 31
@@ -33,7 +35,16 @@ SUCCESS_CACHE_SECONDS = 30
 FAILURE_CACHE_SECONDS = 5
 
 
-async def _database_check(database_url: str, *, allow_database_ahead: bool) -> dict[str, str]:
+def code_migration_head() -> str:
+    head = ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
+    if not head:
+        raise RuntimeError("image has no authoritative migration head")
+    return head
+
+
+async def _database_check(
+    database_url: str, *, expected_revision: str | None = None
+) -> dict[str, str]:
     engine = create_async_engine(database_url, pool_pre_ping=True)
     try:
         async with engine.connect() as connection:
@@ -47,8 +58,8 @@ async def _database_check(database_url: str, *, allow_database_ahead: bool) -> d
             ).one()
     finally:
         await engine.dispose()
-    code_head = ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
-    if not code_head or (row[0] != code_head and not allow_database_ahead) or not row[1]:
+    expected = expected_revision or code_migration_head()
+    if row[0] != expected or not row[1]:
         raise RuntimeError("database migration or PostGIS revision is not ready")
     return {"alembic_revision": row[0], "postgis_version": row[1]}
 
@@ -190,7 +201,7 @@ async def _run_component_checks(settings: Settings) -> PublicReadiness:
     checks = {
         "database": _component_state(
             bool(settings.database_url),
-            lambda: _database_check(settings.database_url or "", allow_database_ahead=False),
+            lambda: _database_check(settings.database_url or ""),
         ),
         "redis": _component_state(
             bool(settings.redis_url), lambda: _broker_check(settings.redis_url or "")
@@ -269,21 +280,54 @@ async def public_readiness(settings: Settings) -> PublicReadiness:
     return await _public_readiness.get(settings)
 
 
-async def run_probe(*, write_canary: bool, allow_database_ahead: bool) -> dict[str, object]:
+async def run_probe(
+    *, write_canary: bool, compatibility_scope: str | None = None
+) -> dict[str, object]:
     settings = get_settings()
     if not settings.database_url or not settings.redis_url:
         raise RuntimeError("database and broker must be configured")
+    authority = None
+    if compatibility_scope is not None:
+        authority = validate_authority(
+            json.loads(os.environ["RELEASE_COMPATIBILITY_AUTHORITY"]),
+            secret=os.environ["RELEASE_COMPATIBILITY_KEY"],
+            scope=compatibility_scope,
+            release_id=os.environ["RELEASE_ID"],
+            revision=settings.release_revision,
+            image=os.environ["RELEASE_COMPATIBILITY_IMAGE"],
+            code_head=code_migration_head(),
+        )
     checks: dict[str, object] = {}
     checks["database"] = await _database_check(
-        settings.database_url, allow_database_ahead=allow_database_ahead
+        settings.database_url,
+        expected_revision=authority["forward_alembic_revision"] if authority else None,
     )
     checks["broker"] = await _broker_check(settings.redis_url)
     checks["storage"] = await _storage_check(write_canary=write_canary)
-    checks["worker"] = await _worker_check(settings.redis_url)
+    checks["worker"] = (
+        {"status": "quiesced_for_qualification"}
+        if compatibility_scope == "qualification"
+        else await _worker_check(settings.redis_url)
+    )
     checks["scanner"] = await _scanner_check(settings)
+    checks["trip_evidence_signing"] = await _signing_check(settings)
+    if compatibility_scope is not None:
+        def api_liveness() -> None:
+            with urlopen("http://127.0.0.1:8000/api/v1/health", timeout=5) as response:
+                if response.status != 200:
+                    raise RuntimeError("previous-image API is unavailable")
+        await asyncio.to_thread(api_liveness)
+        checks["api"] = {"status": "ok"}
     return {
         "event": "release_readiness",
         "status": "ready",
+        **({
+            "compatibility_capability": CAPABILITY,
+            "compatibility_scope": compatibility_scope,
+            "authority_sha256": hashlib.sha256(
+                json.dumps(authority, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest(),
+        } if authority else {}),
         "release_revision": settings.release_revision,
         "checked_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "checks": checks,
@@ -293,13 +337,20 @@ async def run_probe(*, write_canary: bool, allow_database_ahead: bool) -> dict[s
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--write-canary", action="store_true")
-    parser.add_argument("--allow-database-ahead", action="store_true")
+    parser.add_argument("--compatibility", choices=("qualification", "recovery"))
+    parser.add_argument("--capability", action="store_true")
     args = parser.parse_args(argv)
     try:
+        if args.capability:
+            print(json.dumps({"capability": CAPABILITY, "alembic_revision": code_migration_head()}))
+            return 0
         result = asyncio.run(
-            run_probe(
-                write_canary=args.write_canary,
-                allow_database_ahead=args.allow_database_ahead,
+            asyncio.wait_for(
+                run_probe(
+                    write_canary=args.write_canary,
+                    compatibility_scope=args.compatibility,
+                ),
+                timeout=40,
             )
         )
     except Exception as exc:

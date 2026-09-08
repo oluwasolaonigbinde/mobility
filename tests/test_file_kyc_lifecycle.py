@@ -111,7 +111,8 @@ def test_file_kyc_retention_is_dry_run_first_audited_and_removes_terminal_object
     assert planned.purged_submissions == planned.purged_files == 0
     assert executed.purged_submissions == 1
     assert executed.purged_files == 3
-    assert submission_count == document_count == 0
+    assert submission_count == 1
+    assert document_count == 0
     assert len(storage.deleted) == 3
     assert "file_kyc.retention_dry_run" in actions
     assert "file_kyc.retention_executed" in actions
@@ -200,11 +201,11 @@ def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_clos
     assert executed.purged_submissions == 1
     assert executed.purged_files == 0
     assert remaining_files == 6
-    assert remaining_submissions == 1
+    assert remaining_submissions == 2
     assert storage.deleted == []
 
 
-def test_storage_outage_rolls_back_all_file_kyc_retention_rows(db_sessionmaker, settings) -> None:
+def test_storage_outage_preserves_retired_identity_and_durable_cleanup(db_sessionmaker, settings):
     admin, driver, _, bank_id, files = _seed_driver_authority(
         db_sessionmaker, suffix="retention-outage"
     )
@@ -238,11 +239,18 @@ def test_storage_outage_rolls_back_all_file_kyc_retention_rows(db_sessionmaker, 
             assert raised.value.code == "FILE_STORAGE_UNAVAILABLE"
             await session.rollback()
         async with db_sessionmaker() as session:
+            retained = await session.scalar(select(DriverKycSubmission))
+            assert retained.purged_at is not None
+            assert retained.encrypted_nin is None
+            pending = list(await session.scalars(select(StoredObjectDeletion)))
+            assert len(pending) == 3
+            assert {row.state for row in pending} == {"pending"}
+            assert sum(row.last_error_code == "storage_unavailable" for row in pending) == 1
             submissions = int(await session.scalar(select(func.count(DriverKycSubmission.id))) or 0)
             documents = int(await session.scalar(select(func.count(DriverKycDocument.id))) or 0)
             return submissions, documents
 
-    assert asyncio.run(exercise()) == (1, 3)
+    assert asyncio.run(exercise()) == (1, 0)
 
 
 def test_mid_batch_storage_outage_is_idempotently_recoverable(db_sessionmaker, settings) -> None:
@@ -291,6 +299,9 @@ def test_mid_batch_storage_outage_is_idempotently_recoverable(db_sessionmaker, s
             await session.rollback()
 
         storage.delete = original_delete  # type: ignore[method-assign]
+        assert (
+            await process_stored_object_deletions(db_sessionmaker, storage=storage, limit=10) == 1
+        )
         async with db_sessionmaker() as session:
             retried = await purge_terminal_file_kyc(
                 session,
@@ -303,9 +314,13 @@ def test_mid_batch_storage_outage_is_idempotently_recoverable(db_sessionmaker, s
                 now=now,
             )
             await session.commit()
+            assert set(await session.scalars(select(StoredObjectDeletion.state))) == {"completed"}
+            retained = await session.scalar(select(DriverKycSubmission))
+            assert retained.purged_at is not None
+            assert retained.encrypted_nin is None
         return retried.purged_submissions, retried.purged_files
 
-    assert asyncio.run(exercise()) == (1, 3)
+    assert asyncio.run(exercise()) == (0, 0)
     assert len(set(storage.deleted)) == 3
 
 
@@ -358,7 +373,9 @@ def test_kill_after_external_delete_recovers_from_durable_intent(
 
         async with db_sessionmaker() as session:
             assert int(await session.scalar(select(func.count(DriverKycSubmission.id))) or 0) == 1
-            assert int(await session.scalar(select(func.count(DriverKycDocument.id))) or 0) == 3
+            assert int(await session.scalar(select(func.count(DriverKycDocument.id))) or 0) == 0
+            retained = await session.scalar(select(DriverKycSubmission))
+            assert retained.purged_at is not None and retained.encrypted_nin is None
             pending = list(await session.scalars(select(StoredObjectDeletion)))
             assert len(pending) == 3
             assert {row.state for row in pending} == {"pending"}
@@ -402,7 +419,7 @@ def test_kill_after_external_delete_recovers_from_durable_intent(
             )
         return remaining_submissions, remaining_documents, remaining_owned_upload_intents, states
 
-    assert asyncio.run(exercise()) == (0, 0, 0, ["completed", "completed", "completed"])
+    assert asyncio.run(exercise()) == (1, 0, 0, ["completed", "completed", "completed"])
 
 
 def test_admin_retention_endpoint_is_dry_run_first_and_policy_gated(
@@ -534,7 +551,7 @@ def test_postgres_retention_lock_prevents_concurrent_double_purge(
     assert first.purged_submissions == 1
     assert second.lock_acquired is False
     assert second.purged_submissions == 0
-    assert remaining == 0
+    assert remaining == 1
     assert executions == 1
     assert len(storage.deleted) == 3
 
@@ -693,4 +710,49 @@ def test_postgres_deletion_waits_for_prior_reference_then_skips_that_file(
         async with sessionmaker() as session:
             assert await session.get(StoredFile, target_file_id) is not None
 
+    asyncio.run(exercise())
+
+
+def test_kyc_retirement_keeps_deletion_pending_when_provider_versions_remain(
+    db_sessionmaker, settings
+):
+    from app.adapters.storage import StorageObjectConflict
+
+    class RetainsVersions(FakeStorageProvider):
+        async def delete_all_versions(self, object_key):
+            raise StorageObjectConflict("provider version still present")
+
+    admin, driver, _, bank_id, files = _seed_driver_authority(
+        db_sessionmaker, suffix="retained-provider-versions"
+    )
+    storage = RetainsVersions()
+    now = datetime.now(UTC)
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            submission = await _create_terminal_submission(
+                session, driver_id=driver.id, bank_id=bank_id, files=files, now=now,
+                settings=settings,
+            )
+            identity = submission.id
+            await session.commit()
+            with pytest.raises(AppError) as unavailable:
+                await purge_terminal_file_kyc(
+                    session, storage=storage, retention_days=30, limit=10, dry_run=False,
+                    actor_user_id=admin.id, reason="version_deletion_retry", now=now,
+                )
+            assert unavailable.value.code == "FILE_STORAGE_UNAVAILABLE"
+        async with db_sessionmaker() as session:
+            shell = await session.get(DriverKycSubmission, identity)
+            assert shell.purged_at is not None and shell.encrypted_nin is None
+            receipts = list(await session.scalars(select(StoredObjectDeletion)))
+            assert len(receipts) == 3
+            assert {row.state for row in receipts} == {"pending"}
+            failed = [row for row in receipts if row.attempts]
+            assert len(failed) == 1
+            assert failed[0].last_error_code == "storage_object_remains"
+            assert failed[0].provider_deleted_at is None
+        assert await process_stored_object_deletions(
+            db_sessionmaker, storage=FakeStorageProvider(), limit=10
+        ) == 1
     asyncio.run(exercise())

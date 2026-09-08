@@ -6,6 +6,7 @@ from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 from app.core.middleware import RequestIdMiddleware
 from app.core.observability import configure_logging, init_error_tracking
+from app.schemas.errors import ErrorResponse
 from app.services.auth import warm_password_timing_equalizer
 
 
@@ -15,7 +16,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     init_error_tracking(settings)
     if settings.environment.lower() == "production":
         warm_password_timing_equalizer()
-    app = FastAPI(title=settings.app_name)
+    app = FastAPI(
+        title=settings.app_name,
+        responses={422: {"model": ErrorResponse, "description": "Request validation failed"}},
+    )
     app.state.request_id_header = settings.request_id_header
     app.dependency_overrides[get_settings] = lambda: settings
     app.add_middleware(RequestIdMiddleware, settings=settings)

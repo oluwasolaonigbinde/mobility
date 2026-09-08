@@ -99,7 +99,8 @@ def _person_payee_response(view) -> PersonPayeeStageRead:
         status=submission.status,
         submission_id=submission.id,
         version=submission.version,
-        masked_nin=f"*******{submission.nin_last_four}",
+        masked_nin=f"*******{submission.nin_last_four}" if submission.purged_at is None else None,
+        purged_at=submission.purged_at,
         bank_account_verified=view.bank_account_verified,
         reason_code=decision.reason_code if decision else None,
         created_at=submission.created_at,
@@ -115,6 +116,7 @@ def _vehicle_stage_response(view: VehicleStageView) -> VehicleStageRead:
         return VehicleStageRead()
     return VehicleStageRead(
         status=submission.status,
+        purged_at=submission.purged_at,
         vehicle_id=vehicle.id,
         submission_id=submission.id,
         version=submission.version,
@@ -419,6 +421,7 @@ async def confirm_driver_onboarding_upload(
         actor_user_id=application.user_id,
         upload_id=upload_id,
         storage=storage,
+        settings=settings,
     )
     await session.commit()
     return ApplicantStoredFileRead(id=stored_file.id, scan_status=stored_file.scan_status)

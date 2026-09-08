@@ -21,6 +21,7 @@ from conftest import (
     create_test_campaign_zone,
     create_test_display_proof,
     create_test_driver_profile,
+    create_test_frozen_payout_binding,
     create_test_organization,
     create_test_trip_analytics,
     create_test_trip_session,
@@ -340,6 +341,9 @@ def test_cancel_and_trip_start_serialize_postgres(
         accepted_at=datetime.now(UTC),
         activated_at=datetime.now(UTC),
     )
+    create_test_frozen_payout_binding(
+        postgis_db_sessionmaker, campaign=campaigns[0], assignment=assignment, admin=admin
+    )
     create_test_display_proof(
         postgis_db_sessionmaker,
         assignment_id=assignment.id,
@@ -565,6 +569,9 @@ def test_lost_trip_start_race_returns_active_trip_envelope(
         accepted_at=datetime.now(UTC),
         activated_at=datetime.now(UTC),
     )
+    create_test_frozen_payout_binding(
+        db_sessionmaker, campaign=campaigns[0], assignment=assignment, admin=admin
+    )
     create_test_display_proof(
         db_sessionmaker,
         assignment_id=assignment.id,
@@ -688,6 +695,9 @@ def test_concurrent_trip_starts_one_winner_postgis(
         assignment_status=CampaignAssignmentStatus.ACTIVE,
         accepted_at=datetime.now(UTC),
         activated_at=datetime.now(UTC),
+    )
+    create_test_frozen_payout_binding(
+        postgis_db_sessionmaker, campaign=campaigns[0], assignment=assignment, admin=admin
     )
     create_test_display_proof(
         postgis_db_sessionmaker,

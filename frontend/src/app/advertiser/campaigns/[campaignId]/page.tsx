@@ -278,10 +278,16 @@ export default async function CampaignDetailPage({
         <Panel className="overflow-hidden lg:col-span-2">
           <div className="border-edge flex items-center justify-between border-b px-6 py-4">
             <h2 className="micro text-muted">Creatives · {creativeItems.length}</h2>
+            <Link
+              href={`/advertiser/campaigns/new?campaignId=${campaign.id}`}
+              className="text-amber text-sm underline"
+            >
+              Add missing creatives
+            </Link>
           </div>
           {creativeItems.length === 0 ? (
             <p className="text-muted px-6 py-10 text-center text-sm">
-              No creatives yet. Upload a private creative file when you edit this campaign.
+              No creatives yet. Add a private creative file to this campaign.
             </p>
           ) : (
             <ul className="divide-edge/60 divide-y">

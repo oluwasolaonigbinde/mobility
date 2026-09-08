@@ -697,7 +697,7 @@ def test_parent_child_scope_overlap_serializes_concurrently(
     ]
 
 
-def test_scheduled_retention_purge_removes_expired_history_without_query_traffic(
+def test_scheduled_retention_preserves_protection_without_source_retirement_authority(
     db_sessionmaker,
 ) -> None:
     now = datetime.now(UTC)
@@ -734,7 +734,48 @@ def test_scheduled_retention_purge_removes_expired_history_without_query_traffic
             )
         return result, remaining
 
-    assert asyncio.run(run()) == ({"deleted": 1}, 1)
+    assert asyncio.run(run()) == ({"deleted": 0}, 2)
+
+
+@pytest.mark.parametrize("run_scheduled_job", [False, True])
+def test_delayed_overlapping_query_cannot_outlive_disclosure_protection(
+    db_sessionmaker, run_scheduled_job
+):
+    initial = query()
+    overlapping = DisclosureQuery(
+        **{**initial.__dict__, "principal_id": uuid4(), "filters": {"metric": "distance_m"}}
+    )
+
+    async def run():
+        async with db_sessionmaker() as session:
+            await record_heatmap_disclosure(
+                session,
+                query=initial,
+                settings=live_test_settings(),
+                has_releasable_cells=True,
+                result_hash="a" * 64,
+            )
+            first = await session.scalar(select(DisclosureQueryDecision))
+            first.expires_at = datetime.now(UTC) - timedelta(days=1)
+            await session.commit()
+        if run_scheduled_job:
+            await purge_expired_disclosure_query_history({"sessionmaker": db_sessionmaker})
+        async with db_sessionmaker() as session:
+            with pytest.raises(AppError) as suppressed:
+                await record_heatmap_disclosure(
+                    session,
+                    query=overlapping,
+                    settings=live_test_settings(),
+                    has_releasable_cells=True,
+                    result_hash="b" * 64,
+                )
+            assert suppressed.value.details == {"reason": "overlapping_query_differencing"}
+        async with db_sessionmaker() as session:
+            decisions = list(await session.scalars(select(DisclosureQueryDecision)))
+            assert len(decisions) == 2
+            assert {row.decision for row in decisions} == {"served", "suppressed"}
+
+    asyncio.run(run())
 
 
 def test_concurrent_overlapping_queries_serialize_to_one_served_one_suppressed(

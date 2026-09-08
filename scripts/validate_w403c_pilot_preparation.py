@@ -114,7 +114,7 @@ EXERCISE_NODES = {
         "tests/test_w403a_release_preparation.py::test_release_scripts_never_run_alembic_downgrade",
     ),
     "payout-replay": (
-        "tests/test_payout_reconciliation.py::test_line_level_partial_reconciliation_retry_and_paid_finality",
+        "tests/test_payout_reconciliation.py::test_line_level_partial_reconciliation_preserves_paid_and_failed_finality",
         "tests/test_payout_batches.py::test_submission_fails_closed_without_approved_provider",
     ),
     "report-replay": (

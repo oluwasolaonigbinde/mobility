@@ -224,7 +224,7 @@ async def require_paycap_predecessors_processed(
         overlap_clauses.append(
             and_(
                 TripSession.started_at < day_end_utc,
-                func.coalesce(TripSession.ended_at, TripSession.started_at) >= day_start_utc,
+                func.coalesce(TripSession.ended_at, TripSession.started_at) > day_start_utc,
             )
         )
     calculation_exists = (
@@ -238,7 +238,7 @@ async def require_paycap_predecessors_processed(
         .where(
             TripSession.driver_profile_id == trip.driver_profile_id,
             TripSession.campaign_id == trip.campaign_id,
-            TripSession.status == TripSessionStatus.SEALED.value,
+            TripSession.status.in_([TripSessionStatus.ENDED.value, TripSessionStatus.SEALED.value]),
             TripSession.ended_at.is_not(None),
             or_(
                 TripSession.started_at < trip.started_at,

@@ -168,7 +168,25 @@ def test_measurement_run_replays_reproduces_reissues_and_drives_report(
                 select(PayoutCalculation).where(PayoutCalculation.campaign_id == campaign.id)
             )
             assert payout is not None
-            payout.final_payout = Decimal("1300.00")
+            original = await session.scalar(
+                select(EarningsLedgerEntry).where(
+                    EarningsLedgerEntry.payout_calculation_id == payout.id
+                )
+            )
+            session.add(
+                EarningsLedgerEntry(
+                    driver_profile_id=original.driver_profile_id,
+                    driver_user_id=original.driver_user_id,
+                    campaign_id=campaign.id,
+                    trip_session_id=original.trip_session_id,
+                    vehicle_id=original.vehicle_id,
+                    entry_type="adjustment",
+                    status="pending",
+                    amount=Decimal("100.00"),
+                    currency=original.currency,
+                    occurred_at=DAY_1 + timedelta(days=2),
+                )
+            )
             await session.commit()
 
     asyncio.run(change_source())
@@ -238,7 +256,7 @@ def test_measurement_run_replays_reproduces_reissues_and_drives_report(
     assert asyncio.run(count_runs()) == 2
 
 
-def test_measurement_and_screen_share_trip_start_cohort_when_sources_arrive_late(
+def test_measurement_and_screen_share_terminal_cohort_when_sources_arrive_late(
     db_client, db_sessionmaker
 ) -> None:
     admin, advertiser, campaign = create_measurement_graph(

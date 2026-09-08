@@ -541,3 +541,92 @@ describe("break-case recovery visibility (OFF-002/OFF-003)", () => {
     await expect(queue.listDeadLetters(TRIP)).rejects.toThrow();
   });
 });
+
+describe("durable End boundary", () => {
+  it("freezes queued writes once and restores the identical End after reload", async () => {
+    const writes = [queue.addPing(TRIP, ping(0)), queue.addPing(TRIP, ping(1))];
+    const frozen = await queue.freezeEnd(TRIP, false);
+    await Promise.all(writes);
+    expect(frozen.ping_count).toBe(2);
+    expect(await queue.pendingCount(TRIP)).toBe(0);
+    await expect(queue.addPing(TRIP, ping(2))).rejects.toThrow(/End/);
+    queue.close();
+    queue = await openPingQueue(dbName);
+    expect(await queue.freezeEnd(TRIP, true)).toEqual(frozen);
+    expect((await queue.meta(TRIP)).endManifest).toEqual(frozen);
+    await expect(queue.addPing(TRIP, ping(3))).rejects.toThrow(/End/);
+  });
+});
+
+it("freezes a legacy End watermark before retry and forbids later capture", async () => {
+  await queue.addPing(TRIP, ping(0));
+  const request = await queue.freezeLegacyEnd(TRIP, false);
+  expect(request).toEqual({ clientBatchCount: 1, clientPingCount: 1, clientComplete: false });
+  queue.close();
+  queue = await openPingQueue(dbName);
+  expect(await queue.freezeLegacyEnd(TRIP, true)).toEqual(request);
+  await expect(queue.addPing(TRIP, ping(1))).rejects.toThrow(/End/);
+});
+
+it("retains complete signed per-sample disposition atomically without resending settled peers", async () => {
+  await queue.addPing(TRIP, ping(0));
+  await queue.addPing(TRIP, ping(1));
+  const batch = (await queue.cutBatch(TRIP))!;
+  const receipt = {
+    tripId: TRIP,
+    batchId: "34000000-0000-0000-0000-000000000011",
+    batch_sequence: batch.cutSeq,
+    idempotency_key: batch.key,
+    payload_hash_version: batch.payloadHashVersion,
+    payload_hash: batch.payloadHash,
+    submitted_count: 2,
+    acceptedCount: 1,
+    rejectedCount: 1,
+    outcome: "accepted",
+    receiptFormatVersion: 2,
+    receiptKeyVersion: 1,
+    receiptSignature: "signed-disposition",
+    sampleResults: [
+      { index: 0, sequence_number: 0, status: "accepted" as const, rejection_code: null },
+      {
+        index: 1,
+        sequence_number: 1,
+        status: "rejected" as const,
+        rejection_code: "INVALID_SPEED",
+      },
+    ],
+  };
+  await queue.acknowledgeBatch(batch, receipt);
+  const frozen = await queue.freezeEnd(TRIP, false);
+  queue.close();
+  queue = await openPingQueue(dbName);
+  expect(await queue.listReceipts(TRIP)).toEqual([receipt]);
+  expect(await queue.listBatches(TRIP)).toEqual([]);
+  expect(await queue.unsyncedCount(TRIP)).toBe(0);
+  expect((await queue.freezeEnd(TRIP, true)).root_sha256).toBe(frozen.root_sha256);
+});
+
+it("refuses an inconsistent signed partial disposition without deleting its batch", async () => {
+  await queue.addPing(TRIP, ping(0));
+  const batch = (await queue.cutBatch(TRIP))!;
+  await expect(
+    queue.acknowledgeBatch(batch, {
+      tripId: TRIP,
+      batchId: "34000000-0000-0000-0000-000000000011",
+      batch_sequence: batch.cutSeq,
+      idempotency_key: batch.key,
+      payload_hash_version: batch.payloadHashVersion,
+      payload_hash: batch.payloadHash,
+      submitted_count: 1,
+      acceptedCount: 0,
+      rejectedCount: 1,
+      outcome: "accepted",
+      receiptFormatVersion: 2,
+      receiptKeyVersion: 1,
+      receiptSignature: "signed-disposition",
+      sampleResults: [{ index: 0, sequence_number: 0, status: "accepted", rejection_code: null }],
+    }),
+  ).rejects.toThrow(/dispositions/);
+  expect(await queue.listBatches(TRIP)).toEqual([batch]);
+  expect(await queue.listReceipts(TRIP)).toEqual([]);
+});

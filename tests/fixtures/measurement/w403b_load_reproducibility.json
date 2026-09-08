@@ -1,6 +1,6 @@
 {
   "schema_version": "w403b-local-load-reproducibility-v1",
-  "frozen_authority_sha256": "d52ca583faf4e41d3ea5ca9ee3b5e2514154b0fb69741389b921b7df815539af",
+  "frozen_authority_sha256": "e52a85cbfc8c40b5d4ff6ee2c2f4991a25b6264c278b3abd0fa941ff00550894",
   "profile": {
     "city": "Abuja",
     "vehicles": 10,
@@ -64,7 +64,7 @@
     "synthetic": true,
     "creation_authority": "administrator",
     "issuance": {"id": "00000000-0000-4000-8000-000000000090", "version": 1, "schema_version": "campaign-performance-export-v1", "renderer_version": "campaign-report-renderer-v1", "created_at": "2026-08-28T00:00:00+00:00", "creation_authority": "administrator"},
-    "measurement": {"run_id": "11111111-1111-1111-1111-111111111111", "result_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "proof_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "report_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "method_revision": "measurement-contract-v1", "formula_version": "measurement-result-v1", "period_start_at": "2026-06-01T00:00:00+00:00", "period_end_at": "2026-09-01T00:00:00+00:00"},
+    "measurement": {"input_sha256": "2d6aa62898832ecc833d78f72f2f03377e71965f55f3287c77a4ba49c4653fbd", "run_id": "11111111-1111-1111-1111-111111111111", "result_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "proof_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "report_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "method_revision": "measurement-contract-v1", "formula_version": "measurement-result-v1", "period_start_at": "2026-06-01T00:00:00+00:00", "period_end_at": "2026-09-01T00:00:00+00:00"},
     "metrics": [{"id": "verified_vehicle_movement", "label": "Verified vehicle movement", "class": "measured_operational_fact", "values": [{"label": "Trip count", "value": "10", "unit": "trips"}, {"label": "Distance", "value": "10045.00", "unit": "metres"}]}, {"id": "modelled_potential_contacts", "label": "Modelled potential contacts", "class": "modelled_measure", "values": [{"label": "Value", "value": "1045", "unit": "contacts"}], "uncertainty": "Synthetic only; not observed people"}],
     "exposure": {"state": "suppressed", "score": null, "zones": [], "formula_version": "exposure_v1", "formula_fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "input_fingerprint": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "segment_snapshot_hashes": [], "disclaimer": "No cell satisfied the disclosure floor.", "authority_fingerprint": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}
   }

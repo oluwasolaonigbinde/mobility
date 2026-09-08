@@ -39,11 +39,12 @@ class DriverKycSubmissionRead(BaseModel):
     driver_profile_id: UUID
     version: int
     status: KycSubmissionStatus
-    masked_nin: str
+    masked_nin: str | None
     bank_account_version_id: UUID
     document_file_ids: dict[str, UUID]
-    encryption_algorithm: str
-    encryption_key_version: int
+    encryption_algorithm: str | None
+    encryption_key_version: int | None
+    purged_at: datetime | None = None
     created_at: datetime
 
 
@@ -53,13 +54,14 @@ class VehicleEvidenceSubmissionRead(BaseModel):
     version: int
     status: KycSubmissionStatus
     snapshot_trusted: bool
-    plate_number: str
-    plate_country_code: str
-    vehicle_type: str
+    plate_number: str | None
+    plate_country_code: str | None
+    vehicle_type: str | None
     make: str | None
     model: str | None
     year: int | None
     color: str | None
+    purged_at: datetime | None = None
     document_file_ids: dict[str, UUID]
     created_at: datetime
 

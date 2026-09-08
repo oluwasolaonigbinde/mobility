@@ -10,6 +10,7 @@ Partition bounds are UTC month boundaries. Bounds are always read from
 pg_inherits + pg_get_expr — partition names are labels, never parsed.
 """
 
+import calendar
 import hashlib
 import logging
 import re
@@ -88,12 +89,13 @@ def add_months(start: datetime, months: int) -> datetime:
 
 
 def subtract_calendar_months(moment: datetime, months: int) -> datetime:
-    anchor = month_start(moment)
-    shifted = add_months(anchor, -months)
-    # Preserve the intra-month offset so the cutoff is a plain instant, not
-    # a month boundary; whole-partition comparison happens against upper
-    # bounds anyway.
-    return shifted + (moment.astimezone(UTC) - anchor)
+    moment = moment.astimezone(UTC)
+    shifted = add_months(moment, -months)
+    return moment.replace(
+        year=shifted.year,
+        month=shifted.month,
+        day=min(moment.day, calendar.monthrange(shifted.year, shifted.month)[1]),
+    )
 
 
 def partition_name_for(start: datetime) -> str:
@@ -241,28 +243,36 @@ async def _record_purge_event(
     await session.commit()
 
 
-async def _has_purge_trail(session: AsyncSession, name: str) -> bool:
+async def _orphan_partition(session: AsyncSession, name: str) -> PartitionInfo | None:
     result = await session.execute(
         text(
-            "SELECT 1 FROM data_purge_audit trail"
-            " WHERE trail.partition_name = :name"
-            " AND trail.event IN ('purge_started', 'detach_finalized')"
-            " AND trail.range_from IS NOT NULL AND trail.range_to IS NOT NULL"
-            " AND EXISTS (SELECT 1 FROM data_purge_audit started"
-            "             WHERE started.partition_name = trail.partition_name"
-            "             AND started.event = 'purge_started'"
-            "             AND started.range_from = trail.range_from"
-            "             AND started.range_to = trail.range_to"
-            "             AND started.row_count IS NOT NULL) LIMIT 1"
+            "SELECT event, range_from, range_to, row_count FROM data_purge_audit"
+            " WHERE partition_name = :name"
         ),
         {"name": name},
     )
-    return result.scalar_one_or_none() is not None
+    trail = result.all()
+    if any(row.event == "dropped" for row in trail):
+        raise RuntimeError(f"Refusing to drop {name}: a 'dropped' evidence row already exists")
+    started = [row for row in trail if row.event == "purge_started"]
+    if not started or any(row.row_count is None or row.row_count < 0 for row in started):
+        return None
+    bounds = {(row.range_from, row.range_to) for row in trail}
+    if len(bounds) != 1:
+        return None
+    lower, upper = bounds.pop()
+    if (
+        lower is None
+        or upper is None
+        or lower >= upper
+        or lower != month_start(lower)
+        or upper != month_start(upper)
+    ):
+        return None
+    return PartitionInfo(name=name, lower=lower, upper=upper, detach_pending=False)
 
 
-async def _has_matching_started_event(
-    session: AsyncSession, partition: PartitionInfo
-) -> bool:
+async def _has_matching_started_event(session: AsyncSession, partition: PartitionInfo) -> bool:
     result = await session.execute(
         text(
             "SELECT 1 FROM data_purge_audit started"
@@ -353,6 +363,31 @@ async def run_ping_retention(
                         authorized.append(partition)
                     else:
                         refused.append((partition, started, expired))
+                orphan_partitions: list[PartitionInfo] = []
+                refused_orphans: list[str] = []
+                for name in await _detached_orphans(session):
+                    orphan = await _orphan_partition(session, name)
+                    if orphan is None or orphan.upper > cutoff:
+                        refused_orphans.append(name)
+                    else:
+                        orphan_partitions.append(orphan)
+                if refused_orphans:
+                    await session.rollback()
+                    logger.error("job=ping_retention outcome=refused orphans=%s", refused_orphans)
+                    capture_exception(
+                        RuntimeError(
+                            "ping_retention refused detached orphans: " + ", ".join(refused_orphans)
+                        )
+                    )
+                    return {
+                        "job_run_id": job_run_id,
+                        "finalized": [],
+                        "dropped": [],
+                        "batches_purged": 0,
+                        "quarantines_purged": 0,
+                        "purge_blocked_reason": "refused_detached_orphan",
+                        "refused_orphans": refused_orphans,
+                    }
                 # Release the session's read snapshot before DDL on the
                 # autocommit connection.
                 await session.rollback()
@@ -372,11 +407,19 @@ async def run_ping_retention(
                             + ", ".join(p.name for p, _, _ in refused)
                         )
                     )
+                    return {
+                        "job_run_id": job_run_id,
+                        "finalized": [],
+                        "dropped": [],
+                        "batches_purged": 0,
+                        "quarantines_purged": 0,
+                        "purge_blocked_reason": "refused_pending_detach",
+                        "refused_pending": [p.name for p, _, _ in refused],
+                    }
                 for partition in authorized:
                     await autocommit.execute(
                         text(
-                            f"ALTER TABLE {PARENT_TABLE} DETACH PARTITION"
-                            f" {partition.name} FINALIZE"
+                            f"ALTER TABLE {PARENT_TABLE} DETACH PARTITION {partition.name} FINALIZE"
                         )
                     )
                     await _record_purge_event(
@@ -389,43 +432,21 @@ async def run_ping_retention(
                     )
                     finalized.append(partition.name)
 
-                # Recovery: drop detached-but-not-dropped orphans, but only
-                # ones the evidence trail claims — never a table we cannot
-                # account for.
-                for name in await _detached_orphans(session):
-                    if not await _has_purge_trail(session, name):
-                        logger.error(
-                            "job=ping_retention orphan=%s outcome=unclaimed_table", name
-                        )
-                        continue
+                # Include newly finalized partitions whose bounds were still in the catalog.
+                for partition in [*orphan_partitions, *authorized]:
                     await _drop_with_evidence(
                         session,
-                        name=name,
-                        partition=None,
+                        name=partition.name,
+                        partition=partition,
+                        cutoff=subtract_calendar_months(now, settings.ping_retention_months),
                         retention_months=settings.ping_retention_months,
                         job_run_id=job_run_id,
                     )
-                    dropped.append(name)
+                    dropped.append(partition.name)
 
-                # Main sweep: fully-expired partitions, oldest first. A
-                # refused pending detach blocks any new DETACH CONCURRENTLY
-                # on the parent, so skip the destructive sweep entirely
-                # until an operator resolves it (the refusal above already
-                # logged and alerted); the batch purge below stays safe.
-                expired_partitions = (
-                    []
-                    if refused
-                    else [
-                        p
-                        for p in await list_partitions(session)
-                        if p.upper <= cutoff
-                    ]
-                )
-                if refused:
-                    logger.error(
-                        "job=ping_retention outcome=sweep_skipped"
-                        " reason=refused_pending_detach"
-                    )
+                expired_partitions = [
+                    p for p in await list_partitions(session) if p.upper <= cutoff
+                ]
                 for partition in expired_partitions:
                     row_count = (
                         await session.execute(
@@ -451,46 +472,14 @@ async def run_ping_retention(
                         session,
                         name=partition.name,
                         partition=partition,
+                        cutoff=subtract_calendar_months(now, settings.ping_retention_months),
                         retention_months=settings.ping_retention_months,
                         job_run_id=job_run_id,
                     )
                     dropped.append(partition.name)
 
-                # Batch purge: only batches with zero remaining pings (the
-                # straddling-batch guarantee — pings.batch_id is ON DELETE
-                # CASCADE, so a time-window predicate would delete retained
-                # pings) that are also older than the retention window (a
-                # recent zero-ping batch must keep serving idempotent
-                # replays). Skipped entirely while a refused pending detach
-                # exists: a detach-pending partition is invisible to new
-                # queries through the parent, so NOT EXISTS would wrongly
-                # see its batches as empty and the FK cascade would destroy
-                # the very pings the refusal left untouched.
-                if refused:
-                    logger.error(
-                        "job=ping_retention outcome=batch_purge_skipped"
-                        " reason=refused_pending_detach"
-                    )
-                    logger.error(
-                        "job=ping_retention outcome=quarantine_purge_skipped"
-                        " reason=refused_pending_detach"
-                    )
-                    await session.commit()
-                    logger.info(
-                        "job=ping_retention run_id=%s outcome=blocked"
-                        " refused=%d",
-                        job_run_id,
-                        len(refused),
-                    )
-                    return {
-                        "job_run_id": job_run_id,
-                        "finalized": finalized,
-                        "dropped": dropped,
-                        "batches_purged": 0,
-                        "quarantines_purged": 0,
-                        "purge_blocked_reason": "refused_pending_detach",
-                        "refused_pending": [p.name for p, _, _ in refused],
-                    }
+                # Parent visibility is safe only after every detached/pending table
+                # has been accounted for. Preserve straddling and recent retry batches.
                 result = await session.execute(
                     text(
                         "DELETE FROM location_ping_batches b"
@@ -565,7 +554,8 @@ async def _drop_with_evidence(
     session: AsyncSession,
     *,
     name: str,
-    partition: PartitionInfo | None,
+    partition: PartitionInfo,
+    cutoff: datetime,
     retention_months: int,
     job_run_id: str,
 ) -> None:
@@ -575,6 +565,8 @@ async def _drop_with_evidence(
     (evidence already claims this name was destroyed), something is wrong —
     roll back and fail closed rather than destroy a table the evidence
     cannot account for."""
+    if partition.upper > cutoff:
+        raise RuntimeError(f"Refusing to drop {name}: partition remains within current retention")
     inserted = (
         await session.execute(
             text(
@@ -588,8 +580,8 @@ async def _drop_with_evidence(
             ),
             {
                 "name": name,
-                "range_from": partition.lower if partition else None,
-                "range_to": partition.upper if partition else None,
+                "range_from": partition.lower,
+                "range_to": partition.upper,
                 "retention_months": retention_months,
                 "job_run_id": job_run_id,
             },

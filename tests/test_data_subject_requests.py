@@ -20,12 +20,58 @@ from app.models.data_subject_request import (
 )
 from app.models.stored_file import FileUploadIntent, StoredFile, UploadIntentStatus
 from app.models.user import UserRole
+from app.services.audit import create_audit_event
 from app.services.data_subject_requests import (
     complete_data_subject_request,
     create_data_subject_request,
+    data_subject_inventory,
     record_location_assessment,
     verify_data_subject_identity,
 )
+
+
+def test_inventory_counts_target_and_actor_once_without_foreign_subject_events(db_sessionmaker):
+    admin = create_test_user(db_sessionmaker, email="subject-audit-admin@example.test")
+    subject = create_test_user(
+        db_sessionmaker, email="subject-audit-driver@example.test", role=UserRole.DRIVER
+    )
+    foreign = create_test_user(
+        db_sessionmaker, email="subject-audit-foreign@example.test", role=UserRole.DRIVER
+    )
+
+    async def run():
+        async with db_sessionmaker() as session:
+            case = await create_data_subject_request(
+                session,
+                actor_user_id=admin.id,
+                subject_user_id=subject.id,
+                request_type=DataSubjectRequestType.ACCESS,
+                client_request_id=uuid4(),
+                requested_at=datetime.now(UTC),
+            )
+            await verify_data_subject_identity(session, actor_user_id=admin.id, request_id=case.id)
+            initial = await data_subject_inventory(
+                session, actor_user_id=admin.id, request_id=case.id
+            )
+            assert initial["database"]["audit_event"] == 2
+            for actor, target in (
+                (admin.id, subject.id),
+                (subject.id, subject.id),
+                (admin.id, foreign.id),
+            ):
+                await create_audit_event(
+                    session,
+                    actor_user_id=actor,
+                    action="synthetic.user.reviewed",
+                    entity_type="user",
+                    entity_id=str(target),
+                )
+            result = await data_subject_inventory(
+                session, actor_user_id=admin.id, request_id=case.id
+            )
+            assert result["database"]["audit_event"] == 4
+
+    asyncio.run(run())
 
 
 def test_admin_access_request_inventories_and_closes_all_locations(
@@ -94,12 +140,23 @@ def test_admin_access_request_inventories_and_closes_all_locations(
             ),
             "client_request_id": str(uuid4()),
         }
+        if location is DataSubjectLocation.DEVICE_QUEUE:
+            assessment["disposition"] = "provided"
+            assessment["external_record_count"] = 1
         response = db_client.post(
             f"/api/v1/admin/privacy/dsr-requests/{request_id}/locations/{location.value}",
             json=assessment,
             headers=headers,
         )
         assert response.status_code == status.HTTP_201_CREATED, response.json()
+        if location is DataSubjectLocation.DEVICE_QUEUE:
+            changed_external_count = db_client.post(
+                f"/api/v1/admin/privacy/dsr-requests/{request_id}/locations/{location.value}",
+                json={**assessment, "external_record_count": 2},
+                headers=headers,
+            )
+            assert changed_external_count.status_code == status.HTTP_409_CONFLICT
+            assert changed_external_count.json()["error"]["code"] == "DSR_ASSESSMENT_CONFLICT"
         if location is DataSubjectLocation.DATABASE:
             exact_retry = db_client.post(
                 f"/api/v1/admin/privacy/dsr-requests/{request_id}/locations/{location.value}",
@@ -235,7 +292,7 @@ def test_erasure_preserves_protected_history_without_approved_exception(
                 approved_exception_references={"SYNTHETIC-EXCEPTION"},
             )
             await session.commit()
-            assert retained.data_class_counts["audit_event"] == 1
+            assert retained.data_class_counts["audit_event"] == 3
             protected_audit_id = await session.scalar(
                 select(AuditEvent.id).where(AuditEvent.actor_user_id == subject.id)
             )

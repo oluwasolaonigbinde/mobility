@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.84 — 2026-09-05. Canonical source of truth: current state AND target state.**
+**Version 1.88 — 2026-09-08. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -263,7 +263,7 @@ to conflict, the earlier-numbered principle wins.
    ┌────────────▼─────────┐   ┌─▼──────────────────────────┐
    │ PostgreSQL 16 +      │   │ Redis 7                    │
    │ PostGIS 3.4          │   │ [BUILT] login rate-limit   │
-   │ 120 mapped tables,   │   │ counters (F7) + arq queue  │
+   │ 122 mapped tables,   │   │ counters (F7) + arq queue  │
    │ (Point/MultiPolygon) │   │ (§6.5); disposable queue,  │
    └──────────────────────┘   │ fail-closed auth buckets   │
                               └────────────────────────────┘
@@ -290,8 +290,8 @@ Current OpenAPI: **266 operations across 238 paths**; **265 operations under `/a
 | `/api/v1/webhooks/*` | 1 | 1 |
 | `/health` | 1 | 1 |
 
-SQLAlchemy metadata contains **120 mapped tables**.
-Alembic contains **84 linear revisions**, from base `0001_enable_extensions` to the single head `0084_payout_conservation`.
+SQLAlchemy metadata contains **122 mapped tables**.
+Alembic contains **88 linear revisions**, from base `0001_enable_extensions` to the single head `0088_report_publication_writes`.
 
 Required public driver-onboarding paths:
 
@@ -323,7 +323,7 @@ app/
 ├── core/              # config.py (pydantic-settings), security.py (JWT/argon2),
 │                      # errors.py (AppError + envelope), middleware.py (request-ID)
 ├── db/                # base.py (DeclarativeBase), session.py (async engine/session)
-├── models/            # SQLAlchemy models — 120 mapped tables (see §7)
+├── models/            # SQLAlchemy models — 122 mapped tables (see §7)
 ├── schemas/           # Pydantic request/response models, incl. pagination + decimal mixins
 ├── services/          # all business logic; routers stay thin
 └── seeds/demo.py      # demo seed CLI (python -m app.seeds.demo) — NOT an endpoint
@@ -421,10 +421,13 @@ namespace.
   record; reset completion additionally re-reads live status under its lock and
   refuses a contained account with the generic invalid-token response, leaving
   the token unconsumed.
-- **Administrator elevation (AUT-006, D27):** changing an active non-admin user
-  to `admin` requires the acting administrator's current password. The service
-  locks and reloads the target, then locks and rechecks the actor's active admin
-  role and presented `session_version` before verifying the password. A
+- **Administrator grants (AUT-006, D27):** creating an administrator (including
+  an invitation), changing an active non-admin user to `admin`, and activating
+  an existing inactive administrator require the acting administrator's current
+  password. The service locks and reloads actor and target in UUID order and
+  rechecks the actor's active admin role and presented `session_version` before
+  verifying the password. Invited administrators cannot authenticate or use
+  previously issued credentials to activate themselves. A
   credential proof reserves the existing login failure buckets and fails closed
   if that Redis authority is unavailable; only a correct proof refunds the
   reservation. A successful elevation increments the target's
@@ -433,8 +436,9 @@ namespace.
   reset capabilities; a combined status/elevation update still rotates once.
   Missing or incorrect proof, stale or contained actor authority, and a target
   disabled before the target lock resolves leave the target unchanged and write
-  no success audit. Role no-ops and changes that do not enter `admin` retain
-  their prior behavior. No per-device session state or migration is added.
+  no success audit. Exact role/status no-ops do not repeat elevation proof or
+  revocation. Non-admin creation and ordinary status changes retain their prior
+  behavior. No per-device session state or migration is added.
 - Advertiser/admin users are created by admins (`POST /api/v1/admin/users`);
   drivers enter through the public, non-enumerating application/onboarding
   routes and remain unable to work until the governed approval chain completes.
@@ -529,13 +533,14 @@ audited grace-expiry marker only; it never seals or unlocks money. Exact signed
 v2 manifest reconciliation is the sole new-trip seal predicate.
 Admin recompute endpoints remain the synchronous recompute/override tools.
 Redis's consumers: **[BUILT] F7 login rate limiting** (`app/core/rate_limit.py`
-— disposable counters, fail-open per P2) and **[BUILT]** the arq queue (also
+— fail-closed under D27/R12 when Redis authority is unavailable) and **[BUILT]**
+the arq queue (still
 disposable — the sweep re-derives work from Postgres). Do not introduce
 queues/realtime ad hoc — §14 remains the one sanctioned design.
 
 ## 7. Data model
 
-### 7.1 Entities **[BUILT]** — 120 mapped tables
+### 7.1 Entities **[BUILT]** — 122 mapped tables
 
 The groups below describe selected load-bearing entities rather than an
 exhaustive table catalogue. SQLAlchemy metadata and the generated sentinel
@@ -615,7 +620,7 @@ Notes:
 
 ### 7.2 Migration policy **[BUILT]**
 
-- Alembic has **84 linear revisions**, from base `0001_enable_extensions` to the single head `0084_payout_conservation`.
+- Alembic has **88 linear revisions**, from base `0001_enable_extensions` to the single head `0088_report_publication_writes`.
   <!-- verified by scripts/update_architecture_inventory.py from Alembic's ScriptDirectory -->
 - `0001` enables `pgcrypto` + `postgis`.
 - Shipped migrations are frozen history: schema changes come as **new**
@@ -643,12 +648,22 @@ Playwright (e2e). <!-- verified: frontend/package.json, tsconfig.json -->
 
 ### 8.2 BFF pattern — THE invariant **[BUILT]**
 
+Custom unsafe `/api` commands require an exact `PUBLIC_ORIGIN` match before
+parsing or backend relay. Missing/null origins, contradictory Fetch Metadata and
+incorrect media types fail closed. JSON is the default; only the aggregate
+export form and explicitly bodyless commands use other body contracts. Missing
+production origin configuration denies mutations. Server Actions retain Next's
+own origin boundary and backend authorization; public backend webhooks remain
+on the separately authenticated edge path. Report authorization refreshes locked
+User, Organization, Campaign and Membership state before using their authority.
+
 **The browser never calls FastAPI directly.** All backend access happens on the
 Next.js server. Request flow:
 
 ```
 1. Browser submits <form> / navigates
-2. proxy.ts (src/proxy.ts) — fast-path only: no session cookie on /advertiser|/driver|/admin → redirect /login
+2. proxy.ts (src/proxy.ts) — unsafe /api commands pass the shared mutation boundary;
+   no session cookie on /advertiser|/driver|/admin → redirect /login
    (exception: /driver/manifest.webmanifest stays public — browsers fetch manifests without cookies)
 3. Server layout calls requireRole(role) (src/lib/auth/current-user.ts)
    → getCurrentUser() → GET /api/v1/me with the JWT from the httpOnly cookie
@@ -785,6 +800,12 @@ regenerates. See §9 for the drift gate.
    (regeneration snippet in README §"MVP Contract Baseline"). Currently
    semantically identical to `openapi.json` (formatting differs by design).
 
+The shared `ErrorResponse` describes the runtime `error` envelope, including
+required code, message, details and nullable request ID. FastAPI's common 422
+response uses this model, so OpenAPI and generated clients do not advertise
+`HTTPValidationError`. Both framework request validation and domain validation
+retain their existing codes and details; rejected inputs are not echoed.
+
 **CI drift gate [BUILT]:** the frontend workflow regenerates `schema.d.ts` from
 the committed `openapi.json` and fails on any diff ("Contract drift check" step
 in `.github/workflows/ci.yml`). Backend contract tests
@@ -846,6 +867,20 @@ delivery-control files; matching pull requests use the same path filters).
   explicit ancestor base, rejects global or named-critical baseline regression,
   and enforces at least 90% line / 80% branch coverage on changed executable
   code with generated, test, fixture, migration, build and vendor exclusions.
+  D33 permits an explicit reviewed inventory/policy baseline refresh against the
+  caller's trusted ancestor. The checker verifies complete eligible source
+  coverage, exact global/backend/frontend ratios, unchanged D32 eligibility and
+  instrumentation, and a versioned receipt binding the prior baseline, current
+  source/policy hashes and inventory additions/removals. Empty/docstring-only
+  Python modules contribute zero executable lines; missing executable coverage
+  fails closed. CI validates receipts and never rewrites them.
+  After stabilized coverage generation, run the existing checker with the same
+  explicit `--base`, both `--backend-lcov`/`--frontend-lcov` inputs,
+  `--baseline coverage/baseline.json`, and `--refresh-baseline "review reason"`.
+  Review the resulting diff; normal verification uses
+  `--verify-baseline-provenance`. Changes to instrumentation or source eligibility
+  require separate D32 authority, not merely a new receipt. Neither command
+  commits or contacts a remote service.
 - Job `e2e`: boots the **real stack** (compose `api`+`db`+`redis` from
   `.env.example` with `ALLOW_DEMO_SEED=true`, relaxed login rate-limit
   thresholds, `F7_SEED_MAX_TRIPS_PER_DAY=1`, waits for `/api/v1/health`,
@@ -1239,9 +1274,11 @@ invoice or receipt.
 cancellation cutoff and append-only settlement snapshot per campaign. The
 shared campaign authority serializes cancellation with activation, new work,
 tracking, analytics and payout recompute. Nonterminal assignments stop,
-reserved liability becomes terminally released, and post-cutoff tracking stays
-available as evidence while payout-v2/v3 and day correction clip to the exact
-cutoff. The existing W2-01D registry retains unique external refund references;
+reserved liability becomes terminally released. Previously retained post-cutoff
+tracking stays available as non-economic evidence; new capture at/after assignment
+cancellation lacks authority (C26). Mixed v2 batches retain signed rejection
+dispositions and their valid pre-cancellation peers. Payout-v2/v3 and day
+correction still clip retained historical inputs to the exact cutoff. The existing W2-01D registry retains unique external refund references;
 this command records eligibility/disposition and never claims a provider
 transfer that has not been observed.
 
@@ -1289,6 +1326,13 @@ trip**: input drift never auto-recomputes money — the admin endpoint flags it
   where payable hours are derived from GPS-verified classified intervals under
   the Q5 eligibility rules (movement, geofence, campaign window, signal
   hygiene) and capped per campaign/driver/day (D4).
+- **Chronological cap authority:** earlier ended but not yet sealed trips block
+  later allocation on every overlapping Lagos day until their payout can be
+  processed. Half-open trip intervals ending exactly at midnight do not occupy
+  the following day. Worker completion order cannot choose the cap beneficiary.
+- **Frozen admission window:** trip start must be at or after the accepted
+  binding's start and strictly before its end, even after mutable campaign dates
+  change. An absent accepted start remains unbounded.
 - **Trigger:** v2 calculations are produced by the worker's trip-processing
   pipeline (§14.2) automatically on trip end — not by admin action. The admin
   "process trip" endpoints stay as recompute/override tools.
@@ -1483,6 +1527,13 @@ clawback; once cash has been paid, RM11's carry-forward debt contract applies.
   `fleet_owner` payee type extends the enum instead of reworking the money-out
   path. Do not scatter `driver_profile_id` assumptions through disbursement
   code.
+- **Submission catch-up fairness:** bounded sweeps order due intents by the
+  later of committed intent progress and durable worker-failure audit time.
+  Pre-claim authorization failures therefore rotate behind later due work
+  without altering financial authority or inventing provider attempts. The
+  worker records only an error code/class and emits an operational warning;
+  inability to persist that failure remains a visible worker failure. Current
+  claims, same-key recovery and every final authorization gate are unchanged.
 - Q26/Q27 require verified bank-account capture for the pilot. The concrete
   bank-verification provider may share the approved provider contract or use a
   separate adapter, but it may not bypass the encrypted payee snapshot or
@@ -1504,6 +1555,12 @@ clawback; once cash has been paid, RM11's carry-forward debt contract applies.
 Q21 and Q22 are confirmed by D18. Shape fixed by D5 and RM8:
 **hold-and-review**. Automatic strike/suspension policy remains outside the
 adopted MVP rule unless separately recorded.
+
+Route-replay regrouping never removes an existing unresolved hold. A newer group
+member, changed signature or newly insufficient evidence can change current
+detection output, but the original flag and its evidence remain available for
+governed review. Only the existing review decision can resolve that authority;
+detector cleanup cannot silently release earnings.
 
 **[BUILT — MNY-08A]:** every sealed trip now converges on one persisted current
 assessment attempt (`pending | clean | flagged | error`). Formula, analytics and
@@ -1676,8 +1733,12 @@ selecting a production provider. Local Compose provisions a private MinIO
 bucket, app-origin CORS and a one-day `unconfirmed/` lifecycle rule. Upload
 intents bind tenant, uploader, retry identity and declared metadata; the API
 returns only the condition-bound POST fields, never a bucket or managed key.
-Confirmation streams and hashes the server object, then idempotently promotes
-it to a deterministic private managed key. Missing configuration, storage
+Confirmation streams and hashes the server object, then copies it to a
+deterministic private managed key while retaining the temporary source under
+the existing unconfirmed lifecycle. Retry validates and adopts the destination
+if copying succeeded before a lost reply or database rollback. Protected KYC
+and vehicle intents, confirmation (including exact retry), and vehicle evidence
+binding require current collection authority. Missing configuration, storage
 outage, object loss and metadata mismatch fail closed. `EXT-STORAGE-PROVIDER`
 remains the production-adoption gate.
 
@@ -1690,6 +1751,11 @@ remains the production-adoption gate.
    file bytes never transit FastAPI or the BFF. The bucket needs a CORS policy
    for the app origins, and a **lifecycle rule that deletes unconfirmed
    objects** (uploaded but never confirmed in step 2) after ~24h.
+   Production Caddy derives the exact HTTP(S) origin from the configured public
+   storage endpoint for `connect-src`; it never emits endpoint paths, wildcard
+   sources or arbitrary configuration text. Unrecognized endpoint syntax adds
+   no origin. The release contract still validates the endpoint and requires
+   HTTPS outside explicitly local rehearsals; storage CORS remains exact-origin.
    <!-- This is a sanctioned exception to "browser only talks to the BFF": presigned object-storage URLs are scoped, expiring, and carry no session. -->
 2. Client confirms completion → backend verifies object existence, size, and
    checksum (rejecting anything outside the declared caps), creates a
@@ -1779,17 +1845,28 @@ active-admin endpoint is dry-run-first; the daily worker uses the same bounded
 service and remains visibly disabled while the policy is absent. Pending and
 approved evidence is never selected.
 
-Execution serializes under one PostgreSQL advisory transaction lock. It locks
-profile/vehicle/submission/document/file authority in stable order, removes
-domain links, and deletes only a private stored object with no remaining KYC,
-vehicle-evidence or creative reference. Every submission, file and completed
-run writes redacted audit evidence; filenames, identifiers, ciphertext and
-checksums do not enter retention audit metadata. A storage outage rolls the
-database transaction back. If the provider fails after an earlier idempotent
-object deletion in the same batch, terminal database links remain and the next
-run safely repeats deletion before committing the purge. Shared files remain.
-The operations runbook defines scanner, storage, key-loss, missing-policy and
-concurrent-run recovery without claiming a production provider or legal value.
+Execution serializes under one PostgreSQL advisory session lock across commit
+boundaries. Active-admin authority precedes the work-eligibility lock, then
+profile/vehicle/submission/document/file locks. Document writers lock the
+submission before the file too. Only rejected/expired payloads outside the
+configured horizon can retire. Migration 0087 retains each submission's identity,
+version, terminal status, trusted-snapshot provenance and immutable review links;
+it clears all NIN encryption fields or vehicle snapshot fields and detaches the
+documents in a transaction containing the redacted purge authorization and durable
+object-deletion receipts. That transaction commits before any provider deletion.
+Database guards prevent partial retirement, later payload restoration or document
+attachment, and refuse rollback of the migration when retired identities exist.
+
+Shared KYC, vehicle, creative, installation, display-proof and report files remain.
+Provider failure cannot resurrect a retired payload: pending receipts retain the
+private object identity and retry idempotently through the deletion worker. KYC
+cleanup removes and verifies all exact-key versions and delete markers before
+recording provider completion. A legacy KYC deletion receipt without a retired owner waits for the current-policy
+retention sweep. Review history remains queryable; purged payload reads expose
+null values and a purge timestamp, and reveal, rewrap and submission retries
+return `KYC_PAYLOAD_PURGED`. Submission/file/run audit metadata contains no NIN,
+filename, ciphertext or checksum. The operations runbook keeps legal retention,
+production storage, scanner and key-custody evidence externally gated.
 
 ## 20. Notifications
 
@@ -1878,7 +1955,12 @@ claimed phone through a bounded manual-send/system-verify flow:
    withdrawal fail closed and require a new challenge.
 4. WhatsApp opt-in is a separate versioned consent record (purpose, notice
    version, `granted_at`, `withdrawn_at`). Normal manual-contact tasks require a
-   currently verified phone and active consent; privacy/security incident
+   currently verified phone and active consent matching the task's exact purpose
+   and phone version at creation, exact retry, listing, and completion. Contact
+   mutations serialize profile → phone → consent → task against withdrawal and
+   phone replacement. Withdrawn or mismatched OPEN tasks remain in history but
+   leave actionable work and cannot be completed. Completed evidence and exact
+   completion retries remain available. Privacy/security incident
    escalation follows its separate authorised runbook rather than pretending
    consent exists.
 
@@ -2021,9 +2103,12 @@ principal, tenant, campaign, endpoint, window, filters and result fingerprint.
 A single spatial-history transaction lock plus global/organization/campaign
 overlap comparison prevents complementary, cross-principal, cross-endpoint and
 changed-result differencing; exact unchanged retries converge. Migration
-`0045` creates the history authority with populated-downgrade refusal, and a
-daily DB-time worker purge enforces bounded expiry without depending on later
-query traffic. Numeric defaults are synthetic build parameters, not approved
+`0045` creates the history authority with populated-downgrade refusal. Correction
+C15 / migration `0085` removes finite expiry from existing and new protection
+records. Request admission and the scheduled retention entry point preserve this
+minimal history while its source may remain queryable; elapsed time alone cannot
+authorize deletion. No source-retirement mechanism or live retention duration is
+approved. Numeric defaults are synthetic build parameters, not approved
 pilot thresholds. `EXT-LEGAL-PRIVACY` remains MISSING and no live output is
 authorized.
 
@@ -2091,6 +2176,29 @@ in dashboards and reports). Both read `trip_analytics`/`impression_estimates`
 aggregates only, k-floor rules of §22.2 apply to any zone-level display.
 
 ## 23. Identity evolution & production-PWA readiness
+
+- **Owner correction C29–C33 [BUILT]:** onboarding upload retries bind exact
+  file/access identity and reject stale async completion. Current approval
+  convergence runs for both person/payee and vehicle decision orders and exact
+  retries while application locking and D28's separate activation boundary hold.
+  Campaign attachment failures recover on the existing campaign through a
+  creative-only URL. The ordinary local demo provides explicitly synthetic
+  frozen Start authority consumed by production checks, replacing R59-only
+  inserts; no provider objects, real payment or physical evidence is claimed.
+  Unexpected email-item failures have durable sanitized audit evidence and fair
+  ordering; expired uncertain claims retain stable-key crash recovery beyond
+  the normal handled-failure cap. Notification audits retain recipient subjects.
+
+- **Owner correction C24–C28 [BUILT]:** encrypted queue metadata freezes the
+  exact End manifest/legacy watermark before submission. An End phase and
+  capture generation fence asynchronous preparation and GPS callbacks; recovery
+  flushes the current trip, retries the frozen request and retains the writer
+  until authority is reconciled. Signed rejected/quarantined sample dispositions
+  remain encrypted and visible across reload without resending settled batches.
+  Optional invalid headings become null before enqueue; the BFF accepts [0,360).
+  Backend capture authority independently reconstructs permanent cancellation
+  cutoffs, including quarantine review; deactivation/reactivation history remains
+  distinct. This remains a screen-on PWA with external physical-device gates.
 
 - **F7 is built** (§12): sliding session, `sv` revocation, forced password
   change, rate limiting. Everything below builds on it.
@@ -2312,9 +2420,12 @@ still Postgres territory with partitions + retention, not a new datastore.
    pending detach is FINALIZEd only with a matching `purge_started` row AND
    current retention-expiry (otherwise refused — logged, Sentry-alerted, and
    all destruction including the batch purge is skipped for that run);
-   evidenced orphans are dropped unless `dropped` evidence already exists
-   for the name (conflict ⇒ fail closed, table retained); unclaimed tables
-   are never touched.
+   detached orphans require one unambiguous, complete set of purge bounds and
+   nonnegative started counts. Current retention eligibility is rechecked before
+   DROP, and the receipt preserves those bounds. Conflicting, missing or stale
+   authority blocks all destruction; existing `dropped` evidence for the name
+   fails closed. Calendar subtraction clamps short destination months while
+   preserving the UTC time of day.
 5. **Backups respect retention [BUILT W3-00B]:** database backups (§25.2)
    resurrect purged pings unless they expire. `scripts/db_backup.sh` now
    enforces both a newest-14 cap and a configurable hard age bound of 1–35
@@ -2334,6 +2445,17 @@ still Postgres territory with partitions + retention, not a new datastore.
    blank while Q31/`EXT-LEGAL-PRIVACY` is open. The build therefore preserves
    append-only money/audit facts without inventing the legal decision whether
    later unlinking or pseudonymisation is permitted.
+   Correction C14 / migration `0086` adds append-only audit subject resolutions:
+   actor and typed target UUIDs have no users FK, so attribution survives source
+   retention. ORM audit insertion records these in the same transaction; the
+   migration backfills under source-table writer locks without changing audit
+   events. Missing historical targets and absent recorded actors remain explicit
+   resolution outcomes, not invented identities. Inventory counts each event
+   once across actor and target links; campaign attribution uses the exact
+   assignment and measurement attribution uses the frozen proof bindings.
+   Attribution rows are join evidence, not a second count of the same event.
+   Exact assessment retry preserves its accepted system snapshot while current
+   erasure/absence checks remain active; changed operator-supplied counts conflict.
 
 ## 25. Deployment & infrastructure target
 
@@ -2399,6 +2521,21 @@ below assumes a specific vendor.
   only when compatibility with the forward-migrated database is proven; no
   automated Alembic downgrade or populated-data replacement is implied
   (`scripts/release.sh`, `scripts/recover_release.sh`).
+- **Signed forward-schema operator scope (C34/C37):** ordinary public readiness
+  always requires the image's exact schema and a live worker. A capable exact
+  predecessor can receive a dedicated HMAC-signed qualification authority for
+  at most 30 minutes while traffic and writers remain stopped. The operator
+  probe checks the authorized exact forward revision, PostGIS, broker, private
+  storage, scanner, signing keys and API liveness; it explicitly reports the
+  quiesced worker instead of inventing a heartbeat. Version 3 compatibility
+  receipts require these probe results and the predecessor report-model canary.
+  Accepted recovery authority binds that receipt, target/predecessor identities
+  and both schema identities. Its private Compose overlay changes only the
+  predecessor API container's operator health check; recovery requires the live
+  worker too. Public HTTP readiness remains fail-closed on the forward schema.
+  A legacy receipt or image without this capability cannot authorize recovery.
+  Rehearsals derive both actual image heads after checking exact revision labels;
+  they never retrofit current application or packaging code into a predecessor.
 - **Explicitly not now:** Kubernetes, autoscaling, multi-region, IaC frameworks.
   One pilot city does not need them (P1/P10); revisit at multi-city scale.
 
@@ -2503,6 +2640,27 @@ true ROI additionally requires the configured approved method reference. These
 controls do not supply `EXT-REPORT-METHOD`, privacy approval, advertiser
 conversion/revenue inputs or live validation.
 
+New correction-programme runs use `measurement-result-v2` and
+`measurement-contract-v2`: terminal membership is `start <= ended_at < end`;
+active-at-boundary trips are separately disclosed and excluded from measures.
+Daily attribution, frozen screens and privacy contributions use that same
+terminal cohort. Version-one manifests retain their original reproduction
+algorithm and are never rewritten. New costs freeze immutable ledger source
+IDs, fingerprints, timestamps and economic facts under the existing
+campaign-terms → active-admin → Organization → Campaign → Assignment → Trip →
+source-row snapshot locks. Campaign-terms authority precedes the same lock in
+payout correction writers, so a report cannot hold Campaign while waiting for
+a correction-owned Trip whose ledger insert needs Campaign foreign-key authority.
+The initial campaign lookup does not acquire a conflicting pre-Organization
+lock. Credits less reversals determine corrected cost; voided entries and
+debt-remainder provenance contribute zero, while an original whose settlement
+status is reversed remains economic. Missing calculated-trip ledger authority
+blocks issuance; currency conflicts cannot be silently combined. Original gross
+calculation provenance remains separately named. Separate credit/reversal
+privacy contributions prevent netting from hiding contributor concentration.
+Later corrections enter newly issued reports for the original terminal period;
+issued reports, payout calculations and financial history remain immutable.
+
 **[BUILT W4-02B — bounded artifact authority; live issuance OPEN]** Migration
 `0071` adds one durable, lease-recoverable `report_issuances` job/lineage and
 immutable CSV/PDF artifact children linked to the existing private
@@ -2521,6 +2679,35 @@ advertiser page persists request identity before submission, safely polls
 status and offers explicit append-only reissue. Segment/person export remains
 disabled, and `EXT-REPORT-METHOD` plus `EXT-LEGAL-PRIVACY` still block live
 issuance and download.
+
+**Post-remediation publication fence (C04/C05):** requests and final publication
+share User → Organization → Campaign → Membership → Issuance → PublicationIntent
+lock order. Immutable measurement runs need no row lock; completion reads only
+immutable scope identifiers before acquiring authority and rechecks claim/token,
+lease and current authorization after locking. UTC database timestamps are rendered
+with their timezone even in SQLite test storage; strict renderer validation remains.
+
+Migration 0088 records one durable `report_publication_writes` receipt before each
+CSV/PDF storage call under the intent's retirement lock. The generated-object S3
+client disables hidden SDK write retries. New generations require a write-protocol
+marker with no database default; older publishers cannot register new untracked
+generations after migration. A returned successful or definitively
+failed call settles its receipt; transport uncertainty is durable `uncertain`, and
+process loss leaves `registered` unresolved. Neither timeout, lease expiry nor an
+empty object read proves settlement. Cleanup skips every unresolved generation
+before applying its limit and logs the evidence gap, so later safe cleanup proceeds.
+Only settled calls permit terminal cleanup; cleanup removes and verifies every
+exact-key version and delete marker for both registered keys. No bucket-wide deletion
+or wildcard permission is introduced. Both settled receipts are required to publish.
+
+Legacy non-complete generations receive explicit `legacy_untracked_write` receipts,
+including historical `cleaned` claims whose original bytes/timestamps stay unchanged.
+Such a historical claim is not verified cleanup while any write remains unresolved.
+Provider evidence and a reviewed reconciliation procedure remain external gates for
+uncertain/legacy calls; the worker cannot fabricate settlement or repair the history.
+A populated 0088 downgrade fails closed under writer-serializing locks. Production
+versioning, exact-prefix IAM, CORS and provider fault behavior still require live
+verification.
 
 ## 28. Testing strategy — target
 
@@ -2816,6 +3003,10 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.88 | 2026-09-08 | **Owner correction P08 locally demonstrated.** File/access-bound upload retries, approval convergence, existing-campaign creative recovery, ordinary synthetic demo Start authority and durable email failure fairness pass focused red/green checks. Three browser workflows and seed/worker recovery pass. No new schema/public shape or live authority; integrated verification and the reserved final review remain open. |
+| v1.87 | 2026-09-08 | **Owner correction P07 locally demonstrated.** Durable End/generation fences, distinct cancellation authority, heading validation and retained signed partial dispositions pass focused backend/frontend checks and three synthetic browser regressions with red/green evidence. No migration or public shape change; physical-device and final integrated review gates remain. |
+| v1.86 | 2026-09-08 | **Owner correction P06 locally demonstrated.** Durable payout-worker failure history rotates failed prefixes; route regrouping preserves unresolved holds; ended/unsealed chronological predecessors and the exact accepted start protect payout windows and caps. Versioned measurement runs freeze signed economic ledger facts and terminal-period membership across metrics, reports and privacy, retaining v1 and issued history. Report issuance shares the campaign-terms-before-snapshot lock order with correction writers. Focused PostgreSQL/API/privacy/correction checks, source-mutation red/green and preserved PWA contracts pass; final integrated review and live gates remain open. |
+| v1.85 | 2026-09-06 | **Approved correction programme, Macro-Phase A implementation.** D27 admin grants and fresh locked report authority, shared browser mutation/CSP boundaries, durable KYC payload retirement and object-write receipts, guarded migrations, privacy/consent/disclosure history and complete audit subject links, corrected publication lock order, common validation contracts, and signed scoped forward-schema recovery are described in their owning sections. D33 controlled coverage refresh preserves trusted floors and complete inventory. Focused real PostgreSQL/MinIO/browser and deterministic evidence is recorded per canonical ID in progress; aggregate review, measured baseline refresh, accepted previous-image rehearsal and external exact-SHA CI remain pending. |
 | v1.84 | 2026-09-05 | **R60/GOV-009 final current-state architecture inventory.** Part II is re-pinned to the accepted pre-R60 integrated commit `163961343754c17702eb4c1032ee5a7b871e2354`. A deterministic generated sentinel now derives 266 OpenAPI operations across 238 paths (265 under `/api/v1`), stable prefix counts, 120 SQLAlchemy mapped tables, the 84-revision Alembic graph from `0001_enable_extensions` to single head `0084_payout_conservation`, and the required driver-onboarding and administrator-DSR routes. Current build-state, frontend entry-point, CI and placement prose is reconciled without rewriting historical design/provenance. R17's changed-code coverage gate and R59's isolated synthetic real-stack journey are recorded as built controls; no product behavior, API/schema/migration baseline, decision, external/live gate or controller state changes. The authoritative remediation arithmetic remains 86 unique FIX candidates in R01–R60 plus 9 DEFER, 12 OWNER DECISION and 8 EXTERNAL INPUT dispositions (115 total); controller-only closure follows independent admission. |
 | v1.83 | 2026-09-02 | **AUT-006 administrator elevation reauthentication and global revocation (D27).** Under the existing target-user `FOR UPDATE` authority, active non-admin→admin changes require the acting administrator's current password after the actor is locked and rechecked for active admin role and the presented session version. Password guesses share the fail-closed login buckets; wrong guesses consume their reservation, correct proof refunds it and unavailable limiter storage prevents verification. Success rotates the target `session_version` exactly once and records the existing immutable actor/target audit, invalidating every older bearer, refresh and password-reset capability. Missing/wrong proof, stale/contained actors and disable-first target races fail before mutation or success audit; elevation-first and combined status/role changes serialize and rotate once per real transition. Role no-ops and non-elevation mutations remain unchanged. The existing PATCH body gains one optional write-only proof field; synchronized OpenAPI/type baselines move, with no migration, per-device session model, route or response change. |
 | v1.82 | 2026-09-02 | **R14 deployed security and bundled data-plane boundary delivered (SEC-002, TST-004, REL-007 partial).** Caddy now sends a deny-by-default CSP, framing denial and capability-preserving Permissions Policy; forged standard/vendor forwarding identities are discarded and upstreams receive the socket-derived client IP plus generated request ID. Production app creation prewarms the cached password timing equalizer. Release preflight accepts provider-neutral authenticated verified-TLS PostgreSQL/Redis URLs, but explicitly stops managed URLs behind `MANAGED_DATA_RELEASE_ADAPTER_REQUIRED` until a managed release/recovery adapter exists. The bundled Compose adapter requires externally supplied CA/cert/key files, validates chain/SAN/key/mode, materializes keys as 0600 in tmpfs, enforces PostgreSQL TLS with controlled HBA and Redis TLS-only, and uses verified health/smoke probes. Focused wrong-CA/SAN/key/mode tests, disposable real PostGIS/Redis plaintext/auth denial simulations, forged-edge-header capture and a five-case built-image browser matrix covering CSP/PWA capabilities, status-path headers, cross-origin Server Actions and hardened cookies pass. A cold built-edge timing oracle keeps randomized known-wrong/unique-unknown trimmed-mean and p95 ratios within 0.80–1.25 and fails when prewarming is removed; a negative server-only import mutation and built-static-asset scan guard secret separation. No provider, host, secret, deployment, migration or §9 contract baseline moved by this slice. |

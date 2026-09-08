@@ -41,18 +41,23 @@ SEED_ISSUANCE = (
 LEASED = {"prepared", "publishing", "cleaning"}
 
 
-def seed_generation(intent_id: str, generation: int, state: str) -> str:
+def seed_generation(
+    intent_id: str, generation: int, state: str, *, write_protocol: int | None = None
+) -> str:
     """Insert one generation with foreign keys disabled, matching the 0071 seed pattern."""
     token = TOKEN if state in {"publishing", "cleaning"} else "NULL"
     lease = "now() + interval '2 minutes'" if state in LEASED else "NULL"
     completed = "now()" if state == "complete" else "NULL"
     abandoned = "now()" if state in {"abandoned", "cleaning", "cleaned"} else "NULL"
     cleaned = "now()" if state == "cleaned" else "NULL"
+    protocol_column = "write_protocol, " if write_protocol is not None else ""
+    protocol_value = f"{write_protocol}, " if write_protocol is not None else ""
     return (
         "INSERT INTO report_publication_intents "
-        "(id, report_issuance_id, generation, state, csv_object_key, pdf_object_key, "
+        f"({protocol_column}id, report_issuance_id, generation, state, "
+        "csv_object_key, pdf_object_key, "
         "publisher_token, lease_expires_at, completed_at, abandoned_at, cleaned_at) VALUES "
-        f"('{intent_id}', '{ISSUANCE}', {generation}, '{state}', "
+        f"({protocol_value}'{intent_id}', '{ISSUANCE}', {generation}, '{state}', "
         f"'managed/o/reports/i/publications/{intent_id}/g{generation}/a.csv', "
         f"'managed/o/reports/i/publications/{intent_id}/g{generation}/a.pdf', "
         f"{token}, {lease}, {completed}, {abandoned}, {cleaned})"
@@ -113,13 +118,17 @@ def test_publication_fence_and_tombstone_are_enforced_in_the_database(monkeypatc
             async with engine.begin() as connection:
                 await connection.execute(text("SET LOCAL session_replication_role = replica"))
                 await connection.execute(text(SEED_ISSUANCE))
-                await connection.execute(text(seed_generation(FIRST, 1, "prepared")))
+                await connection.execute(
+                    text(seed_generation(FIRST, 1, "prepared", write_protocol=1))
+                )
 
             # Only one live generation per issuance may exist at a time.
             with pytest.raises(DBAPIError, match="uq_report_publication_intents_live"):
                 async with engine.begin() as connection:
                     await connection.execute(text("SET LOCAL session_replication_role = replica"))
-                    await connection.execute(text(seed_generation(SECOND, 2, "prepared")))
+                    await connection.execute(
+                        text(seed_generation(SECOND, 2, "prepared", write_protocol=1))
+                    )
 
             # The declared transition is allowed.
             async with engine.begin() as connection:
@@ -211,7 +220,9 @@ def test_downgrade_is_blocked_while_unreclaimed_publication_objects_exist(monkey
             async with engine.begin() as connection:
                 await connection.execute(text("SET LOCAL session_replication_role = replica"))
                 await connection.execute(text(SEED_ISSUANCE))
-                await connection.execute(text(seed_generation(FIRST, 1, "abandoned")))
+                await connection.execute(
+                    text(seed_generation(FIRST, 1, "abandoned", write_protocol=1))
+                )
         finally:
             await engine.dispose()
 

@@ -465,7 +465,7 @@ async def campaign_cost_summary_from_cohort(
     )
     for payout in cohort.payouts:
         values = totals[payout.currency]
-        values["final"] = decimal_2(values["final"]) + decimal_2(payout.final_payout)
+        values["final"] = decimal_2(values["final"]) + decimal_2(cohort.final_cost(payout))
         values["gross"] = decimal_2(values["gross"]) + decimal_2(payout.gross_payout)
         if payout.status == PayoutCalculationStatus.CALCULATED.value:
             values["calculated"] = int(values["calculated"]) + 1
@@ -473,7 +473,11 @@ async def campaign_cost_summary_from_cohort(
             values["blocked"] = int(values["blocked"]) + 1
         elif payout.status == PayoutCalculationStatus.INSUFFICIENT_DATA.value:
             values["insufficient"] = int(values["insufficient"]) + 1
-        values["ledger"] = int(values["ledger"]) + ledger_counts.get(payout.id, 0)
+        values["ledger"] = int(values["ledger"]) + (
+            sum(r.trip_session_id == payout.trip_session_id for r in cohort.ledger)
+            if cohort.ledger is not None
+            else ledger_counts.get(payout.id, 0)
+        )
     rows = [
         CampaignCostCurrencySummary(
             currency=currency,
@@ -912,7 +916,10 @@ async def daily_metrics_for_campaign(
             )
         ).all()
     else:
-        trip_rows = [(trip.id, trip.started_at) for trip in cohort.trips]
+        trip_rows = [
+            (trip.id, trip.ended_at if cohort.terminal_period else trip.started_at)
+            for trip in cohort.trips
+        ]
     trip_days = {trip_id: utc_day(started_at) for trip_id, started_at in trip_rows}
     for day in trip_days.values():
         by_day[day]["trip_count"] = int(by_day[day]["trip_count"]) + 1
@@ -970,7 +977,10 @@ async def daily_metrics_for_campaign(
             by_day[day]["confidence_count"] = int(by_day[day]["confidence_count"]) + 1
 
         payout_rows = (
-            [(row.trip_session_id, row.final_payout, row.gross_payout) for row in cohort.payouts]
+            [
+                (row.trip_session_id, cohort.final_cost(row), row.gross_payout)
+                for row in cohort.payouts
+            ]
             if cohort is not None
             else (
                 await session.execute(

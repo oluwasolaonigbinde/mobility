@@ -105,7 +105,7 @@ def test_provider_reconciliation_populated_downgrade_fails_closed(
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0030_provider_line_reconciliation", monkeypatch)
         asyncio.run(seed())
         with pytest.raises(RuntimeError, match="0030 downgrade blocked"):
             downgrade_to(migration_url, PRE_RECONCILIATION_REVISION, monkeypatch)

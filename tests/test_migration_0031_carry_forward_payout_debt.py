@@ -119,7 +119,7 @@ def test_carry_forward_debt_backfills_eligible_paid_reversals_idempotently(monke
     try:
         upgrade_to(migration_url, PRE_DEBT_REVISION, monkeypatch)
         asyncio.run(seed())
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0031_carry_forward_payout_debt", monkeypatch)
         first = asyncio.run(
             fetch_all(
                 migration_url,
@@ -135,7 +135,7 @@ def test_carry_forward_debt_backfills_eligible_paid_reversals_idempotently(monke
                 """,
             )
         )
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0031_carry_forward_payout_debt", monkeypatch)
         second = asyncio.run(
             fetch_all(
                 migration_url,
@@ -291,7 +291,7 @@ def test_carry_forward_debt_populated_downgrade_fails_closed(monkeypatch, seed_s
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0031_carry_forward_payout_debt", monkeypatch)
         asyncio.run(seed())
         with pytest.raises(RuntimeError, match="0031 downgrade blocked"):
             downgrade_to(migration_url, PRE_DEBT_REVISION, monkeypatch)

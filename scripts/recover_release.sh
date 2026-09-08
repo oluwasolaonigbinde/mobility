@@ -126,13 +126,18 @@ compatibility_authority="$(python3 scripts/release_contract.py compatibility-val
 [[ "${compatibility_outcome}" == "passed:${compatibility_authority}" ]] \
   || { echo "ERROR: recovery compatibility receipt conflicts with release state" >&2; exit 1; }
 compatibility_sha256="${compatibility_authority%%:*}"
+authority_overlay="${STATE_DIR}/recovery-authority-$(jq -r '.release_id' "${CURRENT_STATE}").json"
+python3 scripts/recovery_authority.py --scope recovery \
+  --current-env-file "${CURRENT_ENV_FILE}" --previous-env-file "${PREVIOUS_ENV_FILE}" \
+  --forward-alembic-revision "${forward_alembic_revision}" \
+  --evidence "${COMPATIBILITY_EVIDENCE}" --state "${CURRENT_STATE}" --output "${authority_overlay}"
+compose+=(-f "${authority_overlay}")
 "${compose[@]}" stop edge api worker frontend >/dev/null 2>&1 || true
 "${compose[@]}" up -d --no-build --wait --wait-timeout 120 db redis api worker frontend >/dev/null
-# Recovery never runs an Alembic downgrade. The accepted receipt was generated
-# by this exact previous image against this forward schema; recheck its running
-# API and report models before opening traffic.
-"${compose[@]}" exec -T api python -c \
-  'from urllib.request import urlopen; r=urlopen("http://127.0.0.1:8000/api/v1/health/ready",timeout=5); raise SystemExit(0 if r.status == 200 else 1)'
+# The signed operator health check is confined to this accepted recovery overlay.
+# Public readiness remains exact-schema and the worker must be live.
+"${compose[@]}" exec -T api python -m app.operations.readiness \
+  --write-canary --compatibility recovery >/dev/null
 "${compose[@]}" exec -T api python - <<'PY'
 import asyncio
 
@@ -157,6 +162,7 @@ PY
 EDGE_OPEN=true
 "${compose[@]}" up -d --no-build --wait --wait-timeout 120 edge >/dev/null
 COMPOSE_PRODUCTION_FILE="${RELEASE_COMPOSE_FILE}" COMPOSE_ENV_FILE="${PREVIOUS_ENV_FILE}" \
+  COMPOSE_RECOVERY_FILE="${authority_overlay}" \
   SMOKE_BASE_URL="$(release_env_value "${PREVIOUS_ENV_FILE}" PUBLIC_ORIGIN)" \
   scripts/release_smoke.sh --email "${SMOKE_EMAIL}" --password-file "${SMOKE_PASSWORD_FILE}" \
     --expected-database-revision "${forward_alembic_revision}"

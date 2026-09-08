@@ -61,7 +61,7 @@ reconciliation-event rows exercised with the in-process fake adapter.
 Happy command:
 
 ```sh
-python3 -m pytest -q tests/test_payout_reconciliation.py::test_line_level_partial_reconciliation_retry_and_paid_finality
+python3 -m pytest -q tests/test_payout_reconciliation.py::test_line_level_partial_reconciliation_preserves_paid_and_failed_finality
 ```
 
 Expected evidence: an identical failed-line retry preserves identity, reconciles

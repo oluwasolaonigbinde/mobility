@@ -42,7 +42,102 @@ async def get_user_by_id(session: AsyncSession, user_id: UUID) -> User | None:
     return result.scalar_one_or_none()
 
 
-async def create_user(session: AsyncSession, payload: UserCreate, settings: Settings) -> User:
+async def _lock_users(session: AsyncSession, user_ids: set[UUID]) -> dict[UUID, User]:
+    # All administrative actor/target commands take the same UUID order.
+    users = await session.scalars(
+        select(User)
+        .where(User.id.in_(user_ids))
+        .order_by(User.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return {user.id: user for user in users}
+
+
+def _require_admin_actor(actor: User | None, actor_session_version: int | None) -> User:
+    if actor is None:
+        raise AppError(
+            "INVALID_TOKEN",
+            "Invalid authentication token",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+    if actor.status != UserStatus.ACTIVE:
+        raise AppError(
+            "USER_NOT_ACTIVE",
+            "User account is not active",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+    if actor.role != UserRole.ADMIN:
+        raise AppError(
+            "FORBIDDEN_ROLE",
+            "Admin role is required",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+    if actor.session_version != actor_session_version:
+        raise AppError(
+            "SESSION_REVOKED",
+            "Session is no longer valid",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+    return actor
+
+
+async def _reauthenticate_admin(
+    actor: User,
+    current_password: str | None,
+    *,
+    rate_limiter: LoginRateLimiter | None,
+    client_ip: str | None,
+) -> None:
+    if rate_limiter is None or client_ip is None:
+        raise AppError(
+            "RATE_LIMIT_UNAVAILABLE",
+            "Authentication service is temporarily unavailable",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            headers={"Retry-After": "60"},
+        )
+    decision = await rate_limiter.reserve(client_ip, actor.email)
+    if decision.storage_available is False:
+        raise AppError(
+            "RATE_LIMIT_UNAVAILABLE",
+            "Authentication service is temporarily unavailable",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            headers={"Retry-After": str(max(decision.retry_after_seconds, 1))},
+        )
+    if not decision.allowed:
+        raise AppError(
+            "RATE_LIMITED",
+            "Too many administrator elevation attempts",
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            details={"retry_after_seconds": decision.retry_after_seconds},
+            headers={"Retry-After": str(decision.retry_after_seconds)},
+        )
+    if current_password is None or not verify_password(current_password, actor.password_hash):
+        raise AppError(
+            "INVALID_CREDENTIALS",
+            "Invalid email or password",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+    await rate_limiter.release_success(client_ip, actor.email)
+
+
+async def create_user(
+    session: AsyncSession,
+    payload: UserCreate,
+    settings: Settings,
+    *,
+    actor_user_id: UUID,
+    actor_session_version: int,
+    rate_limiter: LoginRateLimiter | None = None,
+    client_ip: str | None = None,
+) -> User:
+    actor = _require_admin_actor(
+        (await _lock_users(session, {actor_user_id})).get(actor_user_id), actor_session_version
+    )
+    if payload.role == UserRole.ADMIN:
+        await _reauthenticate_admin(
+            actor, payload.current_password, rate_limiter=rate_limiter, client_ip=client_ip
+        )
     validate_password_length(payload.password, settings)
     normalized_email = normalize_email(payload.email)
     if await get_user_by_email(session, normalized_email):
@@ -115,99 +210,39 @@ async def update_user(
     rate_limiter: LoginRateLimiter | None = None,
     client_ip: str | None = None,
 ) -> UserUpdateResult:
-    """Apply an administrative user update under the user row lock.
-
-    Any real status transition rotates ``session_version``. An active
-    non-admin-to-admin transition also rotates after the acting administrator's
-    current authority and password are rechecked under locks and through the
-    shared authentication failure buckets. Either transition ends capabilities
-    issued under the previous authority: live bearers stop verifying, and an
-    unused password reset fails its captured-version fence. Restating the current
-    status or role is not a transition and rotates nothing.
-    """
-    user = await session.scalar(
-        select(User)
-        .where(User.id == user_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
+    """Serialize current actor authority and one global target revocation per transition."""
+    user_ids = {user_id}
+    if actor_user_id is not None:
+        user_ids.add(actor_user_id)
+    locked = await _lock_users(session, user_ids)
+    user = locked.get(user_id)
     if user is None:
         raise AppError("USER_NOT_FOUND", "User not found", status_code=status.HTTP_404_NOT_FOUND)
+    actor = None
+    if actor_user_id is not None:
+        actor = _require_admin_actor(locked.get(actor_user_id), actor_session_version)
 
     update_values = payload.model_dump(exclude_unset=True, exclude={"current_password"})
     changed_fields = list(update_values)
     status_changed = "status" in update_values and update_values["status"] != user.status
     role_changed = "role" in update_values and update_values["role"] != user.role
     enters_admin_role = role_changed and update_values["role"] == UserRole.ADMIN
-    if enters_admin_role:
-        if user.status != UserStatus.ACTIVE:
-            raise AppError(
-                "USER_NOT_ACTIVE",
-                "Only an active user can be elevated to administrator",
-                status_code=status.HTTP_409_CONFLICT,
-            )
-        actor = await session.scalar(
-            select(User)
-            .where(User.id == actor_user_id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
+    activates_admin = (
+        status_changed
+        and update_values["status"] == UserStatus.ACTIVE
+        and update_values.get("role", user.role) == UserRole.ADMIN
+    )
+    if enters_admin_role and user.status != UserStatus.ACTIVE:
+        raise AppError(
+            "USER_NOT_ACTIVE",
+            "Only an active user can be elevated to administrator",
+            status_code=status.HTTP_409_CONFLICT,
         )
-        if actor is None:
-            raise AppError(
-                "INVALID_TOKEN",
-                "Invalid authentication token",
-                status_code=status.HTTP_401_UNAUTHORIZED,
-            )
-        if actor.status != UserStatus.ACTIVE:
-            raise AppError(
-                "USER_NOT_ACTIVE",
-                "User account is not active",
-                status_code=status.HTTP_403_FORBIDDEN,
-            )
-        if actor.role != UserRole.ADMIN:
-            raise AppError(
-                "FORBIDDEN_ROLE",
-                "Admin role is required",
-                status_code=status.HTTP_403_FORBIDDEN,
-            )
-        if actor.session_version != actor_session_version:
-            raise AppError(
-                "SESSION_REVOKED",
-                "Session is no longer valid",
-                status_code=status.HTTP_401_UNAUTHORIZED,
-            )
-        if rate_limiter is None or client_ip is None:
-            raise AppError(
-                "RATE_LIMIT_UNAVAILABLE",
-                "Authentication service is temporarily unavailable",
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                headers={"Retry-After": "60"},
-            )
-        decision = await rate_limiter.reserve(client_ip, actor.email)
-        if decision.storage_available is False:
-            raise AppError(
-                "RATE_LIMIT_UNAVAILABLE",
-                "Authentication service is temporarily unavailable",
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                headers={"Retry-After": str(max(decision.retry_after_seconds, 1))},
-            )
-        if not decision.allowed:
-            raise AppError(
-                "RATE_LIMITED",
-                "Too many administrator elevation attempts",
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                details={"retry_after_seconds": decision.retry_after_seconds},
-                headers={"Retry-After": str(decision.retry_after_seconds)},
-            )
-        if payload.current_password is None or not verify_password(
-            payload.current_password, actor.password_hash
-        ):
-            raise AppError(
-                "INVALID_CREDENTIALS",
-                "Invalid email or password",
-                status_code=status.HTTP_401_UNAUTHORIZED,
-            )
-        await rate_limiter.release_success(client_ip, actor.email)
+    if enters_admin_role or activates_admin:
+        actor = _require_admin_actor(actor, actor_session_version)
+        await _reauthenticate_admin(
+            actor, payload.current_password, rate_limiter=rate_limiter, client_ip=client_ip
+        )
     for field, value in update_values.items():
         setattr(user, field, value)
     sessions_revoked = status_changed or enters_admin_role

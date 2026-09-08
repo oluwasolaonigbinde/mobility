@@ -1,5 +1,6 @@
 "use server";
 
+import { z } from "zod";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createApiClient } from "@/lib/api/client";
@@ -19,7 +20,11 @@ export interface CreateCampaignState {
 
 export async function createCampaignAction(
   input: CampaignWizardInput,
+  existingCampaignId?: string,
 ): Promise<CreateCampaignState> {
+  if (existingCampaignId !== undefined && !z.uuid().safeParse(existingCampaignId).success) {
+    return { error: "The campaign recovery reference is invalid." };
+  }
   // Server-side re-validation — the client schema is UX, this is the gate.
   const parsed = campaignWizardSchema.safeParse(input);
   if (!parsed.success) {
@@ -30,24 +35,26 @@ export async function createCampaignAction(
 
   const api = createApiClient(await getSessionToken());
 
-  let campaignId: string;
-  try {
-    const { data } = await api.POST("/api/v1/advertiser/campaigns", {
-      body: {
-        name: basics.name,
-        description: basics.description ?? null,
-        status: "draft",
-        start_at: toApiDatetime(basics.start_at) ?? null,
-        end_at: toApiDatetime(basics.end_at) ?? null,
-        budget_amount: basics.budget_amount ?? null,
-        daily_budget_amount: basics.daily_budget_amount ?? null,
-      },
-    });
-    if (!data) return { error: "Unexpected empty response creating the campaign." };
-    campaignId = data.id;
-  } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
-    return { error: "Could not reach the server. Please try again." };
+  let campaignId = existingCampaignId;
+  if (!campaignId) {
+    try {
+      const { data } = await api.POST("/api/v1/advertiser/campaigns", {
+        body: {
+          name: basics.name,
+          description: basics.description ?? null,
+          status: "draft",
+          start_at: toApiDatetime(basics.start_at) ?? null,
+          end_at: toApiDatetime(basics.end_at) ?? null,
+          budget_amount: basics.budget_amount ?? null,
+          daily_budget_amount: basics.daily_budget_amount ?? null,
+        },
+      });
+      if (!data) return { error: "Unexpected empty response creating the campaign." };
+      campaignId = data.id;
+    } catch (error) {
+      if (error instanceof ApiError) return { error: error.message };
+      return { error: "Could not reach the server. Please try again." };
+    }
   }
 
   for (const [index, creative] of creatives.entries()) {

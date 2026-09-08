@@ -35,7 +35,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
-from app.models.user import User, UserStatus
+from app.models.user import User, UserRole, UserStatus
 from app.services.audit import create_audit_event
 from app.services.users import normalize_email, validate_password_length
 
@@ -256,7 +256,9 @@ async def login_with_password(session: AsyncSession, *, email: str, password: st
         raise await _login_rejected(session, email=email)
     if not verify_password(password, user.password_hash):
         raise await _login_rejected(session, email=email)
-    if user.status in CONTAINED_USER_STATUSES:
+    if user.status in CONTAINED_USER_STATUSES or (
+        user.role == UserRole.ADMIN and user.status != UserStatus.ACTIVE
+    ):
         await create_audit_event(
             session,
             actor_user_id=user.id,

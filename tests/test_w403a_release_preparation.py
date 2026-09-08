@@ -1147,7 +1147,16 @@ def compatibility_receipt(
         "status": readiness_status,
         "release_revision": readiness_revision or previous_revision,
         "checked_at": checked_at,
-        "checks": {"database": {"alembic_revision": forward_revision}},
+        "compatibility_capability": "signed-forward-schema-v1",
+        "compatibility_scope": "qualification",
+        "authority_sha256": "a" * 64,
+        "checks": {
+            "database": {"alembic_revision": forward_revision, "postgis_version": "3.4"},
+            "api": {"status": "ok"}, "broker": {"status": "ok"},
+            "scanner": {"status": "ok"}, "trip_evidence_signing": {"status": "ok"},
+            "storage": {"status": "private_read_write_delete_ok"},
+            "worker": {"status": "quiesced_for_qualification"},
+        },
     }
     report_output = {
         "event": "report_schema_canary",

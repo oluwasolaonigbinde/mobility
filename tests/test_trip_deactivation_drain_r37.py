@@ -4,6 +4,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+import pytest
 from sqlalchemy import select
 from starlette import status as http_status
 from test_trip_seal import (
@@ -506,3 +507,92 @@ def test_evidence_arriving_after_adjudication_is_preserved_not_discarded(
     )
     assert applied.status_code == http_status.HTTP_409_CONFLICT
     assert applied.json()["error"]["code"] == "QUARANTINE_APPLY_BLOCKED"
+
+
+@pytest.mark.parametrize("persist_timestamp", [True, False])
+def test_cancellation_is_a_distinct_terminal_capture_cutoff_postgres(
+    postgis_db_client, postgis_db_sessionmaker, persist_timestamp
+):
+    client, factory = postgis_db_client, postgis_db_sessionmaker
+    _, _, _, _, _, assignment = create_trip_ready_graph(factory)
+    trip_id = start_trip(client, assignment.id).json()["id"]
+    now = datetime.now(UTC).replace(microsecond=0)
+    cancelled_at = now + timedelta(seconds=5)
+    payload = multi_sample_payload("straddles-cancellation", [now, cancelled_at])
+    descriptor = batch_descriptor(LocationPingBatchCreate.model_validate(payload))
+
+    async def cancel():
+        async with factory() as session:
+            row = await session.get(CampaignAssignment, assignment.id)
+            row.status = "cancelled"
+            row.cancelled_at = cancelled_at if persist_timestamp else None
+            session.add(CampaignActivationEvent(
+                assignment_id=row.id, actor_user_id=None, event_type="cancelled",
+                previous_status="active", new_status="cancelled", occurred_at=cancelled_at,
+            ))
+            await session.commit()
+            assert row.deactivated_at is None
+
+    asyncio.run(cancel())
+    ended = end_with_manifest(client, trip_id, [descriptor], complete=True)
+    assert ended.status_code == 200, ended.text
+    delivered = send(client, trip_id, payload)
+    assert delivered.status_code == 200, delivered.text
+    body = delivered.json()
+    assert (body["accepted_count"], body["rejected_count"]) == (1, 1)
+    assert body["sample_results"][1]["rejection_code"] == "INVALID_ASSIGNMENT_AUTHORITY"
+    replay = send(client, trip_id, payload)
+    assert replay.json()["receipt_signature"] == body["receipt_signature"]
+    assert replay.json()["sample_results"] == body["sample_results"]
+
+
+def test_cancellation_cannot_be_bypassed_by_postseal_quarantine_application(
+    postgis_db_client, postgis_db_sessionmaker, settings
+):
+    from conftest import create_test_trip_analytics
+    from test_trip_seal import end_trip, fetch_all, send_batch
+
+    from app.models.trip import LocationPing
+    from app.services.trip_processing import process_ended_trip
+
+    client, factory = postgis_db_client, postgis_db_sessionmaker
+    _, campaign, _, profile, vehicle, assignment = create_trip_ready_graph(
+        factory, eligibility_settings=settings
+    )
+    trip_id = start_trip(client, assignment.id).json()["id"]
+    recorded = datetime.now(UTC)
+    recorded = recorded.replace(microsecond=recorded.microsecond // 1000 * 1000)
+    end_trip(client, trip_id, watermark={"client_batch_count": 0, "client_complete": True})
+    late = send_batch(client, trip_id, "cancelled-postseal", recorded_at=recorded)
+    assert late.status_code == 200, late.text
+    assert late.json()["quarantined"] is True
+    create_test_trip_analytics(
+        factory, trip_session_id=UUID(trip_id), assignment_id=assignment.id,
+        campaign_id=campaign.id, driver_profile_id=profile.id, vehicle_id=vehicle.id,
+        formula_version=settings.route_analytics_formula_version,
+        computed_at=datetime.now(UTC) + timedelta(minutes=1),
+    )
+
+    async def prepare():
+        async with factory() as session:
+            await process_ended_trip(session, trip_id=UUID(trip_id), settings=settings)
+            row = await session.get(CampaignAssignment, assignment.id)
+            row.status = "cancelled"
+            row.cancelled_at = recorded - timedelta(microseconds=1)
+            session.add(CampaignActivationEvent(
+                assignment_id=row.id, actor_user_id=None, event_type="cancelled",
+                previous_status="active", new_status="cancelled", occurred_at=row.cancelled_at,
+            ))
+            await session.commit()
+
+    asyncio.run(prepare())
+    before = len(fetch_all(factory, LocationPing))
+    response = client.post(
+        f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{late.json()['batch_id']}/apply",
+        headers=admin_headers(client), json={"note": "review the preserved capture cutoff"},
+    )
+    assert response.status_code == 400, response.text
+    assert response.json()["error"]["code"] == "INVALID_ASSIGNMENT_AUTHORITY"
+    assert len(fetch_all(factory, LocationPing)) == before
+    assert "admin.trip.quarantined_batch.applied" not in audit_actions(factory)
+    assert len(fetch_all(factory, QuarantinedPingBatch)) == 1

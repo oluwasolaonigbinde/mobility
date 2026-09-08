@@ -1,16 +1,16 @@
 import localFont from "next/font/local";
-import {
-  Archivo,
-  Big_Shoulders,
-  Bricolage_Grotesque,
-  Fraunces,
-  IBM_Plex_Mono,
-  Inter,
-  Poppins,
-} from "next/font/google";
+
+import { archivo } from "@/fonts/families/archivo";
+import { bigShoulders } from "@/fonts/families/big-shoulders";
+import { bricolage } from "@/fonts/families/bricolage-grotesque";
+import { fraunces } from "@/fonts/families/fraunces";
+import { inter } from "@/fonts/families/inter";
+import { plexMono } from "@/fonts/families/ibm-plex-mono";
+import { poppins } from "@/fonts/families/poppins";
 
 /**
- * The Cardvert type system, self-hosted (zero external font requests):
+ * The Cardvert type system, self-hosted (zero external font requests, at build
+ * time as well as in the browser):
  * - Clash Display — headlines, KPI numerals ("the voice")
  * - Satoshi — UI text and body copy
  * - IBM Plex Mono — data, labels, telemetry
@@ -27,6 +27,11 @@ import {
  *   page; Google has since merged Display/Text into one family with an `opsz`
  *   axis, so one variable face covers both roles)
  * Delete the losers here and in globals.css once the client picks.
+ *
+ * The formerly Google-hosted families are vendored under `src/fonts/google` and
+ * declared per family in `src/fonts/families`, which export font-family chains
+ * rather than font objects; the root layout assigns them to the CSS variables
+ * below. See `src/fonts/google/provenance.json` for asset and licence detail.
  */
 
 export const clashDisplay = localFont({
@@ -49,49 +54,13 @@ export const satoshi = localFont({
   display: "swap",
 });
 
-export const plexMono = IBM_Plex_Mono({
-  weight: ["400", "500", "600"],
-  subsets: ["latin"],
-  variable: "--font-plex-mono",
-  display: "swap",
-});
-
-export const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
-
-export const fraunces = Fraunces({
-  subsets: ["latin"],
-  axes: ["opsz"],
-  variable: "--font-fraunces",
-  display: "swap",
-});
-
-export const bricolage = Bricolage_Grotesque({
-  subsets: ["latin"],
-  variable: "--font-bricolage",
-  display: "swap",
-});
-
-export const archivo = Archivo({
-  subsets: ["latin"],
-  axes: ["wdth"],
-  variable: "--font-archivo",
-  display: "swap",
-});
-
-export const poppins = Poppins({
-  weight: ["400", "500", "600", "800"],
-  subsets: ["latin"],
-  variable: "--font-poppins",
-  display: "swap",
-});
-
-export const bigShoulders = Big_Shoulders({
-  subsets: ["latin"],
-  axes: ["opsz"],
-  variable: "--font-big-shoulders",
-  display: "swap",
-});
+/** CSS custom properties for the vendored families, set on the root element. */
+export const productFontVariables = {
+  "--font-plex-mono": plexMono,
+  "--font-inter": inter,
+  "--font-fraunces": fraunces,
+  "--font-bricolage": bricolage,
+  "--font-archivo": archivo,
+  "--font-poppins": poppins,
+  "--font-big-shoulders": bigShoulders,
+} as React.CSSProperties;

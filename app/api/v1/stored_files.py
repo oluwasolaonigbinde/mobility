@@ -74,12 +74,14 @@ async def confirm_file_upload(
     user: AdvertiserUserDependency,
     session: SessionDependency,
     storage: StorageDependency,
+    settings: SettingsDependency,
 ) -> StoredFileRead:
     stored_file = await confirm_advertiser_upload(
         session,
         actor_user_id=user.id,
         upload_id=upload_id,
         storage=storage,
+        settings=settings,
     )
     await session.commit()
     return stored_file_response(stored_file)
@@ -137,12 +139,14 @@ async def confirm_driver_file_upload(
     user: DriverUserDependency,
     session: SessionDependency,
     storage: StorageDependency,
+    settings: SettingsDependency,
 ) -> StoredFileRead:
     stored_file = await confirm_driver_upload(
         session,
         actor_user_id=user.id,
         upload_id=upload_id,
         storage=storage,
+        settings=settings,
     )
     await session.commit()
     return stored_file_response(stored_file)

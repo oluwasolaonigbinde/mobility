@@ -129,7 +129,7 @@ def test_w3_04b_backfills_only_admin_account_versions_and_is_append_only(monkeyp
     try:
         upgrade_to(migration_url, PRE_AUTHORITY_REVISION, monkeypatch)
         asyncio.run(seed_before_upgrade())
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0069_w3_04b_review_authority", monkeypatch)
         asyncio.run(inspect_and_mutate())
         with pytest.raises(RuntimeError, match="0069 downgrade blocked"):
             downgrade_to(migration_url, PRE_AUTHORITY_REVISION, monkeypatch)

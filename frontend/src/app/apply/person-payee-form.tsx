@@ -23,20 +23,46 @@ export function PersonPayeeForm() {
     agreement: crypto.randomUUID(),
   });
   const uploadedFileIds = useRef<[string, string, string] | null>(null);
+  const uploadContext = useRef<{ token: string; files: File[] } | null>(null);
+  const generation = useRef(0);
+
+  function changed() {
+    generation.current += 1;
+    submissionRequestId.current = crypto.randomUUID();
+    setResult(undefined);
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) return;
+    const selectedGeneration = generation.current;
+    const formElement = event.currentTarget;
     setPending(true);
     setError(undefined);
     setResult(undefined);
-    const form = new FormData(event.currentTarget);
+    const form = new FormData(formElement);
     try {
       const accessToken = String(form.get("application_access_token") ?? "").trim();
-      const license = form.get("driver_license");
-      const photo = form.get("driver_photo");
-      const agreement = form.get("signed_agreement");
+      const license = (formElement.elements.namedItem("driver_license") as HTMLInputElement)
+        .files?.[0];
+      const photo = (formElement.elements.namedItem("driver_photo") as HTMLInputElement).files?.[0];
+      const agreement = (formElement.elements.namedItem("signed_agreement") as HTMLInputElement)
+        .files?.[0];
       if (!(license instanceof File) || !(photo instanceof File) || !(agreement instanceof File)) {
         throw new Error("Licence, driver photo and signed agreement files are required.");
+      }
+      const files = [license, photo, agreement];
+      if (
+        uploadContext.current?.token !== accessToken ||
+        files.some((file, index) => file !== uploadContext.current?.files[index])
+      ) {
+        uploadedFileIds.current = null;
+        uploadRequestIds.current = {
+          license: crypto.randomUUID(),
+          photo: crypto.randomUUID(),
+          agreement: crypto.randomUUID(),
+        };
+        uploadContext.current = { token: accessToken, files };
       }
       const [licenseId, photoId, agreementId] =
         uploadedFileIds.current ??
@@ -55,6 +81,7 @@ export function PersonPayeeForm() {
             "driver_kyc",
           ),
         ]));
+      if (selectedGeneration !== generation.current) return;
       uploadedFileIds.current = [licenseId, photoId, agreementId];
       const response = await fetch("/api/apply/onboarding/person-payee", {
         method: "POST",
@@ -71,8 +98,10 @@ export function PersonPayeeForm() {
           signed_agreement_file_id: agreementId,
         }),
       });
-      setResult(await onboardingResponseJson<StageResponse>(response));
-      event.currentTarget.reset();
+      const nextResult = await onboardingResponseJson<StageResponse>(response);
+      if (selectedGeneration !== generation.current) return;
+      setResult(nextResult);
+      formElement.reset();
       submissionRequestId.current = crypto.randomUUID();
       uploadRequestIds.current = {
         license: crypto.randomUUID(),
@@ -81,6 +110,7 @@ export function PersonPayeeForm() {
       };
       uploadedFileIds.current = null;
     } catch (caught) {
+      if (selectedGeneration !== generation.current) return;
       setError(caught instanceof Error ? caught.message : "The onboarding request failed.");
     } finally {
       setPending(false);
@@ -96,7 +126,7 @@ export function PersonPayeeForm() {
         encrypted; reviewers receive only masked details unless an authorized, audited review
         requires a sensitive read.
       </p>
-      <form onSubmit={submit} className="grid gap-4" noValidate>
+      <form onSubmit={submit} onChange={changed} className="grid gap-4" noValidate>
         <Field
           label="Onboarding access code"
           name="application_access_token"

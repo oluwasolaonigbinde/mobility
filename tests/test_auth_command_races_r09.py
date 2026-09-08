@@ -45,6 +45,100 @@ ATTACKER_PASSWORD = "attacker-chosen-password-1"
 NOOP_LOGIN_LIMITER = NoopLoginRateLimiter()
 
 
+@pytest.mark.parametrize("grant", ["create", "activate"])
+@pytest.mark.parametrize("containment_first", [True, False])
+def test_every_admin_grant_serializes_with_actor_revocation(
+    postgis_db_sessionmaker, settings, grant, containment_first
+):
+    from app.schemas.users import UserCreate, UserUpdate
+    from app.services.users import create_user, update_user
+
+    actor = create_test_user(
+        postgis_db_sessionmaker, email="grant-actor@example.com", password=PASSWORD
+    )
+    target = create_test_user(
+        postgis_db_sessionmaker,
+        email="invited-grant@example.com",
+        password=PASSWORD,
+        user_status=UserStatus.INVITED,
+    )
+
+    async def perform(session):
+        kwargs = dict(
+            actor_user_id=actor.id,
+            actor_session_version=actor.session_version,
+            rate_limiter=NOOP_LOGIN_LIMITER,
+            client_ip="203.0.113.20",
+        )
+        if grant == "create":
+            await create_user(
+                session,
+                UserCreate(
+                    email="created-grant@example.com",
+                    full_name="Grant",
+                    password=PASSWORD,
+                    current_password=PASSWORD,
+                    role=UserRole.ADMIN,
+                    status=UserStatus.ACTIVE,
+                ),
+                settings,
+                **kwargs,
+            )
+        else:
+            await update_user(
+                session,
+                target.id,
+                UserUpdate(status=UserStatus.ACTIVE, current_password=PASSWORD),
+                **kwargs,
+            )
+
+    async def exercise():
+        async with postgis_db_sessionmaker() as first:
+            if containment_first:
+                locked = await first.scalar(
+                    select(User).where(User.id == actor.id).with_for_update()
+                )
+                locked.session_version += 1
+
+                async def contender():
+                    async with postgis_db_sessionmaker() as session:
+                        with pytest.raises(AppError) as denied:
+                            await perform(session)
+                        assert denied.value.code == "SESSION_REVOKED"
+
+                pending = asyncio.create_task(contender())
+            else:
+                await perform(first)
+
+                async def contender():
+                    async with postgis_db_sessionmaker() as session:
+                        locked = await session.scalar(
+                            select(User).where(User.id == actor.id).with_for_update()
+                        )
+                        locked.session_version += 1
+                        await session.commit()
+
+                pending = asyncio.create_task(contender())
+            await asyncio.sleep(0.1)
+            assert not pending.done()
+            await first.commit()
+            await asyncio.wait_for(pending, timeout=5)
+        async with postgis_db_sessionmaker() as session:
+            created = await session.scalar(
+                select(User).where(User.email == "created-grant@example.com")
+            )
+            invited = await session.get(User, target.id)
+            assert (created is not None) == (grant == "create" and not containment_first)
+            assert (invited.status == UserStatus.ACTIVE) == (
+                grant == "activate" and not containment_first
+            )
+            assert invited.session_version == target.session_version + int(
+                grant == "activate" and not containment_first
+            )
+
+    asyncio.run(exercise())
+
+
 def _issue_reset(sessionmaker, settings, user_id) -> str:
     """Issue a real reset token for `user_id` and return the delivered bearer."""
 
