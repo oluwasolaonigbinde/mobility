@@ -185,10 +185,40 @@ jobs:
 
       - run: coverage run -m pytest
       - run: coverage lcov
+      - name: Record backend coverage producer provenance
+        run: |
+          python - <<'PY'
+          import coverage
+          import hashlib
+          import json
+          import platform
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          report = Path("coverage/backend.lcov")
+          provenance = {
+              "version": 1,
+              "candidate_sha": subprocess.check_output(
+                  ["git", "rev-parse", "HEAD"], text=True
+              ).strip(),
+              "lcov_sha256": hashlib.sha256(report.read_bytes()).hexdigest(),
+              "runtime": {
+                  "implementation": platform.python_implementation(),
+                  "major_minor": f"{sys.version_info.major}.{sys.version_info.minor}",
+                  "coverage_version": coverage.__version__,
+              },
+          }
+          Path("coverage/backend-provenance.json").write_text(
+              json.dumps(provenance, indent=2, sort_keys=True) + "\n"
+          )
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: r17-backend-lcov
-          path: coverage/backend.lcov
+          path: |
+            coverage/backend.lcov
+            coverage/backend-provenance.json
           if-no-files-found: error
       - name: Pre-production static verification
         run: scripts/verify_preprod.sh
@@ -276,7 +306,7 @@ jobs:
           git merge-base --is-ancestor "$base" HEAD || { echo "::error::base is not an ancestor"; exit 1; }
           echo "base=$base" >> "$GITHUB_OUTPUT"
       - name: Verify controlled baseline provenance and enforce coverage
-        run: python scripts/check_changed_coverage.py --base "${{ steps.base.outputs.base }}" --backend-lcov coverage/artifacts/backend/backend.lcov --frontend-lcov coverage/artifacts/frontend/lcov.info --baseline coverage/baseline.json --verify-baseline-provenance
+        run: python scripts/check_changed_coverage.py --base "${{ steps.base.outputs.base }}" --backend-lcov coverage/artifacts/backend/backend.lcov --backend-provenance coverage/artifacts/backend/backend-provenance.json --frontend-lcov coverage/artifacts/frontend/lcov.info --baseline coverage/baseline.json --verify-baseline-provenance
 
   e2e:
     name: e2e against the real stack

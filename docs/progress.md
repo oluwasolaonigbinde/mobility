@@ -1541,6 +1541,61 @@ bounded hang guard; and the ledger truthfully keeps exact-SHA acceptance and all
 external gates open. A new all-job exact-SHA run is the remaining acceptance
 gate for this correction.
 
+**CI-runtime coverage reconciliation — correction authorized (9 September
+2026, recorded before policy edit):** exact-SHA run `34354263174` on
+`41d006729a0aa1290a617060e8ea27b956ea4fc5` passed quality/build, the complete
+backend suite and R59. Changed-code coverage then failed its exact global ratio
+comparison and real-stack E2E was skipped. The downloaded successful backend
+and frontend LCOV artifacts measure global 28,513 / 33,491 lines and 7,350 /
+12,212 branches, while the committed receipt records 27,326 / 31,220 and 7,974
+/ 12,212. No eligible product source changed between the receipt and candidate.
+The receipt was generated from the local Python 3.14 evidence set, whereas the
+authoritative CI/backend/runtime line is Python 3.12; Python 3.12 alone reports
+2,269 covered class annotation-only lines that Python 3.14 largely omits, and
+the interpreters also produce different covered branch counts. The owner-
+authorized correction is limited to a reviewed, source-bound rebaseline using
+the successful exact-SHA CI artifacts and explicit runtime provenance. It may
+not change eligible source, coverage instrumentation or exclusions; lower the
+D32 90% changed-line / 80% changed-branch floors; treat a skipped job as
+evidence; or claim E2E, release or deployment acceptance. Independent plan and
+post-build review, deterministic policy tests, provenance verification and a
+new five-job exact-SHA run remain mandatory.
+
+The independent Sol/high plan review returned `REVISE` twice and then `PASS`.
+The incorporated findings require the producing backend job—not the consumer—to
+emit an LCOV-hash, exact-SHA, CPython and coverage.py sidecar; protect that CI
+wiring in the policy hash; make unprovenanced v1/v2-to-v3 reconciliation
+single-use; and distinguish exact candidate-receipt admission from later
+at-or-above-floor verification. GitHub's immutable job log independently records
+CPython 3.12.14, coverage.py 7.16.0 and the generating commands; artifact API
+metadata binds backend artifact `10109024797` and frontend artifact
+`10105098738` to run `34354263174` and exact SHA `41d0067`, with archive and
+extracted-LCOV hashes recorded in the fixed attestation. This supports one
+reviewed migration without synthesizing producer evidence.
+
+Red evidence: the two new runtime-reconciliation tests failed because the old
+checker had no such authority or arguments. Green evidence: all 30 coverage-
+policy tests pass, including tampered report rejection, v3 reuse rejection and
+sidecar verification. The one-time receipt was generated under CPython 3.12.14
+from the exact successful GitHub artifacts and separately re-admitted against
+the candidate tree. It records global 28,513 / 33,491 lines and 7,350 / 12,212
+branches, backend 25,266 / 28,514 and 4,616 / 6,770, frontend 3,247 / 4,977 and
+2,734 / 5,442, plus the seven previously omitted font-family modules as
+inventory additions. D32's changed-code floors remain exactly 90% line / 80%
+branch; eligibility, instrumentation, exclusions and product source are
+unchanged. Full static/document validation and consolidated post-build review
+remain due before the normal fast-forward push; five-job exact-SHA acceptance
+remains open.
+
+The consolidated Sol/high post-build review initially returned `FIX` for an
+unavailable consumer-side coverage.py import and ambiguous patch-version
+authority. Both were removed: the checker now passes under sterile `python -S`,
+producer coverage.py identity remains receipt-bound, and Python major/minor is
+explicitly the measurement domain while the exact observed 3.12.14 remains in
+legacy evidence. Re-review returned `PASS` with no findings after independently
+rerunning all 30 policy tests, Ruff, diff checks and the receipt policy hash.
+Exact-SHA CI remains the sole acceptance gate for this correction.
+
 ## Executable package queue
 
 | # | Package | Status | Outcome | Package prerequisites |

@@ -1,0 +1,29 @@
+{
+  "artifacts": {
+    "backend": {
+      "archive_sha256": "fc45bb7afe0cc8a307ba0749144ae782e5d1d8206616ffec725d8c93bf19afcf",
+      "id": 10109024797,
+      "lcov_sha256": "b31f744a2a28e7df8d918befa5d24c0a6f1b5272d425c4826ff10f5654dd538a",
+      "name": "r17-backend-lcov",
+      "url": "https://github.com/oluwasolaonigbinde/mobility/actions/runs/34354263174/artifacts/10109024797"
+    },
+    "frontend": {
+      "archive_sha256": "631be1b48804ad3f266e61d0cda4759141c3a06b62594a2bc230b40528143fa0",
+      "id": 10105098738,
+      "lcov_sha256": "7e15505d57ee3165c2d0a49a29bd19a78142504bb1fd0f3bd15520c07181a0cf",
+      "name": "r17-frontend-lcov",
+      "url": "https://github.com/oluwasolaonigbinde/mobility/actions/runs/34354263174/artifacts/10105098738"
+    }
+  },
+  "head_sha": "41d006729a0aa1290a617060e8ea27b956ea4fc5",
+  "job_id": 102474833000,
+  "python_version": "3.12.14",
+  "run_id": 34354263174,
+  "runtime": {
+    "coverage_version": "7.16.0",
+    "implementation": "CPython",
+    "major_minor": "3.12"
+  },
+  "setup_python_action_sha": "a26af69be951a213d495a4c3e4e4022e16d87065",
+  "version": 1
+}

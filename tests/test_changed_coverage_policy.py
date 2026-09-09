@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
+import platform
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+
+import coverage as coverage_module
 
 CHECKER = Path(__file__).parents[1] / "scripts" / "check_changed_coverage.py"
 
@@ -17,6 +21,9 @@ def test_ci_routes_baseline_changes_through_the_reviewable_provenance_gate():
     workflow = (CHECKER.parents[1] / ".github/workflows/ci.yml").read_text()
     coverage_job = workflow.split("\n  coverage:\n", 1)[1].split("\n  e2e:\n", 1)[0]
     assert "--verify-baseline-provenance" in coverage_job
+    assert "--backend-provenance" in coverage_job
+    assert "backend-provenance.json" in workflow
+    assert "Record backend coverage producer provenance" in workflow
     assert "baseline is immutable after its one bootstrap commit" not in coverage_job
     assert "--refresh-baseline" not in coverage_job
 
@@ -104,6 +111,7 @@ def _check(
     return subprocess.run(
         [
             sys.executable,
+            "-S",
             str(CHECKER),
             "--repo-root",
             str(repo),
@@ -305,6 +313,10 @@ def _refresh_repository(tmp_path: Path):
     backend.write_text("def value(flag):\n    return 1\n")
     (repo / "app" / "__init__.py").write_text('"""Package marker."""\n')
     coverage.mkdir()
+    (repo / ".github/workflows").mkdir(parents=True)
+    (repo / ".github/workflows/ci.yml").write_text("name: test\n")
+    (repo / "docs/evidence").mkdir(parents=True)
+    (repo / "docs/evidence/coverage-runtime-34354263174.json").write_text("{}\n")
     baseline = coverage / "baseline.json"
     (repo / "scripts").mkdir()
     (repo / "scripts" / CHECKER.name).write_bytes(CHECKER.read_bytes())
@@ -537,3 +549,202 @@ def test_unchanged_committed_refresh_allows_no_change_and_covered_edits(tmp_path
             capture_output=True,
         )
         assert result.returncode == 0, result.stderr
+
+
+def _runtime_reconciliation_evidence(
+    repo: Path,
+    base: str,
+    backend_lcov: Path,
+    frontend_lcov: Path,
+) -> tuple[Path, Path]:
+    runtime = {
+        "implementation": platform.python_implementation(),
+        "major_minor": f"{sys.version_info.major}.{sys.version_info.minor}",
+        "coverage_version": coverage_module.__version__,
+    }
+    attestation = repo / "docs/evidence/coverage-runtime-34354263174.json"
+    attestation.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "run_id": 34354263174,
+                "job_id": 102474833000,
+                "head_sha": base,
+                "python_version": platform.python_version(),
+                "setup_python_action_sha": "a" * 40,
+                "runtime": runtime,
+                "artifacts": {
+                    "backend": {
+                        "id": 10109024797,
+                        "name": "r17-backend-lcov",
+                        "url": "https://example.test/backend",
+                        "archive_sha256": "b" * 64,
+                        "lcov_sha256": hashlib.sha256(backend_lcov.read_bytes()).hexdigest(),
+                    },
+                    "frontend": {
+                        "id": 10105098738,
+                        "name": "r17-frontend-lcov",
+                        "url": "https://example.test/frontend",
+                        "archive_sha256": "c" * 64,
+                        "lcov_sha256": hashlib.sha256(frontend_lcov.read_bytes()).hexdigest(),
+                    },
+                },
+            }
+        )
+        + "\n"
+    )
+    provenance = repo / "coverage/backend-provenance.json"
+    provenance.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "candidate_sha": base,
+                "lcov_sha256": hashlib.sha256(backend_lcov.read_bytes()).hexdigest(),
+                "runtime": runtime,
+            }
+        )
+        + "\n"
+    )
+    return attestation, provenance
+
+
+def _runtime_reconcile(
+    repo: Path,
+    base: str,
+    baseline: Path,
+    backend_lcov: Path,
+    frontend_lcov: Path,
+    attestation: Path,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            str(CHECKER),
+            "--repo-root",
+            str(repo),
+            "--base",
+            base,
+            "--backend-lcov",
+            str(backend_lcov),
+            "--frontend-lcov",
+            str(frontend_lcov),
+            "--baseline",
+            str(baseline),
+            "--verify-baseline-provenance",
+            "--reconcile-unprovenanced-runtime",
+            "Reviewed one-time runtime reconciliation",
+            "--legacy-runtime-attestation",
+            str(attestation),
+        ],
+        text=True,
+        capture_output=True,
+    )
+
+
+def test_one_time_runtime_reconciliation_replaces_only_unprovenanced_ratios(
+    tmp_path: Path,
+) -> None:
+    repo, base, baseline, reports, _ = _refresh_repository(tmp_path)
+    reports(uncovered=True)
+    backend_lcov = repo / "coverage/backend.lcov"
+    frontend_lcov = repo / "coverage/frontend.lcov"
+    attestation, provenance = _runtime_reconciliation_evidence(
+        repo, base, backend_lcov, frontend_lcov
+    )
+
+    result = _runtime_reconcile(
+        repo, base, baseline, backend_lcov, frontend_lcov, attestation
+    )
+
+    assert result.returncode == 0, result.stderr
+    receipt = json.loads(baseline.read_text())
+    assert receipt["version"] == 3
+    assert receipt["backend_runtime"]["major_minor"] == (
+        f"{sys.version_info.major}.{sys.version_info.minor}"
+    )
+    assert receipt["refresh"]["kind"] == "runtime_reconciliation"
+    assert receipt["refresh"]["legacy_attestation_sha256"] == hashlib.sha256(
+        attestation.read_bytes()
+    ).hexdigest()
+
+    _run(["git", "add", "."], repo)
+    _run(["git", "commit", "--quiet", "-m", "runtime receipt"], repo)
+    trusted = _run(["git", "rev-parse", "HEAD"], repo).strip()
+    current_provenance = json.loads(provenance.read_text())
+    current_provenance["candidate_sha"] = trusted
+    provenance.write_text(json.dumps(current_provenance) + "\n")
+    verify = subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            str(CHECKER),
+            "--repo-root",
+            str(repo),
+            "--base",
+            trusted,
+            "--backend-lcov",
+            str(backend_lcov),
+            "--frontend-lcov",
+            str(frontend_lcov),
+            "--baseline",
+            str(baseline),
+            "--verify-baseline-provenance",
+            "--backend-provenance",
+            str(provenance),
+        ],
+        text=True,
+        capture_output=True,
+    )
+    assert verify.returncode == 0, verify.stderr
+    missing_provenance = subprocess.run(
+        verify.args[:-2], text=True, capture_output=True
+    )
+    assert missing_provenance.returncode == 1
+    assert "requires backend producer provenance" in missing_provenance.stderr
+
+    mismatched = json.loads(provenance.read_text())
+    mismatched["runtime"]["major_minor"] = "0.0"
+    provenance.write_text(json.dumps(mismatched) + "\n")
+    mismatched_provenance = subprocess.run(
+        verify.args, text=True, capture_output=True
+    )
+    assert mismatched_provenance.returncode == 1
+    assert "differs from checker runtime" in mismatched_provenance.stderr
+
+
+def test_runtime_reconciliation_rejects_tampered_evidence_and_reuse(tmp_path: Path) -> None:
+    repo, base, baseline, reports, _ = _refresh_repository(tmp_path)
+    reports()
+    backend_lcov = repo / "coverage/backend.lcov"
+    frontend_lcov = repo / "coverage/frontend.lcov"
+    attestation, _ = _runtime_reconciliation_evidence(
+        repo, base, backend_lcov, frontend_lcov
+    )
+    evidence = json.loads(attestation.read_text())
+    evidence["artifacts"]["backend"]["lcov_sha256"] = "0" * 64
+    attestation.write_text(json.dumps(evidence) + "\n")
+
+    rejected = _runtime_reconcile(
+        repo, base, baseline, backend_lcov, frontend_lcov, attestation
+    )
+    assert rejected.returncode == 1
+    assert "attestation" in rejected.stderr
+
+    attestation, _ = _runtime_reconciliation_evidence(
+        repo, base, backend_lcov, frontend_lcov
+    )
+    assert (
+        _runtime_reconcile(
+            repo, base, baseline, backend_lcov, frontend_lcov, attestation
+        ).returncode
+        == 0
+    )
+    _run(["git", "add", "."], repo)
+    _run(["git", "commit", "--quiet", "-m", "runtime receipt"], repo)
+    trusted = _run(["git", "rev-parse", "HEAD"], repo).strip()
+    reused = _runtime_reconcile(
+        repo, trusted, baseline, backend_lcov, frontend_lcov, attestation
+    )
+    assert reused.returncode == 1
+    assert "one-time" in reused.stderr

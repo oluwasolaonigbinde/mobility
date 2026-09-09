@@ -9,6 +9,7 @@ import fnmatch
 import hashlib
 import json
 import os
+import platform
 import re
 import subprocess
 import sys
@@ -22,7 +23,10 @@ LINE_FLOOR = 90.0
 BRANCH_FLOOR = 80.0
 FULL_SHA = re.compile(r"[0-9a-f]{40}\Z")
 HUNK = re.compile(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+LEGACY_RUNTIME_ATTESTATION = "docs/evidence/coverage-runtime-34354263174.json"
 POLICY_FILES = (
+    ".github/workflows/ci.yml",
+    LEGACY_RUNTIME_ATTESTATION,
     "scripts/check_changed_coverage.py",
     "pyproject.toml",
     "frontend/package.json",
@@ -302,14 +306,112 @@ def _load_baseline(path: Path) -> dict[str, object]:
         baseline = json.loads(path.read_text(encoding="utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise PolicyError(f"malformed baseline: {path}") from error
-    if not isinstance(baseline, dict) or baseline.get("version") not in (1, 2):
-        raise PolicyError("baseline must be a version 1 or 2 object")
+    if not isinstance(baseline, dict) or baseline.get("version") not in (1, 2, 3):
+        raise PolicyError("baseline must be a version 1, 2 or 3 object")
     has_sections = isinstance(baseline.get("global"), dict) and isinstance(
         baseline.get("critical"), dict
     )
     if not has_sections:
         raise PolicyError("baseline must contain global and critical objects")
     return baseline
+
+
+def _sha256(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as error:
+        raise PolicyError(f"missing provenance source: {path}") from error
+
+
+def _load_json_object(path: Path, label: str) -> dict[str, object]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise PolicyError(f"invalid {label}: {path}") from error
+    if not isinstance(value, dict):
+        raise PolicyError(f"invalid {label}: expected an object")
+    return value
+
+
+def _runtime(value: object, label: str) -> dict[str, str]:
+    if not isinstance(value, dict) or set(value) != {
+        "implementation",
+        "major_minor",
+        "coverage_version",
+    }:
+        raise PolicyError(f"invalid {label} runtime")
+    runtime = {key: value[key] for key in value}
+    if not all(isinstance(item, str) and item.strip() for item in runtime.values()):
+        raise PolicyError(f"invalid {label} runtime")
+    if not re.fullmatch(r"\d+\.\d+", runtime["major_minor"]):
+        raise PolicyError(f"invalid {label} Python major/minor")
+    return runtime
+
+
+def _current_runtime() -> dict[str, str]:
+    return {
+        "implementation": platform.python_implementation(),
+        "major_minor": f"{sys.version_info.major}.{sys.version_info.minor}",
+    }
+
+
+def _backend_producer(path: Path, backend_lcov: Path, repo_root: Path) -> dict[str, str]:
+    value = _load_json_object(path, "backend coverage provenance")
+    if value.get("version") != 1:
+        raise PolicyError("invalid backend coverage provenance version")
+    if value.get("candidate_sha") != _run_git(repo_root, "rev-parse", "HEAD").strip():
+        raise PolicyError("backend coverage provenance is for a different candidate SHA")
+    if value.get("lcov_sha256") != _sha256(backend_lcov):
+        raise PolicyError("backend coverage provenance LCOV hash mismatch")
+    runtime = _runtime(value.get("runtime"), "backend coverage provenance")
+    current = _current_runtime()
+    for key in ("implementation", "major_minor"):
+        if runtime[key] != current[key]:
+            raise PolicyError(f"backend coverage producer {key} differs from checker runtime")
+    return runtime
+
+
+def _legacy_attestation(
+    path: Path, backend_lcov: Path, frontend_lcov: Path, *, verify_reports: bool
+) -> dict[str, object]:
+    value = _load_json_object(path, "legacy runtime attestation")
+    if value.get("version") != 1:
+        raise PolicyError("invalid legacy runtime attestation version")
+    if not isinstance(value.get("run_id"), int) or not isinstance(value.get("job_id"), int):
+        raise PolicyError("invalid legacy runtime attestation run identity")
+    if not isinstance(value.get("head_sha"), str) or not FULL_SHA.fullmatch(value["head_sha"]):
+        raise PolicyError("invalid legacy runtime attestation head SHA")
+    action_sha = value.get("setup_python_action_sha")
+    if not isinstance(action_sha, str) or not FULL_SHA.fullmatch(action_sha):
+        raise PolicyError("invalid legacy runtime attestation action SHA")
+    runtime = _runtime(value.get("runtime"), "legacy runtime attestation")
+    python_version = value.get("python_version")
+    if not isinstance(python_version, str) or not python_version.startswith(
+        f"{runtime['major_minor']}."
+    ):
+        raise PolicyError("invalid legacy runtime attestation Python version")
+    artifacts = value.get("artifacts")
+    if not isinstance(artifacts, dict) or set(artifacts) != {"backend", "frontend"}:
+        raise PolicyError("invalid legacy runtime attestation artifacts")
+    for name, report in (("backend", backend_lcov), ("frontend", frontend_lcov)):
+        artifact = artifacts.get(name)
+        required = {"id", "name", "url", "archive_sha256", "lcov_sha256"}
+        if not isinstance(artifact, dict) or set(artifact) != required:
+            raise PolicyError(f"invalid legacy runtime attestation {name} artifact")
+        if not isinstance(artifact["id"], int) or artifact["id"] <= 0:
+            raise PolicyError(f"invalid legacy runtime attestation {name} artifact id")
+        if not isinstance(artifact["name"], str) or not artifact["name"]:
+            raise PolicyError(f"invalid legacy runtime attestation {name} artifact name")
+        if not isinstance(artifact["url"], str) or not artifact["url"].startswith("https://"):
+            raise PolicyError(f"invalid legacy runtime attestation {name} artifact URL")
+        for key in ("archive_sha256", "lcov_sha256"):
+            if not isinstance(artifact[key], str) or not re.fullmatch(
+                r"[0-9a-f]{64}", artifact[key]
+            ):
+                raise PolicyError(f"invalid legacy runtime attestation {name} {key}")
+        if verify_reports and artifact["lcov_sha256"] != _sha256(report):
+            raise PolicyError(f"legacy runtime attestation {name} LCOV hash mismatch")
+    return {**value, "runtime": runtime}
 
 
 def _required_percentages(scope: object, label: str) -> tuple[float, float]:
@@ -376,6 +478,38 @@ def _hash_files(repo_root: Path, paths: Iterable[str]) -> str:
         except OSError as error:
             raise PolicyError(f"missing provenance source: {path}") from error
     return digest.hexdigest()
+
+
+def _hash_git_files(repo_root: Path, revision: str, paths: Iterable[str]) -> str:
+    digest = hashlib.sha256()
+    for path in paths:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "show", f"{revision}:{path}"],
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode:
+            raise PolicyError(f"legacy attestation source is missing at {revision}: {path}")
+        digest.update(path.encode())
+        digest.update(b"\0")
+        digest.update(result.stdout)
+    return digest.hexdigest()
+
+
+def _assert_attested_source_identity(
+    repo_root: Path, revision: str, inventory: list[str]
+) -> None:
+    previous = sorted(
+        path
+        for path in _run_git(repo_root, "ls-tree", "-r", "--name-only", revision).splitlines()
+        if _eligible(path)
+    )
+    if previous != inventory:
+        raise PolicyError(
+            "legacy runtime attestation eligible inventory differs from current source"
+        )
+    if _hash_git_files(repo_root, revision, inventory) != _hash_files(repo_root, inventory):
+        raise PolicyError("legacy runtime attestation eligible source differs from current source")
 
 
 def _complete_inventory(repo_root: Path, records: dict[str, CoverageRecord]) -> list[str]:
@@ -469,6 +603,7 @@ def _trusted_baseline(
     args: argparse.Namespace,
     repo_root: Path,
     records: dict[str, CoverageRecord],
+    producer_runtime: dict[str, str] | None,
 ) -> tuple[dict[str, object], dict[str, object]]:
     try:
         relative = Path(args.baseline).resolve().relative_to(repo_root).as_posix()
@@ -479,7 +614,7 @@ def _trusted_baseline(
         trusted = json.loads(raw)
     except json.JSONDecodeError as error:
         raise PolicyError("trusted ancestor baseline is malformed") from error
-    if not isinstance(trusted, dict) or trusted.get("version") not in (1, 2):
+    if not isinstance(trusted, dict) or trusted.get("version") not in (1, 2, 3):
         raise PolicyError("trusted ancestor baseline has an unsupported version")
     if not isinstance(trusted.get("critical"), dict) or set(trusted["critical"]) != {
         "backend",
@@ -487,6 +622,27 @@ def _trusted_baseline(
     }:
         raise PolicyError("trusted named critical groups must remain backend and frontend")
     inventory = _complete_inventory(repo_root, records)
+    candidate = _load_baseline(Path(args.baseline))
+    candidate_refresh = candidate.get("refresh")
+    migration_admission = (
+        trusted.get("version") in (1, 2)
+        and candidate.get("version") == 3
+        and isinstance(candidate_refresh, dict)
+        and candidate_refresh.get("kind") == "runtime_reconciliation"
+    )
+    migration_write = bool(getattr(args, "reconcile_unprovenanced_runtime", None))
+    runtime_migration = migration_write or migration_admission
+    if migration_write and trusted.get("version") == 3:
+        raise PolicyError("one-time runtime reconciliation cannot be reused")
+    if runtime_migration and trusted.get("version") not in (1, 2):
+        raise PolicyError("one-time runtime reconciliation requires an unprovenanced baseline")
+    if trusted.get("version") == 3:
+        if producer_runtime is None:
+            raise PolicyError("version 3 baseline requires backend producer provenance")
+        trusted_runtime = _runtime(trusted.get("backend_runtime"), "trusted baseline")
+        for key in ("implementation", "major_minor", "coverage_version"):
+            if trusted_runtime[key] != producer_runtime[key]:
+                raise PolicyError(f"backend coverage runtime mismatch: {key}")
     groups = {
         "backend": sorted(path for path in inventory if path.startswith("app/")),
         "frontend": sorted(path for path in inventory if path.startswith("frontend/")),
@@ -520,20 +676,29 @@ def _trusted_baseline(
         raise PolicyError("D32 changed-code floors cannot be lowered by baseline refresh")
     _validate_instrumentation(repo_root, args.base)
     actual = _metrics(records.values())
-    _assert_not_regressed("global", actual, trusted.get("global"))
+    if not runtime_migration:
+        _assert_not_regressed("global", actual, trusted.get("global"))
     critical = {}
     for name, paths in groups.items():
         if not paths:
             raise PolicyError(f"critical coverage group has no eligible sources: {name}")
         metrics = _metrics(records[path] for path in paths)
-        _assert_not_regressed(f"critical.{name}", metrics, trusted["critical"][name])
+        if not runtime_migration:
+            _assert_not_regressed(f"critical.{name}", metrics, trusted["critical"][name])
         critical[name] = {**metrics, "paths": paths}
     inventory_hash = hashlib.sha256(
         ("\n".join(groups["backend"] + groups["frontend"]) + "\n").encode()
     ).hexdigest()
+    trusted_inventory = {
+        path
+        for definition in trusted["critical"].values()
+        if isinstance(definition, dict)
+        for path in definition.get("paths", [])
+        if isinstance(path, str)
+    }
     policy_hash = _hash_files(repo_root, POLICY_FILES)
-    snapshot = {
-        "version": 2,
+    snapshot: dict[str, object] = {
+        "version": 3 if runtime_migration or trusted.get("version") == 3 else 2,
         "source_parent_sha": args.base,
         "eligible_inventory_sha256": inventory_hash,
         "policy_sha256": policy_hash,
@@ -543,16 +708,53 @@ def _trusted_baseline(
         "refresh": {
             "previous_baseline_sha256": hashlib.sha256(raw.encode()).hexdigest(),
             "inventory_changes": {
-                "added": sorted(set(inventory) - {p for p in previous_paths if _eligible(p)}),
-                "removed": sorted({p for p in previous_paths if _eligible(p)} - set(inventory)),
+                "added": sorted(set(inventory) - trusted_inventory),
+                "removed": sorted(trusted_inventory - set(inventory)),
             },
         },
     }
-    candidate = _load_baseline(Path(args.baseline))
+    if snapshot["version"] == 3:
+        if producer_runtime is None and not runtime_migration:
+            raise PolicyError("runtime baseline requires backend producer provenance")
+        if producer_runtime is not None:
+            snapshot["backend_runtime"] = producer_runtime
+    if runtime_migration:
+        attestation_path = repo_root / LEGACY_RUNTIME_ATTESTATION
+        attestation = _legacy_attestation(
+            attestation_path,
+            Path(args.backend_lcov),
+            Path(args.frontend_lcov),
+            verify_reports=migration_write,
+        )
+        _assert_attested_source_identity(repo_root, attestation["head_sha"], inventory)
+        attested_runtime = attestation["runtime"]
+        assert isinstance(attested_runtime, dict)
+        if producer_runtime is None:
+            producer_runtime = attested_runtime
+            snapshot["backend_runtime"] = producer_runtime
+        for key in ("implementation", "major_minor", "coverage_version"):
+            if producer_runtime[key] != attested_runtime[key]:
+                raise PolicyError(f"legacy runtime attestation producer mismatch: {key}")
+        refresh = snapshot["refresh"]
+        assert isinstance(refresh, dict)
+        refresh.update(
+            kind="runtime_reconciliation",
+            legacy_attestation_sha256=_sha256(attestation_path),
+            runtime_transition={"from": "unprovenanced", "to": producer_runtime},
+        )
     if args.refresh_baseline:
         if not args.refresh_baseline.strip():
             raise PolicyError("baseline refresh requires a reviewable reason")
-        snapshot["refresh"]["reason"] = args.refresh_baseline.strip()
+        refresh = snapshot["refresh"]
+        assert isinstance(refresh, dict)
+        refresh["reason"] = args.refresh_baseline.strip()
+    elif migration_write:
+        reason = getattr(args, "reconcile_unprovenanced_runtime", None)
+        if not isinstance(reason, str) or not reason.strip():
+            raise PolicyError("runtime reconciliation requires a reviewable reason")
+        refresh = snapshot["refresh"]
+        assert isinstance(refresh, dict)
+        refresh["reason"] = reason.strip()
     elif candidate != trusted:
         refresh = candidate.get("refresh")
         reason = refresh.get("reason") if isinstance(refresh, dict) else None
@@ -569,9 +771,17 @@ def _trusted_baseline(
             raise PolicyError("inventory or policy changed; controlled baseline refresh required")
     # Apply the trusted ratios to current group membership, including additions and renames.
     floors = {
-        **trusted,
+        **(snapshot if runtime_migration else trusted),
         "critical": {
-            name: {**trusted["critical"][name], "paths": paths} for name, paths in groups.items()
+            name: {
+                **(
+                    critical[name]
+                    if runtime_migration
+                    else trusted["critical"][name]
+                ),
+                "paths": paths,
+            }
+            for name, paths in groups.items()
         },
     }
     return floors, snapshot
@@ -590,9 +800,35 @@ def _evaluate(args: argparse.Namespace) -> dict[str, object]:
     records = backend | frontend
     baseline = _load_baseline(Path(args.baseline))
     snapshot = None
-    if args.verify_baseline_provenance or args.refresh_baseline:
+    reconcile_reason = getattr(args, "reconcile_unprovenanced_runtime", None)
+    provenance_required = (
+        args.verify_baseline_provenance or args.refresh_baseline or reconcile_reason
+    )
+    producer_runtime = None
+    if provenance_required:
+        if reconcile_reason:
+            if not args.verify_baseline_provenance:
+                raise PolicyError("runtime reconciliation requires provenance verification")
+            supplied = Path(args.legacy_runtime_attestation).resolve()
+            expected = (repo_root / LEGACY_RUNTIME_ATTESTATION).resolve()
+            if supplied != expected:
+                raise PolicyError("runtime reconciliation requires the fixed legacy attestation")
+            attestation = _legacy_attestation(
+                supplied,
+                Path(args.backend_lcov),
+                Path(args.frontend_lcov),
+                verify_reports=True,
+            )
+            producer_runtime = attestation["runtime"]
+            assert isinstance(producer_runtime, dict)
+        elif baseline.get("version") == 3:
+            if not args.backend_provenance:
+                raise PolicyError("version 3 baseline requires backend producer provenance")
+            producer_runtime = _backend_producer(
+                Path(args.backend_provenance), Path(args.backend_lcov), repo_root
+            )
         records = {path: record for path, record in records.items() if _eligible(path)}
-        baseline, snapshot = _trusted_baseline(args, repo_root, records)
+        baseline, snapshot = _trusted_baseline(args, repo_root, records, producer_runtime)
 
     changes = _changes(repo_root, args.base)
     changed_records: list[CoverageRecord] = []
@@ -685,7 +921,7 @@ def _evaluate(args: argparse.Namespace) -> dict[str, object]:
         "global": global_metrics,
         "critical": critical_results,
     }
-    if args.refresh_baseline:
+    if args.refresh_baseline or reconcile_reason:
         result["refreshed_baseline"] = snapshot
     return result
 
@@ -698,15 +934,23 @@ def main() -> int:
     parser.add_argument("--frontend-lcov", required=True)
     parser.add_argument("--baseline", required=True)
     parser.add_argument("--verify-baseline-provenance", action="store_true")
-    parser.add_argument(
+    refresh = parser.add_mutually_exclusive_group()
+    refresh.add_argument(
         "--refresh-baseline",
         metavar="REASON",
         help="write a reviewed refresh only after all trusted gates pass",
     )
+    refresh.add_argument(
+        "--reconcile-unprovenanced-runtime",
+        metavar="REASON",
+        help="one-time reviewed v1/v2 runtime reconciliation",
+    )
+    parser.add_argument("--backend-provenance")
+    parser.add_argument("--legacy-runtime-attestation")
     args = parser.parse_args()
     try:
         report = _evaluate(args)
-        if args.refresh_baseline:
+        if args.refresh_baseline or args.reconcile_unprovenanced_runtime:
             baseline = Path(args.baseline)
             content = json.dumps(report.pop("refreshed_baseline"), indent=2, sort_keys=True) + "\n"
             with tempfile.NamedTemporaryFile(mode="w", dir=baseline.parent, delete=False) as output:

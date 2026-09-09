@@ -860,7 +860,9 @@ delivery-control files; matching pull requests use the same path filters).
 - Job `backend`: **postgis/postgis:16-3.4 + redis:7-alpine services** plus real
   MinIO and ClamAV, exact candidate-SHA verification, delivery/OpenAPI drift
   checks, Ruff, the full no-skip integration-authority suite, backend LCOV and
-  pre-production static verification.
+  pre-production static verification. The LCOV artifact includes a hash-bound
+  producer sidecar recording the exact SHA, Python implementation/major-minor
+  and coverage.py version.
 - Job `quality`: exact candidate-SHA verification, `npm ci`, lint, typecheck,
   coverage-enabled Vitest, generated-client **contract-drift gate**, and build.
 - Job `coverage` (R17/TST-007): consumes both LCOV artifacts, resolves an
@@ -873,7 +875,12 @@ delivery-control files; matching pull requests use the same path filters).
   instrumentation, and a versioned receipt binding the prior baseline, current
   source/policy hashes and inventory additions/removals. Empty/docstring-only
   Python modules contribute zero executable lines; missing executable coverage
-  fails closed. CI validates receipts and never rewrites them.
+  fails closed. Version 3 receipts bind the producing backend runtime; a
+  measurement-runtime mismatch fails closed; Python patch releases remain in
+  the same major/minor domain. One independently reviewed v1/v2-to-v3 reconciliation
+  is permitted only for the unprovenanced baseline and immutable GitHub
+  run/job/artifact evidence bound to unchanged eligible source. It cannot be
+  reused after v3. CI validates receipts and never rewrites them.
   After stabilized coverage generation, run the existing checker with the same
   explicit `--base`, both `--backend-lcov`/`--frontend-lcov` inputs,
   `--baseline coverage/baseline.json`, and `--refresh-baseline "review reason"`.
@@ -3003,6 +3010,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.89 | 2026-09-09 | **Coverage evidence bound to its producing runtime.** Exact-SHA run `34354263174` passed quality, the complete backend suite and R59, then exposed that the committed Python 3.14-derived coverage receipt cannot govern CI's Python 3.12 LCOV semantics and omitted seven same-commit font modules from its inventory. Backend artifacts now carry hash/SHA/runtime provenance; a reviewed, immutable-artifact-bound one-time v1/v2-to-v3 reconciliation records the complete inventory and CI measurements without changing D32 floors, eligibility, instrumentation or exclusions. Any later runtime mismatch fails closed. Exact-SHA coverage and E2E acceptance remain open. |
 | v1.88 | 2026-09-08 | **Owner correction P08 locally demonstrated.** File/access-bound upload retries, approval convergence, existing-campaign creative recovery, ordinary synthetic demo Start authority and durable email failure fairness pass focused red/green checks. Three browser workflows and seed/worker recovery pass. No new schema/public shape or live authority; integrated verification and the reserved final review remain open. |
 | v1.87 | 2026-09-08 | **Owner correction P07 locally demonstrated.** Durable End/generation fences, distinct cancellation authority, heading validation and retained signed partial dispositions pass focused backend/frontend checks and three synthetic browser regressions with red/green evidence. No migration or public shape change; physical-device and final integrated review gates remain. |
 | v1.86 | 2026-09-08 | **Owner correction P06 locally demonstrated.** Durable payout-worker failure history rotates failed prefixes; route regrouping preserves unresolved holds; ended/unsealed chronological predecessors and the exact accepted start protect payout windows and caps. Versioned measurement runs freeze signed economic ledger facts and terminal-period membership across metrics, reports and privacy, retaining v1 and issued history. Report issuance shares the campaign-terms-before-snapshot lock order with correction writers. Focused PostgreSQL/API/privacy/correction checks, source-mutation red/green and preserved PWA contracts pass; final integrated review and live gates remain open. |
