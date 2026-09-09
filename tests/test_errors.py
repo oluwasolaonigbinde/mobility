@@ -744,17 +744,24 @@ def test_r13_malformed_structure_has_bounded_work_and_memory_before_candidates()
         ("brackets", malformed_brackets, "[REDACTED]"),
         ("quote", malformed_quote, "note=[REDACTED]"),
     ):
+        reference = (
+            ("([{\n" * 12_500)[:50_000] if case_name == "brackets" else "note='" + "x" * 50_000
+        )
+        # The reference must be timed inside the same tracemalloc window as the
+        # measured call. tracemalloc's per-allocation cost is not a constant
+        # factor on wall-clock, so timing the reference outside it compares an
+        # instrumented run against an uninstrumented one and inflates the ratio.
         tracemalloc.start()
+        reference_started = time.perf_counter()
+        redact_log_message(reference)
+        baseline = time.perf_counter() - reference_started
+        tracemalloc.reset_peak()
         started = time.perf_counter()
         redacted = redact_log_message(message)
         elapsed = time.perf_counter() - started
         _current, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
-
-        reference = (
-            ("([{\n" * 12_500)[:50_000] if case_name == "brackets" else "note='" + "x" * 50_000
-        )
-        budget = _linear_scan_budget(lambda reference=reference: reference)
+        budget = max(0.05, baseline * 10 * 3)
         assert redacted == expected
         assert peak < 8_000_000, f"{case_name} scan peaked at {peak} bytes"
         assert elapsed < budget, (

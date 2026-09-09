@@ -1406,6 +1406,51 @@ recorded here so it is not re-diagnosed as environmental.
 `.github/workflows/ci.yml` is an R59-leased file, so `R59_LEASED_FILES_DIGEST`
 changes with this commit and any earlier R59 receipt is non-representative.
 
+**Exact-SHA CI on `6f5d185` — 14 backend failures reduced to 2 (9 September
+2026).** Run `34326905268` against the exact pushed SHA: quality **success**,
+**R59 real-stack success** (the regression is closed), backend **failure** with
+2 failed / 2753 passed in 1h16m, and changed-code coverage and real-stack e2e
+**skipped** behind backend, so those two gates remain unevidenced. Fixed and
+confirmed green in CI: all eight `test_storage_csp_origin` cases, the
+predecessor-rehearsal revision resolution, the wrong-SAN TLS rejection, the R13
+nested-assignment budget, and `test_r20_disbursement_postgresql`.
+
+Two remain, both now evidenced rather than assumed:
+
+`test_r13_malformed_structure_has_bounded_work_and_memory_before_candidates`
+failed at 9.264s against a calibrated 1.109s. Local measurement shows
+`redact_log_message` is **linear** on this input — 0.115us/char at 50k against
+0.108us/char at 500k — so there is no super-linear redaction defect. The fault
+was in the calibration itself: the reference was timed after `tracemalloc.stop()`
+while the measured call ran inside the tracemalloc window, comparing an
+uninstrumented run against an instrumented one. tracemalloc's per-allocation cost
+is not a constant wall-clock factor, so the ratio inflated. The reference is now
+timed inside the same tracemalloc window with `reset_peak()` between, leaving the
+`peak < 8_000_000` assertion measuring only the full-size call. Red/green
+re-proved after the change.
+
+`test_postgres_nin_rewrap_and_trip_share_eligibility_before_profile_order` still
+observes `DRIVER_PERSON_PAYEE_NOT_APPROVED` where it expects
+`DRIVER_PROFILE_NOT_ACTIVE`. It is **not environmental and not a product
+defect**: the test orchestrates a NIN rewrap against a concurrent trip start
+through `acquire_work_eligibility_lock` and
+`_acquire_work_eligibility_authority`, and the assertion depends on which
+contender reaches work-eligibility first. The product refuses the trip in both
+observed interleavings; only the cited unmet precondition differs. On the runner,
+under coverage tracing and a different core count, the interleaving differs from
+this machine, where the full 2755-case aggregate passes in 47m. The correct
+correction is to make the intended interleaving deterministic rather than to
+relax the assertion, and that has **not** been attempted here: it is retained as
+the single open backend item, deliberately not patched by guesswork in a race
+guard. Its sibling `test_r20_disbursement_postgresql` passed on this run without
+any change, which is consistent with scheduling sensitivity rather than shared
+state.
+
+Repository status: locally accepted; **not CI accepted**; not release-ready; not
+deployment-ready. C34 and the live device, provider, legal, staging and pilot
+gates remain external. The TLS SAN correction still owes its named specialist
+security review.
+
 ## Executable package queue
 
 | # | Package | Status | Outcome | Package prerequisites |
