@@ -1155,7 +1155,7 @@ def test_postgres_nin_rewrap_and_trip_share_eligibility_before_profile_order(
 
     async def exercise() -> tuple[object, object, str, int]:
         rewrap_reached_audit = asyncio.Event()
-        trip_has_eligibility = asyncio.Event()
+        trip_reached_eligibility = asyncio.Event()
         rewrap_has_eligibility = False
         original_audit = kyc_service.create_audit_event
         original_trip_lock = trips_service.acquire_work_eligibility_lock
@@ -1169,14 +1169,14 @@ def test_postgres_nin_rewrap_and_trip_share_eligibility_before_profile_order(
 
         async def audit(*args, **kwargs):
             if kwargs.get("action") == "admin.kyc.nin_rewrapped":
+                assert rewrap_has_eligibility
                 rewrap_reached_audit.set()
-                if not rewrap_has_eligibility:
-                    await trip_has_eligibility.wait()
+                await trip_reached_eligibility.wait()
             return await original_audit(*args, **kwargs)
 
         async def trip_lock(*args, **kwargs):
+            trip_reached_eligibility.set()
             await original_trip_lock(*args, **kwargs)
-            trip_has_eligibility.set()
 
         monkeypatch.setattr(
             kyc_service,
@@ -1247,7 +1247,9 @@ def test_postgres_nin_rewrap_and_trip_share_eligibility_before_profile_order(
     assert not isinstance(rewrap_outcome, DBAPIError)
     assert not isinstance(trip_outcome, DBAPIError)
     assert rewrap_outcome == "rewrapped"
-    assert trip_outcome == "DRIVER_PROFILE_NOT_ACTIVE"
+    # Trip start cached the active profile before waiting on eligibility; its
+    # current person/payee query observes the committed rewrap reset afterward.
+    assert trip_outcome == "DRIVER_PERSON_PAYEE_NOT_APPROVED"
     assert (kyc_status, key_version) == ("pending_review", 2)
 
 

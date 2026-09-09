@@ -1451,6 +1451,53 @@ deployment-ready. C34 and the live device, provider, legal, staging and pilot
 gates remain external. The TLS SAN correction still owes its named specialist
 security review.
 
+**Direct owner continuation — deterministic vehicle-approval race (9 September
+2026, recorded before correction):** exact-SHA run `34335514041` against
+`e408448cdfdff2aee9daa3de646a241e10758cb9` repeated the sole unresolved backend
+failure: 2,754 tests passed and
+`test_postgres_nin_rewrap_and_trip_share_eligibility_before_profile_order`
+again observed `DRIVER_PERSON_PAYEE_NOT_APPROVED` instead of the intended
+`DRIVER_PROFILE_NOT_ACTIVE` interleaving. Quality and R59 passed; changed-code
+coverage and real-stack E2E were skipped behind backend. The owner authorizes
+one Review-Required, test-only correction that makes the intended lock ordering
+deterministic without relaxing either error, adding sleeps/retries, reducing
+concurrency or weakening the product eligibility guard. It must reproduce under
+coverage and runner-like scheduling, receive independent plan and post-build
+review, and move `master` only by a verified normal fast-forward before a new
+exact-SHA acceptance run. The nine protected provenance artifacts and all
+external/release/deployment gates remain unchanged.
+
+**Deterministic race correction — local evidence:** the test's prior event was
+set only after the trip acquired the shared advisory lock, so the conditional
+wait could not establish which transaction owned eligibility authority. On the
+hosted runner, trip start read the initially active profile before waiting behind
+the rewrap transaction; after serialization, its current person/payee query saw
+the committed KYC reset and correctly refused work with
+`DRIVER_PERSON_PAYEE_NOT_APPROVED`. Faster local scheduling let rewrap commit
+before that initial read and produced `DRIVER_PROFILE_NOT_ACTIVE`. Both paths
+failed closed, but the test asserted one without proving its ordering.
+
+The corrected barrier now asserts rewrap already owns eligibility authority,
+then holds it until trip start signals immediately before awaiting the same
+lock. This proves genuine overlap and the exact identity-map/current-KYC ordering
+without sleeps, retries, reduced concurrency, accepted-error sets or product-code
+changes. With the barrier and old expectation, the focused real-PostGIS test
+fails deterministically under coverage with the runner's person/payee result;
+with the one exact expectation corrected, eight consecutive coverage runs pass.
+The same source passes in a Linux Python 3.12.14 container constrained to two
+CPUs and 3 GiB, and the complete vehicle-approval module plus adjacent KYC and
+payee PostgreSQL concurrency checks pass 18 tests. `ruff check .`, progress
+validation and diff checks pass. The independent Sol/medium plan review returned
+REVISE; its truthful event rename, explicit rewrap-ownership assertion and
+identity-map explanation are all incorporated. The separately named Sol/medium
+TLS security specialist review returned PASS with no security finding, closing
+that recorded review gate; its optional direct edge-case test matrix is a
+non-blocking P3. The fresh Sol/medium consolidated post-build/minimal-change
+review returned PASS with no finding over this correction, the complete
+font/build amendment, every post-`bc3c345` correction, evidence truthfulness and
+external gates. Exact-SHA CI remains due, so this is local correction evidence
+only and no release or deployment status has changed.
+
 ## Executable package queue
 
 | # | Package | Status | Outcome | Package prerequisites |
