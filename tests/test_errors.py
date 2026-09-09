@@ -606,6 +606,27 @@ def test_r13_assignment_scan_is_linear_at_the_candidate_budget() -> None:
     assert elapsed < 3.0, f"bounded assignment scan took {elapsed:.3f}s"
 
 
+def _linear_scan_budget(build_reference, *, scale: int = 10, slack: float = 3.0) -> float:
+    """Wall-clock budget calibrated in this process, under this instrumentation.
+
+    CI runs the suite under `coverage run`, whose C-level tracing multiplies raw
+    timings several-fold, and these cases also run inside `tracemalloc`. A fixed
+    second-count therefore measures the harness rather than the property under
+    test, which is that redaction work stays bounded and does not blow up
+    super-linearly with input size. Timing the identical code path on a
+    `scale`-times smaller input of the same shape removes the instrumentation
+    factor, because it is applied to both measurements equally. `slack` is how
+    many times worse than linear the full-size run may be before it fails.
+    """
+    reference = build_reference()
+    started = time.perf_counter()
+    redact_log_message(reference)
+    baseline = time.perf_counter() - started
+    # A small floor keeps a sub-millisecond baseline from turning scheduler noise
+    # into a failure. It is deliberately close to the real cost of these scans so
+    # that the calibrated term, not the floor, is what decides the assertion.
+    return max(0.05, baseline * scale * slack)
+
 def test_r13_nested_assignment_scan_is_linear_at_the_candidate_budget() -> None:
     blob = "x" * 500_000
     nesting = "".join(f'"layer_{index}":{{' for index in range(1022))
@@ -624,9 +645,30 @@ def test_r13_nested_assignment_scan_is_linear_at_the_candidate_budget() -> None:
     assert redacted.endswith('"full_name":[REDACTED]' + "}" * 1023)
     assert "Ada Lovelace" not in redacted
     assert sensitive_redacted == "driver_address=[REDACTED] status=active"
-    assert nested_elapsed < 3.0, f"nested assignment scan took {nested_elapsed:.3f}s"
-    assert sensitive_elapsed < 3.0, (
-        f"sensitive nested assignment scan took {sensitive_elapsed:.3f}s"
+    # Two references, each scaling exactly one dimension, so neither the payload
+    # nor the nesting depth can hide a super-linear regression behind the other.
+    shallow = "".join(f'"layer_{index}":{{' for index in range(102))
+    nested_budget = min(
+        _linear_scan_budget(
+            lambda: "{"
+            + nesting
+            + f'"blob":"{"x" * 50_000}","full_name":"Ada Lovelace"'
+            + "}" * 1023
+        ),
+        _linear_scan_budget(
+            lambda: "{" + shallow + f'"blob":"{blob}","full_name":"Ada Lovelace"' + "}" * 103
+        ),
+    )
+    sensitive_budget = _linear_scan_budget(
+        lambda: f"driver_address={{'blob': '{'x' * 50_000}'}} status=active"
+    )
+    assert nested_elapsed < nested_budget, (
+        f"nested assignment scan took {nested_elapsed:.3f}s against a calibrated "
+        f"budget of {nested_budget:.3f}s"
+    )
+    assert sensitive_elapsed < sensitive_budget, (
+        f"sensitive nested assignment scan took {sensitive_elapsed:.3f}s against a "
+        f"calibrated budget of {sensitive_budget:.3f}s"
     )
 
 
@@ -709,9 +751,16 @@ def test_r13_malformed_structure_has_bounded_work_and_memory_before_candidates()
         _current, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
 
+        reference = (
+            ("([{\n" * 12_500)[:50_000] if case_name == "brackets" else "note='" + "x" * 50_000
+        )
+        budget = _linear_scan_budget(lambda reference=reference: reference)
         assert redacted == expected
         assert peak < 8_000_000, f"{case_name} scan peaked at {peak} bytes"
-        assert elapsed < 3.0, f"{case_name} scan took {elapsed:.3f}s"
+        assert elapsed < budget, (
+            f"{case_name} scan took {elapsed:.3f}s against a calibrated budget of "
+            f"{budget:.3f}s"
+        )
 
 
 def test_r13_unicode_quote_and_separator_equivalents_scrub_every_observability_sink(

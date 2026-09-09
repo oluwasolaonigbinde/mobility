@@ -23,6 +23,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, quote, unquote, urlparse, urlsplit, urlunsplit
 
+from cryptography import x509
+
 ROOT = Path(__file__).resolve().parents[1]
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -307,9 +309,33 @@ def _openssl(*args: str) -> bytes:
     return result.stdout
 
 
+def _certificate_matches_host(certificate: Path, host: str) -> bool:
+    """Check the certificate's SAN in-process.
+
+    `openssl x509 -checkhost` reports a mismatch on stdout but its exit code for
+    that case differs across OpenSSL releases: 3.6 exits non-zero while the 3.0
+    line ships on the deployment platform exits 0. Trusting the exit code
+    therefore let a wrong-SAN certificate pass release validation exactly where
+    it matters most, so the SAN is verified here instead of by the CLI.
+    """
+    parsed = x509.load_pem_x509_certificate(certificate.read_bytes())
+    try:
+        san = parsed.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+    except x509.ExtensionNotFound:
+        return False
+    # Exact DNS-name membership only. Both call sites pass a literal service
+    # hostname ("db"/"redis"), so wildcard and IP-SAN handling would be dead
+    # code, and a hand-rolled version of either is easy to make looser than the
+    # OpenSSL check this replaces. Being stricter than OpenSSL here is safe:
+    # a certificate without a matching DNS SAN is refused rather than falling
+    # back to the CN.
+    return host in set(san.get_values_for_type(x509.DNSName))
+
+
 def _validate_server_certificate(*, ca: Path, certificate: Path, key: Path, host: str) -> None:
     _openssl("verify", "-CAfile", str(ca), str(certificate))
-    _openssl("x509", "-in", str(certificate), "-noout", "-checkhost", host)
+    if not _certificate_matches_host(certificate, host):
+        raise ContractError("Bundled TLS certificate validation failed")
     certificate_key = _openssl("x509", "-in", str(certificate), "-pubkey", "-noout")
     private_key = _openssl("pkey", "-in", str(key), "-pubout")
     if not certificate_key or certificate_key != private_key:

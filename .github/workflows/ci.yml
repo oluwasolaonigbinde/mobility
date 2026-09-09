@@ -109,6 +109,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # The recovery-readiness rehearsal resolves a historical predecessor
+          # commit. A shallow checkout makes that revision unknown, so the
+          # rehearsal fails on git plumbing instead of on the capability it
+          # actually gates.
+          fetch-depth: 0
       - name: Verify exact candidate SHA
         run: |
           expected="${{ github.event.pull_request.head.sha || github.sha }}"

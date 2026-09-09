@@ -3,10 +3,8 @@ import subprocess
 import threading
 import time
 from contextlib import contextmanager
-from http.client import RemoteDisconnected
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.error import URLError
 from urllib.request import urlopen
 
 import pytest
@@ -46,13 +44,27 @@ def live_caddy(tmp_path, endpoint):
             0
         ]
         port = details["NetworkSettings"]["Ports"]["8080/tcp"][0]["HostPort"]
-        for attempt in range(40):
+        # Docker publishes the port before Caddy listens on it. Linux's
+        # docker-proxy accepts and then resets that early connection, which
+        # surfaces as a bare ConnectionResetError rather than a URLError, so the
+        # wait must cover every OSError. A crash-looping container must still
+        # fail loudly instead of being swallowed by a quiet retry budget.
+        deadline = time.monotonic() + 30.0
+        while True:
             try:
-                with urlopen(f"http://127.0.0.1:{port}/csp-probe", timeout=1) as response:
+                with urlopen(f"http://127.0.0.1:{port}/csp-probe", timeout=2) as response:
                     policy = response.headers["Content-Security-Policy"]
                 break
-            except (URLError, RemoteDisconnected):
-                if attempt == 39:
+            except OSError:
+                state = json.loads(
+                    subprocess.check_output(["docker", "inspect", container], text=True)
+                )[0]["State"]
+                if not state.get("Running"):
+                    raise AssertionError(
+                        f"caddy exited before serving the probe: {state.get('Status')} "
+                        f"exit={state.get('ExitCode')}"
+                    ) from None
+                if time.monotonic() >= deadline:
                     raise
                 time.sleep(0.1)
         yield f"http://127.0.0.1:{port}/csp-probe", policy

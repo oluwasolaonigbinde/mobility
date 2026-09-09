@@ -159,6 +159,17 @@ describe("family declarations keep the approved fallback and preload shape", () 
     expect(preloaded[0]?.body).toMatch(/path: "\.\.\/google\/[^"]*-latin\.woff2"/);
   });
 
+  it.each(modules)("%s reaches every declared face from its exported chain", (name) => {
+    // A declared face left out of the chain is downloaded by nobody: its unicode
+    // range silently falls back to a system font, which is exactly the
+    // approved-typography change these guards exist to prevent.
+    const source = readFileSync(join(FAMILIES, name), "utf8");
+    const declared = [...source.matchAll(/const (\w+) = localFont\(\{/g)].map((match) => match[1]);
+    const chain = /export const \w+ = \[([^\]]+)\]/.exec(source)?.[1] ?? "";
+    const chained = chain.split(",").map((part) => part.trim());
+    expect([...chained].sort()).toEqual([...declared].sort());
+  });
+
   it.each(modules)("%s keeps its approved metric fallback, on the terminal face", (name) => {
     const source = readFileSync(join(FAMILIES, name), "utf8");
     const adjusted = calls(source)

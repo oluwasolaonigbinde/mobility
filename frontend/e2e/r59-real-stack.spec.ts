@@ -118,7 +118,11 @@ test("R59 real-stack release journey survives outages and converges exactly once
   startService("api");
   await waitForService("api", "ready");
   await page.reload();
-  const end = page.getByRole("button", { name: "■ End trip" });
+  // The outage-time End froze a durable boundary in IndexedDB, and that survives
+  // the reload. The tracker deliberately keeps capture fenced and offers the
+  // reconciliation affordance instead of a fresh End, so that pressing it
+  // re-submits the identical frozen manifest rather than minting a new one.
+  const end = page.getByRole("button", { name: "Reconcile trip" });
   await expect(end).toBeEnabled({ timeout: 30_000 });
   await end.click();
   await expect

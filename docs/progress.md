@@ -1249,6 +1249,163 @@ Evidence logs are retained under `coverage/correction-fonts/` and are not
 committed. The nine pre-existing untracked artifacts remain untouched and
 unstaged.
 
+**Exact-SHA CI and R59 — NOT ACCEPTED (8 September 2026):** the programme was
+committed once as `bc3c3454f489ba4cc5b4a6c6f56cc3fafe4b90ff` and published to
+`origin/master` as a verified non-force fast-forward `ff2225a..bc3c345`, 500
+commits ahead and 0 behind, with `origin/master` proven an ancestor. GitHub run
+`34276581120` ran against that exact SHA — each job's own SHA-verification step
+passed — and **concluded failure**. `lint / types / unit / contract / build`
+passed, covering the frontend build, type, unit and generated-contract gates.
+`backend lint / tests` failed with 14 failed and 2741 passed in 70m47s. The R59
+real-stack release journey failed. `changed-code coverage policy` and `e2e
+against the real stack` were **skipped**, because they depend on the backend job,
+so those two required gates did not execute and are unevidenced for this SHA.
+
+R59 is not environmental. After the simulated API outage and recovery the
+`End trip` control never re-enabled, with the tracker showing `degraded`,
+`Pings synced 0`, `Buffered 3` and GPS `Waiting…`. The API container log records
+exactly one `POST /api/v1/driver/trips/start` `201 Created`, normal
+`trips/current` polling, and no `POST .../pings` or `POST .../end` at all. **The
+absent ping POSTs are not themselves the defect:** `FLUSH_INTERVAL_MS` is 15s and
+`FLUSH_AT_COUNT` is 20, and the journey's healthy window is roughly six seconds
+carrying about three pings, so no flush is due before the outage begins. An
+earlier revision of this receipt wrongly presented the quiet healthy window as
+evidence of the regression; that reading is withdrawn. The
+backend and worker logs show no traceback, no 5xx and a normal SIGTERM teardown,
+and the Playwright trace records no console error and no page error, so the app
+was hydrated and interactive. R59 **passed** at baseline `0091853`. The failing
+assertion is the post-recovery `expect(End trip).toBeEnabled()`: after the
+outage-time End freezes the durable boundary, a reload hydrates the tracker into
+`endPhase = "submitted"` with `authorityUncertain` set and returns before the
+runtime is re-probed, so `assessPilotPwa` never sees `session === "valid"` again
+and both the `Reconcile trip` and `■ End trip` affordances stay disabled. The
+governed `frontend/e2e/r59-real-stack.spec.ts` is byte-unchanged in this commit,
+so the End/recovery affordance changed underneath an unchanged journey. R59 runs
+with `retries: 0` by design. This is recorded as a genuine implementation defect
+in the P07/P08 frontend correction, surfaced only by exact-SHA CI. No product
+code was changed to force green and no further push was made from that state.
+Evidence: `ci-exact-sha.log`, `r59-error-context.md`, `stack.log`,
+`compose-ps.txt`.
+
+All 14 backend failures pass locally; 11 are demonstrated environmental and 3 are
+CI-only with undetermined cause. Demonstrated environmental: the eight
+`test_storage_csp_origin.py` cases fail in CI with `ConnectionResetError [Errno
+104]` while all eight pass locally in 5.28s against the real Docker-launched
+`caddy:2.8-alpine`, so the CI failure is runner container networking; the two
+`test_errors.py` R13 budget cases took 6.28s and 9.33s against a 3.0s budget
+under `coverage run` on a hosted runner and complete locally in 1.40s; and
+`test_recovery_readiness_authority.py::test_historical_predecessor_rehearsal_fails_before_build_or_infrastructure`
+fails on `fatal: ambiguous argument '26f5e221…^{commit}': unknown revision`
+because the predecessor commit is absent from the CI checkout depth, which is the
+C34 external-gate area. Undetermined: the two PostgreSQL cases
+(`test_driver_vehicle_approval.py::test_postgres_nin_rewrap_and_trip_share_eligibility_before_profile_order`
+expecting `DRIVER_PROFILE_NOT_ACTIVE` but observing
+`DRIVER_PERSON_PAYEE_NOT_APPROVED`, and
+`test_r20_disbursement_postgresql.py::test_concurrent_claim_commits_before_provider_io_and_submits_once`
+observing `query_only` instead of `resolved`) both pass in isolation locally
+against a real PostGIS 16-3.4 but fail inside the full CI suite, which points at
+ordering-dependent cross-test state rather than an isolated defect; and
+`test_w403a_release_preparation.py::test_bundled_tls_rejects_wrong_san` passes
+locally but does not raise in CI, which points at platform-dependent TLS SAN
+validation. None of these three is demonstrated environmental and none is
+reproduced as a product defect, so all three also return to the correction gate.
+Evidence: `backend-failed.log`, `local-triage.log`, `local-pg-triage.log`,
+`local-csp.log`.
+
+The consolidated post-build minimal-change review of the font/build amendment was
+dispatched but never returned a verdict before the session ended; an earlier
+revision of this receipt wrongly reported it as obtained and reconciled. That
+review is outstanding and is folded into the corrective package's consolidated
+review. The repository is therefore **not CI accepted**, **not release-ready**
+and **not deployment-ready**, and the font/build amendment's local acceptance
+rests on its plan review and verification evidence pending that consolidated
+verdict. C34 and the live
+device, provider, legal, staging and pilot gates remain external and unmet. This
+receipt is written for the next corrective commit; no evidence-only commit was
+created for it.
+
+**Direct owner authorization — exact-SHA acceptance correction (9 September
+2026, recorded before any edit):** the owner directly authorizes one
+Review-Required corrective package, forward-only from
+`bc3c3454f489ba4cc5b4a6c6f56cc3fafe4b90ff`, covering (A) the genuine R59 ping
+submission/recovery regression and (B) the exact-SHA CI failures blocking
+backend, changed-code coverage and real-stack e2e acceptance. No revert, reset,
+history rewrite, force-push or additional implementation branch; `origin/master`
+is corrected forward only. The accepted font/build work is not to be disturbed.
+No implementation subagents; one review-only agent per gate. Environmental CI
+failures must be fixed at the real boundary — no weakened assertions, skipped
+tests, unevidenced timing relaxations, or mocked-away Caddy/PostgreSQL/TLS — and
+anything that cannot be reproduced or confidently classified is retained as
+explicitly unresolved rather than guessed. C34's genuinely capable predecessor
+and the physical-device, provider, legal, staging and pilot evidence remain
+external and unauthorized, as do release and deployment.
+
+**Corrective package — delivered (9 September 2026).** The first Part A
+hypothesis is withdrawn. The End control is one button whose accessible name
+flips on `authorityUncertain` (`trip-tracker.tsx:1167-1172`), `session` is seeded
+`valid` (`:65`), and the failure aria tree shows that button enabled, so no
+capability gate was involved. Investigation then found the frozen-End reload
+affordance is **deliberate and test-covered** by `bc3c345`: three cases in
+`trip-tracker.test.tsx` assert that a reload with a frozen End shows
+`Reconcile trip`, re-submits the identical frozen manifest exactly once, never
+re-freezes, never forgets evidence and never reopens capture. An attempt to
+restore the `■ End trip` affordance broke exactly those three cases and was
+reverted; `frontend/src` is byte-identical to `bc3c345`. The genuine defect is
+therefore that `bc3c345` left the governed `r59-real-stack.spec.ts` inconsistent
+with its own deliberate product change, and the correction is one line plus a
+comment in that leased journey. R59's healthy window is ~6s against
+`FLUSH_INTERVAL_MS` 15s and `FLUSH_AT_COUNT` 20, so **R59 does not evidence
+healthy ping submission**; that property is covered by the component and
+ping-queue tests only, and must not be read out of an R59 pass.
+
+Backend item 14 was **reclassified from environmental to a security-relevant
+product defect and fixed**: `release_contract.py` treated only a non-zero
+`openssl` exit as failure, and `openssl x509 -checkhost` mismatch exit semantics
+differ between the local OpenSSL 3.6.3 and ubuntu-latest's 3.0.x, so wrong-SAN
+rejection did not fire on the deployment platform. The SAN is now checked
+in-process against the certificate's DNS names, deliberately stricter than the
+CLI it replaces: a certificate with no matching DNS SAN is refused rather than
+falling back to the CN. Wildcard and IP-SAN handling were removed after review
+as unreachable dead code that was looser than OpenSSL. Red/green proved by
+emulating OpenSSL 3.0 exit semantics: pre-fix `DID NOT RAISE`, fixed raises;
+455 module tests pass. This correction still owes the named specialist security
+review that this repository requires for security checkpoints; it is recorded
+here as an open obligation, not as a satisfied gate.
+
+The eight `test_storage_csp_origin` cases were root-caused to a readiness loop
+that caught only `(URLError, RemoteDisconnected)` while Linux docker-proxy
+accepts-then-resets during Caddy boot, raising a bare `ConnectionResetError`. The
+wait now covers every `OSError`, extends to 30s and fails loudly if the container
+exited; every CSP assertion is byte-unchanged. Red/green proved by injecting the
+reset: the pre-fix narrow catch raises the exact CI error, the fixed wait passes
+all seven parametrisations. The two R13 budgets replaced raw `elapsed < 3.0` with
+`_linear_scan_budget`, which times the identical code path on a smaller input of
+the same shape in the same process and instrumentation; after review it uses two
+references so neither payload size nor nesting depth can hide a regression behind
+the other. Red/green proved: a genuinely quadratic redactor breaches both budgets
+while the real one passes plainly and under `coverage run`. The backend job now
+checks out full history so the predecessor rehearsal fails on capability rather
+than on `unknown revision`, preserving C34's external limitation.
+
+The consolidated independent review returned **FIX** and found two P1s that local
+runs had missed: `ruff check .` failed on an `I001` import placement and a `B023`
+loop-variable capture, either of which would have killed the backend job at lint
+before pytest. Both are corrected and `ruff check .` passes. It also removed the
+permissive SAN branches, narrowed the nested budget, and surfaced a missing guard
+that a declared font face could be dropped from its exported chain and silently
+fall back to a system font; that guard is added and mutation-proved.
+
+Items 12-13 remain **explicitly unresolved**: both PostgreSQL cases pass in
+isolation, with the backend env block including `F7_SEED_MAX_TRIPS_PER_DAY=1`, and
+across both complete modules against real PostGIS 16-3.4. They are retained
+unresolved rather than guessed, and the next exact-SHA run is the reproduction.
+`test_r13_assignment_scan_is_linear_at_the_candidate_budget` still asserts a raw
+`elapsed < 3.0` and is a known latent flake under coverage instrumentation; it is
+recorded here so it is not re-diagnosed as environmental.
+
+`.github/workflows/ci.yml` is an R59-leased file, so `R59_LEASED_FILES_DIGEST`
+changes with this commit and any earlier R59 receipt is non-representative.
+
 ## Executable package queue
 
 | # | Package | Status | Outcome | Package prerequisites |
