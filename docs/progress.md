@@ -1635,6 +1635,26 @@ Consolidated post-build review and a new five-job exact-SHA run remain mandatory
 This is not CI, E2E, release or deployment acceptance; C34 and all live device,
 provider, legal, staging and pilot gates remain open.
 
+**Exact-SHA E2E selection correction — continued (9 September 2026).** Run
+`34394676434` against exact SHA
+`d64e5167ca2bfde999101f0bd51855393562af0c` passed quality/build, all backend
+tests and static verification, R59, and changed-code coverage. The ordinary
+real-stack E2E job then failed during Playwright collection because it also
+collected `r59-real-stack.spec.ts`; that file imports its isolated stack helper,
+which correctly refuses to run without `R59_PROJECT`. The dedicated R59 job had
+already executed and passed the same journey through its governed wrapper.
+
+The owner-authorized exact-SHA correction therefore adds only a mode-dependent
+Playwright exclusion: ordinary desktop/mobile runs ignore the R59-only spec,
+while `R59_REAL_STACK=1` retains it. A contract assertion failed before the
+configuration change and passes afterward. Playwright discovery lists 134
+ordinary tests in 20 files with no R59 journey, and separately lists exactly the
+one R59 journey under `r59-chromium`. Product behavior, job dependencies,
+coverage policy and all external gates remain unchanged. The independent
+Terra/high consolidated post-build review returned `PASS` with no findings. A
+new five-job exact-SHA run remains mandatory; this is not release or deployment
+acceptance.
+
 ## Executable package queue
 
 | # | Package | Status | Outcome | Package prerequisites |

@@ -43,6 +43,7 @@ def test_playwright_separates_ui_only_rehearsals_from_r59() -> None:
 
     assert "UI-only synthetic rehearsal" in config
     assert 'process.env.R59_REAL_STACK === "1"' in config
+    assert 'testIgnore: r59RealStack ? [] : ["**/r59-real-stack.spec.ts"]' in config
     assert "fullyParallel: !r59RealStack" in config
     assert "retries: r59RealStack ? 0" in config
     assert "workers: r59RealStack ? 1" in config

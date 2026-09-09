@@ -16,6 +16,7 @@ const baseURL =
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: r59RealStack ? [] : ["**/r59-real-stack.spec.ts"],
   outputDir: r59RealStack ? "test-results/r59-real-stack/playwright" : undefined,
   fullyParallel: !r59RealStack,
   forbidOnly: !!process.env.CI,
