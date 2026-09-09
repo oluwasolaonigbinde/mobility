@@ -1498,6 +1498,49 @@ font/build amendment, every post-`bc3c345` correction, evidence truthfulness and
 external gates. Exact-SHA CI remains due, so this is local correction evidence
 only and no release or deployment status has changed.
 
+**Additional exact-SHA concurrency evidence — correction authorized (9
+September 2026, recorded before edit):** run `34344328340` targeted the exact
+fast-forwarded SHA `a91ad26dd646faa7a8af62dddf3c050b29514ba6`. The corrected
+vehicle-approval race passed; quality and R59 passed. Backend instead exposed
+two different pre-existing harness races (2 failed / 2,753 passed), and coverage
+and real-stack E2E were skipped. R08 proved through `pg_blocking_pids` that the
+protected writer waited behind the disabling transaction and was then denied,
+but asserted the order in which two coroutines appended labels after transaction
+exit; that Python scheduling order is not database commit order. R20's provider
+probe used `FOR UPDATE NOWAIT` while the losing concurrent claimant could still
+legitimately hold the same row, so the probe itself raised and the production
+failure boundary correctly moved the intent to `query_only`. Both tests pass in
+focused local coverage runs, consistent with scheduler sensitivity rather than
+an isolated product defect. The owner-authorized exact-SHA correction therefore
+extends only to deterministic test barriers in
+`tests/test_r08_admin_authorization_postgres.py` and
+`tests/test_r20_disbursement_postgresql.py`: prove the committed disabled row
+inside R08's denied writer transaction, and let R20's concurrent loser complete
+before the provider-side committed-attempt/no-lock probe. Product code, database
+locks, failure handling, concurrency, exact outcomes and all external gates stay
+unchanged. Independent plan and post-build review, red/green evidence and a new
+all-job exact-SHA run remain mandatory.
+
+The independent concurrency plan review returned `REVISE`; its sole required
+change was incorporated by bounding R20's coordinated pair with
+`asyncio.wait_for(..., timeout=10)`. Run `34344328340` supplies pre-fix red
+evidence for both scheduler-sensitive harness failures. After the correction,
+five consecutive focused PostgreSQL coverage runs passed (2 tests each), both
+changed modules passed together (8 tests), and the adjacent authorization and
+disbursement group passed (21 tests). The two corrected races also pass under
+the CI Python 3.12 runtime constrained to 2 CPUs and 3 GiB (2 tests). Full Ruff,
+progress validation and diff whitespace checks pass. These are local correction
+results only; consolidated post-build review and a new all-job exact-SHA run
+remain due.
+
+The independent Sol/high consolidated post-build review returned `PASS` with
+no findings. It confirmed that R08 retains blocking, denial, persistence and
+all 44 migrated call sites; R20 retains genuine concurrent claiming, exact
+outcomes, one provider call, committed-attempt/no-lock proof, persistence and a
+bounded hang guard; and the ledger truthfully keeps exact-SHA acceptance and all
+external gates open. A new all-job exact-SHA run is the remaining acceptance
+gate for this correction.
+
 ## Executable package queue
 
 | # | Package | Status | Outcome | Package prerequisites |

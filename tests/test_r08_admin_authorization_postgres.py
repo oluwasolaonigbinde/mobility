@@ -106,7 +106,6 @@ async def _disable_first(
     release_disable = asyncio.Event()
     writer_started = asyncio.Event()
     backend_pids: dict[str, int] = {}
-    timeline: list[str] = []
 
     async def disable() -> None:
         async with sessionmaker() as session, session.begin():
@@ -117,7 +116,6 @@ async def _disable_first(
             await session.flush()
             disable_locked.set()
             await release_disable.wait()
-        timeline.append("disable_committed")
 
     async def write() -> None:
         async with sessionmaker() as session, session.begin():
@@ -131,7 +129,9 @@ async def _disable_first(
                     settings=settings,
                 )
             assert caught.value.code == "FORBIDDEN_ROLE"
-        timeline.append("write_denied")
+            disabled = await session.get(User, admin.id, populate_existing=True)
+            assert disabled is not None
+            assert disabled.status == UserStatus.DISABLED
 
     service_name, _ = call_site.split(".", maxsplit=1)
     with monkeypatch.context() as patch:
@@ -151,7 +151,6 @@ async def _disable_first(
     persisted = await _load_user(sessionmaker, admin.id)
     assert persisted.status == UserStatus.DISABLED
     assert persisted.full_name == f"Original {call_site}"
-    assert timeline == ["disable_committed", "write_denied"]
 
 
 async def _write_first(sessionmaker, *, admin: User, call_site: str, settings, monkeypatch) -> None:

@@ -42,6 +42,7 @@ def test_concurrent_claim_commits_before_provider_io_and_submits_once(
     postgis_db_sessionmaker,
 ) -> None:
     graph = build_graph(postgis_db_sessionmaker, f"r20-claim-{uuid4().hex[:8]}")
+    losing_claim_finished = asyncio.Event()
 
     class LockProbeAdapter(FakeDisbursementAdapter):
         def __init__(self):
@@ -49,6 +50,7 @@ def test_concurrent_claim_commits_before_provider_io_and_submits_once(
             self.committed_attempts_seen: list[int] = []
 
         async def submit_batch(self, *, batch_id, instructions):
+            await losing_claim_finished.wait()
             async with postgis_db_sessionmaker() as probe:
                 intent = await probe.scalar(
                     select(PayoutSubmissionIntent)
@@ -78,15 +80,18 @@ def test_concurrent_claim_commits_before_provider_io_and_submits_once(
         _, line_ids, intent_ids = await _prepare_batch(
             postgis_db_sessionmaker, graph, adapter
         )
-        results = await asyncio.gather(
-            *(
-                process_payout_submission_intent(
-                    postgis_db_sessionmaker,
-                    intent_id=intent_ids[0],
-                    adapter=adapter,
-                )
-                for _ in range(2)
+        async def process_one() -> str:
+            result = await process_payout_submission_intent(
+                postgis_db_sessionmaker,
+                intent_id=intent_ids[0],
+                adapter=adapter,
             )
+            if result == "skipped":
+                losing_claim_finished.set()
+            return result
+
+        results = await asyncio.wait_for(
+            asyncio.gather(process_one(), process_one()), timeout=10
         )
         async with postgis_db_sessionmaker() as session:
             intent = await session.get(PayoutSubmissionIntent, intent_ids[0])
