@@ -1596,6 +1596,45 @@ legacy evidence. Re-review returned `PASS` with no findings after independently
 rerunning all 30 policy tests, Ruff, diff checks and the receipt policy hash.
 Exact-SHA CI remains the sole acceptance gate for this correction.
 
+**Exact-SHA coverage-path stabilization — correction continued (9 September
+2026).** Run `34371167803` against exact SHA
+`5f84194df6e9527fcdcbc25b3cb66c9c58697d07` passed quality/build, all 2,757
+backend tests, backend static verification and R59. The coverage job then
+rejected the candidate receipt and real-stack E2E was skipped behind it. The
+new backend artifact used the same CPython 3.12 / coverage.py 7.16 measurement
+domain and unchanged eligible product source, but reported 25,229 / 28,514
+backend lines and 4,596 / 6,770 branches, 37 lines and 20 branches below the
+reviewed receipt. Comparing both LCOV artifacts and a real-PostgreSQL dynamic-
+context reproduction mapped 29 missing lines and the dominant branch delta to
+`test_postgres_end_upload_reconcile_and_grace_race_converges`: its six-way race
+correctly permits the upload to serialize either as live evidence before End or
+as quarantine evidence after sealing, so two passing runs traced different
+valid paths. This is a test-evidence instability, not authorization to reduce
+the D32/D33/D36 ratchet.
+
+The owner's direct continuation authorizes the test-only correction under the
+existing exact-SHA corrective package. Independent Sol/high plan review first
+returned `REVISE`, rejecting any variance allowance and requiring proof that a
+one-file correction covers the entire deficit; after that proof it returned
+`PASS`. The existing test now commits one batch live that is included in the
+eventual two-entry manifest, retains the original concurrent
+End/End/upload/reconcile/grace/grace race for the second batch unchanged, then
+proves after sealing that an exact retry returns the original live batch and an
+altered same-key payload still conflicts. Product code, coverage policy,
+baseline, thresholds, eligibility, instrumentation, exclusions and workflow
+remain byte-unchanged.
+
+Red evidence is run `34371167803`. In a disposable CPython 3.12.13 / coverage.py
+7.16.0 container against real PostGIS, the final revised test passed four
+consecutive runs. Each run kept the intentionally variable race but its union
+with the failed-run LCOV added at least 38 lines and 22 branches, yielding a
+conservative 28,514 global covered lines and 7,352 covered branches against the
+committed 28,513 / 7,350 floors. The changed module passes 14 tests; the adjacent trip
+group passes 57 with one local integration-gated skip; focused Ruff passes.
+Consolidated post-build review and a new five-job exact-SHA run remain mandatory.
+This is not CI, E2E, release or deployment acceptance; C34 and all live device,
+provider, legal, staging and pilot gates remain open.
+
 ## Executable package queue
 
 | # | Package | Status | Outcome | Package prerequisites |

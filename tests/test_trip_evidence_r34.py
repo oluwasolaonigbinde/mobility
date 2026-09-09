@@ -352,25 +352,50 @@ def test_postgres_end_upload_reconcile_and_grace_race_converges(
 ) -> None:
     _, _, driver, _, _, assignment = create_trip_ready_graph(postgis_db_sessionmaker)
     trip_id = start_trip(postgis_db_client, assignment.id).json()["id"]
-    payload = LocationPingBatchCreate.model_validate(
-        make_batch_payload("race-1", batch_sequence=0)
+    primer_payload = LocationPingBatchCreate.model_validate(
+        make_batch_payload("race-primer", batch_sequence=0)
     )
-    descriptor = TripEvidenceManifestEntryCreate(
-        batch_sequence=0,
-        idempotency_key=payload.idempotency_key,
+    raced_payload = LocationPingBatchCreate.model_validate(
+        make_batch_payload("race-1", batch_sequence=1)
+    )
+    primer_descriptor = TripEvidenceManifestEntryCreate(
+        batch_sequence=primer_payload.batch_sequence,
+        idempotency_key=primer_payload.idempotency_key,
         payload_hash_version=2,
-        payload_hash=batch_payload_hash(payload),
-        submitted_count=len(payload.pings),
+        payload_hash=batch_payload_hash(primer_payload),
+        submitted_count=len(primer_payload.pings),
+    )
+    raced_descriptor = TripEvidenceManifestEntryCreate(
+        batch_sequence=raced_payload.batch_sequence,
+        idempotency_key=raced_payload.idempotency_key,
+        payload_hash_version=2,
+        payload_hash=batch_payload_hash(raced_payload),
+        submitted_count=len(raced_payload.pings),
     )
     end_payload = TripEndRequest.model_validate(
         {
             "metadata": {},
             "evidence_manifest": manifest_for(
-                trip_id, [descriptor], complete=False
+                trip_id, [primer_descriptor, raced_descriptor], complete=False
             ),
         }
     )
     trip_uuid = UUID(trip_id)
+
+    async def upload_primer() -> UUID:
+        async with postgis_db_sessionmaker() as session:
+            result = await ingest_location_ping_batch(
+                session,
+                user_id=driver.id,
+                trip_id=trip_uuid,
+                payload=primer_payload,
+                settings=settings,
+            )
+            assert result.duplicate is False
+            await session.commit()
+            return result.batch.id
+
+    primer_batch_id = asyncio.run(upload_primer())
 
     async def end_once() -> str:
         async with postgis_db_sessionmaker() as session:
@@ -395,7 +420,7 @@ def test_postgres_end_upload_reconcile_and_grace_race_converges(
                     session,
                     user_id=driver.id,
                     trip_id=trip_uuid,
-                    payload=payload,
+                    payload=raced_payload,
                     settings=settings,
                 )
                 await session.commit()
@@ -452,6 +477,34 @@ def test_postgres_end_upload_reconcile_and_grace_race_converges(
     assert set(outcomes[-2:]).issubset({"grace_marked", "grace_skipped"})
     assert outcomes.count("grace_marked") <= 1
 
+    async def replay_primer_after_seal() -> None:
+        async with postgis_db_sessionmaker() as session:
+            replay = await ingest_location_ping_batch(
+                session,
+                user_id=driver.id,
+                trip_id=trip_uuid,
+                payload=primer_payload,
+                settings=settings,
+            )
+            assert replay.duplicate is True
+            assert replay.batch.id == primer_batch_id
+            await session.rollback()
+
+        conflicting_payload = LocationPingBatchCreate.model_validate(
+            make_batch_payload("race-primer", batch_sequence=0, lat=6.46)
+        )
+        async with postgis_db_sessionmaker() as session:
+            with pytest.raises(AppError) as conflict:
+                await ingest_location_ping_batch(
+                    session,
+                    user_id=driver.id,
+                    trip_id=trip_uuid,
+                    payload=conflicting_payload,
+                    settings=settings,
+                )
+            assert conflict.value.code == "IDEMPOTENCY_KEY_CONFLICT"
+            await session.rollback()
+
     async def finish_and_inspect() -> tuple[TripSession, int, int]:
         async with postgis_db_sessionmaker() as session:
             await reconcile_trip_evidence(
@@ -488,3 +541,4 @@ def test_postgres_end_upload_reconcile_and_grace_race_converges(
     assert trip.evidence_manifest_verified_at is not None
     assert seal_events == 1
     assert grace_events <= 1
+    asyncio.run(replay_primer_after_seal())
