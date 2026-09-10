@@ -2,6 +2,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
+import pytest
 from conftest import (
     auth_headers,
     create_test_driver_profile,
@@ -21,7 +22,11 @@ from app.models.audit import AuditEvent
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
 from app.models.evidence_verification import EvidenceVerification
-from app.models.installation_evidence import DisplayProof
+from app.models.installation_evidence import (
+    DisplayProof,
+    InstallationEvidenceStatus,
+    InstallationEvidenceSubmission,
+)
 from app.models.stored_file import (
     FilePurpose,
     FileScanStatus,
@@ -32,8 +37,8 @@ from app.models.stored_file import (
 from app.models.trip import TripSession
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
-from app.schemas.installation_evidence import DisplayProofCreate
-from app.services.installation_evidence import submit_display_proof
+from app.schemas.installation_evidence import DisplayProofCreate, InstallationEvidenceCreate
+from app.services.installation_evidence import submit_display_proof, submit_installation_evidence
 
 
 def create_clean_evidence_file(db_sessionmaker, *, user_id: UUID) -> UUID:
@@ -282,6 +287,117 @@ def test_driver_admin_evidence_flow_is_bound_and_idempotent(
     assert approved.status_code == 200, approved.text
     assert approved.json()["status"] == "approved"
     assert approved.json()["approved_until"] is not None
+
+
+def test_distinct_submission_is_rejected_while_review_is_pending(
+    db_client,
+    db_sessionmaker,
+    settings,
+) -> None:
+    configure_evidence_policy(settings)
+    _, driver, _, assignment_id_value = accepted_assignment(
+        db_client, db_sessionmaker, suffix="pending-guard"
+    )
+    assignment_id = UUID(assignment_id_value)
+    first_payload = InstallationEvidenceCreate.model_validate(
+        evidence_payload(db_sessionmaker, driver_id=driver.id)
+    )
+    second_payload = InstallationEvidenceCreate.model_validate(
+        evidence_payload(db_sessionmaker, driver_id=driver.id)
+    )
+
+    async def exercise() -> tuple[UUID, list[InstallationEvidenceSubmission]]:
+        async with db_sessionmaker() as session:
+            first = await submit_installation_evidence(
+                session,
+                actor_user_id=driver.id,
+                actor_role="driver",
+                assignment_id=assignment_id,
+                payload=first_payload,
+                settings=settings,
+            )
+            await session.commit()
+            first_id = first.id
+
+        async with db_sessionmaker() as session:
+            with pytest.raises(AppError) as caught:
+                await submit_installation_evidence(
+                    session,
+                    actor_user_id=driver.id,
+                    actor_role="driver",
+                    assignment_id=assignment_id,
+                    payload=second_payload,
+                    settings=settings,
+                )
+            assert caught.value.code == "INSTALLATION_EVIDENCE_REVIEW_PENDING"
+            assert caught.value.status_code == 409
+            await session.rollback()
+
+        async with db_sessionmaker() as session:
+            rows = list(
+                await session.scalars(
+                    select(InstallationEvidenceSubmission).where(
+                        InstallationEvidenceSubmission.assignment_id == assignment_id
+                    )
+                )
+            )
+            return first_id, rows
+
+    first_id, rows = asyncio.run(exercise())
+    assert [(row.id, row.client_request_id, row.status) for row in rows] == [
+        (first_id, first_payload.client_request_id, InstallationEvidenceStatus.PENDING_REVIEW.value)
+    ]
+
+
+def test_future_capture_is_rejected_without_persisting_submission_or_audit(
+    db_client,
+    db_sessionmaker,
+    settings,
+) -> None:
+    configure_evidence_policy(settings)
+    _, driver, _, assignment_id_value = accepted_assignment(
+        db_client, db_sessionmaker, suffix="future-guard"
+    )
+    assignment_id = UUID(assignment_id_value)
+    payload_data = evidence_payload(db_sessionmaker, driver_id=driver.id)
+    payload_data["captured_at"] = datetime(2099, 1, 1, tzinfo=UTC).isoformat()
+    payload = InstallationEvidenceCreate.model_validate(payload_data)
+
+    async def exercise() -> tuple[int, int]:
+        async with db_sessionmaker() as session:
+            with pytest.raises(AppError) as caught:
+                await submit_installation_evidence(
+                    session,
+                    actor_user_id=driver.id,
+                    actor_role="driver",
+                    assignment_id=assignment_id,
+                    payload=payload,
+                    settings=settings,
+                )
+            assert caught.value.code == "INSTALLATION_EVIDENCE_CAPTURE_TIME_INVALID"
+            assert caught.value.status_code == 422
+            await session.rollback()
+
+        async with db_sessionmaker() as session:
+            submissions = int(
+                await session.scalar(
+                    select(func.count())
+                    .select_from(InstallationEvidenceSubmission)
+                    .where(InstallationEvidenceSubmission.assignment_id == assignment_id)
+                )
+                or 0
+            )
+            audits = int(
+                await session.scalar(
+                    select(func.count())
+                    .select_from(AuditEvent)
+                    .where(AuditEvent.action == "installation_evidence.submitted")
+                )
+                or 0
+            )
+            return submissions, audits
+
+    assert asyncio.run(exercise()) == (0, 0)
 
 
 def test_evidence_policy_absence_and_cross_driver_file_fail_closed(

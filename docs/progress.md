@@ -1655,6 +1655,42 @@ Terra/high consolidated post-build review returned `PASS` with no findings. A
 new five-job exact-SHA run remains mandatory; this is not release or deployment
 acceptance.
 
+**Direct owner continuation — eliminate residual coverage variance (10
+September 2026, recorded before implementation):** exact-SHA run `34410358441`
+against `c56af25169c02bef4259ac4ccb8b79f03bf22617` passed quality/build, all
+backend tests and static verification, and R59. Its backend artifact reported
+25,264 / 28,514 lines and 4,616 / 6,770 branches; with the unchanged frontend
+artifact this is two global lines below the committed 28,513-line floor, while
+branches equal their floor. Changed-code coverage therefore failed and ordinary
+real-stack E2E was skipped. The owner directly requests a correction. The
+authorized scope is to identify the remaining schedule-sensitive coverage path
+and add deterministic behavioral regression evidence without reducing the
+baseline, changing eligibility/instrumentation, adding skips, or altering
+product behavior. Independent plan and post-build review, repeated CI-runtime
+evidence and a new five-job exact-SHA run remain mandatory. All external,
+release and deployment gates remain unchanged.
+
+The independent Sol/high plan review returned `REVISE` twice and then `PASS`.
+The incorporated requirements make both regressions call the service directly
+in one main event loop, assert exact error/status and persistence/audit
+invariants, and require mutation-red plus at least four deterministic added
+lines. A sentinel mutation to the early pending guard made its exact-code test
+fail; bypassing the future-time comparison made the second test fail because no
+exception was raised. Both mutations were restored, and the product service is
+byte-identical to `c56af25`.
+
+On CPython 3.12.14 with coverage.py 7.16.0, the two green tests passed three
+consecutive runs. Their focused LCOV union with run `34410358441` adds 21
+deterministic installation-evidence lines and 14 branches, projecting 25,285 /
+28,514 backend lines and 4,630 / 6,770 backend branches; with the unchanged
+frontend artifact, that is 28,532 global lines and 7,364 branches, respectively
+19 and 14 above the committed floors. The complete installation-evidence,
+R59-contract and changed-coverage-policy group passes 44 tests with one expected
+local integration-gated skip; focused Ruff, progress validation and diff checks
+pass. The independent Sol/high consolidated post-build review returned `PASS`
+with no findings and independently confirmed the product-service hash and
+coverage arithmetic. A fresh five-job exact-SHA run remains mandatory.
+
 ## Executable package queue
 
 | # | Package | Status | Outcome | Package prerequisites |
