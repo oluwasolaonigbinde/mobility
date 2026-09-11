@@ -5,23 +5,51 @@ import { defineConfig, devices } from "@playwright/test";
  * backend. Start the backend first: `docker compose up -d` from the repo root
  * (plus migrations + demo seed) — see frontend/README.md.
  */
-// UI-only synthetic rehearsal modes. They do not provide real-stack release authority.
-const w403bSynthetic = process.env.W403B_SYNTHETIC === "1";
-const w401cSynthetic = process.env.W401C_SYNTHETIC === "1" || w403bSynthetic;
-const w401dSynthetic = process.env.W401D_SYNTHETIC === "1";
-const r59RealStack = process.env.R59_REAL_STACK === "1";
+// Specialist modes are opt-in and mutually exclusive. Ordinary real-stack E2E
+// never inherits their mock servers, deployment assumptions, or authority.
+const specialistModes = [
+  ["w401c", process.env.W401C_SYNTHETIC === "1"],
+  ["w401d", process.env.W401D_SYNTHETIC === "1"],
+  ["w403b", process.env.W403B_SYNTHETIC === "1"],
+  ["r59", process.env.R59_REAL_STACK === "1"],
+  ["r14", process.env.R14_SECURITY_BOUNDARY === "1"],
+] as const;
+const selectedModes = specialistModes.filter(([, enabled]) => enabled);
+if (selectedModes.length > 1) {
+  throw new Error(`Playwright specialist modes are mutually exclusive: ${selectedModes.map(([name]) => name).join(", ")}`);
+}
+const mode = selectedModes[0]?.[0] ?? "ordinary";
+const w401cMockServer = mode === "w401c" || mode === "w403b";
+const w401dSynthetic = mode === "w401d";
+const r59RealStack = mode === "r59";
+const r14SecurityBoundary = mode === "r14";
+const specialistSpecs = [
+  "**/r59-real-stack.spec.ts",
+  "**/security-boundary.spec.ts",
+  "**/w401c-campaign-journey.spec.ts",
+  "**/w401d-release-rehearsal.spec.ts",
+  "**/w403b-synthetic-pilot-journey.spec.ts",
+];
+const specialistSpecByMode = {
+  w401c: "**/w401c-campaign-journey.spec.ts",
+  w401d: "**/w401d-release-rehearsal.spec.ts",
+  w403b: "**/w403b-synthetic-pilot-journey.spec.ts",
+  r59: "**/r59-real-stack.spec.ts",
+  r14: "**/security-boundary.spec.ts",
+} as const;
 const baseURL =
   process.env.PLAYWRIGHT_BASE_URL ??
   (w401dSynthetic ? "http://127.0.0.1:34101" : "http://localhost:3000");
 
 export default defineConfig({
   testDir: "./e2e",
-  testIgnore: r59RealStack ? [] : ["**/r59-real-stack.spec.ts"],
+  testMatch: mode === "ordinary" ? undefined : specialistSpecByMode[mode],
+  testIgnore: mode === "ordinary" ? specialistSpecs : undefined,
   outputDir: r59RealStack ? "test-results/r59-real-stack/playwright" : undefined,
-  fullyParallel: !r59RealStack,
+  fullyParallel: mode !== "ordinary" && !r59RealStack,
   forbidOnly: !!process.env.CI,
   retries: r59RealStack ? 0 : process.env.CI ? 2 : 0,
-  workers: r59RealStack ? 1 : undefined,
+  workers: mode === "ordinary" || r59RealStack ? 1 : undefined,
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL,
@@ -50,7 +78,7 @@ export default defineConfig({
         ],
   // When PLAYWRIGHT_BASE_URL points at an already-running dev server
   // (e.g. autoPort moved it off 3000), reuse it instead of spawning one.
-  webServer: r59RealStack
+  webServer: r59RealStack || r14SecurityBoundary
     ? undefined
     : process.env.PLAYWRIGHT_BASE_URL
       ? undefined
@@ -70,7 +98,7 @@ export default defineConfig({
               timeout: 180_000,
             },
           ]
-        : w401cSynthetic
+        : w401cMockServer
           ? [
               {
                 command: "node e2e/support/w401c-mock-api.mjs",

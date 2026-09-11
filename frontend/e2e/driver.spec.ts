@@ -55,7 +55,7 @@ test("earnings tab shows totals and a trip-traceable ledger", async ({ page }) =
     .getByRole("link", { name: "Earnings" })
     .click();
   await page.waitForURL("**/driver/earnings");
-  await expect(page.getByText("Pending", { exact: true })).toBeVisible();
+  await expect(page.getByText("Pending", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Lifetime earned", { exact: true })).toBeVisible();
   await expect(page.getByText("Payout journey")).toBeVisible();
   // Ledger rows are links into the per-trip earnings breakdown.
@@ -84,8 +84,8 @@ test("profile tab shows driver details and vehicles", async ({ page }) => {
   await page.waitForURL("**/driver/profile");
   await expect(page.getByText("driver@demo.mobility.local")).toBeVisible();
   await expect(page.getByRole("button", { name: "Save details" })).toBeVisible();
-  await expect(page.getByText("DEMO-001")).toBeVisible();
-  await expect(page.getByText("Driver readiness")).toBeVisible();
+  await expect(page.getByText("DEMO-001", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your campaign journey" })).toBeVisible();
 });
 
 test("PWA manifest is public and correctly scoped", async ({ request }) => {

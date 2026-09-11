@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 
 async function login(page: Page, email: string, password: string, destination: string) {
@@ -19,7 +20,8 @@ test("admin can discover campaign commercial billing", async ({ page }) => {
     .getByRole("link", { name: "Open billing" })
     .click();
   await expect(page.getByRole("heading", { name: "Quotation" })).toBeVisible();
-  await expect(page.getByText(/The advertiser has not requested a quotation/i)).toBeVisible();
+  await expect(page.getByText("Accepted", { exact: true })).toBeVisible();
+  await expect(page.getByText(/approved corporate credit/i)).toBeVisible();
   await expect(page.getByRole("link", { name: "Edit company details" })).toBeVisible();
 });
 
@@ -56,7 +58,8 @@ test("advertiser sees canonical company, billing and gated launch entries", asyn
   await page.goto("/advertiser/campaigns");
   await page.getByRole("link", { name: "Demo Lagos Mobility Campaign" }).click();
   await expect(page.getByRole("heading", { name: "Commercial terms" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Request custom quotation" })).toBeVisible();
+  await expect(page.getByText("Accepted", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Request custom quotation" })).not.toBeVisible();
   await expect(page.getByText("Driver campaign cost", { exact: true })).toBeVisible();
 });
 
@@ -65,7 +68,7 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
 }, testInfo) => {
   test.setTimeout(120_000);
   const campaignName = `Commercial E2E ${testInfo.project.name} ${Date.now()}`;
-  const quoteReference = `QUOTE-${Date.now()}`;
+  const quoteReference = `QUOTE-${randomUUID()}`;
 
   await login(page, "advertiser@demo.mobility.local", "DemoAdvertiser12345!", "advertiser");
   const session = (await page.context().cookies()).find(

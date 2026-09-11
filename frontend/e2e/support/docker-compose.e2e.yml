@@ -1,0 +1,6 @@
+services:
+  api:
+    environment:
+      ENVIRONMENT: test
+      PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE: "true"
+      PRIVACY_DISCLOSURE_LIVE_AUTHORIZED: "false"

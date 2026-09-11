@@ -23,6 +23,7 @@ from sqlalchemy import text
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = REPO_ROOT / ".github/workflows/ci.yml"
+E2E_COMPOSE_OVERRIDE_PATH = REPO_ROOT / "frontend/e2e/support/docker-compose.e2e.yml"
 
 # Release-critical paths a change to which must select CI. The root entries are the
 # ones codex-production-readiness-audit P1 found omitted; `.codex/**` closes the
@@ -186,6 +187,32 @@ def test_backend_job_starts_real_minio_and_clamav(workflow: dict) -> None:
     assert "minio/minio:RELEASE.2025-07-23T15-54-02Z" in steps
     assert "clamav/clamav:1.4" in steps
     assert "cardvert-private" in steps
+
+
+def test_e2e_stack_uses_only_explicit_synthetic_disclosure_authority(workflow: dict) -> None:
+    boot_step = next(
+        step
+        for step in workflow["jobs"]["e2e"]["steps"]
+        if step.get("name") == "Boot backend (api + PostGIS + Redis)"
+    )
+
+    assert boot_step["env"]["COMPOSE_FILE"] == (
+        "docker-compose.yml:frontend/e2e/support/docker-compose.e2e.yml"
+    )
+
+    override = yaml.safe_load(E2E_COMPOSE_OVERRIDE_PATH.read_text(encoding="utf-8"))
+    environment = override["services"]["api"]["environment"]
+    assert environment == {
+        "ENVIRONMENT": "test",
+        "PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE": "true",
+        "PRIVACY_DISCLOSURE_LIVE_AUTHORIZED": "false",
+    }
+
+    default_compose = yaml.safe_load((REPO_ROOT / "docker-compose.yml").read_text())
+    default_environment = default_compose["services"]["api"]["environment"]
+    assert default_environment["ENVIRONMENT"] == "local"
+    assert default_environment["PRIVACY_DISCLOSURE_LIVE_AUTHORIZED"].endswith(":-false}")
+    assert "PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE" not in default_environment
 
 
 def test_backend_job_requires_real_integration_authority(workflow: dict) -> None:

@@ -38,15 +38,28 @@ def test_ci_has_separate_exact_candidate_r59_authority() -> None:
         assert mock_flag not in r59
 
 
-def test_playwright_separates_ui_only_rehearsals_from_r59() -> None:
+def test_playwright_separates_ordinary_and_specialist_modes() -> None:
     config = _read("frontend/playwright.config.ts")
 
-    assert "UI-only synthetic rehearsal" in config
+    assert "Specialist modes are opt-in and mutually exclusive" in config
     assert 'process.env.R59_REAL_STACK === "1"' in config
-    assert 'testIgnore: r59RealStack ? [] : ["**/r59-real-stack.spec.ts"]' in config
-    assert "fullyParallel: !r59RealStack" in config
+    assert 'process.env.R14_SECURITY_BOUNDARY === "1"' in config
+    assert "selectedModes.length > 1" in config
+    assert 'const mode = selectedModes[0]?.[0] ?? "ordinary"' in config
+    assert 'testMatch: mode === "ordinary" ? undefined : specialistSpecByMode[mode]' in config
+    assert 'testIgnore: mode === "ordinary" ? specialistSpecs : undefined' in config
+    for specialist_spec in (
+        "r59-real-stack.spec.ts",
+        "security-boundary.spec.ts",
+        "w401c-campaign-journey.spec.ts",
+        "w401d-release-rehearsal.spec.ts",
+        "w403b-synthetic-pilot-journey.spec.ts",
+    ):
+        assert config.count(specialist_spec) == 2
+    assert 'const w401cMockServer = mode === "w401c" || mode === "w403b"' in config
+    assert 'fullyParallel: mode !== "ordinary" && !r59RealStack' in config
     assert "retries: r59RealStack ? 0" in config
-    assert "workers: r59RealStack ? 1" in config
+    assert 'workers: mode === "ordinary" || r59RealStack ? 1' in config
     assert 'name: "r59-chromium"' in config
     assert "webServer: r59RealStack" in config
 
@@ -150,3 +163,30 @@ def test_w401_modes_and_documentation_are_explicitly_ui_only() -> None:
     assert "W403B_SYNTHETIC" in config
     assert "UI-only synthetic rehearsal" in rehearsal
     assert "not real-stack release authority" in rehearsal
+
+
+def test_r14_security_boundary_has_an_explicit_external_edge_mode() -> None:
+    config = _read("frontend/playwright.config.ts")
+    readme = _read("frontend/README.md")
+
+    assert 'process.env.R14_SECURITY_BOUNDARY === "1"' in config
+    assert 'r14: "**/security-boundary.spec.ts"' in config
+    assert "r59RealStack || r14SecurityBoundary" in config
+    assert "R14_SECURITY_BOUNDARY=1" in readme
+    assert "PLAYWRIGHT_BASE_URL=https://" in readme
+
+
+def test_mutating_ordinary_journeys_use_isolated_campaigns() -> None:
+    fixture = _read("frontend/e2e/support/campaign-fixture.ts")
+    cancellation = _read("frontend/e2e/campaign-cancellation.spec.ts")
+    campaign_change = _read("frontend/e2e/campaign-change.spec.ts")
+
+    assert "createIsolatedActiveCampaign" in fixture
+    assert "cleanupIsolatedCampaign" in fixture
+    assert "synthetic_e2e_fixture" in fixture
+    assert "SET session_replication_role = replica" in fixture
+    for spec in (cancellation, campaign_change):
+        assert "createIsolatedActiveCampaign" in spec
+        assert "finally" in spec
+        assert "cleanupIsolatedCampaign(campaignId)" in spec
+        assert 'getByRole("link", { name: "Demo Lagos Mobility Campaign" })' not in spec

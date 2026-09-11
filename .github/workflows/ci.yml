@@ -332,6 +332,7 @@ jobs:
       - name: Boot backend (api + PostGIS + Redis)
         working-directory: .
         env:
+          COMPOSE_FILE: docker-compose.yml:frontend/e2e/support/docker-compose.e2e.yml
           LOGIN_RATE_LIMIT_ACCOUNT_MAX_FAILURES: "50"
           LOGIN_RATE_LIMIT_IP_MAX_FAILURES: "500"
           F7_SEED_MAX_TRIPS_PER_DAY: "1"

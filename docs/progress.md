@@ -1691,6 +1691,44 @@ pass. The independent Sol/high consolidated post-build review returned `PASS`
 with no findings and independently confirmed the product-service hash and
 coverage arithmetic. A fresh five-job exact-SHA run remains mandatory.
 
+**Direct owner continuation — restore synthetic privacy authority in ordinary
+real-stack E2E (10 September 2026, recorded before implementation):** exact-SHA
+run `34509371010` against `98068d8e5609792eb7bd9e05722e85f0e678dc21` passed
+quality/build, the complete backend suite and static verification, R59, and
+changed-code coverage. Its ordinary real-stack E2E job executed but failed 35
+desktop/mobile journeys after advertiser pages received
+`503 PRIVACY_LIVE_USE_BLOCKED`; the stack was still configured as `local` with
+synthetic disclosure mode absent even though it was populated only by the demo
+seed. The owner directly requests the correction and authorizes continuation
+without further permission prompts. The authorized scope is to mark only this
+ordinary CI stack as `environment=test` with explicit synthetic disclosure
+authority, preserve default/local and every production/live gate as fail-closed,
+add a regression contract, run the real desktop/mobile workflow, obtain the
+required independent plan and consolidated post-build reviews, and submit a
+fresh five-job exact-SHA run. No legal approval, live authorization, skip,
+coverage-policy, product-service, release, or deployment claim is authorized.
+
+The correction now uses an API-only Compose override whose rendered ordinary
+E2E environment is `test`, synthetic disclosure `true`, and live disclosure
+`false`; the base stack remains `local`, live `false`, with synthetic disclosure
+absent. Playwright selects exactly one fail-closed specialist mode (including an
+explicit, externally hosted R14 edge probe) and ordinary discovery contains 57
+tests in 16 generic files while excluding only the five specialist files.
+State-changing cancellation and campaign-change journeys use unique disposable
+campaigns, current assertions reflect accepted demo commercial terms, managed
+creative uploads, governed measurement fail-closed states, and current driver
+copy, and UUID quote references remove cross-project collisions. A fresh
+CI-density stack exercised all 114 ordinary desktop/mobile cases serially with
+94 passed, 20 pre-existing conditional skips and zero failures in 2.7 minutes;
+69 focused Python contracts, frontend lint/typecheck, and 653 Vitest cases also
+pass. A five-worker diagnostic exposed an existing PostgreSQL deadlock between
+concurrent fraud/dispute writes; serial ordinary E2E prevents invalid shared-
+stack test concurrency but does not claim to fix or concurrency-test that
+product behavior. The required Sol/high revised plan review and independent
+Sol/high consolidated post-build review both returned `PASS` with no findings;
+the reviewer independently reproduced the focused contracts and discovery
+matrix. A fresh five-job exact-SHA run remains pending.
+
 ## Executable package queue
 
 | # | Package | Status | Outcome | Package prerequisites |

@@ -101,6 +101,15 @@ seed, then either let Playwright spawn `npm run dev` or point
 thresholds first — see "Local Playwright reset and overrides" in
 `../docs/runbook.md`.
 
+The deployed-edge R14 security boundary is a separate, opt-in probe and is not
+part of ordinary real-stack E2E. Run it only against an authorized disposable
+HTTPS edge; the repository does not schedule or supply that deployment:
+
+```bash
+R14_SECURITY_BOUNDARY=1 PLAYWRIGHT_BASE_URL=https://your-disposable-edge.example \
+  npx playwright test --project=chromium
+```
+
 ## Production build
 
 ```bash

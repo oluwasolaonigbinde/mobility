@@ -121,7 +121,7 @@ async function loginAsAdmin(page: Page) {
 test("advertiser can sign in and see the dashboard", async ({ page }) => {
   await loginAsAdvertiser(page);
   await expect(page.getByRole("heading", { name: /Demo Advertiser/ })).toBeVisible();
-  await expect(page.getByText("EST. IMPRESSIONS", { exact: false })).toBeVisible();
+  await expect(page.getByText("Modelled potential contacts", { exact: true })).toBeVisible();
 });
 
 test("signed-out users are redirected to login", async ({ page }) => {
@@ -159,16 +159,14 @@ test("campaign submission and admin approval preserve immutable review history",
     await page.getByLabel(/Total budget/).fill("1500000");
     await page.getByRole("button", { name: "Continue →" }).click();
 
-    // Step 2 — one creative
+    // Step 2 — creatives are optional; managed-file coverage lives in its
+    // dedicated scan/upload journeys, so this review-lifecycle test stays focused.
     await expect(page.getByText("✓ Basics")).toBeVisible();
-    await page.getByRole("button", { name: "+ Add creative" }).click();
-    await page.getByLabel("Creative name *").fill("E2E door panel");
-    await page.getByLabel("Asset URL").fill("https://cdn.example.com/e2e-panel.png");
     await page.getByRole("button", { name: "Continue →" }).click();
 
     // Step 3 — review shows what we entered
     await expect(page.getByText(name)).toBeVisible();
-    await expect(page.getByText("1 attached")).toBeVisible();
+    await expect(page.getByText("none", { exact: true })).toBeVisible();
     // The click triggers a server action + redirect; the button swaps to
     // "Creating…" and detaches mid-handshake, which can trap Playwright's
     // retry loop until the test budget dies. Bound the click and let the
@@ -186,7 +184,7 @@ test("campaign submission and admin approval preserve immutable review history",
     }
     await expect(page.getByRole("heading", { name })).toBeVisible();
     await expect(page.getByText("Draft", { exact: true })).toBeVisible();
-    await expect(page.getByText("E2E door panel")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Add missing creatives" })).toBeVisible();
 
     // A draft can only enter the review lifecycle through its dedicated action.
     await expect(page.getByRole("button", { name: "Submit for review" })).toBeVisible();
