@@ -173,7 +173,7 @@ def test_local_mode_keeps_fast_sqlite_available() -> None:
 
 
 def test_backend_job_declares_real_postgis_and_redis_services(workflow: dict) -> None:
-    services = workflow["jobs"]["backend"]["services"]
+    services = workflow["jobs"]["backend_tests"]["services"]
 
     assert services["db"]["image"].startswith("postgis/postgis:"), services["db"]["image"]
     assert services["redis"]["image"].startswith("redis:"), services["redis"]["image"]
@@ -181,7 +181,7 @@ def test_backend_job_declares_real_postgis_and_redis_services(workflow: dict) ->
 
 def test_backend_job_starts_real_minio_and_clamav(workflow: dict) -> None:
     """TST-001: MinIO/ClamAV tests must run, not skip for want of infrastructure."""
-    steps = yaml.safe_dump(workflow["jobs"]["backend"]["steps"])
+    steps = yaml.safe_dump(workflow["jobs"]["backend_tests"]["steps"])
 
     # Pinned in docker-compose.yml; CI must exercise the same images, not a drifted tag.
     assert "minio/minio:RELEASE.2025-07-23T15-54-02Z" in steps
@@ -216,7 +216,7 @@ def test_e2e_stack_uses_only_explicit_synthetic_disclosure_authority(workflow: d
 
 
 def test_backend_job_requires_real_integration_authority(workflow: dict) -> None:
-    env = workflow["jobs"]["backend"]["env"]
+    env = workflow["jobs"]["backend_tests"]["env"]
 
     for name, value in REQUIRED_BACKEND_ENV.items():
         assert env.get(name) == value, f"backend job must export {name}={value}"
@@ -231,7 +231,7 @@ def test_backend_job_requires_real_integration_authority(workflow: dict) -> None
 
 
 def test_backend_job_installs_release_and_frontend_test_dependencies(workflow: dict) -> None:
-    steps = workflow["jobs"]["backend"]["steps"]
+    steps = workflow["jobs"]["backend_tests"]["steps"]
 
     setup_node = next(step for step in steps if step.get("uses") == "actions/setup-node@v4")
     assert setup_node["with"] == {
@@ -250,7 +250,9 @@ def test_backend_job_installs_release_and_frontend_test_dependencies(workflow: d
             assert matching_steps[0].get("working-directory") == "frontend"
 
 
-@pytest.mark.parametrize("job_name", ("backend", "quality", "e2e"))
+@pytest.mark.parametrize(
+    "job_name", ("backend_static", "backend_tests", "backend", "quality", "e2e")
+)
 def test_every_job_binds_evidence_to_the_candidate_sha(workflow: dict, job_name: str) -> None:
     """Evidence from a synthetic merge commit is evidence for a SHA nobody can re-check."""
     steps = workflow["jobs"][job_name]["steps"]
@@ -266,4 +268,71 @@ def test_every_job_binds_evidence_to_the_candidate_sha(workflow: dict, job_name:
 
     assert any("Verify exact candidate SHA" == step.get("name") for step in steps), (
         f"{job_name} does not assert that the checked-out tree is the candidate SHA"
+    )
+
+
+def test_backend_matrix_is_six_disjoint_fail_complete_shards(workflow: dict) -> None:
+    job = workflow["jobs"]["backend_tests"]
+
+    assert job["strategy"]["fail-fast"] is False
+    assert job["strategy"]["matrix"]["shard"] == [0, 1, 2, 3, 4, 5]
+    run = "\n".join(str(step.get("run", "")) for step in job["steps"])
+    assert "scripts/pytest_shard.py plan" in run
+    assert '--shard-count 6' in run
+    assert 'coverage run -m pytest -- "${shard_files[@]}"' in run
+    assert "mapfile -t shard_files" in run
+    upload = next(step for step in job["steps"] if step.get("uses") == "actions/upload-artifact@v4")
+    assert upload["with"]["include-hidden-files"] is True
+
+
+def test_named_backend_gate_fails_closed_on_any_prerequisite(workflow: dict) -> None:
+    job = workflow["jobs"]["backend"]
+
+    assert job["name"] == "backend lint · tests"
+    assert job["if"] == "${{ always() }}"
+    assert set(job["needs"]) == {"backend_static", "backend_tests"}
+    first_step = job["steps"][0]
+    assert first_step["name"] == "Require every backend prerequisite"
+    assert first_step["env"] == {
+        "STATIC_RESULT": "${{ needs.backend_static.result }}",
+        "TESTS_RESULT": "${{ needs.backend_tests.result }}",
+    }
+    assert '!= "success"' in first_step["run"]
+
+
+def test_backend_aggregate_verifies_manifests_before_combining_coverage(workflow: dict) -> None:
+    steps = workflow["jobs"]["backend"]["steps"]
+    download = next(step for step in steps if step.get("uses") == "actions/download-artifact@v4")
+    assert download["with"] == {
+        "pattern": "r17-backend-shard-*",
+        "path": "coverage/artifacts/backend",
+    }
+    combine = next(
+        step for step in steps if step.get("name") == "Verify and combine backend coverage shards"
+    )["run"]
+    assert combine.index("scripts/pytest_shard.py verify") < combine.index("coverage combine")
+    assert "--shard-count 6" in combine
+    provenance = next(
+        step for step in steps if step.get("name") == "Record backend coverage producer provenance"
+    )["run"]
+    for field in ("inventory_sha256", "inventory_nodeid_count", "shards"):
+        assert field in provenance
+
+
+def test_preprod_tests_execute_only_inside_authoritative_matrix(workflow: dict) -> None:
+    static_steps = yaml.safe_dump(workflow["jobs"]["backend_static"]["steps"])
+    aggregate_steps = yaml.safe_dump(workflow["jobs"]["backend"]["steps"])
+    matrix_steps = yaml.safe_dump(workflow["jobs"]["backend_tests"]["steps"])
+
+    assert "scripts/verify_preprod.sh --static-only" in static_steps
+    assert "coverage run -m pytest" not in static_steps
+    assert "pytest -q" not in static_steps
+    assert "coverage run -m pytest" not in aggregate_steps
+    assert "pytest -q" not in aggregate_steps
+    assert matrix_steps.count("coverage run -m pytest") == 1
+    verify_preprod = (REPO_ROOT / "scripts/verify_preprod.sh").read_text()
+    assert "--static-only" in verify_preprod
+    assert (
+        "tests/test_preprod_operations.py tests/test_w403a_release_preparation.py"
+        in verify_preprod
     )

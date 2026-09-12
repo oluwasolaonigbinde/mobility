@@ -7,6 +7,16 @@ readonly ENV_FILE="${REPO_ROOT}/production.env.example"
 readonly PROD_FILE="${REPO_ROOT}/docker-compose.production.yml"
 readonly DEV_FILE="${REPO_ROOT}/docker-compose.yml"
 
+run_tests=true
+if [[ "${1:-}" == "--static-only" ]]; then
+  run_tests=false
+  shift
+fi
+if (( $# != 0 )); then
+  echo "usage: $0 [--static-only]" >&2
+  exit 2
+fi
+
 cd "${REPO_ROOT}"
 
 bash -n scripts/db_backup.sh scripts/db_restore.sh scripts/release_smoke.sh scripts/verify_preprod.sh \
@@ -21,4 +31,6 @@ docker run --rm \
   -v "${REPO_ROOT}/Caddyfile:/etc/caddy/Caddyfile:ro" \
   caddy@sha256:af32e97399febea808609119bb21544d0265c58a02836576e32a2d082c262c17 \
   caddy validate --config /etc/caddy/Caddyfile
-pytest -q tests/test_preprod_operations.py tests/test_w403a_release_preparation.py
+if [[ "${run_tests}" == "true" ]]; then
+  pytest -q tests/test_preprod_operations.py tests/test_w403a_release_preparation.py
+fi

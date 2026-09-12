@@ -59,9 +59,49 @@ defaults:
     working-directory: frontend
 
 jobs:
-  backend:
-    name: backend lint · tests
+  backend_static:
+    name: backend static checks
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify exact candidate SHA
+        run: |
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          actual="$(git rev-parse HEAD)"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::evidence tree is $actual, not candidate $expected"
+            exit 1
+          fi
+          echo "exact candidate SHA: $actual"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: pip install -e ".[dev]"
+      - name: Validate delivery packages and checklist
+        run: python scripts/validate_progress.py
+      - name: Runtime OpenAPI contract drift check
+        env:
+          PAYOUT_CRYPTO_KEYRING_B64: '{"1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}'
+        run: python scripts/update_openapi_snapshot.py --check
+      - run: ruff check .
+      - name: Pre-production static verification
+        run: scripts/verify_preprod.sh --static-only
+
+  backend_tests:
+    name: backend tests · shard ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
     defaults:
       run:
         working-directory: .
@@ -87,14 +127,9 @@ jobs:
       ARQ_TEST_REDIS_URL: redis://localhost:6379/8
       TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/mobility_test
       F7_SEED_MAX_TRIPS_PER_DAY: "1"
-      # Real-integration authority: this job is the release evidence, so every
-      # service-gated test must run here. A skip is a hole in the evidence, not a
-      # convenience, and tests/conftest.py fails the run on one.
       REQUIRE_REAL_INTEGRATIONS: "1"
       RUN_LOCAL_FILE_INTEGRATION: "1"
       RUN_REPORT_STORAGE_LOCAL_INTEGRATION: "1"
-      # Same images and local-only credentials as docker-compose.yml, so CI proves
-      # the object store and scanner the product is actually built against.
       LOCAL_MINIO_ENDPOINT: http://localhost:9000
       LOCAL_MINIO_ACCESS_KEY: cardvert-local
       LOCAL_MINIO_SECRET_KEY: cardvert-local-secret
@@ -102,17 +137,11 @@ jobs:
       REPORT_STORAGE_ENDPOINT_URL: http://localhost:9000
       REPORT_STORAGE_ACCESS_KEY_ID: cardvert-local
       REPORT_STORAGE_SECRET_ACCESS_KEY: cardvert-local-secret
+      COVERAGE_FILE: coverage/shard-${{ matrix.shard }}/.coverage.${{ matrix.shard }}
     steps:
-      # Check out the candidate commit itself. On pull_request the default ref is a
-      # synthetic merge commit, so a green run would be evidence for a SHA that
-      # exists nowhere and cannot be re-checked at closure time.
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          # The recovery-readiness rehearsal resolves a historical predecessor
-          # commit. A shallow checkout makes that revision unknown, so the
-          # rehearsal fails on git plumbing instead of on the capability it
-          # actually gates.
           fetch-depth: 0
       - name: Verify exact candidate SHA
         run: |
@@ -123,9 +152,6 @@ jobs:
             exit 1
           fi
           echo "exact candidate SHA: $actual"
-
-      # Started before the Python install so ClamAV's signature load overlaps it;
-      # readiness is asserted below, never assumed.
       - name: Start real MinIO and ClamAV
         run: |
           docker run -d --name minio -p 9000:9000 \
@@ -133,10 +159,11 @@ jobs:
             -e MINIO_ROOT_PASSWORD="$LOCAL_MINIO_SECRET_KEY" \
             minio/minio:RELEASE.2025-07-23T15-54-02Z server /data
           docker run -d --name clamav -p 3310:3310 clamav/clamav:1.4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
       - uses: actions/setup-node@v4
         with:
           node-version-file: frontend/.nvmrc
@@ -148,14 +175,7 @@ jobs:
         working-directory: frontend
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
-      - name: Validate delivery packages and checklist
-        run: python scripts/validate_progress.py
       - run: pip install -e ".[dev]"
-      - name: Runtime OpenAPI contract drift check
-        env:
-          PAYOUT_CRYPTO_KEYRING_B64: '{"1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}'
-        run: python scripts/update_openapi_snapshot.py --check
-      - run: ruff check .
 
       - name: Wait for MinIO and ClamAV
         run: |
@@ -182,9 +202,90 @@ jobs:
             fi
             sleep 5
           done
+      - name: Run authoritative backend shard
+        run: |
+          shard_dir="coverage/shard-${{ matrix.shard }}"
+          mkdir -p "$shard_dir"
+          python scripts/pytest_shard.py plan \
+            --candidate-sha "${{ github.event.pull_request.head.sha || github.sha }}" \
+            --shard-index "${{ matrix.shard }}" \
+            --shard-count 6 \
+            --files-output "$shard_dir/files.txt" \
+            --manifest-output "$shard_dir/manifest.json"
+          if [[ ! -s "$shard_dir/files.txt" ]]; then
+            echo "::error::pytest shard selection is empty"
+            exit 1
+          fi
+          mapfile -t shard_files < "$shard_dir/files.txt"
+          if (( ${#shard_files[@]} == 0 )); then
+            echo "::error::pytest shard array is empty"
+            exit 1
+          fi
+          started_at=$SECONDS
+          coverage run -m pytest -- "${shard_files[@]}"
+          elapsed_seconds=$((SECONDS - started_at))
+          python scripts/pytest_shard.py finalize \
+            --manifest "$shard_dir/manifest.json" \
+            --coverage-file "$COVERAGE_FILE" \
+            --elapsed-seconds "$elapsed_seconds"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r17-backend-shard-${{ matrix.shard }}
+          path: |
+            coverage/shard-${{ matrix.shard }}/.coverage.${{ matrix.shard }}
+            coverage/shard-${{ matrix.shard }}/manifest.json
+          include-hidden-files: true
+          if-no-files-found: error
 
-      - run: coverage run -m pytest
-      - run: coverage lcov
+  backend:
+    name: backend lint · tests
+    if: ${{ always() }}
+    needs: [backend_static, backend_tests]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Require every backend prerequisite
+        env:
+          STATIC_RESULT: ${{ needs.backend_static.result }}
+          TESTS_RESULT: ${{ needs.backend_tests.result }}
+        run: |
+          if [[ "$STATIC_RESULT" != "success" || "$TESTS_RESULT" != "success" ]]; then
+            echo "::error::backend prerequisites failed: static=$STATIC_RESULT tests=$TESTS_RESULT"
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify exact candidate SHA
+        run: |
+          expected="${{ github.event.pull_request.head.sha || github.sha }}"
+          actual="$(git rev-parse HEAD)"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::evidence tree is $actual, not candidate $expected"
+            exit 1
+          fi
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: pip install "coverage[toml]==7.16.0"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: r17-backend-shard-*
+          path: coverage/artifacts/backend
+      - name: Verify and combine backend coverage shards
+        run: |
+          python scripts/pytest_shard.py verify \
+            --candidate-sha "${{ github.event.pull_request.head.sha || github.sha }}" \
+            --shard-count 6 \
+            --artifacts-dir coverage/artifacts/backend \
+            --receipt-output coverage/backend-shards.json
+          coverage combine coverage/artifacts/backend/r17-backend-shard-*
+          coverage lcov
       - name: Record backend coverage producer provenance
         run: |
           python - <<'PY'
@@ -197,17 +298,25 @@ jobs:
           from pathlib import Path
 
           report = Path("coverage/backend.lcov")
+          shard_receipt = json.loads(Path("coverage/backend-shards.json").read_text())
+          runtime = {
+              "implementation": platform.python_implementation(),
+              "major_minor": f"{sys.version_info.major}.{sys.version_info.minor}",
+              "coverage_version": coverage.__version__,
+          }
+          shard_runtime = shard_receipt["runtime"]
+          if any(runtime[key] != shard_runtime[key] for key in runtime):
+              raise SystemExit("aggregate runtime differs from shard producers")
           provenance = {
               "version": 1,
               "candidate_sha": subprocess.check_output(
                   ["git", "rev-parse", "HEAD"], text=True
               ).strip(),
               "lcov_sha256": hashlib.sha256(report.read_bytes()).hexdigest(),
-              "runtime": {
-                  "implementation": platform.python_implementation(),
-                  "major_minor": f"{sys.version_info.major}.{sys.version_info.minor}",
-                  "coverage_version": coverage.__version__,
-              },
+              "runtime": runtime,
+              "inventory_sha256": shard_receipt["inventory_sha256"],
+              "inventory_nodeid_count": shard_receipt["inventory_nodeid_count"],
+              "shards": shard_receipt["shards"],
           }
           Path("coverage/backend-provenance.json").write_text(
               json.dumps(provenance, indent=2, sort_keys=True) + "\n"
@@ -219,9 +328,8 @@ jobs:
           path: |
             coverage/backend.lcov
             coverage/backend-provenance.json
+            coverage/backend-shards.json
           if-no-files-found: error
-      - name: Pre-production static verification
-        run: scripts/verify_preprod.sh
 
   quality:
     name: lint · types · unit · contract · build

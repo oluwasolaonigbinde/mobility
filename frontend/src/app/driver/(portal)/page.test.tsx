@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const get = vi.hoisted(() => vi.fn());
 const loadJourney = vi.hoisted(() => vi.fn());
@@ -32,6 +32,10 @@ const ledgerEntry = (status: "paid" | "pending", id: string) => ({
 });
 
 describe("DriverHomePage ledger statuses", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     get.mockReset();
     loadJourney.mockResolvedValue({
@@ -112,5 +116,23 @@ describe("DriverHomePage ledger statuses", () => {
 
     expect(screen.queryByText("READY")).not.toBeInTheDocument();
     expect(screen.queryByText("vehicle active")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [8, "Good morning"],
+    [14, "Good afternoon"],
+    [20, "Good evening"],
+  ])("renders the greeting for local hour %i", async (hour, greeting) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1, hour));
+    get.mockImplementation(async (path?: string) => {
+      if (path?.endsWith("/summary")) return { data: { totals_by_currency: [] } };
+      if (path?.endsWith("/campaign-assignments")) return { data: { items: [] } };
+      return { data: { items: [] } };
+    });
+
+    render(await DriverHomePage());
+
+    expect(screen.getByText(greeting)).toBeInTheDocument();
   });
 });
