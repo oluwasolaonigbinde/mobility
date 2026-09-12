@@ -113,6 +113,8 @@ its disjoint report-reissue lease. The owner has now selected R17 Option A;
 R17 planning is ready, while implementation waits for R59 to release the
 central CI workflow lease.
 
+CI-throughput continuation (12 Sep 2026): run `34690115628` on `2a3f7e0` failed before pytest because Docker Hub denied the existing MinIO image on all six runners; backend static verification and quality passed and the aggregate failed closed. R59 failed at the same MinIO pull, confirmed in its failed log. Both original cached MinIO/MC index digests match Quay exactly (`d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0` / `fb8f773eac8ef9d6da0486d5dec2f42f219358bcb8de579d1623d518c9ebd4cc`), verified by image inspection and successful digest pulls. Reviewed bounded correction pulls those identical digests explicitly and retags locally before unchanged backend and R59 startup; no script/product/Compose/version change or fallback. Pull-order regression observed red before correction then green; 79 shard/authority contracts PASS. Fresh exact-SHA CI and measured backend wall time remain mandatory.
+
 ## Direct owner requests outside the package queue
 
 | Date | Item | Authority | Scope boundary | Queue effect |

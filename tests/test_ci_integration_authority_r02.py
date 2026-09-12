@@ -336,3 +336,25 @@ def test_preprod_tests_execute_only_inside_authoritative_matrix(workflow: dict) 
         "tests/test_preprod_operations.py tests/test_w403a_release_preparation.py"
         in verify_preprod
     )
+
+@pytest.mark.parametrize("job,step_name,startup", [
+    ("backend_tests", "Start real MinIO and ClamAV", "docker run"),
+    ("r59_real_stack", "Run the isolated real-stack release journey",
+     "./scripts/run_r59_real_stack.sh"),
+])
+def test_backend_pulls_identical_minio_digests_before_startup(
+    workflow: dict, job: str, step_name: str, startup: str,
+) -> None:
+    step = next(s for s in workflow["jobs"][job]["steps"]
+                if s.get("name") == step_name)
+    run = step["run"]
+    for image, digest, tag in (
+        ("minio", "d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0",
+         "RELEASE.2025-07-23T15-54-02Z"),
+        ("mc", "fb8f773eac8ef9d6da0486d5dec2f42f219358bcb8de579d1623d518c9ebd4cc",
+         "RELEASE.2025-07-21T05-28-08Z"),
+    ):
+        source = f"quay.io/minio/{image}@sha256:{digest}"
+        pull = f"docker pull {source}"
+        local_tag = f"docker tag {source} minio/{image}:{tag}"
+        assert run.index(pull) < run.index(local_tag) < run.index(startup)
