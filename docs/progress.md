@@ -117,6 +117,41 @@ CI-throughput continuation (12 Sep 2026): run `34690115628` on `2a3f7e0` failed 
 
 ## Direct owner requests outside the package queue
 
+**Terminal CI acceptance receipt — 14 September 2026:** software commit
+`932c2f7cdb6f698f933d14a2bf82ffe96ac145be` is accepted by
+[GitHub run 34789268818](https://github.com/oluwasolaonigbinde/mobility/actions/runs/34789268818).
+All 12 jobs passed: frontend quality/build (656 tests), backend static, all six
+backend shards, aggregate, changed-code coverage, R59 (1 real-stack test), and
+ordinary desktop/mobile E2E (96 passed, the 18 individually justified skips below,
+no failures or flaky retries). All 2,812 backend test identities executed exactly
+once with zero skips; downloaded JUnit/coverage hashes, full collection identity,
+source SHA and regenerated aggregate receipt match GitHub producer provenance.
+Actual GitHub coverage exceeds the adopted receipt: backend 25296/28518 lines,
+4636/6770 branches; frontend 3247/4977 lines, 2736/5442 branches. Backend aggregate
+completed 1,088 seconds after workflow start (18m08s), versus the earlier 69–76
+minute serial backend executions. Coverage eligibility, changed-code requirements,
+financial rules, native privacy snapshot protection and provider boundaries stay
+unchanged. Independent Sol/medium consolidated and specialist review is PASS.
+
+The earlier inference that isolated local passes proved a runner/environment
+cause was too strong. Latest Caddy failures were a missing cold-runner image;
+coverage above a receipt was wrongly rejected by hit-count equality; a missing
+rendered fraud row was silently skipped; and two reproducible product lock cycles
+were hidden by serial browser execution. The corrected cycles are campaign-change
+FK insertion versus snapshot parent locks, and fraud/recovery scopes versus
+snapshot row locks. The exclusive existing reconciliation gate introduces global
+snapshot serialization; no tenant-local throughput or deployment-readiness claim.
+
+This closes the CI continuation and its throughput obligation without restarting
+R01–R60 or moving `PKG-03 / W2-01C`, which remains blocked only by
+`EXT-PAYMENT-PROVIDER`. Legal/privacy, provider credentials/custody, approved report
+methods, physical-device, deployment and live-pilot evidence remain external.
+The terminal receipt commit is also checked through all CI gates before the
+controller callback releases the product-write freeze; its run is linked in that
+callback. This receipt references the accepted software commit, not its own
+containing commit. Unrelated owner files and the separate admin-UX ledger row
+remain preserved and unstaged.
+
 Local verification stabilized (14 Sep): 172 real PostgreSQL/reporting/privacy/
 recovery/reconciliation tests PASS; 127 CI-authority/policy tests PASS; eight real
 Caddy/CSP browser cases PASS; the original missing shard's 463 tests PASS under
@@ -127,7 +162,7 @@ Controlled D33 refresh and verification PASS: changed eligible lines 4/4,
 backend 25279/28518 lines and 4623/6770 branches; frontend 3247/4977 lines and
 2736/5442 branches. Floors only ratchet upward. Sol/medium consolidated and
 money/privacy/security/concurrency review found no substantive implementation
-finding; local closure checks pass and exact-SHA GitHub results remain the final gate.
+finding; final GitHub acceptance is recorded in the terminal receipt above.
 All 23 entry-state user/review files remain hash-identical. The controller's
 later admin-UX authorization row remains an unrelated unstaged ledger change.
 
@@ -167,7 +202,7 @@ was lowered. Current local coverage is explicitly a source-bound diagnostic
 composition: five 13da317 GitHub artifacts plus the completed missing shard for
 unchanged files, and fresh Python 3.12 tests solely for the two changed
 modules (campaign changes and disclosure). It is not relabeled as final candidate shard evidence; exact-SHA GitHub
-execution/coverage artifacts remain the authoritative closure gate.
+execution/coverage artifacts became the authoritative closure evidence above.
 
 Second concurrency correction reviewed by Sol/medium: the real snapshot/fraud
 cycle is trip-row then fraud-advisory versus advisory then row. Merely moving
@@ -218,7 +253,7 @@ owned commit and fast-forward push; no new approval gate is inferred.
 
 | Date | Item | Authority | Scope boundary | Queue effect |
 | --- | --- | --- | --- | --- |
-| 13 Sep 2026 | **Resolve recurring integrated CI failures end to end.** | Direct owner request in task `01a09cdc-9ae6-70e0-b967-93d3da979bdc`; sole Astra/high implementation in existing `master`, one Sol/medium review-only agent, bounded non-force commit/push authorized | Investigate and correct demonstrated causes across product, fixtures, isolation/concurrency, runtime/dependencies, coverage, sharding, workflows and real-stack browsers. Preserve D32/D33/D36 floors and test authority, unrelated review sources and protected provenance; no deployment/live-provider operations. | Continuation IN PROGRESS outside package queue; PKG-03 external pause unchanged. Entry HEAD and fetched origin/master `13da317087aa5aa7b56bc51aad535bca90547aa3`; predecessor inactive, controller idle. Latest run `34690537163`: frontend/static/R59 and five shards passed; shard 5 failed eight absent-Caddy-image cases, aggregate failed closed, coverage/E2E skipped. Admin-UX controller notified to retain review-only preparation through exact-SHA acceptance. Before closure: independent plan and consolidated/specialist review, regression red/green, complete GitHub shard execution/coverage proof and all required gates on exact pushed revision; then notify controller that write freeze is released. |
+| 13 Sep 2026 | **Resolve recurring integrated CI failures end to end.** | Direct owner request in task `01a09cdc-9ae6-70e0-b967-93d3da979bdc`; sole Astra/high implementation in existing `master`, one Sol/medium review-only agent, bounded non-force commit/push authorized | Investigate and correct demonstrated causes across product, fixtures, isolation/concurrency, runtime/dependencies, coverage, sharding, workflows and real-stack browsers. Preserve D32/D33/D36 floors and test authority, unrelated review sources and protected provenance; no deployment/live-provider operations. | Continuation DONE at `932c2f7` / run `34789268818`; PKG-03 external pause unchanged. Entry HEAD and fetched origin/master `13da317087aa5aa7b56bc51aad535bca90547aa3`; predecessor inactive, controller idle. Latest run `34690537163`: frontend/static/R59 and five shards passed; shard 5 failed eight absent-Caddy-image cases, aggregate failed closed, coverage/E2E skipped. Admin-UX controller notified to retain review-only preparation through exact-SHA acceptance. Independent plan/consolidated/specialist review, regression red/green, actual complete GitHub shard execution/coverage proof and every required gate PASS; controller callback releases the write freeze after terminal receipt CI. |
 | 12 Sep 2026 | **Remove the 69–76 minute backend CI bottleneck before continuing exact-SHA acceptance.** | Direct project-owner instruction to stop repeating the multi-day serial wait and fix the gate itself, 12 Sep 2026 | May change only the CI backend-test topology, deterministic shard selection/coverage aggregation, their contract tests, the already-required deterministic driver-greeting regression, and this evidence record. Every collected backend case must execute exactly once across isolated real-integration runners; zero-skip authority, PostgreSQL/PostGIS, Redis, MinIO, ClamAV, combined LCOV provenance, unchanged R17 floors, quality, R59 and ordinary real-stack E2E remain mandatory. No product/API/schema/migration/provider/live-use behavior or coverage exclusion may change. | Adds a bounded CI-throughput correction outside the completed package queue and does not move the PKG-03 external pause. Six isolated shards plus fail-closed aggregate implemented; independent plan and consolidated post-build reviews PASS. Missing-shard mutation rejected; correctly hashed malformed coverage regression observed red then green after requiring readable, nonempty branch CoverageData. 107 focused tests, Ruff, progress validation, shell/YAML/diff checks, pre-production static verification and frontend lint/typecheck/656 coverage tests PASS. Refreshed collection: 2,780 node IDs in 235 files, balanced 464/464/463/463/463/463. Reviewer retry reconciles the usage-limit interruption. Remaining exact-SHA gate: after push, measure workflow-start-to-backend completion, require materially shorter wall time and all five acceptance gates to execute/pass; no speed or release-readiness claim before that evidence. |
 | 6 Sep 2026 | **Execute the reviewed post-remediation correction programme, C01–C37 and H07.** | Owner's exact `APPROVE IMPLEMENTATION OF THE REVIEWED PACKETS` in the existing Astra controller, following aggregate contract V3 plan-review PASS and the frozen two-macro-phase execution amendment | The existing Astra controller implements directly; no implementation subagents or initial handoff. Exactly two further Sol/medium review-only subagents: one complete Macro-Phase A review, then one fresh final specialist/consolidated review. This explicit owner amendment replaces intermediate specialist dispatches and earlier concurrency/model preferences for this programme only. No commit, push, merge, deployment or external-system contact is authorized. | Authorizes the bounded correction register below without changing the ten-package queue, original checklist, R01–R60 history or PKG-03 external pause. |
 | 5 Sep 2026 | **Adopt R17 Option A: a changed-code coverage ratchet with at least 90% line and 80% branch coverage, plus no regression from exact current global and named-critical baselines.** | Direct project-owner choice “A” in the active remediation controller, 5 Sep 2026 | R17 must select its comparison base deterministically for PRs, pushes and local runs; fail closed to an explicit merge-base rule; exclude generated code, tests, fixtures, migrations, build output and vendor code. It may add only the minimum backend/frontend coverage tooling, policy tests, workflow wiring and a D27(e)-superseding decision row after an independent plan review. It must inventory and reuse existing tooling and must not duplicate R59's real-stack journey or evidence. | Clears the R17 policy block and authorizes read-only R17 planning now. Implementation remains serialized until R59 releases `.github/workflows/ci.yml`; R60 remains dependency-held until both R17 and R59 are accepted. |
