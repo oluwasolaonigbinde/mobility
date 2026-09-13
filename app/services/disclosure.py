@@ -143,6 +143,10 @@ async def lock_trip_disclosure_snapshot(
     """Freeze report contributors before response construction under PostgreSQL."""
     if session.get_bind().dialect.name != "postgresql":
         return
+    from app.services.fraud_holds import lock_fraud_reconciliation_gate
+
+    # Exclude fraud/money writers before parent FK and contributor row locks.
+    await lock_fraud_reconciliation_gate(session, exclusive=True)
     await session.scalar(
         select(AdvertiserOrganization.id)
         .where(AdvertiserOrganization.id == tenant_id)

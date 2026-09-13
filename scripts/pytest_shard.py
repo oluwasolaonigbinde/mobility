@@ -10,6 +10,7 @@ import platform
 import re
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from collections import Counter
 from pathlib import Path
 
@@ -140,6 +141,44 @@ def _load_manifest(path: Path) -> dict[str, object]:
     return value
 
 
+def _execution_identity(nodeid: str) -> tuple[str, str]:
+    # Match pytest JUnit's mangle_test_address, keeping parameter punctuation literal.
+    address, bracket, parameters = nodeid.partition("[")
+    parts = address.split("::")
+    parts[0] = parts[0].removesuffix(".py").replace("/", ".")
+    parts[-1] += bracket + parameters
+    return ".".join(parts[:-1]), parts[-1]
+
+
+def verify_execution(path: Path, assigned_nodeids: list[str]) -> int:
+    expected = [_execution_identity(nodeid) for nodeid in assigned_nodeids]
+    if not expected or len(expected) != len(set(expected)):
+        raise ShardError("execution inventory is empty or has ambiguous JUnit identities")
+    try:
+        root = ET.parse(path).getroot()
+    except (OSError, ET.ParseError) as error:
+        raise ShardError("execution report is missing or malformed") from error
+    if root.tag != "testsuites" or not root.findall("testsuite"):
+        raise ShardError("execution report lacks pytest suite context")
+    if any(list(root.iter(tag)) for tag in ("failure", "error", "skipped")):
+        raise ShardError("execution report contains unsuccessful tests or collection errors")
+    cases = root.findall("testsuite/testcase")
+    actual = [(case.get("classname"), case.get("name")) for case in cases]
+    if len(actual) != len(set(actual)) or set(actual) != set(expected):
+        raise ShardError("execution testcase inventory differs from assigned node IDs")
+    for suite in root.findall("testsuite"):
+        try:
+            if (
+                suite.get("name") != "pytest"
+                or int(suite.attrib["tests"]) != len(suite.findall("testcase"))
+                or any(int(suite.attrib[key]) != 0 for key in ("failures", "errors", "skipped"))
+            ):
+                raise ValueError("inconsistent suite")
+        except (KeyError, ValueError) as error:
+            raise ShardError("execution report has inconsistent pytest suite counts") from error
+    return len(actual)
+
+
 def finalize(args: argparse.Namespace) -> None:
     manifest_path = Path(args.manifest).resolve()
     coverage_path = Path(args.coverage_file).resolve()
@@ -148,6 +187,13 @@ def finalize(args: argparse.Namespace) -> None:
         raise ShardError("raw coverage file is missing or empty")
     if args.elapsed_seconds < 0:
         raise ShardError("elapsed seconds must be non-negative")
+    execution_path = Path(args.execution_report).resolve()
+    verify_execution(
+        execution_path, _string_list(manifest.get("assigned_nodeids"), "assigned_nodeids")
+    )
+    if execution_path.parent != manifest_path.parent or execution_path.name != "execution.xml":
+        raise ShardError("execution report must be execution.xml beside the manifest")
+    manifest["execution_sha256"] = hashlib.sha256(execution_path.read_bytes()).hexdigest()
     manifest["coverage_file"] = coverage_path.name
     manifest["coverage_sha256"] = hashlib.sha256(coverage_path.read_bytes()).hexdigest()
     manifest["elapsed_seconds"] = args.elapsed_seconds
@@ -243,9 +289,18 @@ def verify(args: argparse.Namespace) -> None:
                 raise ShardError(f"shard {index} coverage is empty or lacks branch data")
         except coverage.exceptions.CoverageException as error:
             raise ShardError(f"shard {index} unreadable coverage data") from error
+        execution_path = manifest_path.parent / "execution.xml"
+        if not execution_path.is_file():
+            raise ShardError(f"shard {index} execution report is missing")
+        execution_hash = hashlib.sha256(execution_path.read_bytes()).hexdigest()
+        if manifest.get("execution_sha256") != execution_hash:
+            raise ShardError(f"shard {index} execution report hash differs")
+        executed_count = verify_execution(execution_path, nodeids)
         receipt_shards.append(
             {
                 "index": index,
+                "executed_nodeid_count": executed_count,
+                "execution_sha256": execution_hash,
                 "assigned_file_count": len(files),
                 "assigned_nodeid_count": len(nodeids),
                 "coverage_file": coverage_path.relative_to(artifacts_dir).as_posix(),
@@ -291,6 +346,7 @@ def parser() -> argparse.ArgumentParser:
     finalize_parser = subparsers.add_parser("finalize")
     finalize_parser.add_argument("--manifest", required=True)
     finalize_parser.add_argument("--coverage-file", required=True)
+    finalize_parser.add_argument("--execution-report", required=True)
     finalize_parser.add_argument("--elapsed-seconds", type=int, required=True)
     finalize_parser.set_defaults(handler=finalize)
 

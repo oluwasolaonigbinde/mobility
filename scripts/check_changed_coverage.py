@@ -718,6 +718,16 @@ def _trusted_baseline(
             raise PolicyError("runtime baseline requires backend producer provenance")
         if producer_runtime is not None:
             snapshot["backend_runtime"] = producer_runtime
+    if (
+        trusted.get("version") == 3
+        and snapshot["source_sha256"] == trusted.get("source_sha256")
+        and inventory_hash == trusted.get("eligible_inventory_sha256")
+        and snapshot.get("backend_runtime") == trusted.get("backend_runtime")
+        and all(groups[name] == trusted["critical"][name].get("paths") for name in groups)
+    ):
+        # Metadata-only refreshes retain adopted floors; actual evidence was checked above.
+        snapshot["global"] = trusted["global"]
+        snapshot["critical"] = trusted["critical"]
     if runtime_migration:
         attestation_path = repo_root / LEGACY_RUNTIME_ATTESTATION
         attestation = _legacy_attestation(
@@ -761,6 +771,37 @@ def _trusted_baseline(
         if not isinstance(reason, str) or not reason.strip():
             raise PolicyError("baseline refresh receipt requires a reviewable reason")
         snapshot["refresh"]["reason"] = reason
+        if (
+            trusted.get("version") == 3
+            and not runtime_migration
+            and snapshot["source_sha256"] != trusted.get("source_sha256")
+        ):
+            for label, measured, adopted, prior in (
+                ("global", actual, candidate.get("global"), trusted["global"]),
+                *(
+                    (f"critical.{name}", critical[name], candidate["critical"].get(name),
+                     trusted["critical"][name])
+                    for name in groups
+                ),
+            ):
+                if not isinstance(adopted, dict) or set(adopted) != set(measured):
+                    raise PolicyError(f"invalid adopted coverage metrics: {label}")
+                for metric in ("line", "branch"):
+                    covered, total = adopted[f"{metric}_covered"], adopted[f"{metric}_total"]
+                    if (
+                        type(covered) is not int or type(total) is not int
+                        or not 0 <= covered <= total
+                        or total != measured[f"{metric}_total"]
+                        or type(adopted[f"{metric}_percent"]) not in (int, float)
+                        or adopted[f"{metric}_percent"] != _percent(covered, total)
+                    ):
+                        raise PolicyError(f"invalid adopted coverage metrics: {label}.{metric}")
+                _assert_not_regressed(label, adopted, prior)
+                _assert_not_regressed(label, measured, adopted)
+            snapshot["global"] = candidate["global"]
+            snapshot["critical"] = {
+                name: {**candidate["critical"][name], "paths": groups[name]} for name in groups
+            }
         if candidate != snapshot:
             raise PolicyError("baseline refresh receipt differs from trusted/current evidence")
     else:

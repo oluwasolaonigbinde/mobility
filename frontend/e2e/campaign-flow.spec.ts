@@ -201,6 +201,7 @@ test("campaign submission and admin approval preserve immutable review history",
     await expect(approval.getByRole("heading", { name })).toBeVisible();
     await expect(approval.getByText("Snapshot SHA-256:")).toBeVisible();
     await approval.getByRole("button", { name: "Approve" }).click();
+    await expect(approval).not.toBeVisible();
     await page.reload();
     await expect(page.getByTestId(`campaign-approval-${campaignId}`)).not.toBeVisible();
 

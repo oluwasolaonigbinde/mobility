@@ -206,6 +206,8 @@ jobs:
             fi
             sleep 5
           done
+      - name: Provision Caddy for real CSP and browser checks
+        run: docker pull caddy:2.8-alpine
       - name: Run authoritative backend shard
         run: |
           shard_dir="coverage/shard-${{ matrix.shard }}"
@@ -226,11 +228,12 @@ jobs:
             exit 1
           fi
           started_at=$SECONDS
-          coverage run -m pytest -- "${shard_files[@]}"
+          coverage run -m pytest --junitxml="$shard_dir/execution.xml" -- "${shard_files[@]}"
           elapsed_seconds=$((SECONDS - started_at))
           python scripts/pytest_shard.py finalize \
             --manifest "$shard_dir/manifest.json" \
             --coverage-file "$COVERAGE_FILE" \
+            --execution-report "$shard_dir/execution.xml" \
             --elapsed-seconds "$elapsed_seconds"
       - uses: actions/upload-artifact@v4
         with:
@@ -238,6 +241,7 @@ jobs:
           path: |
             coverage/shard-${{ matrix.shard }}/.coverage.${{ matrix.shard }}
             coverage/shard-${{ matrix.shard }}/manifest.json
+            coverage/shard-${{ matrix.shard }}/execution.xml
           include-hidden-files: true
           if-no-files-found: error
 
@@ -449,6 +453,8 @@ jobs:
           LOGIN_RATE_LIMIT_IP_MAX_FAILURES: "500"
           F7_SEED_MAX_TRIPS_PER_DAY: "1"
         run: |
+          docker pull quay.io/minio/minio@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0
+          docker tag quay.io/minio/minio@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0 minio/minio:RELEASE.2025-07-23T15-54-02Z
           cp .env.example .env
           sed -i 's/ALLOW_DEMO_SEED=false/ALLOW_DEMO_SEED=true/' .env
           docker compose up -d --build api db redis

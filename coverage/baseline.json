@@ -6,12 +6,12 @@
   },
   "critical": {
     "backend": {
-      "branch_covered": 4616,
-      "branch_percent": 68.1832,
+      "branch_covered": 4623,
+      "branch_percent": 68.2866,
       "branch_total": 6770,
-      "line_covered": 25266,
-      "line_percent": 88.6091,
-      "line_total": 28514,
+      "line_covered": 25279,
+      "line_percent": 88.6423,
+      "line_total": 28518,
       "paths": [
         "app/__init__.py",
         "app/adapters/ad_platforms/__init__.py",
@@ -254,8 +254,8 @@
       ]
     },
     "frontend": {
-      "branch_covered": 2734,
-      "branch_percent": 50.2389,
+      "branch_covered": 2736,
+      "branch_percent": 50.2756,
       "branch_total": 5442,
       "line_covered": 3247,
       "line_percent": 65.2401,
@@ -506,41 +506,23 @@
   },
   "eligible_inventory_sha256": "c0238ca05040c3aae72f4a819fc85a332a907b2b96d71a7dced9aeff2000a3f2",
   "global": {
-    "branch_covered": 7350,
-    "branch_percent": 60.1867,
+    "branch_covered": 7359,
+    "branch_percent": 60.2604,
     "branch_total": 12212,
-    "line_covered": 28513,
-    "line_percent": 85.1363,
-    "line_total": 33491
+    "line_covered": 28526,
+    "line_percent": 85.1649,
+    "line_total": 33495
   },
-  "policy_sha256": "ab6658e853cee4f5bd84af20405e4fbf03322e413d7de7591157c2d429e0fd20",
+  "policy_sha256": "def9d95ba31eb70fbf92f8485fa50bbfda14ed238b95fea903d81ff612336a13",
   "refresh": {
     "inventory_changes": {
-      "added": [
-        "frontend/src/fonts/families/archivo.ts",
-        "frontend/src/fonts/families/big-shoulders.ts",
-        "frontend/src/fonts/families/bricolage-grotesque.ts",
-        "frontend/src/fonts/families/fraunces.ts",
-        "frontend/src/fonts/families/ibm-plex-mono.ts",
-        "frontend/src/fonts/families/inter.ts",
-        "frontend/src/fonts/families/poppins.ts"
-      ],
+      "added": [],
       "removed": []
     },
-    "kind": "runtime_reconciliation",
-    "legacy_attestation_sha256": "7e4fbdcb3b518a1474cc130da4257fed547a2eca380b7b15ead5ac0030250697",
-    "previous_baseline_sha256": "eb89060a091d79e5ee48346e0cac65728fb0a5dbf5a9fe7b80e64ce6ab3469da",
-    "reason": "Reviewed CI Python 3.12 runtime reconciliation for run 34354263174",
-    "runtime_transition": {
-      "from": "unprovenanced",
-      "to": {
-        "coverage_version": "7.16.0",
-        "implementation": "CPython",
-        "major_minor": "3.12"
-      }
-    }
+    "previous_baseline_sha256": "510dddea2da61639d5b3b2a38625d2dd80fdd5e7fd8891398524ccaa1f8b4c49",
+    "reason": "Reviewed CI execution integrity and campaign/disclosure/fraud lock ordering; unchanged D32 requirements and instrumentation"
   },
-  "source_parent_sha": "41d006729a0aa1290a617060e8ea27b956ea4fc5",
-  "source_sha256": "e845f86639954562aa6f4a6e7cc2184d9bdcafc75bf0ec9f00a900ce792531da",
+  "source_parent_sha": "13da317087aa5aa7b56bc51aad535bca90547aa3",
+  "source_sha256": "939346d80c39a4f8624922bca14818c8a8235bbc1001df6c9b280d481261ffe5",
   "version": 3
 }

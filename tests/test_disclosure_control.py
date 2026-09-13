@@ -1234,3 +1234,111 @@ def test_heatmap_suppresses_when_an_unselected_serialized_metric_is_dominated(
     # ping_count is balanced at 50/50, but estimated_impressions is dominated
     # by the second vehicle and is serialized in the same feature.
     assert asyncio.run(run()) == 0
+
+
+@pytest.mark.parametrize("snapshot_first", [True, False])
+@pytest.mark.parametrize("ledger_status", [None, "available", "paid", "reconciliation"])
+def test_disclosure_snapshot_and_fraud_review_share_trip_lock_order(
+    postgis_db_sessionmaker, snapshot_first, ledger_status,
+):
+    from sqlalchemy import text
+    from test_fraud_assessments import create_flag
+    from test_fraud_holds import build_review_graph
+    from test_mny03a_earnings_release import create_ledger
+
+    from app.models.payout import EarningsLedgerEntry
+    from app.services.disclosure import lock_trip_disclosure_snapshot
+    from app.services.fraud_holds import (
+        acknowledge_fraud_flag,
+        fraud_hold_counts,
+        lock_fraud_hold_scope,
+        lock_fraud_reconciliation_gate,
+        resolve_fraud_flag,
+    )
+
+    factory = postgis_db_sessionmaker
+    graph = build_review_graph(factory, "disclosure-fraud-overlap")
+    flag = create_flag(factory, graph)
+    confirmed = ledger_status in {"available", "paid"}
+    if confirmed:
+        create_ledger(factory, graph, status=ledger_status, amount="125.50")
+    outcome = "confirmed" if confirmed else "dismissed"
+
+    async def run():
+        async with factory() as setup:
+            await acknowledge_fraud_flag(setup, flag_id=flag.id, actor_user_id=graph.admin.id)
+            await setup.commit()
+        started = asyncio.Event()
+        follower_pid = None
+
+        async def snapshot(session):
+            await lock_trip_disclosure_snapshot(
+                session, tenant_id=graph.campaign.organization_id, campaign_id=graph.campaign.id
+            )
+
+        async def resolve(session):
+            await resolve_fraud_flag(
+                session, flag_id=flag.id, actor_user_id=graph.admin.id,
+                outcome=outcome, resolution_note="Reviewed overlapping snapshot",
+            )
+
+        async def follower():
+            nonlocal follower_pid
+            async with factory() as session:
+                follower_pid = await session.scalar(text("SELECT pg_backend_pid()"))
+                started.set()
+                if snapshot_first:
+                    if ledger_status == "reconciliation":
+                        await lock_fraud_reconciliation_gate(session, exclusive=True)
+                    await resolve(session)
+                else:
+                    await snapshot(session)
+                    counts = await fraud_hold_counts(session, graph.trip.id)
+                    assert sum(counts.values()) == (1 if confirmed else 0)
+                await session.commit()
+
+        async with factory() as leader:
+            if snapshot_first:
+                await snapshot(leader)
+            else:
+                if ledger_status == "reconciliation":
+                    await lock_fraud_reconciliation_gate(leader, exclusive=True)
+                await lock_fraud_hold_scope(leader, graph.trip.id)
+            task = asyncio.create_task(follower())
+            try:
+                await asyncio.wait_for(started.wait(), 5)
+                for _ in range(300):
+                    blocked = await leader.scalar(
+                        text("SELECT cardinality(pg_blocking_pids(:pid)) > 0"),
+                        {"pid": follower_pid},
+                    )
+                    if blocked:
+                        break
+                    await asyncio.sleep(0.01)
+                assert blocked, "the real transactions must overlap"
+                if snapshot_first:
+                    assert sum((await fraud_hold_counts(leader, graph.trip.id)).values()) == 1
+                else:
+                    await resolve(leader)
+                await leader.commit()
+                await asyncio.wait_for(task, 10)
+            finally:
+                if not task.done():
+                    task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+        async with factory() as session:
+            assert sum((await fraud_hold_counts(session, graph.trip.id)).values()) == (
+                1 if confirmed else 0
+            )
+            await resolve(session)
+            await session.commit()
+            reversals = list(await session.scalars(
+                select(EarningsLedgerEntry).where(
+                    EarningsLedgerEntry.source_fraud_flag_id == flag.id
+                )
+            ))
+            assert len(reversals) == (1 if confirmed else 0)
+            if reversals:
+                assert reversals[0].amount == Decimal("125.50")
+
+    asyncio.run(asyncio.wait_for(run(), 20))

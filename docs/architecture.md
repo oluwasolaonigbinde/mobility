@@ -1708,6 +1708,10 @@ evidence and atomic-activation contracts.
   decision. Retroactive dates, changed retries and stale snapshots fail closed;
   accepted bindings and event history are never rewritten. Advertiser and
   admin surfaces expose the same governed request and decision evidence.
+  Campaign-change requests acquire the campaign-terms advisory, organization
+  FK `FOR KEY SHARE`, then campaign rows in that order. This matches issuance
+  ordering and prevents a dashboard disclosure snapshot (organization before
+  campaign) from deadlocking with change insertion; snapshot locks remain intact.
 - **Cancellation cutoff and settlement [BUILT — W2-03F] (Q24):** one
   advertiser-owned exact-retry command records the database-time cutoff under
   the campaign lock, cancels nonterminal assignments, releases reserved
@@ -3010,6 +3014,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.90 | 2026-09-14 | **Integrated CI correction.** Provision cold-runner Caddy and ordinary E2E MinIO explicitly; bind each shard to an exact, zero-skip JUnit execution inventory. D33 v3 receipts retain identical-source metadata-only floors and verify later coverage against adopted exact ratios rather than identical hit counts. Campaign-change FK locking follows campaign-terms, organization, campaign order. Disclosure snapshots take the existing exclusive fraud reconciliation gate before parent/contributor locks, preserving privacy and money authority at the cost of global snapshot serialization. Regression and local integrated evidence are recorded in the 13 September direct-owner continuation; final exact-SHA GitHub acceptance is required before closure. |
 | v1.89 | 2026-09-09 | **Coverage evidence bound to its producing runtime.** Exact-SHA run `34354263174` passed quality, the complete backend suite and R59, then exposed that the committed Python 3.14-derived coverage receipt cannot govern CI's Python 3.12 LCOV semantics and omitted seven same-commit font modules from its inventory. Backend artifacts now carry hash/SHA/runtime provenance; a reviewed, immutable-artifact-bound one-time v1/v2-to-v3 reconciliation records the complete inventory and CI measurements without changing D32 floors, eligibility, instrumentation or exclusions. Any later runtime mismatch fails closed. Exact-SHA coverage and E2E acceptance remain open. |
 | v1.88 | 2026-09-08 | **Owner correction P08 locally demonstrated.** File/access-bound upload retries, approval convergence, existing-campaign creative recovery, ordinary synthetic demo Start authority and durable email failure fairness pass focused red/green checks. Three browser workflows and seed/worker recovery pass. No new schema/public shape or live authority; integrated verification and the reserved final review remain open. |
 | v1.87 | 2026-09-08 | **Owner correction P07 locally demonstrated.** Durable End/generation fences, distinct cancellation authority, heading validation and retained signed partial dispositions pass focused backend/frontend checks and three synthetic browser regressions with red/green evidence. No migration or public shape change; physical-device and final integrated review gates remain. |

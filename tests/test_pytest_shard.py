@@ -3,6 +3,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -105,7 +108,23 @@ def _write_shard(
         "python_version": "3.12.1",
         "coverage_version": "7.16.0",
     }
+    execution = ET.Element("testsuites")
+    suite = ET.SubElement(
+        execution,
+        "testsuite",
+        name="pytest",
+        tests=str(len(assigned)),
+        failures="0",
+        errors="0",
+        skipped="0",
+    )
+    for nodeid in assigned:
+        classname, name = pytest_shard._execution_identity(nodeid)
+        ET.SubElement(suite, "testcase", classname=classname, name=name)
+    report = directory / "execution.xml"
+    ET.ElementTree(execution).write(report)
     manifest = {
+        "execution_sha256": hashlib.sha256(report.read_bytes()).hexdigest(),
         "version": 1,
         "candidate_sha": SHA,
         "shard_index": index,
@@ -199,3 +218,146 @@ def test_verify_rejects_correctly_hashed_malformed_coverage(tmp_path: Path) -> N
             candidate_sha=SHA, shard_count=2, artifacts_dir=str(tmp_path),
             receipt_output=str(tmp_path / "receipt.json"),
         ))
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "def test_one(): pass\ndef test_two(): pass",
+        "def test_one(): pass\ndef test_two(): assert False",
+        "import pytest\ndef test_one(): pass\n@pytest.mark.skip(reason='probe')\n"
+        "def test_two(): pass",
+        "import pytest\ndef test_one(): pass\n@pytest.mark.xfail(reason='probe')\n"
+        "def test_two(): assert False",
+        "import pytest\n@pytest.fixture\ndef broken(): raise RuntimeError('setup')\n"
+        "def test_one(): pass\ndef test_two(broken): pass",
+        "import pytest\n@pytest.fixture\ndef broken():\n yield\n raise RuntimeError('teardown')\n"
+        "def test_one(): pass\ndef test_two(broken): pass",
+    ],
+)
+def test_finalize_rejects_incomplete_or_unsuccessful_real_execution(tmp_path, body):
+    suite = tmp_path / "tests"
+    suite.mkdir()
+    (suite / "test_probe.py").write_text(body)
+    report = tmp_path / "execution.xml"
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "--junitxml",
+            str(report),
+            *(
+                ["-k", "test_one"]
+                if body.startswith("def test_one(): pass\ndef") and "assert False" not in body
+                else []
+            ),
+            "tests",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        check=False,
+    )
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "assigned_nodeids": [
+                    "tests/test_probe.py::test_one",
+                    "tests/test_probe.py::test_two",
+                ],
+            }
+        )
+    )
+    raw = tmp_path / ".coverage.0"
+    raw.write_bytes(b"coverage")
+    with pytest.raises(pytest_shard.ShardError, match="execution"):
+        pytest_shard.finalize(
+            argparse.Namespace(
+                manifest=str(manifest),
+                coverage_file=str(raw),
+                elapsed_seconds=1,
+                execution_report=str(report),
+            )
+        )
+
+
+def test_real_junit_preserves_class_and_parameter_identity(tmp_path):
+    suite = tmp_path / "tests"
+    suite.mkdir()
+    (suite / "test_probe.py").write_text(
+        "import pytest\ndef test_plain(): pass\nclass TestGroup:\n"
+        " @pytest.mark.parametrize('value', [1], ids=['a.b::c[quoted]'])\n"
+        " def test_parameter(self, value): assert value == 1\n"
+    )
+    report = tmp_path / "execution.xml"
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "--junitxml", str(report), "tests"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (
+        pytest_shard.verify_execution(
+            report,
+            [
+                "tests/test_probe.py::test_plain",
+                "tests/test_probe.py::TestGroup::test_parameter[a.b::c[quoted]]",
+            ],
+        )
+        == 2
+    )
+
+
+@pytest.mark.parametrize(
+    "change", ["missing", "duplicate", "unexpected", "skipped", "error", "malformed"]
+)
+def test_aggregate_rejects_rehashed_invalid_execution(tmp_path, change):
+    inventory = ["tests/test_a.py::test_one", "tests/test_b.py::test_two"]
+    _write_shard(tmp_path, index=0, inventory=inventory, assigned=inventory[:1])
+    manifest_path = _write_shard(tmp_path, index=1, inventory=inventory, assigned=inventory[1:])
+    report = manifest_path.parent / "execution.xml"
+    tree = ET.parse(report)
+    suite = tree.getroot().find("testsuite")
+    case = suite.find("testcase")
+    if change == "missing":
+        suite.remove(case)
+        suite.set("tests", "0")
+    elif change == "duplicate":
+        suite.append(ET.fromstring(ET.tostring(case)))
+        suite.set("tests", "2")
+    elif change == "unexpected":
+        case.set("name", "test_wrong")
+    elif change in ("skipped", "error"):
+        ET.SubElement(case, change)
+    tree.write(report)
+    if change == "malformed":
+        report.write_text("broken XML")
+    manifest = json.loads(manifest_path.read_text())
+    manifest["execution_sha256"] = hashlib.sha256(report.read_bytes()).hexdigest()
+    manifest_path.write_text(json.dumps(manifest))
+    with pytest.raises(pytest_shard.ShardError, match="execution"):
+        pytest_shard.verify(
+            argparse.Namespace(
+                candidate_sha=SHA,
+                shard_count=2,
+                artifacts_dir=str(tmp_path),
+                receipt_output=str(tmp_path / "receipt.json"),
+            )
+        )
+
+
+def test_execution_rejects_real_collection_error(tmp_path):
+    (tmp_path / "test_broken.py").write_text("raise RuntimeError('collection probe')")
+    report = tmp_path / "execution.xml"
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "--junitxml", str(report)],
+        cwd=tmp_path,
+        capture_output=True,
+    )
+    assert result.returncode != 0
+    with pytest.raises(pytest_shard.ShardError, match="execution"):
+        pytest_shard.verify_execution(report, ["test_broken.py::test_one"])

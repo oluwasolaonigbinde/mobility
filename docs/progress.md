@@ -117,8 +117,108 @@ CI-throughput continuation (12 Sep 2026): run `34690115628` on `2a3f7e0` failed 
 
 ## Direct owner requests outside the package queue
 
+Local verification stabilized (14 Sep): 172 real PostgreSQL/reporting/privacy/
+recovery/reconciliation tests PASS; 127 CI-authority/policy tests PASS; eight real
+Caddy/CSP browser cases PASS; the original missing shard's 463 tests PASS under
+Python 3.12. Fresh one-worker and five-worker real-stack browsers each: 96 PASS,
+18 conditional skips, zero failures/retries. Ruff, frontend lint/typecheck, runtime OpenAPI drift,
+pre-production static checks, progress validation and final diff checks PASS.
+Controlled D33 refresh and verification PASS: changed eligible lines 4/4,
+backend 25279/28518 lines and 4623/6770 branches; frontend 3247/4977 lines and
+2736/5442 branches. Floors only ratchet upward. Sol/medium consolidated and
+money/privacy/security/concurrency review found no substantive implementation
+finding; local closure checks pass and exact-SHA GitHub results remain the final gate.
+All 23 entry-state user/review files remain hash-identical. The controller's
+later admin-UX authorization row remains an unrelated unstaged ledger change.
+
+Ordinary E2E retained skips (18 explicit cases, not exercised behavior):
+
+| Specification / case | Skipped project(s) | Required boundary |
+| --- | --- | --- |
+| `auth.spec.ts` — admin-created driver changes password inside the driver PWA scope | chromium | mobile driver scenario |
+| `auth.spec.ts` — admin-created advertiser must replace the temporary password | mobile-chrome | desktop portal scenario |
+| `auth.spec.ts` — repeated login failures surface the 429 retry message | mobile-chrome | one project only — the IP and global buckets are shared |
+| `correction-offline-evidence.spec.ts` — lost End response drains the current deferred batch before reconciliation | chromium, mobile-chrome | requires the bounded local P07 fault fixture |
+| `correction-offline-evidence.spec.ts` — visibility completion and late GPS callbacks cannot cross the frozen End | chromium, mobile-chrome | requires the bounded local P07 fault fixture |
+| `correction-offline-evidence.spec.ts` — partial acknowledgement remains encrypted and settled across reload | chromium, mobile-chrome | requires the bounded local P07 fault fixture |
+| `correction-workflows.spec.ts` — person-payee replacement after failure uploads the selected file | chromium, mobile-chrome | Explicit synthetic workflow fixture only |
+| `correction-workflows.spec.ts` — vehicle replacement after failure uploads the selected file | chromium, mobile-chrome | Explicit synthetic workflow fixture only |
+| `correction-workflows.spec.ts` — campaign attachment recovery survives reload without another campaign | chromium, mobile-chrome | Explicit synthetic workflow fixture only |
+| `evidence-verification.spec.ts` — ops queues a physical check and sends failure into the fraud hold | chromium, mobile-chrome | synthetic assignment and trip IDs are required |
+| `notifications.spec.ts` — advertiser changes the shared email preference while in-app stays mandatory | mobile-chrome | serialize the persistent preference mutation |
+
+Consolidated continuation evidence (14 Sep, before push): latest failure was an
+absent cold-runner Caddy image; five backend shards and R59 had already passed,
+so their downstream skips were unexecuted gates, not passes. Older failures span
+Python coverage-runtime mismatch, receipt hit-count equality, nondeterministic
+coverage paths, missing synthetic E2E authority, shared browser fixtures and
+container registry denial. Serial browsers alone did not prove concurrency:
+a real dashboard/change deadlock was reproduced and corrected below. A second
+five-worker run exposed approval-test reload before mutation completion; await
+the visible completion before the existing reload/persistence assertion.
+
+Additional Sol/medium policy review PASS: normal v3 source-changing receipts
+still adopt measured floors. Subsequent measurements may improve, but must meet
+both trusted and adopted exact ratios; metric counts/percentages/totals and all
+immutable provenance fields remain validated. Legacy D36 reconciliation stays
+unchanged. Above-floor receipt-equality regression was observed red then green.
+No coverage floor, changed-code requirement, source eligibility or instrumentation
+was lowered. Current local coverage is explicitly a source-bound diagnostic
+composition: five 13da317 GitHub artifacts plus the completed missing shard for
+unchanged files, and fresh Python 3.12 tests solely for the two changed
+modules (campaign changes and disclosure). It is not relabeled as final candidate shard evidence; exact-SHA GitHub
+execution/coverage artifacts remain the authoritative closure gate.
+
+Second concurrency correction reviewed by Sol/medium: the real snapshot/fraud
+cycle is trip-row then fraud-advisory versus advisory then row. Merely moving
+trip advisories below campaign rows would still deadlock confirmed-fraud
+recovery on its campaign FK. Reuse the existing **exclusive** fraud reconciliation
+gate before snapshot parent/contributor locks, preserving every native snapshot
+lock and campaign-terms-before-gate order. This serializes snapshot transactions
+across tenants and fraud/money reconciliation; no tenant-local throughput claim.
+All eight service call sites were inspected for prior shared-gate/row ownership.
+Verify both orders, dismissal/confirmed recovery, reconciliation, rollback/retry
+and existing privacy phantom protection before final acceptance.
+
+Product correction admitted by Sol/medium privacy/money/concurrency review:
+real concurrent dashboard and campaign-change calls deadlock because disclosure
+locks organization then campaign, while change insertion holds campaign then
+requests the organization FK lock. Pre-acquire that existing organization
+`FOR KEY SHARE` protection after advertiser authorization and the campaign
+terms advisory, but before campaign row locks; preserve disclosure snapshot locks and all financial rules.
+Verify bounded PostgreSQL writer/reader ordering, rollback, exact retry and
+uniqueness, then repeat browser concurrency and ordinary acceptance.
+
+
+Plan amendments accepted by the same Sol/medium reviewer: provision ordinary
+E2E's implicit MinIO dependency from the identical Quay digest; refresh the
+workflow-bound coverage receipt through D33. For an identical v3 source hash,
+inventory, runtime and named-critical membership, preserve the adopted metric
+floors during metadata-only refresh while still checking actual measurements
+against every floor. Changed sources retain the ordinary ratchet. This removes
+incidental race-path high-water marks from infrastructure-only receipt updates;
+it introduces no tolerance, floor reduction, exclusion or legacy reconciliation.
+
+
+CI acceptance continuation contract (13 Sep): **Review-Required** for CI authority,
+shared-state concurrency and CSP security evidence. Sole writer Astra/high;
+independent reviewer `ci_review` is Sol/medium as explicitly authorized by owner,
+review-only for the plan and stabilized integrated diff, including applicable
+security/concurrency boundaries. Existing CI workflow is the entry point.
+Correct demonstrated dependency/cache failures and verify shard **execution**
+against planned inventory using existing pytest reports, then validate combined
+coverage and ordinary real-stack browsers. Keep test inventory/assertions,
+D32/D33/D36 floors, isolation, product authority and external gates intact.
+Any demonstrated product defect receives a concrete amended review packet before
+editing. Acceptance requires regression red/green, real integration evidence,
+no actionable review finding, and frontend/backend/coverage/R59/ordinary E2E
+passing on one exact pushed revision. Owner already authorizes implementation,
+owned commit and fast-forward push; no new approval gate is inferred.
+
+
 | Date | Item | Authority | Scope boundary | Queue effect |
 | --- | --- | --- | --- | --- |
+| 13 Sep 2026 | **Resolve recurring integrated CI failures end to end.** | Direct owner request in task `01a09cdc-9ae6-70e0-b967-93d3da979bdc`; sole Astra/high implementation in existing `master`, one Sol/medium review-only agent, bounded non-force commit/push authorized | Investigate and correct demonstrated causes across product, fixtures, isolation/concurrency, runtime/dependencies, coverage, sharding, workflows and real-stack browsers. Preserve D32/D33/D36 floors and test authority, unrelated review sources and protected provenance; no deployment/live-provider operations. | Continuation IN PROGRESS outside package queue; PKG-03 external pause unchanged. Entry HEAD and fetched origin/master `13da317087aa5aa7b56bc51aad535bca90547aa3`; predecessor inactive, controller idle. Latest run `34690537163`: frontend/static/R59 and five shards passed; shard 5 failed eight absent-Caddy-image cases, aggregate failed closed, coverage/E2E skipped. Admin-UX controller notified to retain review-only preparation through exact-SHA acceptance. Before closure: independent plan and consolidated/specialist review, regression red/green, complete GitHub shard execution/coverage proof and all required gates on exact pushed revision; then notify controller that write freeze is released. |
 | 12 Sep 2026 | **Remove the 69–76 minute backend CI bottleneck before continuing exact-SHA acceptance.** | Direct project-owner instruction to stop repeating the multi-day serial wait and fix the gate itself, 12 Sep 2026 | May change only the CI backend-test topology, deterministic shard selection/coverage aggregation, their contract tests, the already-required deterministic driver-greeting regression, and this evidence record. Every collected backend case must execute exactly once across isolated real-integration runners; zero-skip authority, PostgreSQL/PostGIS, Redis, MinIO, ClamAV, combined LCOV provenance, unchanged R17 floors, quality, R59 and ordinary real-stack E2E remain mandatory. No product/API/schema/migration/provider/live-use behavior or coverage exclusion may change. | Adds a bounded CI-throughput correction outside the completed package queue and does not move the PKG-03 external pause. Six isolated shards plus fail-closed aggregate implemented; independent plan and consolidated post-build reviews PASS. Missing-shard mutation rejected; correctly hashed malformed coverage regression observed red then green after requiring readable, nonempty branch CoverageData. 107 focused tests, Ruff, progress validation, shell/YAML/diff checks, pre-production static verification and frontend lint/typecheck/656 coverage tests PASS. Refreshed collection: 2,780 node IDs in 235 files, balanced 464/464/463/463/463/463. Reviewer retry reconciles the usage-limit interruption. Remaining exact-SHA gate: after push, measure workflow-start-to-backend completion, require materially shorter wall time and all five acceptance gates to execute/pass; no speed or release-readiness claim before that evidence. |
 | 6 Sep 2026 | **Execute the reviewed post-remediation correction programme, C01–C37 and H07.** | Owner's exact `APPROVE IMPLEMENTATION OF THE REVIEWED PACKETS` in the existing Astra controller, following aggregate contract V3 plan-review PASS and the frozen two-macro-phase execution amendment | The existing Astra controller implements directly; no implementation subagents or initial handoff. Exactly two further Sol/medium review-only subagents: one complete Macro-Phase A review, then one fresh final specialist/consolidated review. This explicit owner amendment replaces intermediate specialist dispatches and earlier concurrency/model preferences for this programme only. No commit, push, merge, deployment or external-system contact is authorized. | Authorizes the bounded correction register below without changing the ten-package queue, original checklist, R01–R60 history or PKG-03 external pause. |
 | 5 Sep 2026 | **Adopt R17 Option A: a changed-code coverage ratchet with at least 90% line and 80% branch coverage, plus no regression from exact current global and named-critical baselines.** | Direct project-owner choice “A” in the active remediation controller, 5 Sep 2026 | R17 must select its comparison base deterministically for PRs, pushes and local runs; fail closed to an explicit merge-base rule; exclude generated code, tests, fixtures, migrations, build output and vendor code. It may add only the minimum backend/frontend coverage tooling, policy tests, workflow wiring and a D27(e)-superseding decision row after an independent plan review. It must inventory and reuse existing tooling and must not duplicate R59's real-stack journey or evidence. | Clears the R17 policy block and authorizes read-only R17 planning now. Implementation remains serialized until R59 releases `.github/workflows/ci.yml`; R60 remains dependency-held until both R17 and R59 are accepted. |

@@ -440,12 +440,16 @@ cross-store request procedure is in `docs/data-subject-request-runbook.md`.
 
 ## Local Playwright reset and overrides
 
-Playwright runs projects fully in parallel. Use a clean persistent database and relaxed local test thresholds:
+Ordinary Playwright CI runs the two projects with one worker because they share
+mutable demo accounts and flags. Use a disposable Compose project, fresh demo
+data and the synthetic E2E authority override; concurrent-user correctness is
+also checked with dedicated PostgreSQL overlap tests. For local demo data only:
 
 ```bash
 docker compose down -v
 export LOGIN_RATE_LIMIT_ACCOUNT_MAX_FAILURES=50
 export LOGIN_RATE_LIMIT_IP_MAX_FAILURES=500
+export COMPOSE_FILE=docker-compose.yml:frontend/e2e/support/docker-compose.e2e.yml
 docker compose up -d
 docker compose exec -T api alembic upgrade head
 docker compose exec -T api python -m app.seeds.demo

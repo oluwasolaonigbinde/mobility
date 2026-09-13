@@ -81,7 +81,7 @@ test("fraud review moves an isolated open flag through acknowledgement to dismis
   // different row so their state transitions cannot race with one another.
   const projectRow = testInfo.project.name === "mobile-chrome" ? 1 : 0;
   const acknowledge = page.getByRole("button", { name: "Acknowledge" }).nth(projectRow);
-  test.skip(!(await acknowledge.isVisible().catch(() => false)), "No isolated seeded open flag");
+  await expect(acknowledge, "the required seeded open flag must render").toBeVisible();
 
   const card = acknowledge.locator(
     'xpath=ancestor::*[starts-with(@data-testid, "fraud-flag-")][1]',

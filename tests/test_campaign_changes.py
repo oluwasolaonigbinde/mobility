@@ -2,6 +2,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
+import pytest
 from conftest import (
     auth_headers,
     create_test_campaign,
@@ -551,3 +552,147 @@ def test_funding_and_change_approval_serialize_without_overauthorization_pg(
     assert binding.campaign_window_end_at == campaign.end_at
     assert binding.campaign_window_end_at != requested_end
     assert binding_count == 1
+
+
+@pytest.mark.parametrize("rollback", [False, True])
+def test_postgres_campaign_change_and_disclosure_snapshot_do_not_deadlock(
+    postgis_db_sessionmaker, monkeypatch, rollback,
+):
+    from sqlalchemy import text
+
+    from app.services import campaign_changes
+    from app.services.disclosure import lock_trip_disclosure_snapshot
+
+    _, advertiser, campaign = change_graph(postgis_db_sessionmaker, "snapshot-overlap")
+    payload = CampaignChangeCreate(
+        client_request_id=uuid4(), budget_amount="1200.00", reason="Reviewed extra budget"
+    )
+
+    async def run():
+        locked, reader_started = asyncio.Event(), asyncio.Event()
+        original = campaign_changes._locked_campaign
+        reader_pid = None
+
+        async def hold_writer(session, campaign_id):
+            result = await original(session, campaign_id)
+            locked.set()
+            await reader_started.wait()
+            async with postgis_db_sessionmaker() as observer:
+                for _ in range(300):
+                    blocked = await observer.scalar(
+                        text("SELECT cardinality(pg_blocking_pids(:pid)) > 0"),
+                        {"pid": reader_pid},
+                    )
+                    if blocked:
+                        break
+                    await asyncio.sleep(0.01)
+                assert blocked, "snapshot must overlap and wait on the writer"
+            return result
+
+        monkeypatch.setattr(campaign_changes, "_locked_campaign", hold_writer)
+
+        async def writer():
+            async with postgis_db_sessionmaker() as session:
+                result = await request_campaign_change(
+                    session, actor_user_id=advertiser.id, campaign_id=campaign.id, payload=payload
+                )
+                if rollback:
+                    await session.rollback()
+                else:
+                    await session.commit()
+                return result.id
+
+        async def reader():
+            nonlocal reader_pid
+            await locked.wait()
+            async with postgis_db_sessionmaker() as session:
+                reader_pid = await session.scalar(text("SELECT pg_backend_pid()"))
+                reader_started.set()
+                await lock_trip_disclosure_snapshot(
+                    session, tenant_id=campaign.organization_id, campaign_id=campaign.id
+                )
+                amount = (await session.get(Campaign, campaign.id)).budget_amount
+                await session.commit()
+                return amount
+
+        request_id, amount = await asyncio.wait_for(asyncio.gather(writer(), reader()), 15)
+        assert str(amount) == ("1000.00" if rollback else "1200.00")
+        monkeypatch.setattr(campaign_changes, "_locked_campaign", original)
+        async with postgis_db_sessionmaker() as session:
+            retry = await request_campaign_change(
+                session, actor_user_id=advertiser.id, campaign_id=campaign.id, payload=payload
+            )
+            await session.commit()
+            if not rollback:
+                assert retry.id == request_id
+            count = await session.scalar(select(func.count()).select_from(CampaignChangeRequest))
+            assert count == 1
+
+    asyncio.run(run())
+    events = [event.action for event in fetch_audit_events(postgis_db_sessionmaker)]
+    assert events.count("advertiser.campaign_change.requested") == 1
+    assert events.count("campaign.change.applied") == 1
+
+
+@pytest.mark.parametrize("issuance", [False, True])
+def test_postgres_campaign_change_waits_for_an_existing_disclosure_snapshot(
+    postgis_db_sessionmaker, issuance,
+):
+    from sqlalchemy import text
+
+    from app.services.disclosure import lock_trip_disclosure_snapshot
+    from app.services.payout_rule_serialization import acquire_campaign_terms_lock
+
+    _, advertiser, campaign = change_graph(postgis_db_sessionmaker, "snapshot-first")
+    payload = CampaignChangeCreate(
+        client_request_id=uuid4(), budget_amount="1200.00", reason="Extra approved budget"
+    )
+
+    async def run():
+        started = asyncio.Event()
+        writer_pid = None
+
+        async def writer():
+            nonlocal writer_pid
+            async with postgis_db_sessionmaker() as session:
+                writer_pid = await session.scalar(text("SELECT pg_backend_pid()"))
+                started.set()
+                result = await request_campaign_change(
+                    session, actor_user_id=advertiser.id, campaign_id=campaign.id, payload=payload
+                )
+                await session.commit()
+                return result.status
+
+        async with postgis_db_sessionmaker() as reader:
+            if issuance:
+                await acquire_campaign_terms_lock(reader, campaign.id)
+            else:
+                await lock_trip_disclosure_snapshot(
+                    reader, tenant_id=campaign.organization_id, campaign_id=campaign.id
+                )
+            task = asyncio.create_task(writer())
+            try:
+                await asyncio.wait_for(started.wait(), 5)
+                for _ in range(300):
+                    blocked = await reader.scalar(
+                        text("SELECT cardinality(pg_blocking_pids(:pid)) > 0"), {"pid": writer_pid}
+                    )
+                    if blocked:
+                        break
+                    await asyncio.sleep(0.01)
+                assert blocked
+                if issuance:
+                    await lock_trip_disclosure_snapshot(
+                        reader, tenant_id=campaign.organization_id, campaign_id=campaign.id
+                    )
+                assert str((await reader.get(Campaign, campaign.id)).budget_amount) == "1000.00"
+                await reader.commit()
+                assert await asyncio.wait_for(task, 10) == "applied"
+            finally:
+                if not task.done():
+                    task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+        async with postgis_db_sessionmaker() as session:
+            assert str((await session.get(Campaign, campaign.id)).budget_amount) == "1200.00"
+
+    asyncio.run(run())

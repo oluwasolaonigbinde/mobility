@@ -279,7 +279,9 @@ def test_backend_matrix_is_six_disjoint_fail_complete_shards(workflow: dict) -> 
     run = "\n".join(str(step.get("run", "")) for step in job["steps"])
     assert "scripts/pytest_shard.py plan" in run
     assert '--shard-count 6' in run
-    assert 'coverage run -m pytest -- "${shard_files[@]}"' in run
+    assert (
+        'coverage run -m pytest --junitxml="$shard_dir/execution.xml" -- "${shard_files[@]}"' in run
+    )
     assert "mapfile -t shard_files" in run
     upload = next(step for step in job["steps"] if step.get("uses") == "actions/upload-artifact@v4")
     assert upload["with"]["include-hidden-files"] is True
@@ -358,3 +360,20 @@ def test_backend_pulls_identical_minio_digests_before_startup(
         pull = f"docker pull {source}"
         local_tag = f"docker tag {source} minio/{image}:{tag}"
         assert run.index(pull) < run.index(local_tag) < run.index(startup)
+
+
+def test_backend_provisions_caddy_before_authoritative_tests(workflow):
+    steps = workflow["jobs"]["backend_tests"]["steps"]
+    commands = "\n".join(step.get("run", "") for step in steps)
+    assert commands.index("docker pull caddy:2.8-alpine") < commands.index("coverage run -m pytest")
+
+
+def test_ordinary_e2e_provisions_its_implicit_minio_dependency(workflow):
+    steps = workflow["jobs"]["e2e"]["steps"]
+    run = next(step["run"] for step in steps if step.get("name", "").startswith("Boot backend"))
+    image = (
+        "quay.io/minio/minio@sha256:"
+        "d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0"
+    )
+    assert run.index(f"docker pull {image}") < run.index(f"docker tag {image}")
+    assert run.index(f"docker tag {image}") < run.index("docker compose up")

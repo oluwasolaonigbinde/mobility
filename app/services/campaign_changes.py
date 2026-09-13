@@ -17,6 +17,7 @@ from app.models.campaign_change import (
     CampaignChangeRevision,
     CampaignChangeStatus,
 )
+from app.models.organization import AdvertiserOrganization
 from app.models.payout import AssignmentRuleBinding
 from app.schemas.campaign_changes import CampaignChangeCreate
 from app.services.admin_authorization import require_active_admin
@@ -301,6 +302,12 @@ async def request_campaign_change(
         session, actor_user_id, require_write=True
     )
     await acquire_campaign_terms_lock(session, campaign_id)
+    # Take the organization FK lock before campaign rows, matching disclosure snapshots.
+    await session.execute(
+        select(AdvertiserOrganization.id)
+        .where(AdvertiserOrganization.id == organization.id)
+        .with_for_update(read=True, key_share=True)
+    )
     campaign = await _locked_campaign(session, campaign_id)
     if campaign.organization_id != organization.id:
         raise _error("CAMPAIGN_NOT_FOUND", "Campaign was not found", 404)

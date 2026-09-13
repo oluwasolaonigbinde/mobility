@@ -748,3 +748,114 @@ def test_runtime_reconciliation_rejects_tampered_evidence_and_reuse(tmp_path: Pa
     )
     assert reused.returncode == 1
     assert "one-time" in reused.stderr
+
+
+def test_policy_only_refresh_preserves_adopted_floors_and_rejects_regression(tmp_path):
+    repo, base, baseline, reports, _ = _refresh_repository(tmp_path)
+    reports(uncovered=True)
+    backend = repo / "coverage/backend.lcov"
+    frontend = repo / "coverage/frontend.lcov"
+    attestation, provenance = _runtime_reconciliation_evidence(repo, base, backend, frontend)
+    result = _runtime_reconcile(repo, base, baseline, backend, frontend, attestation)
+    assert result.returncode == 0, result.stderr
+    _run(["git", "add", "."], repo)
+    _run(["git", "commit", "--quiet", "-m", "trusted runtime floors"], repo)
+    base = _run(["git", "rev-parse", "HEAD"], repo).strip()
+    trusted = json.loads(baseline.read_text())
+    (repo / ".github/workflows/ci.yml").write_text("name: changed test provisioning\n")
+
+    def check(refresh=False):
+        producer = json.loads(provenance.read_text())
+        producer["candidate_sha"] = base
+        producer["lcov_sha256"] = hashlib.sha256(backend.read_bytes()).hexdigest()
+        provenance.write_text(json.dumps(producer))
+        command = [
+            sys.executable, "-S", str(CHECKER), "--repo-root", str(repo), "--base", base,
+            "--backend-lcov", str(backend), "--frontend-lcov", str(frontend),
+            "--baseline", str(baseline), "--verify-baseline-provenance",
+            "--backend-provenance", str(provenance),
+        ]
+        if refresh:
+            command += ["--refresh-baseline", "Reviewed provisioning-only correction"]
+        return subprocess.run(command, capture_output=True, text=True)
+
+    reports()
+    refreshed = check(refresh=True)
+    assert refreshed.returncode == 0, refreshed.stderr
+    receipt = json.loads(baseline.read_text())
+    assert receipt["global"] == trusted["global"]
+    assert receipt["critical"] == trusted["critical"]
+    assert receipt["policy_sha256"] != trusted["policy_sha256"]
+    reports(uncovered=True)
+    exact = check()
+    assert exact.returncode == 0, exact.stderr
+    backend.write_text(backend.read_text().replace("DA:1,1", "DA:1,0"))
+    below = check()
+    assert below.returncode == 1
+    assert "regressed" in below.stderr
+    reports()
+    altered = json.loads(baseline.read_text())
+    altered["global"]["line_covered"] += 1
+    baseline.write_text(json.dumps(altered))
+    assert check().returncode == 1
+    baseline.write_text(json.dumps(receipt))
+    (repo / "app/sample.py").write_text("def value(flag):\n    return 2\n")
+    changed_source = check(refresh=True)
+    assert changed_source.returncode == 0, changed_source.stderr
+    assert json.loads(baseline.read_text())["global"]["line_percent"] == 100
+
+
+def test_v3_refresh_verifies_adopted_ratios_instead_of_repeating_hit_counts(tmp_path):
+    repo, base, baseline, reports, _ = _refresh_repository(tmp_path)
+    reports(uncovered=True)
+    backend, frontend = repo / 'coverage/backend.lcov', repo / 'coverage/frontend.lcov'
+    attestation, provenance = _runtime_reconciliation_evidence(repo, base, backend, frontend)
+    assert _runtime_reconcile(repo, base, baseline, backend, frontend, attestation).returncode == 0
+    _run(['git', 'add', '.'], repo)
+    _run(['git', 'commit', '--quiet', '-m', 'trusted floors'], repo)
+    base = _run(['git', 'rev-parse', 'HEAD'], repo).strip()
+    (repo / 'app/sample.py').write_text('def value(flag):\n    return 2\n')
+
+    def check(refresh=False):
+        producer = json.loads(provenance.read_text())
+        producer.update(
+            candidate_sha=base, lcov_sha256=hashlib.sha256(backend.read_bytes()).hexdigest()
+        )
+        provenance.write_text(json.dumps(producer))
+        command = [sys.executable, str(CHECKER), '--repo-root', str(repo), '--base', base,
+                   '--backend-lcov', str(backend), '--frontend-lcov', str(frontend),
+                   '--baseline', str(baseline), '--backend-provenance', str(provenance),
+                   '--verify-baseline-provenance']
+        if refresh:
+            command += ['--refresh-baseline', 'Reviewed source correction']
+        return subprocess.run(command, text=True, capture_output=True)
+
+    _write_lcov(backend, {
+        str(repo / 'app/sample.py'): ({1: 1, 2: 1}, {}),
+        str(repo / 'app/removed.py'): ({1: 1, 2: 0}, {}),
+    })
+    refreshed = check(True)
+    assert refreshed.returncode == 0, refreshed.stderr
+    adopted = json.loads(baseline.read_text())
+    assert adopted['global']['line_covered'] == 4
+    assert check().returncode == 0
+    reports()
+    improved = check()
+    assert improved.returncode == 0, improved.stderr
+    reports(uncovered=True)
+    assert check().returncode == 1  # meets trusted floor, but not newly adopted floor
+    reports()
+    mutations = [
+        ('global', 'line_covered', 2), ('global', 'line_percent', 79),
+        ('global', 'line_total', 6), ('global', 'branch_covered', True),
+        ('global', 'unknown', 1), ('critical', 'backend', {}),
+        (None, 'source_sha256', '0' * 64), (None, 'policy_sha256', '0' * 64),
+        (None, 'source_parent_sha', '0' * 40), (None, 'backend_runtime', {}),
+        (None, 'eligible_inventory_sha256', '0' * 64), (None, 'unknown', 1),
+    ]
+    for section, key, value in mutations:
+        changed = json.loads(json.dumps(adopted))
+        (changed if section is None else changed[section])[key] = value
+        baseline.write_text(json.dumps(changed))
+        assert check().returncode == 1, (section, key)
+    baseline.write_text(json.dumps(adopted))
